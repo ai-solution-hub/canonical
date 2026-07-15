@@ -10,8 +10,9 @@ over this doc if they ever disagree.
 
 ## Input modes (record-creating commands)
 
-Every record-creating command (`create-theme`, `create-backlog`, `open-task`,
-`promote`) accepts three input modes:
+Every record-creating command (`create-backlog`, `open-task`, `promote`)
+accepts three input modes (`create-theme` is **RETIRED** — see the
+landed-state note in SKILL.md):
 
 - **positional JSON** — `create-backlog '<itemJson>'`
 - **`--file <path>`** — `--file -` reads stdin
@@ -25,8 +26,10 @@ Pick by payload complexity: named flags for small Creates; positional JSON or
 The server substrate runs these in order. Any failure → exit 1, nothing written,
 error envelope on stderr:
 
-1. **Schema parse** — Zod parse on the proposed post-write document. Roadmap +
-   task schemas are `.strict()`; extra fields fail here. Code: `schema-error`.
+1. **Schema parse** — Zod parse on the proposed post-write document. Task
+   schemas (and, out of this skill's scope, the `initiatives-schema.ts`
+   vendored twin) are `.strict()`; extra fields fail here. Code:
+   `schema-error`.
 2. **Record-set delta gate** — the post-write id-set must equal the
    pre-write set under the intended delta (∅ / +1 / −1). Catches silent drops
    or duplicates. Code: `record-set-violation`.
@@ -40,12 +43,15 @@ error envelope on stderr:
    deprecated no-op alias.
 
 **Exit envelope.** Success: exit 0, JSON envelope on stdout
-(`{"ok":true,"result":{…},"warnings":[…]}`). Soft warnings — including the
-roadmap 13-theme soft-cap and any `parse*WithWarnings` output — arrive in
-`warnings[]`; no separate parse invocation is needed. Failure: exit 1, error
-envelope on stderr. Codes: `schema-error`, `walk-error`, `duplicate-id`,
-`record-not-found`, `budget-exceeded`, `record-set-violation`, `unknown-theme`
-(bad `--capability-theme`).
+(`{"ok":true,"result":{…},"warnings":[…]}`). Soft warnings (the roadmap
+13-theme soft-cap is retired, no analog) — any `parse*WithWarnings` output —
+arrive in `warnings[]`; no separate parse invocation is needed. Failure: exit
+1, error envelope on stderr. Codes: `schema-error`, `walk-error`,
+`duplicate-id`, `record-not-found`, `budget-exceeded`, `record-set-violation`;
+`retired-verb`/`retired-flag` for any retired command/flag (`update-roadmap`,
+`create-theme`, `update-umbrella`, `show|list roadmap|umbrellas`,
+`--capability-theme`) — `unknown-theme` is moot now that `--capability-theme`
+itself is retired.
 
 ## Field budgets (`LEDGER_BUDGETS`)
 
@@ -59,20 +65,22 @@ journal home).
 | `task` | `status_note` | 300 |
 | `subtask` | `description` | 250 |
 | `subtask` | `testStrategy` | 300 |
-| `theme` | `description` | 1500 |
-| `theme` | `notes` | 300 |
 | `item` (backlog) | `title` | 80 |
 | `item` (backlog) | `description` | 500 |
+
+`theme` (`description` 1500, `notes` 300) is **RETIRED** with the roadmap
+ledger — no analog on the initiatives/projects surface; out of this skill's
+scope.
 
 Authoritative discipline: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md`
 §2/§3. Compose within budget; `--force` is not a routine escape.
 
 ## Auto-id is local-only
 
-Omitting `--id` on `create-theme` / `create-backlog` allocates
-`max(existingIds)+1` as a STRING — **local to the current branch only**. For
-roadmap themes and backlog items this is usually fine. For forward Tasks it is
-NOT (see cross-branch MAX-ID below). Subtask auto-ids are likewise local-only.
+Omitting `--id` on `create-backlog` allocates `max(existingIds)+1` as a
+STRING — **local to the current branch only**. For backlog items this is
+usually fine. For forward Tasks it is NOT (see cross-branch MAX-ID below).
+Subtask auto-ids are likewise local-only. (`create-theme` is **RETIRED**.)
 
 ## Cross-branch MAX-ID discipline (forward-Task `id` only)
 
@@ -98,15 +106,16 @@ surface. Every mutating command is minimal-diff (scoped) by default
 
 | Read | Command |
 |---|---|
-| Full record dump | `show <ledger> <id>` (ledger: `task\|roadmap\|backlog`) |
+| Full record dump | `show <ledger> <id>` (ledger: `task\|backlog\|initiatives`; `roadmap`/`umbrellas` are **RETIRED** `<ledger>` values — rejected before file read) |
 | Single field | `get <ledger> <id> <field>` (omit field = full dump) |
 | Schema + budgets | `schema [ledger\|recordKind]` |
+| Initiatives / projects | `show initiatives [id]`, `list initiatives`, `list projects [--initiative <id>]`, `show project <slug>` |
 
 Creates:
 
 | Target | Command |
 |---|---|
-| Roadmap theme | `create-theme` |
+| ~~Roadmap theme~~ | ~~`create-theme`~~ **RETIRED** — use the initiatives `create-project <initiativePath>` verb (requires an existing initiative/sub-initiative path) |
 | Backlog item | `create-backlog` |
 | New top-level Task | `open-task` |
 | Backlog → Task (atomic) | `promote` |
@@ -115,7 +124,7 @@ Updates (single field per invocation):
 
 | Target | Command | Form |
 |---|---|---|
-| Roadmap theme — any field | `update-roadmap` | `update-roadmap <themeId> <field> <value>` |
+| ~~Roadmap theme — any field~~ | ~~`update-roadmap`~~ | **RETIRED** — use `update-project <slug> <field> <value>` (initiatives projects) |
 | Backlog item — any field | `update-backlog` | `update-backlog <itemId> <field> <value>` |
 | Task — any field except status | `update-task` | `update-task <taskId> <field> <value>` |
 | Task — status only | `flip-task` | `flip-task <taskId> <status>` |
@@ -149,10 +158,10 @@ enforced atomically — any over-budget record rejects the whole batch).
 
 ## Notes-append semantics
 
-`update-backlog <id> notes <value>` and `update-roadmap <id> notes <value>`
-**overwrite** by default. Pass `--append` to concatenate the incoming value onto
-the existing notes (newline-joined) — no manual read-concat-write. `--append` is
-notes-only (rejected on other fields).
+`update-backlog <id> notes <value>` **overwrites** by default (the sibling
+`update-roadmap notes` consumer is retired). Pass `--append` to concatenate
+the incoming value onto the existing notes (newline-joined) — no manual
+read-concat-write. `--append` is notes-only (rejected on other fields).
 
 ## Report blocks (return to the curator)
 
@@ -160,7 +169,7 @@ notes-only (rejected on other fields).
 
 ```yaml
 WRITE COMPLETE
-target: roadmap | backlog | task-list
+target: backlog | task-list   # `roadmap` target is RETIRED — see landed-state note
 file: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/<ledger>.json
 new_item_id: "{id}"
 section_id_or_track: "{section or track}"
@@ -170,9 +179,7 @@ provenance:
   source_task_id: "{value or null}"
   source_commit_sha: "{value or null}"
   session_counter: "{value}"
-umbrella_membership:   # only when umbrella_id supplied and destination is a Task
-  umbrella_id: "{id}" | null
-  task_ids_updated: true | false
+# umbrella_membership block RETIRED (update-umbrella returns retired-verb) — no replacement
 warnings: [...]        # mirror the CLI's warnings[] verbatim
 ```
 
@@ -180,7 +187,7 @@ warnings: [...]        # mirror the CLI's warnings[] verbatim
 
 ```yaml
 UPDATE COMPLETE
-target: roadmap | backlog | task | subtask
+target: backlog | task | subtask   # `roadmap` target is RETIRED — see landed-state note
 file: ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/<ledger>.json
 item_id: "{id}"
 fields_changed:
@@ -188,7 +195,7 @@ fields_changed:
   priority: "{old} → {new}" | unchanged
   notes: "overwritten" | "appended" | unchanged
   rank: "{old} → {new}" | unchanged          # backlog only
-  time_horizon: "{old} → {new}" | unchanged   # roadmap only
+  # time_horizon RETIRED alongside the roadmap-theme schema — no analog
 auto_shifted:                                  # backlog rank Update only; null if no collisions
   tier: "{priority}"
   count: {N}
@@ -223,13 +230,14 @@ Success envelope on stdout:
     "source_backlog_id": "...",
     "destination_id": "...",
     "destination_path": "tasks[].id={N} | tasks[].id={N}.subtasks[].id={M}",
-    "journal_block_timestamp": "2026-05-28T14:15:00.000Z",
-    "capability_theme": "...",
-    "umbrella_id": "..."
+    "journal_block_timestamp": "2026-05-28T14:15:00.000Z"
   },
   "warnings": [...]
 }
 ```
+
+(`capability_theme` / `umbrella_id` result fields are **RETIRED** —
+`--capability-theme` returns `retired-flag` before any byte is written.)
 
 Report packet:
 
@@ -242,12 +250,7 @@ item_title: "{title}"
 journal_block: appended
 source_deleted: true
 destination_added: true
-capability_theme:
-  status: set | unset           # set when --capability-theme passed
-  theme_id: "{id}" | null
-umbrella_membership:            # only when umbrella_id supplied and destination is a Task
-  umbrella_id: "{id}" | null
-  task_ids_updated: true | false
+# capability_theme / umbrella_membership blocks RETIRED — no replacement fields
 mirror_regen: ran (both surfaces)
 validation: passed | failed
 warnings: [...]
@@ -271,5 +274,9 @@ Items with `rank: null` in the same tier are NOT touched (no ordering signal).
 
 - CLI architecture / primitive provenance: `lib/ledger/README.md`.
 - Two-phase Promote semantics: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-35-ledger-cli/RESEARCH.md` §3.
-- Schemas: `lib/validation/roadmap-schema.ts`, `lib/validation/backlog-schema.ts`,
-  `lib/validation/task-list-schema.ts` (all Zod; roadmap + task `.strict()`).
+- Schemas: `lib/validation/backlog-schema.ts`, `lib/validation/task-list-schema.ts`
+  (Zod; task `.strict()`). `lib/validation/roadmap-schema.ts` is **deleted**
+  (both repos) — the vendored twin for the initiatives ledger is
+  `lib/validation/initiatives-schema.ts` (also `.strict()`), out of this
+  skill's scope. `DocLinkSchema` (used by `cross_doc_links`) lives at
+  `lib/validation/doc-link.ts`.

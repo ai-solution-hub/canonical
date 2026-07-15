@@ -15,21 +15,24 @@ producer/TECH.md` §"The two-pass loop" (index.md/log.md paragraph) +
     (BI-11/BI-18): append one block per producer run.
 
 **S451 rider (BINDING — the shipped {132.14} viewer's parsers are the
-format contract).** `regenerate_indexes` and `render_log_entry` emit
-EXACTLY the text shape `lib/okf/parse-index.ts` / `lib/okf/parse-log.ts`
-parse — a format mismatch degrades `<BundleNav>`/`<BundleLog>` SILENTLY
-(both parsers have a graceful type-grouping fallback, so a divergence would
-not raise, just quietly degrade). `parse-index.ts`: `##`/`###` theme
-headings, `* [title](path.md) — description` concept bullets (this writer
-picks the em-dash separator — the parser's own worked example glyph; both
-`-`/`—` are accepted, so a hyphen would ALSO round-trip, but consistency
-with the addendum's own example is preferred). `parse-log.ts`: `##
-<ISO-8601 timestamp>` run-block headings (`RUN_HEADING_RE`), most-recent
-block LAST in the file (append-only; the parser reverses on read). A
-committed round-trip fixture (`__tests__/fixtures/okf/bundle-writer-*.md`,
-generated FROM this module's own `regenerate_indexes`/`render_log_entry`
-output) plus a Vitest assertion in `__tests__/lib/okf/` prove this module
-never silently drifts from the parsers' contract.
+format contract), as amended by the OKF v0.1 conformance wave (SPEC
+§7/§11).** `regenerate_indexes` and `append_log_entry` emit EXACTLY the
+text shape `lib/okf/parse-index.ts` / `lib/okf/parse-log.ts` parse — a
+format mismatch degrades `<BundleNav>`/`<BundleLog>` SILENTLY (both
+parsers have a graceful type-grouping fallback, so a divergence would not
+raise, just quietly degrade). `parse-index.ts`: a §11 frontmatter block
+(`okf_version: "0.1"` — the single key; the parser skips it), then
+`##`/`###` theme headings, `* [title](path.md) — description` concept
+bullets (this writer picks the em-dash separator — the parser's own worked
+example glyph; both `-`/`—` are accepted, so a hyphen would ALSO
+round-trip, but consistency with the addendum's own example is preferred).
+`parse-log.ts` (§7): `## YYYY-MM-DD` DATE headings, newest date FIRST
+(prepend); runs within a date are `* **Run <ISO-ts> — <Action> (N):** …`
+bullets, newest run first. A committed round-trip fixture
+(`__tests__/fixtures/okf/bundle-writer-*.md`, generated FROM this module's
+own `regenerate_indexes`/`append_log_entry` output) plus a Vitest
+assertion in `__tests__/lib/okf/` prove this module never silently drifts
+from the parsers' contract.
 
 **EXECUTOR-VERIFY finding (feeds {132.12} G-GITSYNC — TECH §Git
 knowledge-sync).** Confirmed EMPIRICALLY against the real (unsandboxed)
@@ -146,13 +149,17 @@ from typing import Any, Literal, Mapping, Sequence
 
 from scripts.cocoindex_pipeline._coco_api import localfs
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft
-from scripts.cocoindex_pipeline.producer.frontmatter import ConceptFrontmatter
+from scripts.cocoindex_pipeline.producer.frontmatter import (
+    ConceptFrontmatter,
+    render_concept_frontmatter,
+)
 from scripts.cocoindex_pipeline.producer.validator import (
     ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
     check_concept,
+    normalise_citations_section,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 
@@ -161,15 +168,24 @@ from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 # files PLUS exactly one index.md and one log.md; DR-027 adds two more
 # bundle-level artefacts, the ontology snapshot + the client-authored
 # overlay source; S464 rider R1 additionally reserves the committed bundle
-# README so it stops surfacing as a false `RunSummary.removed` entry — see
-# `_existing_concept_paths`).
+# README, and the OKF v0.1 conformance wave reserves the hand-authored
+# bundle-root CONFORMANCE.md, so neither ever surfaces as a false
+# `RunSummary.removed` entry — see `_existing_concept_paths`).
 INDEX_FILENAME = "index.md"
 LOG_FILENAME = "log.md"
 ONTOLOGY_FILENAME = "ontology.json"
 README_FILENAME = "README.md"
+CONFORMANCE_FILENAME = "CONFORMANCE.md"
 OVERLAY_FILENAME = "ontology-overlay.json"
 _RESERVED_BUNDLE_FILENAMES = frozenset(
-    {INDEX_FILENAME, LOG_FILENAME, ONTOLOGY_FILENAME, README_FILENAME, OVERLAY_FILENAME}
+    {
+        INDEX_FILENAME,
+        LOG_FILENAME,
+        ONTOLOGY_FILENAME,
+        README_FILENAME,
+        CONFORMANCE_FILENAME,
+        OVERLAY_FILENAME,
+    }
 )
 
 _ConceptLikeDraft = "ConceptDraft | ReferenceConceptDraft"
@@ -284,6 +300,7 @@ def declare_concept(
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
     effective_ontology: "EffectiveOntology | None" = None,
+    citation_titles: "Mapping[str, str] | None" = None,
 ) -> ConceptWriteResult:
     """BI-13 gate THEN BI-11 `declare_file` write — the ONLY call site every
     concept write (a Pass-1 draft, a Pass-2-enriched draft, or a Pass-2
@@ -307,10 +324,20 @@ def declare_concept(
     base ∪ client-overlay set (`write_bundle` computes it once per run via
     `read_client_overlay` and passes it to every `declare_concept` call);
     `None` gates against the bare base frozensets, unchanged.
+
+    **SPEC §5.1/§8 write-time trailer normalisation.** The draft body's
+    `# Citations` section is deterministically re-emitted in the numbered
+    markdown-link form via `validator.normalise_citations_section` BEFORE
+    the gate and the write — accepting both the legacy bare-path bullets
+    and the link form on input — so the ON-DISK trailer format never
+    depends on model formatting. `citation_titles` (concept rel_path ->
+    title; `write_bundle` supplies the run-wide map from its draft set)
+    resolves cross-link labels to the target concept's title; unresolvable
+    cross-links keep the rel_path as label.
     """
     rel_path = bundle_write_path(draft)
     frontmatter: ConceptFrontmatter = draft.frontmatter
-    body: str = draft.body
+    body: str = normalise_citations_section(draft.body, titles=citation_titles)
     errors = check_concept(
         frontmatter,
         body=body,
@@ -323,7 +350,7 @@ def declare_concept(
 
     target_path = bundle_dir / rel_path
     previous = _read_existing(target_path)
-    markdown: str = draft.rendered_markdown
+    markdown: str = render_concept_frontmatter(frontmatter) + body
     localfs.declare_file(target_path, markdown, create_parent_dirs=True)
     return ConceptWriteResult(
         rel_path=rel_path,
@@ -391,11 +418,15 @@ def _render_theme(theme: IndexTheme, lines: "list[str]") -> None:
 def regenerate_indexes(themes: "Sequence[IndexTheme]") -> str:
     """BI-5/BI-11: pure progressive-disclosure `index.md` renderer.
 
-    Emits `##`/`###` theme headings and `* [title](path.md) — description`
-    concept bullets — EXACTLY the format `lib/okf/parse-index.ts` parses
-    (S451 rider item b). A level-3 heading is ALWAYS nested under its
-    parent level-2 heading (`IndexTheme.children`), never emitted as a bare
-    top-level heading — the parser's "no preceding `##`" branch is a
+    Opens with the SPEC §11 / DR-019 house-rule frontmatter block —
+    exactly one key, `okf_version: "0.1"` (§11 permits the bundle-root
+    `index.md` ONLY a frontmatter block among all indexes; keep it to this
+    single key) — then emits `##`/`###` theme headings and
+    `* [title](path.md) — description` concept bullets — EXACTLY the
+    format `lib/okf/parse-index.ts` parses (S451 rider item b; the parser
+    skips the frontmatter block). A level-3 heading is ALWAYS nested under
+    its parent level-2 heading (`IndexTheme.children`), never emitted as a
+    bare top-level heading — the parser's "no preceding `##`" branch is a
     defensive fallback for malformed input, never this writer's own
     output.
 
@@ -409,7 +440,13 @@ def regenerate_indexes(themes: "Sequence[IndexTheme]") -> str:
     supplied theme→rel_path membership CONFIG to this renderer's input
     shape, guaranteeing no concept is silently dropped from the nav.
     """
-    lines: "list[str]" = ["# OKF Concept Bundle", ""]
+    lines: "list[str]" = [
+        "---",
+        'okf_version: "0.1"',
+        "---",
+        "# OKF Concept Bundle",
+        "",
+    ]
     for theme in themes:
         _render_theme(theme, lines)
     return "\n".join(lines).rstrip("\n") + "\n"
@@ -503,56 +540,114 @@ class RunSummary:
         )
 
 
-def render_log_entry(summary: RunSummary, *, timestamp: "str | None" = None) -> str:
-    """BI-11/BI-18/BI-22: render ONE run block — a `## <ISO-8601 timestamp>`
-    heading (S451 rider item a — the EXACT convention `lib/okf/parse-log.ts`
-    adopted) followed by a change summary. A no-op run still emits a block
-    (BI-11's "one block per run" is unconditional); its body says so
-    explicitly rather than being empty (an empty body would be
-    indistinguishable from a parse failure to a human reading `log.md`).
-    """
-    ts = timestamp or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    lines = [f"## {ts}", ""]
+def _resolve_run_timestamp(timestamp: "str | None") -> str:
+    return timestamp or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
+    """One producer run's bullet lines (SPEC §7 conformance shape) — every
+    category line carries the FULL run timestamp in its bold prefix
+    (`* **Run <ISO-ts> — <Action> (N):** …`), preserving BI-11 per-run
+    visibility and machine-parseability now that runs are grouped under a
+    shared `## YYYY-MM-DD` date heading. A no-op run still emits exactly
+    one bullet (BI-11's "one visible record per run" is unconditional).
+    Validator-reject per-path detail stays as nested sub-bullets under its
+    WARNING bullet."""
     if summary.is_no_op:
-        lines.append("No changes (no-op re-run).")
-        return "\n".join(lines) + "\n"
+        return [f"* **Run {ts} — No changes** (no-op re-run)."]
+    lines: "list[str]" = []
     if summary.added:
-        lines.append(f"- Added ({len(summary.added)}): " + ", ".join(summary.added))
+        lines.append(
+            f"* **Run {ts} — Added ({len(summary.added)}):** " + ", ".join(summary.added)
+        )
     if summary.changed:
-        lines.append(f"- Changed ({len(summary.changed)}): " + ", ".join(summary.changed))
+        lines.append(
+            f"* **Run {ts} — Changed ({len(summary.changed)}):** "
+            + ", ".join(summary.changed)
+        )
     if summary.removed:
-        lines.append(f"- Removed ({len(summary.removed)}): " + ", ".join(summary.removed))
+        lines.append(
+            f"* **Run {ts} — Removed ({len(summary.removed)}):** "
+            + ", ".join(summary.removed)
+        )
     if summary.moved:
         moved_desc = ", ".join(f"{old} -> {new}" for old, new in summary.moved)
-        lines.append(f"- Moved ({len(summary.moved)}): {moved_desc}")
+        lines.append(f"* **Run {ts} — Moved ({len(summary.moved)}):** {moved_desc}")
     if summary.orphaned_anchors:
         lines.append(
-            f"- WARNING orphaned anchors ({len(summary.orphaned_anchors)}): "
+            f"* **Run {ts} — WARNING orphaned anchors "
+            f"({len(summary.orphaned_anchors)}):** "
             + ", ".join(summary.orphaned_anchors)
         )
     if summary.validator_failures:
         lines.append(
-            f"- WARNING validator rejected ({len(summary.validator_failures)}):"
+            f"* **Run {ts} — WARNING validator rejected "
+            f"({len(summary.validator_failures)}):**"
         )
         for rel_path, errors in summary.validator_failures:
             lines.append(f"  - {rel_path}: {'; '.join(errors)}")
+    return lines
+
+
+def render_log_entry(summary: RunSummary, *, timestamp: "str | None" = None) -> str:
+    """BI-11/BI-18/BI-22 + SPEC §7: render ONE run as a fresh date section —
+    a `## YYYY-MM-DD` ISO-8601 DATE heading (§7 MUST) followed by the run's
+    `* **Run <ISO-ts> — …:**` bullets (`_render_run_bullets`). This is the
+    shape a run takes when it OPENS a new date section; `append_log_entry`
+    merges a same-date run's bullets into the existing first section
+    instead. A no-op run still emits a visible bullet (BI-11).
+    """
+    ts = _resolve_run_timestamp(timestamp)
+    lines = [f"## {ts[:10]}", "", *_render_run_bullets(summary, ts)]
     return "\n".join(lines) + "\n"
 
 
 def append_log_entry(
     bundle_dir: Path, summary: RunSummary, *, timestamp: "str | None" = None
 ) -> str:
-    """Read `bundle_dir/log.md`'s CURRENT content (if present) and append
-    this run's block. `declare_file` has no native "append" mode — it
-    always takes the FULL desired content — so this function owns
-    full-content reconstruction; the new block is appended AFTER the
-    existing content (append-only, most-recent-last, matching `lib/okf/
-    parse-log.ts`'s "LAST `##` heading is the most recent run" contract).
-    Returns the new full content.
+    """Read `bundle_dir/log.md`'s CURRENT content (if present) and record
+    this run's entry — SPEC §7: date-grouped, NEWEST FIRST. `declare_file`
+    has no native prepend mode — it always takes the FULL desired content —
+    so this function owns full-content reconstruction:
+
+      (a) no existing content — the file is created fresh with this run's
+          date section;
+      (b) the existing FIRST `## YYYY-MM-DD` heading matches this run's
+          date — the run's bullets are inserted at the TOP of that section
+          (newest run first within a date);
+      (c) otherwise — a new date section is PREPENDED above the existing
+          content (newest date first).
+
+    Matches `lib/okf/parse-log.ts`'s "FIRST `##` heading is the most recent
+    date; runs are the `**Run <ts> — …**` bullets" contract. Returns the
+    new full content.
     """
+    ts = _resolve_run_timestamp(timestamp)
+    date = ts[:10]
+    bullets = _render_run_bullets(summary, ts)
     existing = _read_existing(bundle_dir / LOG_FILENAME) or ""
-    entry = render_log_entry(summary, timestamp=timestamp)
-    new_content = f"{existing.rstrip()}\n\n{entry}" if existing.strip() else entry
+
+    if not existing.strip():
+        new_content = "\n".join([f"## {date}", "", *bullets]) + "\n"
+    else:
+        lines = existing.splitlines()
+        first_heading = next(
+            (i for i, line in enumerate(lines) if line.startswith("## ")), None
+        )
+        if first_heading is not None and lines[first_heading][3:].strip() == date:
+            # (b) same-date merge — insert this run's bullets at the top of
+            # the existing first date section (after the heading and its
+            # blank separator line).
+            insert_at = first_heading + 1
+            if insert_at < len(lines) and not lines[insert_at].strip():
+                insert_at += 1
+            merged = [*lines[:insert_at], *bullets, *lines[insert_at:]]
+            new_content = "\n".join(merged).rstrip("\n") + "\n"
+        else:
+            # (c) prepend a fresh date section above everything.
+            section = "\n".join([f"## {date}", "", *bullets])
+            new_content = f"{section}\n\n{existing.lstrip()}".rstrip("\n") + "\n"
+
     localfs.declare_file(bundle_dir / LOG_FILENAME, new_content, create_parent_dirs=True)
     return new_content
 
@@ -816,8 +911,20 @@ def write_bundle(
             )
         seen_write_paths.add(write_path)
 
+    # SPEC §5.1/§8: the run-wide rel_path -> title map for cross-link
+    # LABELS — keyed by IDENTITY rel_path (`_rel_path_of`), the form BI-9
+    # cross-link citations cite (never the won-bid PHYSICAL redirect path).
+    citation_titles = {
+        _rel_path_of(draft): draft.frontmatter.title for draft in all_drafts
+    }
+
     for draft in all_drafts:
-        result = declare_concept(bundle_dir, draft, effective_ontology=effective_ontology)
+        result = declare_concept(
+            bundle_dir,
+            draft,
+            effective_ontology=effective_ontology,
+            citation_titles=citation_titles,
+        )
         if not result.written:
             failures.append((result.rel_path, result.errors))
             continue

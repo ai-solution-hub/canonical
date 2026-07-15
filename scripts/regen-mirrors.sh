@@ -11,10 +11,13 @@
 # not persisted). This script removes that:
 #   • clones task-view @ TASK_VIEW_TAG only if the tag-keyed cache is missing
 #   • runs `bun install` only if node_modules is absent
-#   • regenerates task-list/backlog via task-view.js (server-owned mirrors,
-#     --check writes the mirrors in place) + initiatives/retros via the
-#     KH-native generators (ID-148.9 — roadmap/umbrellas retired under
-#     ID-148, task-view no longer owns either)
+#   • regenerates ALL FOUR ledgers' mirrors via task-view.js (--check, one
+#     shot per ledger — server-owned mirror generation, ID-148.12). The
+#     ID-148.9 KH-native generate-{initiatives,retros}-mirror.ts scripts are
+#     SUPERSEDED: task-view's mirror-generator gained an initiatives arm
+#     (nested render, repurposed roadmap arm) + a retros arm (removed from
+#     the mirror-exclusion set) at {148.10} — Option C moves generation for
+#     ALL FOUR ledgers server-side, matching task-list/backlog.
 #   • reports drift LOCALLY/INFORMATIONALLY — there is no CI byte-parity gate
 #     (the `ledger-mirror-parity` job was retired under ID-68.35 when the
 #     ledgers moved to docs-site; the earlier "CI is the gate" framing here
@@ -85,17 +88,18 @@ fi
 # Fail-closed: error LOUD if KH_PRIVATE_DOCS_DIR is unset (no stale in-repo path).
 LEDGER_DIR="${KH_PRIVATE_DOCS_DIR:?KH_PRIVATE_DOCS_DIR must be set (ID-68.35 ledger relocation)}/src/content/docs/ledgers"
 
-# --- regenerate task/backlog via task-view.js (server-owned mirrors) --------
-echo "→ regenerating mirrors (--check x2 + KH-native initiatives/retros)"
+# --- regenerate ALL FOUR ledgers' mirrors via task-view.js (server-owned) ---
+# ID-148.12: initiatives + retros now regen via the SAME --check one-shot
+# path as task-list/backlog (task-view's mirror-generator gained both arms
+# at {148.10}) — the KH-native generate-{initiatives,retros}-mirror.ts
+# scripts (ID-148.9) are SUPERSEDED and deleted. `--check <path>` is
+# filename-agnostic — it detects the document kind via `document_name`, not
+# the filename, so each ledger regenerates through the identical mechanism.
+echo "→ regenerating mirrors (--check x4, server-owned)"
 node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/task-list.json"
 node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-backlog.json"
-
-# --- regenerate initiatives/retros via the KH-native generators (ID-148.9) --
-# roadmap/umbrellas retired under ID-148 — task-view no longer owns a mirror
-# for either; these two ledgers are KH-authored (Option A, TECH §3.3) so their
-# mirrors regen locally, not via the task-view clone above.
-bun "$REPO/scripts/generate-initiatives-mirror.ts" --ledger-dir "$LEDGER_DIR"
-bun "$REPO/scripts/generate-retros-mirror.ts" --ledger-dir "$LEDGER_DIR"
+node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/initiatives.json"
+node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-retros.json"
 
 # --- report drift (informational — no CI byte-parity job exists; the
 # `ledger-mirror-parity` job was retired under ID-68.35 when the ledgers moved

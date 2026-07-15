@@ -31,6 +31,10 @@ const INDEX_NAME = 'index.md';
 // `_walk_concepts` only special-cases `index.md`). Both are bundle-level
 // files, never concept docs — skip both, not just `index.md`.
 const LOG_NAME = 'log.md';
+// Hand-authored bundle-ROOT documents (mirrors the producer's
+// `_RESERVED_BUNDLE_FILENAMES`, root-level only — a nested
+// `guides/README.md` is still a walkable file): never concept docs.
+const RESERVED_ROOT_DOCS = new Set(['README.md', 'CONFORMANCE.md']);
 // ](target.md) or ](target.md#anchor) — mirrors generator.py's `_LINK_RE`.
 const LINK_RE = /\]\(([^)\s]+\.md)(?:#[A-Za-z0-9_-]*)?\)/g;
 
@@ -97,9 +101,12 @@ function walkMarkdownFiles(root: string): string[] {
 
 /**
  * Resolve internal `.md` links in `body` to bundle-root-relative concept ids
- * (`.md` suffix stripped, POSIX-separated). External links (`://` or a
- * leading `/`) and links that resolve outside `bundleRootResolved` are
- * dropped, matching `_extract_links`'s `ValueError`-on-`relative_to` guard.
+ * (`.md` suffix stripped, POSIX-separated). A leading-`/` target is the
+ * SPEC §5.1 bundle-ABSOLUTE form (the producer's citation-trailer and
+ * body-prose cross-link convention) — resolved against the BUNDLE ROOT,
+ * never the filesystem root. External links (`://`) and links that resolve
+ * outside `bundleRootResolved` are dropped, matching `_extract_links`'s
+ * `ValueError`-on-`relative_to` guard.
  */
 function extractLinks(
   body: string,
@@ -112,9 +119,11 @@ function extractLinks(
   let match: RegExpExecArray | null;
   while ((match = re.exec(body)) !== null) {
     const target = match[1];
-    if (target.includes('://') || target.startsWith('/')) continue;
+    if (target.includes('://')) continue;
 
-    const resolved = path.resolve(docDir, target);
+    const resolved = target.startsWith('/')
+      ? path.resolve(bundleRootResolved, target.replace(/^\/+/, ''))
+      : path.resolve(docDir, target);
     const rel = path.relative(bundleRootResolved, resolved);
     if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) continue;
 
@@ -146,6 +155,11 @@ function walkConcepts(bundleRoot: string): Concept[] {
   for (const filePath of files) {
     const basename = path.basename(filePath);
     if (basename === INDEX_NAME || basename === LOG_NAME) continue;
+    const relPath = path
+      .relative(bundleRootResolved, filePath)
+      .split(path.sep)
+      .join('/');
+    if (RESERVED_ROOT_DOCS.has(relPath)) continue;
 
     const relNoExt = path
       .relative(bundleRootResolved, filePath)

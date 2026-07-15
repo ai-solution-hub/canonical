@@ -39,10 +39,32 @@ any byte is written. Detail (gates, error codes, exit envelope, budgets): **read
 
 | Mode | Invoked by | CLI subcommand(s) |
 |------|------------|-------------------|
-| **Create** | workflow-curator (after `triage-finding` returns `roadmap`, `backlog`, or `task-list`) | `create-theme`, `create-backlog`, `open-task` |
-| **Update** | workflow-orchestration (status transitions); curator (priority/notes/rank edits) | `update-roadmap`, `update-backlog`, `update-task`, `update-subtask`, `flip-task`, `flip-subtask`, `append-journal` |
+| **Create** | workflow-curator (after `triage-finding` returns `roadmap`, `backlog`, or `task-list`) | ~~`create-theme`~~ **RETIRED (ID-148.8/DR-073/074)** — use the initiatives `create-project` verb (see below); `create-backlog`, `open-task` |
+| **Update** | workflow-orchestration (status transitions); curator (priority/notes/rank edits) | ~~`update-roadmap`~~ **RETIRED** — use the initiatives project verbs (`update-project` et al.); `update-backlog`, `update-task`, `update-subtask`, `flip-task`, `flip-subtask`, `append-journal` |
 | **Delete** | workflow-orchestration (cancellations); curator (reclassifications) | `delete-backlog` (the **only** backlog delete) |
-| **Promote** | workflow-orchestration (picking up a backlog item — see workflow-orchestration §"Backlog pickup → Promote") | `promote` (atomic cross-ledger) |
+| **Promote** | workflow-orchestration (picking up a backlog item — see workflow-orchestration §"Backlog pickup → Promote") | `promote` (atomic cross-ledger) — the `--capability-theme` flag is **RETIRED**, see Promote mode below |
+
+> **Landed-state note (ID-148.x, DR-073/074):** the roadmap ledger's file arm
+> (`product-roadmap.json`) no longer exists — that data was repurposed
+> server-side to the SERVER-managed `initiatives.json` ledger (writes route via
+> ServerIntent through the task-view patch-server; no in-process writer). The
+> CANONICAL CLI VERB NAMES `update-roadmap`, `create-theme`, `update-umbrella`,
+> `show|list roadmap|umbrellas`, and `promote --capability-theme` all return a
+> clean `retired-verb`/`retired-flag` envelope (nothing read, nothing
+> written). `capability_theme` + `themes[]` retire with **no analog**;
+> `umbrella_id` / `update-umbrella` retire with **no direct replacement**
+> (`umbrellas.json` remains on disk but is unmaintained, file-delete deferred
+> per OQ4). The initiatives/projects topology (`show|list initiatives`, `list
+> projects`, `create-project`, `update-project`, `delete-project`,
+> `link-tasks`/`unlink-tasks`, `link-backlog`/`unlink-backlog`,
+> `move-task`/`move-backlog`) is the replacement write surface, but
+> `create-project` requires an **existing** `initiativePath` — there is no
+> verb to create a brand-new top-level initiative or sub-initiative. **The
+> exact curator Create-mode procedure for a finding that would previously
+> have become a new roadmap theme is undesigned — flagged for the owner
+> (ID-148.11).** The Create/Update/Delete/Promote sections below still
+> describe the retired roadmap-theme/umbrella flow verbatim pending that
+> redesign; retired tokens are tagged inline where they recur.
 
 Create is the default mode (Steps 1–6 below). Update, Delete, and Promote have
 their own sections; all share the target → file mapping (Step 1) and the CLI
@@ -64,7 +86,7 @@ two-surface validation.
 | `provenance.source_commit_sha` | Short SHA from the source commit, or null. |
 | `provenance.session_counter` | Session ID. |
 | `triage_payload` | The full `triage-finding` output (section / track / type / priority). Field budgets apply — see `references/cli-mechanics.md`. |
-| `umbrella_id` | `string` (kebab-case) or `null` (default `null`). When non-null AND the destination resolves to a top-level Task: triggers Step 6 (umbrella membership via `update-umbrella`). Ignored for Subtask or roadmap/backlog destinations. |
+| `umbrella_id` | `string` (kebab-case) or `null` (default `null`). **RETIRED (no direct replacement)** — was going to trigger Step 6 (umbrella membership via `update-umbrella`, itself retired). |
 
 ---
 
@@ -72,7 +94,7 @@ two-surface validation.
 
 | Target semantics | File (under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) |
 |---|---|
-| Strategic / cross-cutting / multi-month | `product-roadmap.json` |
+| Strategic / cross-cutting / multi-month | ~~`product-roadmap.json`~~ **RETIRED — file no longer exists.** Repurposed server-side to the SERVER-managed `initiatives.json` (writes via `create-project` et al., not this skill's Create flow — see landed-state note above). |
 | Tactical / single-feature / weeks-scope OR parked / deferred / pre-work | `product-backlog.json` |
 | Forward Task creation (new top-level Task) | `task-list.json` |
 
@@ -92,7 +114,8 @@ needed to:
 
 - Pre-stage an explicit `id` instead of relying on auto-id.
 - Locate an item by `id` (Update / Delete / Promote) or compute derived values
-  (rank auto-shift candidates, capability_theme context).
+  (rank auto-shift candidates; `capability_theme` context is retired, no
+  analog).
 - Inspect state for reporting or composition.
 
 Use slice reads — never load the full file:
@@ -115,8 +138,8 @@ per-field source → CLI-flag mapping for each record kind is in
 - **Provenance is mandatory** — at minimum `session_refs: [session_counter]`.
   Roadmap + task schemas are `.strict()`; no `metadata.source` field.
 - **Backlog `description` ≤500, `title` ≤80; Task `description` ≤1500.**
-- **Roadmap soft-cap:** a 13th theme does not hard-block but surfaces a soft-cap
-  warning — consider merging overlapping themes.
+- **Roadmap soft-cap** (`themes[]`) — **RETIRED**, no analog on the
+  initiatives/projects surface.
 - **`open-task` auto-fills** the optional nullable/array fields and stamps
   `updatedAt` — supply only meaningful fields + provenance.
 
@@ -128,9 +151,11 @@ Input modes per record-creating command: positional JSON | `--file <path>`
 (`-` = stdin) | named flags. Detail: `references/cli-mechanics.md`.
 
 ```bash
-# Roadmap theme
-bun scripts/ledger-cli.ts create-theme '<themeJson>'
-bun scripts/ledger-cli.ts create-theme --title "<name>" --description "<md>" --status pending
+# Roadmap theme — RETIRED (ID-148.8): `create-theme` now returns a clean
+# `retired-verb` envelope, nothing written. Use the initiatives
+# `create-project <initiativePath> <projectJson>` verb instead — it requires
+# an existing initiative/sub-initiative path (see landed-state note above;
+# no verb creates a brand-new top-level initiative).
 
 # Backlog item (description ≤500)
 bun scripts/ledger-cli.ts create-backlog '<itemJson>'
@@ -161,48 +186,40 @@ read off the CLI exit envelope (exit 0 = passed).
 
 ---
 
-## Step 6: Umbrella membership (optional)
+## Step 6: Umbrella membership — RETIRED (ID-148.8/DR-073/074, no direct replacement)
 
-**Applies when:** `umbrella_id` is non-null AND the destination resolves to a
-top-level Task (`target: 'task-list'` Create OR Promote with
-`destination_shape === 'new_top_level_task'`). Ignored for Subtask destinations
-and roadmap/backlog Create.
-
-The CLI owns `umbrellas.json` `task_ids[]` membership — do NOT manually `Read` +
-parse + edit it. After the Task write completes:
+`update-umbrella` now returns a clean `retired-verb` envelope (the umbrella
+surface is fully retired). `umbrellas.json` remains on disk but is
+unmaintained (file-delete deferred per OQ4) — do not read or write it as part
+of this skill's flow. There is no replacement step; a new top-level Task's
+strategic grouping is no longer expressed via umbrella membership. This
+section previously described the retired flow (kept below **for historical
+orientation only** — do not execute it):
 
 ```bash
+# RETIRED — returns retired-verb, nothing bound, nothing written:
 bun scripts/ledger-cli.ts update-umbrella <umbrella_id> --add-tasks <new-task-id>
 ```
 
-`--add-tasks` is idempotent (re-adding is a no-op). `umbrellas.json` is NOT
-mirrored and has no budgeted fields. Verify the surface via `bun
-scripts/ledger-cli.ts update-umbrella --help`. Scope: `update-umbrella` owns
-`task_ids[]` **membership only** — creating a new umbrella or editing its metadata
-(`title`, `substrate_doc`) is a direct `umbrellas.json` edit, not a CLI op.
-
-**Commit-coupling (load-bearing):** the caller MUST include BOTH the
-`task-list.json` and `umbrellas.json` edits in a **single commit** — the
-round-trip test catches broken references (orphans warn but don't fail).
-
-`capability_theme` (set on the Task, points at a roadmap theme) and `umbrella_id`
-are orthogonal — both may be supplied in the same Create or Promote.
+`capability_theme` and `umbrella_id` are both retired with no analog on the
+initiatives/projects surface.
 
 ---
 
 ## Update mode — edit existing item fields
 
 Transition an existing item's `status`, `priority`, `notes`, or `rank`.
-Canonical use: roadmap theme `pending → in_progress → done`; backlog `priority`
-bumps; `notes` append; `rank` re-rank.
+Canonical use: backlog `priority` bumps; `notes` append; `rank` re-rank.
+Roadmap-theme `status` transitions are **RETIRED** — see `target: 'roadmap'`
+below.
 
 ### Inputs (Update)
 
 | Field | Description |
 |-------|-------------|
-| `target` | `roadmap`, `backlog`, `task`, or `subtask`. |
+| `target` | `backlog`, `task`, or `subtask`. `roadmap` is **RETIRED** — `update-roadmap` returns `retired-verb`; use the initiatives project verbs (`update-project` et al.) instead, outside this skill's flow. |
 | `item_id` | Existing item id (dotted `<taskId>.<subId>` for subtask commands; bare otherwise). |
-| `field_edits` | Map of mutable fields. Backlog: `{ status?, priority?, notes?, rank? }`. Roadmap theme: `{ status?, notes?, time_horizon? }`. Task/Subtask: per schema. |
+| `field_edits` | Map of mutable fields. Backlog: `{ status?, priority?, notes?, rank? }`. Task/Subtask: per schema. Roadmap theme `{ status?, notes?, time_horizon? }` is retired, no analog. |
 | `provenance.session_counter` | Session ID. |
 
 ### Update flow
@@ -215,22 +232,22 @@ bumps; `notes` append; `rank` re-rank.
    (exit 1, nothing written).
 3. **Compose the edit.** The CLI enforces enum / budget / record-set at write
    time — no pre-validation needed. Allowed values:
-   - `status` (roadmap theme): `pending | in_progress | done`.
+   - `status` (roadmap theme) — **RETIRED**, no analog.
    - `status` (backlog): `spec_needed | needs_research | parked | ready |
      blocked` (NO `done` — done items use Delete-or-retain or Promote).
    - `priority` (backlog): shared `Priority` enum.
-   - `notes` (backlog/roadmap): default **overwrites**; pass `--append` to
+   - `notes` (backlog): default **overwrites**; pass `--append` to
      concatenate (newline-joined). `--append` is notes-only.
    - `rank` (backlog): integer or `null`; no uniqueness/contiguity enforced.
      See rank auto-shift below.
-   - `time_horizon` (roadmap theme): `now | next | later`.
+   - `time_horizon` (roadmap theme) — **RETIRED**, no analog.
 4. **Invoke the subcommand:**
 
    ```bash
-   bun scripts/ledger-cli.ts update-roadmap 7 status in_progress
    bun scripts/ledger-cli.ts update-backlog 142 priority high
    bun scripts/ledger-cli.ts flip-subtask 35.38 in_progress
    bun scripts/ledger-cli.ts append-journal 35.38 "session-context …"
+   # update-roadmap 7 status in_progress — RETIRED, returns retired-verb
    ```
 
 5. **Rank auto-shift** (backlog `rank` Update only): the CLI does NOT encapsulate
@@ -252,8 +269,11 @@ bumps; `notes` append; `rank` re-rank.
 
 ## Delete mode — remove a backlog item
 
-Used **only** for `cancelled` backlog items and **reclassifications** (an item
-moving from backlog to roadmap = `delete-backlog` then `create-theme`).
+Used **only** for `cancelled` backlog items and **reclassifications**. The
+`reclassified_to_roadmap` reason's follow-up create (`delete-backlog` then
+`create-theme`) is **RETIRED** — `create-theme` returns `retired-verb`; the
+equivalent reclassification onto the initiatives/projects surface is
+undesigned (flagged for the owner, ID-148.11).
 
 The only record-removing subcommands are `delete-backlog` and `delete-subtask`
 — there is **no `delete-task`, no `delete-roadmap`**. Done Tasks and done themes
@@ -281,14 +301,15 @@ removes a Subtask under a Task — not part of the backlog-cleanup flow below.)
 3. **Invoke:** `bun scripts/ledger-cli.ts delete-backlog <itemId>`. The CLI runs
    the record-set delta gate (−1 expected) and regenerates mirrors. Absent item
    → `record-not-found`.
-4. **If `reclassified_*`,** follow up with `create-theme` (for
-   `reclassified_to_roadmap`) using the captured body to preserve provenance.
+4. **If `reclassified_*`,** the `reclassified_to_roadmap` follow-up
+   (`create-theme`) is **RETIRED** — see the note above; flag to the owner
+   rather than guessing a replacement.
 5. **Report** the `DELETE COMPLETE` packet (template in `references/cli-mechanics.md`).
 
 ### What Delete is NOT
 
-- **Not a closure mechanism** — a completed theme is `update-roadmap <id> status
-  done`; a completed Task is `flip-task <id> done`.
+- **Not a closure mechanism** — a completed Task is `flip-task <id> done`
+  (roadmap-theme closure via `update-roadmap` is retired).
 - **Not for cleanup of stale-but-not-cancelled items** — those remain until the
   product owner explicitly cancels them.
 - **Not the backlog → task-list path** — use Promote (Delete loses
@@ -322,8 +343,8 @@ the destination `details` automatically.
 | `provenance.session_counter` | Session ID (both surfaces). |
 | `provenance.source_commit_sha` | If the underlying work already shipped, include the SHA for the journal block. Else null. |
 | `provenance.promotion_rationale` | One-line `notes` — why pick this up now. |
-| `umbrella_id` | Optional. Non-null AND `new_top_level_task` → triggers Step 6 (`update-umbrella`). Ignored for subtask destinations. |
-| `capability_theme` | Optional roadmap theme id — pass via the CLI's `--capability-theme` flag (see below). |
+| `umbrella_id` | **RETIRED (no direct replacement)** — was going to trigger Step 6 (`update-umbrella`, itself retired). |
+| `capability_theme` | **RETIRED** — the `--capability-theme` flag now returns `retired-flag` immediately (nothing bound, nothing written). |
 
 ### Promote flow
 
@@ -338,9 +359,10 @@ the destination `details` automatically.
    ```bash
    bun scripts/ledger-cli.ts promote <source_backlog_id> '<taskJson>'
    bun scripts/ledger-cli.ts promote <source_backlog_id> --file <path>
-   # bind a roadmap theme atomically (sets task.capability_theme +
-   # appends the task id to theme.linked_tasks[]):
-   bun scripts/ledger-cli.ts promote <source_backlog_id> '<taskJson>' --capability-theme <themeId>
+   # --capability-theme <themeId> — RETIRED (ID-148.8): returns `retired-flag`
+   # immediately, nothing bound, nothing written. No replacement flag exists;
+   # the initiatives-side equivalent (linking a newly-promoted Task's project
+   # into an initiative) is undesigned — flag to the owner (ID-148.11).
    ```
 
    The CLI handles: source-existence idempotency guard; destination shape
@@ -348,19 +370,10 @@ the destination `details` automatically.
    block append at the destination; atomic delete-from-backlog +
    add-to-task-list cross-ledger commit; two-surface validation
    (`record-set-violation` on either fails the whole op); default-on mirror
-   regen on both ledgers. An unknown `--capability-theme` id rejects with
-   `unknown-theme` before any byte is written.
+   regen on both ledgers.
 
-   **`--capability-theme` replaces the old manual lookup.** The CLI now binds the
-   theme and appends to `theme.linked_tasks[]` atomically — there is no
-   curator-side pre-compute step. If the source backlog id is linked from
-   multiple themes and you cannot disambiguate, omit `--capability-theme` and
-   surface a warning for explicit curator decision.
-
-3. **Umbrella membership (optional — Step 6).** If `umbrella_id` is non-null AND
-   `destination_shape === 'new_top_level_task'`, run `update-umbrella
-   <umbrella_id> --add-tasks <new-task-id>` and include it in the same commit as
-   the promote write (commit-coupling, above).
+3. **Umbrella membership — RETIRED.** `update-umbrella` returns `retired-verb`;
+   there is no replacement step (see Step 6 above).
 
 4. **Report** the Promote packet (envelope + YAML in `references/cli-mechanics.md`).
 
@@ -373,8 +386,8 @@ the destination `details` automatically.
   cancelled | superseded_by_{id}`.
 - **Not idempotent** — re-promoting the same id fails (source is gone after the
   first promotion); intentional, CLI-guarded.
-- **Not for backlog → roadmap reclassification** — that is `delete-backlog` +
-  `create-theme`. Promote is exclusively backlog → task-list.
+- **Not for backlog → roadmap reclassification** — that flow (`delete-backlog`
+  + `create-theme`) is retired; Promote is exclusively backlog → task-list.
 
 ---
 
@@ -382,12 +395,17 @@ the destination `details` automatically.
 
 1. **Provenance is mandatory.** Every Create carries at least
    `session_counter`. Pass it even if the others are null.
-2. **`.strict()` roadmap + task schemas.** No fields beyond the schema — extra
-   fields fail `schema-error` at write time.
+2. **`.strict()` task schemas.** No fields beyond the schema — extra
+   fields fail `schema-error` at write time. (The roadmap-theme schema this
+   line also used to cover, `RoadmapThemeSchema`/`roadmap-schema.ts`, is
+   deleted — the initiatives-schema.ts vendored twin is the current
+   `.strict()` schema for that ledger, out of this skill's write scope.)
 3. **UK English throughout.** "colour", "organisation", "behaviour",
    DD/MM/YYYY dates.
-4. **Forward-looking roadmap.** Theme `status: pending | in_progress | done`;
-   `done` themes retain in-place (Update only, never deleted).
+4. **Forward-looking roadmap — RETIRED.** Theme `status: pending | in_progress
+   | done` no longer applies (no analog); `initiatives.json` is the
+   SERVER-managed ledger now, writes via ServerIntent through the task-view
+   patch-server, out of this skill's scope.
 5. **No closure values in backlog status** (`spec_needed | needs_research |
    parked | ready | blocked`). Picked-up items are Promoted; cancelled /
    reclassified items are Deleted. Backlog never carries `done`.
@@ -397,8 +415,8 @@ the destination `details` automatically.
    not a routine escape — its only legitimate use is downgrading
    `budget-exceeded`; right-size the field instead.
 8. **One finding → exactly one ledger.** A finding goes to roadmap OR backlog,
-   never both; reclassification is `delete-backlog` + `create-theme`, not
-   concurrent writes.
+   never both; the reclassification follow-up (`delete-backlog` +
+   `create-theme`) is retired — see Delete mode above.
 9. **Minimal-diff (scoped) is the global default** for every mutating command.
    `--scoped` is a deprecated no-op. Use `--whole-file` only for a deliberate
    whole-file rewrite (it re-serialises the whole file and collides with sibling
@@ -431,6 +449,7 @@ the destination `details` automatically.
 - Not Taskmaster-coupled. No `task-master` commands.
 - Not a closure-via-Delete mechanism. Completed items are status-flipped via
   Update, promoted via `promote`, retained in-place — never pruned.
-- Not a manual `umbrellas.json` author. The CLI's `update-umbrella` subcommand
-  maintains umbrella `task_ids[]` membership; Step 6 drives it as part of a
-  Create/Promote.
+- Not a manual `umbrellas.json` author — moot now: `update-umbrella` is
+  retired (returns `retired-verb`); `umbrellas.json` remains on disk
+  unmaintained (deferred per OQ4) and this skill has no umbrella-writing flow
+  any more (former Step 6).

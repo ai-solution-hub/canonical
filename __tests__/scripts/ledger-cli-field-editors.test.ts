@@ -1,7 +1,9 @@
 /**
  * ledger-cli-field-editors.test.ts — the {35.19}/{35.20} user-facing
  * field-editor + create commands built on the {35.15}–{35.18} write-gate
- * foundation: `update-subtask`, `update-task`, `update-roadmap`, `create-theme`.
+ * foundation: `update-subtask`, `update-task` (ID-148.8: the sibling
+ * `update-roadmap`/`create-theme` coverage retired — see
+ * `ledger-cli-retired-verbs.test.ts`).
  *
  * Per RESEARCH §2.1 (update-subtask), §4 (3-ledger parity), §5.3
  * (field-type-aware coercion). Drives the exported `run()` directly against a
@@ -54,9 +56,6 @@ function args(
 
 function readTask() {
   return JSON.parse(readFileSync(join(dir, 'task-list.json'), 'utf8'));
-}
-function readRoadmap() {
-  return JSON.parse(readFileSync(join(dir, 'product-roadmap.json'), 'utf8'));
 }
 
 // A task/subtask known to exist in the live fixture for editing.
@@ -375,57 +374,9 @@ describe('update-task — {35.20} task field editor', () => {
   });
 });
 
-describe('update-roadmap — {35.20} theme field editor (gap: no editor today)', () => {
-  it('edits a theme field (notes) and persists', async () => {
-    const rm = readRoadmap();
-    const themeId = rm.themes[0].id;
-    const r = await run(
-      args('update-roadmap', [themeId, 'notes', 'Edited theme note.']),
-    );
-    expect(r.ok).toBe(true);
-    const after = readRoadmap();
-    const theme = after.themes.find((t: { id: string }) => t.id === themeId);
-    expect(theme.notes).toBe('Edited theme note.');
-  });
-
-  it('rejects an unknown theme field', async () => {
-    const rm = readRoadmap();
-    const themeId = rm.themes[0].id;
-    const r = await run(args('update-roadmap', [themeId, 'nonsense', 'x']));
-    expect(r.ok).toBe(false);
-  });
-});
-
-describe('create-theme — {35.20} roadmap record create', () => {
-  const NEW_THEME = {
-    id: '9991',
-    title: 'Test theme',
-    description: 'A theme created by the test.',
-    time_horizon: 'later',
-    status: 'pending',
-    linked_tasks: [],
-    linked_backlog: [],
-    session_refs: [],
-    commit_refs: [],
-    cross_doc_links: [],
-    notes: null,
-  };
-
-  it('inserts a new theme and persists', async () => {
-    const r = await run(args('create-theme', [JSON.stringify(NEW_THEME)]));
-    expect(r.ok).toBe(true);
-    const after = readRoadmap();
-    expect(after.themes.some((t: { id: string }) => t.id === '9991')).toBe(
-      true,
-    );
-  });
-
-  it('rejects an unknown field on the new theme', async () => {
-    const bad = { ...NEW_THEME, id: '9992', nonsense: true };
-    const r = await run(args('create-theme', [JSON.stringify(bad)]));
-    expect(r.ok).toBe(false);
-  });
-});
+// ID-148.8: `update-roadmap` (theme field editor) + `create-theme` (roadmap
+// record create) are RETIRED (TECH §3.4, INV-7) — coverage moved to
+// `ledger-cli-retired-verbs.test.ts`.
 
 // ── ID-65.8 — dotted `taskId.subId` id-arg convention across the four
 //    subtask-addressing commands (normalise the S280 inconsistency where

@@ -137,7 +137,6 @@ describe('ledger-cli — schema subcommand', () => {
       const text = r.result as string;
       expect(text).toContain('task.id: string');
       expect(text).toContain('subtask.id: string');
-      expect(text).toContain('theme.');
       expect(text).toContain('backlog.title: string ≤80');
     }
   });
@@ -153,6 +152,21 @@ describe('ledger-cli — schema subcommand', () => {
     const r = await run(args('schema', ['nonsense']));
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('bad-schema-target');
+  });
+
+  // ID-148.12: the 'theme' SchemaRecordKind is RETIRED (TECH §3.2/§3.4,
+  // INV-7/INV-12(d)) — `schema roadmap`/`schema theme` no longer resolve to
+  // a record kind and MUST fall through to `bad-schema-target`, never print
+  // a stale `theme.` slice.
+  it('schema roadmap / schema theme are retired targets (bad-schema-target)', async () => {
+    const roadmapResult = await run(args('schema', ['roadmap']));
+    expect(roadmapResult.ok).toBe(false);
+    if (!roadmapResult.ok)
+      expect(roadmapResult.error).toBe('bad-schema-target');
+
+    const themeResult = await run(args('schema', ['theme']));
+    expect(themeResult.ok).toBe(false);
+    if (!themeResult.ok) expect(themeResult.error).toBe('bad-schema-target');
   });
 
   it('is read-only — touches no ledger file', async () => {
@@ -274,6 +288,8 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
     const lines = r.stdout.split('\n').filter((l) => l.trim().length > 0);
     const firstThirty = lines.slice(0, 30).join('\n');
     // Every subcommand the run() dispatch handles must be advertised up-front.
+    // ID-148.8: `update-roadmap`/`create-theme` retired (TECH §3.4, INV-7) —
+    // not expected among the live commands any more.
     const subcommands = [
       'show',
       'get',
@@ -282,12 +298,10 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
       'flip-subtask',
       'update-task',
       'update-subtask',
-      'update-roadmap',
       'update-backlog',
       'append-journal',
       'add-subtask',
       'open-task',
-      'create-theme',
       'create-backlog',
       'delete-backlog',
       'promote',
@@ -330,12 +344,12 @@ describe('ledger-cli — ID-65.5 --whole-file is listed in USAGE / --help', () =
   });
 
   it('per-subcommand --help lists --whole-file for the field-edit commands', () => {
+    // ID-148.8: `update-roadmap` retired (TECH §3.4, INV-7) — dropped.
     for (const cmd of [
       'flip-task',
       'flip-subtask',
       'update-task',
       'update-subtask',
-      'update-roadmap',
       'update-backlog',
       'append-journal',
     ]) {
@@ -346,11 +360,11 @@ describe('ledger-cli — ID-65.5 --whole-file is listed in USAGE / --help', () =
   });
 
   it('per-subcommand --help lists --whole-file for the create + promote commands', () => {
+    // ID-148.8: `create-theme` retired (TECH §3.4, INV-7) — dropped.
     for (const cmd of [
       'add-subtask',
       'add-subtasks',
       'open-task',
-      'create-theme',
       'create-backlog',
       'promote',
     ]) {

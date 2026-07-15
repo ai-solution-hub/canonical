@@ -48,7 +48,24 @@ function stripMdSuffix(link: string): string {
 }
 
 /**
+ * Strip a leading YAML frontmatter block (`---` … `---`) — SPEC §11
+ * permits the bundle-root `index.md` (and only it, among indexes) a
+ * frontmatter block; the producer stamps `okf_version: "0.1"` there
+ * (DR-019 house rule). The nav parser skips it rather than risking a
+ * frontmatter value line ever matching a heading or bullet shape.
+ */
+function stripFrontmatter(lines: string[]): string[] {
+  if (lines[0]?.trim() !== '---') return lines;
+  const close = lines.findIndex(
+    (line, index) => index > 0 && line.trim() === '---',
+  );
+  return close === -1 ? lines : lines.slice(close + 1);
+}
+
+/**
  * Parse `index.md` text into a nav tree of themes → (subthemes) → concepts.
+ * A leading `---` frontmatter block (the §11 `okf_version` stamp) is
+ * skipped.
  *
  * Returns `[]` for content with no `##`/`###` headings (including empty
  * input) — the caller treats that the same as an absent file.
@@ -58,7 +75,7 @@ export function parseBundleNav(text: string): BundleNavTheme[] {
   let currentTheme: BundleNavTheme | null = null;
   let currentNode: BundleNavTheme | null = null;
 
-  for (const rawLine of text.split(/\r\n|\r|\n/)) {
+  for (const rawLine of stripFrontmatter(text.split(/\r\n|\r|\n/))) {
     const headingMatch = rawLine.match(HEADING_RE);
     if (headingMatch) {
       const level = headingMatch[1].length as 2 | 3;

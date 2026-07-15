@@ -17,7 +17,8 @@
  * Three structured-provenance fields added:
  *   - `session_refs: z.array(z.string())`
  *   - `commit_refs: z.array(z.string())`
- *   - `cross_doc_links: z.array(DocLinkSchema)` (from roadmap-schema.ts)
+ *   - `cross_doc_links: z.array(DocLinkSchema)` (from doc-link.ts — relocated
+ *     out of roadmap-schema.ts under ID-148.8, TECH §3.4 INV-12(c))
  * Fixtures updated to use structured-provenance triple (empty arrays as default).
  *
  * Test coverage:

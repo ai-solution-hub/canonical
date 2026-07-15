@@ -37,7 +37,12 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "lib/validation/task-list-schema.ts"
-      - "lib/validation/roadmap-schema.ts"
+      # ID-148.12 (Option C): roadmap-schema.ts DROPPED (deleted — the roadmap
+      # server arm is repurposed to initiatives); initiatives-schema.ts +
+      # doc-link.ts ADDED (the vendored-twin schema + DocLinkSchema's neutral
+      # relocated home — TECH §3.2, INV-12(a)/(c)).
+      - "lib/validation/initiatives-schema.ts"
+      - "lib/validation/doc-link.ts"
       - "lib/validation/backlog-schema.ts"
       - "lib/validation/work-status.ts"
       # ID-90.22 R3: ledger-budgets.ts joins the schema-arm watched paths. It is
@@ -55,6 +60,10 @@ on:
       - "lib/ledger/detect-schema.ts"
       - "lib/ledger/patch-apply.ts"
       - "lib/ledger/record-mutate.ts"
+      # ID-148.12: initiatives-tree.ts — the shared tree-walk module the
+      # re-vendored patch-apply.ts/record-mutate.ts import (INV-13). Vendored
+      # alongside the three RETAINED oracle modules; watched identically.
+      - "lib/ledger/initiatives-tree.ts"
       - ".github/workflows/task-view-vendor-drift.yml"
 
 concurrency:
@@ -92,16 +101,22 @@ jobs:
           # same-owner public task-view repo (raises the rate limit).
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TASK_VIEW_REPO: liam-jons/task-view
-          TASK_VIEW_TAG: v0.9.0-task-view
+          TASK_VIEW_TAG: v0.11.0-task-view
         run: |
           set -uo pipefail
 
-          # Four vendored schema files. KH path: lib/validation/<name>.
-          # task-view vendor path: packages/schemas/src/<name> (basename-equal),
-          # published as release assets named <name>.
+          # ID-148.12 (Option C): the schema-arm asset list. KH path:
+          # lib/validation/<name>. task-view vendor path:
+          # packages/schemas/src/<name> (basename-equal), published as release
+          # assets named <name>. `roadmap-schema.ts` DROPPED (the roadmap
+          # server arm is repurposed to initiatives upstream — TECH §3.1/§3.2,
+          # INV-12(a)); `initiatives-schema.ts` + `doc-link.ts` ADDED
+          # (InitiativesSchema is the vendored-twin registered in the
+          # re-vendored detect-schema.ts; DocLinkSchema relocated out of
+          # roadmap-schema.ts in {148.8}).
           SCHEMAS=(
             "task-list-schema.ts"
-            "roadmap-schema.ts"
+            "initiatives-schema.ts"
             "backlog-schema.ts"
             "work-status.ts"
             # ID-90.22 R3: the budget registry joins the schema-arm asset diff.
@@ -109,6 +124,8 @@ jobs:
             # tag (the per-file download already notices-and-continues on a
             # missing asset, so this is safe to land ahead of the U0 publish).
             "ledger-budgets.ts"
+            # ID-148.12: DocLinkSchema's neutral home — both repos vendor it.
+            "doc-link.ts"
           )
 
           VENDOR_DIR="$(mktemp -d)"
@@ -225,17 +242,21 @@ jobs:
         env:
           # Static literals (not external context) — safe in run:.
           TASK_VIEW_REPO_URL: https://github.com/liam-jons/task-view.git
-          TASK_VIEW_TAG: v0.9.0-task-view
+          TASK_VIEW_TAG: v0.11.0-task-view
         run: |
           set -uo pipefail
 
           # ID-90.22 R2/R3: atomic-write.ts was DELETED — dropped from the
           # primitive-diff list (the workflow must never watch a non-existent
           # path, PRODUCT inv 59-60). The three RETAINED oracle primitives stay.
+          # ID-148.12: initiatives-tree.ts ADDED — the new shared tree-walk
+          # module patch-apply.ts/record-mutate.ts import (INV-13); vendored
+          # + drift-watched identically to the three RETAINED primitives.
           PRIMITIVES=(
             "detect-schema.ts"
             "patch-apply.ts"
             "record-mutate.ts"
+            "initiatives-tree.ts"
           )
 
           CLONE_DIR="$(mktemp -d)"

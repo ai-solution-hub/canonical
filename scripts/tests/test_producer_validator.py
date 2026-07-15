@@ -273,6 +273,128 @@ def test_citation_shrink_detection_fires_when_citations_section_is_removed_entir
 
 
 # ──────────────────────────────────────────
+# OKF v0.1 conformance (SPEC §5.1/§8) — the numbered-link citation trailer:
+# renderer, cross-format parsing, write-time normalisation, and the CRITICAL
+# legacy↔link shrink-guard parity (a prior committed bundle carries the
+# bare-path form; a format migration alone must never read as a "shrink").
+# ──────────────────────────────────────────
+
+
+def test_citation_entries_parses_both_legacy_and_numbered_link_forms():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    legacy = f"Body.\n\n# Citations\n- {uri}\n- certifications/iso-9001.md\n"
+    linked = (
+        "Body.\n\n# Citations\n\n"
+        f"[1] [{uri}]({uri})\n"
+        "[2] [ISO 9001:2015](/certifications/iso-9001.md)\n"
+    )
+    assert v._citation_entries(legacy) == v._citation_entries(linked) == {
+        uri,
+        "certifications/iso-9001.md",
+    }
+
+
+def test_citation_shrink_guard_treats_format_migration_as_no_shrink():
+    """CRITICAL: the prior committed bundle uses the legacy bare-path form;
+    the next run re-emits the same citations as numbered links. Both sides
+    normalise to targets — a pure format migration is never a shrink."""
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    previous_body = f"Body.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
+    new_body = (
+        "Body.\n\n# Citations\n\n"
+        f"[1] [{uri}]({uri})\n"
+        "[2] [GDPR and Data Protection](/topics/gdpr.md)\n"
+    )
+    assert v.detect_citation_shrink(previous_body=previous_body, new_body=new_body) == []
+
+
+def test_citation_shrink_guard_still_fires_across_formats():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    dropped = ru.build_reference_item_uri(uuid.uuid4())
+    previous_body = f"Body.\n\n# Citations\n- {uri}\n- {dropped}\n"
+    new_body = f"Body.\n\n# Citations\n\n[1] [{uri}]({uri})\n"
+    assert v.detect_citation_shrink(
+        previous_body=previous_body, new_body=new_body
+    ) == [dropped]
+
+
+def test_render_citations_trailer_emits_numbered_markdown_links():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    trailer = v.render_citations_trailer(
+        [uri, "certifications/iso-9001.md"],
+        titles={
+            "certifications/iso-9001.md": (
+                "ISO 9001:2015 — Quality Management Certification"
+            )
+        },
+    )
+    assert trailer == (
+        "# Citations\n"
+        "\n"
+        f"[1] [{uri}]({uri})\n"
+        "[2] [ISO 9001:2015 — Quality Management Certification]"
+        "(/certifications/iso-9001.md)\n"
+    )
+
+
+def test_render_citations_trailer_falls_back_to_rel_path_label():
+    trailer = v.render_citations_trailer(["topics/gdpr.md"])
+    assert "[1] [topics/gdpr.md](/topics/gdpr.md)" in trailer
+
+
+def test_normalise_citations_section_rewrites_legacy_to_numbered_links():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    body = f"Prose.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
+    normalised = v.normalise_citations_section(
+        body, titles={"topics/gdpr.md": "GDPR and Data Protection"}
+    )
+    assert normalised == (
+        "Prose.\n\n# Citations\n\n"
+        f"[1] [{uri}]({uri})\n"
+        "[2] [GDPR and Data Protection](/topics/gdpr.md)\n"
+    )
+
+
+def test_normalise_citations_section_is_idempotent():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    body = f"Prose.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
+    once = v.normalise_citations_section(body)
+    assert v.normalise_citations_section(once) == once
+
+
+def test_normalise_citations_section_preserves_an_existing_link_label():
+    """A previously-normalised trailer's human label survives re-normalisation
+    when no fresher `titles` mapping resolves the target."""
+    body = "Prose.\n\n# Citations\n\n[1] [A Kept Label](/topics/gdpr.md)\n"
+    assert "[1] [A Kept Label](/topics/gdpr.md)" in v.normalise_citations_section(body)
+
+
+def test_normalise_citations_section_no_section_is_unchanged():
+    body = "Prose with no trailer.\n"
+    assert v.normalise_citations_section(body) == body
+
+
+def test_link_wrapped_canonical_uri_stays_legal_only_inside_citations():
+    """BI-10 under the link form: a `[uri](uri)` canonical anchor inside
+    `# Citations` passes the stray-pointer guard; the SAME link anywhere
+    else in the body still fails."""
+    fm_ok = _valid_frontmatter()
+    inside = (
+        "Prose.\n\n# Citations\n\n"
+        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
+    )
+    assert v.check_concept(fm_ok, body=inside) == []
+
+    outside = (
+        f"Prose citing [{_RESOURCE}]({_RESOURCE}) inline.\n\n"
+        "# Citations\n\n"
+        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
+    )
+    errors = v.check_concept(fm_ok, body=outside)
+    assert any("BI-10" in err for err in errors)
+
+
+# ──────────────────────────────────────────
 # check_concept accepts a producer.frontmatter.ConceptFrontmatter directly
 # ──────────────────────────────────────────
 

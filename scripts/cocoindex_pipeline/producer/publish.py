@@ -56,10 +56,11 @@ here).** On green, `publish_bundle` delegates the ONE commit to
 client-owned repo; this module performs no git operation of its own.
 `{132.12}`'s `sync_bundle` skips the commit only when a run applies/removes
 NOTHING relative to the last commit (BI-18's no-op-run guarantee). But
-`producer/bundle_writer.append_log_entry` appends a **freshly-timestamped**
-`## <ISO-8601>` block to `log.md` on EVERY run — including a fully no-op
-run over the concept files (`RunSummary.is_no_op` still renders a block,
-just one that says "No changes (no-op re-run)."). If `log.md` is included
+`producer/bundle_writer.append_log_entry` stamps a **freshly-timestamped**
+`* **Run <ISO-ts> — …**` record into `log.md` on EVERY run (SPEC §7
+date-grouped, newest first) — including a fully no-op run over the concept
+files (`RunSummary.is_no_op` still renders a record, just one that says
+"No changes (no-op re-run)."). If `log.md` is included
 in the `new_output`/`managed_keyset` a caller hands to `publish_bundle` (as
 it will be for a real bundle directory, since `log.md` is one of the
 producer's own managed-keyset filenames), `log.md`'s desired content

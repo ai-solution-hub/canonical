@@ -1,15 +1,16 @@
 /**
- * ledger-cli-scoped-create.test.ts — byte-minimal-diff proof for the four
+ * ledger-cli-scoped-create.test.ts — byte-minimal-diff proof for the
  * single-record CREATE commands routed through the {65.2} scoped splice
- * primitive (ID-65.3).
+ * primitive (ID-65.3). (ID-148.8: the fourth command, `create-theme`,
+ * retired — TECH §3.4, INV-7.)
  *
  * WHY this test exists (real-behaviour per docs/reference/test-philosophy.md):
  * before {65.3}, `add-subtask` called `commitMutation` with no scoped descriptor
  * → a whole-file `serialise()` re-emit (a ~6k-line diff on the live
- * `task-list.json`); `open-task`/`create-theme`/`create-backlog` likewise. After
- * {65.3} each of the four commands threads a `scopedSplice` descriptor so the
- * WRITTEN bytes are exactly the new record's lines appended into the original
- * text — every untouched record stays byte-identical.
+ * `task-list.json`); `open-task`/`create-backlog` likewise. After {65.3}
+ * each command threads a `scopedSplice` descriptor so the WRITTEN bytes are
+ * exactly the new record's lines appended into the original text — every
+ * untouched record stays byte-identical.
  *
  * The proof is a LINE-DIFF assertion on the real before/after file bytes (copies
  * of the live ledgers): the only lines that may change are (a) the new record's
@@ -238,7 +239,10 @@ describe('add-subtask — scoped splice produces a record-sized diff (ID-65.3)',
   });
 });
 
-describe('open-task / create-theme / create-backlog — scoped splice (ID-65.3)', () => {
+// ID-148.8: `create-theme` retired alongside `update-roadmap` (TECH §3.4,
+// INV-7) — its scoped-splice byte-minimal-diff coverage below is removed;
+// see `ledger-cli-retired-verbs.test.ts` for the retired-verb envelope proof.
+describe('open-task / create-backlog — scoped splice (ID-65.3)', () => {
   it('open-task appends only the new task record (byte-minimal diff)', async () => {
     const before = readText('task-list');
     const body = {
@@ -256,27 +260,6 @@ describe('open-task / create-theme / create-backlog — scoped splice (ID-65.3)'
     expect(newLines.some((l) => l.includes('Scoped-create task'))).toBe(true);
     expect(
       readJson('task-list').tasks.some((t: { id: string }) => t.id === '9940'),
-    ).toBe(true);
-  });
-
-  it('create-theme appends only the new theme record (byte-minimal diff)', async () => {
-    const before = readText('product-roadmap');
-    const body = {
-      id: '9941',
-      title: 'Scoped-create theme',
-      description: 'Only this theme record should appear in the diff.',
-    };
-    const r = await run(args('create-theme', [JSON.stringify(body)]));
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.result).toMatchObject({ recordId: '9941' });
-    const after = readText('product-roadmap');
-
-    const newLines = assertMinimalDiff(before, after);
-    expect(newLines.some((l) => l.includes('Scoped-create theme'))).toBe(true);
-    expect(
-      readJson('product-roadmap').themes.some(
-        (t: { id: string }) => t.id === '9941',
-      ),
     ).toBe(true);
   });
 

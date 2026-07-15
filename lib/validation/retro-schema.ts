@@ -28,7 +28,7 @@
  */
 
 import { z } from 'zod';
-import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
+import { DocLinkSchema } from '@/lib/validation/doc-link';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // ID + date regex constants — session ids are `S<n>` (e.g. "S264"), not bare-digit.

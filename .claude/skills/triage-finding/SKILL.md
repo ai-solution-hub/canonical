@@ -47,7 +47,7 @@ The curator agent invokes this skill with a finding packet:
 | `task_context.parent_task_acceptance_criteria` | Parent Task ID-N's `## Acceptance criteria` excerpt (PRODUCT.md). Required input for Branch A predicate 3; the Orchestrator dispatcher MUST populate this — especially at wave close when the source Subtask has promoted to `done` and the Subtask-level fields above are stale. |
 | `task_context.sibling_subtask_file_ownership` | Map of `{ subtask_id: file_ownership_allowed_globs }` for pending/in-progress sibling Subtasks under the same parent Task ID-N. Required input for Branch A predicate 3 (file-path arm). |
 
-You also read the roadmap + backlog ledgers (at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage — **slice reads only** (`show roadmap <themeId>` / `show backlog <itemId>`), never wholesale `Read`.
+You also read the initiatives + backlog ledgers (at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage — **slice reads only** (`show initiatives [id]` / `list projects [--initiative <id>]` / `show backlog <itemId>`), never wholesale `Read`. (`show roadmap <themeId>` is **RETIRED** — clean `retired-verb` envelope, no read performed.)
 
 ---
 
@@ -168,20 +168,41 @@ The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it
 
 > **Write substrate (downstream — informational):** The Orchestrator or `update-roadmap-backlog` materialises this spec via `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --test-strategy <…> [--depends N,M]` (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble) so the write does not hard-reject.
 
-### Branch B — Is it a new capability theme? ("capability theme promotion")
+### Branch B — Is it strategic / cross-cutting? ("roadmap promotion")
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-The Roadmap is a flat list of **themes** — multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining out to active work items. Branch B is reserved exclusively for findings that surface a **new capability theme not already on the Roadmap**.
+> **Write path RETIRED (ID-148.8/DR-073/074):** this branch's classification logic
+> (below) still applies for deciding whether a finding is strategic vs tactical, but the
+> roadmap-theme write mechanism it used to hand off to is gone — `create-theme` returns a
+> clean `retired-verb` envelope, `RoadmapThemeSchema`/`lib/validation/roadmap-schema.ts` is
+> deleted, and the roadmap ledger's data was repurposed server-side to the SERVER-managed
+> `initiatives.json` (writes via ServerIntent through the task-view patch-server). The
+> initiatives `create-project` verb requires an **existing** initiative/sub-initiative
+> path — there is no verb to create a brand-new top-level initiative, so **no designed
+> write path exists for a genuinely-new strategic finding**. Return `decision: roadmap`
+> with the proposed shape below and flag it as an open procedural gap (ID-148.11
+> ambiguous case) rather than assuming a write will succeed.
+
+Roadmap-strategic findings were previously chained through a flat list of **themes** —
+multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining
+out to active work items. Branch B is reserved exclusively for findings that surface a
+**new strategic capability not already tracked**.
 
 A finding routes to Branch B when **both** of these hold:
 
-1. **Not covered by an existing theme.** Inspect roadmap themes via `bun scripts/ledger-cli.ts show roadmap <themeId>` (slice read). The finding's subject is NOT covered by any existing theme's `linked_tasks[]` or `linked_backlog[]` chain (i.e. no existing theme already enumerates this capability area in its linked work). If the finding extends a theme's existing chain, it is Branch C (active work item) not Branch B.
-2. **Multi-month or cross-cutting capability.** The capability is genuinely multi-month in scope OR cross-cuts multiple feature areas at the headline level (e.g. "support multi-tenant deployments", "ship sales-proposal as a sibling application"). Single-feature/weeks-scope items are Branch C, even if they touch territory adjacent to an existing theme.
+1. **Not covered by an existing initiative/project.** Inspect via `bun
+   scripts/ledger-cli.ts show initiatives [id]` / `list projects [--initiative <id>]`
+   (slice reads). The finding's subject is NOT covered by any existing
+   initiative/project's linked work. If the finding extends existing linked work, it is
+   Branch C (active work item) not Branch B.
+2. **Multi-month or cross-cutting capability.** The capability is genuinely multi-month in scope OR cross-cuts multiple feature areas at the headline level (e.g. "support multi-tenant deployments", "ship sales-proposal as a sibling application"). Single-feature/weeks-scope items are Branch C, even if they touch territory adjacent to an existing initiative/project.
 
 **If both hold → Decision: `roadmap`.**
 
-Propose the theme shape (the `update-roadmap-backlog` skill Create-mode populates the full RoadmapThemeSchema fields):
+Propose the shape (historical field names kept for orientation — the write mechanism that
+consumed this shape, `update-roadmap-backlog` Create-mode's `RoadmapThemeSchema`
+population, is retired; no replacement shape is designed yet):
 
 ```yaml
 roadmap_proposed_theme:
@@ -192,9 +213,7 @@ roadmap_proposed_theme:
   initial_linked_backlog: []  # empty by default; populated as backlog items accumulate
 ```
 
-The curator (via `update-roadmap-backlog` Create) appends the theme to `themes[]`, populates `id` from next-free-bare-digit, and fills required schema fields (`status: "pending"` default; `session_refs` / `commit_refs` from provenance).
-
-> If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks — route to Branch C as a `backlog` candidate. Branch B is for **new theme** introductions; existing themes accept new linked work via Branch C.
+> If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks — route to Branch C as a `backlog` candidate. Branch B is for **new strategic** introductions; existing initiatives/projects accept new linked work via Branch C.
 
 ### Branch C — Is it an active work item? ("active work item promotion")
 
@@ -345,7 +364,7 @@ You do not write provenance yourself, but the curator passes your decision to `u
 - Source commit SHA (if from a checker).
 - Session counter (e.g. `kh-prod-readiness-s47`).
 
-The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields. Under `BacklogItemSchema` and `RoadmapThemeSchema` (`lib/validation/backlog-schema.ts`, `lib/validation/roadmap-schema.ts`), both surfaces use `session_refs` + `commit_refs`.
+The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the schema-appropriate fields. Under `BacklogItemSchema` (`lib/validation/backlog-schema.ts`), the backlog surface uses `session_refs` + `commit_refs`. (`RoadmapThemeSchema`/`lib/validation/roadmap-schema.ts` is **deleted** — the roadmap write path is retired; the initiatives-ledger vendored twin `lib/validation/initiatives-schema.ts` uses `originating_session`, not `session_refs`, and is out of this skill's write scope.)
 
 > **CLI input shape:** When provenance fields are involved, the curator-side input going INTO `update-roadmap-backlog` should be a JSON object (positional-JSON or `--file <path>`), not flag-by-flag — the CLI's named-flag mode covers only a subset of fields (per `bun scripts/ledger-cli.ts --help`: `--title --description --status --depends 1,2 --priority --id`), and `--session-refs` / `--commit-refs` are NOT named flags.
 
@@ -357,7 +376,7 @@ The `update-roadmap-backlog` skill attaches this to the resulting ledger entry v
 2. **Defaulting everything to subtask.** Subtasks balloon the current Task ID-N's scope. Apply the binary in-scope-ness rule strictly — `subtask` requires **file-path within `subtask_file_ownership`, OR axis = spec-compliance against the Subtask slice, OR parent-Task-AC = a parent-Task acceptance-criterion failure or sibling-Subtask file-ownership hit**. Anything else is OUT-OF-SCOPE.
 3. **Promoting style nits to the roadmap.** Roadmap is strategic capability; "rename this variable for clarity" is not roadmap material.
 4. **Missing existing coverage.** Always check roadmap + backlog before promoting; duplicates fragment the ledger.
-5. **Routing a tactical item to Branch B — it belongs on Backlog.** Branch B = **new capability theme** only. A single-feature finding routes to Branch C even if it touches a theme's `linked_backlog` area or extends a theme's `linked_tasks[]` chain. Adding work to an existing theme is NOT a Branch B event — it is Branch C creating a backlog entry that the curator (or update-roadmap-backlog Update mode) later links into the theme. Only genuinely-new capability theme introductions justify Branch B.
+5. **Routing a tactical item to Branch B — it belongs on Backlog.** Branch B = **new strategic capability** only. A single-feature finding routes to Branch C even if it touches an existing initiative/project's linked-work area. Adding work to an existing initiative/project is NOT a Branch B event — it is Branch C creating a backlog entry that the curator later links in (via `link-backlog`, once a write path exists — see the Branch B write-path note above). Only genuinely-new strategic introductions justify Branch B.
 6. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When the orchestrator routes a wave-close batch where the source Subtask has already promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling pending/in-progress Subtasks under the same parent Task ID-N, and (b) the parent Task's `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask" context as definitively OOS produces false-negative Branch A misses.
 7. **Demoting a started/in-flight Subtask to the backlog at session close.** In-flight Subtasks carry over across session boundaries as `in_progress`/`pending` Subtask records — committed work stays on the Task List; the backlog is only for not-yet-committed ideas.
 

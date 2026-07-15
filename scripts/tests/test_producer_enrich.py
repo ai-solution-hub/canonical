@@ -371,6 +371,48 @@ class TestCitationValidationProxy:
                 catalogue_paths={"topics/gdpr.md"},
             )
 
+    def test_validate_citation_normalises_a_link_wrapped_anchor_to_its_target(
+        self,
+    ) -> None:
+        """SPEC §5.1/§8 tolerance: a model returning the numbered/markdown-
+        link citation form (or a `/`-leading bundle-absolute cross-link)
+        validates against the SAME provenance ledgers as the bare form —
+        the validated tuple carries the normalised bare TARGET."""
+        uri = build_source_document_uri(_SD_ID)
+        assert (
+            enrich._validate_citation(
+                f"[1] [{uri}]({uri})", seen_anchors={uri}, catalogue_paths=set()
+            )
+            == uri
+        )
+        assert (
+            enrich._validate_citation(
+                "[2] [GDPR](/topics/gdpr.md)",
+                seen_anchors=set(),
+                catalogue_paths={"topics/gdpr.md"},
+            )
+            == "topics/gdpr.md"
+        )
+        assert (
+            enrich._validate_citation(
+                "/topics/gdpr.md",
+                seen_anchors=set(),
+                catalogue_paths={"topics/gdpr.md"},
+            )
+            == "topics/gdpr.md"
+        )
+
+    def test_validate_citation_link_form_is_still_provenance_checked(self) -> None:
+        """Link-wrapping is a FORMAT tolerance, never a provenance bypass —
+        a link-wrapped, never-minted anchor still fails BI-17."""
+        fabricated = build_source_document_uri(str(uuid.uuid4()))
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            enrich._validate_citation(
+                f"[1] [{fabricated}]({fabricated})",
+                seen_anchors=set(),
+                catalogue_paths=set(),
+            )
+
     def test_validate_citation_rejects_bare_uuid(self) -> None:
         with pytest.raises(enrich.Pass1DraftError):
             enrich._validate_citation(
@@ -766,8 +808,12 @@ class TestEnrichConceptEndToEnd:
         assert draft.frontmatter.title == "Learning Management System"
         assert draft.frontmatter.resource == build_source_document_uri(_SD_ID)
         assert "# Citations" in draft.body
-        assert f"- {build_source_document_uri(_SD_ID)}" in draft.body
-        assert "- topics/gdpr.md" in draft.body
+        # SPEC §5.1/§8: numbered REAL markdown links — record anchors keep
+        # the URI as label+target; cross-links are bundle-absolute
+        # leading-`/` with the rel_path as draft-time label.
+        sd_uri = build_source_document_uri(_SD_ID)
+        assert f"[1] [{sd_uri}]({sd_uri})" in draft.body
+        assert "[2] [topics/gdpr.md](/topics/gdpr.md)" in draft.body
         rendered = draft.rendered_markdown
         assert rendered.startswith("---\n")
         assert "title: Learning Management System" in rendered
@@ -988,7 +1034,7 @@ class TestEnrichConceptEndToEnd:
                 return await enrich.enrich_concept(key, source)
 
         draft = asyncio.run(_exercise())
-        assert f"- {minted}" in draft.body
+        assert f"[1] [{minted}]({minted})" in draft.body
 
 
 # ============================================================================

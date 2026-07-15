@@ -1,12 +1,10 @@
 /**
  * ledger-cli-mirror.test.ts — mirror-staleness signalling over the SERVER
- * TRANSPORT (ID-35.18 / ID-35.32, re-targeted at ID-90.22 R1a); extended
- * under ID-148.9 (TECH §3.3, INV-9) with the KH-native initiatives/retros
- * mirror generators.
+ * TRANSPORT (ID-35.18 / ID-35.32, re-targeted at ID-90.22 R1a).
  *
  * A mutating command regenerates the affected mirror BY DEFAULT (so
- * docs/reference/{tasks,roadmap,backlog}/ stay in sync); `--no-regen-mirrors`
- * opts out.
+ * docs/reference/{tasks,backlog,initiatives,retros}/ stay in sync);
+ * `--no-regen-mirrors` opts out.
  *
  * ID-90.22 R1a: the WRITE path is now the server transport (KH_LEDGER_SERVER
  * unset → ON), so the in-process `__setRegenRunnerForTest` / `regenSpy` seam no
@@ -23,42 +21,28 @@
  *   - a dry-run writes nothing and carries no stale signal.
  *   - a normal write succeeds (ok:true) and leaves no `suppressed` stale signal.
  *
- * ID-148.9 additions (INV-9 — initiatives/retros are KH-native, Option A;
- * NOT server-transported, so tested via a DIRECT generator run against a
- * FIXTURE dir per the TECH §5 test plan — no real docs-site mutation):
- *   - `generateInitiativesMirror` regenerates `initiatives/{id}.md` to the
- *     fixture's current topology and deletes stale `{id}.md` files outside it
- *     (the 11.md-16.md analogue).
- *   - `generateRetrosMirror` creates the (not-yet-existing) `retros/` dir and
- *     emits `retros/{session}.md`.
- *   - `regen-mirrors.sh` is wired to call both generators and its
- *     `MIRROR_DIRS` diff-reporting array carries `initiatives`/`retros`
- *     instead of the retired `roadmap` entry.
+ * ID-148.12 (supersedes ID-148.9): the KH-native `generate-initiatives-mirror.ts`
+ * / `generate-retros-mirror.ts` scripts + their direct-generator-run tests are
+ * DELETED — task-view's mirror-generator gained an initiatives arm (nested
+ * render, repurposed roadmap arm) + a retros arm at {148.10}, so initiatives
+ * and retros mirrors now regenerate SERVER-SIDE via the identical `--check`
+ * one-shot mechanism as task-list/backlog (covered by task-view's own suite,
+ * same U11 rationale as the transport-write regen above — not re-tested here).
+ * `regen-mirrors.sh`'s wiring (four `--check` invocations, no generator-script
+ * calls) is asserted below.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  mkdtempSync,
-  copyFileSync,
-  rmSync,
-  readFileSync,
-  mkdirSync,
-  writeFileSync,
-  existsSync,
-} from 'node:fs';
+import { mkdtempSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
-import { generateInitiativesMirror } from '@/scripts/generate-initiatives-mirror';
-import { generateRetrosMirror } from '@/scripts/generate-retros-mirror';
 
 // ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
 const FIXTURES = {
   task: resolve(__dirname, '../fixtures/ledger/task-list.json'),
   roadmap: resolve(__dirname, '../fixtures/ledger/product-roadmap.json'),
   backlog: resolve(__dirname, '../fixtures/ledger/product-backlog.json'),
-  initiatives: resolve(__dirname, '../fixtures/ledger/initiatives.json'),
-  retros: resolve(__dirname, '../fixtures/ledger/product-retros.json'),
 };
 
 let dir: string;
@@ -147,115 +131,22 @@ describe('mirror-staleness signal over transport (ID-35.18 / ID-35.32)', () => {
   });
 });
 
-describe('KH-native initiatives/retros mirror generators (ID-148.9, INV-9)', () => {
-  let mirrorDir: string;
-
-  beforeEach(() => {
-    mirrorDir = mkdtempSync(join(tmpdir(), 'ledger-cli-mirror-initiatives-'));
-    copyFileSync(FIXTURES.initiatives, join(mirrorDir, 'initiatives.json'));
-    copyFileSync(FIXTURES.retros, join(mirrorDir, 'product-retros.json'));
-  });
-  afterEach(() => {
-    rmSync(mirrorDir, { recursive: true, force: true });
-  });
-
-  it('regenerates initiatives/{id}.md to the fixture topology and deletes stale ids', () => {
-    // Pre-seed stale mirrors outside the fixture's current topology (ids "1"
-    // and "4" only) — the analogue of the real 11.md-16.md leftover theme
-    // mirrors this generator retires (INV-9).
-    mkdirSync(join(mirrorDir, 'initiatives'), { recursive: true });
-    writeFileSync(join(mirrorDir, 'initiatives', '11.md'), 'stale\n');
-    writeFileSync(join(mirrorDir, 'initiatives', '16.md'), 'stale\n');
-    // A non-numeric filename must survive untouched (not matched by the
-    // stale-cleanup regex).
-    writeFileSync(join(mirrorDir, 'initiatives', 'README.md'), 'keep\n');
-
-    const result = generateInitiativesMirror(mirrorDir);
-
-    expect(result.written.sort()).toEqual(
-      [
-        join(mirrorDir, 'initiatives', '1.md'),
-        join(mirrorDir, 'initiatives', '4.md'),
-      ].sort(),
-    );
-    expect(result.deleted.sort()).toEqual(
-      [
-        join(mirrorDir, 'initiatives', '11.md'),
-        join(mirrorDir, 'initiatives', '16.md'),
-      ].sort(),
-    );
-    expect(existsSync(join(mirrorDir, 'initiatives', '11.md'))).toBe(false);
-    expect(existsSync(join(mirrorDir, 'initiatives', '16.md'))).toBe(false);
-    expect(existsSync(join(mirrorDir, 'initiatives', 'README.md'))).toBe(true);
-
-    const initiative1 = readFileSync(
-      join(mirrorDir, 'initiatives', '1.md'),
-      'utf8',
-    );
-    expect(initiative1).toContain('type: initiative');
-    expect(initiative1).toContain('id: "1"');
-    expect(initiative1).toContain('title: Fixture initiative one');
-    expect(initiative1).toContain('status: active');
-    expect(initiative1).toContain('# 1: Fixture initiative one');
-    // Sub-initiative -> project -> linked-tasks/linked-backlog tree renders.
-    expect(initiative1).toContain('Sub-initiative without substrate_doc');
-    expect(initiative1).toContain('fixture-project-dirty-status');
-    expect(initiative1).toContain('Linked tasks: 1');
-
-    // Initiative-4-style transitional off-project links render at the
-    // initiative level (audit A3 tolerance, INV-2).
-    const initiative4 = readFileSync(
-      join(mirrorDir, 'initiatives', '4.md'),
-      'utf8',
-    );
-    expect(initiative4).toContain('Linked tasks: 10, 20');
-    expect(initiative4).toContain('Linked backlog: 5');
-
-    // Dirty-data parse still succeeds (INV-1) and surfaces non-fatal
-    // gitignored-substrate warnings (D2) rather than rejecting.
-    expect(result.warnings.length).toBeGreaterThan(0);
-  });
-
-  it('creates the retros/ dir (does not pre-exist) and emits retros/{session}.md', () => {
-    expect(existsSync(join(mirrorDir, 'retros'))).toBe(false);
-
-    const result = generateRetrosMirror(mirrorDir);
-
-    expect(existsSync(join(mirrorDir, 'retros'))).toBe(true);
-    expect(result.written).toEqual([join(mirrorDir, 'retros', 'S1.md')]);
-    expect(result.deleted).toEqual([]);
-
-    const retroS1 = readFileSync(join(mirrorDir, 'retros', 'S1.md'), 'utf8');
-    expect(retroS1).toContain('type: retro');
-    expect(retroS1).toContain('id: "S1"');
-    expect(retroS1).toContain('session_id: kh-main-S1');
-    // Six-category retro narrative body.
-    expect(retroS1).toContain('## Bugs discovered');
-    expect(retroS1).toContain('Fixture bug finding for test assertions.');
-    expect(retroS1).toContain('## Failed assumptions');
-    expect(retroS1).toContain('## Architecture decisions');
-    expect(retroS1).toContain('## Rejected approaches');
-    expect(retroS1).toContain('## Workflow improvements');
-    expect(retroS1).toContain('## Unresolved questions');
-  });
-
-  it('deletes a stale retros/{session}.md no longer present in the source doc', () => {
-    mkdirSync(join(mirrorDir, 'retros'), { recursive: true });
-    writeFileSync(join(mirrorDir, 'retros', 'S999.md'), 'stale\n');
-
-    const result = generateRetrosMirror(mirrorDir);
-
-    expect(result.deleted).toEqual([join(mirrorDir, 'retros', 'S999.md')]);
-    expect(existsSync(join(mirrorDir, 'retros', 'S999.md'))).toBe(false);
-  });
-
-  it('regen-mirrors.sh is wired to the KH-native generators and MIRROR_DIRS drops roadmap for initiatives+retros', () => {
+describe('regen-mirrors.sh wiring (ID-148.12, supersedes ID-148.9)', () => {
+  it('is wired to task-view --check for all four ledgers, not the retired KH-native generators', () => {
     const script = readFileSync(
       resolve(__dirname, '../../scripts/regen-mirrors.sh'),
       'utf8',
     );
-    expect(script).toContain('generate-initiatives-mirror.ts');
-    expect(script).toContain('generate-retros-mirror.ts');
+    // ID-148.9's KH-native generator scripts are DELETED — no more direct
+    // `bun scripts/generate-{initiatives,retros}-mirror.ts` invocations.
+    expect(script).not.toContain('generate-initiatives-mirror.ts');
+    expect(script).not.toContain('generate-retros-mirror.ts');
+    // Every ledger regenerates through the identical server-owned --check
+    // mechanism (filename-agnostic — detectSchema routes by document_name).
+    expect(script).toContain('--check "$LEDGER_DIR/task-list.json"');
+    expect(script).toContain('--check "$LEDGER_DIR/product-backlog.json"');
+    expect(script).toContain('--check "$LEDGER_DIR/initiatives.json"');
+    expect(script).toContain('--check "$LEDGER_DIR/product-retros.json"');
     // roadmap retired under ID-148 — no more product-roadmap.json --check.
     expect(script).not.toContain('product-roadmap.json');
     const mirrorDirsLine = script

@@ -13,9 +13,11 @@
  * `resolveInternalMdLink`) and rewrites it behind a reserved
  * `INTERNAL_LINK_MARKER` path prefix that (a) always starts with `/`, so
  * harden's dummy-base resolution passes it through byte-identical (no
- * further segments to climb), and (b) cannot plausibly collide with an
- * author-written root-absolute href (which `bundle-graph.ts:extractLinks`
- * already treats as external, never internal). `<FileRenderPane>`'s `a`
+ * further segments to climb), and (b) is a reserved prefix that cannot
+ * plausibly collide with real bundle content. A leading-`/` `.md` href is
+ * the SPEC §5.1 bundle-ABSOLUTE form (the producer's citation-trailer +
+ * body-prose cross-link convention) — already bundle-root-relative, so it
+ * is rewritten behind the marker directly. `<FileRenderPane>`'s `a`
  * override checks for the marker to recover the resolved bundle-relative
  * path.
  */
@@ -54,13 +56,22 @@ describe('normaliseInternalMdLinksForStreamdown', () => {
     ).toBe(`[Other](${INTERNAL_LINK_MARKER}other-theme/other.md)`);
   });
 
-  it('leaves an author-written root-absolute link unchanged (treated as external, per extractLinks)', () => {
+  it('rewrites a leading-/ bundle-absolute link behind the marker (SPEC §5.1 form)', () => {
+    // The producer's citation-trailer + body-prose cross-link convention —
+    // already bundle-root-relative, so no directory resolution happens.
     expect(
       normaliseInternalMdLinksForStreamdown(
         '[Orders](/tables/orders.md)',
-        'index.md',
+        'theme/concept.md',
       ),
-    ).toBe('[Orders](/tables/orders.md)');
+    ).toBe(`[Orders](${INTERNAL_LINK_MARKER}tables/orders.md)`);
+  });
+
+  it('leaves an already-marked href unchanged (idempotent)', () => {
+    const marked = `[Orders](${INTERNAL_LINK_MARKER}tables/orders.md)`;
+    expect(normaliseInternalMdLinksForStreamdown(marked, 'index.md')).toBe(
+      marked,
+    );
   });
 
   it('leaves an external https:// link unchanged', () => {

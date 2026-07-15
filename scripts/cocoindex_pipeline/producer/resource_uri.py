@@ -207,6 +207,63 @@ def is_canonical_resource_uri(value: str) -> bool:
     return isinstance(value, str) and value.startswith(_SCHEME)
 
 
+# ── OKF §8 numbered-link citation entries (SPEC v0.1 conformance) ─────────
+#
+# The on-disk `# Citations` trailer entry form is `[n] [label](target)` —
+# a numbered, REAL markdown link (SPEC §5.1/§8), where `target` is either a
+# `canonical://` record anchor or a bundle-ABSOLUTE concept path with a
+# leading `/` (`/certifications/iso-9001.md`). The LEGACY form (bare-path
+# `- <target>` bullets, the pre-conformance shipped-bundle format) must
+# still parse — prior committed bundles carry it — so every citation
+# consumer normalises an entry to its TARGET via `citation_target` before
+# comparing, and leading `/` is stripped so targets compare against
+# identity rel_paths.
+
+# Optional `[n] ` ordinal prefix on a trailer line.
+_CITATION_ORDINAL_PREFIX_RE = re.compile(r"^\[\d+\]\s+")
+# A whole-string markdown link `[label](target)` — label greedy so a label
+# containing brackets still parses up to the LAST `](`; targets are
+# rel_paths / canonical:// uris (never contain whitespace or parens).
+_CITATION_MD_LINK_RE = re.compile(r"^\[(?P<label>.+)\]\((?P<target>[^()\s]+)\)$")
+
+
+def parse_citation_entry(entry: str) -> "tuple[str | None, str]":
+    """Parse ONE citation entry string — any accepted form — into
+    `(label, target)`.
+
+    Accepted forms (all normalise to the same target):
+      - `[n] [label](target)` — the §8 numbered-link trailer line;
+      - `[label](target)` — a bare markdown link (no ordinal);
+      - `target` — the legacy bare form (label is `None`).
+
+    A `/`-leading target (the §5.1 bundle-absolute concept-path form) is
+    stripped of its leading `/` so the returned target is directly
+    comparable to identity rel_paths (`certifications/iso-9001.md`);
+    `canonical://` targets pass through untouched.
+    """
+    text = entry.strip()
+    text = _CITATION_ORDINAL_PREFIX_RE.sub("", text, count=1)
+    match = _CITATION_MD_LINK_RE.match(text)
+    if match:
+        label: "str | None" = match.group("label")
+        target = match.group("target")
+    else:
+        label = None
+        target = text
+    if target.startswith("/") and not target.startswith(_SCHEME):
+        target = target.lstrip("/")
+    return label, target
+
+
+def citation_target(entry: str) -> str:
+    """The normalised citation TARGET of `entry` in any accepted form —
+    `parse_citation_entry`'s target half. The single comparison key every
+    citation consumer (`_validate_citation`, `_citation_entries`,
+    `detect_citation_shrink`, the git-sync shrink guard) uses, so legacy
+    bare-path entries and §8 numbered-link entries never falsely diverge."""
+    return parse_citation_entry(entry)[1]
+
+
 def contains_record_pointer(text: str) -> bool:
     """BI-10 guard: True if `text` embeds a `canonical://` uri or a bare
     uuid anywhere in it.

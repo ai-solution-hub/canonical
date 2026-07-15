@@ -20,7 +20,7 @@
  *
  *   bun scripts/ledger-cli.ts <subcommand> [args] [--flags]
  *   read (no write gate):
- *     show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro; `show umbrellas [umbrellaId]` = umbrellas.json read, no id = whole doc)
+ *     show           <ledger> <id>                 (ledger: task|backlog|retro|initiatives|project)
  *                    [--full|--summary|--no-journals|--fields csv]  (S447 shaping;
  *                    default guaranteed ≤48KB — stub journals → degrade to summary)
  *     get            <ledger> <id> [field]         (single-field read; no field = show)
@@ -34,19 +34,31 @@
  *     flip-subtask   <taskId.subId> <status>      (legacy <taskId> <subId> <status>)
  *     update-task    <taskId> <field> <value>
  *     update-subtask <taskId.subId> <field> <value>
- *     update-roadmap <themeId> <field> <value>
  *     update-backlog <itemId> <field> <value>
  *     append-journal <taskId.subId> <text>        (legacy <taskId> <subId> <text>)
  *   record create / delete:
  *     add-subtask    <taskId> <subtaskJson | --title …>
  *     open-task      <taskJson | --title …>
- *     create-theme   <themeJson | --title …>
  *     create-backlog <itemJson | --title …>
  *     create-retro   <retroJson | --file ->       (caller-supplied S<digits> id; no auto-id)
  *     delete-backlog <itemId>
  *     delete-subtask <taskId.subId>               (legacy <taskId> <subId>)
  *   cross-ledger:
  *     promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
+ *   ID-148.7 initiatives project write verbs (TECH §3.3, INV-5/6/8/10/13 — every
+ *     verb below builds a ServerIntent routed through the transport, no in-process
+ *     writer, DR-073/DR-074):
+ *     create-project   <initiativePath> <projectJson | --title …>  (caller-supplied slug)
+ *     update-project   <slug> <field> <value | --file <path>>      (incl `status`)
+ *     delete-project   <slug>                                      (rejects project-not-empty)
+ *     link-tasks       <slug> <taskId…>          unlink-tasks   <slug> <taskId…>
+ *     link-backlog     <slug> <backlogId…>       unlink-backlog <slug> <backlogId…>
+ *     move-task        <taskId> --from <slug> --to <slug>          (atomic re-parent)
+ *     move-backlog     <backlogId> --from <slug> --to <slug>       (atomic re-parent)
+ *   ID-148.8: `update-roadmap`/`create-theme`/`show|list umbrellas`/`update-umbrella`/
+ *     `promote --capability-theme` are RETIRED — see RETIRED_VERBS below (the roadmap
+ *     ledger's server arm is repurposed upstream to `initiatives`, not deleted; only
+ *     these canonical CLI verb names retire — TECH.md §3.4, INV-7).
  *   flags: --dry-run --pretty --scoped --force --no-regen-mirrors --ledger-dir <path>
  *
  * Write gates (RESEARCH §2.3/§2.6 — prevent-at-source; both reject at WRITE TIME,
@@ -114,22 +126,37 @@ import {
   resolveDefaultLedgerDir,
 } from '@/scripts/ledger-server-lifecycle';
 import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
-import { RoadmapThemeSchema } from '@/lib/validation/roadmap-schema';
+// ID-148.12: `RoadmapThemeSchema` import DROPPED — the 'theme' SchemaRecordKind
+// arm (SCHEMA_SHAPES/SCHEMA_TARGETS/EDIT_SCHEMAS/KIND_LABEL/KIND_BUDGET_KEY)
+// is fully retired below (TECH §3.2/§3.4, INV-7/INV-12(a)/(d)); the shell
+// `lib/validation/roadmap-schema.ts` this import pointed at is DELETED in the
+// same Subtask (its only other consumer, the re-vendored `lib/ledger/*`
+// oracle, now imports `InitiativesSchema` instead).
 import { BacklogItemSchema } from '@/lib/validation/backlog-schema';
 import { RetroRecordSchema } from '@/lib/validation/retro-schema';
-import { UmbrellasSchema } from '@/lib/validation/umbrellas-schema';
 // ID-148.6 — initiatives + projects read verbs. KH-native, direct import (no
-// barrel), NOT added to the vendored `detectSchema` — mirrors the
-// `UmbrellasSchema` import above (initiatives-schema.ts header comment).
+// barrel), NOT added to the vendored `detectSchema` — mirrors the retired
+// `show umbrellas` self-contained-load pattern (ID-148.8 removed the sibling
+// `UmbrellasSchema` import — the umbrella surface is fully retired).
 import {
   InitiativesSchema,
+  ProjectSchema,
   parseInitiativesWithWarnings,
+  PROJECT_STATUSES,
   type InitiativesDocument,
   type Initiative,
   type SubInitiative,
   type Project,
 } from '@/lib/validation/initiatives-schema';
-import { BARE_ID_REGEX } from '@/lib/validation/schemas';
+// ID-148.7 — tree-walk primitives shared with the vendored `record-mutate.ts`/
+// `patch-apply.ts` oracle (TECH §3.3, INV-13). Used client-side ONLY to
+// disambiguate a project slug from an initiative/sub-initiative path BEFORE
+// building a link/unlink/move ServerIntent (INV-6 `links-project-only`) — the
+// server re-resolves independently via the same primitives.
+import { resolveRecordId, type TreeDoc } from '@/lib/ledger/initiatives-tree';
+// ID-148.8: BARE_ID_REGEX import DROPPED — its only consumer,
+// `updateUmbrella`'s `firstMalformedId`, was deleted with the umbrella
+// surface (TECH §3.4, INV-7).
 import {
   LEDGER_BUDGETS,
   type LedgerRecordKind,
@@ -152,7 +179,15 @@ import type { ZodTypeAny } from 'zod';
  * flag-OFF write path uses LEDGER_FILES/ledgerPath() and the mirror filenames
  * stay `product-backlog.json` / `product-roadmap.json` (unchanged).
  */
-type LedgerSlug = 'task-list' | 'roadmap' | 'backlog' | 'umbrellas' | 'retro';
+// ID-148.7: `initiatives` added — the server's repurposed roadmap arm now
+// routes `/api/ledger/initiatives/...` (TECH §3.1(b)/§3.3, INV-8/12(a)).
+type LedgerSlug =
+  | 'task-list'
+  | 'roadmap'
+  | 'backlog'
+  | 'umbrellas'
+  | 'retro'
+  | 'initiatives';
 
 const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   task: 'task-list',
@@ -160,6 +195,8 @@ const LEDGER_NAME_TO_SLUG: Record<LedgerName, LedgerSlug> = {
   backlog: 'backlog',
   // WS-C C2: the retro ledger routes through the server's `retro` slug.
   retro: 'retro',
+  // ID-148.7 — the initiatives write verbs route through this slug.
+  initiatives: 'initiatives',
 };
 
 function ledgerSlug(name: LedgerName): LedgerSlug {
@@ -178,7 +215,19 @@ type ServerIntent =
       recordId: string;
       patches: FieldPatch[];
     }
-  | { kind: 'record-create'; slug: LedgerSlug; record: unknown }
+  | {
+      kind: 'record-create';
+      slug: LedgerSlug;
+      record: unknown;
+      /**
+       * ID-148.7 (INV-13): REQUIRED for `slug:'initiatives'` creates only —
+       * the dotted initiative/sub-initiative path the new project inserts
+       * under (threaded to the server's `POST /record` `initiativePath` body
+       * field — task-view `patch-server.ts` `handlePostRecord`). Ignored by
+       * every other slug's create.
+       */
+      initiativePath?: string;
+    }
   | {
       kind: 'subtask-create';
       slug: LedgerSlug;
@@ -187,7 +236,6 @@ type ServerIntent =
     }
   | { kind: 'subtask-delete'; slug: LedgerSlug; taskId: string; subId: string }
   | { kind: 'record-delete'; slug: LedgerSlug; recordId: string }
-  | { kind: 'umbrella-patch'; umbrellaId: string; patches: FieldPatch[] }
   | {
       // ID-90.22 R1b (invariant 49 / K4-deferred): cross-ledger atomic promote
       // routed through POST /api/ledger/transaction (NOT slug-routed — the
@@ -196,6 +244,11 @@ type ServerIntent =
       // oracle (withCreateDefaults, capability-theme patch, insertRecord/
       // removeRecord) still runs at the call site; the server re-validates and
       // commits all legs atomically. `taskRecord` is the fully-resolved record.
+      // ID-148.8: `capabilityThemeId`/`roadmapPath` are now UNREACHABLE — the
+      // `promote --capability-theme` dispatch case returns `retired-flag`
+      // before this intent is ever built (INV-7). Left typed (not deleted) so
+      // {148.7}'s initiatives-linking replacement can reuse the transaction
+      // shape without a type churn; the fields simply stay undefined forever.
       kind: 'transaction';
       sourceBacklogId: string;
       taskRecord: unknown;
@@ -209,7 +262,19 @@ type ServerIntent =
 
 // ── ledger resolution ─────────────────────────────────────────────────────────
 
-type LedgerName = 'task' | 'roadmap' | 'backlog' | 'retro';
+// ID-148.7: `initiatives` added (TECH §3.3) — this is a SEPARATE membership
+// from the {148.6} dedicated `show initiatives`/`list initiatives|projects`/
+// `show project <slug>` read verbs above, which self-contained-read the file
+// directly and branch BEFORE the generic `ledger in LEDGER_FILES` checks
+// below (unaffected by this addition). Adding `initiatives` here newly lets
+// the GENERIC bare-id `get initiatives <id> <field>` / `list initiatives`
+// (via the fallback path) / `show initiatives <id>` dispatch reach
+// `loadLedger` — those generic bare-id-collection code paths have no
+// initiatives-tree analog (the tree is nested, not a flat collection) and
+// are documented dead branches at each call site (see the `d.kind ===
+// 'initiatives'` comments below) that resolve to a coherent
+// `record-not-found`/empty-list, never a crash.
+type LedgerName = 'task' | 'roadmap' | 'backlog' | 'retro' | 'initiatives';
 
 const LEDGER_FILES: Record<LedgerName, string> = {
   task: 'task-list.json',
@@ -217,6 +282,9 @@ const LEDGER_FILES: Record<LedgerName, string> = {
   backlog: 'product-backlog.json',
   // WS-C C2: the session retro ledger — the 4th ledger surface.
   retro: 'product-retros.json',
+  // ID-148.7 — the initiatives write verbs (create/update/delete-project,
+  // link/unlink, move-*) load this path via `loadLedger`/`ledgerPath`.
+  initiatives: 'initiatives.json',
 };
 
 function ledgerPath(dir: string, name: LedgerName): string {
@@ -433,12 +501,13 @@ interface ParsedArgs {
      */
     force?: boolean;
     /**
-     * ID-35.39 Item C — append-mode flag for `update-backlog notes` /
-     * `update-roadmap notes`. When set AND the target field is `notes`, the
-     * incoming value is concatenated onto the existing field value with a
-     * single newline separator instead of overwriting. Absent (the default)
-     * preserves the pre-{35.39} overwrite behaviour exactly. Optional for
-     * back-compat with pre-existing `ParsedArgs.flags` literals.
+     * ID-35.39 Item C — append-mode flag for `update-backlog notes` (ID-148.8:
+     * the sibling `update-roadmap notes` consumer retired). When set AND the
+     * target field is `notes`, the incoming value is concatenated onto the
+     * existing field value with a single newline separator instead of
+     * overwriting. Absent (the default) preserves the pre-{35.39} overwrite
+     * behaviour exactly. Optional for back-compat with pre-existing
+     * `ParsedArgs.flags` literals.
      */
     append?: boolean;
     /**
@@ -485,29 +554,12 @@ interface ParsedArgs {
     effortEstimate?: string;
     /**
      * ID-35.39 Item A — bind a newly-promoted Task to a roadmap capability
-     * theme. When set on `promote`, the new Task receives
-     * `capability_theme: <themeId>` AND the named theme's `linked_tasks[]`
-     * is appended with the new task id (idempotent push). The roadmap is
-     * loaded + validated up-front; an unknown theme id rejects with
-     * `unknown-theme` before any bytes are touched. Optional / undefined
-     * preserves the pre-{35.39} promote behaviour exactly.
+     * theme. ID-148.8: RETIRED — `promote` now returns `retired-flag`
+     * immediately when this is set (INV-7); the flag still PARSES (so the
+     * CLI can detect + reject it cleanly) but no longer binds anything.
+     * Optional / undefined is the only live path.
      */
     capabilityTheme?: string;
-    /**
-     * ID-35.41 — `update-umbrella` op-flags. Each is a comma-separated list of
-     * bare-digit Task ids applied to a named umbrella's `task_ids[]` in
-     * `docs/reference/umbrellas.json`:
-     *   - `addTasks`    : idempotent append (present ids skipped; order kept).
-     *   - `removeTasks` : remove named ids (absent ids = no-op).
-     *   - `reorder`     : replace task_ids with a permutation of the set.
-     * Mutually-exclusive rule: `reorder` may NOT combine with add/remove;
-     * `addTasks` + `removeTasks` together apply add-then-remove. Optional /
-     * undefined when the flag is not supplied. See the `update-umbrella` arm
-     * of `run()`.
-     */
-    addTasks?: string;
-    removeTasks?: string;
-    reorder?: string;
     /**
      * `list` read-only filter/projection value-flags. All consume the next argv
      * token and are stored as RAW STRING tokens (the integer ones, `recent` /
@@ -531,6 +583,13 @@ interface ParsedArgs {
     limit?: string;
     fields?: string;
     initiative?: string;
+    /**
+     * ID-148.7 — `move-task`/`move-backlog <id> --from <slug> --to <slug>`
+     * (TECH §3.3, INV-13 atomic re-parent). Both required; consumes the next
+     * argv token each.
+     */
+    from?: string;
+    to?: string;
     /**
      * Read-path `show` / `journal` shaping flags (S447 read-path upgrade).
      * All optional / undefined-as-falsy for back-compat with pre-existing
@@ -578,14 +637,11 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // effort_estimate in one invocation (consumes the next token). Maps the
   // camelCase flag key to the snake_case schema field in `readRecordInput`.
   '--effort-estimate': 'effortEstimate',
-  // ID-35.39 Item A — `promote --capability-theme <id>` binds the new Task to
-  // the named roadmap theme. Lives in VALUE_FLAGS (consumes the next token).
+  // ID-35.39 Item A — `promote --capability-theme <id>`. ID-148.8: RETIRED
+  // (INV-7) — kept in VALUE_FLAGS only so the flag still PARSES and `promote`
+  // can detect + reject it with `retired-flag` instead of an unknown-flag
+  // parse error.
   '--capability-theme': 'capabilityTheme',
-  // ID-35.41 — `update-umbrella` op-flags. Each consumes the next token (a
-  // comma-separated bare-digit Task-id list).
-  '--add-tasks': 'addTasks',
-  '--remove-tasks': 'removeTasks',
-  '--reorder': 'reorder',
   // `list` read-only filter/projection flags (each consumes the next token).
   // `--status`/`--depends` are NOT re-listed — `list` reuses their VALUE_FLAGS
   // keys above. Registered here so the reject-unknown guard accepts them.
@@ -601,6 +657,9 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // n most-recent entries (consumes the next token; coerced + range-checked at
   // the `journal` call site, never here — parseArgs stays a pure tokeniser).
   '--last': 'last',
+  // ID-148.7 — `move-task`/`move-backlog <id> --from <slug> --to <slug>`.
+  '--from': 'from',
+  '--to': 'to',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -614,10 +673,11 @@ const BOOLEAN_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // `serialise()` path. Every mutating command reads `scoped: !flags.wholeFile`.
   '--whole-file': 'wholeFile',
   '--force': 'force',
-  // ID-35.39 Item C — `update-backlog/update-roadmap notes --append` concatenates
-  // the incoming value onto the existing notes value (newline-joined) instead of
+  // ID-35.39 Item C — `update-backlog notes --append` concatenates the
+  // incoming value onto the existing notes value (newline-joined) instead of
   // overwriting. Restricted to the `notes` field at the call site; absent
   // (the default) preserves the pre-{35.39} overwrite behaviour exactly.
+  // (ID-148.8: `update-roadmap --append` retired alongside the verb.)
   '--append': 'append',
   // `list --ids-only` — project matched records to a bare id string[].
   '--ids-only': 'idsOnly',
@@ -833,8 +893,8 @@ type FieldValueResult =
 
 /**
  * S299 friction F7 — resolve the RAW STRING value of a field-VALUE edit
- * (`update-task` / `update-subtask` / `update-roadmap` / `update-backlog`) from
- * either:
+ * (`update-task` / `update-subtask` / `update-backlog` — ID-148.8 retired the
+ * sibling `update-roadmap` consumer) from either:
  *
  *   1. `--file <path>` (`-` = stdin)  — the body is read verbatim as the field
  *                                        value (NO JSON.parse — the caller's
@@ -943,10 +1003,14 @@ function checkFieldEditArity(
 /**
  * ID-35.15 CLI-layer auto-id (RESEARCH §2.2). Computes `max(existingIds) + 1`
  * for a collection, returning a bare-digit STRING for EVERY collection:
- *   - `tasks` / `themes` / `items` → bare-digit STRING (`"186"`)
- *   - `subtasks`                    → bare-digit STRING (`"13"`), scoped to
+ *   - `tasks` / `items` → bare-digit STRING (`"186"`)
+ *   - `subtasks`         → bare-digit STRING (`"13"`), scoped to
  *     `taskId` (ID-102: subtask ids are digit-strings, unifying with the other
- *     three collections; the value is unchanged, only the type flips).
+ *     collections; the value is unchanged, only the type flips).
+ *
+ * ID-148.12: the `themes` collection key is RETIRED (INV-12(d), TECH §8) — no
+ * initiatives analog; initiatives project ids are caller-supplied kebab slugs,
+ * never auto-minted (mirrors how retro session ids are caller-supplied).
  *
  * WS-C C4 Bug3 — the allocator is a MONOTONIC HIGH-WATER allocator, NOT a bare
  * `max(survivors)+1`. The latter reuses an id freed by delete/promote (which
@@ -979,7 +1043,7 @@ function checkFieldEditArity(
  */
 function nextId(
   detected: KnownDetected,
-  collectionKey: 'tasks' | 'themes' | 'items' | 'subtasks',
+  collectionKey: 'tasks' | 'items' | 'subtasks',
   taskId?: string,
 ): string {
   if (collectionKey === 'subtasks') {
@@ -996,8 +1060,6 @@ function nextId(
   let ids: string[] = [];
   if (collectionKey === 'tasks' && detected.kind === 'task-list') {
     ids = detected.data.tasks.map((t) => t.id);
-  } else if (collectionKey === 'themes' && detected.kind === 'roadmap') {
-    ids = detected.data.themes.map((t) => t.id);
   } else if (collectionKey === 'items' && detected.kind === 'backlog') {
     ids = detected.data.items.map((it) => it.id);
   } else {
@@ -1034,8 +1096,10 @@ function nextId(
 // at the flag-day schema flip.
 
 /** The documented record kinds, each backed by a Zod object schema. WS-C C2
- * adds `retro`. */
-type SchemaRecordKind = 'task' | 'subtask' | 'theme' | 'item' | 'retro';
+ * adds `retro`. ID-148.12: `theme` RETIRED (TECH §3.2/§3.4, INV-7/INV-12(d)) —
+ * the roadmap server arm is repurposed to initiatives, which has no flat
+ * theme-record analog; `RoadmapThemeSchema` is no longer imported. */
+type SchemaRecordKind = 'task' | 'subtask' | 'item' | 'retro';
 
 /** Schemas keyed by record kind. Zod v4 exposes `.shape` directly even with a
  * trailing `.superRefine` (TaskSchema) — so all shapes are introspectable. */
@@ -1045,7 +1109,6 @@ const SCHEMA_SHAPES: Record<
 > = {
   task: TaskSchema,
   subtask: SubtaskSchema,
-  theme: RoadmapThemeSchema,
   item: BacklogItemSchema,
   retro: RetroRecordSchema,
 };
@@ -1055,7 +1118,6 @@ const SCHEMA_SHAPES: Record<
 const KIND_LABEL: Record<SchemaRecordKind, string> = {
   task: 'task',
   subtask: 'subtask',
-  theme: 'theme',
   item: 'backlog',
   retro: 'retro',
 };
@@ -1065,7 +1127,6 @@ const KIND_LABEL: Record<SchemaRecordKind, string> = {
 const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
   task: 'task',
   subtask: 'subtask',
-  theme: 'theme',
   item: 'item',
   retro: 'retro',
 };
@@ -1186,17 +1247,18 @@ function renderKind(kind: SchemaRecordKind): string {
 }
 
 /** Map a `schema`/help target token to the record kind(s) it documents.
- * A ledger name resolves to ALL its record kinds (task → task + subtask). */
+ * A ledger name resolves to ALL its record kinds (task → task + subtask).
+ * ID-148.12: `roadmap`/`theme` targets RETIRED (no 'theme' SchemaRecordKind
+ * any more) — `schema roadmap`/`schema theme` now correctly resolve to
+ * `bad-schema-target` via the `SCHEMA_TARGETS[target]` undefined lookup. */
 const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
   // ledger names
   task: ['task', 'subtask'],
-  roadmap: ['theme'],
   backlog: ['item'],
   // WS-C C2: the retro ledger surfaces the single retro record kind.
   retro: ['retro'],
   // record-kind aliases
   subtask: ['subtask'],
-  theme: ['theme'],
   item: ['item'],
 };
 
@@ -1209,7 +1271,7 @@ const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
 function renderSchema(target?: string): string | null {
   let kinds: SchemaRecordKind[];
   if (target === undefined) {
-    kinds = ['task', 'subtask', 'theme', 'item', 'retro'];
+    kinds = ['task', 'subtask', 'item', 'retro'];
   } else {
     const resolved = SCHEMA_TARGETS[target];
     if (!resolved) return null;
@@ -1259,7 +1321,7 @@ const SUBCOMMAND_HELP: Record<
   show: {
     synopsis:
       'show <ledger> <id> — print a record (read-only); ' +
-      '`show umbrellas [umbrellaId]` reads umbrellas.json (no id = whole doc); ' +
+      '`show roadmap`/`show umbrellas` are RETIRED (ID-148, INV-7) — ' +
       '`show initiatives [id]` reads initiatives.json (no id = whole doc, id = ' +
       'one TOP-LEVEL initiative); `show project <slug>` finds one project ' +
       'anywhere in the initiative/sub-initiative tree (ID-148.6)',
@@ -1352,16 +1414,6 @@ const SUBCOMMAND_HELP: Record<
       '--no-regen-mirrors',
     kinds: ['subtask'],
   },
-  'update-roadmap': {
-    synopsis:
-      'update-roadmap <themeId> <field> <value | --file <path>> — edit a Theme field',
-    flags:
-      'value: positional <value> | --file <path> (- = stdin) for a large/' +
-      'multi-line body (S299 F7); --whole-file --force --dry-run --pretty ' +
-      '--no-regen-mirrors --append (notes field only — concatenate ' +
-      'newline-joined)',
-    kinds: ['theme'],
-  },
   'update-backlog': {
     synopsis:
       'update-backlog <itemId> <field> <value | --file <path>> — edit a backlog field',
@@ -1408,13 +1460,6 @@ const SUBCOMMAND_HELP: Record<
       '--id forces an id; --whole-file --force --dry-run --pretty --no-regen-mirrors',
     kinds: ['task'],
   },
-  'create-theme': {
-    synopsis: 'create-theme <themeJson | --title …> — insert a roadmap Theme',
-    flags:
-      'input: positional JSON | --file <path> (- = stdin) | named flags; ' +
-      '--id forces an id; --whole-file --force --dry-run --pretty --no-regen-mirrors',
-    kinds: ['theme'],
-  },
   'create-backlog': {
     synopsis: 'create-backlog <itemJson | --title …> — insert a backlog item',
     flags:
@@ -1457,27 +1502,14 @@ const SUBCOMMAND_HELP: Record<
       'commit_refs→[]) and updatedAt is auto-stamped (F1, parity with open-task). ' +
       'NO auto-id — task.id comes from the body. ' +
       '--whole-file --force --dry-run --pretty --no-regen-mirrors ' +
-      '--capability-theme <themeId> (bind the new Task to a roadmap theme — ' +
-      'sets task.capability_theme + appends task id to theme.linked_tasks[])',
+      '--capability-theme <themeId> — RETIRED (ID-148, INV-7): returns ' +
+      '`retired-flag` immediately, nothing bound, nothing written.',
     kinds: ['task', 'item'],
-  },
-  // ID-35.41 — umbrellas.json task_ids[] maintenance. No `kinds` slice: the
-  // umbrella shape is not in the SchemaRecordKind set (self-contained handler,
-  // not detectSchema-routed).
-  'update-umbrella': {
-    synopsis:
-      'update-umbrella <umbrellaId> — maintain an umbrella task_ids[] in umbrellas.json',
-    flags:
-      '--add-tasks <csv> (idempotent append) | --remove-tasks <csv> (absent = no-op) | ' +
-      '--reorder <csv> (must be a permutation — no adds/drops); ' +
-      '--add-tasks + --remove-tasks combine (add-then-remove); --reorder is exclusive. ' +
-      '--dry-run --pretty. NOTE: umbrellas.json is NOT mirrored (no regen) and has ' +
-      'no budgeted fields (no budget gate).',
   },
 };
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
-  show           <ledger> <id>                 (ledger: task|roadmap|backlog|retro; "show umbrellas [umbrellaId]" = umbrellas.json read, no id = whole doc)
+  show           <ledger> <id>                 (ledger: task|backlog|retro; retired: roadmap/umbrellas — see RETIRED_VERBS)
                  [--full|--summary|--no-journals|--fields csv]  (default guaranteed ≤48KB: stub journals → degrade to summary; --full opts out)
                  "show initiatives [id]" = initiatives.json read, no id = whole doc, id = one top-level initiative (ID-148.6)
                  "show project <slug>" = one project anywhere in the initiative tree (ID-148.6)
@@ -1486,25 +1518,26 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   journal        <taskId>                       (per-subtask journal index — counts, not content)
   journal        <taskId.subId> [--last n]      (chronological journal thread; --last warns on supersession)
   schema         [ledger|recordKind]           (print field names + types + budgets)
-  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks})
+  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks}; retired: roadmap/umbrellas)
                  "list initiatives" / "list projects" (ID-148.6; --initiative <id> scopes list projects)
   flip-task      <taskId> <status>
   flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
   update-subtask <taskId.subId> <field> <value>
   update-task    <taskId> <field> <value>
-  update-roadmap <themeId> <field> <value>
   append-journal <taskId.subId> <text>          (legacy <taskId> <subId> <text>)
   add-subtask    <taskId> <subtaskJson>
   add-subtasks   <taskId> --file <json|->        (bulk — JSON array of subtasks)
   update-backlog <itemId> <field> <value>
   open-task      <taskJson | --title … [--effort-estimate <str>]>
   create-backlog <itemJson>
-  create-theme   <themeJson>
   create-retro   <retroJson | --file ->         (id is a caller-supplied S<digits>; no auto-id)
   delete-backlog <itemId>
   delete-subtask <taskId.subId>                 (legacy <taskId> <subId>)
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
-  update-umbrella <umbrellaId> --add-tasks|--remove-tasks|--reorder <csv>
+retired (ID-148, INV-7 — return {ok:false,error:'retired-verb'|'retired-flag'}):
+  update-roadmap, create-theme, update-umbrella, show/list roadmap|umbrellas,
+  promote --capability-theme. Use the \`initiatives\` verbs instead (see
+  \`list initiatives\` / \`list projects\` above).
 flags: --dry-run --pretty --whole-file --scoped --force --append --no-regen-mirrors --ledger-dir <path>
   --whole-file : opt OUT of the now-default minimal-diff (scoped) write and
              re-emit the WHOLE ledger via serialise() (Zod-canonical key order +
@@ -1518,14 +1551,11 @@ flags: --dry-run --pretty --whole-file --scoped --force --append --no-regen-mirr
              --whole-file to opt OUT into the wide write.
   --force  : downgrade a budget-exceeded rejection to a soft warning and write
              anyway (escape hatch for the rare legitimate over-budget field).
-  --append : update-backlog / update-roadmap notes-only — concatenate the
-             incoming value onto the existing notes value (newline-joined)
-             instead of overwriting. Rejected on non-notes fields.
-  --capability-theme <id> : promote-only — bind the new Task to a roadmap
-             theme (writes task.capability_theme + appends to
-             theme.linked_tasks[]). Atomic with the task-list and backlog
-             writes; unknown theme id rejects with \`unknown-theme\` before
-             any bytes are touched.
+  --append : update-backlog notes-only — concatenate the incoming value onto
+             the existing notes value (newline-joined) instead of
+             overwriting. Rejected on non-notes fields.
+  --capability-theme <id> : RETIRED (ID-148, INV-7) — promote returns
+             \`retired-flag\` immediately; nothing bound, nothing written.
   --no-regen-mirrors : skip the default-on mirror regen (e.g. batch edits — run
              \`bash scripts/regen-mirrors.sh\` once at the end).
   --regen-mirrors : DEPRECATED no-op alias — regen is now the default.
@@ -1823,7 +1853,18 @@ async function buildTransportRequest(
       return {
         url: `${base}/${intent.slug}/record`,
         method: 'POST',
-        body: { baseMtime: mtime, record: intent.record },
+        body: {
+          baseMtime: mtime,
+          record: intent.record,
+          // ID-148.7 (INV-13): threaded only for `slug:'initiatives'`
+          // creates — task-view `patch-server.ts` `handlePostRecord` reads
+          // `body.initiativePath` to tree-insert under the addressed
+          // initiative/sub-initiative; every other slug's create ignores an
+          // absent field.
+          ...(intent.initiativePath !== undefined
+            ? { initiativePath: intent.initiativePath }
+            : {}),
+        },
       };
     case 'subtask-create':
       return {
@@ -1842,12 +1883,6 @@ async function buildTransportRequest(
         url: `${base}/${intent.slug}/record/${intent.recordId}`,
         method: 'DELETE',
         body: { baseMtime: mtime },
-      };
-    case 'umbrella-patch':
-      return {
-        url: `${base}/umbrellas/record/${intent.umbrellaId}`,
-        method: 'PATCH',
-        body: { baseMtime: mtime, patches: intent.patches },
       };
     case 'transaction': {
       // ID-90.22 R1b: cross-ledger promote. NOT slug-routed (the bare
@@ -2193,12 +2228,17 @@ function subtaskTable(
   return subtasks.map((s) => ({ id: s.id, title: s.title, status: s.status }));
 }
 
-/** Per-ledger identity fields for the last-resort projection (all short, budgeted). */
+/** Per-ledger identity fields for the last-resort projection (all short, budgeted).
+ * ID-148.7: `initiatives` entry required for `Record<LedgerName,…>`
+ * exhaustiveness — the generic `show`/`get` bare-id path never reaches it in
+ * practice (the {148.6} dedicated `show initiatives`/`show project` verbs
+ * branch first and never call `shapeShowRecord`); documented dead entry. */
 const SHOW_IDENTITY_FIELDS: Record<LedgerName, string[]> = {
   task: ['id', 'title', 'status'],
   roadmap: ['id', 'title', 'status'],
   backlog: ['id', 'title', 'status'],
   retro: ['id', 'date', 'track'],
+  initiatives: ['id', 'title', 'status'],
 };
 
 /**
@@ -2364,25 +2404,32 @@ function shapeShowRecord(
 // `update-backlog 100 description "123"` wrote the number 123. The fix drives
 // the parse by the field's Zod type rather than by "does it parse as JSON".
 //
-// Rule (single shared helper for update-subtask / update-task / update-roadmap
-// / update-backlog): if the field's schema ACCEPTS the raw string as-is
+// Rule (single shared helper for update-subtask / update-task / update-backlog
+// — ID-148.8 retired the sibling `update-roadmap` consumer): if the field's
+// schema ACCEPTS the raw string as-is
 // (string fields + string enums — `safeParse(raw)` succeeds), keep the raw
 // string. Otherwise (array / number / boolean fields) the schema rejects the
 // raw string, so `JSON.parse` the value to obtain the structured type. An
 // unknown field has no schema entry → keep the raw string (the keyset guard
 // inside `fieldPatchMutation` then rejects the unknown field downstream).
 
-/** The four editable record schemas keyed by CLI command's record kind. */
+/** The editable record schemas keyed by CLI command's record kind. ID-148.12:
+ * `theme` RETIRED (was already dead code — zero `coerceFieldValue('theme', …)`
+ * call sites, confirmed by the {148.8} Checker; TECH §3.2/§3.4, INV-7).
+ * ID-148.7: `project` ADDED — `update-project`/link/unlink verbs coerce
+ * against `ProjectSchema.shape` (`status`/`summary`/`description` stay
+ * strings; `blocked_by`/`blocking`/`linked_tasks`/`linked_backlog`/
+ * `originating_session` are arrays). */
 const EDIT_SCHEMAS: Record<
-  'subtask' | 'task' | 'theme' | 'item',
+  'subtask' | 'task' | 'item' | 'project',
   { shape: Record<string, ZodTypeAny> }
 > = {
   subtask: SubtaskSchema,
   // Zod v4 exposes `.shape` directly on the object schema even with a trailing
   // `.superRefine` (the sibling-dep check), so `TaskSchema.shape` is available.
   task: TaskSchema,
-  theme: RoadmapThemeSchema,
   item: BacklogItemSchema,
+  project: ProjectSchema,
 };
 
 /**
@@ -2399,7 +2446,7 @@ const EDIT_SCHEMAS: Record<
  *     keyset guard rejects the unknown field downstream).
  */
 function coerceFieldValue(
-  recordKind: 'subtask' | 'task' | 'theme' | 'item',
+  recordKind: 'subtask' | 'task' | 'item' | 'project',
   field: string,
   raw: string,
 ): unknown {
@@ -2423,9 +2470,19 @@ function coerceFieldValue(
 // (title / description / priority / type / track) are NOT defaulted — they come
 // from flags/JSON, and the schema rightly rejects their absence.
 
-/** Per-record-kind structural defaults — empty arrays, nulls, empty strings. */
+/** Per-record-kind structural defaults — empty arrays, nulls, empty strings.
+ * ID-148.12: `theme` RETIRED — zero live `withCreateDefaults('theme', …)`
+ * call sites (TECH §3.2/§3.4, INV-7/INV-12(d)); the roadmap server arm's
+ * project-create defaults live in the re-vendored `lib/ledger/record-mutate.ts`
+ * (upstream `CREATE_DEFAULTS.project`), a SEPARATE registry from this
+ * KH-native CLI one — {148.7} wires the initiatives create verbs.
+ * ID-148.7: `project` ADDED, values ported VERBATIM from the vendored
+ * `lib/ledger/record-mutate.ts` `CREATE_DEFAULTS.project` so the CLI-side
+ * `insertRecord` oracle pre-check (which requires every non-optional
+ * `ProjectSchema` field present) validates a bare `create-project <path>
+ * --title X` identically to the server's own `withCreateDefaults` merge. */
 const CREATE_DEFAULTS: Record<
-  'subtask' | 'task' | 'theme' | 'item' | 'retro',
+  'subtask' | 'task' | 'item' | 'retro' | 'project',
   Record<string, unknown>
 > = {
   subtask: {
@@ -2446,16 +2503,6 @@ const CREATE_DEFAULTS: Record<
     session_refs: [],
     commit_refs: [],
     updatedAt: '',
-  },
-  theme: {
-    status: 'pending',
-    time_horizon: 'later',
-    linked_tasks: [],
-    linked_backlog: [],
-    session_refs: [],
-    commit_refs: [],
-    cross_doc_links: [],
-    notes: null,
   },
   item: {
     // `type` / `track` are required scalars with no inherent empty value;
@@ -2491,6 +2538,19 @@ const CREATE_DEFAULTS: Record<
     superseding_record_id: null,
     last_conflict_check: null,
   },
+  // ID-148.7 (TECH §3.3) — `id`/`title` are caller-supplied (no auto-id,
+  // INV-13); `status: 'idea'` is the lowest/untriaged PROJECT_STATUSES value.
+  project: {
+    summary: '',
+    description: '',
+    substrate_doc: '',
+    status: 'idea',
+    blocked_by: [],
+    blocking: [],
+    linked_tasks: [],
+    linked_backlog: [],
+    originating_session: [],
+  },
 };
 
 /**
@@ -2500,7 +2560,7 @@ const CREATE_DEFAULTS: Record<
  * write timestamp when absent.
  */
 function withCreateDefaults(
-  recordKind: 'subtask' | 'task' | 'theme' | 'item' | 'retro',
+  recordKind: 'subtask' | 'task' | 'item' | 'retro' | 'project',
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
@@ -2739,6 +2799,349 @@ function flattenProjects(doc: InitiativesDocument): FlatProject[] {
   return out;
 }
 
+// ── ID-148.8 — retired verbs (Option C: TECH §3.4, INV-7) ───────────────────
+//
+// The roadmap ledger's SERVER arm was REPURPOSED upstream to `initiatives`
+// (task-view {148.10}), NOT deleted — `lib/validation/roadmap-schema.ts` was
+// a shell until {148.12} re-vendored the `lib/ledger/*` oracle (which now
+// imports `InitiativesSchema` instead of `RoadmapSchema`) and deleted it.
+// Only the CANONICAL CLI VERB NAMES retire here, so a retired verb/ledger
+// name returns a clean `retired-verb` envelope FIRST — before any file read /
+// JSON.parse / schema validation ever runs (never ENOENT/parse/stack).
+
+/** Bare subcommand names retired under ID-148.8, keyed to a one-line
+ * replacement pointer. Checked at the TOP of `run()`'s dispatch. */
+const RETIRED_VERBS: Record<string, string> = {
+  'update-roadmap': 'the initiatives project verbs (update-project et al.)',
+  'create-theme': 'the initiatives create-project verb',
+  'update-umbrella':
+    'the initiatives verbs — the umbrella surface is fully retired, no direct replacement',
+};
+
+/** `<ledger>` argument values retired alongside the verbs above — `show`/
+ * `list` reject these before ever touching `LEDGER_FILES` (INV-7: "the
+ * roadmap/umbrellas <ledger> argument is rejected by ledger-name
+ * validation"). */
+const RETIRED_LEDGER_NAMES: Record<string, string> = {
+  roadmap: 'the initiatives ledger (`show initiatives` / `list initiatives`)',
+  umbrellas:
+    'the initiatives ledger — the umbrella surface is fully retired, no direct replacement',
+};
+
+/** Shared `retired-verb` envelope for both retirement checks above. */
+function retiredVerbResult(
+  subcommand: string,
+  retiredThing: string,
+  replacement: string,
+): CliResult {
+  return cliErr(
+    subcommand,
+    'retired-verb',
+    `${retiredThing} removed under ID-148 - use ${replacement}`,
+  );
+}
+
+/** `show`/`get`/`list` each reject a retired `<ledger>` argument
+ * (roadmap/umbrellas) before ever touching `LEDGER_FILES` — INV-7: no
+ * ENOENT/parse/stack on a retired path. Shared so the three call sites
+ * can't drift on the envelope shape; returns `null` when `ledger` isn't
+ * retired. */
+function checkRetiredLedgerName(
+  subcommand: string,
+  ledger: string,
+): CliResult | null {
+  if (!(ledger in RETIRED_LEDGER_NAMES)) return null;
+  return retiredVerbResult(
+    subcommand,
+    `${subcommand} ${ledger}`,
+    RETIRED_LEDGER_NAMES[ledger],
+  );
+}
+
+// ── ID-148.7 — initiatives write verbs (Option C: ServerIntents) ───────────
+//
+// TECH §3.3, INV-5/6/8/10/13. Every write verb below builds a ServerIntent
+// routed through commitMutation -> serverCommitMutation -> buildTransportRequest
+// (no in-process writer — DR-073/DR-074 hold: the R1b single-write-path
+// invariant is unchanged, `initiatives` is a first-class server kind exactly
+// like task-list/backlog/retro). The CLI-side oracle (loadLedger->
+// detectSchema->'initiatives', fieldPatchMutation/applyPatches->
+// applyInitiativesPatches, insertRecord/removeRecord) runs at the call site
+// for the fast local envelope; the server re-validates + runs the
+// record-set/budget gates authoritatively.
+
+/** Load `initiatives.json` via the (now first-class) generic `loadLedger`
+ * path and narrow to the `kind:'initiatives'` variant, giving call sites both
+ * the generic `detected` (for insertRecord/removeRecord/applyPatches, which
+ * accept the whole `KnownDetected` union) and the narrowly-typed `doc` (for
+ * the tree-walk helpers below). Distinct from the {148.6} dedicated
+ * `loadInitiativesDoc` self-contained reader above — that one predates
+ * `initiatives` becoming a `LedgerName` and stays the live READ path
+ * unchanged; this one exists because the write verbs need the SAME
+ * `KnownDetected` shape `insertRecord`/`removeRecord`/`applyPatches` expect. */
+async function loadInitiativesLedger(
+  dir: string,
+  subcommand: string,
+): Promise<
+  | { ok: true; detected: KnownDetected; doc: InitiativesDocument }
+  | { ok: false; result: CliResult }
+> {
+  const loaded = await loadLedger(ledgerPath(dir, 'initiatives'));
+  if (!loaded.ok) return loaded;
+  if (loaded.detected.kind !== 'initiatives') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'ledger-schema-invalid',
+        `initiatives.json did not parse to the initiatives kind (got "${loaded.detected.kind}")`,
+      ),
+    };
+  }
+  return { ok: true, detected: loaded.detected, doc: loaded.detected.data };
+}
+
+/** INV-6 — link/unlink/move operate ONLY at project level. Resolves `id`
+ * against the whole initiatives tree (project slug OR initiative/
+ * sub-initiative path) via the SAME `resolveRecordId` primitive the vendored
+ * server oracle uses, so the two can never drift on the disambiguation rule.
+ * An initiative/sub-initiative match rejects `links-project-only` BEFORE any
+ * ServerIntent is built (TECH §3.3: "enforced at the CLI before building the
+ * intent"). */
+function requireProject(
+  subcommand: string,
+  doc: InitiativesDocument,
+  id: string,
+): { ok: true; project: Project } | { ok: false; result: CliResult } {
+  const resolved = resolveRecordId(doc as unknown as TreeDoc, id);
+  if (resolved.kind === 'initiative') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'links-project-only',
+        `"${id}" is an initiative/sub-initiative path, not a project slug — link/unlink/move address projects only`,
+      ),
+    };
+  }
+  if (resolved.kind === 'not-found') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-not-found',
+        `no project with slug "${id}"`,
+      ),
+    };
+  }
+  return { ok: true, project: resolved.location.project as unknown as Project };
+}
+
+/** Bare-digit id validation on task/backlog ids threaded to link/unlink/move
+ * (TECH §3.3). Project ids (slugs) are validated separately via
+ * `requireProject`'s tree-walk. */
+function requireBareDigitIds(
+  subcommand: string,
+  ids: string[],
+): { ok: true } | { ok: false; result: CliResult } {
+  const bad = ids.filter((id) => !/^\d+$/.test(id));
+  if (bad.length > 0) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'invalid-id',
+        `task/backlog ids must be bare-digit strings — got: [${bad.join(', ')}]`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * INV-3 (lenient read / strict write on `status`) — client-side, defense-in-
+ * depth surfacing.
+ *
+ * The server is now the AUTHORITATIVE enforcement point (`{148.13}`,
+ * TECH §2 INV-3): task-view's `gates/status-enum-gate.ts`, wired into
+ * `packages/server/patch-server.ts` at the same post-mutation /
+ * pre-serialisation hook as the budget gate, re-validates every
+ * initiatives-kind `status` SET (field-patch or record-create) against
+ * `PROJECT_STATUSES`/`INITIATIVE_STATUSES` and rejects out-of-enum values
+ * with a clean `invalid-status` 422 — a client that bypasses this CLI (e.g.
+ * a raw PATCH to the patch-server) IS rejected. This check stays as the
+ * fast, local pre-flight: it fails a malformed mutation before the request
+ * round-trips to the server, surfacing the same `invalid-status` envelope
+ * client-side. Pinned release: `v0.11.0-task-view` (see
+ * `lib/ledger/README.md`'s `{148.13}` re-vendor lineage note). */
+function requireValidProjectStatus(
+  subcommand: string,
+  value: string,
+): { ok: true } | { ok: false; result: CliResult } {
+  if (!(PROJECT_STATUSES as readonly string[]).includes(value)) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'invalid-status',
+        `"${value}" is not a valid project status — known: [${PROJECT_STATUSES.join(', ')}]`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+type LinkField = 'linked_tasks' | 'linked_backlog';
+
+/** Shared body for link-tasks/unlink-tasks/link-backlog/unlink-backlog
+ * (TECH §3.3, INV-5/6). `mode:'link'` unions the ids into the field
+ * (order-preserving dedupe); `mode:'unlink'` removes them. Builds ONE
+ * `field-patch` ServerIntent (a single-field SET of the full array — the
+ * server's `applyInitiativesPatches` re-validates the whole document in one
+ * pass, matching every other field-patch verb's discipline). */
+async function linkUnlinkVerb(
+  subcommand: string,
+  dir: string,
+  args: ParsedArgs,
+  linkField: LinkField,
+  mode: 'link' | 'unlink',
+): Promise<CliResult> {
+  const { positionals: p, flags } = args;
+  const [slug, ...ids] = p;
+  if (!slug || ids.length === 0)
+    return cliErr(subcommand, 'missing-args', `${subcommand} <slug> <id…>`);
+  const idCheck = requireBareDigitIds(subcommand, ids);
+  if (!idCheck.ok) return idCheck.result;
+  const loaded = await loadInitiativesLedger(dir, subcommand);
+  if (!loaded.ok) return loaded.result;
+  const proj = requireProject(subcommand, loaded.doc, slug);
+  if (!proj.ok) return proj.result;
+  const current = proj.project[linkField];
+  const newValue =
+    mode === 'link'
+      ? [...new Set([...current, ...ids])]
+      : current.filter((id) => !ids.includes(id));
+  const patch: FieldPatch = {
+    fieldPath: ['projects', slug, linkField],
+    newValue,
+  };
+  const m = fieldPatchMutation(subcommand, loaded.detected, patch);
+  if (!m.ok) return m.result;
+  return commitMutation({
+    subcommand,
+    path: ledgerPath(dir, 'initiatives'),
+    resultPayload: { slug, [linkField]: newValue },
+    dryRun: flags.dryRun,
+    regenMirrors: !flags.noRegenMirrors,
+    force: flags.force,
+    serverIntent: {
+      kind: 'field-patch',
+      slug: ledgerSlug('initiatives'),
+      recordId: slug,
+      patches: [patch],
+    },
+  });
+}
+
+/**
+ * `move-task`/`move-backlog <id> --from <slug> --to <slug>` — the atomic
+ * re-parent (TECH §3.3, INV-13). NOT a distinct wire-level opcode: this
+ * compiles to a TWO-patch batch (source project's `linkField` minus the id;
+ * target's plus it) sent in ONE `field-patch` ServerIntent/request, which
+ * the server's existing `applyInitiativesPatches` all-or-nothing multi-patch
+ * machinery already applies atomically (one Zod parse, one gate cycle). The
+ * record-set gate sees `expectedDelta:'none'` regardless — a project's
+ * `linked_*` field CONTENTS change but no project is added or removed, so
+ * the delta is ∅ by construction (verified against task-view
+ * `packages/server/patch-server.ts` `handlePatchRecord`).
+ *
+ * NOTE (out-of-scope finding, journaled): the server's `generateRecordMirror`
+ * scopes a field-PATCH's mirror regen to ONE recordId's owning top-level
+ * initiative. When `--from`/`--to` belong to DIFFERENT top-level
+ * initiatives, only the `--to` side's mirror (the recordId threaded below)
+ * regenerates on this request — the `--from` side's mirror goes stale until
+ * the next full regen. This does not affect the canonical JSON (the
+ * authoritative record) or the record-set delta ∅ guarantee — only the
+ * generated markdown mirror.
+ */
+async function moveVerb(
+  subcommand: string,
+  dir: string,
+  args: ParsedArgs,
+  linkField: LinkField,
+): Promise<CliResult> {
+  const { positionals: p, flags } = args;
+  const [id] = p;
+  const fromSlug = flags.from;
+  const toSlug = flags.to;
+  if (!id || !fromSlug || !toSlug)
+    return cliErr(
+      subcommand,
+      'missing-args',
+      `${subcommand} <id> --from <slug> --to <slug>`,
+    );
+  const idCheck = requireBareDigitIds(subcommand, [id]);
+  if (!idCheck.ok) return idCheck.result;
+  if (fromSlug === toSlug)
+    return cliErr(subcommand, 'same-project', '--from and --to must differ');
+  const loaded = await loadInitiativesLedger(dir, subcommand);
+  if (!loaded.ok) return loaded.result;
+  const fromProj = requireProject(subcommand, loaded.doc, fromSlug);
+  if (!fromProj.ok) return fromProj.result;
+  const toProj = requireProject(subcommand, loaded.doc, toSlug);
+  if (!toProj.ok) return toProj.result;
+  const fromList = fromProj.project[linkField];
+  if (!fromList.includes(id)) {
+    return cliErr(
+      subcommand,
+      'not-linked',
+      `"${id}" is not linked to project "${fromSlug}" — nothing to move`,
+    );
+  }
+  const newFrom = fromList.filter((x) => x !== id);
+  const toList = toProj.project[linkField];
+  const newTo = toList.includes(id) ? toList : [...toList, id];
+  const patches: FieldPatch[] = [
+    { fieldPath: ['projects', fromSlug, linkField], newValue: newFrom },
+    { fieldPath: ['projects', toSlug, linkField], newValue: newTo },
+  ];
+  // Both patches re-validate through the SAME applyInitiativesPatches batch
+  // (patch-apply.ts) as the CLI-side oracle pre-check — all-or-nothing, one
+  // Zod parse (mirrors fieldPatchMutation's single-patch discipline, widened
+  // to two patches since fieldPatchMutation only accepts one).
+  const applied = applyPatches(loaded.detected, patches);
+  if (!applied.ok) {
+    if (applied.kind === 'schema-error')
+      return {
+        ok: false,
+        subcommand,
+        error: 'schema-error',
+        issues: applied.zodError.issues,
+        expected: describeExpectedShape(applied.zodError),
+      };
+    if (applied.kind === 'walk-error')
+      return cliErr(subcommand, 'walk-error', applied.detail);
+    return cliErr(subcommand, applied.kind);
+  }
+  return commitMutation({
+    subcommand,
+    path: ledgerPath(dir, 'initiatives'),
+    resultPayload: { id, from: fromSlug, to: toSlug },
+    dryRun: flags.dryRun,
+    regenMirrors: !flags.noRegenMirrors,
+    force: flags.force,
+    serverIntent: {
+      kind: 'field-patch',
+      slug: ledgerSlug('initiatives'),
+      // The URL/mirror-regen scope needs ONE recordId; the arrival (`to`)
+      // project is the primary subject of a "move to" — see the mirror-scope
+      // out-of-scope finding in this function's jsdoc above.
+      recordId: toSlug,
+      patches,
+    },
+  });
+}
+
 async function run(args: ParsedArgs): Promise<CliResult> {
   const { subcommand: rawSubcommand, positionals: p, flags } = args;
   // ID-35.34 — resolve subcommand aliases at the dispatch boundary. parseArgs()
@@ -2749,6 +3152,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     rawSubcommand !== undefined
       ? (SUBCOMMAND_ALIASES[rawSubcommand] ?? rawSubcommand)
       : undefined;
+  // ID-148.8 — retired verbs fail FIRST, before ledger-dir resolution even
+  // runs (a retired verb needs no ledger at all).
+  if (subcommand !== undefined && subcommand in RETIRED_VERBS) {
+    return retiredVerbResult(subcommand, subcommand, RETIRED_VERBS[subcommand]);
+  }
   // ID-68.35 — resolve the default ledger dir at the consumption chokepoint
   // (fail-closed). An explicit `--ledger-dir` / hand-built `flags.ledgerDir`
   // short-circuits; absent one, resolveDefaultLedgerDir() throws LOUD when
@@ -2761,59 +3169,21 @@ async function run(args: ParsedArgs): Promise<CliResult> {
     case 'show': {
       const [ledger, id] = p;
       if (!ledger) return cliErr('show', 'missing-args', 'show <ledger> <id>');
-      // S450 — umbrellas read affordance. `umbrellas` is a valid server slug
-      // but NOT a LedgerName (ID-35.41: extending the union ripples widely),
-      // so the read is a self-contained load mirroring update-umbrella's.
-      // `show umbrellas` prints the whole document (small, journal-free — the
-      // 48KB valve is irrelevant); `show umbrellas <umbrellaId>` one entry.
-      if (ledger === 'umbrellas') {
-        const path = resolve(dir, UMBRELLAS_FILE);
-        let text: string;
-        try {
-          text = await readFile(path, 'utf8');
-        } catch (err) {
-          return cliErr('show', 'ledger-read-failed', `${path}: ${msg(err)}`);
-        }
-        let raw: unknown;
-        try {
-          raw = JSON.parse(text);
-        } catch (err) {
-          return cliErr('show', 'ledger-parse-failed', `${path}: ${msg(err)}`);
-        }
-        const parsedDoc = UmbrellasSchema.safeParse(raw);
-        if (!parsedDoc.success) {
-          return {
-            ok: false,
-            subcommand: 'show',
-            error: 'ledger-schema-invalid',
-            detail: path,
-            issues: parsedDoc.error.issues,
-            expected: describeExpectedShape(parsedDoc.error),
-          };
-        }
-        if (!id)
-          return { ok: true, subcommand: 'show', result: parsedDoc.data };
-        const entry = parsedDoc.data.umbrellas.find((u) => u.id === id);
-        if (!entry)
-          return cliErr(
-            'show',
-            'record-not-found',
-            `no umbrella with id "${id}" — known: [${parsedDoc.data.umbrellas
-              .map((u) => u.id)
-              .join(', ')}]`,
-          );
-        return { ok: true, subcommand: 'show', result: entry };
-      }
-      // ID-148.6 — initiatives read affordance, mirroring the `show umbrellas`
-      // arm immediately above (self-contained readFile + InitiativesSchema
-      // parse — `initiatives` is NOT a LedgerName either, same rationale).
+      // ID-148.8 — INV-7: the roadmap/umbrellas <ledger> argument is rejected
+      // by ledger-name validation, before the (now-deleted) self-contained
+      // `show umbrellas` load or the generic LEDGER_FILES fallthrough for
+      // `roadmap` ever run.
+      const showRetired = checkRetiredLedgerName('show', ledger);
+      if (showRetired) return showRetired;
+      // ID-148.6 — initiatives read affordance (self-contained readFile +
+      // InitiativesSchema parse — `initiatives` is NOT a LedgerName, same
+      // rationale as the retired `umbrellas` special-case above).
       // `show initiatives` (no id) prints the whole document (43.5KB — under
       // the 48KB valve, no shaping needed); `show initiatives <id>` scopes to
       // ONE TOP-LEVEL initiative. Ids are NOT globally unique across nesting
       // depth (e.g. sub-initiative id "1" exists under BOTH initiative 4 and
       // initiative 8), so an unqualified id lookup stays scoped to the
-      // unambiguous top-level `initiatives[]` array — same discipline as
-      // `show umbrellas <umbrellaId>` scoping to the flat `umbrellas[]` array.
+      // unambiguous top-level `initiatives[]` array.
       if (ledger === 'initiatives') {
         const loaded = await loadInitiativesDoc(dir, 'show');
         if (!loaded.ok) return loaded.result;
@@ -2870,16 +3240,27 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'show',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro|umbrellas|initiatives|project`,
+          `ledger must be task|backlog|retro|initiatives|project`,
         );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
+      // ID-148.12: `d.kind` can no longer be 'roadmap' (the re-vendored
+      // oracle registers 'initiatives' instead). This generic bare-id lookup
+      // has no initiatives-tree analog — `initiatives[]`/`sub-initiatives[]`
+      // is a NESTED tree, not a flat findable-by-id collection — so the
+      // `show initiatives [id]` / `show project <slug>` dedicated verbs
+      // above (reading a SEPARATE file via loadInitiativesDoc) are the live
+      // initiatives read path; this arm stays a documented dead branch
+      // (`show roadmap <id>`/`show initiatives <id>` never reach here — the
+      // `ledger` positional dispatch above already routes 'initiatives' to
+      // the dedicated verb and 'roadmap' is a still-valid-but-unmigrated
+      // LedgerName whose file content no longer parses to this kind).
       const record =
         d.kind === 'task-list'
           ? d.data.tasks.find((t) => t.id === id)
-          : d.kind === 'roadmap'
-            ? d.data.themes.find((t) => t.id === id)
+          : d.kind === 'initiatives'
+            ? undefined
             : d.kind === 'retro'
               ? d.data.retros.find((r) => r.id === id)
               : d.data.items.find((it) => it.id === id);
@@ -2912,12 +3293,16 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const [ledger, id, field] = p;
       if (!ledger || !id)
         return cliErr('get', 'missing-args', 'get <ledger> <id> [field]');
+      // ID-148.8 fix-Executor (Checker FAIL): `get` was missing the same
+      // INV-7 retired-ledger guard `show`/`list` already carry — a bare
+      // `!(ledger in LEDGER_FILES)` check does NOT catch 'roadmap' (still a
+      // valid LedgerName, per Option C's server-arm repurpose), so
+      // `get roadmap <id>` fell through to `loadLedger` and surfaced a raw
+      // ENOENT instead of a clean retired-verb envelope.
+      const getRetired = checkRetiredLedgerName('get', ledger);
+      if (getRetired) return getRetired;
       if (!(ledger in LEDGER_FILES))
-        return cliErr(
-          'get',
-          'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro`,
-        );
+        return cliErr('get', 'bad-ledger', `ledger must be task|backlog|retro`);
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
@@ -2956,11 +3341,14 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return { ok: true, subcommand: 'get', result: subRec[field] };
       }
 
+      // ID-148.12: see the identical `show` dispatch comment above — this
+      // generic bare-id lookup has no initiatives-tree analog, stays a
+      // documented dead branch.
       const record =
         d.kind === 'task-list'
           ? d.data.tasks.find((t) => t.id === id)
-          : d.kind === 'roadmap'
-            ? d.data.themes.find((t) => t.id === id)
+          : d.kind === 'initiatives'
+            ? undefined
             : d.kind === 'retro'
               ? d.data.retros.find((r) => r.id === id)
               : d.data.items.find((it) => it.id === id);
@@ -3167,13 +3555,18 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'list',
           'missing-args',
-          'list <ledger> [--status csv --since ISO --theme id --depends-on id --recent n --limit n --fields csv --ids-only] (ledger: task|roadmap|backlog|retro|initiatives|projects)',
+          'list <ledger> [--status csv --since ISO --theme id --depends-on id --recent n --limit n --fields csv --ids-only] (ledger: task|backlog|retro|initiatives|projects)',
         );
+      // ID-148.8 — INV-7: the roadmap/umbrellas <ledger> argument is rejected
+      // by ledger-name validation, before the generic LEDGER_FILES membership
+      // check below ever runs.
+      const listRetired = checkRetiredLedgerName('list', ledger);
+      if (listRetired) return listRetired;
       // ID-148.6 — `list initiatives` / `list projects`, mirroring the
       // self-contained initiatives read affordance (`show initiatives` /
       // `show project` above). Neither `initiatives` nor `projects` is a
-      // LedgerName (same rationale as `umbrellas`), so both branch BEFORE the
-      // generic `LEDGER_FILES` membership check below.
+      // LedgerName (same rationale as the retired `umbrellas`), so both
+      // branch BEFORE the generic `LEDGER_FILES` membership check below.
       if (ledger === 'initiatives' || ledger === 'projects') {
         const recentC = coerceCountFlag('list', flags.recent, '--recent');
         if (!recentC.ok) return recentC.result;
@@ -3307,7 +3700,7 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'list',
           'bad-ledger',
-          `ledger must be task|roadmap|backlog|retro|initiatives|projects`,
+          `ledger must be task|backlog|retro|initiatives|projects`,
         );
 
       // Coerce the integer flags up-front — parseArgs stores them as raw string
@@ -3363,13 +3756,24 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           hasStatus: false,
           defaultFields: ['id', 'date', 'track'],
         },
+        // ID-148.7: `initiatives` entry required for `Record<LedgerName,…>`
+        // exhaustiveness — unreachable in practice, `list initiatives`/`list
+        // projects` branch BEFORE this generic path (see the dedicated
+        // {148.6} handler above); documented dead entry, `records` is always
+        // `[]` for `d.kind === 'initiatives'` (see below).
+        initiatives: {
+          hasStatus: true,
+          defaultFields: ['id', 'title', 'status'],
+        },
       };
       const meta = META[ledger as LedgerName];
 
+      // ID-148.12: see the `show`/`get` dispatch comment — no initiatives-tree
+      // analog for a flat record list; documented dead branch (empty array).
       const records = (d.kind === 'task-list'
         ? d.data.tasks
-        : d.kind === 'roadmap'
-          ? d.data.themes
+        : d.kind === 'initiatives'
+          ? []
           : d.kind === 'retro'
             ? d.data.retros
             : d.data.items) as unknown as Record<string, unknown>[];
@@ -4078,94 +4482,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       });
     }
 
-    // ── ID-35.20 roadmap field editor (RESEARCH §4 — no editor existed) ──────
-    case 'update-roadmap': {
-      const [themeId, field] = p;
-      if (!themeId || !field)
-        return cliErr(
-          'update-roadmap',
-          'missing-args',
-          'update-roadmap <themeId> <field> <value | --file <path>>',
-        );
-      // S299 F7 — reject a shell-mis-parsed invocation (extra positionals).
-      const arity = checkFieldEditArity('update-roadmap', p, flags.file);
-      if (!arity.ok) return arity.result;
-      // S299 F7 — resolve the value from --file/stdin or the positional.
-      const valueRes = readFieldValue('update-roadmap', flags.file, p[2]);
-      if (!valueRes.ok) return valueRes.result;
-      const value = valueRes.raw;
-      // ID-35.39 Item C: `--append` is only meaningful on `notes` (the only
-      // nullable-string field on themes). Reject early on other fields.
-      if (flags.append && field !== 'notes') {
-        return cliErr(
-          'update-roadmap',
-          'append-unsupported-field',
-          `--append is only supported on the \`notes\` field (received \`${field}\`)`,
-        );
-      }
-      const loaded = await loadLedger(ledgerPath(dir, 'roadmap'));
-      if (!loaded.ok) return loaded.result;
-      // ID-35.39 Item C: same notes-append semantics as update-backlog —
-      // null/empty existing → just the new value; non-empty existing →
-      // existing + '\n' + new (newline-joined).
-      let rawValue = value;
-      if (flags.append && field === 'notes') {
-        const existingTheme =
-          loaded.detected.kind === 'roadmap'
-            ? loaded.detected.data.themes.find((t) => t.id === themeId)
-            : undefined;
-        const existingNotes =
-          existingTheme && typeof existingTheme.notes === 'string'
-            ? existingTheme.notes
-            : '';
-        rawValue = existingNotes ? `${existingNotes}\n${value}` : value;
-      }
-      const newValue = coerceFieldValue('theme', field, rawValue);
-      // ID-65.5 — extract the patch so the now-default scoped write can thread
-      // it as `scopedWrite`. (Pre-{65.5} update-roadmap had no scoped path: it
-      // fell through to the whole-file `serialise()` re-emit. Scoped is now the
-      // global default for this theme edit too; `--whole-file` restores the
-      // legacy re-emit.)
-      const patch: FieldPatch = {
-        fieldPath: ['themes', themeId, field],
-        newValue,
-      };
-      // CLI-side validation oracle (esc-4 retained); budget + record-set gates
-      // run server-side (R1b). `--force` still threads through for budget.
-      const m = fieldPatchMutation('update-roadmap', loaded.detected, patch);
-      if (!m.ok) return m.result;
-      return commitMutation({
-        subcommand: 'update-roadmap',
-        path: ledgerPath(dir, 'roadmap'),
-        resultPayload: { themeId, field },
-        dryRun: flags.dryRun,
-        regenMirrors: !flags.noRegenMirrors,
-        force: flags.force,
-        serverIntent: {
-          kind: 'field-patch',
-          slug: ledgerSlug('roadmap'),
-          recordId: themeId,
-          patches: [patch],
-        },
-      });
-    }
-
     // ── record CREATE / DELETE ───────────────────────────────────────────────
+    // ID-148.8: `create-theme` retired alongside `update-roadmap` (INV-7) —
+    // this case list + the ternaries below dropped their roadmap branch; both
+    // verbs are caught by RETIRED_VERBS before dispatch ever reaches here.
     case 'open-task':
-    case 'create-backlog':
-    case 'create-theme': {
-      // ID-35.20 adds `create-theme` alongside the existing open-task /
-      // create-backlog creators (RESEARCH §4 — roadmap had no creator).
+    case 'create-backlog': {
       const ledger: LedgerName =
-        subcommand === 'open-task'
-          ? 'task'
-          : subcommand === 'create-theme'
-            ? 'roadmap'
-            : 'backlog';
-      const collection: 'tasks' | 'themes' | 'items' =
-        ledger === 'task' ? 'tasks' : ledger === 'roadmap' ? 'themes' : 'items';
-      const recordKind: LedgerRecordKind =
-        ledger === 'task' ? 'task' : ledger === 'roadmap' ? 'theme' : 'item';
+        subcommand === 'open-task' ? 'task' : 'backlog';
+      const collection: 'tasks' | 'items' =
+        ledger === 'task' ? 'tasks' : 'items';
+      const recordKind: LedgerRecordKind = ledger === 'task' ? 'task' : 'item';
       const loaded = await loadLedger(ledgerPath(dir, ledger));
       if (!loaded.ok) return loaded.result;
       // {35.15} record-input resolution (positional JSON | --file | named
@@ -4434,6 +4761,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         ...args,
         positionals: p.slice(1),
       };
+      // ID-148.8 — INV-7: `--capability-theme` is a retired FLAG (not a
+      // retired verb name), so RETIRED_VERBS can't catch it at the top of
+      // dispatch — checked here, before `promote()` (and its roadmap-loading
+      // internals) ever runs. Nothing bound, nothing written.
+      if (flags.capabilityTheme !== undefined) {
+        return cliErr(
+          'promote',
+          'retired-flag',
+          '--capability-theme removed under ID-148 - use the initiatives project-linking verbs',
+        );
+      }
       const input = readRecordInput(bodyArgs);
       if (!input.ok) return input.result;
       return promote(
@@ -4443,33 +4781,199 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         flags.dryRun,
         !flags.noRegenMirrors,
         flags.force,
-        // ID-35.39 Item A — optional capability-theme binding (undefined →
-        // pre-{35.39} two-ledger behaviour; defined → three-ledger atomic
-        // write that also patches the named theme's `linked_tasks[]`).
+        // ID-35.39 Item A — capability-theme binding. ID-148.8: always
+        // undefined here (the retired-flag check above returns before this
+        // call when the flag is set) — the parameter + promote()'s internal
+        // roadmap-binding branch stay in place, now unreachable via the CLI.
         flags.capabilityTheme,
       );
     }
 
-    case 'update-umbrella': {
-      // ID-35.41 — self-contained load→mutate→write on umbrellas.json. NOT
-      // routed through detectSchema/commitMutation (those are task-list/
-      // roadmap/backlog only — extending the union ripples widely). umbrellas
-      // is NOT mirrored (`scripts/regen-mirrors.sh` covers only the three core
-      // ledgers), so there is no mirror regen here.
-      const [umbrellaId] = p;
-      if (!umbrellaId)
+    // ── ID-148.7 — initiatives project write verbs (TECH §3.3) ─────────────
+
+    case 'create-project': {
+      const [initiativePath] = p;
+      if (!initiativePath)
         return cliErr(
-          'update-umbrella',
+          'create-project',
           'missing-args',
-          'update-umbrella <umbrellaId> --add-tasks <csv> | --remove-tasks <csv> | --reorder <csv>',
+          'create-project <initiativePath> <projectJson | --file <path> | --title …>',
         );
-      return updateUmbrella(dir, umbrellaId, {
-        addTasks: flags.addTasks,
-        removeTasks: flags.removeTasks,
-        reorder: flags.reorder,
+      const loaded = await loadInitiativesLedger(dir, 'create-project');
+      if (!loaded.ok) return loaded.result;
+      // `initiativePath` already consumed positionals[0] — shift so
+      // readRecordInput sees the (optional) JSON body as positionals[0],
+      // mirroring `promote`'s bodyArgs pattern above.
+      const bodyArgs: ParsedArgs = { ...args, positionals: p.slice(1) };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
+      const record = withCreateDefaults(
+        'project',
+        input.value as Record<string, unknown>,
+      );
+      // insertRecord is the CLI-side duplicate-slug + schema + tree-path
+      // oracle (esc-4 retained; TECH §2 INV-13); the record-set + budget
+      // gates run server-side (R1b).
+      const ins = insertRecord(loaded.detected, record, initiativePath);
+      if (!ins.ok) {
+        if (ins.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand: 'create-project',
+            error: 'schema-error',
+            issues: ins.zodError.issues,
+            expected: describeExpectedShape(ins.zodError),
+          };
+        if (ins.kind === 'duplicate-id')
+          return cliErr('create-project', 'duplicate-id', ins.recordId);
+        return cliErr(
+          'create-project',
+          ins.kind,
+          'detail' in ins ? ins.detail : undefined,
+        );
+      }
+      return commitMutation({
+        subcommand: 'create-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { recordId: ins.recordId, initiativePath },
         dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'record-create',
+          slug: ledgerSlug('initiatives'),
+          record,
+          initiativePath,
+        },
       });
     }
+
+    case 'update-project': {
+      const [slug, field] = p;
+      if (!slug || !field)
+        return cliErr(
+          'update-project',
+          'missing-args',
+          'update-project <slug> <field> <value | --file <path>>',
+        );
+      const arity = checkFieldEditArity('update-project', p, flags.file);
+      if (!arity.ok) return arity.result;
+      const valueRes = readFieldValue('update-project', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
+      // INV-3 — client-side status-enum surfacing (see requireValidProjectStatus
+      // jsdoc for the verified server-side gap this compensates for).
+      if (field === 'status') {
+        const statusCheck = requireValidProjectStatus('update-project', value);
+        if (!statusCheck.ok) return statusCheck.result;
+      }
+      const loaded = await loadInitiativesLedger(dir, 'update-project');
+      if (!loaded.ok) return loaded.result;
+      const newValue = coerceFieldValue('project', field, value);
+      const patch: FieldPatch = {
+        fieldPath: ['projects', slug, field],
+        newValue,
+      };
+      // CLI-side validation oracle (esc-4 retained); budget + record-set
+      // gates run server-side (R1b). `--force` still threads through for
+      // budget.
+      const m = fieldPatchMutation('update-project', loaded.detected, patch);
+      if (!m.ok) return m.result;
+      return commitMutation({
+        subcommand: 'update-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { slug, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('initiatives'),
+          recordId: slug,
+          patches: [patch],
+        },
+      });
+    }
+
+    case 'delete-project': {
+      const [slug] = p;
+      if (!slug)
+        return cliErr(
+          'delete-project',
+          'missing-args',
+          'delete-project <slug>',
+        );
+      const loaded = await loadInitiativesLedger(dir, 'delete-project');
+      if (!loaded.ok) return loaded.result;
+      // removeRecord is the CLI-side schema + record-not-found + non-empty
+      // ("project-not-empty") oracle (esc-4 retained; TECH §2 INV-5) — the
+      // server re-runs the SAME guard authoritatively (record-mutate.ts
+      // removeRecord, {148.10}); the record-set drop-guard runs server-side.
+      const rem = removeRecord(loaded.detected, slug);
+      if (!rem.ok) {
+        if (rem.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand: 'delete-project',
+            error: 'schema-error',
+            issues: rem.zodError.issues,
+            expected: describeExpectedShape(rem.zodError),
+          };
+        if (rem.kind === 'record-not-found')
+          return cliErr('delete-project', 'record-not-found', rem.recordId);
+        if (rem.kind === 'project-not-empty')
+          return cliErr(
+            'delete-project',
+            'project-not-empty',
+            `project "${rem.recordId}" still holds linked_tasks/linked_backlog — unlink first (link-tasks/link-backlog to move them, or unlink-tasks/unlink-backlog to clear them)`,
+          );
+        return cliErr('delete-project', rem.kind);
+      }
+      return commitMutation({
+        subcommand: 'delete-project',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { recordId: rem.recordId },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        serverIntent: {
+          kind: 'record-delete',
+          slug: ledgerSlug('initiatives'),
+          recordId: slug,
+        },
+      });
+    }
+
+    case 'link-tasks':
+      return linkUnlinkVerb('link-tasks', dir, args, 'linked_tasks', 'link');
+    case 'unlink-tasks':
+      return linkUnlinkVerb(
+        'unlink-tasks',
+        dir,
+        args,
+        'linked_tasks',
+        'unlink',
+      );
+    case 'link-backlog':
+      return linkUnlinkVerb(
+        'link-backlog',
+        dir,
+        args,
+        'linked_backlog',
+        'link',
+      );
+    case 'unlink-backlog':
+      return linkUnlinkVerb(
+        'unlink-backlog',
+        dir,
+        args,
+        'linked_backlog',
+        'unlink',
+      );
+
+    case 'move-task':
+      return moveVerb('move-task', dir, args, 'linked_tasks');
+    case 'move-backlog':
+      return moveVerb('move-backlog', dir, args, 'linked_backlog');
 
     default:
       // ID-35.34 — lead with a --help callout so the operator's first line of
@@ -4578,15 +5082,23 @@ async function promote(
   // ID-35.39 Item A: roadmap is only loaded + validated when the operator opts
   // into capability-theme binding (preserves the pre-{35.39} two-ledger
   // residual-window discipline when the flag is absent).
+  // ID-148.12: this whole `capabilityTheme !== undefined` branch is UNREACHABLE
+  // via the CLI — the dispatch case above (INV-7) returns `retired-flag` before
+  // `promote()` is ever called with a defined `capabilityTheme`; left in place
+  // (ID-148.8) so {148.7}'s initiatives-linking replacement can reuse the
+  // transaction shape without a type churn. The re-vendored oracle no longer
+  // has a `kind:'roadmap'`/flat `themes[]` shape to check against — the kind
+  // literal + lookup below are updated ONLY for type-compatibility with the
+  // re-vendored `DetectSchemaResult` (INV-12(a)); no behaviour change (dead).
   let rmLoad: Awaited<ReturnType<typeof loadLedger>> | null = null;
   if (capabilityTheme !== undefined) {
     rmLoad = await loadLedger(roadmapP);
     if (!rmLoad.ok) return rmLoad.result;
-    if (rmLoad.detected.kind !== 'roadmap')
+    if (rmLoad.detected.kind !== 'initiatives')
       return cliErr('promote', 'wrong-ledger', 'roadmap');
-    const themeExists = rmLoad.detected.data.themes.some(
-      (t) => t.id === capabilityTheme,
-    );
+    // No flat `themes[]` collection exists on the initiatives tree shape —
+    // this dead branch (see comment above) can never reach a true value.
+    const themeExists = false;
     if (!themeExists) {
       return cliErr(
         'promote',
@@ -4677,248 +5189,11 @@ async function promote(
   });
 }
 
-// ── ID-35.41 update-umbrella ──────────────────────────────────────────────────
-//
-// `docs/reference/umbrellas.json` membership edits (task_ids[]). ID-90.22 R1b:
-// the CLI now validates the op-flags locally (the rejection envelopes below)
-// and routes the membership change through the server as a field PATCH on
-// ['umbrellas', umbrellaId, 'task_ids'] (PRODUCT inv 49-50 / K4-deferred). The
-// self-contained read-mutate-write (`serialiseUmbrellas` + `atomicWriteFile`)
-// and the in-process `checkUmbrellaRecordSet` gate were deleted in R1b — the
-// server owns serialisation + the record-set gate. umbrellas.json carries no
-// per-record mirror (PRODUCT inv 53), so no regen runs.
-
-const UMBRELLAS_FILE = 'umbrellas.json';
-
-/** Split a comma-separated id list, trim, drop empties. */
-function splitIds(csv: string): string[] {
-  return csv
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
-
-/** Validate every id is a bare-digit Task id; return the first offender. */
-function firstMalformedId(ids: string[]): string | undefined {
-  return ids.find((id) => !BARE_ID_REGEX.test(id));
-}
-
-interface UpdateUmbrellaOps {
-  addTasks?: string;
-  removeTasks?: string;
-  reorder?: string;
-  dryRun?: boolean;
-}
-
-/**
- * ID-35.41 — apply one of three operations to a named umbrella's `task_ids[]`.
- *
- * Multi-flag rules:
- *   - `--reorder` is EXCLUSIVE: combining it with `--add-tasks`/`--remove-tasks`
- *     is rejected (`conflicting-ops`) — they are different intents.
- *   - `--add-tasks` + `--remove-tasks` together: ALLOWED, applied add-then-
- *     remove. An id present in BOTH lists is ambiguous → `conflicting-ops`.
- *   - At least one op-flag is required → else `missing-args`.
- *
- * Gates (mirroring the {35.16} record-set pattern, derived from the BYTES ABOUT
- * TO BE WRITTEN): (a) the umbrella id-set is unchanged (no umbrella dropped or
- * added), and (b) the edited umbrella's resulting `task_ids` SET equals the
- * pre-write set with the requested add/remove applied (for `--reorder`,
- * set-equality with the pre-write set). A mismatch rejects with
- * `record-set-violation` and writes NOTHING.
- */
-async function updateUmbrella(
-  dir: string,
-  umbrellaId: string,
-  ops: UpdateUmbrellaOps,
-): Promise<CliResult> {
-  const SUB = 'update-umbrella';
-  const { addTasks, removeTasks, reorder, dryRun = false } = ops;
-
-  // Op-flag presence + mutual-exclusion.
-  const hasAdd = addTasks !== undefined;
-  const hasRemove = removeTasks !== undefined;
-  const hasReorder = reorder !== undefined;
-  if (!hasAdd && !hasRemove && !hasReorder) {
-    return cliErr(
-      SUB,
-      'missing-args',
-      'update-umbrella <umbrellaId> requires --add-tasks <csv>, --remove-tasks <csv>, or --reorder <csv>',
-    );
-  }
-  if (hasReorder && (hasAdd || hasRemove)) {
-    return cliErr(
-      SUB,
-      'conflicting-ops',
-      '--reorder cannot combine with --add-tasks/--remove-tasks (it replaces the whole order; use add/remove to change membership)',
-    );
-  }
-
-  // Parse + validate id lists up-front (reject before any I/O mutation).
-  const addIds = hasAdd ? splitIds(addTasks) : [];
-  const removeIds = hasRemove ? splitIds(removeTasks) : [];
-  const reorderIds = hasReorder ? splitIds(reorder) : [];
-  const malformed = firstMalformedId([...addIds, ...removeIds, ...reorderIds]);
-  if (malformed !== undefined) {
-    return cliErr(
-      SUB,
-      'malformed-task-id',
-      `task ids must be bare-digit (matches task-list.json#/tasks[].id); got "${malformed}"`,
-    );
-  }
-  // An id in BOTH add + remove lists is ambiguous.
-  const overlap = addIds.filter((id) => removeIds.includes(id));
-  if (overlap.length > 0) {
-    return cliErr(
-      SUB,
-      'conflicting-ops',
-      `id(s) [${overlap.join(', ')}] appear in BOTH --add-tasks and --remove-tasks`,
-    );
-  }
-
-  // Load + parse + validate the umbrellas document.
-  const path = resolve(dir, UMBRELLAS_FILE);
-  let text: string;
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (err) {
-    return cliErr(SUB, 'ledger-read-failed', `${path}: ${msg(err)}`);
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch (err) {
-    return cliErr(SUB, 'ledger-parse-failed', `${path}: ${msg(err)}`);
-  }
-  const parsed = UmbrellasSchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      subcommand: SUB,
-      error: 'ledger-schema-invalid',
-      detail: path,
-      issues: parsed.error.issues,
-      expected: describeExpectedShape(parsed.error),
-    };
-  }
-  const doc = parsed.data;
-
-  const target = doc.umbrellas.find((u) => u.id === umbrellaId);
-  if (!target) {
-    return cliErr(
-      SUB,
-      'unknown-umbrella',
-      `no umbrella with id "${umbrellaId}" — known: [${doc.umbrellas
-        .map((u) => u.id)
-        .join(', ')}]`,
-    );
-  }
-
-  // Capture pre-write state. ID-90.22 R1b: the umbrella-id-set + task_ids
-  // set-equality record-set gate runs server-side now; the CLI keeps only the
-  // before-state needed for the reorder permutation check + the delta payload.
-  const beforeTaskIds = [...target.task_ids];
-  const beforeTaskSet = new Set(beforeTaskIds);
-
-  // Compute the new task_ids[] + the expected post-write set + a delta summary.
-  let nextTaskIds: string[];
-  const added: string[] = [];
-  const removed: string[] = [];
-  if (hasReorder) {
-    // Must be a permutation of the existing set: no dupes, same membership.
-    const reorderSet = new Set(reorderIds);
-    const isPermutation =
-      reorderIds.length === beforeTaskIds.length &&
-      reorderSet.size === reorderIds.length &&
-      reorderIds.every((id) => beforeTaskSet.has(id));
-    if (!isPermutation) {
-      return cliErr(
-        SUB,
-        'reorder-not-permutation',
-        `--reorder must be a permutation of the existing task_ids [${beforeTaskIds.join(
-          ', ',
-        )}] (no adds/drops/dupes); got [${reorderIds.join(', ')}]`,
-      );
-    }
-    nextTaskIds = [...reorderIds];
-  } else {
-    // add-then-remove. Idempotent append (skip present), then remove (no-op for
-    // absent). Order: preserve existing, append new add ids in given order.
-    const working = [...beforeTaskIds];
-    for (const id of addIds) {
-      if (!working.includes(id)) {
-        working.push(id);
-        added.push(id);
-      }
-    }
-    const removeSet = new Set(removeIds);
-    nextTaskIds = working.filter((id) => {
-      if (removeSet.has(id)) {
-        removed.push(id);
-        return false;
-      }
-      return true;
-    });
-  }
-
-  const deltaPayload = {
-    umbrellaId,
-    added,
-    removed,
-    reordered: hasReorder,
-    before: beforeTaskIds,
-    after: nextTaskIds,
-  };
-
-  // ID-90.22 R1b (invariant 49 / K4-deferred): the umbrella membership edit is
-  // a field PATCH on ['umbrellas', umbrellaId, 'task_ids'] routed through the
-  // server (PRODUCT inv 49-50). The CLI-side op-flag validation ABOVE
-  // (conflicting-ops / malformed-task-id / unknown-umbrella / missing-args /
-  // reorder-not-permutation) produces the local rejection envelopes unchanged;
-  // the server re-validates, runs the record-set gate (umbrella id-set
-  // unchanged + edited task_ids set-equality), and writes atomically under the
-  // mutation mutex. `serialiseUmbrellas` + the in-process read-mutate-write +
-  // `checkUmbrellaRecordSet` are deleted in R1b.
-  //
-  // No-op discipline ({35.16}/{35.44}): a same-membership-and-order edit yields
-  // an unchanged task_ids[] — detected CLI-side here (order-sensitive equality)
-  // so the operator gets the `noop: true` envelope and NO redundant server
-  // write, matching the pre-R1b byte-identical-content short-circuit.
-  const isNoop =
-    nextTaskIds.length === beforeTaskIds.length &&
-    nextTaskIds.every((id, i) => id === beforeTaskIds[i]);
-  if (isNoop && !dryRun) {
-    return {
-      ok: true,
-      subcommand: SUB,
-      result: { ...deltaPayload, noop: true },
-    };
-  }
-
-  // `resultPayload` mirrors the pre-R1b flip-OFF success shape (`deltaPayload`)
-  // so the envelope is byte-identical; `serverCommitMutation` tags it
-  // `{dryRun:true,...}` on a dry-run (the server honours dryRun, writes nothing).
-  return commitMutation({
-    subcommand: SUB,
-    path,
-    resultPayload: deltaPayload,
-    dryRun,
-    // umbrellas carry no mirror obligation (PRODUCT inv 53) — pass true so no
-    // `regenMirrors:false` body field is emitted (the server skips regen for
-    // umbrellas regardless).
-    regenMirrors: true,
-    serverIntent: {
-      kind: 'umbrella-patch',
-      umbrellaId,
-      patches: [
-        {
-          fieldPath: ['umbrellas', umbrellaId, 'task_ids'],
-          newValue: nextTaskIds,
-        },
-      ],
-    },
-  });
-}
+// ID-148.8: `update-umbrella` + its self-contained load→mutate→write on
+// umbrellas.json (UMBRELLAS_FILE / splitIds / firstMalformedId /
+// UpdateUmbrellaOps / updateUmbrella) are DELETED — the umbrella surface is
+// fully retired (INV-7/INV-12(b)); the verb name is caught by RETIRED_VERBS
+// before dispatch ever reaches a case for it.
 
 // ── entry ───────────────────────────────────────────────────────────────────
 

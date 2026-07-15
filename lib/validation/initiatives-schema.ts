@@ -1,11 +1,17 @@
 /**
  * initiatives-schema.ts — Zod schema for `ledgers/initiatives.json`
- * (ID-148.5, TECH §3.2).
+ * (ID-148.5/ID-148.12, TECH §3.2).
  *
- * KH-native — deliberately NOT added to the vendored `detectSchema` (shared
- * with the task-view server; extending it would require a task-view edit).
- * The initiatives read/write CLI handlers load this schema directly, exactly
- * as `show umbrellas` loads `UmbrellasSchema` directly (ledger-cli.ts:2623).
+ * VENDORED TWIN of the upstream `packages/schemas/src/initiatives-schema.ts`
+ * (task-view, authoritative source — TECH §3.1(a)). Under Option C the
+ * roadmap server arm is repurposed to initiatives upstream and this file's
+ * symbols are re-vendored from there (same symbols, same import-specifier
+ * convention as the other vendored schema modules); the re-vendored
+ * `lib/ledger/detect-schema.ts` imports `InitiativesSchema` from THIS path
+ * and registers `kind:'initiatives'` — this schema's DONE `{148.5}`
+ * disposition ("KH-native, deliberately NOT added to detectSchema")
+ * REVERSES under Option C (TECH §8). The `{148.6}` read verbs keep
+ * importing it unchanged from this same path.
  * No barrel re-export — direct import only (`@/lib/validation/initiatives-schema`).
  *
  * Lenient read / strict write on `status` (INV-1, INV-3): every `status`
@@ -15,8 +21,10 @@
  * current, imperfect `initiatives.json` (dirty project statuses,
  * initiative-4-style off-project links, mixed/absent `substrate_doc`) with
  * no clean-data precondition. A mutation that SETS `status` re-validates
- * against `INITIATIVE_STATUSES` / `PROJECT_STATUSES` at the CLI write-gate
- * layer (TECH §3.3) — enforcement does not live in this schema.
+ * against `INITIATIVE_STATUSES` / `PROJECT_STATUSES` — under Option C the
+ * strict-write enum check is enforced SERVER-SIDE (the patch-server
+ * initiatives arm, upstream `patch-apply.ts`), with the CLI-side oracle able
+ * to surface it early (INV-3).
  *
  * No `.strict()` on any record object below (tolerates incidental fields
  * during the data-quality transition) — only the root `InitiativesSchema`
@@ -163,11 +171,12 @@ export type InitiativesDocument = z.infer<typeof InitiativesSchema>;
 // write-time pre-check (TECH §3.3, out of scope for this Subtask) is the
 // prevent-at-source gate.
 //
-// Kept local to this file rather than folded into the vendored
-// `lib/validation/ledger-budgets.ts` registry — that file is shared with the
-// task-view server (R3 SCHEMA-arm); adding an `initiatives` key there would
-// require a task-view edit, mirroring the reasoning for keeping this whole
-// schema module KH-native (see header).
+// Kept local to this file (not folded into `lib/validation/ledger-budgets.ts`,
+// even though THAT registry is now vendored too — R3 SCHEMA-arm): adding
+// `project`/`initiative` keys to the server write-gate budget registry is a
+// separate write-path concern ({148.7}'s ServerIntent verbs), out of scope
+// here. `ledger-budgets.ts` stays theme-free post-{148.12} (INV-12(d));
+// whether it later grows `project`/`initiative` entries rides {148.7}.
 // ──────────────────────────────────────────────────────────────────────────
 
 export const INITIATIVES_BUDGETS = {

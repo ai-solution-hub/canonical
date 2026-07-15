@@ -734,22 +734,9 @@ describe('budget-exceeded subject is recordKind-discriminated (ID-35.27)', () =>
     }
   });
 
-  it('create-theme over-budget detail reads `theme <themeId>`', async () => {
-    // RoadmapThemeSchema is .strict() — no `tasks` key (linked_tasks is the
-    // back-link); CREATE_DEFAULTS.theme fills time_horizon + arrays + notes.
-    const newTheme = {
-      id: '9998',
-      title: 'Mislabel regression — theme',
-      description: 'x'.repeat(2000), // > 1500 budget
-    };
-    const r = await run(args('create-theme', [JSON.stringify(newTheme)]));
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error).toBe('budget-exceeded');
-      expect(r.detail).toContain('theme 9998');
-      expect(r.detail).not.toContain('roadmap 9998');
-    }
-  });
+  // ID-148.8: `create-theme` over-budget coverage retired alongside the verb
+  // (TECH §3.4, INV-7) — `create-theme` now returns `retired-verb` before any
+  // budget check runs; see `ledger-cli-retired-verbs.test.ts`.
 
   it('create-backlog over-budget detail reads `item <itemId>` (unchanged behaviour)', async () => {
     // BacklogItemSchema enums status to {blocked|spec_needed|needs_research

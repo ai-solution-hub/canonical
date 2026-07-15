@@ -16,7 +16,6 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs, readRecordInput, nextId } from '@/scripts/ledger-cli';
 import { TaskListSchema } from '@/lib/validation/task-list-schema';
-import { RoadmapSchema } from '@/lib/validation/roadmap-schema';
 import { BacklogSchema } from '@/lib/validation/backlog-schema';
 import { readFileSync } from 'node:fs';
 
@@ -28,11 +27,12 @@ import { readFileSync } from 'node:fs';
 // never vendored/deleted). Parsing through the real schema keeps full type
 // fidelity and asserts the live ledger conforms — a structural assertion that
 // no longer depends on the to-be-deleted lib/ledger detector.
+// ID-148.12: `product-roadmap`/`RoadmapSchema` entry DROPPED — `nextId`'s
+// `themes` collectionKey retired (TECH §3.2, INV-12(d); no initiatives
+// analog, see `nextId`'s ledger-cli.ts doc comment).
 const SCHEMA_BY_NAME = {
   'task-list': (raw: unknown) =>
     ({ kind: 'task-list', data: TaskListSchema.parse(raw) }) as const,
-  'product-roadmap': (raw: unknown) =>
-    ({ kind: 'roadmap', data: RoadmapSchema.parse(raw) }) as const,
   'product-backlog': (raw: unknown) =>
     ({ kind: 'backlog', data: BacklogSchema.parse(raw) }) as const,
 } satisfies Record<string, (raw: unknown) => { kind: string; data: unknown }>;
@@ -231,7 +231,7 @@ describe('readRecordInput — precedence + equivalence (ID-35.15)', () => {
 });
 
 describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
-  function detected(name: 'task-list' | 'product-roadmap' | 'product-backlog') {
+  function detected(name: 'task-list' | 'product-backlog') {
     // ID-68.35: reads from synthetic fixture dir instead of live docs/reference/.
     const text = readFileSync(join(FIXTURE_DIR, `${name}.json`), 'utf8');
     return SCHEMA_BY_NAME[name](JSON.parse(text));
@@ -251,11 +251,8 @@ describe('nextId — max+1 with correct primitive type (ID-35.15)', () => {
     expect(id).toBe(String(maxNum + 1));
   });
 
-  it('returns a string for roadmap themes (max+1)', () => {
-    const d = detected('product-roadmap');
-    const id = nextId(d, 'themes');
-    expect(typeof id).toBe('string');
-  });
+  // ID-148.12: "returns a string for roadmap themes (max+1)" REMOVED —
+  // `nextId`'s `themes` collectionKey is retired (TECH §3.2, INV-12(d)).
 
   it('returns a digit-STRING for subtasks (max+1) scoped to a given task (ID-102)', () => {
     // ID-102: subtask ids are digit-strings, so nextId returns String(max+1).

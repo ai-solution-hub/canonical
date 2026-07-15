@@ -1,0 +1,10 @@
+# Optional mutation-testing tools. Keep these separate from production
+# requirements because MutPy 0.6.1 is an old, experimental pytest runner.
+#
+# The current checkout uses Python 3.14. MutPy installs there only after the
+# importlib compatibility shim is supplied, but its pytest runner does not
+# produce trustworthy killed-mutant results in this repository. Use a Python
+# version supported by a maintained replacement before treating this as a
+# quality gate.
+mutpy==0.6.1
+pytest>=8.0.0

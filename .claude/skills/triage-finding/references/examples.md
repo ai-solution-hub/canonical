@@ -3,6 +3,12 @@
 Five worked decision walks for the `triage-finding` decision tree. The contract itself
 lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it.
 
+> **Note (ID-148.8/DR-073/074):** Examples 1 and 5 below illustrate Branch B
+> ("roadmap" decision) using the pre-retirement `show roadmap <themeId>` /
+> "theme" vocabulary. The classification logic they illustrate still applies;
+> the write mechanism (`create-theme`) is retired — see SKILL.md's Branch B
+> note for the current landed state and the open write-path gap.
+
 ## Example 1 — Cross-cutting auth pattern (roadmap routing)
 
 **Finding:** "Found that all routes under `app/api/coverage/` use the old `getAuthorisedClient()` return-shape `{ authorised }` instead of the new `{ success }` pattern. Out of scope for current Subtask ID-7.3 (which is one specific coverage route)."
@@ -11,7 +17,7 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it
 - Branch A (file-path predicate): `app/api/coverage/*` files outside `subtask_file_ownership` (Subtask ID-7.3 owns only one route). NOT IN-SCOPE.
 - Branch A (axis predicate): The finding is not a spec-compliance issue against Subtask ID-7.3's slice — Subtask ID-7.3's spec only requires its one route conform. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (new capability theme): condition 1 — check existing themes via `bun scripts/ledger-cli.ts show roadmap <themeId>` for coverage of "auth pattern modernisation". No existing theme. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
+- Branch B (new strategic capability): condition 1 — check existing coverage via `bun scripts/ledger-cli.ts list projects` for "auth pattern modernisation" (`show roadmap <themeId>` is retired). No existing coverage. condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
 - **Decision: `roadmap`** with `roadmap_proposed_theme` `{ title: "auth pattern modernisation", time_horizon: "next", initial_linked_tasks: [], initial_linked_backlog: [] }`.
 
 ## Example 2 — Direct consequence of current change
@@ -56,8 +62,8 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it
 - Branch A (file-path predicate): the proposed change spans `lib/supabase/**` and many routes — OUTSIDE Subtask ID-22.3's `file_ownership_allowed` (`app/api/coverage/route.ts`). NOT IN-SCOPE.
 - Branch A (axis predicate): Subtask ID-22.3's spec doesn't mention multi-tenancy — not a spec-compliance issue against that slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (new capability theme):
-  - condition 1 — inspect existing themes via `bun scripts/ledger-cli.ts show roadmap <themeId>`. No existing theme covers "multi-tenant deployments" (none of the theme `linked_tasks[]` or `linked_backlog[]` enumerate tenant-scoping work). HOLDS.
+- Branch B (new strategic capability):
+  - condition 1 — inspect existing coverage via `bun scripts/ledger-cli.ts list projects` (`show roadmap <themeId>` is retired). No existing initiative/project covers "multi-tenant deployments" (none of the linked work enumerates tenant-scoping work). HOLDS.
   - condition 2 — multi-month scope, cuts across every authenticated route, requires schema changes (tenant id columns), middleware changes (request-context propagation), and possibly RLS rewrites. Genuinely cross-cutting at the headline level. HOLDS.
 - BOTH conditions hold → **Decision: `roadmap`** with:
   ```yaml
@@ -68,4 +74,4 @@ lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it
     initial_linked_tasks: []
     initial_linked_backlog: []
   ```
-- The curator (via `update-roadmap-backlog` Create) appends the theme; subsequent active work items (per Branch C findings) get added to `linked_backlog[]` over time. Subtask ID-22.3 itself remains unchanged — the finding is OUT-OF-SCOPE for that Subtask.
+- Historical: the curator (via `update-roadmap-backlog` Create) used to append the theme; subsequent active work items (per Branch C findings) got added to `linked_backlog[]` over time. This write path is now retired — see the note at the top of this file. Subtask ID-22.3 itself remains unchanged — the finding is OUT-OF-SCOPE for that Subtask.

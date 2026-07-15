@@ -30,11 +30,14 @@
  *     resolution passes the already-bundle-root-relative path through
  *     byte-identical (there are no further `.`/`..` segments left to
  *     resolve away).
- *   - The marker cannot plausibly collide with an author-written
- *     root-absolute href, which `bundle-graph.ts:extractLinks` already
- *     treats as external/non-internal (never rewritten here either) — so
- *     `<FileRenderPane>`'s `a` override can unambiguously recognise "this
- *     href is one of ours" by checking the marker prefix.
+ *   - A leading-`/` `.md` href is the SPEC §5.1 bundle-ABSOLUTE form (the
+ *     producer's citation-trailer and body-prose cross-link convention) —
+ *     already bundle-root-relative, so it is rewritten behind the marker
+ *     directly (leading `/` stripped, no directory-relative resolution).
+ *     The marker's own reserved prefix cannot plausibly collide with real
+ *     bundle content, so `<FileRenderPane>`'s `a` override can
+ *     unambiguously recognise "this href is one of ours" by checking the
+ *     marker prefix.
  *
  * An href that fails to resolve (should not happen for a well-formed
  * internal `.md` target — `resolveInternalMdLink` only returns `null` for
@@ -60,10 +63,10 @@ function stripMdSuffix(value: string): string {
 /**
  * Rewrite every internal `.md` link in `markdown` (written relative to
  * `currentPath`, the file being rendered) to its fully-resolved
- * bundle-root-relative target behind `INTERNAL_LINK_MARKER`. External
- * (`://`) and author-written root-absolute (`/…`) links pass through
- * unchanged — both are already treated as non-internal by
- * `bundle-graph.ts:extractLinks`.
+ * bundle-root-relative target behind `INTERNAL_LINK_MARKER`. A leading-`/`
+ * target (the SPEC §5.1 bundle-absolute form) is already bundle-root
+ * relative — rewritten behind the marker directly. External (`://`) links
+ * and already-marked hrefs pass through unchanged.
  */
 export function normaliseInternalMdLinksForStreamdown(
   markdown: string,
@@ -74,7 +77,14 @@ export function normaliseInternalMdLinksForStreamdown(
   return markdown.replace(
     MD_LINK_RE,
     (full, target: string, anchor: string) => {
-      if (target.startsWith('/') || target.includes('://')) return full;
+      if (target.includes('://')) return full;
+      if (target.startsWith(INTERNAL_LINK_MARKER)) return full;
+
+      if (target.startsWith('/')) {
+        // SPEC §5.1 bundle-absolute — strip the leading `/` and mark.
+        const id = stripMdSuffix(target.replace(/^\/+/, ''));
+        return id ? `](${INTERNAL_LINK_MARKER}${id}.md${anchor})` : full;
+      }
 
       const resolvedId = resolveInternalMdLink(currentId, `${target}${anchor}`);
       if (!resolvedId) return full;

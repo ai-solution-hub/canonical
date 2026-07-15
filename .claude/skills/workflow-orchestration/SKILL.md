@@ -477,7 +477,7 @@ under the mutex, never in a worker.
 
 | Field | Shape | Load-bearing for |
 |---|---|---|
-| `last_updated` (roadmap file-level) | Single-line `ca-{track}-S{N} {wave} close-out — {short marker}` | Freshness guard on roadmap only. |
+| `last_updated` (roadmap file-level) | Single-line `ca-{track}-S{N} {wave} close-out — {short marker}` | **RETIRED** — `product-roadmap.json` no longer exists (repurposed server-side to the SERVER-managed `initiatives.json`, ID-148.8/DR-073/074); no analog freshness field is defined on the initiatives surface. |
 | Subtask `details` `<info added on …>` blocks | Multi-line narrative permitted; structured journal blocks | Per-Subtask traceability. THE canonical home for session-by-session narrative (commits, test counts, OQ ratifications, Checker verdicts, Curator decisions). |
 | Task `description` | One paragraph: compact what+why, ≤1500 chars; rationale → `docs/` + `cross_doc_links` pointer, not inlined; updated only on scope amendment | Cross-doc cross-reference target. NOT a journal. |
 | Subtask `description` | One-sentence summary, ≤250 chars; not a copy of `details` | Subtask scan label. |
@@ -500,16 +500,21 @@ the backlog ledger (`bun scripts/ledger-cli.ts show backlog <id>`) to implement,
 
 ```bash
 bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
-# Optional: bind the new Task to a roadmap theme.
-bun scripts/ledger-cli.ts promote <backlogId> <taskJson> \
-  --capability-theme <themeId>
 ```
 
-A new top-level Task carries two orthogonal strategic groupings — its roadmap theme
-(`--capability-theme` above) and its cross-Task **umbrella**. Add it to the umbrella via
-`bun scripts/ledger-cli.ts update-umbrella <umbrellaId> --add-tasks <newTaskId>` (see
-`update-roadmap-backlog` Step 6) so task pickup surfaces the strategic grouping, not just the
-theme.
+> **RETIRED (ID-148.8/DR-073/074):** `promote --capability-theme <themeId>` now returns
+> a clean `retired-flag` envelope immediately — nothing bound, nothing written. The
+> roadmap-theme + umbrella "two orthogonal strategic groupings" model this section used to
+> describe is gone: `capability_theme`/`themes[]` retire with no analog, and
+> `update-umbrella`/`umbrellas.json` membership retires with no direct replacement
+> (`update-umbrella` returns `retired-verb`; `umbrellas.json` remains on disk unmaintained,
+> file-delete deferred per OQ4). The topology is now initiatives → sub-initiatives →
+> projects (only **projects** carry `linked_tasks`/`linked_backlog`, DR-074); linking a
+> newly-promoted Task's project into an initiative uses `link-tasks <slug> <taskId…>` — but
+> only against an **existing** project (`create-project` requires an existing
+> initiative/sub-initiative path; there is no verb to create a brand-new top-level
+> initiative). The exact task-pickup procedure for surfacing a new Task's strategic
+> grouping is undesigned — flagged for the owner (ID-148.11).
 
 **Orchestrator-direct:** The curator handles triage and create; the
 Orchestrator handles the backlog → task-list lifecycle transition via the

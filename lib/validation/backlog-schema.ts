@@ -19,7 +19,7 @@
 
 import { z } from 'zod';
 import { BacklogStatus, Priority } from '@/lib/validation/work-status';
-import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
+import { DocLinkSchema } from '@/lib/validation/doc-link';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 import {
   LEDGER_BUDGETS,

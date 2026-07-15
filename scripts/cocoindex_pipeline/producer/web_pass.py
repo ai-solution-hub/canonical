@@ -135,6 +135,7 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
 )
 from scripts.cocoindex_pipeline.producer.prompts import PASS2_INSTRUCTION_PROMPT
 from scripts.cocoindex_pipeline.producer.resource_uri import (
+    citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
     reference_item_uri_from_source_url,
@@ -487,6 +488,14 @@ def _validate_pass2_citation(
         raise Pass2EnrichError(
             f"run_web_pass: citation entries must be non-empty strings, got {entry!r}"
         )
+    # SPEC §5.1/§8 tolerance — normalise a numbered/markdown-link or
+    # `/`-leading entry to its bare TARGET first (mirrors Pass-1's
+    # `_validate_citation`).
+    entry = citation_target(entry)
+    if not entry:
+        raise Pass2EnrichError(
+            "run_web_pass: citation entry resolves to an empty target"
+        )
     if is_canonical_resource_uri(entry):
         if not is_valid_concept_resource_uri(entry):
             raise Pass2EnrichError(
@@ -533,8 +542,12 @@ def _validate_pass2_citations(
         )
     validated: "list[str]" = []
     for entry in raw_citations:
-        if isinstance(entry, str) and entry in previous_entries:
-            validated.append(entry)
+        # Normalise BEFORE the prior-entry membership check — a carried-
+        # forward Pass-1 citation may arrive link-wrapped (`[n] [label](…)`)
+        # while `previous_entries` holds bare targets (both trailer forms
+        # normalise to targets via `validator._citation_entries`).
+        if isinstance(entry, str) and citation_target(entry) in previous_entries:
+            validated.append(citation_target(entry))
             continue
         validated.append(
             _validate_pass2_citation(
@@ -559,6 +572,10 @@ def _validate_reference_concept_citations(
         )
     validated: "list[str]" = []
     for entry in raw_citations:
+        if isinstance(entry, str):
+            # SPEC §8 tolerance — accept a link-wrapped anchor, normalised
+            # to its bare target (mirrors `_validate_pass2_citation`).
+            entry = citation_target(entry)
         if not isinstance(entry, str) or not is_valid_concept_resource_uri(entry):
             raise Pass2EnrichError(
                 f"run_web_pass: reference concept citation {entry!r} is not "
