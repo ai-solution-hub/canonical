@@ -835,6 +835,47 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
+  // ID-145 {145.19} gate-groups-ac note (S474 adjudication): a PATCH body may
+  // set BOTH `status` and the legacy `outcome` field —
+  // ProcurementUpdateBodySchema permits them as independent optionals.
+  // `computeWorkflowTransition` validates the STATUS-DERIVED outcome
+  // (stage-appropriateness against `form_type`) BEFORE the handler ever
+  // reaches the legacy `outcome` override below it — a psq (shortlist) form
+  // transitioning to `won` derives outcome='won', which is not stage-
+  // appropriate for psq, so the request 400s on that derived value alone; the
+  // `outcome: 'lost'` in the body is never read or applied. This is a
+  // deliberate fail-fast (ratified INTENTIONAL/safer than the pre-change
+  // ordering, which overrode outcome first and validated the combined
+  // result) — this test pins the CURRENT observed behaviour, not a
+  // preference.
+  it('fails fast on combined status+outcome when the status-derived outcome is stage-mismatched — the legacy outcome override is never reached (ratified-intentional, gate-groups-ac)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        ...MOCK_FORM_DETAIL,
+        form_type: 'psq',
+        workflow_state: 'submitted',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'PATCH',
+      body: { status: 'won', outcome: 'lost' },
+    });
+    const res = await PATCH(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Outcome "won" is not valid for a "psq" form');
+    // Fail-fast: the legacy `outcome: 'lost'` override never gets a chance to
+    // run, and no write (partial or otherwise) is attempted.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
   it('returns 200 for a valid form transition (draft -> questions_extracted)', async () => {
     configureRole(mockSupabase, 'editor');
 
