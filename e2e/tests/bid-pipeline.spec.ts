@@ -325,16 +325,24 @@ test.describe('Procurement creation form', () => {
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
-    // Fill buyer too — now both enabled
-    //
-    // NOTE (ID-145 {145.23} out-of-scope observation, pre-dates W1): both
-    // buttons are ALSO gated on `formType` (FormTypePicker, ID-130 {130.12}),
-    // which stays null until the user picks a radio option — this line does
-    // not select one, so this assertion may still fail post-copy-fix. Not a
-    // W1 regression (FormTypePicker predates the {145.6} form-first work);
-    // flagged for Curator triage rather than fixed here (fixing it requires
-    // a test-design decision on which form type to select).
+    // Fill buyer too — STILL disabled: both submit buttons are gated on three
+    // required inputs (name + buyer + form type), and the form type is not yet
+    // selected. Production gate:
+    // `saving || !name.trim() || !buyer.trim() || !formType`
+    // (components/procurement/procurement-creation-wizard.tsx). The
+    // FormTypePicker (ID-130 {130.12}) predates the {145.6} form-first work, so
+    // this is the true gating contract, not a W1 regression (ID-145 {145.23}).
     await dialog.locator('#wizard-procurement-buyer').fill('Test Buyer');
+    await expect(createWithoutDocButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
+
+    // Pick a form type — now, with all three required inputs satisfied, both
+    // submit affordances enable.
+    await dialog
+      .getByRole('radiogroup', { name: 'Form type' })
+      .getByRole('radio')
+      .first()
+      .click();
     await expect(createWithoutDocButton).toBeEnabled();
     await expect(nextButton).toBeEnabled();
   });
