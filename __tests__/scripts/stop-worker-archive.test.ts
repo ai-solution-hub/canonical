@@ -292,3 +292,174 @@ describe('stop-worker.sh --archive', () => {
     expect(r.stderr).toMatch(/--archive/);
   });
 });
+
+// ── stop-worker.sh auto-commit (ID-150.1, OQ-2A) ──
+//
+// S472 found archived corpus sitting uncommitted for days in the docs-site
+// checkout because the archive step only ever COPIED artefacts, never
+// committed them. These tests git-init a real repo at the harness's
+// KH_PRIVATE_DOCS_DIR and exercise the auto-commit path added after the
+// artefact copy: SCOPED `git add` (never `-A` / `.`), commit, best-effort
+// push, no-op guard, and fail-open push failure (never aborts teardown).
+
+function initDocsSiteRepo(dir: string, opts?: { withRemote?: boolean }): void {
+  mkdirSync(dir, { recursive: true });
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', ['config', 'user.email', 'kh-test@example.com'], {
+    cwd: dir,
+  });
+  spawnSync('git', ['config', 'user.name', 'KH Test'], { cwd: dir });
+  if (opts?.withRemote) {
+    // A real bare remote so `git push` (no args) can succeed — used by the
+    // no-op-guard test, which needs a fully clean/committed state after
+    // run 1 (no leftover archive-push-FAILED marker) to assert run 2 is a
+    // true no-op. `push.autoSetupRemote` lets the script's bare `git push`
+    // set the upstream on first push without an explicit `-u`.
+    const bareDir = join(dir, '..', 'remote.git');
+    mkdirSync(bareDir, { recursive: true });
+    spawnSync('git', ['init', '-q', '--bare'], { cwd: bareDir });
+    spawnSync('git', ['remote', 'add', 'origin', bareDir], { cwd: dir });
+    spawnSync('git', ['config', 'push.autoSetupRemote', 'true'], {
+      cwd: dir,
+    });
+  }
+}
+
+describe('stop-worker.sh archive auto-commit', () => {
+  let harness: Harness | null = null;
+
+  afterEach(() => {
+    if (harness) {
+      rmSync(harness.tmp, { recursive: true, force: true });
+      harness = null;
+    }
+  });
+
+  it('auto-commits the archived segment with a SCOPED git add (never -A), and fails open on push', () => {
+    harness = setupHarness();
+    const docsSiteDir = join(harness.tmp, 'kh-private-docs');
+    initDocsSiteRepo(docsSiteDir);
+
+    // A DIFFERENT, unrelated in-flight file elsewhere in the same checkout
+    // (another lane's uncommitted work) — proves the scoped `git add` never
+    // sweeps it in.
+    const unrelatedDir = join(docsSiteDir, 'src/content/docs/unrelated');
+    mkdirSync(unrelatedDir, { recursive: true });
+    writeFileSync(
+      join(unrelatedDir, 'other-lane.md'),
+      'unrelated in-flight work\n',
+    );
+
+    const r = runStopWorker(harness, []);
+    expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
+
+    const segmentRel = `src/content/docs/workflow-evaluation/sessions/session-${harness.sessionId}`;
+
+    // The archived segment landed in a real commit.
+    const log = spawnSync('git', ['log', '--name-only', '--pretty=%s'], {
+      cwd: docsSiteDir,
+      encoding: 'utf8',
+    });
+    expect(log.stdout).toContain('chore(workflow-eval): archive session');
+    expect(log.stdout).toContain(harness.workerName);
+    expect(log.stdout).toContain(
+      `${segmentRel}/${harness.workerName}/meta.json`,
+    );
+    expect(log.stdout).toContain(
+      `${segmentRel}/${harness.workerName}/events.jsonl`,
+    );
+
+    // The unrelated in-flight file was NEVER staged or committed — proof
+    // the `git add` was scoped to the session segment, not `-A` / `.`.
+    expect(log.stdout).not.toContain('other-lane.md');
+    const status = spawnSync('git', ['status', '--porcelain'], {
+      cwd: docsSiteDir,
+      encoding: 'utf8',
+    });
+    // git collapses an entirely-untracked directory to its dir line rather
+    // than expanding every file — either form proves the file was never
+    // staged/committed.
+    expect(status.stdout).toContain('src/content/docs/unrelated/');
+
+    // Push has no remote configured => fails open: teardown still exits 0
+    // (asserted above) and a loud marker is dropped rather than the
+    // failure being swallowed or aborting teardown.
+    const archived = join(
+      docsSiteDir,
+      segmentRel,
+      harness.workerName,
+      'archive-push-FAILED',
+    );
+    expect(existsSync(archived)).toBe(true);
+    expect(r.stderr).toMatch(/PUSH FAILED/);
+  });
+
+  it('no-op guards a re-run with nothing new to commit (no error, no empty commit)', () => {
+    harness = setupHarness();
+    const docsSiteDir = join(harness.tmp, 'kh-private-docs');
+    // withRemote: run 1's push must SUCCEED (leaving no archive-push-FAILED
+    // marker) so run 2 starts from a fully clean/committed tree — otherwise
+    // a leftover marker file would itself be new, untracked content and
+    // legitimately produce a second commit, confounding the no-op assertion.
+    initDocsSiteRepo(docsSiteDir, { withRemote: true });
+
+    const r1 = runStopWorker(harness, []);
+    expect(r1.status, `stderr: ${r1.stderr}\nstdout: ${r1.stdout}`).toBe(0);
+    expect(r1.stderr).not.toMatch(/PUSH FAILED/);
+
+    const commitCount = (): number => {
+      const log = spawnSync('git', ['log', '--oneline'], {
+        cwd: docsSiteDir,
+        encoding: 'utf8',
+      });
+      return log.stdout.trim().length === 0
+        ? 0
+        : log.stdout.trim().split('\n').length;
+    };
+    const countAfterFirst = commitCount();
+    expect(countAfterFirst).toBeGreaterThan(0);
+
+    // Re-populate the events dir with IDENTICAL content, simulating a
+    // re-run over an already-archived + already-committed segment.
+    mkdirSync(harness.eventsDir, { recursive: true });
+    writeFileSync(
+      join(harness.eventsDir, 'events.jsonl'),
+      '{"event":"session_start"}\n{"event":"session_end"}\n',
+    );
+    writeFileSync(
+      join(harness.eventsDir, 'oq-pending.md'),
+      '# Open questions\n\n- Test OQ entry.\n',
+    );
+    writeFileSync(
+      join(harness.eventsDir, 'final_report.yaml'),
+      'status: ok\ncommits: []\n',
+    );
+    writeFileSync(
+      join(harness.eventsDir, 'meta.json'),
+      JSON.stringify({
+        worker: harness.workerName,
+        session_id: harness.sessionId,
+      }),
+    );
+
+    const r2 = runStopWorker(harness, []);
+    expect(r2.status, `stderr: ${r2.stderr}\nstdout: ${r2.stdout}`).toBe(0);
+    expect(commitCount()).toBe(countAfterFirst);
+    // No push-failure noise on the no-op path — the no-op guard short-
+    // circuits before any commit/push attempt.
+    expect(r2.stderr).not.toMatch(/PUSH FAILED/);
+  });
+
+  it('skips auto-commit (no error) when the archive target is a custom dir outside KH_PRIVATE_DOCS_DIR', () => {
+    harness = setupHarness();
+    // KH_PRIVATE_DOCS_DIR is set by the harness but never git-initialised
+    // here, and --archive points at a sibling dir outside it — the
+    // existing explicit-archive-dir test shape (harness.archiveBase).
+    const r = runStopWorker(harness, ['--archive', harness.archiveBase]);
+    expect(r.status, `stderr: ${r.stderr}\nstdout: ${r.stdout}`).toBe(0);
+    expect(
+      existsSync(join(harness.archiveBase, harness.workerName, 'meta.json')),
+    ).toBe(true);
+    expect(r.stderr).toMatch(/outside KH_PRIVATE_DOCS_DIR/);
+  });
+});
