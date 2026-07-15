@@ -682,7 +682,11 @@ async function main() {
       `   [${q.section_name}] Q${q.question_sequence}: ${q.question_text.substring(0, 60)}...`,
     );
 
-    if (!dryRun && procurementId) {
+    // Guard on `formInstanceId` (not `procurementId`): it is the value inserted
+    // below, and is only set once the form-instance mint above succeeds — the
+    // check both narrows it to non-null and correctly skips the insert on the
+    // dry-run / mint-failure paths (ID-145 {145.24} legacy-script re-point).
+    if (!dryRun && formInstanceId) {
       const { data: created, error: qError } = await supabase
         .from('form_questions')
         .insert({
