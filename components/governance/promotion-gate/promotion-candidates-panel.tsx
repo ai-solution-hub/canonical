@@ -1,7 +1,20 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Loader2, PlayCircle } from 'lucide-react';
+import { useState } from 'react';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  PenLine,
+  PlayCircle,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,10 +25,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import {
   fetchQaPromotionCandidates,
   postQaPromoteCorpus,
+  postQaPromotionCandidateAccept,
+  postQaPromotionCandidateEdit,
+  postQaPromotionCandidateReject,
   type QaPromotionCandidate,
   type QaPromotionCandidateKind,
 } from '@/lib/query/fetchers';
@@ -36,16 +54,22 @@ const KIND_LABEL: Record<QaPromotionCandidateKind, string> = {
 
 /**
  * ID-145 {145.22} Governance promotion-gate — the promotion-candidates half
- * (TECH §5/§7 section I, BI-38). Composes the EXISTING
- * `q_a_extractions_promotion_candidates()` RPC ({138.17}) and the EXISTING
- * `POST /api/q-a-pairs/promote-corpus` route ({59.25}) — no new backend.
+ * (TECH §5/§7 section I, BI-38). {145.22} composed the batch surface from
+ * EXISTING backend only (`q_a_extractions_promotion_candidates()` RPC
+ * {138.17} + `POST /api/q-a-pairs/promote-corpus` {59.25}). {145.30} (BI-38
+ * amendment, DR-062, S470) LIFTS that "no new backend" constraint and adds
+ * the per-candidate accept/edit/reject write path for the `awaiting_review`
+ * bucket specifically — see
+ * `lib/q-a-pairs/promotion-candidate-review.ts`'s module header for the full
+ * scoping rationale (a 'new'/'self_healing' candidate has no per-item
+ * judgement gap and stays batch-only).
  *
  * BI-39 human gate: the panel reads on mount but NEVER triggers a promotion
- * run automatically — a run happens only when a human clicks "Run promotion
- * pass". An already-published-pair text-drift diff (`kind: 'awaiting_review'`,
- * DR-026) is rendered but is never offered an accept/reject action — no such
- * write path exists yet (progressive trust, TECH §2.4); the run summary's
- * `proposals[]` is shown read-only.
+ * run automatically — a batch run happens only when a human clicks "Run
+ * promotion pass", and a per-candidate accept/edit/reject happens only when
+ * a human clicks that candidate's own action. An already-published-pair
+ * text-drift diff (`kind: 'awaiting_review'`, DR-026) is NEVER auto-mutated
+ * either way — only a human confirmation writes it.
  */
 export function PromotionCandidatesPanel() {
   const queryClient = useQueryClient();
@@ -162,7 +186,11 @@ export function PromotionCandidatesPanel() {
           </CardHeader>
           <CardContent className="divide-y p-0">
             {candidates.map((candidate) => (
-              <CandidateRow key={candidate.id} candidate={candidate} />
+              <CandidateRow
+                key={candidate.id}
+                candidate={candidate}
+                queryClient={queryClient}
+              />
             ))}
           </CardContent>
         </Card>
@@ -175,12 +203,78 @@ export function PromotionCandidatesPanel() {
 
 interface CandidateRowProps {
   candidate: QaPromotionCandidate;
+  queryClient: QueryClient;
 }
 
-function CandidateRow({ candidate }: CandidateRowProps) {
+/**
+ * {145.30}: per-item accept/edit/reject is offered ONLY for
+ * `kind === 'awaiting_review'` — a 'new' or 'self_healing' candidate has no
+ * per-item judgement gap (the batch "Run promotion pass" already resolves
+ * both wholesale) and stays display-only here, matching the batch route's
+ * own scope (lib/q-a-pairs/promotion-candidate-review.ts module header).
+ */
+function CandidateRow({ candidate, queryClient }: CandidateRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftQuestion, setDraftQuestion] = useState(
+    candidate.extractedQuestionText,
+  );
+  const [draftAnswer, setDraftAnswer] = useState(
+    candidate.extractedAnswerText ?? '',
+  );
+
+  const invalidateAndToast = (message: string) => {
+    toast.success(message);
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.governancePromotion.all,
+    });
+  };
+
+  const acceptMutation = useMutation({
+    mutationFn: () => postQaPromotionCandidateAccept(candidate.id),
+    onSuccess: () => invalidateAndToast('Candidate accepted.'),
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to accept candidate.',
+      );
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: () => postQaPromotionCandidateReject(candidate.id),
+    onSuccess: () => invalidateAndToast('Candidate rejected.'),
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to reject candidate.',
+      );
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      postQaPromotionCandidateEdit(candidate.id, {
+        question_text: draftQuestion,
+        answer_standard: draftAnswer,
+      }),
+    onSuccess: () => {
+      setIsEditing(false);
+      invalidateAndToast('Candidate updated.');
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update candidate.',
+      );
+    },
+  });
+
+  const isActionable = candidate.kind === 'awaiting_review';
+  const isBusy =
+    acceptMutation.isPending ||
+    rejectMutation.isPending ||
+    editMutation.isPending;
+
   return (
     <div
-      className="flex flex-col gap-1 px-4 py-3"
+      className="flex flex-col gap-2 px-4 py-3"
       data-testid={`promotion-gate-candidate-row-${candidate.id}`}
     >
       <Badge
@@ -190,9 +284,105 @@ function CandidateRow({ candidate }: CandidateRowProps) {
       >
         {KIND_LABEL[candidate.kind]}
       </Badge>
-      <p className="line-clamp-2 text-sm text-foreground">
-        {candidate.extractedQuestionText}
-      </p>
+
+      {isEditing ? (
+        <div className="flex flex-col gap-2 rounded-md border p-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`edit-question-${candidate.id}`}>Question</Label>
+            <Textarea
+              id={`edit-question-${candidate.id}`}
+              value={draftQuestion}
+              onChange={(e) => setDraftQuestion(e.target.value)}
+              data-testid={`promotion-gate-candidate-edit-question-${candidate.id}`}
+              rows={2}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`edit-answer-${candidate.id}`}>Answer</Label>
+            <Textarea
+              id={`edit-answer-${candidate.id}`}
+              value={draftAnswer}
+              onChange={(e) => setDraftAnswer(e.target.value)}
+              data-testid={`promotion-gate-candidate-edit-answer-${candidate.id}`}
+              rows={3}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => editMutation.mutate()}
+              disabled={editMutation.isPending}
+              data-testid={`promotion-gate-candidate-edit-save-${candidate.id}`}
+            >
+              {editMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setIsEditing(false);
+                setDraftQuestion(candidate.extractedQuestionText);
+                setDraftAnswer(candidate.extractedAnswerText ?? '');
+              }}
+              disabled={editMutation.isPending}
+              data-testid={`promotion-gate-candidate-edit-cancel-${candidate.id}`}
+            >
+              <X className="size-4" aria-hidden="true" />
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="line-clamp-2 text-sm text-foreground">
+            {candidate.extractedQuestionText}
+          </p>
+          {isActionable ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={() => acceptMutation.mutate()}
+                disabled={isBusy}
+                data-testid={`promotion-gate-candidate-accept-${candidate.id}`}
+              >
+                {acceptMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                )}
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsEditing(true)}
+                disabled={isBusy}
+                data-testid={`promotion-gate-candidate-edit-${candidate.id}`}
+              >
+                <PenLine className="size-4" aria-hidden="true" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => rejectMutation.mutate()}
+                disabled={isBusy}
+                data-testid={`promotion-gate-candidate-reject-${candidate.id}`}
+              >
+                {rejectMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <X className="size-4" aria-hidden="true" />
+                )}
+                Reject
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -217,13 +407,13 @@ function RunSummaryCard({ summary }: RunSummaryCardProps) {
         <CardContent className="space-y-2 pt-4">
           <p className="text-sm font-medium text-foreground">
             {summary.proposed} published-pair diff
-            {summary.proposed === 1 ? '' : 's'} — review only, not yet
-            actionable
+            {summary.proposed === 1 ? '' : 's'} surfaced this run — reviewable
+            above
           </p>
           <p className="text-xs text-muted-foreground">
-            A curated (already-published) pair is never auto-mutated (DR-026).
-            These extractions re-walked with different text, but no
-            accept/reject action exists yet — progressive trust earns it.
+            A curated (already-published) pair is never AUTO-mutated (DR-026); a
+            reviewer accepts, edits, or rejects each one individually in the
+            candidates list above.
           </p>
           <ul className="space-y-1">
             {summary.proposals.map((proposal) => (

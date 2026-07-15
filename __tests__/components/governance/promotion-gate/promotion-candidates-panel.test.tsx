@@ -16,9 +16,18 @@ import userEvent from '@testing-library/user-event';
 
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
-const { mockFetchCandidates, mockPostPromote } = vi.hoisted(() => ({
+const {
+  mockFetchCandidates,
+  mockPostPromote,
+  mockPostAccept,
+  mockPostEdit,
+  mockPostReject,
+} = vi.hoisted(() => ({
   mockFetchCandidates: vi.fn(),
   mockPostPromote: vi.fn(),
+  mockPostAccept: vi.fn(),
+  mockPostEdit: vi.fn(),
+  mockPostReject: vi.fn(),
 }));
 
 vi.mock('@/lib/query/fetchers', async () => {
@@ -29,6 +38,9 @@ vi.mock('@/lib/query/fetchers', async () => {
     ...actual,
     fetchQaPromotionCandidates: mockFetchCandidates,
     postQaPromoteCorpus: mockPostPromote,
+    postQaPromotionCandidateAccept: mockPostAccept,
+    postQaPromotionCandidateEdit: mockPostEdit,
+    postQaPromotionCandidateReject: mockPostReject,
   };
 });
 
@@ -169,9 +181,11 @@ describe('PromotionCandidatesPanel', () => {
 
     const summary = await screen.findByTestId('promotion-gate-run-summary');
     expect(summary).toHaveTextContent(/1/); // promoted count surfaces somewhere
-    // The proposed (published-pair diff) bucket is surfaced but honestly
-    // marked non-actionable — DR-026, no auto-apply/accept-reject path exists.
-    expect(summary).toHaveTextContent(/not yet actionable|review only/i);
+    // {145.30}: a published-pair diff is never AUTO-mutated (DR-026), but it
+    // IS now individually actionable (accept/edit/reject) in the candidates
+    // list above — the summary card points there rather than claiming "not
+    // yet actionable".
+    expect(summary).toHaveTextContent(/reviewable above/i);
   });
 
   it('surfaces a mutation failure without crashing and allows retry', async () => {
@@ -189,6 +203,203 @@ describe('PromotionCandidatesPanel', () => {
     // Button is not left permanently disabled — a retry is possible.
     await waitFor(() => {
       expect(screen.getByTestId('promotion-gate-run-trigger')).toBeEnabled();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // {145.30} — per-candidate accept/edit/reject, 'awaiting_review' ONLY.
+  // 'new' / 'self_healing' candidates have no per-item write path (they
+  // resolve wholesale via "Run promotion pass") — see
+  // lib/q-a-pairs/promotion-candidate-review.ts's module header.
+  // ---------------------------------------------------------------------
+  describe('per-candidate accept/edit/reject (awaiting_review only)', () => {
+    it('does NOT render accept/edit/reject affordances for new or self_healing candidates', async () => {
+      mockFetchCandidates.mockResolvedValueOnce([
+        makeCandidate({ id: NEW_ID, kind: 'new' }),
+        makeCandidate({
+          id: SELF_HEAL_ID,
+          kind: 'self_healing',
+          promotedToPairId: 'pair-1',
+        }),
+      ]);
+      renderPanel();
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`promotion-gate-candidate-row-${NEW_ID}`),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId(`promotion-gate-candidate-accept-${NEW_ID}`),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId(`promotion-gate-candidate-accept-${SELF_HEAL_ID}`),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders accept/edit/reject affordances for an awaiting_review candidate', async () => {
+      mockFetchCandidates.mockResolvedValueOnce([
+        makeCandidate({ id: AWAITING_REVIEW_ID, kind: 'awaiting_review' }),
+      ]);
+      renderPanel();
+
+      expect(
+        await screen.findByTestId(
+          `promotion-gate-candidate-accept-${AWAITING_REVIEW_ID}`,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId(
+          `promotion-gate-candidate-edit-${AWAITING_REVIEW_ID}`,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId(
+          `promotion-gate-candidate-reject-${AWAITING_REVIEW_ID}`,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('accepts a candidate on click and refetches the list', async () => {
+      mockFetchCandidates.mockResolvedValue([
+        makeCandidate({ id: AWAITING_REVIEW_ID, kind: 'awaiting_review' }),
+      ]);
+      mockPostAccept.mockResolvedValueOnce({
+        disposition: 'accepted',
+        pair: { id: 'pair-x' },
+        extraction: { id: AWAITING_REVIEW_ID },
+      });
+      const user = userEvent.setup();
+      renderPanel();
+
+      const acceptBtn = await screen.findByTestId(
+        `promotion-gate-candidate-accept-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(acceptBtn);
+
+      await waitFor(() => {
+        expect(mockPostAccept).toHaveBeenCalledWith(AWAITING_REVIEW_ID);
+      });
+      // Refetch after mutation success (cache invalidation).
+      await waitFor(() => {
+        expect(mockFetchCandidates).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('rejects a candidate on click', async () => {
+      mockFetchCandidates.mockResolvedValue([
+        makeCandidate({ id: AWAITING_REVIEW_ID, kind: 'awaiting_review' }),
+      ]);
+      mockPostReject.mockResolvedValueOnce({
+        disposition: 'rejected',
+        pair: { id: 'pair-x' },
+        extraction: { id: AWAITING_REVIEW_ID },
+      });
+      const user = userEvent.setup();
+      renderPanel();
+
+      const rejectBtn = await screen.findByTestId(
+        `promotion-gate-candidate-reject-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(rejectBtn);
+
+      await waitFor(() => {
+        expect(mockPostReject).toHaveBeenCalledWith(AWAITING_REVIEW_ID);
+      });
+    });
+
+    it('reveals a pre-filled edit form on Edit, then saves the edited fields', async () => {
+      mockFetchCandidates.mockResolvedValue([
+        makeCandidate({
+          id: AWAITING_REVIEW_ID,
+          kind: 'awaiting_review',
+          extractedQuestionText: 'Original question?',
+          extractedAnswerText: 'Original answer.',
+        }),
+      ]);
+      mockPostEdit.mockResolvedValueOnce({
+        disposition: 'edited',
+        pair: { id: 'pair-x' },
+        extraction: { id: AWAITING_REVIEW_ID },
+      });
+      const user = userEvent.setup();
+      renderPanel();
+
+      const editBtn = await screen.findByTestId(
+        `promotion-gate-candidate-edit-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(editBtn);
+
+      const questionField = await screen.findByTestId(
+        `promotion-gate-candidate-edit-question-${AWAITING_REVIEW_ID}`,
+      );
+      expect(questionField).toHaveValue('Original question?');
+
+      await user.clear(questionField);
+      await user.type(questionField, 'Edited question?');
+
+      const saveBtn = screen.getByTestId(
+        `promotion-gate-candidate-edit-save-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(saveBtn);
+
+      await waitFor(() => {
+        expect(mockPostEdit).toHaveBeenCalledWith(AWAITING_REVIEW_ID, {
+          question_text: 'Edited question?',
+          answer_standard: 'Original answer.',
+        });
+      });
+    });
+
+    it('cancels edit mode without calling the mutation', async () => {
+      mockFetchCandidates.mockResolvedValue([
+        makeCandidate({ id: AWAITING_REVIEW_ID, kind: 'awaiting_review' }),
+      ]);
+      const user = userEvent.setup();
+      renderPanel();
+
+      const editBtn = await screen.findByTestId(
+        `promotion-gate-candidate-edit-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(editBtn);
+
+      const cancelBtn = await screen.findByTestId(
+        `promotion-gate-candidate-edit-cancel-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(cancelBtn);
+
+      expect(
+        screen.queryByTestId(
+          `promotion-gate-candidate-edit-question-${AWAITING_REVIEW_ID}`,
+        ),
+      ).not.toBeInTheDocument();
+      expect(mockPostEdit).not.toHaveBeenCalled();
+    });
+
+    it('surfaces an accept failure via toast without crashing', async () => {
+      mockFetchCandidates.mockResolvedValue([
+        makeCandidate({ id: AWAITING_REVIEW_ID, kind: 'awaiting_review' }),
+      ]);
+      mockPostAccept.mockRejectedValueOnce(new Error('accept boom'));
+      const user = userEvent.setup();
+      renderPanel();
+
+      const acceptBtn = await screen.findByTestId(
+        `promotion-gate-candidate-accept-${AWAITING_REVIEW_ID}`,
+      );
+      await user.click(acceptBtn);
+
+      await waitFor(() => {
+        expect(mockPostAccept).toHaveBeenCalledTimes(1);
+      });
+      // Not left permanently disabled — a retry is possible.
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(
+            `promotion-gate-candidate-accept-${AWAITING_REVIEW_ID}`,
+          ),
+        ).toBeEnabled();
+      });
     });
   });
 });

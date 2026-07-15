@@ -25,6 +25,9 @@ vi.mock('@/lib/supabase/client', () => ({
 import {
   fetchQaPromotionCandidates,
   postQaPromoteCorpus,
+  postQaPromotionCandidateAccept,
+  postQaPromotionCandidateEdit,
+  postQaPromotionCandidateReject,
 } from '@/lib/query/fetchers';
 
 const NEW_ID = '11111111-1111-4111-8111-111111111111';
@@ -232,5 +235,107 @@ describe('postQaPromoteCorpus', () => {
     expect(result.proposals).toEqual([
       { extractionId: AWAITING_REVIEW_ID, pairId: PUBLISHED_PAIR_ID },
     ]);
+  });
+});
+
+// -----------------------------------------------------------------------
+// Per-candidate accept/edit/reject (ID-145 {145.30} — BI-38 amendment,
+// DR-062, S470)
+// -----------------------------------------------------------------------
+
+describe('postQaPromotionCandidateAccept / Edit / Reject', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const DISPOSITION_BODY = {
+    disposition: 'accepted' as const,
+    pair: {
+      id: PUBLISHED_PAIR_ID,
+      question_text: 'Q',
+      answer_standard: 'A',
+      alternate_question_phrasings: [],
+      publication_status: 'published',
+    },
+    extraction: {
+      id: AWAITING_REVIEW_ID,
+      extracted_question_text: 'Q',
+      extracted_answer_text: 'A',
+      alternate_question_phrasings: [],
+      promoted_to_pair_id: PUBLISHED_PAIR_ID,
+      invalidated_at: null,
+    },
+  };
+
+  it('postQaPromotionCandidateAccept POSTs to the accept route with no body params', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => DISPOSITION_BODY });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    const result = await postQaPromotionCandidateAccept(AWAITING_REVIEW_ID);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/governance/promotion-candidates/${AWAITING_REVIEW_ID}/accept`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.disposition).toBe('accepted');
+  });
+
+  it('postQaPromotionCandidateEdit POSTs the edited fields to the edit route', async () => {
+    const editBody = { ...DISPOSITION_BODY, disposition: 'edited' as const };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => editBody });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    const edit = { question_text: 'Edited Q?', answer_standard: 'Edited A.' };
+    const result = await postQaPromotionCandidateEdit(AWAITING_REVIEW_ID, edit);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/governance/promotion-candidates/${AWAITING_REVIEW_ID}/edit`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(edit),
+      }),
+    );
+    expect(result.disposition).toBe('edited');
+  });
+
+  it('postQaPromotionCandidateReject POSTs to the reject route with no body params', async () => {
+    const rejectBody = {
+      ...DISPOSITION_BODY,
+      disposition: 'rejected' as const,
+    };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => rejectBody });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    const result = await postQaPromotionCandidateReject(AWAITING_REVIEW_ID);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/governance/promotion-candidates/${AWAITING_REVIEW_ID}/reject`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(result.disposition).toBe('rejected');
+  });
+
+  it('throws ApiError with the structured code on a non-OK response (e.g. 409 not_awaiting_review)', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: 'This candidate is self-healing',
+        code: 'not_awaiting_review',
+      }),
+    });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    await expect(
+      postQaPromotionCandidateAccept(AWAITING_REVIEW_ID),
+    ).rejects.toMatchObject({ status: 409, code: 'not_awaiting_review' });
   });
 });

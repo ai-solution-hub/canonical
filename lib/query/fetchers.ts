@@ -852,3 +852,95 @@ export async function postQaPromoteCorpus(): Promise<PromotionSummary> {
     {},
   );
 }
+
+// ---------------------------------------------------------------------------
+// Per-candidate promotion accept/edit/reject (ID-145 {145.30} — BI-38
+// amendment, DR-062, S470)
+// ---------------------------------------------------------------------------
+//
+// These three mutations POST to the NEW
+// `/api/governance/promotion-candidates/:extractionId/{accept,edit,reject}`
+// routes — the per-item write path DR-026 blocked from auto-firing, scoped
+// to the `kind: 'awaiting_review'` bucket only (see
+// lib/q-a-pairs/promotion-candidate-review.ts's module header for the full
+// scoping rationale: 'new'/'self_healing' candidates have no per-item
+// judgement gap and stay on the existing batch "Run promotion pass").
+
+/** The pair/extraction shape a disposition response echoes back (UI-shaped
+ *  subset — the route's typed PairCandidateRow / ExtractionCandidateRow). */
+/** @public */
+export interface QaPromotionCandidateDispositionPair {
+  id: string;
+  question_text: string;
+  answer_standard: string;
+  alternate_question_phrasings: string[];
+  publication_status: string;
+}
+
+/** @public */
+export interface QaPromotionCandidateDispositionExtraction {
+  id: string;
+  extracted_question_text: string;
+  extracted_answer_text: string | null;
+  alternate_question_phrasings: string[];
+  promoted_to_pair_id: string | null;
+  invalidated_at: string | null;
+}
+
+/** @public */
+export interface QaPromotionCandidateDisposition {
+  disposition: 'accepted' | 'edited' | 'rejected';
+  pair: QaPromotionCandidateDispositionPair;
+  extraction: QaPromotionCandidateDispositionExtraction;
+}
+
+/** Reviewer-supplied edit body — question_text + answer_standard are
+ *  REQUIRED (both NOT NULL columns on q_a_pairs). */
+/** @public */
+export interface QaPromotionCandidateEditInput {
+  question_text: string;
+  answer_standard: string;
+  alternate_question_phrasings?: string[];
+}
+
+/**
+ * ACCEPT an individual `awaiting_review` candidate — the published pair
+ * adopts the extraction's own re-walked carried fields.
+ */
+export async function postQaPromotionCandidateAccept(
+  extractionId: string,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/accept`,
+    {},
+  );
+}
+
+/**
+ * EDIT an individual `awaiting_review` candidate — the published pair
+ * adopts the reviewer-supplied carried fields (may differ from the raw
+ * extraction text).
+ */
+export async function postQaPromotionCandidateEdit(
+  extractionId: string,
+  edit: QaPromotionCandidateEditInput,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/edit`,
+    edit,
+  );
+}
+
+/**
+ * REJECT an individual `awaiting_review` candidate — the published pair is
+ * untouched; the extraction's carried fields are reconciled down to match
+ * it.
+ */
+export async function postQaPromotionCandidateReject(
+  extractionId: string,
+): Promise<QaPromotionCandidateDisposition> {
+  return mutationFetchJson<QaPromotionCandidateDisposition>(
+    `/api/governance/promotion-candidates/${extractionId}/reject`,
+    {},
+  );
+}
