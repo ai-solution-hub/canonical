@@ -45,11 +45,14 @@ set -euo pipefail
 #                    ${KH_PRIVATE_DOCS_DIR}/src/content/docs/workflow-evaluation/sessions/S<NNN>/
 #                    (the private docs-site checkout).
 #
-#                    After copying, the just-archived SESSION SEGMENT dir is
-#                    auto-committed + pushed in the docs-site checkout
-#                    (OQ-2A, ID-150.1) — a SCOPED `git add` of ONLY that
-#                    segment dir (never `git add -A` / `.`), then a commit
-#                    and a best-effort `git push`. Commit/push failures warn
+#                    After copying, the just-archived PER-WORKER dir
+#                    (<segment>/<worker-name>) is auto-committed + pushed in
+#                    the docs-site checkout (OQ-2A, ID-150.1) — a SCOPED
+#                    `git add` of ONLY that per-worker dir (never
+#                    `git add -A` / `.`, and never the whole session-segment
+#                    dir, which could hold a concurrent sibling worker's
+#                    still-in-flight subdir), then a commit and a
+#                    best-effort `git push`. Commit/push failures warn
 #                    loudly on stderr (a failed push additionally drops an
 #                    `archive-push-FAILED` marker file in the archived
 #                    worker dir) but NEVER abort teardown — copying-but-
@@ -429,19 +432,25 @@ if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
       echo "Note: skipped token roll-up (bun or token-rollup.ts unavailable) — final_report.yaml left without token totals." >&2
     fi
 
-    # --- Auto-commit + push the archived session segment (OQ-2A, ID-150.1) ---
+    # --- Auto-commit + push the archived PER-WORKER dir (OQ-2A, ID-150.1) ---
     #
     # Copying into the docs-site working tree is not enough — S472 found
     # archived corpus sitting uncommitted for days because nothing ran
-    # `git commit` in the docs-site checkout. Commit + push the SESSION
-    # SEGMENT dir just written (may hold multiple workers' subdirs for the
-    # same session) so the corpus survives without a manual step.
+    # `git commit` in the docs-site checkout. Commit + push the PER-WORKER
+    # dir just written (<segment>/<worker>, i.e. $ARCHIVE_TARGET) so the
+    # corpus survives without a manual step.
     #
-    # RATIFIED constraints (OQ-2A):
-    #   - SCOPED `git add` of ONLY the archived session segment dir under
-    #     workflow-evaluation/sessions/ — NEVER `git add -A` / `git add .`
-    #     (the docs-site checkout has PARALLEL WRITERS; other lanes'
-    #     uncommitted work must never be swept in).
+    # RATIFIED constraints (OQ-2A), tightened per Checker review on this
+    # Subtask: scope to the PER-WORKER dir, not the session-SEGMENT dir —
+    # a segment can hold multiple workers' subdirs for the same session, so
+    # scoping to the segment risked sweeping a concurrent sibling worker's
+    # still-in-flight (pre-token-rollup) subdir into THIS worker's commit.
+    # The per-worker dir is this invocation's own artefacts only.
+    #   - SCOPED `git add` of ONLY the archived per-worker dir under
+    #     workflow-evaluation/sessions/<segment>/<worker> — NEVER
+    #     `git add -A` / `git add .` (the docs-site checkout has PARALLEL
+    #     WRITERS; other lanes' — and sibling workers' — uncommitted work
+    #     must never be swept in).
     #   - Commit failure warns loud (stderr) but never aborts teardown.
     #   - Push is fail-open: failure warns loud AND drops an
     #     `archive-push-FAILED` marker in the archived worker dir, but
@@ -455,31 +464,31 @@ if [ "$ARCHIVE" -eq 1 ] && [ -d "$EVENTS_DIR" ]; then
     # --archive <dir> elsewhere (test fixtures, a non-git target) is left
     # as a plain file copy — same behaviour as before this change.
     if [ -n "${KH_PRIVATE_DOCS_DIR:-}" ]; then
-      case "$ARCHIVE_DIR" in
+      case "$ARCHIVE_TARGET" in
         "${KH_PRIVATE_DOCS_DIR%/}"/*)
-          REL_SEGMENT_PATH="${ARCHIVE_DIR#"${KH_PRIVATE_DOCS_DIR%/}"/}"
+          REL_WORKER_PATH="${ARCHIVE_TARGET#"${KH_PRIVATE_DOCS_DIR%/}"/}"
           SEGMENT_NAME="${ARCHIVE_DIR%/}"
           SEGMENT_NAME="${SEGMENT_NAME##*/}"
           if ! git -C "$KH_PRIVATE_DOCS_DIR" rev-parse --git-dir >/dev/null 2>&1; then
             echo "Note: KH_PRIVATE_DOCS_DIR ('$KH_PRIVATE_DOCS_DIR') is not a git checkout — skipping archive auto-commit." >&2
-          elif ! git -C "$KH_PRIVATE_DOCS_DIR" add -- "$REL_SEGMENT_PATH" 2>/dev/null; then
-            echo "Warning: git add failed for '$REL_SEGMENT_PATH' in the docs-site checkout — corpus is copied but not staged/committed." >&2
-          elif git -C "$KH_PRIVATE_DOCS_DIR" diff --cached --quiet -- "$REL_SEGMENT_PATH" 2>/dev/null; then
+          elif ! git -C "$KH_PRIVATE_DOCS_DIR" add -- "$REL_WORKER_PATH" 2>/dev/null; then
+            echo "Warning: git add failed for '$REL_WORKER_PATH' in the docs-site checkout — corpus is copied but not staged/committed." >&2
+          elif git -C "$KH_PRIVATE_DOCS_DIR" diff --cached --quiet -- "$REL_WORKER_PATH" 2>/dev/null; then
             : # No-op guard: nothing newly staged (already committed) — nothing to commit.
           else
             COMMIT_MSG="chore(workflow-eval): archive session ${SEGMENT_NAME} (${WORKER_NAME})"
-            if git -C "$KH_PRIVATE_DOCS_DIR" commit -q -m "$COMMIT_MSG" -- "$REL_SEGMENT_PATH" >/dev/null 2>&1; then
+            if git -C "$KH_PRIVATE_DOCS_DIR" commit -q -m "$COMMIT_MSG" -- "$REL_WORKER_PATH" >/dev/null 2>&1; then
               if ! git -C "$KH_PRIVATE_DOCS_DIR" push >/dev/null 2>&1; then
-                echo "Warning: archive commit for '$REL_SEGMENT_PATH' committed locally but PUSH FAILED — push manually from the docs-site checkout." >&2
+                echo "Warning: archive commit for '$REL_WORKER_PATH' committed locally but PUSH FAILED — push manually from the docs-site checkout." >&2
                 touch "${ARCHIVE_TARGET}/archive-push-FAILED" 2>/dev/null || true
               fi
             else
-              echo "Warning: archive commit failed for '$REL_SEGMENT_PATH' — corpus is copied but not committed in the docs-site checkout. Commit manually." >&2
+              echo "Warning: archive commit failed for '$REL_WORKER_PATH' — corpus is copied but not committed in the docs-site checkout. Commit manually." >&2
             fi
           fi
           ;;
         *)
-          echo "Note: archive target '$ARCHIVE_DIR' is outside KH_PRIVATE_DOCS_DIR — skipping archive auto-commit (custom --archive target)." >&2
+          echo "Note: archive target '$ARCHIVE_TARGET' is outside KH_PRIVATE_DOCS_DIR — skipping archive auto-commit (custom --archive target)." >&2
           ;;
       esac
     fi

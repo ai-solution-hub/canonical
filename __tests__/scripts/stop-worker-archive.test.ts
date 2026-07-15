@@ -448,6 +448,13 @@ describe('stop-worker.sh archive auto-commit', () => {
     // No push-failure noise on the no-op path — the no-op guard short-
     // circuits before any commit/push attempt.
     expect(r2.stderr).not.toMatch(/PUSH FAILED/);
+    // Pin the guard's OBSERVABLE effect: it must skip cleanly, not
+    // attempt-and-fail a commit. Without the explicit `diff --cached
+    // --quiet` guard (stop-worker.sh's no-op check), `git commit` on an
+    // empty diff would exit non-zero and this "commit failed" warning
+    // would fire — its absence proves the guard short-circuited before
+    // ever calling `git commit`, not that git happened to refuse quietly.
+    expect(r2.stderr).not.toMatch(/archive commit failed/);
   });
 
   it('skips auto-commit (no error) when the archive target is a custom dir outside KH_PRIVATE_DOCS_DIR', () => {
