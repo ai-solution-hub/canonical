@@ -50,45 +50,25 @@ export const POST = defineRoute(
 
       const { integrations } = parsed.data;
 
-      // Verify the procurement exists. Identity (name, domain hint) lives on the
-      // workspace; the won-state GATE now reads the FORM, not workspaces.status.
-      // ID-130 {130.11} re-anchored per-stage outcome onto form_templates and
-      // stopped writing workspaces.status — reading it here was a
-      // split-read-brain that blocked KB integration for ALL won procurements.
-      // Post-T2: discriminator via application_types JOIN.
-      const { data: bid, error: procurementError } = await supabase
-        .from('workspaces')
-        .select('id, name, domain_metadata, application_types!inner(key)')
+      // Verify the item exists + read its won-state gate in ONE read. ID-145
+      // {145.19} group C (DR-075 §6): [id] IS the form now, so the separate
+      // "workspace identity" lookup and "single-v1-form outcome" lookup
+      // (ID-130 {130.11}/{130.17}) collapse into the SAME row —
+      // `form_templates.outcome` -> `form_instances.outcome`.
+      const { data: form, error: formError } = await supabase
+        .from('form_instances')
+        .select('id, outcome, workflow_state')
         .eq('id', id)
-        .eq('application_types.key', 'procurement')
         .single();
 
-      if (procurementError || !bid) {
+      if (formError || !form) {
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
         );
       }
 
-      // Won-state gate (ID-130 {130.11}/{130.17}): the engagement is single-form
-      // v1 — the terminal outcome lives on form_templates.outcome. Read the
-      // workspace's form and gate KB integration on a 'won' outcome.
-      const { data: form, error: formError } = await supabase
-        .from('form_templates')
-        .select('outcome, workflow_state')
-        .eq('workspace_id', id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (formError) {
-        return NextResponse.json(
-          { error: 'Failed to read the procurement form outcome' },
-          { status: 500 },
-        );
-      }
-
-      const formOutcome = form?.outcome ?? null;
+      const formOutcome = form.outcome ?? null;
       if (formOutcome !== 'won') {
         return NextResponse.json(
           {
@@ -100,12 +80,13 @@ export const POST = defineRoute(
       }
 
       // Fetch the questions and responses for integration.
-      // Post-T2: `form_questions.workspace_id` → `workspace_id`.
+      // ID-145 {145.19}: `form_questions.workspace_id` (dropped W1c STEP 4)
+      // -> `form_instance_id`.
       const questionIds = integrations.map((i) => i.question_id);
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
         .select('id, question_text')
-        .eq('workspace_id', id)
+        .eq('form_instance_id', id)
         .in('id', questionIds);
 
       if (questionsError) {
@@ -215,6 +196,10 @@ export const POST = defineRoute(
         // (sources are evidence; authority earned at promotion) there is NO
         // embedding generated at insert — `question_embedding` populates
         // later via the standard question-match recompute path.
+        //
+        // ID-145 {145.19}: `q_a_pairs.source_workspace_id` (dropped W1c
+        // STEP 5) -> `source_form_instance_id` — the lineage anchor now
+        // points at the form itself, not a retired workspace umbrella.
         const { data: newPair, error: insertError } = await supabase
           .from('q_a_pairs')
           .insert({
@@ -224,7 +209,7 @@ export const POST = defineRoute(
             publication_status: 'draft',
             source_form_response_id: response?.id ?? null,
             source_question_id: integration.question_id,
-            source_workspace_id: id,
+            source_form_instance_id: id,
           })
           .select('id')
           .single();

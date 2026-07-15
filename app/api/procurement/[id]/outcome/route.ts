@@ -3,33 +3,33 @@ import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
-import { canTransition } from '@/lib/domains/procurement/procurement-workflow';
 import { parseBody } from '@/lib/validation';
-import {
-  ProcurementOutcomeBodySchema,
-  validateFormOutcome,
-} from '@/lib/validation/schemas';
+import { ProcurementOutcomeBodySchema } from '@/lib/validation/schemas';
 import { tryQuery } from '@/lib/supabase/safe';
-import type { Database } from '@/supabase/types/database.types';
+import { computeWorkflowTransition } from '@/app/api/procurement/[id]/route';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-
-type FormTemplateUpdate =
-  Database['public']['Tables']['form_templates']['Update'];
 
 export const maxDuration = 30;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// ID-130 T-B9: outcome recording re-anchored to the FORM. The transition targets
-// the workspace's single v1 form — it writes `form_templates.workflow_state` and,
-// on a terminal won/lost, the `{outcome, outcome_recorded_at, outcome_recorded_by}`
-// triad atomically (audit REQUIRED-ON-TERMINAL). `withdrawn` is a workflow
-// terminal, NOT an outcome (AD-4): workflow_state='withdrawn' with outcome=NULL.
-// This route is NEVER a writer of the deprecated `domain_metadata` engagement
-// keys (split-brain guard). The roll-up is recomputed by the {130.6} AFTER
-// trigger on the form's engagement-column writes.
+// ID-145 {145.19} group C (DR-075 §6 ruling): [id] IS the `form_instances` PK
+// now — the workspace->single-form indirection this route used to walk is
+// gone (`workspace_id` dropped W1c STEP 1). The canTransition-gated triad
+// write is CONSOLIDATED into `computeWorkflowTransition`
+// (`app/api/procurement/[id]/route.ts`) — this route DELEGATES to it instead
+// of re-deriving the same validation (145.23 S470 journal: "outcome
+// route.ts:105's transition writer duplicates [id]/route.ts:386's PATCH").
+// `form_questions.form_template_id` -> `form_instance_id` (W1c STEP 4).
+//
+// ID-145 {145.6} W1c renamed `form_templates` -> `form_instances` — this
+// route is authored against that POST-W1 schema even though the generated
+// `database.types.ts` still reflects the PRE-W1 shape (same allowance
+// {145.6}/{145.7}/{145.9}/{145.15}/{145.16} already took — typecheck drift
+// against the stale generated types is EXPECTED here, journalled not
+// chased).
 
 export const POST = defineRoute(
   z.unknown(),
@@ -56,119 +56,86 @@ export const POST = defineRoute(
 
       const { outcome, notes, integrate_to_kb } = parsed.data;
 
-      // Verify the umbrella exists + is a procurement workspace.
-      // Post-T2: discriminator via the application_types JOIN.
-      const workspaceResult = await tryQuery(
+      // Verify the item exists + read its live workflow_state/form_type —
+      // [id] IS the form now, so there is no more separate workspace lookup
+      // followed by a "locate the workspace's single v1 form" query.
+      const formResult = await tryQuery<{
+        id: string;
+        form_type: string | null;
+        workflow_state: string;
+      }>(
         supabase
-          .from('workspaces')
-          .select('id, application_types!inner(key)')
+          .from('form_instances')
+          .select('id, form_type, workflow_state')
           .eq('id', id)
-          .eq('application_types.key', 'procurement')
           .single(),
-        'procurement.outcome.workspace',
+        'procurement.outcome.form',
       );
-      if (!workspaceResult.ok) {
-        if (workspaceResult.error.code === 'PGRST116') {
+      if (!formResult.ok) {
+        if (formResult.error.code === 'PGRST116') {
           return NextResponse.json(
             { error: 'Procurement not found' },
             { status: 404 },
           );
         }
-        throw workspaceResult.error;
+        throw formResult.error;
       }
-
-      // Locate the workspace's single v1 form (the engagement) — the transition
-      // now targets the FORM, not the workspace.
-      const formResult = await tryQuery<
-        Array<{ id: string; form_type: string | null; workflow_state: string }>
-      >(
-        supabase
-          .from('form_templates')
-          .select('id, form_type, workflow_state')
-          .eq('workspace_id', id)
-          .order('created_at', { ascending: true }),
-        'procurement.outcome.form',
-      );
-      if (!formResult.ok) throw formResult.error;
-      const targetForm = formResult.data?.[0] ?? null;
-      if (!targetForm) {
-        return NextResponse.json(
-          { error: 'Procurement has no form to record an outcome against' },
-          { status: 409 },
-        );
-      }
+      const targetForm = formResult.data;
 
       const currentState =
         (targetForm.workflow_state as ProcurementWorkflowState) ?? 'draft';
 
-      // Validate the state transition against the FORM's live workflow_state.
-      if (!canTransition(currentState, outcome as ProcurementWorkflowState)) {
-        return NextResponse.json(
-          {
-            error: `Cannot transition from "${currentState}" to "${outcome}"`,
-            current_status: currentState,
-            requested_outcome: outcome,
-          },
-          { status: 400 },
-        );
-      }
-
-      // Build the FORM update. The 10-state workflow value always moves; the
-      // per-stage outcome + audit triad lands only on a terminal won/lost.
-      const nowIso = new Date().toISOString();
-      const formUpdates: FormTemplateUpdate = {
-        workflow_state: outcome,
-      };
-
-      if (outcome === 'withdrawn') {
-        // withdrawn is a workflow terminal, NOT an outcome (AD-4): clear it,
-        // no audit provenance.
-        formUpdates.outcome = null;
-      } else {
-        // won / lost: record the outcome + audit provenance atomically.
-        formUpdates.outcome = outcome;
-        formUpdates.outcome_notes = notes ?? null;
-        formUpdates.outcome_recorded_at = nowIso;
-        formUpdates.outcome_recorded_by = user.id;
-      }
-
-      // Stage-appropriateness guard (AD-4) — clean 400 before the DB trigger
-      // would raise an opaque exception. Only when an outcome is being SET.
-      if (formUpdates.outcome !== null && formUpdates.outcome !== undefined) {
-        const stageError = validateFormOutcome(
-          targetForm.form_type,
-          outcome,
-          formUpdates.outcome,
-        );
-        if (stageError) {
-          return NextResponse.json({ error: stageError }, { status: 400 });
-        }
-      }
-
-      // Audit REQUIRED-ON-TERMINAL (T-B9 / B-9): a won/lost outcome must carry
-      // its provenance — enforced BEFORE the state commit.
-      if (outcome === 'won' || outcome === 'lost') {
-        if (
-          !formUpdates.outcome_recorded_at ||
-          !formUpdates.outcome_recorded_by
-        ) {
-          logger.error(
-            { formId: targetForm.id, outcome },
-            'Terminal outcome missing audit provenance',
-          );
+      // Delegate the canTransition-gated triad computation to the SINGLE
+      // shared writer (DR-075 §6 consolidation) — this used to be
+      // independently re-derived here against `form_templates`.
+      const transition = computeWorkflowTransition({
+        currentState,
+        targetState: outcome as ProcurementWorkflowState,
+        formType: targetForm.form_type,
+        userId: user.id,
+      });
+      if (!transition.ok) {
+        if (transition.reason === 'invalid_transition') {
           return NextResponse.json(
-            { error: 'Terminal outcome requires audit provenance' },
-            { status: 500 },
+            {
+              error: `Cannot transition from "${currentState}" to "${outcome}"`,
+              current_status: currentState,
+              requested_outcome: outcome,
+            },
+            { status: 400 },
           );
         }
+        if (transition.reason === 'stage_mismatch') {
+          return NextResponse.json(
+            { error: transition.message },
+            { status: 400 },
+          );
+        }
+        logger.error(
+          { formId: targetForm.id, outcome },
+          'Terminal outcome missing audit provenance',
+        );
+        return NextResponse.json(
+          { error: 'Terminal outcome requires audit provenance' },
+          { status: 500 },
+        );
+      }
+
+      // outcome_notes is this route's own concern (the `notes` body field) —
+      // layered on top of the shared writer's {workflow_state, outcome,
+      // outcome_recorded_at, outcome_recorded_by} triad. Never set on a
+      // withdrawn transition (AD-4: no audit provenance for a non-outcome).
+      const formUpdates: Record<string, unknown> = { ...transition.updates };
+      if (outcome !== 'withdrawn') {
+        formUpdates.outcome_notes = notes ?? null;
       }
 
       // UPDATE narrows on the form id. `.select()` lets us VERIFY a row was
-      // actually written — a REST PATCH that matches zero rows silently succeeds
-      // with an empty body (RLS / vanished row).
+      // actually written — a REST PATCH that matches zero rows silently
+      // succeeds with an empty body (RLS / vanished row).
       const updateResult = await tryQuery<Array<{ id: string }>>(
         supabase
-          .from('form_templates')
+          .from('form_instances')
           .update(formUpdates)
           .eq('id', targetForm.id)
           .select('id'),
@@ -185,16 +152,12 @@ export const POST = defineRoute(
         );
       }
       if ((updateResult.data ?? []).length === 0) {
-        // Zero rows matched — the form vanished or RLS blocked the write.
+        // Zero rows matched — the item vanished or RLS blocked the write.
         return NextResponse.json(
           { error: 'Outcome could not be recorded' },
           { status: 409 },
         );
       }
-
-      // The roll-up (procurement_workspaces) is recomputed automatically by the
-      // {130.6} AFTER trigger on form_templates' engagement-column writes — no
-      // explicit recompute_procurement_rollup call is needed here.
 
       // If won and KB integration requested, return candidate responses.
       // ID-131 {131.28} Part 2 (HYBRID RETIRE) / BL-395: the recommendation is
@@ -211,14 +174,14 @@ export const POST = defineRoute(
       }> = [];
 
       if (outcome === 'won' && integrate_to_kb) {
-        // Fetch all approved/edited responses for this engagement's form.
+        // Fetch all approved/edited responses for this item's questions.
         const questionsResult = await tryQuery<
           Array<{ id: string; question_text: string }>
         >(
           supabase
             .from('form_questions')
             .select('id, question_text')
-            .eq('form_template_id', targetForm.id),
+            .eq('form_instance_id', targetForm.id),
           'procurement.outcome.questions',
         );
         if (!questionsResult.ok) {

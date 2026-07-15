@@ -85,41 +85,27 @@ const MOCK_FORM_INSTANCE = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
-// ID-130 T-B1 / T-B8: the umbrella GET reads workspace identity + the roll-up +
-// the child-form list (NOT domain_metadata); PATCH transitions the single-v1
-// form's workflow_state. These fixtures mirror the real `.select()` projections.
-const FORM_ID = '00000000-0000-4000-8000-0000000000aa';
-
-const MOCK_WORKSPACE = {
+// ID-145 {145.19} groups A+C (DR-075 §6, ratified S474): [id] IS the
+// `form_instances` PK now — no workspace umbrella, no roll-up, no
+// child-forms list. This fixture mirrors the real flat GET `.select()`
+// projection (FORM_DETAIL_COLUMNS in the route).
+const MOCK_FORM_DETAIL = {
   id: VALID_UUID,
   name: 'Test Procurement',
   description: 'A test bid',
-  is_archived: false,
-  created_by: 'test-user-id',
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
-  updated_by: null,
-};
-
-const MOCK_ROLLUP = {
-  nearest_deadline: '2026-03-01T00:00:00Z',
-  overall_outcome: 'in_progress',
-  counts_toward_win_rate: false,
-  rollup_updated_at: '2026-01-02T00:00:00Z',
-};
-
-const MOCK_FORM = {
-  id: FORM_ID,
   form_type: 'bid',
-  name: 'Tender response',
+  processing_status: 'uploaded',
   workflow_state: 'draft',
-  outcome: null,
-  outcome_notes: null,
   deadline: '2026-03-01T00:00:00Z',
   submission_date: null,
   issuing_organisation: 'Acme Corp',
+  outcome: null,
+  outcome_notes: null,
   outcome_recorded_at: null,
   outcome_recorded_by: null,
+  reference_number: null,
+  estimated_value: null,
+  created_by: 'test-user-id',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -509,25 +495,15 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.error).toBe('Procurement not found');
   });
 
-  it('returns 200 with the roll-up, child-form list, stats, and documents (not domain_metadata)', async () => {
-    // Workspace identity (single) -> roll-up (rpc, ID-130 {130.29} — the
-    // api-exposed get_procurement_rollup RPC, NOT a `.from('procurement_workspaces')`
-    // select, which has no api.* view and 404s) -> forms (awaited list -> .then)
-    // -> stats (rpc) -> storage. Both roll-up and stats resolve through the SAME
-    // `mockSupabase.rpc` mock, so the two `mockResolvedValueOnce` calls below are
-    // consumed IN CALL ORDER: roll-up first, stats second.
+  it('returns 200 with the flat form_instances detail, stats, and documents (no roll-up, no forms[])', async () => {
+    // ID-145 {145.19} groups A+C: [id] IS the form now — ONE `.single()` read
+    // off `form_instances` (no workspace identity lookup, no
+    // get_procurement_rollup RPC, no child-forms list) -> stats (rpc) ->
+    // storage.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
+      data: MOCK_FORM_DETAIL,
       error: null,
     });
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [MOCK_ROLLUP],
-      error: null,
-    });
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [MOCK_FORM], error: null }),
-    );
 
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [{ total: 10, answered: 7, approved: 3 }],
@@ -562,25 +538,29 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.id).toBe(VALID_UUID);
     expect(body.name).toBe('Test Procurement');
 
-    // The umbrella read surface no longer leaks the deprecated domain_metadata.
-    expect(body).not.toHaveProperty('domain_metadata');
+    // Flat form_instances fields at the top level (BI-1) — no nested
+    // container shape.
+    expect(body.workflow_state).toBe('draft');
+    expect(body.form_type).toBe('bid');
+    expect(body.processing_status).toBe('uploaded');
+    expect(body.issuing_organisation).toBe('Acme Corp');
+    expect(body.deadline).toBe('2026-03-01T00:00:00Z');
 
-    // Roll-up read via the sanctioned api-exposed RPC (ID-130 {130.29}) — NOT a
-    // bare `.from('procurement_workspaces')` select, which has no api.* view and
-    // 404s through the api-schema-routed client.
-    expect(body.rollup).toEqual(MOCK_ROLLUP);
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_procurement_rollup', {
-      p_workspace_id: VALID_UUID,
-    });
+    // The retired roll-up + child-forms container is gone entirely (S470: NO
+    // stored/derived roll-up).
+    expect(body).not.toHaveProperty('rollup');
+    expect(body).not.toHaveProperty('forms');
+    expect(body).not.toHaveProperty('domain_metadata');
+    expect(mockSupabase.rpc).not.toHaveBeenCalledWith(
+      'get_procurement_rollup',
+      expect.anything(),
+    );
     expect(mockSupabase.from).not.toHaveBeenCalledWith(
       'procurement_workspaces',
     );
-
-    // Child-form list read off form_templates.
-    expect(body.forms).toHaveLength(1);
-    expect(body.forms[0].id).toBe(FORM_ID);
-    expect(body.forms[0].workflow_state).toBe('draft');
-    expect(body.forms[0].form_type).toBe('bid');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('workspaces');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('form_templates');
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_instances');
 
     expect(body.question_stats).toEqual({
       total: 10,
@@ -594,23 +574,15 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.warnings).toBeUndefined();
   });
 
-  it('surfaces residual reference_number/estimated_value/notes off domain_metadata (no form home, {130.21})', async () => {
+  it('surfaces the first-class reference_number/estimated_value columns directly (no domain_metadata indirection)', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: {
-        ...MOCK_WORKSPACE,
-        domain_metadata: {
-          reference_number: 'REF-123',
-          estimated_value: '£50,000',
-          notes: 'Follow up with the buyer next week.',
-          // Deprecated engagement keys must NOT leak through even if still
-          // present on a legacy row.
-          status: 'draft',
-          deadline: '2020-01-01T00:00:00Z',
-        },
+        ...MOCK_FORM_DETAIL,
+        reference_number: 'REF-123',
+        estimated_value: 50000,
       },
       error: null,
     });
-    // No roll-up row / no forms yet -> defaults.
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
     const res = await getBid(req, {
@@ -620,17 +592,13 @@ describe('GET /api/procurement/[id]', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.reference_number).toBe('REF-123');
-    expect(body.estimated_value).toBe('£50,000');
-    expect(body.notes).toBe('Follow up with the buyer next week.');
-    // Still no nested domain_metadata leak — the deprecated engagement keys
-    // stay hidden (split-brain guard).
+    expect(body.estimated_value).toBe(50000);
     expect(body).not.toHaveProperty('domain_metadata');
-    expect(body.status).toBeUndefined();
   });
 
-  it('returns null residual fields when domain_metadata is absent', async () => {
+  it('returns null residual fields when unset on the row', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
+      data: MOCK_FORM_DETAIL,
       error: null,
     });
 
@@ -643,93 +611,6 @@ describe('GET /api/procurement/[id]', () => {
     const body = await res.json();
     expect(body.reference_number).toBeNull();
     expect(body.estimated_value).toBeNull();
-    expect(body.notes).toBeNull();
-  });
-
-  it('returns a null roll-up + empty forms for a brand-new umbrella', async () => {
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
-      error: null,
-    });
-    // No roll-up row yet -> the RPC (RETURNS TABLE) resolves an empty row set,
-    // not an error (ID-130 {130.29}: the read path is now `.rpc()`, not `.maybeSingle()`).
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [],
-      error: null,
-    });
-    // No forms yet -> empty list (default .then).
-
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
-    const res = await getBid(req, {
-      params: createTestParams({ id: VALID_UUID }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.rollup).toBeNull();
-    expect(body.forms).toEqual([]);
-    // A missing roll-up is an expected state, not a failure — no warning.
-    expect(body.warnings).toBeUndefined();
-  });
-
-  it('surfaces a warning (never a silent null) when the rollup read errors — the class of regression {130.29} fixes', async () => {
-    // ID-130 {130.29}: before this fix, the rollup was read via a bare
-    // `.from('procurement_workspaces').select(...)` through the api-schema-routed
-    // client — that table has NO api.* view (INTERNAL_ONLY by design), so the
-    // request 404d on EVERY call. The prior mocked-client unit test suite could
-    // never catch this because it mocked the client wholesale and always resolved
-    // MOCK_ROLLUP, regardless of what the route actually called. This test asserts
-    // TWO things a 404 regression would break: (a) the route reads the roll-up via
-    // the sanctioned `get_procurement_rollup` RPC, never a direct
-    // `.from('procurement_workspaces')` select; (b) an errored read (simulating the
-    // real PostgREST "relation/function not found in schema cache" shape) surfaces
-    // through the warnings[] envelope instead of silently rendering rollup: null
-    // with no signal.
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
-      error: null,
-    });
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: {
-        message:
-          'Could not find the function public.get_procurement_rollup(p_workspace_id) in the schema cache',
-        code: 'PGRST202',
-      },
-    });
-
-    const storageBucket = {
-      list: vi.fn().mockResolvedValue({ data: [], error: null }),
-      upload: vi.fn(),
-      download: vi.fn(),
-      remove: vi.fn(),
-      getPublicUrl: vi.fn(),
-    };
-    mockSupabase.storage.from.mockReturnValue(storageBucket);
-
-    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
-    const res = await getBid(req, {
-      params: createTestParams({ id: VALID_UUID }),
-    });
-
-    // Partial-response envelope (H2/H1) — a rollup-read failure must not 500 the
-    // whole detail page.
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.rollup).toBeNull();
-    expect(Array.isArray(body.warnings)).toBe(true);
-    expect(
-      body.warnings.some((w: string) => /Roll-up could not be loaded/.test(w)),
-    ).toBe(true);
-
-    // Schema-level guard: the read path targets the api-exposed RPC surface, not a
-    // base-table select with no api.* view (the exact 404 this Subtask fixes).
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_procurement_rollup', {
-      p_workspace_id: VALID_UUID,
-    });
-    expect(mockSupabase.from).not.toHaveBeenCalledWith(
-      'procurement_workspaces',
-    );
   });
 
   it('returns 200 with warnings[] when stats RPC fails (partial response)', async () => {
@@ -737,18 +618,14 @@ describe('GET /api/procurement/[id]', () => {
     // detail is a composite view (overview, questions, drafting, outcome,
     // documents tabs) and a transient stats glitch must not 500 the page.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
+      data: MOCK_FORM_DETAIL,
       error: null,
     });
 
-    // Roll-up (rpc call #1) succeeds — this test isolates the STATS rpc failure.
-    // Both calls share `mockSupabase.rpc`, so ordering is load-bearing.
-    mockSupabase.rpc
-      .mockResolvedValueOnce({ data: [], error: null })
-      .mockResolvedValueOnce({
-        data: null,
-        error: { message: 'stats rpc unavailable', code: 'XX000' },
-      });
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'stats rpc unavailable', code: 'XX000' },
+    });
 
     const storageBucket = {
       list: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -779,18 +656,14 @@ describe('GET /api/procurement/[id]', () => {
 
   it('returns 200 with warnings[] when storage list fails (partial response)', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: MOCK_WORKSPACE,
+      data: MOCK_FORM_DETAIL,
       error: null,
     });
 
-    // Roll-up (rpc call #1) succeeds; stats (rpc call #2) succeeds — this test
-    // isolates the STORAGE failure. Both rpc calls share `mockSupabase.rpc`.
-    mockSupabase.rpc
-      .mockResolvedValueOnce({ data: [], error: null })
-      .mockResolvedValueOnce({
-        data: [{ total: 10, answered: 7, approved: 3 }],
-        error: null,
-      });
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ total: 10, answered: 7, approved: 3 }],
+      error: null,
+    });
 
     const storageBucket = {
       list: vi.fn().mockResolvedValue({
@@ -885,42 +758,28 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(res.status).toBe(404);
   });
 
-  it('re-anchors metadata: buyer -> form, name -> workspace, no domain_metadata writer', async () => {
+  it('writes name/buyer/reference_number/estimated_value in a SINGLE form_instances UPDATE (no workspace indirection, no domain_metadata)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Workspace verify (single, includes domain_metadata for residual merge).
+    // ID-145 {145.19}: [id] IS the form now — ONE existence read (`.single()`)
+    // + ONE UPDATE (awaited list -> `.then()`). No more "locate the
+    // workspace's single v1 form" + separate workspace UPDATE.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { ...MOCK_WORKSPACE, domain_metadata: { buyer: 'Acme Corp' } },
+      data: MOCK_FORM_DETAIL,
       error: null,
     });
-    // .then sequence: 1 = form fetch, 2 = form UPDATE, 3 = workspace UPDATE.
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          return resolve({ data: [MOCK_FORM], error: null });
-        }
-        if (thenCallCount === 2) {
-          return resolve({
-            data: [{ ...MOCK_FORM, issuing_organisation: 'Updated Buyer' }],
-            error: null,
-          });
-        }
-        if (thenCallCount === 3) {
-          return resolve({
-            data: [
-              {
-                id: VALID_UUID,
-                name: 'Updated Procurement',
-                description: 'A test bid',
-              },
-            ],
-            error: null,
-          });
-        }
-        return resolve({ data: [], error: null });
-      },
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              ...MOCK_FORM_DETAIL,
+              name: 'Updated Procurement',
+              issuing_organisation: 'Updated Buyer',
+            },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
@@ -936,40 +795,28 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(body.name).toBe('Updated Procurement');
     expect(body).not.toHaveProperty('domain_metadata');
 
-    // Content-of-write: buyer re-anchors to the FORM's issuing_organisation
-    // (call 0 = form UPDATE); name lands on the workspace (call 1 = workspace
-    // UPDATE). NEITHER update writes a deprecated domain_metadata engagement key.
-    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
-    expect(formUpdateArg).toMatchObject({
+    // Exactly ONE update call, directly on form_instances — buyer re-anchors
+    // to issuing_organisation, name lands on the same row. No workspace
+    // UPDATE, no domain_metadata writer.
+    expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      name: 'Updated Procurement',
       issuing_organisation: 'Updated Buyer',
     });
-    expect(formUpdateArg).not.toHaveProperty('domain_metadata');
-    expect(formUpdateArg).not.toHaveProperty('status');
-
-    const workspaceUpdateArg = mockSupabase._chain.update.mock.calls[1][0];
-    expect(workspaceUpdateArg).toMatchObject({
-      name: 'Updated Procurement',
-      updated_by: 'test-user-id',
-    });
-    // No residual metadata fields were sent, so no domain_metadata write at all.
-    expect(workspaceUpdateArg).not.toHaveProperty('domain_metadata');
+    expect(updateArg).not.toHaveProperty('domain_metadata');
+    expect(updateArg).not.toHaveProperty('status');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('workspaces');
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_instances');
   });
 
-  it('returns 400 for invalid state transition (validated against the form)', async () => {
+  it('returns 400 for invalid state transition (validated against the item itself)', async () => {
     configureRole(mockSupabase, 'editor');
 
-    // Workspace verify, then the form fetch returns a draft-state form.
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
+      data: { ...MOCK_FORM_DETAIL, workflow_state: 'draft' },
       error: null,
     });
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [{ id: FORM_ID, form_type: 'bid', workflow_state: 'draft' }],
-          error: null,
-        }),
-    );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
       method: 'PATCH',
@@ -984,35 +831,25 @@ describe('PATCH /api/procurement/[id]', () => {
     expect(body.error).toContain('Cannot transition');
     expect(body.current_status).toBe('draft');
     expect(body.requested_status).toBe('submitted');
+    // The invalid-transition guard refuses BEFORE any write is attempted.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
   });
 
   it('returns 200 for a valid form transition (draft -> questions_extracted)', async () => {
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
+      data: { ...MOCK_FORM_DETAIL, workflow_state: 'draft' },
       error: null,
     });
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          // form fetch (current state draft)
-          return resolve({
-            data: [{ id: FORM_ID, form_type: 'bid', workflow_state: 'draft' }],
-            error: null,
-          });
-        }
-        if (thenCallCount === 2) {
-          // form UPDATE returns the written row
-          return resolve({
-            data: [{ ...MOCK_FORM, workflow_state: 'questions_extracted' }],
-            error: null,
-          });
-        }
-        return resolve({ data: [], error: null });
-      },
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { ...MOCK_FORM_DETAIL, workflow_state: 'questions_extracted' },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
@@ -1027,13 +864,13 @@ describe('PATCH /api/procurement/[id]', () => {
     const body = await res.json();
     expect(body.workflow_state).toBe('questions_extracted');
 
-    // The transition writes the FORM's workflow_state, not a domain_metadata key.
-    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
-    expect(formUpdateArg).toMatchObject({
+    // The transition writes workflow_state directly, not a domain_metadata key.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
       workflow_state: 'questions_extracted',
     });
-    expect(formUpdateArg).not.toHaveProperty('domain_metadata');
-    expect(formUpdateArg).not.toHaveProperty('status');
+    expect(updateArg).not.toHaveProperty('domain_metadata');
+    expect(updateArg).not.toHaveProperty('status');
   });
 
   it('honours a caller-supplied submission_date on the submitted transition instead of the server clock (T-B9, {130.21})', async () => {
@@ -1042,40 +879,21 @@ describe('PATCH /api/procurement/[id]', () => {
     const CALLER_SUBMISSION_DATE = '2026-05-01T09:30:00.000Z';
 
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { ...MOCK_WORKSPACE, domain_metadata: {} },
+      data: { ...MOCK_FORM_DETAIL, workflow_state: 'ready_for_export' },
       error: null,
     });
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          // form fetch (current state ready_for_export -> submitted is valid)
-          return resolve({
-            data: [
-              {
-                id: FORM_ID,
-                form_type: 'bid',
-                workflow_state: 'ready_for_export',
-              },
-            ],
-            error: null,
-          });
-        }
-        if (thenCallCount === 2) {
-          return resolve({
-            data: [
-              {
-                ...MOCK_FORM,
-                workflow_state: 'submitted',
-                submission_date: CALLER_SUBMISSION_DATE,
-              },
-            ],
-            error: null,
-          });
-        }
-        return resolve({ data: [], error: null });
-      },
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              ...MOCK_FORM_DETAIL,
+              workflow_state: 'submitted',
+              submission_date: CALLER_SUBMISSION_DATE,
+            },
+          ],
+          error: null,
+        }),
     );
 
     const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
@@ -1090,10 +908,112 @@ describe('PATCH /api/procurement/[id]', () => {
     const body = await res.json();
     expect(body.workflow_state).toBe('submitted');
 
-    // The form UPDATE carries the CALLER's submission_date, not a
-    // server-stamped `now()` value.
-    const formUpdateArg = mockSupabase._chain.update.mock.calls[0][0];
-    expect(formUpdateArg.submission_date).toBe(CALLER_SUBMISSION_DATE);
+    // The UPDATE carries the CALLER's submission_date, not a server-stamped
+    // `now()` value (the caller-supplied override applied after the shared
+    // transition writer's own auto-stamp).
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg.submission_date).toBe(CALLER_SUBMISSION_DATE);
+  });
+});
+
+describe('DELETE /api/procurement/[id]', () => {
+  beforeEach(resetMocks);
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for editor role (admin only)', async () => {
+    configureRole(mockSupabase, 'editor');
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 for viewer role (admin only)', async () => {
+    configureRole(mockSupabase, 'viewer');
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    configureRole(mockSupabase, 'admin');
+    const req = createTestRequest(`/api/procurement/${INVALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: INVALID_UUID }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when bid does not exist', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'No rows found' },
+    });
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 204 on successful deletion, cleaning up this item’s own storage (no workspace, no child-form list)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    // ID-145 {145.19}: [id] IS the form now — the existence read carries its
+    // OWN storage_path/structure_path directly (no more "list every child
+    // form under this workspace").
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, storage_path: null, structure_path: null },
+      error: null,
+    });
+
+    const storageBucket = {
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      remove: vi.fn().mockResolvedValue({ data: [], error: null }),
+      upload: vi.fn(),
+      download: vi.fn(),
+      getPublicUrl: vi.fn(),
+    };
+    mockSupabase.storage.from.mockReturnValue(storageBucket);
+
+    // template_completions select (re-keyed to form_instance_id, empty) and
+    // the final form_instances DELETE both resolve via the default `.then()`
+    // mock (`{ data: [], error: null }`).
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`, {
+      method: 'DELETE',
+    });
+    const res = await DELETE(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(204);
+    expect(mockSupabase.from).toHaveBeenCalledWith('form_instances');
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('workspaces');
   });
 });
 
