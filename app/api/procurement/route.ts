@@ -20,11 +20,15 @@ import { z } from 'zod';
 
 export const maxDuration = 30;
 
-// GET returns a paged list of procurement workspaces. Each bid is the selected
-// `workspaces` row (application_types projection stripped) with `domain_metadata`
-// replaced by the parsed procurement metadata (or the raw jsonb on parse-fail)
-// and a `question_stats` enrichment. The selected columns are nullable DB
-// values; `status` is .optional() (absent on some 2xx projections).
+// GET returns a paged list of procurement bids. Each bid is sourced from the
+// `form_instances` row (workspaces/procurement_workspaces are wholesale-
+// deleted for procurement, W1e {145.6} — [id] IS the form_instances PK now)
+// adapted onto the pre-existing wire contract: `status` <- `workflow_state`,
+// `domain_metadata` <- the parsed procurement metadata (or the raw jsonb on
+// parse-fail) via `deriveProcurementMetadata`, `is_archived` always false and
+// `updated_by` always null (no form_instances equivalent), plus a
+// `question_stats` enrichment. The selected columns are nullable DB values;
+// `status` is .optional() (absent on some 2xx projections).
 const ProcurementBidSchema = z.object({
   id: z.string(),
   name: z.string(),

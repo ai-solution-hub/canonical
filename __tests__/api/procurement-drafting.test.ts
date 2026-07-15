@@ -1633,6 +1633,8 @@ describe('POST /api/bids/:id/responses/estimate', () => {
   });
 
   it('returns cost estimate for eligible questions', async () => {
+    const MATCHED_QA_ID = 'e7777777-7777-4777-8777-777777777777';
+
     configureRole(mockSupabase, 'editor');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -1649,12 +1651,43 @@ describe('POST /api/bids/:id/responses/estimate', () => {
               id: VALID_UUID_2,
               question_text: 'Test question',
               confidence_posture: 'strong',
-              matched_record_ids: [],
             },
           ],
           error: null,
         }),
     );
+
+    // ID-145 {145.23} round-2 Checker fix (MAJOR): matched ids come from
+    // question_match_search (the R7 substrate) rather than the dropped
+    // matched_record_ids column — one matched q_a_pair candidate for the
+    // single eligible question, mirroring the {145.21} draft-stream
+    // precedent above.
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [{ q_a_pair_id: MATCHED_QA_ID }],
+      error: null,
+    });
+
+    // fetchMatchedContentForDrafting resolves the matched id via
+    // Promise.all([q_a_pairs.in(), reference_items.in()]) — both awaited
+    // via the chain `then`. The matched id resolves as a q_a_pair here.
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: MATCHED_QA_ID,
+              question_text: 'Matched Q&A',
+              answer_standard: 'matched answer body',
+              answer_advanced: null,
+            },
+          ],
+          error: null,
+          count: 1,
+        }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+      );
 
     const req = createTestRequest(
       `/api/procurement/${VALID_UUID}/responses/estimate`,
@@ -1670,6 +1703,99 @@ describe('POST /api/bids/:id/responses/estimate', () => {
     const body = await res.json();
     expect(body.eligible_questions).toBe(2);
     expect(mockEstimateBatchCost).toHaveBeenCalledOnce();
+
+    // The RPC is called per eligible question with the question id.
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('question_match_search', {
+      p_form_question_id: VALID_UUID_2,
+      p_limit: 20,
+    });
+
+    // The estimate input reflects the matched content: one matched item,
+    // tokenised via the (mocked) estimateTokens call.
+    expect(mockEstimateBatchCost).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: VALID_UUID_2,
+        contentItemCount: 1,
+        contentTokens: 100,
+      }),
+    ]);
+  });
+
+  // ID-145 {145.23} round-2 Checker fix (MAJOR): the estimate route resolves
+  // matched content per-question via question_match_search (BI-37, R7
+  // substrate) — mirrors the {145.21} draft-stream degrade-path precedent
+  // above. When the RPC errors for a question, the estimate must still
+  // succeed with zero matched content for that question rather than
+  // throwing/500ing.
+  it('degrades to zero matched content (without failing) when question_match_search RPC errors', async () => {
+    const RPC_ERROR = {
+      code: 'XX000',
+      message: 'question_match_search unavailable',
+    };
+
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, workflow_state: 'drafting' },
+      error: null,
+    });
+
+    // Questions query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: VALID_UUID_2,
+              question_text: 'Test question',
+              confidence_posture: 'strong',
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // question_match_search errors for the (only) eligible question —
+    // matchedIdsByQuestion resolves to [] for it, so allContentIds stays
+    // empty and fetchMatchedContentForDrafting is never reached.
+    mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: RPC_ERROR });
+
+    const warnSpy = vi
+      .spyOn(logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    const req = createTestRequest(
+      `/api/procurement/${VALID_UUID}/responses/estimate`,
+      {
+        method: 'POST',
+        body: { skip_existing: false },
+      },
+    );
+
+    const res = await estimatePost(req, { params });
+    // The RPC error does not block the estimate — it still succeeds.
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.eligible_questions).toBe(2);
+
+    // Zero matched content flows through to the estimate input for the
+    // affected question.
+    expect(mockEstimateBatchCost).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: VALID_UUID_2,
+        contentItemCount: 0,
+        contentTokens: 0,
+      }),
+    ]);
+
+    // The RPC error is logged (non-fatal, observable degrade).
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: RPC_ERROR, questionId: VALID_UUID_2 }),
+      expect.stringContaining('Failed to read question_matches'),
+    );
+
+    warnSpy.mockRestore();
   });
 });
 
