@@ -48,9 +48,10 @@ const CI_MODE = process.argv.includes('--ci');
 
 const REPO_ROOT = resolve(import.meta.dir, '..');
 const LEDGER_DIR = 'docs/reference';
+// ID-148.8: `product-roadmap.json` dropped — the `update-roadmap` MatrixEntry
+// (the only roadmap-targeting entry) is retired below (TECH §3.4, INV-7).
 const LEDGER_FILES = [
   'task-list.json',
-  'product-roadmap.json',
   'product-backlog.json',
   'umbrellas.json',
 ];
@@ -121,12 +122,9 @@ const MATRIX: MatrixEntry[] = [
     compareFiles: ['product-backlog.json'],
   },
 
-  // ── field-patch (roadmap) ──
-  {
-    label: 'update-roadmap',
-    args: ['update-roadmap', '10', 'status', 'in_progress'],
-    compareFiles: ['product-roadmap.json'],
-  },
+  // ID-148.8: the roadmap field-patch entry (`update-roadmap`) is retired
+  // (TECH §3.4, INV-7) — the verb now returns `retired-verb` before touching
+  // any ledger, so it has nothing left to exercise here.
 
   // ── subtask field-patch ──
   {

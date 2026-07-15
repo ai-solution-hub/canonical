@@ -274,6 +274,8 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
     const lines = r.stdout.split('\n').filter((l) => l.trim().length > 0);
     const firstThirty = lines.slice(0, 30).join('\n');
     // Every subcommand the run() dispatch handles must be advertised up-front.
+    // ID-148.8: `update-roadmap`/`create-theme` retired (TECH §3.4, INV-7) —
+    // not expected among the live commands any more.
     const subcommands = [
       'show',
       'get',
@@ -282,12 +284,10 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
       'flip-subtask',
       'update-task',
       'update-subtask',
-      'update-roadmap',
       'update-backlog',
       'append-journal',
       'add-subtask',
       'open-task',
-      'create-theme',
       'create-backlog',
       'delete-backlog',
       'promote',
@@ -330,12 +330,12 @@ describe('ledger-cli — ID-65.5 --whole-file is listed in USAGE / --help', () =
   });
 
   it('per-subcommand --help lists --whole-file for the field-edit commands', () => {
+    // ID-148.8: `update-roadmap` retired (TECH §3.4, INV-7) — dropped.
     for (const cmd of [
       'flip-task',
       'flip-subtask',
       'update-task',
       'update-subtask',
-      'update-roadmap',
       'update-backlog',
       'append-journal',
     ]) {
@@ -346,11 +346,11 @@ describe('ledger-cli — ID-65.5 --whole-file is listed in USAGE / --help', () =
   });
 
   it('per-subcommand --help lists --whole-file for the create + promote commands', () => {
+    // ID-148.8: `create-theme` retired (TECH §3.4, INV-7) — dropped.
     for (const cmd of [
       'add-subtask',
       'add-subtasks',
       'open-task',
-      'create-theme',
       'create-backlog',
       'promote',
     ]) {

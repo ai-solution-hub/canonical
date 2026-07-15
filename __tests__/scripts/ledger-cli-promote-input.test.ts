@@ -15,7 +15,8 @@
  *   - `cat task.json | promote <backlogId> --file -` works.
  *   - positional JSON still works (back-compat).
  *   - named flags resolve (the resolution path is reached).
- *   - `--capability-theme` still binds via the new resolution path.
+ *   - `--capability-theme` is a RETIRED flag (ID-148.8, TECH §3.4 INV-7) —
+ *     returns `retired-flag` regardless of input mode; verified below.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -76,9 +77,6 @@ function read(name: 'task-list' | 'product-roadmap' | 'product-backlog') {
 }
 function firstBacklogId(): string {
   return read('product-backlog').items[0].id;
-}
-function firstThemeId(): string {
-  return read('product-roadmap').themes[0].id;
 }
 
 /** Schema-valid, COMPLETE Task record (promote applies no auto-id/defaults). */
@@ -380,41 +378,32 @@ describe('ledger-cli — promote auto-fills optional fields (S299 F1)', () => {
   });
 });
 
-describe('ledger-cli — promote --capability-theme via the new resolver path (ID-65.7)', () => {
-  it('--capability-theme binds when the body comes from --file', async () => {
+describe('ledger-cli — ID-148.8: promote --capability-theme is a retired flag (was ID-65.7)', () => {
+  it('--capability-theme returns retired-flag even when the body comes from --file', async () => {
     const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
     const newId = '9976';
     const file = join(dir, 'task.json');
     writeFileSync(file, JSON.stringify(validTaskRecord(newId)), 'utf8');
     const r = await run(
-      args('promote', [backlogId], { file, capabilityTheme: themeId }),
+      args('promote', [backlogId], { file, capabilityTheme: 'any-theme-id' }),
     );
-    expect(r.ok).toBe(true);
-    const newTask = read('task-list').tasks.find(
-      (t: { id: string }) => t.id === newId,
-    );
-    // The capability-theme patch still mutates the resolved record.
-    expect(newTask.capability_theme).toBe(themeId);
-    const theme = read('product-roadmap').themes.find(
-      (t: { id: string }) => t.id === themeId,
-    );
-    expect(theme.linked_tasks).toContain(newId);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('retired-flag');
+    // Nothing promoted — the retirement check fires before the resolver runs.
+    expect(
+      read('task-list').tasks.some((t: { id: string }) => t.id === newId),
+    ).toBe(false);
   });
 
-  it('--capability-theme binds when the body comes from positional JSON (back-compat)', async () => {
+  it('--capability-theme returns retired-flag when the body comes from positional JSON', async () => {
     const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
     const newId = '9977';
     const r = await run(
       args('promote', [backlogId, JSON.stringify(validTaskRecord(newId))], {
-        capabilityTheme: themeId,
+        capabilityTheme: 'any-theme-id',
       }),
     );
-    expect(r.ok).toBe(true);
-    const newTask = read('task-list').tasks.find(
-      (t: { id: string }) => t.id === newId,
-    );
-    expect(newTask.capability_theme).toBe(themeId);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('retired-flag');
   });
 });

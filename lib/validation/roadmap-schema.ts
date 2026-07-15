@@ -13,8 +13,9 @@
  *
  *   - **Item 9 (SHIPPED markers):** schema has NO `shipped_note` /
  *     `shipped_marker` fields. Forward-looking-only doctrine is strict.
- *     Conversion pipeline gains a "shipped-framing detector" pre-parse step
- *     that produces an actionable purge list (`scripts/detect-roadmap-shipped-framings.ts`).
+ *     Conversion pipeline gained a "shipped-framing detector" pre-parse step
+ *     (`scripts/detect-roadmap-shipped-framings.ts` — DELETED ID-148.8, a
+ *     roadmap-only concept with no initiatives analog, TECH §3.4 INV-12(d)).
  *   - **Item 10 (§5.4.4 special row):** schema does NOT synthesise placeholder
  *     items. Operator purges shipped narrative from MD pre-conversion.
  *
@@ -32,6 +33,11 @@ import {
   LEDGER_BUDGETS,
   DISCIPLINE_DOC,
 } from '@/lib/validation/ledger-budgets';
+// ID-148.8 — DocLinkSchema RELOCATED to a neutral module (TECH §3.4,
+// INV-12(c); no barrel re-export here per KH convention — backlog/task-list/
+// retro + curator-smoke now import doc-link.ts directly). Imported here only
+// for RoadmapThemeSchema's own `cross_doc_links` field, below.
+import { DocLinkSchema } from '@/lib/validation/doc-link';
 
 // ──────────────────────────────────────────
 // Enums
@@ -80,28 +86,9 @@ export type ColumnSet = z.infer<typeof ColumnSet>;
 // ──────────────────────────────────────────
 // Sub-schemas
 // ──────────────────────────────────────────
-
-/**
- * DocLink — structured cross-document reference parsed from descriptions
- * and section narratives (`Spec:` / `Plan:` / `Source:` lines, inline
- * markdown links to docs/specs/, docs/audits/, .planning/*).
- */
-export const DocLinkSchema = z
-  .object({
-    path: z
-      .string()
-      .min(1)
-      .describe('Repo-relative path (e.g. docs/specs/foo-spec.md)'),
-    anchor: z
-      .string()
-      .nullable()
-      .describe('Optional in-doc anchor (e.g. §2.3 or #section-id)'),
-    raw: z
-      .string()
-      .min(1)
-      .describe('Original text matched by the regex sweep, for round-trip'),
-  })
-  .strict();
+//
+// DocLinkSchema RELOCATED to lib/validation/doc-link.ts (ID-148.8) — imported
+// above, no longer defined here.
 
 // ──────────────────────────────────────────
 // Theme (Subtask 30.6 / TECH §3.1)

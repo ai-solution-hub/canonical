@@ -166,15 +166,10 @@ describe('ledger-cli — list snapshot defaults', () => {
     expect((r.result as ListResult).total).toBe(3);
   });
 
-  it('list roadmap projects the theme to {id,title,status}', async () => {
-    const r = await listOk(['roadmap']);
-    const res = r.result as ListResult;
-    expect(res.total).toBe(1);
-    expect(Object.keys(res.records[0] as object).sort()).toEqual([
-      'id',
-      'status',
-      'title',
-    ]);
+  it('list roadmap is retired (ID-148.8, TECH §3.4 INV-7) — returns retired-verb', async () => {
+    const r = await run(args(['roadmap']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('retired-verb');
   });
 
   it('list retro excludes deprecated and projects {id,date,track}', async () => {

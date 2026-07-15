@@ -23,7 +23,7 @@
 
 import { z } from 'zod';
 import { TaskListStatus, Priority } from '@/lib/validation/work-status';
-import { DocLinkSchema } from '@/lib/validation/roadmap-schema';
+import { DocLinkSchema } from '@/lib/validation/doc-link';
 import { BARE_ID_REGEX } from '@/lib/validation/schemas';
 import { FIELD_BUDGETS, DISCIPLINE_DOC } from '@/lib/validation/ledger-budgets';
 

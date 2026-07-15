@@ -4,8 +4,10 @@
  *
  * KH-native — deliberately NOT added to the vendored `detectSchema` (shared
  * with the task-view server; extending it would require a task-view edit).
- * The initiatives read/write CLI handlers load this schema directly, exactly
- * as `show umbrellas` loads `UmbrellasSchema` directly (ledger-cli.ts:2623).
+ * The initiatives read/write CLI handlers load this schema directly, the
+ * same self-contained-load pattern the retired `show umbrellas` handler used
+ * for `UmbrellasSchema` before ID-148.8 removed it (the umbrella surface is
+ * fully retired — TECH §3.4, INV-7).
  * No barrel re-export — direct import only (`@/lib/validation/initiatives-schema`).
  *
  * Lenient read / strict write on `status` (INV-1, INV-3): every `status`

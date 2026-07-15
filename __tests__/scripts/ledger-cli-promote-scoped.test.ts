@@ -3,16 +3,18 @@
  * routed through the {65.2} scoped splice + field-patch primitives (ID-65.4).
  *
  * WHY this test exists (real-behaviour per docs/reference/test-philosophy.md):
- * before {65.4}, `promote()` derived its three staged-write content strings via
- * three whole-file `serialise()` re-emits — `serialise(ins.detected)` (task-list),
- * `serialise(rem.detected)` (backlog), `serialise(rmLoad.detected)` (roadmap).
- * Each is a WIDE diff (the entire `tasks[]` / `items[]` array re-printed) that
- * collides on a cmux-fleet cherry-pick. After {65.4} the WRITTEN bytes come from
- * the scoped primitives so a promote yields:
+ * before {65.4}, `promote()` derived its two staged-write content strings via
+ * two whole-file `serialise()` re-emits — `serialise(ins.detected)` (task-list),
+ * `serialise(rem.detected)` (backlog). Each is a WIDE diff (the entire
+ * `tasks[]` / `items[]` array re-printed) that collides on a cmux-fleet
+ * cherry-pick. After {65.4} the WRITTEN bytes come from the scoped primitives
+ * so a promote yields:
  *   - task-list diff = ONLY the new Task's lines (every other Task byte-identical),
- *   - backlog diff = ONLY the removed item's lines (every other item byte-identical),
- *   - roadmap diff (when --capability-theme set) = ONLY the one theme's
- *     `linked_tasks[]` line.
+ *   - backlog diff = ONLY the removed item's lines (every other item byte-identical).
+ * (ID-148.8, TECH §3.4 INV-7: the third leg — a roadmap diff when
+ * `--capability-theme` was set — is RETIRED; the flag now returns
+ * `retired-flag` before the roadmap ledger is even read, so there is no
+ * roadmap diff left to prove.)
  *
  * The proof is a LINE-DIFF assertion on the real before/after file bytes (copies
  * of the live ledgers in a temp dir).
@@ -37,29 +39,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  mkdtempSync,
-  copyFileSync,
-  rmSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync, copyFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run, type ParsedArgs } from '@/scripts/ledger-cli';
-
-// ID-90.22 R1a: inline byte-faithful serialiser (replaces the dropped
-// `escapeSerialise` import from @/lib/ledger/scoped-serialise) used only to seed
-// a canonically-formatted fixture for the idempotent-no-op byte comparison.
-const NON_ASCII = new RegExp('[\\u0080-\\uffff]', 'g');
-function escapeSerialise(parsedValue: unknown): string {
-  return (
-    JSON.stringify(parsedValue, null, 2).replace(
-      NON_ASCII,
-      (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
-    ) + '\n'
-  );
-}
 
 // ID-68.35: repointed from docs/reference/ live ledgers to synthetic fixtures.
 const FIXTURES = {
@@ -110,9 +93,6 @@ function readJson(name: 'task-list' | 'product-roadmap' | 'product-backlog') {
 }
 function firstBacklogId(): string {
   return readJson('product-backlog').items[0].id;
-}
-function firstThemeId(): string {
-  return readJson('product-roadmap').themes[0].id;
 }
 
 /** Schema-valid Task record (mirrors helper in ledger-cli-capability-bundle.test.ts). */
@@ -239,157 +219,30 @@ describe('promote — scoped splice produces record-sized diffs (ID-65.4)', () =
     ).toBe(true);
   });
 
-  it('with --capability-theme: roadmap diff is ONLY the one theme linked_tasks[] line (every other theme byte-identical)', async () => {
+  // ID-148.8 (TECH §3.4, INV-7): `--capability-theme` is a RETIRED flag —
+  // `promote` returns `retired-flag` before ever loading the roadmap ledger,
+  // so the byte-minimal-diff proofs this file exists for (roadmap
+  // linked_tasks[] scoped-patch, dry-run-with-theme, already-linked
+  // idempotent no-op) no longer have anything to exercise. Positive
+  // retired-flag coverage lives in `ledger-cli-retired-verbs.test.ts` and
+  // `ledger-cli-promote-input.test.ts`; this file keeps only the proof that
+  // the roadmap ledger is left COMPLETELY untouched (not even read).
+  it('--capability-theme: retired-flag, and the roadmap ledger is never even read', async () => {
     const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
-    const newId = '9972';
-
-    const otherThemeTitles: string[] = readJson('product-roadmap')
-      .themes.filter((t: { id: string }) => t.id !== themeId)
-      .map((t: { title: string }) => t.title);
-
     const rmBefore = readText('product-roadmap');
     const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord(newId))], {
-        capabilityTheme: themeId,
+      args('promote', [backlogId, JSON.stringify(validTaskRecord('9972'))], {
+        capabilityTheme: 'any-theme-id',
       }),
     );
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      // Three-rename success envelope: includes boundCapabilityTheme.
-      expect(r.result).toMatchObject({
-        newTaskId: newId,
-        removedBacklogId: backlogId,
-        boundCapabilityTheme: themeId,
-      });
-    }
-
-    const rmAfter = readText('product-roadmap');
-    const rmDiff = lineDiff(rmBefore, rmAfter);
-
-    // The new task id appears in the added lines (the grown linked_tasks[]).
-    expect(rmDiff.added.some((l) => l.includes(newId))).toBe(true);
-    // No OTHER theme's title is re-emitted on either side (no whole-array re-emit).
-    for (const title of otherThemeTitles) {
-      const needle = JSON.stringify(title).slice(1, -1);
-      expect(rmDiff.removed.some((l) => l.includes(needle))).toBe(false);
-      expect(rmDiff.added.some((l) => l.includes(needle))).toBe(false);
-    }
-    // The theme's linked_tasks actually grew by one.
-    const afterTheme = readJson('product-roadmap').themes.find(
-      (t: { id: string }) => t.id === themeId,
-    );
-    expect(afterTheme.linked_tasks).toContain(newId);
-  });
-
-  it('--dry-run writes nothing on all three ledgers (scoped routing short-circuits before staging)', async () => {
-    const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
-    const tlBefore = readText('task-list');
-    const blBefore = readText('product-backlog');
-    const rmBefore = readText('product-roadmap');
-
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord('9973'))], {
-        capabilityTheme: themeId,
-        dryRun: true,
-      }),
-    );
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.result).toMatchObject({ dryRun: true });
-
-    expect(readText('task-list')).toBe(tlBefore);
-    expect(readText('product-backlog')).toBe(blBefore);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('retired-flag');
     expect(readText('product-roadmap')).toBe(rmBefore);
-  });
-
-  it('appending one task to a theme touches ONLY the linked_tasks[] region (every other theme byte-identical)', async () => {
-    // Real-behaviour: when the new task id is NOT yet linked, the scoped field-
-    // patch on linked_tasks[] is the ONLY roadmap change. Prove no OTHER theme's
-    // bytes move (the wide pre-{65.4} serialise() re-emit would re-print every
-    // theme; the scoped path keeps them byte-identical).
-    const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
-    const otherThemeTitles: string[] = readJson('product-roadmap')
-      .themes.filter((t: { id: string }) => t.id !== themeId)
-      .map((t: { title: string }) => t.title);
-
-    const rmBefore = readText('product-roadmap');
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord('9976'))], {
-        capabilityTheme: themeId,
-      }),
-    );
-    expect(r.ok).toBe(true);
-    const rmAfter = readText('product-roadmap');
-    const diff = lineDiff(rmBefore, rmAfter);
-    expect(diff.added.some((l) => l.includes('9976'))).toBe(true);
-    for (const title of otherThemeTitles) {
-      const needle = JSON.stringify(title).slice(1, -1);
-      expect(diff.removed.some((l) => l.includes(needle))).toBe(false);
-      expect(diff.added.some((l) => l.includes(needle))).toBe(false);
-    }
-  });
-});
-
-describe('promote — already-linked idempotent no-op emits byte-identical roadmap (ID-65.4)', () => {
-  it('when the new task id is ALREADY in linked_tasks, the roadmap is written byte-identical (no spurious diff)', async () => {
-    // Directly construct the already-linked state on the TEMP roadmap copy (this
-    // is a throwaway temp file, not a real ledger — the dogfooding hazard is only
-    // about the live ledgers). We pre-stuff the future task id (9977) into the
-    // theme's linked_tasks[], then promote a backlog item to that SAME id. The
-    // task id is NOT yet in task-list, so insertRecord succeeds; the roadmap-side
-    // guard sees the id ALREADY linked and must emit the UNCHANGED original bytes
-    // (byte-for-byte) — proving the pre-{65.4} idempotent no-op is preserved.
-    const themeId = firstThemeId();
-    const newId = '9977';
-    const rm = readJson('product-roadmap');
-    const theme = rm.themes.find((t: { id: string }) => t.id === themeId);
-    theme.linked_tasks = [...theme.linked_tasks, newId];
-    // Write the seeded state via the SAME on-disk byte format the CLI emits, so
-    // the "no-op" comparison is against a canonically-formatted baseline.
-    const seeded = escapeSerialise(rm);
-    writeFileSync(path('product-roadmap'), seeded, 'utf8');
-    const rmBefore = readText('product-roadmap');
-
-    const backlogId = firstBacklogId();
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord(newId))], {
-        capabilityTheme: themeId,
-      }),
-    );
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.result).toMatchObject({ boundCapabilityTheme: themeId });
-    }
-    // Roadmap bytes IDENTICAL — the already-linked guard wrote the original text
-    // back unchanged (no spurious re-emit, no duplicate linked id).
-    expect(readText('product-roadmap')).toBe(rmBefore);
-    // linked_tasks did NOT double-push 9977.
-    const after = readJson('product-roadmap').themes.find(
-      (t: { id: string }) => t.id === themeId,
-    );
-    expect(after.linked_tasks.filter((x: string) => x === newId)).toHaveLength(
-      1,
-    );
-  });
-
-  it('linked_tasks grows by exactly one on the not-yet-linked path (delta-exactly-one idempotency contract)', async () => {
-    const backlogId = firstBacklogId();
-    const themeId = firstThemeId();
-    const beforeLen = readJson('product-roadmap').themes.find(
-      (t: { id: string }) => t.id === themeId,
-    ).linked_tasks.length;
-    const r = await run(
-      args('promote', [backlogId, JSON.stringify(validTaskRecord('9977'))], {
-        capabilityTheme: themeId,
-      }),
-    );
-    expect(r.ok).toBe(true);
-    const afterLen = readJson('product-roadmap').themes.find(
-      (t: { id: string }) => t.id === themeId,
-    ).linked_tasks.length;
-    expect(afterLen).toBe(beforeLen + 1);
+    // Nothing promoted either — the retirement check fires before any ledger
+    // load (task-list included).
+    expect(
+      readJson('task-list').tasks.some((t: { id: string }) => t.id === '9972'),
+    ).toBe(false);
   });
 });
 

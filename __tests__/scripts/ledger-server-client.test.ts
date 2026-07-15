@@ -844,7 +844,23 @@ function runLedgerCli(
   try {
     envelope = JSON.parse(stdout) as Record<string, unknown>;
   } catch {
-    envelope = null;
+    // ID-148.8: an {ok:false} envelope (e.g. a retired-verb rejection) writes
+    // to STDERR per `emit()` (`result.ok ? stdout : stderr`) — stdout is
+    // empty on that path, so fall back to parsing stderr. Some sandboxed
+    // environments prepend an unrelated warning line (e.g. a branding-colour
+    // contrast notice) to stderr, so take the LAST `{...}`-shaped line rather
+    // than the whole stream.
+    const stderrLines = (res.stderr ?? '').trim().split('\n');
+    const jsonLine = [...stderrLines]
+      .reverse()
+      .find((l) => l.trim().startsWith('{'));
+    try {
+      envelope = jsonLine
+        ? (JSON.parse(jsonLine) as Record<string, unknown>)
+        : null;
+    } catch {
+      envelope = null;
+    }
   }
   return { exitCode: res.status ?? 1, envelope, stdout };
 }
@@ -944,7 +960,12 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
     expect(on.envelope?.result).toEqual(off.envelope?.result);
   });
 
-  it('update-roadmap flag-ON resolves the `roadmap` slug (200, parity envelope)', () => {
+  // ID-148.8 (TECH §3.4, INV-7): `update-roadmap` is RETIRED — the GAP-3
+  // `roadmap` slug parity this test proved is moot (the verb never reaches
+  // the slug-routing layer at all any more). Both env arms — real subprocess,
+  // not the in-process `run()` — must return the SAME clean retired-verb
+  // envelope, exit 1, never a 404/ENOENT/stack.
+  it('update-roadmap is retired — clean exit 1 in BOTH env arms, never a slug 404', () => {
     const off = runLedgerCli(
       fixtureDir(),
       ['update-roadmap', FIRST_ROADMAP_THEME_ID, 'status', 'in_progress'],
@@ -955,10 +976,12 @@ describe.skipIf(!CLONE_PRESENT)('ID-90.25 flag-ON parity (real server)', () => {
       ['update-roadmap', FIRST_ROADMAP_THEME_ID, 'status', 'in_progress'],
       { serverOn: true },
     );
-    expect(off.exitCode).toBe(0);
-    expect(on.exitCode).toBe(0);
-    expect(on.envelope?.ok).toBe(true);
-    expect(on.envelope?.result).toEqual(off.envelope?.result);
+    expect(off.exitCode).toBe(1);
+    expect(on.exitCode).toBe(1);
+    expect(off.envelope?.ok).toBe(false);
+    expect(on.envelope?.ok).toBe(false);
+    expect(off.envelope?.error).toBe('retired-verb');
+    expect(on.envelope?.error).toBe('retired-verb');
   });
 
   // ID-90.22 R1b — `--whole-file` STILL PARSES (invariant 8 — argv stability)
