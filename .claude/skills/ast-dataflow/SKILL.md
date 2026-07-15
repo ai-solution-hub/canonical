@@ -253,11 +253,25 @@ fetcher and route definitions.
 
 ---
 
+## Python corpus sibling (column lineage only)
+
+`bun run ast-dataflow-py column-reads|column-writes --table X --column Y
+[--exclude-tests]` (wraps `tools/ast_dataflow_py/cli.py`) answers the same
+column question for the Python pipeline corpus (`scripts/`), which reaches the
+SAME Postgres tables through raw asyncpg SQL strings and supabase-py `.from_()`
+chains that the TS tool cannot see. Same JSON envelope; rows carry
+`source: "sql" | "supabase-py"`. SQL statements parse via sqlglot when
+installed (`exact` confidence) and degrade to a regex fallback (`indirect`)
+when not — check the `sqlglot` boolean in the response. For a full
+cross-language sweep of a column, run BOTH the TS and Python queries.
+Python symbol queries (callers/references) are deliberately not duplicated
+here — use GitNexus (which indexes `scripts/**.py`) or jedi/pyright.
+
 ## Cross-tool patterns
 
 Nine patterns document high-leverage compositions of ast-dataflow with
 gitnexus, Knip, and ccc. Full write-up:
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-50-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md`
 
 | # | Pattern | Tools | Leverage |
 |---|---------|-------|----------|
@@ -300,7 +314,7 @@ failure:
   query: string;
   args: Record<string, unknown>;
   error: {
-    kind: 'ambiguous_symbol' | 'unknown_file' | 'unknown_symbol' | 'no_results';
+    kind: 'ambiguous_symbol' | 'unknown_file' | 'parse_error' | 'out_of_corpus';
     message: string;
     hint?: string;
   };
@@ -314,14 +328,17 @@ Common error codes:
 |---|---|---|
 | `ambiguous_symbol` | Symbol name matches multiple declarations | Qualify with `file:symbol` form |
 | `unknown_file` | Module path does not exist in the project | Check the path; file may have been renamed |
-| `unknown_symbol` | File exists but the named export is not found | Check the export name; may be default-exported |
-| `no_results` | Query ran successfully but found zero matches | Valid empty result — the corpus has no matches |
+| `parse_error` | Malformed argument (bad symbol format, empty required arg) | Fix the argument shape shown in the hint |
+| `out_of_corpus` | File exists but the named symbol is not declared/exported there | Check the export name; may be default-exported |
+
+A query that runs successfully with zero matches returns `results: []` with
+no `error` field — an empty result set is not an error.
 
 ---
 
 ## Related
 
-- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/TECH.md` — full technical specification
-- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/PRODUCT.md` — invariant test suite
-- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
-- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-16-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-50-ast-dataflow-tool/TECH.md` — full technical specification
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-50-ast-dataflow-tool/PRODUCT.md` — invariant test suite
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-50-ast-dataflow-tool/ROADMAP.md` — wave plan, WP status
+- `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-50-ast-dataflow-tool/investigations/R-WP11-cross-tool-integration.md` — cross-tool pattern brief

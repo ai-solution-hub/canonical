@@ -368,3 +368,111 @@ def test_concept_type_set_is_unchanged_by_the_s443_amendment():
     assert v.ALLOWED_CONCEPT_TYPES == frozenset(
         {"topic", "product", "company", "certification", "case_study"}
     )
+
+
+# ──────────────────────────────────────────
+# OV-7/OV-8 (ID-132 {132.34} G-OVERLAY-CV, DR-054) — the run's effective
+# ontology (base ∪ client-overlay), threaded through the BI-13 gate.
+# ──────────────────────────────────────────
+
+
+def test_effective_ontology_base_only_matches_the_bare_base_frozensets():
+    eo = v.EffectiveOntology.base_only()
+    assert eo.concept_types == v.ALLOWED_CONCEPT_TYPES
+    assert eo.entity_types == v.ALLOWED_ENTITY_TYPES
+    assert eo.relationship_types == v.ALLOWED_RELATIONSHIP_TYPES
+
+
+def test_effective_ontology_compose_of_none_overlay_is_base_only():
+    # OV-4: no overlay file present composes to exactly base-only.
+    assert v.EffectiveOntology.compose(None) == v.EffectiveOntology.base_only()
+
+
+def test_effective_ontology_compose_is_a_sorted_deduplicated_union():
+    # OV-7: base ∪ overlay, de-duplicated — a new term is added, the base
+    # terms are untouched.
+    eo = v.EffectiveOntology.compose({"entity_types": ["organisation", "widget"]})
+    assert eo.entity_types == frozenset(v.ALLOWED_ENTITY_TYPES | {"widget"})
+    assert sorted(eo.entity_types) == sorted(set(v.ALLOWED_ENTITY_TYPES) | {"widget"})
+
+
+def test_effective_ontology_compose_restating_a_base_term_is_idempotent():
+    # OV-3: an overlay term restating a base term is a no-op union — the
+    # effective set is identical to composing without that restated term.
+    restated = v.EffectiveOntology.compose({"entity_types": ["organisation", "widget"]})
+    fresh = v.EffectiveOntology.compose({"entity_types": ["widget"]})
+    assert restated.entity_types == fresh.entity_types
+
+
+def test_effective_ontology_compose_is_deterministic_across_repeated_calls():
+    overlay = {"relationship_types": ["partners_with"]}
+    first = v.EffectiveOntology.compose(overlay)
+    second = v.EffectiveOntology.compose(overlay)
+    assert first == second
+
+
+def test_effective_ontology_compose_ignores_provenance_keys():
+    # `overlay` is typically the OV-6 provenance-wrapped mapping
+    # (`source`/`sha256` alongside the three dimension keys) —
+    # `compose` reads only the dimension keys.
+    overlay = {
+        "source": "ontology-overlay.json",
+        "sha256": "abc123",
+        "entity_types": ["widget"],
+    }
+    eo = v.EffectiveOntology.compose(overlay)
+    assert "widget" in eo.entity_types
+
+
+def test_check_type_membership_rejects_overlay_type_without_effective_ontology():
+    # OV-8 core assertion (base-only half): the bare base gate rejects an
+    # overlay-shaped type when no effective_ontology is supplied.
+    errors = v.check_type_membership("widget_type")
+    assert errors
+
+
+def test_check_type_membership_accepts_overlay_type_with_effective_ontology():
+    # OV-8 core assertion (overlay half): the SAME type is accepted once an
+    # effective_ontology composed from an overlay naming it is supplied.
+    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+    errors = v.check_type_membership("widget_type", effective_ontology=eo)
+    assert errors == []
+
+
+def test_lint_entity_relation_mentions_rejects_overlay_entity_type_without_effective_ontology():
+    errors = v.lint_entity_relation_mentions(entities=[{"entity_type": "widget"}])
+    assert errors
+
+
+def test_lint_entity_relation_mentions_accepts_overlay_entity_type_with_effective_ontology():
+    eo = v.EffectiveOntology.compose({"entity_types": ["widget"]})
+    errors = v.lint_entity_relation_mentions(
+        entities=[{"entity_type": "widget"}], effective_ontology=eo
+    )
+    assert errors == []
+
+
+def test_check_concept_threads_effective_ontology_through_to_type_membership():
+    # OV-8 — the core testStrategy assertion at the check_concept/
+    # validate_concept API surface: an overlay-added concept type is
+    # rejected by the base-only gate and accepted only when the run's
+    # composed effective_ontology includes it.
+    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+
+    errors_without = v.check_concept(_valid_frontmatter(type="widget_type"), body=_VALID_BODY)
+    errors_with = v.check_concept(
+        _valid_frontmatter(type="widget_type"), body=_VALID_BODY, effective_ontology=eo
+    )
+
+    assert errors_without  # base-only gate rejects
+    assert errors_with == []  # overlay-composed gate accepts
+
+
+def test_validate_concept_raises_without_overlay_and_passes_with_it():
+    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+    fm = _valid_frontmatter(type="widget_type")
+
+    with pytest.raises(v.ConceptValidationError):
+        v.validate_concept(fm, body=_VALID_BODY)
+
+    v.validate_concept(fm, body=_VALID_BODY, effective_ontology=eo)  # does not raise

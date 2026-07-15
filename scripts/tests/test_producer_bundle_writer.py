@@ -29,6 +29,7 @@ placeholder business categories, never the real first-client corpus.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -94,6 +95,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_source_document_uri,
 )
 from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
+    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
 )
@@ -130,7 +132,9 @@ def _fm(*, type="topic", title="Title", description="Desc", tags=("tag",), resou
     )
 
 
-def _draft(rel_path: str, *, title="Title", description="Desc", body_suffix="") -> ConceptDraft:
+def _draft(
+    rel_path: str, *, title="Title", description="Desc", body_suffix="", type="topic"
+) -> ConceptDraft:
     key = ConceptKey(rel_path=rel_path, concept_type="topic", scope_tag=rel_path)
     body = (
         f"A distilled synthesis about {title}.{body_suffix}\n\n"
@@ -139,7 +143,9 @@ def _draft(rel_path: str, *, title="Title", description="Desc", body_suffix="") 
     )
     return ConceptDraft(
         key=key,
-        frontmatter=_fm(title=title, description=description, resource=build_source_document_uri(_SAMPLE_UUID)),
+        frontmatter=_fm(
+            type=type, title=title, description=description, resource=build_source_document_uri(_SAMPLE_UUID)
+        ),
         body=body,
     )
 
@@ -539,6 +545,7 @@ def test_write_ontology_artefact_base_only_when_no_overlay(tmp_path: Path) -> No
     content = bundle_writer.write_ontology_artefact(tmp_path)
     payload = json.loads(content)
 
+    assert payload["base"]["concept_types"] == sorted(ALLOWED_CONCEPT_TYPES)
     assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
     assert payload["base"]["relationship_types"] == sorted(ALLOWED_RELATIONSHIP_TYPES)
     assert payload["overlay"] is None
@@ -547,9 +554,210 @@ def test_write_ontology_artefact_base_only_when_no_overlay(tmp_path: Path) -> No
 
 
 def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
-    overlay = {"entity_types": ["widget"]}
+    # C-2 (ID-132 {132.34} OQ-OV-6): the overlay is now the provenance-
+    # wrapped shape `write_bundle` supplies via `read_client_overlay` —
+    # `write_ontology_artefact` itself stays a pure echo of whatever
+    # mapping it is handed (the assertion below is still `== overlay`).
+    overlay = {
+        "source": "ontology-overlay.json",
+        "sha256": "d34db33f" * 8,
+        "concept_types": [],
+        "entity_types": ["widget"],
+        "relationship_types": [],
+    }
     content = bundle_writer.write_ontology_artefact(tmp_path, client_overlay=overlay)
     payload = json.loads(content)
 
     assert payload["overlay"] == overlay
+    assert payload["base"]["concept_types"] == sorted(ALLOWED_CONCEPT_TYPES)
     assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Client-CV-overlay (ID-132 {132.34} G-OVERLAY-CV, DR-054) — OV-1..OV-13
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_readme_and_overlay_filenames_are_reserved(tmp_path: Path) -> None:
+    """Rider R1 + OV-1: both the committed bundle README and the
+    client-authored overlay source are reserved bundle-level filenames —
+    never mistaken for a concept `.md` path."""
+    assert "README.md" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+    assert "ontology-overlay.json" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+
+
+def test_write_bundle_does_not_report_a_committed_readme_as_removed(tmp_path: Path) -> None:
+    """Rider R1: `README.md` is a `.md` file, so — unlike `ontology.json` —
+    it IS scanned by `_existing_concept_paths`'s `rglob("*.md")` and must be
+    reserved to avoid a false `Removed: README.md` `log.md` line."""
+    (tmp_path / "README.md").write_text("# Bundle repo\n", encoding="utf-8")
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.removed == ()
+    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    assert "Removed: README.md" not in log_text
+    assert (tmp_path / "README.md").exists()  # untouched, never declare_file'd
+
+
+def test_overlay_file_is_read_and_never_declared_or_deleted(tmp_path: Path) -> None:
+    """OV-1/OV-4: a fixture bundle repo with `ontology-overlay.json` at its
+    root is read by the producer and composed into `ontology.json`; the
+    client-authored file itself is never `declare_file`-written (DR-016)."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    bundle_writer.write_bundle(tmp_path, [draft])
+
+    declared_paths = {str(call.args[0]) for call in _localfs_stub.declare_file.call_args_list}
+    assert str(tmp_path / "ontology-overlay.json") not in declared_paths
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"]["entity_types"] == ["widget"]
+
+
+def test_write_bundle_is_base_only_when_no_overlay_file_present(tmp_path: Path) -> None:
+    """OV-4/OV-10/OV-12: absent overlay file (the platform bundle's
+    permanent state, and any client bundle before its first overlay
+    commit) composes `overlay: null` and still publishes successfully."""
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.added == ("topics/alpha.md",)
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"] is None
+
+
+def test_overlay_with_known_keys_parses(tmp_path: Path) -> None:
+    """OV-2: the three permitted dimension keys parse; an omitted key
+    defaults to an empty list."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"], "relationship_types": ["partners_with"]}),
+        encoding="utf-8",
+    )
+    overlay = bundle_writer.read_client_overlay(tmp_path)
+
+    assert overlay["entity_types"] == ["widget"]
+    assert overlay["relationship_types"] == ["partners_with"]
+    assert overlay["concept_types"] == []
+
+
+def test_overlay_with_unknown_key_fails_loud(tmp_path: Path) -> None:
+    """OV-2/OQ-OV-4: a singular-typo key (`entity_type` vs `entity_types`)
+    is an unknown top-level key — rejected, never silently ignored."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_type": ["widget"]}), encoding="utf-8"
+    )
+    with pytest.raises(bundle_writer.OntologyOverlayError):
+        bundle_writer.read_client_overlay(tmp_path)
+
+
+def test_overlay_with_non_list_value_fails_loud(tmp_path: Path) -> None:
+    """OV-2: a dimension value that isn't a list of strings fails loud."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": "widget"}), encoding="utf-8"
+    )
+    with pytest.raises(bundle_writer.OntologyOverlayError):
+        bundle_writer.read_client_overlay(tmp_path)
+
+
+def test_overlay_expressing_removal_fails_loud(tmp_path: Path) -> None:
+    """OV-3: the closed schema has no removal mechanism — any attempt (a
+    `remove`/`exclude` key, a negation) is already an unknown top-level key
+    and therefore fails per OV-2/OV-5."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"remove": {"entity_types": ["organisation"]}}), encoding="utf-8"
+    )
+    with pytest.raises(bundle_writer.OntologyOverlayError):
+        bundle_writer.read_client_overlay(tmp_path)
+
+
+def test_overlay_that_is_not_valid_json_fails_loud(tmp_path: Path) -> None:
+    """OV-5: malformed JSON is a validation failure, not a silent skip."""
+    (tmp_path / "ontology-overlay.json").write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(bundle_writer.OntologyOverlayError):
+        bundle_writer.read_client_overlay(tmp_path)
+
+
+def test_write_bundle_aborts_and_publishes_nothing_on_malformed_overlay(
+    tmp_path: Path,
+) -> None:
+    """OV-5: a present-but-invalid overlay ABORTS the whole producer run —
+    it never degrades to a base-only or partial ontology. No concept file,
+    no `index.md`/`log.md`/`ontology.json` — nothing is published this run."""
+    (tmp_path / "ontology-overlay.json").write_text("{not valid json", encoding="utf-8")
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    with pytest.raises(bundle_writer.OntologyOverlayError):
+        bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert not (tmp_path / "topics/alpha.md").exists()
+    assert not (tmp_path / "ontology.json").exists()
+    assert not (tmp_path / "log.md").exists()
+
+
+def test_ontology_artefact_overlay_carries_source_and_sha256_provenance(
+    tmp_path: Path,
+) -> None:
+    """OV-6: a composed overlay's artefact entry records `source` + a
+    content `sha256` alongside the overlay's own terms."""
+    raw = json.dumps({"entity_types": ["widget"]}).encode("utf-8")
+    (tmp_path / "ontology-overlay.json").write_bytes(raw)
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    bundle_writer.write_bundle(tmp_path, [draft])
+
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    overlay = ontology["overlay"]
+    assert overlay["source"] == "ontology-overlay.json"
+    assert overlay["sha256"] == hashlib.sha256(raw).hexdigest()
+
+
+def test_overlay_present_empty_is_distinct_from_overlay_absent(tmp_path: Path) -> None:
+    """OV-11: an absent overlay file composes `overlay: null`; a PRESENT
+    overlay file that adds nothing composes a non-null `overlay` object
+    with empty term lists + provenance — the two states are observably
+    distinct even though both yield a base-identical effective set."""
+    absent_draft = _draft("topics/absent.md", title="Absent")
+    absent_summary = bundle_writer.write_bundle(tmp_path, [absent_draft])
+    absent_ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert absent_ontology["overlay"] is None
+    assert absent_summary.added == ("topics/absent.md",)
+
+    (tmp_path / "ontology-overlay.json").write_text(json.dumps({}), encoding="utf-8")
+    present_draft = _draft("topics/present.md", title="Present")
+    bundle_writer.write_bundle(tmp_path, [absent_draft, present_draft])
+    present_ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+
+    overlay = present_ontology["overlay"]
+    assert overlay is not None
+    assert overlay["concept_types"] == []
+    assert overlay["entity_types"] == []
+    assert overlay["relationship_types"] == []
+    assert overlay["source"] == "ontology-overlay.json"
+
+
+def test_write_bundle_accepts_overlay_added_concept_type_only_with_overlay(
+    tmp_path: Path,
+) -> None:
+    """OV-8 — the core testStrategy assertion, exercised through
+    `write_bundle` (not just the bare validator unit): a concept whose
+    `type` is outside the closed BI-4 set is rejected by the base-only
+    gate (no overlay file present) and accepted once the SAME bundle_dir
+    carries an overlay naming that type."""
+    draft = _draft("topics/widget.md", title="Widget", type="widget_type")
+
+    base_only_summary = bundle_writer.write_bundle(tmp_path, [draft])
+    assert base_only_summary.added == ()
+    assert len(base_only_summary.validator_failures) == 1
+    assert not (tmp_path / "topics/widget.md").exists()
+
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"concept_types": ["widget_type"]}), encoding="utf-8"
+    )
+    overlay_summary = bundle_writer.write_bundle(tmp_path, [draft])
+    assert overlay_summary.added == ("topics/widget.md",)
+    assert (tmp_path / "topics/widget.md").exists()

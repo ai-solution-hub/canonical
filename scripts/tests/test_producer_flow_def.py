@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -51,6 +52,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from conftest import make_cocoindex_stubs, stubbed_sys_modules  # noqa: E402
+from scripts.cocoindex_pipeline.producer.flow_def import _read_bundle_dir  # noqa: E402
 
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 _EMBEDDING = [0.1] * 1024
@@ -390,6 +392,46 @@ class TestDegradation:
         assert (bundle_dir / "topics/alpha.md").is_file()
         assert report.embedded == ()
 
+    def test_composes_a_client_overlay_from_the_bundle_dir_end_to_end(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """OV-4 (ID-132 {132.34} G-OVERLAY-CV): a REAL `run_producer_flow`
+        run — not only a direct `write_bundle` unit call — exercises the
+        overlay READ end-to-end. The sole production caller
+        (`flow_def.py:379-385`) never explicitly supplies
+        `client_ontology_overlay`; composing an overlay for a real run
+        depends entirely on `write_bundle`'s own bundle_dir read."""
+        (bundle_dir / "ontology-overlay.json").write_text(
+            json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
+        assert ontology["overlay"]["entity_types"] == ["widget"]
+        assert ontology["overlay"]["source"] == "ontology-overlay.json"
+        assert ontology["base"]["concept_types"]  # OV-6a: three-dimension base
+
+    def test_is_base_only_when_no_overlay_file_present_in_the_bundle_dir(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """OV-4/OV-10: a real producer run over a bundle_dir with no
+        `ontology-overlay.json` (the platform bundle's permanent state)
+        composes `overlay: null`."""
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
+        assert ontology["overlay"] is None
+
     def test_stages_regardless_of_seed_contract_status(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
@@ -673,3 +715,69 @@ class TestOverrideReapply:
         # only, never the local bundle_dir working copy.
         bundle_content = (bundle_dir / "topics/alpha.md").read_text(encoding="utf-8")
         assert "description: Desc" in bundle_content
+
+
+# ── _read_bundle_dir: .git-safe reads (ID-132 {132.35} G-DEPLOY-PROOF Defect B) ──
+#
+# RUN 1 of the {132.35} deploy-proof crashed here: `UnicodeDecodeError: 'utf-8'
+# codec can't decode byte 0xe2` reading `.git/**` of the deployed bundle clone.
+# A bundle working tree is ALWAYS a git clone (DR-016) — this module's own
+# `.git`-less `tmp_path` fixtures (this file's `repo`/`bundle_dir` fixtures
+# before this Subtask) never exercised that, the same fixture-blind-spot
+# lesson the {132.32} explorer hit (`gitnexus`-cited precedent, commit
+# 6c54f26a). Reproduced/fixed against a REAL `git init` + commit repo below —
+# the only kind of bundle dir that exists in deployment.
+
+
+def _commit_all(repo_path: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "--quiet",
+            "-m",
+            message,
+        ],
+        cwd=repo_path,
+        check=True,
+    )
+
+
+class TestReadBundleDir:
+    def test_excludes_git_plumbing_from_a_real_git_backed_bundle(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        _commit_all(repo, "seed")
+
+        output = _read_bundle_dir(repo)
+
+        # Before the fix this line never returns — `.git/objects/**` /
+        # `.git/index` are real zlib-compressed binary blobs once a commit
+        # exists, and `rglob("*")` + unconditional `read_text(utf-8)` raised
+        # UnicodeDecodeError on the first one encountered.
+        assert output == {"topic-a.md": "draft body\n"}
+        assert not any(
+            rel == ".git" or rel.startswith(".git/") for rel in output
+        )
+
+    def test_skips_a_hidden_dotfile_alongside_git(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        (repo / ".hidden.md").write_text("hidden\n", encoding="utf-8")
+        _commit_all(repo, "seed")
+
+        output = _read_bundle_dir(repo)
+
+        assert output == {"topic-a.md": "draft body\n"}
+
+    def test_skips_a_non_utf8_file_gracefully_rather_than_raising(self, repo: Path) -> None:
+        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
+        (repo / "binary.bin").write_bytes(b"\xff\xfe\x00binary")
+
+        output = _read_bundle_dir(repo)
+
+        assert output == {"topic-a.md": "draft body\n"}
+        assert "binary.bin" not in output

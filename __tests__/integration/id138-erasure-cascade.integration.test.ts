@@ -109,7 +109,7 @@ const { getAuthorisedClient } = await import('@/lib/auth/client');
 // `reference_items.id` has NO column default BY DESIGN (DR-024 i,
 // admission-minted identity) — see scripts/cocoindex_pipeline/flow.py:3361
 // (`uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ri:{item.url}")`), NS pinned at
-// flow.py:1665. Same self-contained RFC-4122 v5 (SHA-1) helper already used
+// flow.py:1708. Same self-contained RFC-4122 v5 (SHA-1) helper already used
 // in __tests__/integration/cocoindex/url-landing-set.integration.test.ts and
 // __tests__/api/ingest/url-reference.test.ts — copied here rather than
 // extracted to a shared helper (that would touch files outside this

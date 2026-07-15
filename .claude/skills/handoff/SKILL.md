@@ -42,9 +42,16 @@ Confirm before drafting (ask Liam if unsure):
 3. Which terminals does the next session deploy, and in what sequence/gates?
 4. Decisions made this session not yet in the ledger / specs / memory?
 5. Gotchas not yet in CLAUDE.md or memory?
-6. Allowlist candidates + sandbox bypass notes — any commands that hit sandbox
-   friction this session and should be allowlisted or carried forward (e.g.
-   commands that needed `dangerouslyDisableSandbox`)?
+6. Sandbox friction — did any command hit sandbox friction this session? For each
+   command NOT already listed in the friction log
+   (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/sandbox-friction-log.md`),
+   append a one-line entry: command, error signature, and the durable fix applied
+   (or `bypass` if none exists). Durable fixes belong in `.claude/settings.json`
+   (`sandbox.excludedCommands`, `sandbox.filesystem.allowWrite`,
+   `sandbox.network.allowedDomains`, `sandbox.enableWeakerNetworkIsolation`) — the
+   log records history + un-fixables; settings carry the fix. Do NOT write a
+   sandbox-carryover section into the continuation prompt (retired: start-session
+   no longer reads one).
 7. Did this session change workflow **tooling, data shapes, or process** (a ledger-cli
    flag/command, a ledger schema field, a hook, a skill added/retired)? If so, run
    `propagate-workflow-change` over the dev-lifecycle skills + agents before teardown, so the
@@ -55,6 +62,13 @@ Confirm before drafting (ask Liam if unsure):
 ## Step 3 — Write the prompt (target 60-100 lines)
 
 The prompt's **body addresses the next session** (the reader).
+
+**Closed-task guard (status-check every cited id):** before the prompt (or a deployment
+table / DR text) names any `id-N` or `{N.M}` as a live extension point, run
+`bun scripts/ledger-cli.ts get task <id> status`. A `done` record is not a live extension
+point — route new work to a new task/subtask or the backlog. If the closed task genuinely
+is the correct home, write the reopen **explicitly** ("reopen ID-N: <reason>") so the next
+session inherits a deliberate decision, not a stale status.
 
 ````markdown
 ---
@@ -103,11 +117,6 @@ the register above, not here.}
 ## Session Carry
 
 {Anything which was intended for the previous session, but wasn't completed.}
-
-## Sandbox / allowlist carryover
-
-{Commands that hit sandbox friction this session — allowlist candidates and any
-bypass notes (e.g. needs `dangerouslyDisableSandbox`). Omit if none.}
 
 ## Mechanical state (auto-generated)
 
@@ -269,5 +278,7 @@ partially blocked). ~600-1500 chars; one event per segment; entity codes + `.✓
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] A fresh orchestrator can start from this prompt + the ledger + the briefs alone.
+- [ ] Every `id-N` / `{N.M}` cited as live was status-checked (closed-task guard); any
+      reopen is explicit. New sandbox-friction commands appended to the friction log.
 - [ ] Binding rulings written to the Decision Register (new `DR-NNN` cited, not re-listed);
       Completed + Mechanical-state sections present (or explicitly omitted as empty).

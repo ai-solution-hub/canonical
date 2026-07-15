@@ -3,7 +3,7 @@ grid (ID-132 {132.6} G-PASS1a).
 
 Oracle uuid5 values below are computed independently against the pinned
 `_KH_PIPELINE_DOC_NS` literal (`fbfaf1ff-1ee4-583c-9757-1674465b2ec1`,
-`flow.py:1665`) to prove `derive_source_document_id`/`derive_reference_item_id`
+`flow.py:1708`) to prove `derive_source_document_id`/`derive_reference_item_id`
 reproduce flow.py's exact `sd:`/`ri:` formula (flow.py:1994, flow.py:3869-3870)
 — the "Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS" pattern used
 elsewhere in this suite (e.g. test_cocoindex_chunking.py).

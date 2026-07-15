@@ -178,6 +178,26 @@ won't-fixes. It binds the Orchestrator at three moments:
 
 ---
 
+## Decision-point recall
+
+Recall is not a session-start-only ritual. The Orchestrator — and, via the brief's
+grounding block, every briefed Planner / Executor / Checker / Curator — MUST run recall
+(mempalace search, or the fallback below) BEFORE presenting any conclusion, plan,
+ratification, spec, or verdict that cites a task id, a `DR-NNN`, prior-session framing, or
+settled state — not only at session start.
+
+**Cheap guard:** any brief or answer citing `id-N` / `DR-NNN` / `{N.M}` first confirms that
+record's LIVE status — `bun scripts/ledger-cli.ts get task <id> status` — before relying on
+it (catches the id-131-closed class: a done-task journal cited as if still open). Protocol
+home: the `recall-grounding` skill.
+
+**`-32002` FTS fallback.** On a mempalace MCP `-32002` / integrity-check refusal, do NOT
+proceed recall-blind — fall through to the lock-free `mode=ro&immutable=1` sqlite FTS read:
+the proven pattern is `start-session` §2a (the fenced bash at ~lines 66–73). Do not
+duplicate that SQL here; do not regress §2a. Full protocol: the `recall-grounding` skill.
+
+---
+
 ## State machine
 
 Who sets which status is part of the role boundary. The Checker is the only
@@ -256,6 +276,13 @@ grounding before writing the spec:
 > disclaimer only after the `ccc search` fallback also returns nothing). Full steps:
 > `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
+> **Grounding block for this Planner brief:** Also carry the three-part grounding block
+> (active-task recall seeds; DR-002 restated + DR-070 live-status verify; symbol-orientation
+> rule) verbatim per
+> `.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
+> §Grounding-block convention lines — before the Planner presents PRODUCT.md / TECH.md,
+> which is a spec conclusion citing task ids and prior state. See §Decision-point recall.
+
 <!-- code-intel:planner-block-end -->
 
 ### Orchestrator Executor-brief block
@@ -277,7 +304,36 @@ this discipline on every code-touching Subtask:
 > agent worktrees — use `git diff --name-only` fallback; pytest from the worktree CWD):
 > `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
 
+> **Grounding block for this Executor brief:** Also carry the three-part grounding block
+> (active-task recall seeds; DR-002 restated + DR-070 live-status verify; symbol-orientation
+> rule) verbatim per
+> `.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
+> §Grounding-block convention lines — before the Executor reports completion or escalates,
+> which is a conclusion citing task ids and prior state. See §Decision-point recall.
+
 <!-- code-intel:executor-block-end -->
+
+### Orchestrator Checker-brief block
+
+<!-- code-intel:checker-block-start -->
+
+When composing a Checker dispatch brief, include the following code-intelligence and
+grounding-block discipline in the brief. The Checker must carry both when auditing an
+Executor's commit and rendering a verdict:
+
+> **Code-intelligence discipline for this Checker brief:** Run `gitnexus_detect_changes()`
+> on the Executor's commit to audit scope containment; a missing `gitnexus_impact` verdict
+> in the Executor's journal block is a `scope-containment: FAIL`. Full discipline:
+> `.claude/agents/references/shared-discipline.md` §Code-intelligence discipline.
+
+> **Grounding block for this Checker brief:** Also carry the three-part grounding block
+> (active-task recall seeds; DR-002 restated + DR-070 live-status verify; symbol-orientation
+> rule) verbatim per
+> `.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
+> §Grounding-block convention lines — before the Checker's verdict cites any task id,
+> `DR-NNN`, or prior-session framing. See §Decision-point recall.
+
+<!-- code-intel:checker-block-end -->
 
 ### Code-touching file allowlist
 

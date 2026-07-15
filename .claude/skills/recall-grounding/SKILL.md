@@ -1,0 +1,130 @@
+---
+name: recall-grounding
+description: >-
+  Workflow-specific recall discipline for Canonical — WHEN to recall and how to
+  stay grounded when recall degrades. Fire recall BEFORE presenting any
+  conclusion, plan, ratification, spec, or verdict that cites a task id, a
+  DR-NNN, prior-session framing, or settled state, not only at session start or
+  in response to a direct user question. On a mempalace MCP `-32002` /
+  integrity-check refusal (or any MCP recall error), fall through to the
+  lock-free `mode=ro&immutable=1` sqlite FTS read instead of proceeding
+  recall-blind. Use whenever composing a Planner/Executor/Checker/Curator
+  grounding block, whenever about to state a conclusion that cites prior work
+  or decisions, or whenever `mempalace_search`/`mempalace_kg_query` errors.
+  Cross-references the plugin `mempalace-recall` skill, which owns the generic
+  palace-search mechanics (`mempalace_search`/`mempalace_kg_query` how-to) —
+  this skill owns the discipline layered on top of it.
+allowed-tools: Bash
+---
+
+# recall-grounding
+
+Repo-local, workflow-specific recall discipline. This skill answers two
+questions the generic palace mechanism doesn't: **when** must recall fire, and
+**what to do when the mechanism itself fails**. It does not duplicate the
+plugin `mempalace-recall` skill's how-to for `mempalace_search` /
+`mempalace_kg_query` — read that skill (cited below) for the mechanism itself.
+
+## Relationship to the plugin `mempalace-recall` skill
+
+- **`mempalace-recall` (plugin-managed, outside this repo)** — the generic
+  mechanism: search the palace via `mempalace_search` / `mempalace_kg_query`
+  before answering about past work, decisions, people, or projects. It is
+  question-driven ("the user asked about X") and lives outside repo/docs-site
+  control — it is overwritten on plugin update, so it cannot own
+  workflow-specific protocol.
+- **`recall-grounding` (this skill, repo-local)** — the workflow discipline
+  layered on top: fires on decision-POINTS, not just questions, and survives
+  mechanism failure via a documented fallback. Do not edit the plugin skill to
+  add workflow-specific behaviour — extend this one instead.
+
+Both are in play together: this skill tells you *when* to call
+`mempalace_search`/`mempalace_kg_query` (or its fallback) and what to do with
+a failure; the plugin skill tells you *how* to call it and interpret results.
+
+## 1. Decision-point recall triggers
+
+Recall is **not** a session-start-only ritual and **not** only a response to
+a direct user question ("what did we decide?"). Run recall (mempalace search,
+or the fallback in §2 on MCP refusal) **before presenting**:
+
+- any conclusion, plan, ratification, spec, or verdict,
+- that cites a task id (`id-N` / `{N.M}`), a `DR-NNN`, prior-session framing
+  ("we already decided…", "last time…"), or settled state.
+
+This closes the loop where an agent presents a stale conclusion and the human
+owner has to point at memory to correct it (the S462 control case — an
+embedded grounding block kept stale framings out of findings; this
+generalises that fix to every decision point, not just dispatch briefs).
+
+**Cheap guard (DR-070):** before relying on any cited `id-N` / `DR-NNN` /
+`{N.M}` in a conclusion, verify its LIVE status — done-task journals are a
+don't-re-flag signal ONLY, never current truth (DR-002):
+
+```bash
+bun scripts/ledger-cli.ts get task <id> status
+```
+
+This is cheap (one CLI call) and catches the "reopen a closed task as if it
+were live" class of error (root cause of DR-070 itself: S469 treated a
+39/39-closed task as an active extension point).
+
+Skip recall for pure greenfield work with no memory relevance (renaming a
+variable, fixing a typo) — recall is decision-driven, not reflexive on every
+turn.
+
+## 2. `-32002` lock-free FTS fallthrough recipe
+
+On a mempalace MCP `-32002` / integrity-check refusal — or any MCP recall
+error — **do not proceed recall-blind**. Fall through to a lock-free,
+read-only sqlite FTS read against the palace directly. This is the proven
+pattern from `start-session` §2a; this skill is its canonical home so other
+call sites (workflow-orchestration decision points, executor/checker/curator
+grounding blocks) reference one place instead of re-deriving or duplicating
+the SQL.
+
+```bash
+sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
+  "SELECT substr(replace(string_value, char(10),' '),1,200) FROM embedding_fulltext_search
+   WHERE string_value MATCH '<seed terms: task id OR DR-NNN OR topic>' AND string_value NOT LIKE 'CHECKPOINT:%'
+   ORDER BY rowid DESC LIMIT 8"
+```
+
+Constraints on this read (non-negotiable):
+
+- **Lock-free only** — `mode=ro&immutable=1`, WAL sqlite read. NEVER open a
+  chromadb writer and NEVER route through a mempalace CLI write in this path
+  (DR-009: MemPalace is single-writer; DR-003: recall uses lock-free
+  read-only WAL sqlite, not a live MCP query — the daily HNSW drift is an
+  upstream chromadb thread-safety bug under concurrent writers).
+- **No `wing` filter** — `mempalace_search` with a `wing` filter errors
+  (upstream mempalace issue #1665, HNSW↔sqlite drift after bulk add/delete).
+  Search without it and filter results client-side, whether via the MCP tool
+  or this direct FTS read.
+- **Seed the query** with the terms that matter for the conclusion you're
+  about to present — task id(s), `DR-NNN`, topic keywords — not a bare
+  wildcard.
+
+**Fail open, always.** If the palace errors, is corrupt, or is unreachable:
+tell the user memory is degraded and proceed — never block on recall. This
+mirrors the `start-session` §2a precedent exactly; do not invent a stricter
+(blocking) behaviour here.
+
+## 3. Where this fits in a dispatch brief
+
+The Orchestrator's grounding block (`.claude/agents/references/shared-discipline.md`
+§Grounding block, verbatim lines in
+`.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
+§Grounding-block convention lines) is the compact form of §1 + the DR-002/DR-070
+guard, embedded in every Planner/Executor/Checker/Curator brief. This skill is
+the fuller protocol those compact lines point back to — read it when the
+grounding block's one-liners aren't enough context, or when you hit an MCP
+recall failure and need the fallback recipe in §2.
+
+## Known upstream gap
+
+The `-32002` lock-free FTS fallthrough in §2 is a workaround living in this
+repo, not in the mempalace plugin itself. See the ID-149.4 create-backlog
+ledger_intent (task-executor report) proposing an upstream PR to absorb it
+natively into the plugin `mempalace-recall` skill — until that lands, this
+skill is the fallback's canonical home.

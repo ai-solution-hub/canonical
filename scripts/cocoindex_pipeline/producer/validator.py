@@ -92,6 +92,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 
 from scripts.cocoindex_pipeline.producer.frontmatter import ConceptFrontmatter
 from scripts.cocoindex_pipeline.producer.resource_uri import contains_record_pointer
@@ -206,6 +207,67 @@ ALLOWED_RELATIONSHIP_TYPES = frozenset(
     }
 )
 
+# ──────────────────────────────────────────
+# OV-7/OV-8 (ID-132 {132.34} G-OVERLAY-CV, DR-054): the run's EFFECTIVE
+# ontology — base ∪ client-overlay per dimension. Threaded through
+# `check_concept`/`validate_concept` -> `check_type_membership`/
+# `lint_entity_relation_mentions` so a run that composed a client overlay
+# (`bundle_writer.read_client_overlay`) lints against base+overlay, not the
+# bare base frozensets above. `effective_ontology=None` (the default at
+# EVERY pre-overlay call site) is exactly `base_only()` — zero behaviour
+# change for a bundle with no overlay.
+# ──────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class EffectiveOntology:
+    """OV-7: the deterministic sorted-union effective ontology for one
+    producer run. Each field is `base ∪ overlay` for that dimension — a
+    de-duplicated frozenset; a caller needing a stable rendering order
+    calls `sorted(...)` on it (mirrors the base snapshot's own
+    `sorted(...)` convention)."""
+
+    concept_types: "frozenset[str]"
+    entity_types: "frozenset[str]"
+    relationship_types: "frozenset[str]"
+
+    @classmethod
+    def base_only(cls) -> "EffectiveOntology":
+        """The default effective ontology when no overlay is composed —
+        gating against this is identical to gating against the bare base
+        frozensets directly (pre-overlay behaviour, unchanged)."""
+        return cls(
+            concept_types=ALLOWED_CONCEPT_TYPES,
+            entity_types=ALLOWED_ENTITY_TYPES,
+            relationship_types=ALLOWED_RELATIONSHIP_TYPES,
+        )
+
+    @classmethod
+    def compose(cls, overlay: "Mapping[str, object] | None") -> "EffectiveOntology":
+        """OV-4/OV-7: base ∪ overlay per dimension. `overlay` is the OV-6
+        provenance-wrapped mapping `bundle_writer.read_client_overlay`
+        returns (or any equivalent `{dimension: [terms, ...]}` mapping,
+        e.g. the raw dict an explicit `client_ontology_overlay` kwarg
+        supplies) — any of the three OV-2 dimension keys it omits
+        contributes no extension for that dimension. `overlay=None` (OV-4:
+        no overlay file present) is exactly `base_only()`. Restating a base
+        term is an idempotent union no-op (OV-3)."""
+        if overlay is None:
+            return cls.base_only()
+        return cls(
+            concept_types=frozenset(
+                ALLOWED_CONCEPT_TYPES | set(overlay.get("concept_types") or ())
+            ),
+            entity_types=frozenset(
+                ALLOWED_ENTITY_TYPES | set(overlay.get("entity_types") or ())
+            ),
+            relationship_types=frozenset(
+                ALLOWED_RELATIONSHIP_TYPES
+                | set(overlay.get("relationship_types") or ())
+            ),
+        )
+
+
 # BI-12: hard-required frontmatter keys. `resource` is intentionally
 # excluded — see module docstring.
 _REQUIRED_STRING_KEYS = ("type", "title", "description", "timestamp")
@@ -274,12 +336,18 @@ def check_required_keys(frontmatter: "Mapping[str, object]") -> "list[str]":
     return errors
 
 
-def check_type_membership(type_value: object) -> "list[str]":
-    """BI-4: `type` must be one of the five ratified concept types."""
-    if type_value not in ALLOWED_CONCEPT_TYPES:
+def check_type_membership(
+    type_value: object, *, effective_ontology: "EffectiveOntology | None" = None
+) -> "list[str]":
+    """BI-4: `type` must be one of the ratified concept types — the base
+    five, or base ∪ client-overlay when `effective_ontology` is supplied
+    (OV-8, ID-132 {132.34}). Defaults to base-only, so every pre-overlay
+    call site is unchanged."""
+    allowed = (effective_ontology or EffectiveOntology.base_only()).concept_types
+    if type_value not in allowed:
         return [
             f"type {type_value!r} is outside the closed BI-4 type set "
-            f"{sorted(ALLOWED_CONCEPT_TYPES)} (metric/playbook are tags, "
+            f"{sorted(allowed)} (metric/playbook are tags, "
             "not types)"
         ]
     return []
@@ -387,20 +455,25 @@ def lint_entity_relation_mentions(
     *,
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
+    effective_ontology: "EffectiveOntology | None" = None,
 ) -> "list[str]":
-    """BI-13 semantic lint: the closed 12-entity/10-relation ontology.
+    """BI-13 semantic lint: the closed 12-entity/10-relation ontology — base
+    ∪ client-overlay when `effective_ontology` is supplied (OV-8, ID-132
+    {132.34}); base-only otherwise (default, every pre-overlay call site
+    unchanged).
 
     Accepts pre-extracted entity/relationship mention dicts in the SAME
     shape the extraction Pydantic models use (`entity_type`/`relationship`
     keys). A no-op (returns `[]`) when neither is supplied — a concept with
     no entity/relationship mentions is not penalised for it."""
+    eo = effective_ontology or EffectiveOntology.base_only()
     errors: "list[str]" = []
     for entity in entities or ():
         value = entity.get("entity_type") if isinstance(entity, Mapping) else None
-        if value not in ALLOWED_ENTITY_TYPES:
+        if value not in eo.entity_types:
             errors.append(
                 f"entity_type {value!r} is outside the closed 12-entity "
-                f"ontology {sorted(ALLOWED_ENTITY_TYPES)}"
+                f"ontology {sorted(eo.entity_types)}"
             )
     for relationship in relationships or ():
         value = (
@@ -408,10 +481,10 @@ def lint_entity_relation_mentions(
             if isinstance(relationship, Mapping)
             else None
         )
-        if value not in ALLOWED_RELATIONSHIP_TYPES:
+        if value not in eo.relationship_types:
             errors.append(
                 f"relationship {value!r} is outside the closed 10-relation "
-                f"ontology {sorted(ALLOWED_RELATIONSHIP_TYPES)}"
+                f"ontology {sorted(eo.relationship_types)}"
             )
     return errors
 
@@ -422,18 +495,27 @@ def check_concept(
     body: str = "",
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
+    effective_ontology: "EffectiveOntology | None" = None,
 ) -> "list[str]":
     """BI-13 gate: run every check, return the list of violations (empty =
-    valid). Non-raising — `validate_concept` wraps this and raises."""
+    valid). Non-raising — `validate_concept` wraps this and raises.
+
+    `effective_ontology` (OV-8, ID-132 {132.34}) is the run's composed
+    base ∪ client-overlay set — threaded into `check_type_membership`
+    (concept `type`) and `lint_entity_relation_mentions` (entity/
+    relationship mentions). `None` (every pre-overlay call site) gates
+    against the bare base frozensets, unchanged."""
     fm = _as_mapping(frontmatter)
     errors: "list[str]" = []
     errors += check_required_keys(fm)
     if "type" in fm:
-        errors += check_type_membership(fm["type"])
+        errors += check_type_membership(fm["type"], effective_ontology=effective_ontology)
     if "resource" in fm:
         errors += check_resource_scheme(fm["resource"])
     errors += check_no_stray_pointer(fm, body)
-    errors += lint_entity_relation_mentions(entities=entities, relationships=relationships)
+    errors += lint_entity_relation_mentions(
+        entities=entities, relationships=relationships, effective_ontology=effective_ontology
+    )
     return errors
 
 
@@ -443,12 +525,20 @@ def validate_concept(
     body: str = "",
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
+    effective_ontology: "EffectiveOntology | None" = None,
 ) -> None:
     """BI-13 gate: raises `ConceptValidationError` (ALL violations, not
     fail-fast) unless `frontmatter`/`body` pass every check. No concept is
     written/published unless it passes this gate — the `declare_file` call
-    site (wired in `{132.10}`) must call this before every write."""
-    errors = check_concept(frontmatter, body=body, entities=entities, relationships=relationships)
+    site (wired in `{132.10}`) must call this before every write.
+    `effective_ontology` — see `check_concept`."""
+    errors = check_concept(
+        frontmatter,
+        body=body,
+        entities=entities,
+        relationships=relationships,
+        effective_ontology=effective_ontology,
+    )
     if errors:
         raise ConceptValidationError(errors)
 

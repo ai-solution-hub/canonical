@@ -152,8 +152,10 @@ affects MCP **and** CLI) — search without the wing filter and filter results c
 injects a lock-free (`mode=ro&immutable=1`, no chromadb writer — DR-009/DR-003) FTS digest of
 prior context — seeded by branch + cwd basename, diary-first, CHECKPOINT-noise filtered — on
 session `startup`/`clear`. Beyond that automatic digest, MUST run a branch + active-task-seeded
-recall pass (the `mempalace-recall` skill) before relying on memory of prior work, decisions,
-or people; honour the #1665 workaround above (no `wing` filter; filter client-side).
+recall pass (the `recall-grounding` skill — decision-point triggers + the `-32002` lock-free
+FTS fallthrough; underlying palace-search mechanism: the plugin `mempalace-recall` skill)
+before relying on memory of prior work, decisions, or people; honour the #1665 workaround
+above (no `wing` filter; filter client-side).
 
 **On-demand historic stores**: the `knowledge-hub-archive` repo is mined into a separate palace,
 searchable via `mempalace --palace ~/.mempalace-archive search "…"` (CLI only; point-in-time /

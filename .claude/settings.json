@@ -103,9 +103,10 @@
         "*.supabase.com",
         "*.supabase.co"
       ],
-      "allowLocalBinding": true,
-      "sandbox.enableWeakerNetworkIsolation": true
+      "allowLocalBinding": true
     },
+    "enableWeakerNetworkIsolation": true,
+    "excludedCommands": ["launchctl", "lavish-axi"],
     "filesystem": {
       "allowWrite": [
         "~/Documents/development/canonical/.claude/cmux-events",

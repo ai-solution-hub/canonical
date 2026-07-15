@@ -4751,7 +4751,30 @@ async def app_main() -> None:
                 source_document_deltas = await _fetch_source_document_deltas(
                     coco.use_context(DB_CTX), run_op_id
                 )
-                await trigger_producer_post_walk(run_op_id, source_document_deltas)
+                # S465 fix wave (G-DEPLOY-PROOF, ID-132 {132.35}): the
+                # producer context was previously never threaded through —
+                # `run_producer_flow` idle-no-op'd on `pool is None` even
+                # though a delta fired. `pool`/`re_target` are resolved the
+                # SAME way the Stage-6 mounts above do (`coco.use_context
+                # (DB_CTX)` / the `re_target` handle already mounted at flow
+                # scope); `repo_path` mirrors the single-clone model
+                # (DR-055: bundle_dir == repo_path == OKF_BUNDLE_DIR) — the
+                # producer auto-resolves `bundle_dir` from the env var
+                # itself, but `repo_path` has no such fallback so it is
+                # passed explicitly. `re_target`'s `mount_table_target`
+                # handle is a plain object (no `async with` scoping it) and
+                # its `.declare_row()` chain resolves the SAME
+                # `get_context_from_ctx()` ambient ComponentContext that
+                # `coco.use_context(DB_CTX)` one line above already proves
+                # is live in this `finally` block — see the {132.35} journal
+                # for the full verification trace.
+                await trigger_producer_post_walk(
+                    run_op_id,
+                    source_document_deltas,
+                    pool=coco.use_context(DB_CTX),
+                    re_target=re_target,
+                    repo_path=os.environ.get("OKF_BUNDLE_DIR") or None,
+                )
             except Exception as exc:  # noqa: BLE001 — best-effort post-pass
                 _logger.warning(
                     "cocoindex.producer_trigger.failed op_id=%s: %s",

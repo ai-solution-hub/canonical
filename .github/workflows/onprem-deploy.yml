@@ -308,6 +308,56 @@ jobs:
           echo "Published ${IMAGE}:${TAG}"
 
       - name:
+          Bake `git` into the published image (thin post-pack layer — ID-132
+          {132.35} G-DEPLOY-PROOF Defect C)
+        run: |
+          set -euo pipefail
+          # DEFECT C (ID-132 {132.35} deploy proof, RUN 1): the deployed
+          # google-22 buildpacks run image ships NO `git` binary, but
+          # `producer/git_sync.py` (the OKF bundle clone reconcile) and
+          # `producer/publish.py` (the DR-055 post-publish push lane) both
+          # shell out to `git`. RUN 1's own remediation already confirmed
+          # empirically that the google-22 run image IS apt-capable
+          # (Debian/Ubuntu-based) — an ephemeral `apt-get install git` inside
+          # the live container unblocked the probe, but was lost on the next
+          # redeploy (no Dockerfile layer bakes it in). There is no
+          # apt/git buildpack wired into this google-22 build, and the
+          # "IMAGE HYGIENE" pruned-context build above is deliberately kept
+          # byte-for-byte faithful to the original cloudbuild-cocoindex.yaml
+          # config (no Dockerfile of our own) — so this is a thin, SEPARATE
+          # post-pack layering step, not a change to the `pack build`
+          # invocation itself: pull the just-published buildpacks image
+          # (`pack build --publish` does not load it into the local daemon —
+          # see the image-size-budget step below), install `git` as root,
+          # restore the base image's ORIGINAL user (read dynamically via
+          # `docker inspect`, never hardcoded — buildpacks images are not
+          # guaranteed to run as the same uid/name across builder versions),
+          # then push the augmented image back to the exact SAME pinned tag.
+          # ENTRYPOINT/CMD need no explicit restoration — standard Docker
+          # FROM semantics inherit them unchanged from the base image as
+          # long as this layer's Dockerfile never redeclares them (it does
+          # not).
+          docker pull "${IMAGE}:${TAG}"
+          ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${IMAGE}:${TAG}")"
+          echo "Base image user (restored after the root apt-get layer): '${ORIG_USER:-cnb}'"
+          WORKDIR="$(mktemp -d)"
+          # NB: an UNQUOTED heredoc delimiter is required for ${IMAGE}/${TAG}/
+          # ${ORIG_USER} substitution below, which also means a trailing
+          # backslash-newline is consumed as a shell line-continuation (not
+          # preserved literally) — so the RUN instruction is written as one
+          # line rather than a visually-multi-line one that would silently
+          # collapse anyway.
+          cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
+          FROM ${IMAGE}:${TAG}
+          USER root
+          RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+          USER ${ORIG_USER:-cnb}
+          DOCKERFILE
+          docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
+          docker push "${IMAGE}:${TAG}"
+          echo "Re-published ${IMAGE}:${TAG} with git baked in (same pinned tag)."
+
+      - name:
           Inv-9 assertion — cocoindex image carries NO Playwright / Chromium
           (extraction is in-process Trafilatura, ID-112)
         run: |
@@ -404,6 +454,7 @@ jobs:
             echo ""
             echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
             echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
+            echo "- **Post-pack layer:** \`git\` baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C) — the buildpacks build itself is untouched"
             echo "- **Next:** the \`deploy-cocoindex\` job ({66.11}) bumps Coolify \`COCOINDEX_IMAGE_TAG\` to this tag + triggers a deploy"
           } >> "$GITHUB_STEP_SUMMARY"
 
