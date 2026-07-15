@@ -7,7 +7,8 @@ re-elaborate in a consumer.
 
 Sections: §Code-intelligence discipline · §KH quality bars · §Spec-chain right-sizing ·
 §Subtask dependency constraints · §State machine · §Empirical verification · §Escalation
-rule · §Friction register · §Ledger-write invariant · §Spec-tier budget.
+rule · §Friction register · §Grounding block · §Ledger-write invariant · §Spec-tier
+budget.
 
 ## Code-intelligence discipline
 
@@ -197,6 +198,26 @@ convention lines):
 - **FR-005 (MCP `-32000 Internal tool error`):** usually transient; retry once. If it
   persists for a given MCP tool, fall back to the non-MCP equivalent (e.g. raw CLI) and
   note the tool name in your report for the friction register.
+
+## Grounding block
+
+The grounding block is the THREE-part standing content every Planner / Executor / Checker
+dispatch brief MUST carry (canonical semantics here; verbatim brief-template lines for
+dispatch-brief composition: `.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
+§Grounding-block convention lines):
+
+1. **Active-task recall seeds** — the task id(s)/title plus any DR/symbol the brief cites,
+   handed to the worker so it recalls (mempalace / lock-free FTS) on the RIGHT topic BEFORE
+   presenting its spec/verdict/conclusion.
+2. **DR-002 restated** — done-task `details`/journals are a don't-re-flag signal ONLY,
+   NEVER current truth; before citing any `id-N` / `DR-NNN` / `{N.M}`, verify its LIVE
+   status via `bun scripts/ledger-cli.ts get task <id> status` (DR-070).
+3. **Symbol-orientation rule** — orient on the actual symbols/files the worker's own
+   invariants/claims cite, not just the feature vocabulary.
+
+Why: S462 is the control case — an embedded grounding block kept stale framings out of
+findings; this generalises it from an ad-hoc reader prompt to the standing dispatch
+primitive.
 
 ## Ledger-write invariant
 
