@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 #
 # regen-mirrors.sh — regenerate the ledger per-record mirrors locally, as ONE
-# idempotent command that mirrors the ci.yml `ledger-mirror-parity` job.
+# idempotent command.
 #
-# Why: every session that edits task-list.json / product-roadmap.json /
-# product-backlog.json must regenerate docs/reference/{tasks,roadmap,backlog}/
-# or the CI parity gate goes red. Doing that by hand means re-cloning task-view
-# and re-running `bun install` each session (recurring S264/S265 friction —
-# the clone's node_modules is not persisted). This script removes that:
+# Why: every session that edits task-list.json / initiatives.json /
+# product-backlog.json / product-retros.json must regenerate
+# ledgers/{tasks,backlog,initiatives,retros}/ so the mirrors stay in sync.
+# Doing that by hand means re-cloning task-view and re-running `bun install`
+# each session (recurring S264/S265 friction — the clone's node_modules is
+# not persisted). This script removes that:
 #   • clones task-view @ TASK_VIEW_TAG only if the tag-keyed cache is missing
 #   • runs `bun install` only if node_modules is absent
-#   • regenerates all three ledgers (--check writes the mirrors in place)
-#   • reports drift (CI gates on `git diff --exit-code` over the mirror dirs)
+#   • regenerates task-list/backlog via task-view.js (server-owned mirrors,
+#     --check writes the mirrors in place) + initiatives/retros via the
+#     KH-native generators (ID-148.9 — roadmap/umbrellas retired under
+#     ID-148, task-view no longer owns either)
+#   • reports drift LOCALLY/INFORMATIONALLY — there is no CI byte-parity gate
+#     (the `ledger-mirror-parity` job was retired under ID-68.35 when the
+#     ledgers moved to docs-site; the earlier "CI is the gate" framing here
+#     was stale)
 #
 # Single source of truth for the tag is .github/workflows/ci.yml — parsed below
 # so this script and CI never diverge. Override with env vars when needed:
@@ -78,17 +85,26 @@ fi
 # Fail-closed: error LOUD if KH_PRIVATE_DOCS_DIR is unset (no stale in-repo path).
 LEDGER_DIR="${KH_PRIVATE_DOCS_DIR:?KH_PRIVATE_DOCS_DIR must be set (ID-68.35 ledger relocation)}/src/content/docs/ledgers"
 
-# --- regenerate all three ledgers in place (--check writes mirrors) ----------
-echo "→ regenerating mirrors (--check x3)"
+# --- regenerate task/backlog via task-view.js (server-owned mirrors) --------
+echo "→ regenerating mirrors (--check x2 + KH-native initiatives/retros)"
 node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/task-list.json"
-node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-roadmap.json"
 node "$DIR/bin/task-view.js" --check "$LEDGER_DIR/product-backlog.json"
 
-# --- report drift (informational; CI is the gate) ---------------------------
+# --- regenerate initiatives/retros via the KH-native generators (ID-148.9) --
+# roadmap/umbrellas retired under ID-148 — task-view no longer owns a mirror
+# for either; these two ledgers are KH-authored (Option A, TECH §3.3) so their
+# mirrors regen locally, not via the task-view clone above.
+bun "$REPO/scripts/generate-initiatives-mirror.ts" --ledger-dir "$LEDGER_DIR"
+bun "$REPO/scripts/generate-retros-mirror.ts" --ledger-dir "$LEDGER_DIR"
+
+# --- report drift (informational — no CI byte-parity job exists; the
+# `ledger-mirror-parity` job was retired under ID-68.35 when the ledgers moved
+# to docs-site. Mirror parity is server-side-regen (task-list/backlog, on
+# every server write) plus this local hook only) ------------------------------
 # Use `git status --porcelain` (not `git diff`) so NEW mirrors for added records
 # are surfaced too — `git diff` ignores untracked files, so a freshly-added
 # Task's mirror (e.g. a new ID-NN.md) would otherwise be silently missed.
-MIRROR_DIRS=("$LEDGER_DIR/tasks" "$LEDGER_DIR/roadmap" "$LEDGER_DIR/backlog")
+MIRROR_DIRS=("$LEDGER_DIR/tasks" "$LEDGER_DIR/backlog" "$LEDGER_DIR/initiatives" "$LEDGER_DIR/retros")
 # git must run in the DOCS-SITE repo (the ledger relocation moved the mirror
 # dirs out of this repo — a bare `git status` here fatals with "outside
 # repository"; WS-B3 fix).
