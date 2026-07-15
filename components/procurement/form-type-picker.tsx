@@ -37,9 +37,12 @@ import { queryKeys } from '@/lib/query/query-keys';
  * of truth — a future CV add/remove needs no code change. This enum exists ONLY
  * as the minimal compile-time tuple for request-body validation where a Zod
  * schema needs the closed set; it is NOT a second hand-maintained option list.
+ *
+ * No 'bid' entry (ID-145 BI-8/BI-12, {145.27}+{145.28}): 'Bid' is retired as a
+ * first-class creation label — it no longer appears in `api.form_types`, so it
+ * is dropped from this compile-time mirror too.
  */
 export const procurementFormTypeKeys = [
-  'bid',
   'checklist',
   'itt',
   'psq',

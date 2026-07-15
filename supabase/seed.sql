@@ -146,19 +146,30 @@ ON CONFLICT (key) DO UPDATE SET
   provenance    = EXCLUDED.provenance,
   updated_at    = now();
 
--- 2·0b. Core form_types CV (the eight-type durable ontology).
+-- 2·0b. Core form_types CV (the seven-type durable ontology).
 -- Same squash-fidelity gap as §2·0: the pre-squash form_type seed (in
 -- 20260520120828_t2_combined_pr_intel_shape_b_form_type_split) was FOLDED INTO the
 -- 20260617130000 squash as SCHEMA-only — the squash CREATEd public.form_types but DROPPED
 -- its core DATA rows. On a fresh/reset DB or a freshly-provisioned branch the table is
--- EMPTY, so any FK to form_types.key breaks (e.g. ID-130 {130.8} mints form_type='bid').
--- Re-seed all eight client-agnostic core rows here (provenance 'core', identical across
--- every deployment), mirroring the live Platform/client DBs. Key is 'psq' (NOT the pre-2023
--- 'pqq' — ID-130 AD-4 re-keyed it for Procurement Act 2023 supplier-selection terminology;
--- spine 20260625120000 STEP 6). DO UPDATE so a stale label/key self-corrects on re-seed.
+-- EMPTY, so any FK to form_types.key breaks.
+-- Re-seed the seven remaining client-agnostic core rows here (provenance 'core', identical
+-- across every deployment), mirroring the live Platform/client DBs. Key is 'psq' (NOT the
+-- pre-2023 'pqq' — ID-130 AD-4 re-keyed it for Procurement Act 2023 supplier-selection
+-- terminology; spine 20260625120000 STEP 6). DO UPDATE so a stale label/key self-corrects
+-- on re-seed.
+--
+-- DELIBERATE EXCEPTION — no 'bid' tuple (ID-145 BI-8/BI-12, {145.27}+{145.28}, S474):
+-- ID-130 {130.8} originally minted form_type='bid' as this CV's eighth row, but migration
+-- 20260712065000_id145_bi8_retire_bid_creation_label.sql retires 'Bid' as a first-class
+-- creation label by DELETE-ing form_types.key='bid'. That migration runs BEFORE this seed
+-- file (seed.sql applies AFTER all migrations — see file header §0) and form_types is
+-- still empty at migration-apply time (the squash-fidelity gap above), so its guarded
+-- DELETE is a harmless no-op against an empty table on a fresh DB. Seeding 'bid' here would
+-- silently resurrect the exact row that migration exists to retire — so it is intentionally
+-- omitted, not an oversight. __tests__/supabase/seed-squash-fidelity-guard.test.ts's
+-- form_types expectedKeys list was updated in the same commit to match.
 INSERT INTO public.form_types (key, label, provenance, applicable_application_types)
 VALUES
-  ('bid',                     'Bid',                              'core', ARRAY['procurement']),
   ('rfp',                     'RFP (Request For Proposal)',       'core', ARRAY['procurement']),
   ('psq',                     'Selection Questionnaire (SQ/PSQ)', 'core', ARRAY['procurement']),
   ('itt',                     'ITT (Invitation To Tender)',       'core', ARRAY['procurement']),
@@ -171,38 +182,17 @@ ON CONFLICT (key) DO UPDATE SET
   provenance                   = EXCLUDED.provenance,
   applicable_application_types = EXCLUDED.applicable_application_types;
 
--- 2·0c. Core procurement_vehicles CV (the three-value durable ontology).
--- Same squash-fidelity gap as §2·0/§2·0b: the pre-squash seed (sub-task 9.2 of
--- 20260520120828_t2_combined_pr_intel_shape_b_form_type_split) was FOLDED INTO the
--- 20260617130000 squash as SCHEMA-only — the squash CREATEd public.procurement_vehicles
--- but DROPPED its core DATA rows. On a fresh/reset DB or a freshly-provisioned branch
--- the table is therefore EMPTY, so any FK to procurement_vehicles.key breaks (e.g. the
--- procurement_vehicle_instances rows in §2·0d below). Re-seed all three client-agnostic
--- core rows here (provenance 'core', per ontology §118), mirroring the live
--- Platform/client DBs. DO UPDATE so a stale label/provenance self-corrects on re-seed.
-INSERT INTO public.procurement_vehicles (key, label, provenance)
-VALUES
-  ('framework',           'Framework',                        'core'),
-  ('dps',                 'DPS (Dynamic Purchasing System)', 'core'),
-  ('dynamic_procurement', 'Dynamic Procurement',              'core')
-ON CONFLICT (key) DO UPDATE SET
-  label      = EXCLUDED.label,
-  provenance = EXCLUDED.provenance;
-
--- 2·0d. Core procurement_vehicle_instances CV (the g_cloud + dos instance pattern).
--- Same squash-fidelity gap as §2·0c: the pre-squash seed (sub-task 9.3 of the same
--- migration) was FOLDED INTO the squash as SCHEMA-only, dropping its 2 instance rows.
--- Re-seed here (provenance 'core', per ontology §119); the vehicle_key FK resolves
--- because §2·0c above runs first in this same file. DO UPDATE so a stale
--- label/vehicle_key self-corrects on re-seed.
-INSERT INTO public.procurement_vehicle_instances (key, label, vehicle_key, provenance)
-VALUES
-  ('g_cloud', 'G-Cloud',                                'framework', 'core'),
-  ('dos',     'DOS (Digital Outcomes and Specialists)', 'framework', 'core')
-ON CONFLICT (key) DO UPDATE SET
-  label       = EXCLUDED.label,
-  vehicle_key = EXCLUDED.vehicle_key,
-  provenance  = EXCLUDED.provenance;
+-- 2·0c/2·0d. procurement_vehicles + procurement_vehicle_instances — REMOVED
+-- ({145.28}, S474). Both tables were re-homed here at ID-130.19 to close the same
+-- squash-fidelity gap as §2·0/§2·0b, but ID-145 {145.6} W1e
+-- (20260712064000_id145_w1e_drop_workspace_stratum.sql STEP 3) DROPPED both tables
+-- outright (TECH.md §2 M5; ARCH-REVIEW C9 — zero code refs, zero inbound FKs from any
+-- surviving table). The CV rows this section used to re-home no longer have a table to
+-- insert into — seeding them here fails with "relation does not exist" against a fresh
+-- post-W1 database (first observed on the e2e-nightly ephemeral-branch provisioning run,
+-- S474). The guard test's matching procurement_vehicles / procurement_vehicle_instances
+-- cases (and the standalone vehicle_key FK-resolution test) were removed from
+-- __tests__/supabase/seed-squash-fidelity-guard.test.ts in the same commit.
 
 -- 2a. Test workspace (required by feed_prompts, feed_sources, and E2E tests)
 -- NB: `workspaces.type` (was 'bid') was DROPPED in 20260520120828
