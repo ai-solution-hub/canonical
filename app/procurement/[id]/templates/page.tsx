@@ -27,6 +27,13 @@ interface ProcurementQuestion {
 
 type WorkflowStep = 'upload' | 'analyse' | 'review' | 'fill' | 'complete';
 
+// ID-145 {145.15} BI-23 ANCHOR: fill/auto-map/complete key on the form's
+// own id (`selectedTemplate.id`, passed as `templateId` to every mutating
+// fetch below) — `form_instances` has no `workspace_id` post-{145.6} W1c
+// (BI-1: the item IS the form). `procurementId` (this page's `[id]` param)
+// is URL-namespacing only; it is never used as a scoping filter on a
+// read/write. DR-064 spatial fill-slot review lands later via the ID-147
+// spec chain — this page's workflow-step shell is otherwise unchanged.
 export default function TemplateCompletionPage() {
   const params = useParams<{ id: string }>();
   const procurementId = params.id;

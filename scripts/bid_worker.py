@@ -68,7 +68,12 @@ PROD_PROJECT_URL_FRAGMENT = os.environ.get("PROD_PROJECT_REF")
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from fill_template import fill_template, _validate_completed_document
+from fill_template import (
+    fill_template,
+    fill_pdf_template,
+    fill_xlsx_template,
+    _validate_completed_document,
+)
 
 
 def get_supabase() -> Client:
@@ -89,45 +94,142 @@ def get_supabase() -> Client:
 
 
 def fill_template_job(supabase: Client, payload: dict) -> dict:
-    """Fill a Word template with approved bid responses."""
-    template_id = payload["template_id"]
-    project_id = payload["project_id"]
-    storage_path = payload["storage_path"]
+    """Fill a form's fillable slots with approved bid responses — per-format
+    writer dispatch (DOCX/PDF/XLSX, TECH.md §3.3/§3.4, ID-145 {145.15}).
+
+    RE-ENTRANT / IDEMPOTENT over already-filled slots (BI-22): before
+    writing, re-queries the CURRENT ``fill_status`` of every ``field_id``
+    in ``field_mappings`` and drops any already ``'filled'`` — a later
+    pass, even one handed a stale/superset mapping list, only ever
+    touches outstanding gaps. The base artefact to fill INTO is the
+    LATEST existing ``template_completions`` row's ``storage_path`` when
+    one exists (so a prior pass's answers persist into this pass's
+    output), falling back to the pristine original on a first pass — the
+    plane-2 fillable artefact (``{form_id}/fillable.pdf``, {145.11}) for
+    PDF, the original upload (``form_instances.storage_path``) for
+    DOCX/XLSX.
+
+    SUCCESS-WITH-GAPS (BI-22, TECH.md §3.4): a successful writer run
+    ALWAYS sets ``form_instances.processing_status = 'completed'``,
+    regardless of ``fields_skipped`` — a completion with skipped/gap
+    fields is a success-with-gaps, never ``fill_failed``.
+    ``fill_failed`` (the except branch below) is reserved for genuine
+    engine/IO errors, never for partial coverage.
+
+    ``payload`` shape (flat, non-enveloped — this job type predates the
+    envelope spec and is enqueued by a different, non-enveloped
+    producer, see ``analyse_form_job``'s docstring): ``{form_id,
+    field_mappings, user_id, options}``.
+    """
+    form_id = payload["form_id"]
     field_mappings = payload["field_mappings"]
 
-    file_data = supabase.storage.from_("templates").download(storage_path)
+    # Idempotency (BI-22): drop any mapping whose CURRENT fill_status is
+    # already 'filled', re-checked live rather than trusting the caller's
+    # snapshot — makes the job correct regardless of caller discipline.
+    field_ids = [m["field_id"] for m in field_mappings if m.get("field_id")]
+    already_filled: set[str] = set()
+    if field_ids:
+        status_result = (
+            supabase.from_("form_instance_fields")
+            .select("id, fill_status")
+            .in_("id", field_ids)
+            .execute()
+        )
+        already_filled = {
+            row["id"]
+            for row in (status_result.data or [])
+            if row.get("fill_status") == "filled"
+        }
+    outstanding_mappings = [
+        m for m in field_mappings if m.get("field_id") not in already_filled
+    ]
 
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_in:
-        tmp_in.write(file_data)
+    if not outstanding_mappings:
+        # Every mapped field is already filled (e.g. a stale/superset
+        # mapping list) — a true no-op: no new completion, no storage I/O,
+        # no status transition.
+        return {
+            "fields_filled": 0,
+            "fields_skipped": 0,
+            "fields_failed": 0,
+            "truncated": [],
+            "errors": [],
+            "completion_id": None,
+            "storage_path": None,
+        }
+
+    form_result = (
+        supabase.from_("form_instances")
+        .select("id, storage_path, mime_type")
+        .eq("id", form_id)
+        .single()
+        .execute()
+    )
+    form = form_result.data
+    ext = _MIME_TO_EXT.get(form["mime_type"])
+    if ext is None:
+        raise ValueError(
+            f"fill_template_job: unrecognised form_instances.mime_type "
+            f"{form['mime_type']!r} for form {form_id}"
+        )
+
+    latest_completion = (
+        supabase.from_("template_completions")
+        .select("storage_path")
+        .eq("form_instance_id", form_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if latest_completion.data:
+        base_storage_path = latest_completion.data[0]["storage_path"]
+    elif ext == "pdf":
+        base_storage_path = f"{form_id}/fillable.pdf"
+    else:
+        base_storage_path = form["storage_path"]
+
+    base_bytes = supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).download(
+        base_storage_path
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp_in:
+        tmp_in.write(base_bytes)
         input_path = tmp_in.name
 
     base, _ = os.path.splitext(input_path)
-    output_path = f"{base}_completed.docx"
+    output_path = f"{base}_completed.{ext}"
 
     try:
-        result = fill_template(input_path, output_path, field_mappings)
+        if ext == "docx":
+            result = fill_template(input_path, output_path, outstanding_mappings)
+            format_warnings = _validate_completed_document(input_path, output_path)
+            if format_warnings:
+                result["format_warnings"] = format_warnings
+        elif ext == "pdf":
+            result = fill_pdf_template(input_path, output_path, outstanding_mappings)
+        elif ext == "xlsx":
+            result = fill_xlsx_template(input_path, output_path, outstanding_mappings)
+        else:
+            raise ValueError(f"fill_template_job: unsupported format {ext!r}")
 
         # Upload completed document
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        completed_path = f"{project_id}/{template_id}/completed_{timestamp}.docx"
+        completed_path = f"{form_id}/completed_{timestamp}.{ext}"
 
         with open(output_path, "rb") as f:
-            supabase.storage.from_("templates").upload(
+            supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).upload(
                 completed_path,
                 f.read(),
-                {"content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+                {"content-type": form["mime_type"]},
             )
 
         file_size = os.path.getsize(output_path)
 
-        # Validate completed document formatting
-        format_warnings = _validate_completed_document(input_path, output_path)
-        if format_warnings:
-            result["format_warnings"] = format_warnings
-
-        # Create completion record
+        # Create completion record — success-with-gaps, BI-22:
+        # fields_skipped > 0 here is a valid, expected outcome.
         completion = supabase.from_("template_completions").insert({
-            "template_id": template_id,
+            "form_instance_id": form_id,
             "storage_path": completed_path,
             "fields_filled": result["fields_filled"],
             "fields_skipped": result["fields_skipped"],
@@ -136,30 +238,33 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
             "created_by": payload.get("user_id"),
         }).execute()
 
-        # Update field fill_status
-        for mapping in field_mappings:
+        # Update field fill_status — only the OUTSTANDING mappings this
+        # pass actually attempted; already-filled slots (excluded above)
+        # are never re-touched.
+        for mapping in outstanding_mappings:
             field_id = mapping.get("field_id")
             if field_id:
                 status = "filled"
                 error_msg = None
                 for err in result["errors"]:
-                    if (err.get("table_index") == mapping["table_index"]
-                            and err.get("row_index") == mapping["row_index"]):
+                    if (err.get("table_index") == mapping.get("table_index")
+                            and err.get("row_index") == mapping.get("row_index")):
                         status = "failed"
                         error_msg = err["error"]
                         break
 
-                # S246 WP2b T2 (P4): template_fields → form_template_fields.
-                supabase.from_("form_template_fields").update({
+                supabase.from_("form_instance_fields").update({
                     "fill_status": status,
                     "fill_error": error_msg,
                 }).eq("id", field_id).execute()
 
-        # Update template status
-        # S246 WP2b T2 (P4): templates → form_templates.
-        supabase.from_("form_templates").update({
-            "status": "completed",
-        }).eq("id", template_id).execute()
+        # SUCCESS-with-gaps (BI-22): always 'completed' on a successful
+        # writer run, regardless of fields_skipped — never fill_failed for
+        # partial coverage (that's the except branch below, engine/IO
+        # errors only).
+        supabase.from_("form_instances").update({
+            "processing_status": "completed",
+        }).eq("id", form_id).execute()
 
         return {
             **result,
@@ -167,11 +272,10 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
             "storage_path": completed_path,
         }
 
-    except Exception as e:
-        # S246 WP2b T2 (P4): templates → form_templates.
-        supabase.from_("form_templates").update({
-            "status": "fill_failed",
-        }).eq("id", template_id).execute()
+    except Exception:
+        supabase.from_("form_instances").update({
+            "processing_status": "fill_failed",
+        }).eq("id", form_id).execute()
         raise
 
     finally:

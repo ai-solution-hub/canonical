@@ -98,7 +98,7 @@ class TestProcessJob:
         from bid_worker import process_job
 
         mock_sb = _make_mock_supabase()
-        job = {"job_type": "template_fill", "payload": {"template_id": "t1"}}
+        job = {"job_type": "template_fill", "payload": {"form_id": "f1"}}
 
         with patch("bid_worker.fill_template_job", return_value={"fields_filled": 8}) as mock_fn:
             result = process_job(mock_sb, job)
@@ -136,71 +136,335 @@ class TestProcessJob:
 
 
 class TestFillTemplateJob:
-    """fill_template_job fills Word template with bid responses."""
+    """fill_template_job fills a form's fillable slots — per-format writer
+    dispatch (DOCX/PDF/XLSX) with a re-entrant, idempotent-over-
+    already-filled contract (ID-145 {145.15}, BI-22, TECH.md §3.3/§3.4)."""
+
+    def _wire_no_prior_filled_fields(self, mock_sb):
+        """Idempotency SELECT (form_instance_fields by id) returns no rows
+        — nothing is already 'filled', so every mapping stays outstanding."""
+        result = MagicMock()
+        result.data = []
+        (
+            mock_sb.from_.return_value.select.return_value.in_.return_value.execute
+        ).return_value = result
+
+    def _wire_prior_filled_fields(self, mock_sb, filled_ids):
+        result = MagicMock()
+        result.data = [{"id": fid, "fill_status": "filled"} for fid in filled_ids]
+        (
+            mock_sb.from_.return_value.select.return_value.in_.return_value.execute
+        ).return_value = result
+
+    def _wire_form(self, mock_sb, form_id, storage_path, mime_type):
+        _mock_table_select_single(
+            mock_sb,
+            {"id": form_id, "storage_path": storage_path, "mime_type": mime_type},
+        )
+
+    def _wire_no_prior_completion(self, mock_sb):
+        """No existing template_completions row — first fill pass, base
+        artefact is the pristine original / fillable.pdf."""
+        result = MagicMock()
+        result.data = []
+        (
+            mock_sb.from_.return_value.select.return_value.eq.return_value
+            .order.return_value.limit.return_value.execute
+        ).return_value = result
+
+    def _wire_prior_completion(self, mock_sb, storage_path):
+        """An existing template_completions row — re-fill pass, base
+        artefact is the LATEST completion's own output."""
+        result = MagicMock()
+        result.data = [{"storage_path": storage_path}]
+        (
+            mock_sb.from_.return_value.select.return_value.eq.return_value
+            .order.return_value.limit.return_value.execute
+        ).return_value = result
+
+    def _wire_completion_insert(self, mock_sb, completion_id="completion-1"):
+        result = MagicMock()
+        result.data = [{"id": completion_id}]
+        mock_sb.from_.return_value.insert.return_value.execute.return_value = result
 
     @patch("bid_worker.os.path.exists", return_value=True)
     @patch("bid_worker.os.unlink")
     @patch("bid_worker.os.path.getsize", return_value=12345)
     @patch("bid_worker._validate_completed_document", return_value=[])
     @patch("bid_worker.fill_template")
-    def test_happy_path_creates_completion(self, mock_fill, mock_validate,
-                                            mock_getsize, mock_unlink, mock_exists):
-        """Downloads template, fills it, uploads completed doc, creates record."""
+    def test_docx_happy_path_creates_completion_and_marks_filled(
+        self, mock_fill, mock_validate, mock_getsize, mock_unlink, mock_exists
+    ):
+        """DOCX: downloads original, fills it, uploads completed doc,
+        creates a form_instance_id-keyed completion, marks the field
+        filled, sets processing_status='completed'."""
         from bid_worker import fill_template_job
 
         mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "templates", b"fake-docx-bytes")
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.docx", _DOCX_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
         mock_sb.storage.from_.return_value.upload.return_value = None
-
-        # Mock insert for template_completions
-        completion_result = MagicMock()
-        completion_result.data = [{"id": "completion-1"}]
-        mock_sb.from_.return_value.insert.return_value.execute.return_value = completion_result
-
-        # Mock update for form_template_fields and form_templates
-        # S246 WP2b T2 (P4): templates → form_templates;
-        # template_fields → form_template_fields.
+        self._wire_completion_insert(mock_sb)
         _mock_table_update(mock_sb)
 
         mock_fill.return_value = {
-            "fields_filled": 3,
+            "fields_filled": 1,
             "fields_skipped": 0,
             "fields_failed": 0,
             "errors": [],
+            "truncated": [],
         }
 
-        # We need to mock the open() call for reading the completed file
         with patch("builtins.open", MagicMock()):
             result = fill_template_job(mock_sb, {
-                "template_id": "tmpl-1",
-                "project_id": "proj-1",
-                "storage_path": "proj-1/template.docx",
+                "form_id": "form-1",
                 "field_mappings": [
-                    {"field_id": "f1", "table_index": 0, "row_index": 0, "value": "Answer 1"},
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Answer 1", "word_limit": None},
                 ],
+                "user_id": "user-1",
+                "options": {},
             })
 
-        assert result["fields_filled"] == 3
+        assert result["fields_filled"] == 1
         assert result["completion_id"] == "completion-1"
+        mock_fill.assert_called_once()
+        mock_sb.storage.from_.assert_any_call("tender-documents")
+        insert_arg = mock_sb.from_.return_value.insert.call_args[0][0]
+        assert insert_arg["form_instance_id"] == "form-1"
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"fill_status": "filled", "fill_error": None}
+        )
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "completed"}
+        )
+
+    @patch("bid_worker.os.path.exists", return_value=True)
+    @patch("bid_worker.os.unlink")
+    @patch("bid_worker.os.path.getsize", return_value=999)
+    @patch("bid_worker.fill_pdf_template")
+    def test_pdf_first_pass_uses_fillable_artefact_as_base(self, mock_fill_pdf, *_mocks):
+        """PDF, no prior completion: downloads {form_id}/fillable.pdf (the
+        plane-2 fillable artefact) as the base, not the original PDF."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.pdf", _PDF_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        _mock_storage_download(mock_sb, "tender-documents", b"%PDF-fillable")
+        mock_sb.storage.from_.return_value.upload.return_value = None
+        self._wire_completion_insert(mock_sb)
+        _mock_table_update(mock_sb)
+
+        mock_fill_pdf.return_value = {
+            "fields_filled": 1, "fields_skipped": 0, "fields_failed": 0,
+            "errors": [], "truncated": [],
+        }
+
+        with patch("builtins.open", MagicMock()):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Answer", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_sb.storage.from_.return_value.download.assert_any_call(
+            "form-1/fillable.pdf"
+        )
+        mock_fill_pdf.assert_called_once()
+
+    @patch("bid_worker.os.path.exists", return_value=True)
+    @patch("bid_worker.os.unlink")
+    @patch("bid_worker.os.path.getsize", return_value=999)
+    @patch("bid_worker.fill_pdf_template")
+    def test_refill_pass_uses_latest_completion_as_base(self, mock_fill_pdf, *_mocks):
+        """A re-fill pass downloads the LATEST template_completions row's
+        storage_path as the base — not the pristine fillable.pdf — so a
+        prior pass's answers persist into this pass's output (BI-22)."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.pdf", _PDF_MIME)
+        self._wire_prior_completion(mock_sb, "form-1/completed_20260101T000000Z.pdf")
+        _mock_storage_download(mock_sb, "tender-documents", b"%PDF-prior-completion")
+        mock_sb.storage.from_.return_value.upload.return_value = None
+        self._wire_completion_insert(mock_sb, "completion-2")
+        _mock_table_update(mock_sb)
+
+        mock_fill_pdf.return_value = {
+            "fields_filled": 1, "fields_skipped": 0, "fields_failed": 0,
+            "errors": [], "truncated": [],
+        }
+
+        with patch("builtins.open", MagicMock()):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f2", "table_index": 0, "row_index": 1,
+                     "response_text": "Second answer", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_sb.storage.from_.return_value.download.assert_any_call(
+            "form-1/completed_20260101T000000Z.pdf"
+        )
+
+    @patch("bid_worker.os.path.exists", return_value=True)
+    @patch("bid_worker.os.unlink")
+    @patch("bid_worker.os.path.getsize", return_value=999)
+    @patch("bid_worker.fill_xlsx_template")
+    def test_xlsx_happy_path_dispatches_to_xlsx_writer(self, mock_fill_xlsx, *_mocks):
+        """XLSX mime_type routes to fill_xlsx_template, not fill_template."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.xlsx", _XLSX_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        _mock_storage_download(mock_sb, "tender-documents", b"fake-xlsx-bytes")
+        mock_sb.storage.from_.return_value.upload.return_value = None
+        self._wire_completion_insert(mock_sb)
+        _mock_table_update(mock_sb)
+
+        mock_fill_xlsx.return_value = {
+            "fields_filled": 1, "fields_skipped": 0, "fields_failed": 0,
+            "errors": [], "truncated": [],
+        }
+
+        with patch("builtins.open", MagicMock()):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 1, "col_index": 2,
+                     "response_text": "Answer", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_fill_xlsx.assert_called_once()
+
+    def test_skips_already_filled_fields_before_calling_writer(self):
+        """Idempotency (BI-22): a mapping whose CURRENT fill_status is
+        already 'filled' is dropped BEFORE the writer runs — a re-fill
+        pass only touches outstanding gaps, even given a stale/superset
+        mapping list."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_prior_filled_fields(mock_sb, ["f1"])
+        self._wire_form(mock_sb, "form-1", "form-1/document.docx", _DOCX_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
+        mock_sb.storage.from_.return_value.upload.return_value = None
+        self._wire_completion_insert(mock_sb)
+        _mock_table_update(mock_sb)
+
+        with patch("bid_worker.fill_template") as mock_fill, \
+             patch("bid_worker._validate_completed_document", return_value=[]), \
+             patch("bid_worker.os.path.exists", return_value=True), \
+             patch("bid_worker.os.unlink"), \
+             patch("bid_worker.os.path.getsize", return_value=1), \
+             patch("builtins.open", MagicMock()):
+            mock_fill.return_value = {
+                "fields_filled": 1, "fields_skipped": 0, "fields_failed": 0,
+                "errors": [], "truncated": [],
+            }
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Already filled — should not redo", "word_limit": None},
+                    {"field_id": "f2", "table_index": 0, "row_index": 1,
+                     "response_text": "Gap — should fill", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+            passed_mappings = mock_fill.call_args[0][2]
+            assert len(passed_mappings) == 1
+            assert passed_mappings[0]["field_id"] == "f2"
+
+    def test_all_fields_already_filled_is_noop(self):
+        """Every mapped field already 'filled' -> no writer call, no
+        storage I/O, no new completion, no status transition."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_prior_filled_fields(mock_sb, ["f1"])
+
+        with patch("bid_worker.fill_template") as mock_fill:
+            result = fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Already filled", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_fill.assert_not_called()
+        mock_sb.storage.from_.assert_not_called()
+        assert result["completion_id"] is None
+        assert result["fields_filled"] == 0
 
     @patch("bid_worker.os.path.exists", return_value=False)
     @patch("bid_worker.os.unlink")
     @patch("bid_worker.fill_template", side_effect=Exception("Fill error"))
-    def test_failure_updates_status(self, mock_fill, mock_unlink, mock_exists):
-        """Fill failure updates template status to 'fill_failed'."""
+    def test_writer_failure_marks_fill_failed_never_partial_coverage(
+        self, mock_fill, mock_unlink, mock_exists
+    ):
+        """An engine/IO error during the writer sets processing_status to
+        'fill_failed' — the ONLY path that ever sets fill_failed (BI-22:
+        partial coverage / fields_skipped is a success, never this)."""
         from bid_worker import fill_template_job
 
         mock_sb = _make_mock_supabase()
-        _mock_storage_download(mock_sb, "templates", b"fake-docx-bytes")
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.docx", _DOCX_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        _mock_storage_download(mock_sb, "tender-documents", b"fake-docx-bytes")
         _mock_table_update(mock_sb)
 
         with pytest.raises(Exception, match="Fill error"):
             fill_template_job(mock_sb, {
-                "template_id": "tmpl-1",
-                "project_id": "proj-1",
-                "storage_path": "proj-1/template.docx",
-                "field_mappings": [],
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Text", "word_limit": None},
+                ],
+                "user_id": "user-1",
             })
+
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "fill_failed"}
+        )
+
+    def test_unrecognised_mime_type_raises_before_any_download(self):
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.txt", "text/plain")
+
+        with pytest.raises(ValueError, match="unrecognised"):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Text", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_sb.storage.from_.return_value.download.assert_not_called()
 
 
 # ── analyse_form (ID-145 {145.13}, BI-20) ────────────────────────────────────
@@ -450,6 +714,7 @@ _DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 _PDF_MIME = "application/pdf"
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 class TestAnalyseFormJob:
