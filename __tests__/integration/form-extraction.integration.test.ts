@@ -31,6 +31,29 @@
  * These tests are the durable artefact that RUNS when that infra lands. They
  * are authored-but-skip-clean here: "verified" means "verified-when-wired".
  *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ⚠ ID-136 (S474 gate sweep, {145.23}) — Path-B pipeline write REMOVED
+ * ───────────────────────────────────────────────────────────────────────────
+ * ID-136 "Retire corpus forms-route — forms = manual-upload" (DONE) removed
+ * the `ft_target` / `ftf_target` Path-B form-write block from `ingest_file`
+ * ENTIRELY (scripts/cocoindex_pipeline/flow.py:1778-1784, 4293-4296) — "the
+ * corpus walk no longer writes `form_instances` / `form_instance_fields`; the
+ * surviving writer is the app-side manual-upload path
+ * (`app/api/procurement/[id]/forms/route.ts`, `ingest_source='app_upload'`)."
+ *
+ * This means Inv-5/6/7/15/16/17/18 below — which all stage a corpus fixture
+ * and poll for a pipeline-written `form_instances` row — now assert a write
+ * path that NO LONGER EXISTS IN PRODUCTION. Even once the fixture-staging
+ * infra above is wired, these assertions will TIME OUT / FAIL rather than
+ * pass, because no writer will ever land the expected row. This {145.23}
+ * re-key pass ONLY brings the table/column names into line with the live
+ * schema (so the file keeps compiling and Inv-19's still-valid Path-A sanity
+ * check keeps working) — it does NOT resolve the dead-code-path question,
+ * which is escalated back to the Orchestrator/Curator for disposition
+ * (retire the Path-B-specific cases vs. rewrite them against the surviving
+ * app-side upload route, which already has separate coverage in
+ * `__tests__/api/procurement-forms.test.ts`).
+ *
  * References:
  *   - docs/specs/id-52-form-extraction/PRODUCT.md Inv-5/6/7/15/16/17/18/19.
  *   - docs/specs/id-52-form-extraction/TECH.md §2.1 (manifest), §2.5 (write),
@@ -108,7 +131,11 @@ describe.skipIf(!ENABLED)(
         // Exactly one template row (pipeline-owned write — no app step).
         expect(templates.length).toBe(1);
         const template = templates[0]!;
-        expect(template.ingest_source).toBe('pipeline');
+        // {145.6} W1c re-cut ingest_source to {app_upload, minted}; the
+        // legacy 'pipeline' value no longer satisfies the live CHECK
+        // constraint. See the module-header ⚠ ID-136 note — this expectation
+        // will not actually be reached until that dead-path finding resolves.
+        expect(template.ingest_source).toBe('app_upload');
 
         const fields = await pollFormTemplateFieldsFor(template.id, {
           timeoutMs: POLL_TIMEOUT_MS,
@@ -246,8 +273,12 @@ describe.skipIf(!ENABLED)(
         for (const t of templates) seededTemplateIds.push(t.id);
         expect(templates.length).toBe(4);
 
-        const failed = templates.filter((t) => t.status === 'analysis_failed');
-        const analysed = templates.filter((t) => t.status === 'analysed');
+        const failed = templates.filter(
+          (t) => t.processing_status === 'analysis_failed',
+        );
+        const analysed = templates.filter(
+          (t) => t.processing_status === 'analysed',
+        );
         // Exactly one failure (the corrupt PDF); three successes (batch not
         // halted — Inv-17).
         expect(failed.length).toBe(1);
@@ -406,7 +437,7 @@ describe.skipIf(!ENABLED)(
         await import('./helpers/supabase-client');
       const client = await createLiveServiceClient();
       const { data, error } = await client
-        .from('form_templates')
+        .from('form_instances')
         .select('id')
         .ilike('name', `${namePrefix}%`);
       expect(error).toBeNull();
