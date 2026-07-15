@@ -57,8 +57,10 @@ export function ActiveProcurementsSection({
       aria-label="Active procurements"
       className="rounded-lg border bg-card p-4 shadow-sm"
     >
+      {/* ID-145 {145.20} BI-33: heading, aria-label, and the Content Health
+          tile all agree on "procurement(s)" — never "Active Bids". */}
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Active Bids
+        Active Procurements
       </h2>
 
       {bids.length === 0 ? (
@@ -71,7 +73,7 @@ export function ActiveProcurementsSection({
             No active procurements
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create a new bid to start managing tender responses.
+            Create a new procurement to start managing tender responses.
           </p>
           <Button asChild size="sm" className="mt-3 gap-1.5">
             <Link href="/procurement">

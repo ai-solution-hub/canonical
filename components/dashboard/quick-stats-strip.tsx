@@ -92,9 +92,14 @@ export function QuickStatsStrip({
           className="hidden h-4 w-px bg-border sm:block"
           aria-hidden="true"
         />
+        {/* ID-145 {145.20} BI-33: singular/plural of the same "procurement"
+            vocabulary — never "bid" — so this tile agrees with the
+            ActiveProcurementsSection heading + aria-label. */}
         <StatItem
           label={
-            activeProcurementCount === 1 ? 'Active bid' : 'Active procurements'
+            activeProcurementCount === 1
+              ? 'Active procurement'
+              : 'Active procurements'
           }
           value={activeProcurementCount}
         />

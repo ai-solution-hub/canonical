@@ -302,7 +302,7 @@ describe('produceProcurementDeadlineItems', () => {
     expect(items[0].detail).toContain('Widget Co');
   });
 
-  it('targets the bid workspace via entity + action_url', () => {
+  it('targets the procurement item via entity + action_url (ID-145 BI-31 — form item route, never /bids/<uuid>)', () => {
     const soonDate = new Date();
     soonDate.setDate(soonDate.getDate() + 1);
     const bids = [
@@ -314,7 +314,8 @@ describe('produceProcurementDeadlineItems', () => {
     const items = produceProcurementDeadlineItems(bids);
     expect(items[0].entity_type).toBe('workspace');
     expect(items[0].entity_id).toBe('bid-abc-123');
-    expect(items[0].action_url).toBe('/bids/bid-abc-123');
+    expect(items[0].action_url).toBe('/procurement/bid-abc-123');
+    expect(items[0].action_url).not.toMatch(/^\/bids\//);
   });
 
   it('produces multiple items for multiple urgent bids', () => {

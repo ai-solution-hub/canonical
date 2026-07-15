@@ -17,6 +17,13 @@ interface DomainStats {
   win_rate: number;
   unique_items_cited: number;
   unique_procurements: number;
+  // ID-145 {145.20} BI-32 — shortlist pass-rate (stage='shortlist' forms;
+  // distinct from the final-award win-rate denominator). Already returned
+  // by GET /api/analytics/win-rate; this component previously discarded
+  // them (no renderer).
+  shortlist_total: number;
+  shortlist_passed: number;
+  shortlist_pass_rate: number;
 }
 
 interface OverallStats {
@@ -27,6 +34,10 @@ interface OverallStats {
   win_rate: number;
   unique_items_cited: number;
   unique_procurements: number;
+  // ID-145 {145.20} BI-32 — see DomainStats.
+  shortlist_total: number;
+  shortlist_passed: number;
+  shortlist_pass_rate: number;
 }
 
 interface AggregateWinRateData {
@@ -185,6 +196,13 @@ export function ContentPerformanceSection() {
     overall.winning_citations + overall.losing_citations > 0;
   const winRatePct = Math.round(overall.win_rate * 100);
 
+  // ID-145 {145.20} BI-32 — shortlist pass-rate. `shortlist_total === 0`
+  // means no shortlist-stage citations exist yet, distinct from a REAL 0%
+  // pass rate (shortlist_total > 0, shortlist_passed === 0) — the empty
+  // case renders the neutral placeholder, never a mislabelled "0%".
+  const hasShortlistData = (overall.shortlist_total ?? 0) > 0;
+  const shortlistPct = Math.round((overall.shortlist_pass_rate ?? 0) * 100);
+
   return (
     <section
       className="rounded-lg border bg-card p-4 shadow-sm"
@@ -199,7 +217,7 @@ export function ContentPerformanceSection() {
         <h3 className="mb-2 text-xs font-medium text-muted-foreground">
           Overall
         </h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-lg border p-3">
             <p
               className={`text-2xl font-bold ${getWinRateTextClass(overall.win_rate, hasDecidedOutcomes)}`}
@@ -207,6 +225,17 @@ export function ContentPerformanceSection() {
               {hasDecidedOutcomes ? `${winRatePct}%` : '---'}
             </p>
             <p className="text-xs text-muted-foreground">Win Rate</p>
+          </div>
+          {/* ID-145 {145.20} BI-32 — shortlist pass-rate tile. Honest empty
+              state ('—') when no shortlist-stage data exists yet, never a
+              mislabelled "0%". */}
+          <div className="rounded-lg border p-3">
+            <p
+              className={`text-2xl font-bold ${hasShortlistData ? getWinRateTextClass(overall.shortlist_pass_rate, true) : 'text-muted-foreground'}`}
+            >
+              {hasShortlistData ? `${shortlistPct}%` : '—'}
+            </p>
+            <p className="text-xs text-muted-foreground">Shortlist Pass Rate</p>
           </div>
           <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
@@ -240,6 +269,13 @@ export function ContentPerformanceSection() {
               const domainDecided =
                 domain.winning_citations + domain.losing_citations > 0;
               const domainPct = Math.round(domain.win_rate * 100);
+              // ID-145 {145.20} BI-32 — per-domain shortlist column. Honest
+              // empty indicator when this domain has no shortlist-stage
+              // citations yet.
+              const domainHasShortlistData = (domain.shortlist_total ?? 0) > 0;
+              const domainShortlistPct = Math.round(
+                (domain.shortlist_pass_rate ?? 0) * 100,
+              );
 
               return (
                 <div key={domain.domain} className="flex items-center gap-3">
@@ -269,6 +305,11 @@ export function ContentPerformanceSection() {
                   <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
                     {domain.total_citations} citation
                     {domain.total_citations !== 1 ? 's' : ''}
+                  </span>
+                  <span className="w-32 shrink-0 text-right text-xs text-muted-foreground">
+                    {domainHasShortlistData
+                      ? `Shortlist: ${domainShortlistPct}%`
+                      : 'Shortlist: —'}
                   </span>
                 </div>
               );

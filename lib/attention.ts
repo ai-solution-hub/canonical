@@ -294,8 +294,12 @@ export function produceProcurementDeadlineItems(
       ]
         .filter(Boolean)
         .join(' '),
-      action_url: `/bids/${bid.id}`,
-      action_label: 'View bid',
+      // ID-145 {145.20} BI-31: the item IS the form post-form-first
+      // re-architecture — link the "Needs Attention" deadline item at the
+      // form item route, never the retired /bids/<uuid> family (RESEARCH
+      // §4b defect 1 — 324 dead cards, 280 critical).
+      action_url: `/procurement/${bid.id}`,
+      action_label: 'View procurement',
       role_visibility: ['admin', 'editor', 'viewer'],
       claude_prompt: `Show me the status of the "${bid.name}" bid. What questions still need answering? Help me prioritise the remaining work.`,
       deadline: bid.deadline,

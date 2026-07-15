@@ -17,6 +17,11 @@ import {
 import { buildProcurementSummary } from '@/lib/activity/bid-summary';
 import { parseJsonb, FreshnessSummarySchema } from '@/lib/validation/jsonb';
 import { tryQuery } from '@/lib/supabase/safe';
+import {
+  isActive,
+  type ProcurementWorkflowState,
+} from '@/lib/domains/procurement/procurement-workflow';
+import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -233,6 +238,108 @@ export interface UnifiedDashboardData {
 }
 
 // ---------------------------------------------------------------------------
+// Active procurements — form_instances read (ID-145 {145.20} BI-30)
+// ---------------------------------------------------------------------------
+
+/** Columns read off `form_instances` for the dashboard active-items list (BI-30). */
+const ACTIVE_FORM_INSTANCE_COLUMNS =
+  'id, name, issuing_organisation, deadline, workflow_state';
+
+/**
+ * Fetch the dashboard's active-procurement list DIRECTLY off `form_instances`
+ * (ID-145 {145.20} BI-30) — the item IS the form post-form-first
+ * re-architecture, so this reads `workflow_state`/`deadline`/
+ * `issuing_organisation` straight off the form row. "Active" = non-terminal
+ * `workflow_state` (`isActive()` excludes won/lost/withdrawn — the single
+ * source is `PROCUREMENT_WORKFLOW_STATES`, BI-18); there is no
+ * `is_archived` concept on `form_instances`. Mirrors the form-scoped read
+ * already landed in `lib/mcp/tools/procurement.ts`'s `list_active_procurement`
+ * tool (ID-145 {145.21} DR-056 re-key) — that tool could not go through
+ * `fetchActiveProcurementWithStats` for the same reason this function exists
+ * independently of it: that helper stays workspace/`domain_metadata`-shaped
+ * for its other caller, `lib/reorient.ts`'s `forms_summary` (out of this
+ * Subtask's scope).
+ *
+ * On failure, logs and degrades to an empty list WITHOUT pushing onto the
+ * shared `fetchUnifiedDashboardData` `errors[]` array — `GET
+ * /api/dashboard` (app/api/dashboard/route.ts, outside this Subtask's file
+ * ownership) treats `errors.length >= 7` as an "every query failed"
+ * all-down signal; adding an 8th distinct failure string would silently
+ * shift that threshold's meaning. This mirrors the pre-existing silent-empty
+ * behaviour of `fetchActiveProcurementWithStats` for the same data lane, but
+ * adds actual logging (an improvement, not a regression).
+ */
+async function fetchActiveFormInstanceSummaries(
+  supabase: SupabaseClient<Database>,
+): Promise<ActiveProcurementSummary[]> {
+  const formsResult = await tryQuery(
+    supabase
+      .from('form_instances')
+      .select(ACTIVE_FORM_INSTANCE_COLUMNS)
+      .order('updated_at', { ascending: false }),
+    'dashboard.active_form_instances',
+  );
+
+  if (!formsResult.ok) {
+    logger.error(
+      { err: formsResult.error },
+      'dashboard: active_form_instances query failed — degrading to empty active_forms',
+    );
+    return [];
+  }
+
+  const activeForms = (formsResult.data ?? []).filter((form) =>
+    isActive((form.workflow_state as ProcurementWorkflowState) ?? 'draft'),
+  );
+
+  const formIds = activeForms.map((form) => form.id);
+  const statsMap = new Map<
+    string,
+    {
+      total_questions: number;
+      drafted_count: number;
+      complete_count: number;
+    }
+  >();
+  if (formIds.length > 0) {
+    const batchStats = await tryQuery(
+      supabase.rpc('get_form_question_stats_batch', {
+        p_project_ids: formIds,
+      }),
+      'dashboard.active_form_instances.question_stats',
+    );
+    if (batchStats.ok) {
+      for (const row of batchStats.data ?? []) {
+        statsMap.set(row.workspace_id, row);
+      }
+    } else {
+      logger.warn(
+        { err: batchStats.error },
+        'dashboard: active_form_instances question-stats batch failed — stats default to zero',
+      );
+    }
+  }
+
+  return activeForms.map((form) => {
+    const stats = statsMap.get(form.id);
+    const deadline = form.deadline ?? null;
+
+    return {
+      id: form.id,
+      name: form.name ?? 'Untitled Procurement',
+      buyer: form.issuing_organisation ?? null,
+      status: form.workflow_state ?? 'draft',
+      deadline,
+      days_until_deadline: getDaysUntilDeadline(deadline),
+      total_questions: stats?.total_questions ?? 0,
+      answered_questions:
+        (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+      approved_questions: stats?.complete_count ?? 0,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Unified fetch — all dashboard + reorient queries in a single pass.
 // Each query runs exactly ONCE.
 // ---------------------------------------------------------------------------
@@ -302,81 +409,88 @@ export async function fetchUnifiedDashboardData(
   // --- Phase 2: All queries in parallel (each runs exactly ONCE) ---
   // Attention counts (queries 0,1,2,3,4,10,12,13) consolidated into single RPC.
   // Remaining queries: activity feed, team changes, recent work, bid history, cert expiry.
-  const [results, activeProcurementsResult] = await Promise.all([
-    Promise.allSettled([
-      // 0: Attention counts (replaces queries 0,1,2,3,4,10,12,13)
-      // Note: quality_flag_count here filters archived_at IS NULL, which differs
-      // from get_review_breakdown_stats (no archived filter). This is intentional —
-      // see migration comment in 20260328234541_review_stats_rpc_functions.sql.
-      supabase.rpc('get_dashboard_attention_counts', {
-        p_user_id: userId,
-        p_role: effectiveRole,
-      }),
+  const [results, activeProcurementsResult, activeFormInstances] =
+    await Promise.all([
+      Promise.allSettled([
+        // 0: Attention counts (replaces queries 0,1,2,3,4,10,12,13)
+        // Note: quality_flag_count here filters archived_at IS NULL, which differs
+        // from get_review_breakdown_stats (no archived filter). This is intentional —
+        // see migration comment in 20260328234541_review_stats_rpc_functions.sql.
+        supabase.rpc('get_dashboard_attention_counts', {
+          p_user_id: userId,
+          p_role: effectiveRole,
+        }),
 
-      // 1: Recent activity. ID-131 {131.19}: get_grouped_activity_feed drops
-      // at M6 (IMS activity-feed feature, content_items-anchored) — the RPC
-      // call is removed and this leg is stubbed to an always-empty result so
-      // the module keeps compiling with the same `{data, error}` shape the
-      // extraction below expects. `recent_activity` is therefore always `[]`
-      // until a facet/typed-record-based activity feed replaces it (flagged
-      // for the Orchestrator/Curator — out of this Subtask's scope).
-      Promise.resolve({
-        data: [] as GroupedActivityRow[],
-        error: null as { message: string } | null,
-      }),
+        // 1: Recent activity. ID-131 {131.19}: get_grouped_activity_feed drops
+        // at M6 (IMS activity-feed feature, content_items-anchored) — the RPC
+        // call is removed and this leg is stubbed to an always-empty result so
+        // the module keeps compiling with the same `{data, error}` shape the
+        // extraction below expects. `recent_activity` is therefore always `[]`
+        // until a facet/typed-record-based activity feed replaces it (flagged
+        // for the Orchestrator/Curator — out of this Subtask's scope).
+        Promise.resolve({
+          data: [] as GroupedActivityRow[],
+          error: null as { message: string } | null,
+        }),
 
-      // 2: Procurement response changes by others (team changes)
-      supabase
-        .from('form_response_history')
-        .select(
-          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, workspaces!inner(name)))',
-        )
-        .gt('created_at', sinceDate)
-        .neq('edited_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(20),
+        // 2: Procurement response changes by others (team changes)
+        supabase
+          .from('form_response_history')
+          .select(
+            'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, workspaces!inner(name)))',
+          )
+          .gt('created_at', sinceDate)
+          .neq('edited_by', userId)
+          .order('created_at', { ascending: false })
+          .limit(20),
 
-      // 3: User's own bid response edits (recent work)
-      supabase
-        .from('form_response_history')
-        .select(
-          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
-        )
-        .eq('edited_by', userId)
-        .order('created_at', { ascending: false })
-        .limit(5),
+        // 3: User's own bid response edits (recent work)
+        supabase
+          .from('form_response_history')
+          .select(
+            'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
+          )
+          .eq('edited_by', userId)
+          .order('created_at', { ascending: false })
+          .limit(5),
 
-      // 4: Certification expiry — entity_mentions with certification metadata
-      // containing expiry_date within 90 days. Uses certRelData from Phase 1.
-      certRelData && certRelData.length > 0
-        ? supabase
-            .from('entity_mentions')
-            .select('canonical_name, metadata')
-            .in(
-              'canonical_name',
-              certRelData.map((r) => r.target_entity),
-            )
-            .or(
-              'entity_type.eq.certification,entity_type_override.eq.certification',
-            )
-        : Promise.resolve({ data: [], error: null }),
+        // 4: Certification expiry — entity_mentions with certification metadata
+        // containing expiry_date within 90 days. Uses certRelData from Phase 1.
+        certRelData && certRelData.length > 0
+          ? supabase
+              .from('entity_mentions')
+              .select('canonical_name, metadata')
+              .in(
+                'canonical_name',
+                certRelData.map((r) => r.target_entity),
+              )
+              .or(
+                'entity_type.eq.certification,entity_type_override.eq.certification',
+              )
+          : Promise.resolve({ data: [], error: null }),
 
-      // 5: Taxonomy-coverage gap (ID-63.12) — count of non-archived
-      // source_documents that landed on the 'unclassified' sentinel
-      // established by {63.11} (primary_domain='unclassified' OR
-      // primary_subtopic='unclassified'). ID-131 {131.19}: content_items is
-      // dying — primary_domain/primary_subtopic/archived_at live on
-      // source_documents (M3). head:true + count:'exact' avoids transferring
-      // rows. Mirrors the Inv-7 taxonomy-miss concept that the {63.8}
-      // flow-end webhook emits as its taxonomy-miss counter.
-      supabase
-        .from('source_documents')
-        .select('id', { count: 'exact', head: true })
-        .is('archived_at', null)
-        .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
-    ]),
-    fetchActiveProcurementWithStats(supabase),
-  ]);
+        // 5: Taxonomy-coverage gap (ID-63.12) — count of non-archived
+        // source_documents that landed on the 'unclassified' sentinel
+        // established by {63.11} (primary_domain='unclassified' OR
+        // primary_subtopic='unclassified'). ID-131 {131.19}: content_items is
+        // dying — primary_domain/primary_subtopic/archived_at live on
+        // source_documents (M3). head:true + count:'exact' avoids transferring
+        // rows. Mirrors the Inv-7 taxonomy-miss concept that the {63.8}
+        // flow-end webhook emits as its taxonomy-miss counter.
+        supabase
+          .from('source_documents')
+          .select('id', { count: 'exact', head: true })
+          .is('archived_at', null)
+          .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
+      ]),
+      // Kept UNCHANGED — still workspace/`domain_metadata`-shaped — for the
+      // `forms_summary` reorient derivation below (out of {145.20}'s
+      // BI-30..33 scope; see fetchActiveFormInstanceSummaries's doc comment).
+      fetchActiveProcurementWithStats(supabase),
+      // ID-145 {145.20} BI-30: the dashboard's own active-items list reads
+      // form_instances directly.
+      fetchActiveFormInstanceSummaries(supabase),
+    ]);
 
   // --- Extract attention counts from RPC (query 0) ---
   let governance_review_count = 0;
@@ -486,29 +600,16 @@ export async function fetchUnifiedDashboardData(
   );
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
-  // --- Build active procurements (from shared helper — single query) ---
+  // --- Build active procurements — ID-145 {145.20} BI-30 ---
+  // Sourced directly from `activeFormInstances` (form_instances,
+  // non-terminal workflow_state) — NOT from the shared
+  // `fetchActiveProcurementWithStats` workspace/`domain_metadata` helper.
+  // `procurementWorkspaces`/`statsMap` below are kept ONLY for the
+  // `forms_summary` reorient derivation, which stays on the pre-{145.20}
+  // shape (out of this Subtask's scope).
   const { workspaces: procurementWorkspaces, statsMap } =
     activeProcurementsResult;
-  const active_forms: ActiveProcurementSummary[] = procurementWorkspaces.map(
-    (workspace) => {
-      const meta = workspace.domain_metadata as Record<string, unknown> | null;
-      const stats = statsMap.get(workspace.id);
-      const deadline = (meta?.deadline as string) ?? null;
-
-      return {
-        id: workspace.id,
-        name: workspace.name ?? 'Untitled Procurement',
-        buyer: (meta?.buyer as string) ?? null,
-        status: (meta?.status as string) ?? 'draft',
-        deadline,
-        days_until_deadline: getDaysUntilDeadline(deadline),
-        total_questions: stats?.total_questions ?? 0,
-        answered_questions:
-          (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
-        approved_questions: stats?.complete_count ?? 0,
-      };
-    },
-  );
+  const active_forms: ActiveProcurementSummary[] = [...activeFormInstances];
 
   // Sort by deadline urgency (most urgent first)
   active_forms.sort((a, b) => {

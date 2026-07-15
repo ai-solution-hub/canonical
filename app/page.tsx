@@ -243,7 +243,7 @@ async function DashboardContent() {
         />
       </div>
 
-      {/* Two-column layout: Unified Attention + Active Bids */}
+      {/* Two-column layout: Unified Attention + Active Procurements */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
         <UnifiedAttentionSection
           items={allItems}
