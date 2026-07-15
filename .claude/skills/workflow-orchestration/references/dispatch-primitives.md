@@ -122,6 +122,29 @@ every worker / sub-orchestrator dispatch brief:
   discipline — no PreToolUse guard or harness limit blocks an oversized result.
   Bounding the output is your responsibility on every call."
 
+### Grounding-block convention lines (carry into EVERY brief)
+
+The grounding block (canonical semantics: `.claude/agents/references/shared-discipline.md`
+§Grounding block) is the THREE-part standing content every Planner / Executor / Checker /
+Curator dispatch brief MUST carry — S462 is the control case: an embedded grounding block
+kept stale framings out of findings. Include these lines verbatim in every dispatch brief:
+
+- **Part 1 (active-task recall seeds):** "Recall seeds: `<active task id(s)/title>`, `<any
+  DR-NNN / symbol this brief cites>`. Run recall (mempalace search, or the lock-free FTS
+  fallback on MCP refusal) seeded with these terms BEFORE presenting any conclusion, spec,
+  ratification, or verdict — not only at session start."
+- **Part 2 (DR-002 restated + DR-070 live-status verify):** "DR-002 (in-force): done-task
+  `details`/journals are a don't-re-flag signal ONLY, never current truth. Before citing any
+  `id-N` / `DR-NNN` / `{N.M}` in your conclusion, verify its LIVE status —
+  `bun scripts/ledger-cli.ts get task <id> status` (DR-070)."
+- **Part 3 (symbol-orientation rule):** "Orient on the actual symbols/files your own
+  invariants/claims cite, not just the feature vocabulary, before writing the
+  spec/verdict/finding."
+
+Full recall protocol (decision-point triggers, the `-32002`→lock-free-FTS fallthrough
+recipe): the `recall-grounding` skill. Do not inline the recall SQL here — see
+`start-session` §2a for the proven fenced-bash pattern.
+
 ### Curator-brief composition
 
 When dispatching the `workflow-curator`, the Orchestrator MUST supply a
