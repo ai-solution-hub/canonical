@@ -727,17 +727,24 @@ class TestMemoisationProxy:
         self,
     ) -> None:
         """{132.38} G-MEMO-DELTA, DR-060 (S469 owner ratification): the
-        decorator is EXACTLY `@coco.fn(memo=True, memo_key={'source': None})`
-        — `source` excluded (MD-2), NO `deps=` kwarg. OQ-MD-1 ratified AWAY
+        decorator is EXACTLY
+        `@coco.fn(memo=True, memo_key={'source': None}, version=1)` —
+        `source` excluded (MD-2), NO `deps=` kwarg. OQ-MD-1 ratified AWAY
         from the `deps={...}` drafting-config auto-invalidation design
         MEMO-DELTA.md's body text proposed: a prompt/model/max_tokens change
         is a MANUAL `@coco.fn(..., version=N)` bump recorded in the bundle's
         OKF `log.md` (`bundle_writer.append_log_entry`), never an
-        engine-level fingerprint input. This exact-equality assertion is
-        also the empirical proof there is no stray `deps=` kwarg."""
+        engine-level fingerprint input. `version=1` (S481) is that lever
+        exercised for real, bumped ahead of the {132.35} GLM-5.2 Run-1
+        re-proof because {132.41}/{132.42} changed both
+        `PASS1_INSTRUCTION_PROMPT` (3 routing-hint keys) and the emitted
+        frontmatter shape (`confidence` + hints) — see the module docstring's
+        "S481, this bump" note. This exact-equality assertion is also the
+        empirical proof there is no stray `deps=` kwarg."""
         assert enrich.enrich_concept.__coco_fn_kwargs__ == {
             "memo": True,
             "memo_key": {"source": None},
+            "version": 1,
         }
 
     def test_concept_key_is_frozen_and_equal_by_value(self) -> None:

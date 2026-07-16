@@ -93,6 +93,15 @@ version=N)` kwarg by hand and record the reason in the bundle's OKF §7
 NO `deps=` kwarg — data-change staleness stays fully covered by
 `content_version` (MD-3/6/7) regardless.
 
+**`version=1` (S481, this bump — the lever exercised for the first time).**
+`{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
+(`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config
+change) AND grew the emitted frontmatter to carry `confidence` (+hints when
+supplied — an output-shape change). Per the manual-bump contract above, this
+is bumped BEFORE the next deployed producer run (the `{132.35}` GLM-5.2
+Run-1 BI-18 re-proof) so the corpus is treated as invalidated ahead of that
+run, with the reason recorded in the bundle's `log.md` at that run.
+
 **The effective ontology is excluded from the Pass-1 fingerprint (MD-9,
 DR-054/DR-027).** `EffectiveOntology` governs the concept-**write** gate
 ({132.34}/{132.35}), not this draft — zero ontology imports exist in this
@@ -632,7 +641,7 @@ def _seed_user_message(key: ConceptKey) -> str:
 # ── enrich_concept ───────────────────────────────────────────────────────
 
 
-@coco.fn(memo=True, memo_key={"source": None})
+@coco.fn(memo=True, memo_key={"source": None}, version=1)
 async def enrich_concept(
     key: ConceptKey,
     source: Source,
@@ -649,13 +658,20 @@ async def enrich_concept(
     Pass-1 makes zero web calls (BI-15). The terminal response is parsed per
     the S451 rider's terminal-TEXT contract (fold-in 1: a JSON envelope in
     the final text turn, never a tool call; fold-in 3: all terminal
-    TextBlocks concatenated). `@coco.fn(memo=True, memo_key={'source': None})`
-    on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060): `source` is
-    excluded via `memo_key` (MD-2) so the unpickleable `LRecordsSource` never
-    reaches the fingerprint; `key.content_version` (MD-3) is the BI-18 delta
-    signal — see the module docstring for the full mechanism, and note a
-    drafting-config change (prompt/model/max_tokens) is a MANUAL `version=`
-    bump recorded in the bundle's `log.md`, never an auto `deps=` invalidation.
+    TextBlocks concatenated). `@coco.fn(memo=True, memo_key={'source': None},
+    version=1)` on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060):
+    `source` is excluded via `memo_key` (MD-2) so the unpickleable
+    `LRecordsSource` never reaches the fingerprint; `key.content_version`
+    (MD-3) is the BI-18 delta signal — see the module docstring for the full
+    mechanism, and note a drafting-config change (prompt/model/max_tokens) is
+    a MANUAL `version=` bump recorded in the bundle's `log.md`, never an auto
+    `deps=` invalidation. `version=1` (S481, this bump) is DR-060's contract
+    exercised for real: {132.41}/{132.42} added 3 optional routing-hint keys
+    to `PASS1_INSTRUCTION_PROMPT` and grew the emitted frontmatter to carry
+    `confidence` (+hints when supplied) — both a drafting-config change and
+    an output-shape change, so the corpus must be treated as invalidated
+    ahead of the {132.35} GLM-5.2 Run-1 re-proof (a bundle `log.md` entry is
+    recorded at that producer run per the DR-060 contract).
     """
     catalogue = await source.list_concepts()
     own_raw = await source.read_concept(key)
