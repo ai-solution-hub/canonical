@@ -20,7 +20,7 @@
  * (§I3 "external links hardened + full URL shown").
  */
 import { useMemo } from 'react';
-import { Streamdown, type Components } from 'streamdown';
+import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import {
   normaliseInternalMdLinksForStreamdown,
   INTERNAL_LINK_MARKER,
@@ -82,7 +82,14 @@ function getTextContent(children: React.ReactNode): string {
  */
 function createContentComponents(idCounts: Map<string, number>): Components {
   function makeHeading(Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') {
-    return function HeadingWithId(props: React.ComponentProps<typeof Tag>) {
+    // `& ExtraProps` (Streamdown's `{ node?: hast.Element }`) is required for
+    // this to satisfy `Components[Tag]` — Streamdown's mapped-type entry for
+    // each heading tag intersects the intrinsic element props with
+    // `ExtraProps`, and the object literal below is checked against both that
+    // entry and `Components`' string index signature.
+    return function HeadingWithId(
+      props: React.ComponentProps<typeof Tag> & ExtraProps,
+    ) {
       const { children, ...rest } = props;
       const text = getTextContent(children);
       const baseId = slugify(text);
