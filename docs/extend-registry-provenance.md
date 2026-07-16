@@ -46,16 +46,24 @@ dependency declarations against the live registry endpoint's served content).
 - **Icons — Hugeicons → lucide in shared chrome (§J1).** The 7 shared primitives we
   already own (`button`, `input`, `popover`, `select`, `separator`, `tooltip`,
   `lib/utils`) are **never overwritten** by the vendor-in, so shared chrome never
-  carries a Hugeicons import — it stays exactly as it was, lucide-only. The three
-  newly-vendored `components/ui/*` primitives (`scroll-area`, `spinner`, `toggle`)
-  are also Hugeicons-free (the live registry serves a Radix-based, lucide-icon
-  variant of these three items to a consumer whose `components.json` already
-  declares `iconLibrary: "lucide"`). Two viewer-internal single-icon usages were
-  additionally swapped by hand as a cheap, low-risk improvement: `resizable.tsx`'s
-  drag handle (`DragDropVerticalIcon` → lucide `GripVertical`). Everything else
-  vendored (the PDF/DOCX/XLSX/CSV viewers, citations panel, upload surface, editor
-  shells) is a **self-contained document viewer** per §J2 and retains its Hugeicons
-  internals as-is — copy-in fidelity, not a re-theme.
+  carries a Hugeicons import — it stays exactly as it was, lucide-only.
+  `scroll-area` and `toggle` are Hugeicons-free trivially — neither primitive
+  renders an icon internally, so there was nothing to swap; separately, both are
+  Radix reimplementations of the upstream Base-UI components (see "Primitive
+  extension" below), not registry-served Radix source with icons stripped out.
+  `spinner` is the one primitive of the three that does carry an icon: the live
+  registry endpoint (`https://ui.extend.ai/r/spinner.json`, upstream
+  `apps/v4/registry/.../ui/spinner.tsx`) serves a Hugeicons-based source
+  (`Loading03Icon` via `HugeiconsIcon`) **unconditionally** — it does not vary by
+  the consuming project's `components.json` `iconLibrary` declaration. Our
+  vendored `components/ui/spinner.tsx` swaps that for lucide's `Loader2Icon` by
+  hand — a manual, one-file substitution performed during vendor-in, not
+  automatic consumer-aware registry behaviour. Two viewer-internal single-icon
+  usages were additionally swapped by hand as a cheap, low-risk improvement:
+  `resizable.tsx`'s drag handle (`DragDropVerticalIcon` → lucide `GripVertical`).
+  Everything else vendored (the PDF/DOCX/XLSX/CSV viewers, citations panel,
+  upload surface, editor shells) is a **self-contained document viewer** per §J2
+  and retains its Hugeicons internals as-is — copy-in fidelity, not a re-theme.
 - **Primitives — re-wire shared chrome to `components/ui` (Radix-shadcn) (§J2).**
   Every vendored file's `@/components/ui/button|input|popover|select|separator|
   tooltip|card|dialog|dropdown-menu|badge|tabs` imports are **untouched** — they
@@ -104,16 +112,27 @@ dependency declarations against the live registry endpoint's served content).
      existing `default`/`destructive`/`outline`/`secondary` variants in
      `docx-annotation-card.tsx` (no new Badge variant or CSS token added — out of
      this Subtask's file ownership).
-  2. **Primitive extension** (one case): `components/ui/scroll-area.tsx`'s
-     `ScrollArea` — introduced fresh by this vendor-in, not a pre-existing
-     app-wide primitive with other consumers — gained `orientation`
-     ('vertical'/'horizontal'/'both'), `viewportClassName`, `viewportProps`
-     (spread onto the Radix `Viewport`), and `viewportRef` (forwarded to the
-     `Viewport` DOM node) to preserve the vendored viewers' keyboard-accessible
-     listbox navigation and programmatic-scroll behaviour — genuinely functional,
-     not cosmetic, so implemented rather than stripped. `scrollFade`,
-     `scrollbarGutter`, and `scrollbarOverflowOnly` are accepted (typed) but
-     currently no-op cosmetic affordances, consistent with install-as-is theming.
+  2. **Primitive extension** (two primitives, one with added props):
+     `components/ui/scroll-area.tsx`'s `ScrollArea` and
+     `components/ui/toggle.tsx`'s `Toggle` are not literal
+     vendored-then-extended copies of an already-Radix upstream. Upstream
+     `apps/v4/registry/.../ui/scroll-area.tsx` and `ui/toggle.tsx` are built on
+     `@base-ui/react` (Base-UI); our vendored versions import from `'radix-ui'`
+     instead — a deliberate underlying-primitive-library swap (Base-UI → Radix)
+     for consistency with every other primitive already in `components/ui/`.
+     `Toggle` is a straight reimplementation matching Base-UI's `Toggle` prop
+     surface/behaviour, no extra props needed. `ScrollArea` — introduced fresh
+     by this vendor-in, not a pre-existing app-wide primitive with other
+     consumers — additionally gained `orientation` ('vertical'/'horizontal'/
+     'both'), `viewportClassName`, `viewportProps` (spread onto the Radix
+     `Viewport`), and `viewportRef` (forwarded to the `Viewport` DOM node),
+     reimplemented on top of Radix's `Viewport` to match the upstream Base-UI
+     `ScrollArea`'s prop surface and preserve the vendored viewers'
+     keyboard-accessible listbox navigation and programmatic-scroll behaviour —
+     genuinely functional, not cosmetic, so implemented rather than stripped.
+     `scrollFade`, `scrollbarGutter`, and `scrollbarOverflowOnly` are accepted
+     (typed) but currently no-op cosmetic affordances, consistent with
+     install-as-is theming.
 - **File System / Finder is NOT installed** (DR-068) — no `file-system` /
   `@extend/file-system` registry item was added; `rg -i "file-system"` over
   `components/procurement/extend/` returns no vendored Finder source.
