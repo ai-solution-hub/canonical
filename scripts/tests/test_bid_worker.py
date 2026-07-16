@@ -466,6 +466,65 @@ class TestFillTemplateJob:
 
         mock_sb.storage.from_.return_value.download.assert_not_called()
 
+    def test_missing_form_instances_row_marks_fill_failed_never_stuck_at_filling(self):
+        """ID-145 {145.33}: the setup phase (form lookup, mime resolution,
+        completion lookup, base-template download) used to sit OUTSIDE the
+        try/except that sets fill_failed — a missing form_instances row
+        propagated uncaught and left the form stuck at 'filling' forever.
+        A setup-phase lookup failure must now also mark fill_failed."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        (
+            mock_sb.from_.return_value.select.return_value
+            .eq.return_value.single.return_value.execute
+        ).side_effect = Exception("PGRST116: 0 rows returned")
+
+        with pytest.raises(Exception, match="PGRST116"):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Text", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "fill_failed"}
+        )
+
+    def test_base_template_download_failure_marks_fill_failed_never_stuck_at_filling(
+        self,
+    ):
+        """Same setup-phase gap (ID-145 {145.33}), different failure point:
+        a storage error downloading the base/source template must also
+        transition the form to fill_failed, not propagate uncaught."""
+        from bid_worker import fill_template_job
+
+        mock_sb = _make_mock_supabase()
+        self._wire_no_prior_filled_fields(mock_sb)
+        self._wire_form(mock_sb, "form-1", "form-1/document.docx", _DOCX_MIME)
+        self._wire_no_prior_completion(mock_sb)
+        mock_sb.storage.from_.return_value.download.side_effect = Exception(
+            "storage: object not found"
+        )
+
+        with pytest.raises(Exception, match="object not found"):
+            fill_template_job(mock_sb, {
+                "form_id": "form-1",
+                "field_mappings": [
+                    {"field_id": "f1", "table_index": 0, "row_index": 0,
+                     "response_text": "Text", "word_limit": None},
+                ],
+                "user_id": "user-1",
+            })
+
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "fill_failed"}
+        )
+
 
 # ── analyse_form (ID-145 {145.13}, BI-20) ────────────────────────────────────
 
@@ -1041,3 +1100,58 @@ class TestAnalyseFormJob:
             )
 
         mock_sb.storage.from_.return_value.download.assert_not_called()
+
+    def test_missing_form_instances_row_marks_analysis_failed_never_stuck_at_analysing(
+        self,
+    ):
+        """ID-145 {145.33}: the analyse lane has the IDENTICAL setup-phase
+        gap as the fill lane — form lookup, mime resolution, and source
+        download sit OUTSIDE the try/except that sets analysis_failed. A
+        missing form_instances row must now also mark analysis_failed
+        rather than leaving the form stuck at 'analysing' forever."""
+        from bid_worker import analyse_form_job
+
+        mock_sb = _make_mock_supabase()
+        (
+            mock_sb.from_.return_value.select.return_value
+            .eq.return_value.single.return_value.execute
+        ).side_effect = Exception("PGRST116: 0 rows returned")
+
+        with pytest.raises(Exception, match="PGRST116"):
+            analyse_form_job(
+                mock_sb, {"body": {"form_id": "form-1"}, "auth_context": {}}
+            )
+
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "analysis_failed"}
+        )
+
+    def test_source_download_failure_marks_analysis_failed_never_stuck_at_analysing(
+        self,
+    ):
+        """Same setup-phase gap (ID-145 {145.33}), different failure point:
+        a storage error downloading the source artefact must also
+        transition the form to analysis_failed, not propagate uncaught."""
+        from bid_worker import analyse_form_job
+
+        mock_sb = _make_mock_supabase()
+        _mock_table_select_single(
+            mock_sb,
+            {
+                "id": "form-1",
+                "storage_path": "form-1/document.docx",
+                "mime_type": _DOCX_MIME,
+            },
+        )
+        mock_sb.storage.from_.return_value.download.side_effect = Exception(
+            "storage: object not found"
+        )
+
+        with pytest.raises(Exception, match="object not found"):
+            analyse_form_job(
+                mock_sb, {"body": {"form_id": "form-1"}, "auth_context": {}}
+            )
+
+        mock_sb.from_.return_value.update.assert_any_call(
+            {"processing_status": "analysis_failed"}
+        )
