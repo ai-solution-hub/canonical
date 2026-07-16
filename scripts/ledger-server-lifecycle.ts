@@ -35,6 +35,7 @@ import {
   unlinkSync,
   mkdirSync,
   renameSync,
+  rmSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
@@ -88,6 +89,16 @@ export interface EnsureServerResult {
   version: string;
   /** True if an existing server was reused (not spawned). */
   reused: boolean;
+  /**
+   * True for a non-default `--ledger-dir` spawn (ID-156.9): a single-
+   * invocation server the CALLER must kill once its mutation completes (see
+   * `stopEphemeralServer`) — it is never reused across invocations and, pre-
+   * fix, was never killed on the success path (only on spawn-failure),
+   * leaking one orphaned daemon per ephemeral invocation. False for the
+   * persistent (isDefault) daemon, which legitimately outlives any single
+   * mutation.
+   */
+  ephemeral: boolean;
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -134,6 +145,20 @@ const HANDLE_FILENAME = 'handle.json';
 const SPAWN_TAG_FILENAME = 'spawn-tag.json';
 const DEFAULT_DEADLINE_MS = 10_000;
 const IDLE_EXIT_MINUTES = 30;
+/**
+ * ID-156.9 unit-bug fix: the persistent daemon's `--idle-exit 30` above was
+ * ALWAYS minutes (task-view's `--idle-exit <mins>` contract, pre-v0.12.1) —
+ * fine for a long-lived reused daemon. The EPHEMERAL per-invocation server
+ * shares `spawnAndWait` and was getting the SAME 30-MINUTE TTL under a
+ * 30-SECOND belief (the root cause of the S477 orphan-storm: thousands of
+ * never-killed-on-success ephemeral daemons each idling for half an hour).
+ * `30s` uses the new v0.12.1-task-view `Ns`/`Nm` suffix (parseIdleExitMs) —
+ * REQUIRES the spawned server binary to be at least v0.12.1-task-view (the
+ * bare-number-only v0.11.0 parser usage-errors on a suffixed value). Paired
+ * with kill-on-success (`stopEphemeralServer`) this is a backstop TTL, not
+ * the primary cleanup mechanism.
+ */
+const EPHEMERAL_IDLE_EXIT = '30s';
 const HEALTH_ENDPOINT = '/api/health';
 const POLL_INTERVAL_MS = 100;
 
@@ -387,9 +412,28 @@ interface SpawnArgs {
   /** When set (persistent daemon only), the spawn-tag sidecar to write on a
    *  successful spawn. Omitted for ephemeral servers (they never reuse). */
   sidecarPath?: string;
+  /** `--idle-exit` value (task-view v0.12.1 `Ns`/`Nm` suffix syntax, or a
+   *  bare number for the legacy minutes-only back-compat parse). Persistent
+   *  and ephemeral spawns pass DIFFERENT values — see `IDLE_EXIT_MINUTES` /
+   *  `EPHEMERAL_IDLE_EXIT`. */
+  idleExit: string;
+  /**
+   * ID-156.9 upstream contract: when set, passed through as `--parent-pid
+   * <parentPid>` so task-view's ParentDeathMonitor reaps this child if the
+   * named parent process dies without a clean shutdown (belt-and-braces
+   * behind `stopEphemeralServer`'s explicit kill-on-success). EPHEMERAL
+   * spawns ONLY — the persistent daemon must NEVER receive this flag: it
+   * shares the same immediate OS parent (the short-lived ledger-cli
+   * process) as every ephemeral spawn, so arming it there would kill the
+   * legitimate long-lived daemon the moment any ONE invoking CLI process
+   * exits (S477-ratified opt-in design, see EPHEMERAL_IDLE_EXIT doc).
+   */
+  parentPid?: number;
 }
 
-async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
+async function spawnAndWait(
+  args: SpawnArgs,
+): Promise<Omit<EnsureServerResult, 'ephemeral'>> {
   const {
     repoRoot,
     tag,
@@ -398,6 +442,8 @@ async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
     seam,
     deadlineMs,
     sidecarPath,
+    idleExit,
+    parentPid,
   } = args;
 
   const serverEntry = resolve(
@@ -415,8 +461,11 @@ async function spawnAndWait(args: SpawnArgs): Promise<EnsureServerResult> {
     '--port-file',
     portFilePath,
     '--idle-exit',
-    String(IDLE_EXIT_MINUTES),
+    idleExit,
   ];
+  if (parentPid !== undefined) {
+    spawnArgs.push('--parent-pid', String(parentPid));
+  }
   // inv 34: CI adds --require-denylist.
   if (process.env.CI) {
     spawnArgs.push('--require-denylist');
@@ -547,6 +596,7 @@ export async function ensureServer(
           pid: existing.pid,
           version: tag,
           reused: true,
+          ephemeral: false,
         };
       }
       // Dead, or the spawn-tag sidecar is missing / from a different tag — the
@@ -556,7 +606,7 @@ export async function ensureServer(
       removeSpawnTag(sPath);
     }
 
-    return spawnAndWait({
+    const spawned = await spawnAndWait({
       repoRoot,
       tag,
       ledgerDir,
@@ -564,7 +614,12 @@ export async function ensureServer(
       seam,
       deadlineMs,
       sidecarPath: sPath,
+      // Persistent daemon: NEVER --parent-pid (see SpawnArgs.parentPid doc —
+      // it shares an OS parent with every ephemeral spawn, so arming it here
+      // would kill the long-lived daemon on the next CLI process exit).
+      idleExit: String(IDLE_EXIT_MINUTES),
     });
+    return { ...spawned, ephemeral: false };
   }
 
   // ── non-default ledger dir: ephemeral per-invocation server ────────────
@@ -575,12 +630,87 @@ export async function ensureServer(
   const tmpDir = mkdtempSync(join(tmpdir(), 'ledger-ephemeral-'));
   const ephemeralHandle = join(tmpDir, HANDLE_FILENAME);
 
-  return spawnAndWait({
+  const spawned = await spawnAndWait({
     repoRoot,
     tag,
     ledgerDir,
     portFilePath: ephemeralHandle,
     seam,
     deadlineMs,
+    idleExit: EPHEMERAL_IDLE_EXIT,
+    // ID-156.9 upstream contract: ephemeral spawns opt IN to parent-death
+    // reaping, keyed to THIS process (the invoking ledger-cli process) — a
+    // belt-and-braces backstop behind stopEphemeralServer's explicit
+    // kill-on-success, in case this process dies before its finally-block
+    // runs (e.g. an uncaught throw, a test-runner SIGKILL).
+    parentPid: process.pid,
   });
+  // ID-156.9 test reaper: track this process's own ephemeral spawns so
+  // __tests__/setup.ts's afterAll can sweep exactly what THIS run created —
+  // never a parallel session's legitimate server (see
+  // reapEphemeralServersForTest doc). stopEphemeralServer removes the entry
+  // again on the normal kill-on-success path.
+  ephemeralSpawnsThisProcess.push({ tmpDir, pid: spawned.pid });
+  return { ...spawned, ephemeral: true };
+}
+
+// ── ID-156.9: ephemeral kill-on-success + test-reaper backstop ─────────────
+
+/** This process's own ephemeral spawns not yet reaped by `stopEphemeralServer`
+ *  — see `ensureServer`'s non-default branch and `reapEphemeralServersForTest`. */
+const ephemeralSpawnsThisProcess: { tmpDir: string; pid: number }[] = [];
+
+/**
+ * Kill an ephemeral ledger server once its single mutation completes
+ * (ID-156.9 ranked fix #1 — the pre-fix lifecycle only ever killed on
+ * spawn-FAILURE, never on success, leaking one orphaned daemon per ephemeral
+ * invocation). No-ops for a persistent (isDefault) `result` — it must
+ * outlive any single mutation. Safe to call more than once (killProcess
+ * swallows ESRCH); removes the tmp handle dir + this process's reap-registry
+ * entry so `reapEphemeralServersForTest` does not try again.
+ */
+export function stopEphemeralServer(
+  result: EnsureServerResult,
+  seam?: SpawnSeam,
+): void {
+  if (!result.ephemeral) return;
+  killProcess(result.pid, seam);
+  const idx = ephemeralSpawnsThisProcess.findIndex((e) => e.pid === result.pid);
+  if (idx !== -1) {
+    const [entry] = ephemeralSpawnsThisProcess.splice(idx, 1);
+    try {
+      rmSync(entry.tmpDir, { recursive: true, force: true });
+    } catch {
+      // Already gone — fine.
+    }
+  }
+}
+
+/**
+ * Test-reaper backstop (ID-156.9 testStrategy: a full `__tests__/scripts/`
+ * run must leave ZERO live ephemeral servers). Kills + cleans up every
+ * ephemeral spawn THIS PROCESS created that `stopEphemeralServer` has not
+ * already reaped (e.g. a test that asserted on a thrown mutation and never
+ * reached its `finally`). Scoped to the in-memory registry this process
+ * populated — never touches a parallel session's ephemeral servers, which
+ * live in their own process's registry. Wired into a top-level `afterAll` in
+ * `__tests__/setup.ts` (loaded fresh per test file under Vitest's default
+ * `pool: 'forks'` isolation, so the registry it reaps is exactly this file's
+ * own spawns). Returns the count reaped, for test assertions.
+ */
+export function reapEphemeralServersForTest(seam?: SpawnSeam): {
+  reaped: number;
+} {
+  let reaped = 0;
+  while (ephemeralSpawnsThisProcess.length > 0) {
+    const entry = ephemeralSpawnsThisProcess.pop()!;
+    killProcess(entry.pid, seam);
+    reaped++;
+    try {
+      rmSync(entry.tmpDir, { recursive: true, force: true });
+    } catch {
+      // Already gone — fine.
+    }
+  }
+  return { reaped };
 }

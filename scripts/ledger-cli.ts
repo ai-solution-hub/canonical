@@ -128,6 +128,7 @@ import {
 import {
   ensureServer,
   resolveDefaultLedgerDir,
+  stopEphemeralServer,
 } from '@/scripts/ledger-server-lifecycle';
 import { SubtaskSchema, TaskSchema } from '@/lib/validation/task-list-schema';
 // ID-148.12: `RoadmapThemeSchema` import DROPPED — the 'theme' SchemaRecordKind
@@ -2032,6 +2033,16 @@ async function buildTransportRequest(
  * transportCommit (K2) via ensureServer (K3). Since the R1b cutover this is
  * the ONLY write path — the in-process direct-write path it once sat beside
  * was removed (server owns serialisation, gates and mirror regen).
+ *
+ * ID-156.9 kill-on-success: `ensureServer` returns `ephemeral: true` for
+ * every non-default `--ledger-dir` (tests, K5 parity harness) — a single-
+ * invocation server that must NOT survive past this one mutation (pre-fix it
+ * was only ever killed on spawn-FAILURE, leaking one orphaned daemon per
+ * invocation — the S477 orphan-storm root cause). `server` is reassigned
+ * (not `const`) because the connection-refused respawn callback below can
+ * replace it with a freshly-spawned instance mid-flight; the `finally` below
+ * always kills whichever instance is CURRENTLY tracked. `stopEphemeralServer`
+ * no-ops for the persistent (isDefault) `ephemeral: false` case.
  */
 async function serverCommitMutation(
   opts: CommitMutationOptions,
@@ -2039,7 +2050,7 @@ async function serverCommitMutation(
   const intent = opts.serverIntent!;
   const ledgerDir = resolve(opts.path, '..');
 
-  const server = await ensureServer({ ledgerDir });
+  let server = await ensureServer({ ledgerDir });
   const baseUrl = `http://127.0.0.1:${server.port}`;
 
   // T-3 flag mapping: CLI flags → per-request body fields.
@@ -2069,15 +2080,19 @@ async function serverCommitMutation(
     ? { dryRun: true, ...(opts.resultPayload as object) }
     : opts.resultPayload;
 
-  return transportCommit({
-    deriveRequest: () => buildTransportRequest(baseUrl, intent, opts.path),
-    subcommand: opts.subcommand,
-    resultPayload,
-    options: transportOpts,
-    ensureServer: async () => {
-      await ensureServer({ ledgerDir });
-    },
-  });
+  try {
+    return await transportCommit({
+      deriveRequest: () => buildTransportRequest(baseUrl, intent, opts.path),
+      subcommand: opts.subcommand,
+      resultPayload,
+      options: transportOpts,
+      ensureServer: async () => {
+        server = await ensureServer({ ledgerDir });
+      },
+    });
+  } finally {
+    stopEphemeralServer(server);
+  }
 }
 
 // ── subcommand handlers ───────────────────────────────────────────────────────

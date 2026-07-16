@@ -21,13 +21,17 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type Server } from 'node:http';
+import { spawn as nodeSpawn } from 'node:child_process';
 import {
   ensureServer,
   ledgerKey,
   resolveTag,
   resolveExpectedVersion,
+  stopEphemeralServer,
+  reapEphemeralServersForTest,
   type SpawnSeam,
   type ServerHandle,
+  type EnsureServerResult,
 } from '@/scripts/ledger-server-lifecycle';
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
@@ -429,6 +433,18 @@ describe('ensureServer spawns on missing handle', () => {
     expect(args).toContain('--idle-exit');
     expect(args[args.indexOf('--idle-exit') + 1]).toBe('30');
   });
+
+  it('the PERSISTENT daemon never receives --parent-pid (ID-156.9 — must not kill the long-lived daemon on CLI exit)', async () => {
+    const { seam, spawnCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    expect(spawnCalls[0]).not.toContain('--parent-pid');
+    expect(result.ephemeral).toBe(false);
+  });
 });
 
 // ── deadline (inv 54) ─────────────────────────────────────────────────────────
@@ -498,6 +514,179 @@ describe('ensureServer ephemeral mode (non-default --ledger-dir)', () => {
     // Should spawn fresh, not reuse the default-dir handle.
     expect(result.reused).toBe(false);
     expect(spawnCalls.length).toBe(1);
+  });
+
+  it('marks the result ephemeral:true (ID-156.9 — the caller must kill-on-success)', async () => {
+    const { seam } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/test-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    expect(result.ephemeral).toBe(true);
+  });
+
+  it('passes --idle-exit 30s (ID-156.9 unit-bug fix — was 30 MINUTES under a 30-second belief)', async () => {
+    const { seam, spawnCalls } = makeSpawnSeam();
+    await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/test-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    const args = spawnCalls[0];
+    expect(args).toContain('--idle-exit');
+    expect(args[args.indexOf('--idle-exit') + 1]).toBe('30s');
+  });
+
+  it('passes --parent-pid <process.pid> (ID-156.9 upstream contract — ephemeral opts in to parent-death reaping)', async () => {
+    const { seam, spawnCalls } = makeSpawnSeam();
+    await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/test-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    const args = spawnCalls[0];
+    expect(args).toContain('--parent-pid');
+    expect(args[args.indexOf('--parent-pid') + 1]).toBe(String(process.pid));
+  });
+});
+
+// ── ID-156.9: ephemeral kill-on-success + test-reaper backstop ────────────────
+
+describe('stopEphemeralServer (ID-156.9 kill-on-success)', () => {
+  it('kills the pid when result.ephemeral is true', async () => {
+    const { seam, spawnCalls, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/kill-on-success-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+    expect(spawnCalls.length).toBe(1);
+    expect(killCalls).not.toContain(result.pid);
+
+    stopEphemeralServer(result, seam);
+
+    expect(killCalls).toContain(result.pid);
+  });
+
+  it('does NOT kill the pid when result.ephemeral is false (persistent daemon)', async () => {
+    const { seam, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+    expect(result.ephemeral).toBe(false);
+
+    stopEphemeralServer(result, seam);
+
+    expect(killCalls).not.toContain(result.pid);
+  });
+
+  it('is safe to call more than once for the same result', async () => {
+    const { seam, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/double-stop-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+
+    expect(() => {
+      stopEphemeralServer(result, seam);
+      stopEphemeralServer(result, seam);
+    }).not.toThrow();
+    expect(killCalls.filter((p) => p === result.pid)).toHaveLength(2);
+  });
+
+  it('kill-on-success proof with a REAL OS process: the pid is actually dead afterwards', async () => {
+    // Spawn a real long-lived child (no seam — exercises the DEFAULT
+    // process.kill path stopEphemeralServer takes in production) and confirm
+    // it is genuinely alive, then dead, rather than only asserting against a
+    // mocked kill() call.
+    const child = nodeSpawn('sleep', ['30'], { stdio: 'ignore' });
+    await new Promise<void>((res) => child.once('spawn', () => res()));
+    const pid = child.pid!;
+    expect(() => process.kill(pid, 0)).not.toThrow(); // alive
+
+    const fakeResult: EnsureServerResult = {
+      port: 0,
+      pid,
+      version: 'test',
+      reused: false,
+      ephemeral: true,
+    };
+    stopEphemeralServer(fakeResult);
+
+    // Poll briefly for the OS to reap the signal — process.kill(pid, 0)
+    // throws ESRCH once the process is gone.
+    const deadline = Date.now() + 2000;
+    let dead = false;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        dead = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(dead).toBe(true);
+  });
+});
+
+describe('reapEphemeralServersForTest (ID-156.9 test-reaper backstop)', () => {
+  it('kills a tracked ephemeral spawn that stopEphemeralServer never reaped', async () => {
+    const { seam, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/reaper-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+    // Simulate a test that threw before its finally-block called
+    // stopEphemeralServer — the spawn is still tracked in the in-memory
+    // registry ensureServer populated.
+    expect(killCalls).not.toContain(result.pid);
+
+    const { reaped } = reapEphemeralServersForTest(seam);
+
+    expect(reaped).toBeGreaterThan(0);
+    expect(killCalls).toContain(result.pid);
+  });
+
+  it('is a no-op (reaped: 0) when the registry is already empty', () => {
+    const { seam } = makeSpawnSeam();
+    // Drain whatever this test file's registry currently holds first (test
+    // order independence), then assert a second call finds nothing.
+    reapEphemeralServersForTest(seam);
+    const { reaped } = reapEphemeralServersForTest(seam);
+    expect(reaped).toBe(0);
+  });
+
+  it('does not re-kill an entry stopEphemeralServer already reaped', async () => {
+    const { seam, killCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      ledgerDir: '/tmp/already-reaped-ledgers',
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+    stopEphemeralServer(result, seam);
+    const killCountAfterStop = killCalls.filter((p) => p === result.pid).length;
+
+    reapEphemeralServersForTest(seam);
+
+    expect(killCalls.filter((p) => p === result.pid).length).toBe(
+      killCountAfterStop,
+    ); // unchanged — already removed from the registry
   });
 });
 
