@@ -138,6 +138,19 @@ When task-view cuts a new schema- or primitive-bearing release:
 The non-blocking `task-view-vendor-drift.yml` reminder surfaces a `::warning::` when the
 four retained files (or the schema-arm assets) drift from upstream.
 
+**ID-157 — louder drift escalation + the TASK_VIEW_TAG-bump checklist gate.** The
+primitive-drift step's `::warning::` went unactioned for ~5 upstream releases before the
+ID-148.12 re-vendor above caught up (bl-464) — a bare log annotation was not enough.
+`task-view-vendor-drift.yml` now ALSO (a) writes a Step Summary entry for both the schema-
+and primitive-drift steps, and (b) on primitive drift, posts/updates a sticky PR comment
+carrying a drift-age tier (`scripts/task-view-drift-age.ts` — how long `lib/ledger/` has
+lagged the last `TASK_VIEW_TAG` move). A separate "TASK_VIEW_TAG bump checklist gate" step
+warns (loudly, still non-blocking — OQ-T2 stands) when a PR bumps `TASK_VIEW_TAG` (step 1
+above) without a `lib/ledger/` change (step 2 above, or this README) landing alongside it
+in the SAME PR — a correlation hint only: the two steps can legitimately land in separate
+PRs, so confirm the re-vendor already happened before merging a bare tag bump that trips
+this warning.
+
 ## CLI command surface
 
 `scripts/ledger-cli.ts` is the deterministic mutation CLI; its in-file `USAGE` block is

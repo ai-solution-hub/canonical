@@ -28,6 +28,19 @@
 # env, never inline ${{ }} in run: blocks (mirrors supabase-advisors.yml +
 # api-grant-guard.yml discipline).
 #
+# ID-157 — the primitive-drift step below (ID-35.10) went unactioned for ~5
+# upstream releases before {148.12}'s re-vendor caught up (bl-464): a bare
+# ::warning:: buried in step logs was not enough. Within the same NON-BLOCKING
+# constraint (OQ-T2 stands — this workflow must never fail the build), the
+# primitive-drift step now ALSO (a) writes a Step Summary entry so results
+# are visible on the PR Checks tab without opening logs, and (b) on drift,
+# posts/updates a sticky PR comment carrying a drift-age tier from
+# scripts/task-view-drift-age.ts (in-sync/notice/warning/critical — see that
+# script for the tiering rationale). A separate "TASK_VIEW_TAG bump
+# checklist gate" step then warns (loudly, still non-blocking) when a PR
+# bumps TASK_VIEW_TAG without a corresponding lib/ledger/ change landing
+# alongside it — a correlation hint, not proof of re-vendor.
+#
 # Spec: docs/specs/id-20-per-task-mirror/TECH.md §3.5 + §6.4.
 
 name: task-view vendor drift
@@ -79,13 +92,16 @@ jobs:
     # future trigger cannot accidentally fail closed.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # No env-scoped secrets: the only network call is a GitHub release fetch
-    # against a public repo using the default GITHUB_TOKEN. `environment:`
-    # omitted intentionally so Dependabot PRs run the reminder too.
+    # No env-scoped secrets: every network call (release fetch, commit/compare
+    # lookups, PR-comment read/write) uses the default GITHUB_TOKEN against
+    # this same public repo. `environment:` omitted intentionally so
+    # Dependabot PRs run the reminder too.
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
+      # ID-157: write (was read) — the primitive-drift step posts/updates a
+      # sticky PR comment on drift (issues/comments endpoint, which PRs share).
+      pull-requests: write
 
     steps:
       - name: Checkout
@@ -221,6 +237,18 @@ jobs:
             echo "task-view vendor bundle is in sync with KH lib/validation schema sources (modulo header + import normalisation)."
           fi
 
+          # ID-157: Step Summary entry — visible on the PR Checks tab without
+          # opening step logs.
+          {
+            echo "### task-view schema-arm vendor drift"
+            echo
+            if [ "$drift_found" -eq 1 ]; then
+              echo "**Drift detected** — see \`::warning::\` annotations above for per-file diffs."
+            else
+              echo "In sync (modulo header/import normalisation)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
           # NON-BLOCKING (OQ-T2): always succeed. Drift surfaces as a
           # ::warning:: annotation only — the author is reminded, not blocked.
           exit 0
@@ -243,6 +271,13 @@ jobs:
           # Static literals (not external context) — safe in run:.
           TASK_VIEW_REPO_URL: https://github.com/liam-jons/task-view.git
           TASK_VIEW_TAG: v0.11.0-task-view
+          # ID-157: added for the louder-escalation mechanisms below (drift-age
+          # counter + sticky PR comment). REPO/PR_NUMBER are GitHub-computed
+          # (not attacker-suppliable free text like a title/body), but still
+          # routed via env per this job's inline-${{}}-in-run: discipline.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -uo pipefail
 
@@ -333,5 +368,137 @@ jobs:
             echo "Vendored lib/ledger primitives are in sync with task-view@$TASK_VIEW_TAG (modulo import rewire)."
           fi
 
+          # ID-157 — louder escalation within the OQ-T2 non-blocking
+          # constraint: (a) a Step Summary entry so results are visible on
+          # the Checks tab without opening logs, and (b) on drift, a sticky
+          # PR comment carrying a drift-age tier (how long lib/ledger/ has
+          # lagged the last TASK_VIEW_TAG move) — the exact failure mode from
+          # bl-464/ID-148.12 (~5 releases of unactioned ::warning::).
+          {
+            echo "### task-view primitive vendor drift"
+            echo
+            if [ "$prim_drift" -eq 1 ]; then
+              echo "**Drift detected** in one or more vendored \`lib/ledger/\` primitives — see \`::warning::\` annotations above."
+            else
+              echo "Vendored primitives in sync with \`task-view@$TASK_VIEW_TAG\` (modulo import rewire)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+          if [ "$prim_drift" -eq 1 ] && [ -n "${PR_NUMBER:-}" ]; then
+            WORKFLOW_FILE=".github/workflows/task-view-vendor-drift.yml"
+
+            # Proxy dates (ID-157, scripts/task-view-drift-age.ts): the last
+            # commit that touched this workflow file (proxy for "the
+            # TASK_VIEW_TAG pin last moved") vs the last commit under
+            # lib/ledger/ (proxy for "the primitives were last re-vendored").
+            # Best-effort throughout — a lookup failure degrades to an
+            # "unknown" tier, never a build failure.
+            TAG_BUMP_DATE="$(gh api "repos/$REPO/commits" -f path="$WORKFLOW_FILE" -f per_page=1 --jq '.[0].commit.committer.date' 2>/dev/null || true)"
+            VENDOR_SYNC_DATE="$(gh api "repos/$REPO/commits" -f path="lib/ledger" -f per_page=1 --jq '.[0].commit.committer.date' 2>/dev/null || true)"
+
+            DRIFT_AGE_JSON="{}"
+            if [ -n "$TAG_BUMP_DATE" ] && [ -n "$VENDOR_SYNC_DATE" ]; then
+              DRIFT_AGE_JSON="$(bun scripts/task-view-drift-age.ts --tag-bump-date "$TAG_BUMP_DATE" --vendor-sync-date "$VENDOR_SYNC_DATE" 2>/dev/null || echo '{}')"
+            fi
+            AGE_DAYS="$(echo "$DRIFT_AGE_JSON" | jq -r '.ageDays // "unknown"')"
+            AGE_TIER="$(echo "$DRIFT_AGE_JSON" | jq -r '.tier // "unknown"')"
+            AGE_MESSAGE="$(echo "$DRIFT_AGE_JSON" | jq -r '.message // "Drift-age could not be computed (commit lookup failed) — treat as unknown, not zero."')"
+
+            MARKER="<!-- task-view-primitive-drift-bot:ID-157 -->"
+            BODY_FILE="$(mktemp)"
+            {
+              echo "$MARKER"
+              echo "### ⚠️ task-view primitive vendor drift (non-blocking)"
+              echo
+              echo "One or more vendored \`lib/ledger/\` primitives differ from \`task-view@$TASK_VIEW_TAG\`."
+              echo
+              echo "- **Drift-age tier:** \`$AGE_TIER\` ($AGE_DAYS day(s) since \`lib/ledger/\` was last touched, relative to the last \`TASK_VIEW_TAG\` move)"
+              echo "- $AGE_MESSAGE"
+              echo
+              echo "Re-vendor per \`lib/ledger/README.md\`'s Re-vendor procedure, then push a follow-up commit. This check never blocks the build (OQ-T2) — this comment is a reminder only."
+            } > "$BODY_FILE"
+
+            COMMENTS_JSON="$(gh api "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" 2>/dev/null || echo '[]')"
+            EXISTING_COMMENT_ID="$(echo "$COMMENTS_JSON" | jq -r --arg marker "$MARKER" '[.[] | select(.body | contains($marker))] | last | .id // empty')"
+
+            if [ -n "$EXISTING_COMMENT_ID" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$EXISTING_COMMENT_ID" -f body="$(cat "$BODY_FILE")" >/dev/null 2>&1 \
+                || echo "::notice title=task-view primitive drift::Could not update the sticky drift-reminder PR comment (non-blocking; check pull-requests:write permission)."
+            else
+              gh api "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$(cat "$BODY_FILE")" >/dev/null 2>&1 \
+                || echo "::notice title=task-view primitive drift::Could not post the sticky drift-reminder PR comment (non-blocking; check pull-requests:write permission)."
+            fi
+          fi
+
           # NON-BLOCKING: drift is a ::warning:: only.
+          exit 0
+
+      # ID-157 — TASK_VIEW_TAG-bump checklist gate. Correlates a TAG bump
+      # landing in THIS PR with a lib/ledger/ change (primitive re-vendor OR
+      # a README lineage-stamp update) landing in the SAME PR. This is a
+      # CORRELATION HINT, not proof of re-vendor — the two can legitimately
+      # land in separate PRs — so it stays NON-BLOCKING (OQ-T2): a loud
+      # ::warning:: + Step Summary entry, never a failing step.
+      - name: TASK_VIEW_TAG bump checklist gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+
+          WORKFLOW_FILE=".github/workflows/task-view-vendor-drift.yml"
+
+          BASE_CONTENT="$(gh api "repos/$REPO/contents/$WORKFLOW_FILE" -f ref="$PR_BASE_SHA" --jq '.content' 2>/dev/null | base64 --decode 2>/dev/null || true)"
+
+          if [ -z "$BASE_CONTENT" ]; then
+            echo "::notice title=TASK_VIEW_TAG checklist::Could not fetch the base-ref copy of $WORKFLOW_FILE (new file, or a transient API error) — skipping the bump-correlation check."
+            exit 0
+          fi
+
+          BASE_TAGS="$(printf '%s\n' "$BASE_CONTENT" | grep -o 'TASK_VIEW_TAG: [^[:space:]]*' | sort -u)"
+          HEAD_TAGS="$(grep -o 'TASK_VIEW_TAG: [^[:space:]]*' "$WORKFLOW_FILE" | sort -u)"
+
+          {
+            echo "### TASK_VIEW_TAG bump checklist"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+          if [ "$BASE_TAGS" = "$HEAD_TAGS" ]; then
+            echo "TASK_VIEW_TAG unchanged in this PR — no re-vendor correlation to check."
+            echo "TASK_VIEW_TAG unchanged in this PR." >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 0
+          fi
+
+          echo "TASK_VIEW_TAG changed in this PR:"
+          echo "$BASE_TAGS" | awk '{print "  base: " $0}'
+          echo "$HEAD_TAGS" | awk '{print "  head: " $0}'
+
+          HEAD_TAG_COUNT_DISTINCT="$(printf '%s\n' "$HEAD_TAGS" | grep -c . || true)"
+          if [ "$HEAD_TAG_COUNT_DISTINCT" -gt 1 ]; then
+            echo "::warning title=TASK_VIEW_TAG checklist::Multiple distinct TASK_VIEW_TAG values found in $WORKFLOW_FILE after this PR's changes — the schema-drift step and the primitive-drift step must pin the SAME tag."
+          fi
+
+          CHANGED_FILES="$(gh api "repos/$REPO/compare/$PR_BASE_SHA...$PR_HEAD_SHA" --jq '.files[].filename' 2>/dev/null || true)"
+          LEDGER_TOUCHED="$(printf '%s\n' "$CHANGED_FILES" | grep -c '^lib/ledger/' || true)"
+
+          {
+            echo "TASK_VIEW_TAG changed in this PR."
+            echo
+            echo '```'
+            echo "$BASE_TAGS" | awk '{print "base: " $0}'
+            echo "$HEAD_TAGS" | awk '{print "head: " $0}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+          if [ "$LEDGER_TOUCHED" -eq 0 ]; then
+            echo "::warning title=TASK_VIEW_TAG checklist::TASK_VIEW_TAG was bumped in this PR but no lib/ledger/ file (primitives or the README lineage stamp) changed alongside it. Confirm the re-vendor procedure (lib/ledger/README.md) already landed — e.g. in a prior PR — before merging a bare tag bump."
+            echo "No lib/ledger/ change accompanies this TAG bump — confirm re-vendor already landed separately." >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          else
+            echo "TASK_VIEW_TAG bump correlates with $LEDGER_TOUCHED lib/ledger/ file(s) changed in this PR."
+            echo "Correlates with $LEDGER_TOUCHED lib/ledger/ file(s) changed in this PR." >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          fi
+
+          # NON-BLOCKING (OQ-T2): this is a correlation hint, never a gate.
           exit 0
