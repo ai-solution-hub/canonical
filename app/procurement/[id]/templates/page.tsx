@@ -6,14 +6,12 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { TemplateUpload } from '@/components/coverage/template-upload';
 import { TemplateFieldReview } from '@/components/procurement/template-field-review';
 import { TemplateFillProgress } from '@/components/procurement/template-fill-progress';
 import { TemplateCompletionSummary } from '@/components/procurement/template-completion-summary';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import type {
   FillResult,
-  Template,
   TemplateWithDetail,
   TemplateCompletion,
 } from '@/types/template';
@@ -38,7 +36,6 @@ export default function TemplateCompletionPage() {
   const params = useParams<{ id: string }>();
   const procurementId = params.id;
 
-  const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] =
     useState<TemplateWithDetail | null>(null);
   const [procurementQuestions, setProcurementQuestions] = useState<
@@ -50,23 +47,18 @@ export default function TemplateCompletionPage() {
   const [latestCompletion, setLatestCompletion] =
     useState<TemplateCompletion | null>(null);
   const [fillResult, setFillResult] = useState<FillResult | null>(null);
-  const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(
-    null,
-  );
 
-  // Load existing templates and bid questions
+  // Load bid questions. (ID-145 {145.41}: the sibling `GET .../templates`
+  // list-fetch was removed here — that route was retired list/create in
+  // {145.19} (DR-075), so it always 404'd and the "Existing Templates"
+  // selector it fed could never render. See BI-4/DR-068 — no form-first
+  // successor for the workspace-era "add another template" affordance.)
   useEffect(() => {
     async function load() {
       try {
-        const [templatesRes, questionsRes] = await Promise.all([
-          fetch(`/api/procurement/${procurementId}/templates`),
-          fetch(`/api/procurement/${procurementId}/questions`),
-        ]);
-
-        if (templatesRes.ok) {
-          const data = await templatesRes.json();
-          setTemplates(data.templates ?? []);
-        }
+        const questionsRes = await fetch(
+          `/api/procurement/${procurementId}/questions`,
+        );
 
         if (questionsRes.ok) {
           const data = await questionsRes.json();
@@ -84,7 +76,6 @@ export default function TemplateCompletionPage() {
 
   const loadTemplateDetail = useCallback(
     async (templateId: string) => {
-      setLoadingTemplateId(templateId);
       try {
         // DR-075 re-path: `[id]/templates/[templateId]` retired -> the
         // field/§C surface now lives at `[id]/fields`, where `id` IS the
@@ -127,19 +118,9 @@ export default function TemplateCompletionPage() {
       } catch (err) {
         logger.error({ err }, 'Failed to load template details');
         toast.error('Failed to load template details');
-      } finally {
-        setLoadingTemplateId(null);
       }
     },
     [procurementId],
-  );
-
-  const handleUploadComplete = useCallback(
-    async (template: Template) => {
-      setTemplates((prev) => [template, ...prev]);
-      await loadTemplateDetail(template.id);
-    },
-    [loadTemplateDetail],
   );
 
   const handleRefreshStatus = useCallback(async () => {
@@ -315,21 +296,6 @@ export default function TemplateCompletionPage() {
     }
   }, [procurementId, selectedTemplate, latestCompletion]);
 
-  const handleDownloadOriginal = useCallback(async () => {
-    if (!selectedTemplate) return;
-    try {
-      const res = await fetch(
-        `/api/procurement/${procurementId}/templates/${selectedTemplate.id}/download`,
-      );
-      if (!res.ok) throw new Error('Failed to get download link');
-      const { download_url } = await res.json();
-      window.open(download_url, '_blank');
-    } catch (err) {
-      logger.error({ err }, 'Failed to download original template');
-      toast.error('Failed to download original template');
-    }
-  }, [procurementId, selectedTemplate]);
-
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -360,59 +326,20 @@ export default function TemplateCompletionPage() {
           </div>
         </div>
 
-        {/* Template selector (if templates exist and none selected) */}
-        {templates.length > 0 && !selectedTemplate && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-medium">Existing Templates</h2>
-            <div className="grid gap-2">
-              {templates.map((t) => (
-                <button
-                  key={t.id}
-                  className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
-                  onClick={() => loadTemplateDetail(t.id)}
-                  aria-label={`Select template: ${t.name}`}
-                  disabled={loadingTemplateId === t.id}
-                >
-                  {loadingTemplateId === t.id ? (
-                    <Loader2
-                      className="size-5 shrink-0 animate-spin text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <FileText
-                      className="size-5 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.status} · {t.field_count ?? 0} fields ·{' '}
-                      {t.mapped_count} mapped
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  or upload a new template
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Upload step */}
+        {/* Upload step — retired (ID-145 {145.41}): the template list/create
+            routes were retired in {145.19} (DR-075) with no form-first
+            successor (BI-1/BI-4, DR-068). Clean empty state rather than a
+            selector wired to fetches that can only ever 404. */}
         {(!selectedTemplate || step === 'upload') && (
-          <TemplateUpload
-            procurementId={procurementId}
-            onUploadComplete={handleUploadComplete}
-          />
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
+            <FileText
+              className="size-8 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-muted-foreground">
+              Template upload is not available for this item.
+            </p>
+          </div>
         )}
 
         {/* Analyse step — spinner while analysis runs */}
@@ -487,8 +414,6 @@ export default function TemplateCompletionPage() {
             onRefill={() => setStep('review')}
             truncatedCount={fillResult?.truncated?.length}
             errors={fillResult?.errors}
-            originalStoragePath={selectedTemplate.storage_path}
-            onDownloadOriginal={handleDownloadOriginal}
           />
         )}
       </div>
