@@ -19,11 +19,13 @@ const UUID_RE =
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
 
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /** Allowed MIME types for tender documents */
-const ALLOWED_MIME_TYPES = new Set([
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
+const ALLOWED_MIME_TYPES = new Set(['application/pdf', DOCX_MIME, XLSX_MIME]);
 
 /**
  * Validate file magic bytes match the declared MIME type.
@@ -40,11 +42,8 @@ function validateMagicBytes(buffer: ArrayBuffer, mimeType: string): boolean {
       bytes[3] === 0x46
     );
   }
-  if (
-    mimeType ===
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ) {
-    // PK\x03\x04 — ZIP archive signature (DOCX is a ZIP container)
+  if (mimeType === DOCX_MIME || mimeType === XLSX_MIME) {
+    // PK\x03\x04 — ZIP archive signature (DOCX and XLSX are ZIP containers)
     return (
       bytes[0] === 0x50 &&
       bytes[1] === 0x4b &&
@@ -106,7 +105,7 @@ export const POST = defineRoute(
       if (!ALLOWED_MIME_TYPES.has(file.type)) {
         return NextResponse.json(
           {
-            error: `Unsupported file type "${file.type}". Accepted: PDF (.pdf) and DOCX (.docx).`,
+            error: `Unsupported file type "${file.type}". Accepted: PDF (.pdf), DOCX (.docx) and XLSX (.xlsx).`,
           },
           { status: 400 },
         );
@@ -138,18 +137,14 @@ export const POST = defineRoute(
         return NextResponse.json(
           {
             error:
-              'File content does not match its declared type. Ensure the file is a genuine PDF or DOCX.',
+              'File content does not match its declared type. Ensure the file is a genuine PDF, DOCX or XLSX.',
           },
           { status: 415 },
         );
       }
 
       // Reject password-protected .docx documents early (PDFs are not affected)
-      if (
-        file.type ===
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' &&
-        isEncryptedDocx(arrayBuffer)
-      ) {
+      if (file.type === DOCX_MIME && isEncryptedDocx(arrayBuffer)) {
         return NextResponse.json(
           {
             error:
