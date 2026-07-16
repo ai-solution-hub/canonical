@@ -48,7 +48,7 @@ CREATE TABLE "public"."form_attachments" (
     CONSTRAINT "form_attachments_pkey" PRIMARY KEY ("id"),
     -- Exactly one scope is set: a form-level OR an engagement-level attachment (§A6).
     CONSTRAINT "form_attachments_scope_xor" CHECK (
-        ((("form_instance_id" IS NOT NULL))::"int" + (("engagement_group_id" IS NOT NULL))::"int") = 1
+        ((("form_instance_id" IS NOT NULL))::integer + (("engagement_group_id" IS NOT NULL))::integer) = 1
     ),
     -- A form_source is always form-scoped: an engagement has no form source of its
     -- own, so role='form_source' with only engagement_group_id set is incoherent
