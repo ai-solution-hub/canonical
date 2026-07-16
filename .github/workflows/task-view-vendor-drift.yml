@@ -294,7 +294,7 @@ jobs:
             "initiatives-tree.ts"
           )
 
-          CLONE_DIR="$(mktemp -d)"
+          CLONE_DIR="$(mktemp -d || true)"
           if ! git clone --depth 1 --branch "$TASK_VIEW_TAG" \
               "$TASK_VIEW_REPO_URL" "$CLONE_DIR" >/dev/null 2>&1; then
             echo "::notice title=task-view primitive drift::Could not clone task-view @ '$TASK_VIEW_TAG'. Skipping primitive drift comparison."
@@ -303,7 +303,7 @@ jobs:
 
           # Canonicalise the upstream copies with KH's prettier config so only
           # substantive (non-formatting) body drift survives the diff.
-          FMT_DIR="$(mktemp -d)"
+          FMT_DIR="$(mktemp -d || true)"
           for name in "${PRIMITIVES[@]}"; do
             [ -f "$CLONE_DIR/packages/server/$name" ] \
               && cp "$CLONE_DIR/packages/server/$name" "$FMT_DIR/$name"
