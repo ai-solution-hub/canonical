@@ -148,7 +148,9 @@ describe('POST /api/review/action — verification_history recording', () => {
 
     // Content-of-write is the observable here: a verify action must
     // produce a history row carrying the action, target item, and actor.
+    // ID-152: owner_kind is now a required column on every row.
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'verify',
       note: null,
@@ -182,6 +184,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'verify',
       note: 'Looks good, verified content accuracy',
@@ -211,6 +214,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'unverify',
       note: null,
@@ -244,6 +248,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'unverify',
       note: 'Content is out of date',
@@ -277,6 +282,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'flag',
       note: 'Outdated statistics',
@@ -306,6 +312,7 @@ describe('POST /api/review/action — verification_history recording', () => {
     expect(res.status).toBe(200);
 
     expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'source_document',
       source_document_id: VALID_UUID,
       action_type: 'flag',
       note: null,
@@ -672,5 +679,274 @@ describe('POST /api/review/action — 0-row facet update honesty (ID-131.19 Bloc
 
     expect(res.status).toBe(200);
     expect(recordedHistoryInsert()).toMatchObject({ action_type: 'verify' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID-152 (owner ruling Option B, OQ oq-dad46242b712f156): the existence
+// lookup is owner-aware across {source_document, q_a_pair}. Previously
+// hardcoded to source_documents in every branch, so /library's Bulk Verify
+// (q_a_pairs-only, hooks/use-library-bulk-actions.ts — which sends NO
+// owner_kind) 404'd for every pair. These tests lock in the fallback probe
+// (source_documents first, q_a_pairs second) that fixes it, the explicit
+// owner_kind fast-path, and the deferred flag/unflag q_a_pair behaviour.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — ID-152 owner-aware existence lookup', () => {
+  beforeEach(resetMocks);
+
+  function recordedHistoryInsert(): Record<string, unknown> | null {
+    return (
+      mockSupabase._chain.insert.mock.calls
+        .map((c: unknown[]) => c[0] as Record<string, unknown>)
+        .find(
+          (payload) =>
+            payload &&
+            typeof payload === 'object' &&
+            'action_type' in payload &&
+            'performed_by' in payload,
+        ) ?? null
+    );
+  }
+
+  /** Pick out the source_documents-shaped update payload (updated_by only). */
+  function sourceDocumentUpdatePayload(): Record<string, unknown> | undefined {
+    return mockSupabase._chain.update.mock.calls
+      .map((c: unknown[]) => c[0] as Record<string, unknown>)
+      .find(
+        (payload) =>
+          payload && 'updated_by' in payload && !('verified_at' in payload),
+      );
+  }
+
+  it('un-404s Bulk Verify for a q_a_pair item when owner_kind is omitted (the ID-152 fix)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // /library's Bulk Verify sends no owner_kind — the resolver probes
+    // source_documents first (miss) then q_a_pairs (hit).
+    mockSupabase._chain.single
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { id: VALID_UUID }, error: null });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+
+    // Probed source_documents first, then q_a_pairs — proves the fallback
+    // path (not a coincidental direct hit) actually ran. Filtered to just
+    // the two existence-check tables — `getAuthorisedClient`'s own
+    // `user_roles` lookup is also a `.from()` call ahead of these.
+    const existenceProbeCalls = mockSupabase.from.mock.calls
+      .map((c) => c[0])
+      .filter((t) => t === 'source_documents' || t === 'q_a_pairs');
+    expect(existenceProbeCalls).toEqual(['source_documents', 'q_a_pairs']);
+
+    // The audit row carries q_a_pair_id, not source_document_id.
+    expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'q_a_pair',
+      q_a_pair_id: VALID_UUID,
+      action_type: 'verify',
+      note: null,
+      performed_by: 'test-user-id',
+    });
+
+    // q_a_pairs has no updated_by column — that best-effort stamp is
+    // source_document-only and must be skipped for a q_a_pair owner.
+    expect(sourceDocumentUpdatePayload()).toBeUndefined();
+  });
+
+  it('resolves directly against q_a_pairs when owner_kind is explicit — no source_documents probe', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'verify',
+        owner_kind: 'q_a_pair',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    // Exactly one existence-check call, straight to q_a_pairs — no probe of
+    // source_documents at all (filtered past the auth `user_roles` lookup).
+    const existenceProbeCalls = mockSupabase.from.mock.calls
+      .map((c) => c[0])
+      .filter((t) => t === 'source_documents' || t === 'q_a_pairs');
+    expect(existenceProbeCalls).toEqual(['q_a_pairs']);
+    expect(recordedHistoryInsert()).toMatchObject({
+      owner_kind: 'q_a_pair',
+      q_a_pair_id: VALID_UUID,
+    });
+  });
+
+  it('404s when owner_kind is explicitly source_document even if the id would match a q_a_pair (no fallback for explicit owner_kind)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // source_documents miss — with an explicit owner_kind the resolver must
+    // NOT probe q_a_pairs afterwards.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'verify',
+        owner_kind: 'source_document',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(404);
+    // Filtered past the auth `user_roles` lookup — no q_a_pairs probe at all.
+    const existenceProbeCalls = mockSupabase.from.mock.calls
+      .map((c) => c[0])
+      .filter((t) => t === 'source_documents' || t === 'q_a_pairs');
+    expect(existenceProbeCalls).toEqual(['source_documents']);
+  });
+
+  it('404s when neither source_documents nor q_a_pairs match', async () => {
+    configureRole(mockSupabase, 'editor');
+    // Both probes miss — default resetMocks single() resolution is already
+    // { data: null, error: null }, so no extra setup needed.
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(404);
+    const json = await res.json();
+    expect(json.error).toBe('Content item not found');
+  });
+
+  it('unverify succeeds for a q_a_pair owner (trivially inherits the owner-aware facet write)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'unverify',
+        owner_kind: 'q_a_pair',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    expect(recordedHistoryInsert()).toEqual({
+      owner_kind: 'q_a_pair',
+      q_a_pair_id: VALID_UUID,
+      action_type: 'unverify',
+      note: null,
+      performed_by: 'test-user-id',
+    });
+    expect(sourceDocumentUpdatePayload()).toBeUndefined();
+  });
+
+  it('publish succeeds for a q_a_pair owner (trivially inherits the owner-aware facet write, no verification_history insert)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'publish',
+        owner_kind: 'q_a_pair',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    // action_type CHECK excludes 'publish' — no audit row, for either owner.
+    expect(recordedHistoryInsert()).toBeNull();
+    expect(sourceDocumentUpdatePayload()).toBeUndefined();
+  });
+
+  it('flag returns an honest 400 for a q_a_pair owner (ingestion_quality_log has no q_a_pair support — ID-152 deferred)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'flag',
+        owner_kind: 'q_a_pair',
+        flag_details: 'Outdated',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(400);
+    // No facet write, no history row — the guard returns before any write.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+    expect(recordedHistoryInsert()).toBeNull();
+  });
+
+  it('unflag returns an honest 400 for a q_a_pair owner instead of a silent no-op success (ID-152 deferred)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'unflag',
+        owner_kind: 'q_a_pair',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(400);
   });
 });

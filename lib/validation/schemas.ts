@@ -209,6 +209,15 @@ export const ReviewActionBodySchema = z.object({
   action: z.enum(VALID_REVIEW_ACTIONS),
   flag_details: z.string().max(500).optional(),
   note: z.string().max(500).optional(),
+  // ID-152 (owner ruling Option B, OQ oq-dad46242b712f156): owner
+  // discriminator for the polymorphic {source_document, q_a_pair} existence
+  // lookup (`lib/governance/review-action-owner.ts` resolveReviewItemOwner).
+  // Optional + back-compat: every existing /review-page caller omits it and
+  // continues to resolve against source_documents first. /library's Bulk
+  // Verify (hooks/use-library-bulk-actions.ts) also omits it today — out of
+  // this Subtask's file-ownership boundary — so the q_a_pairs fallback probe
+  // is what un-404s it; a future explicit 'q_a_pair' caller skips the probe.
+  owner_kind: z.enum(['source_document', 'q_a_pair']).optional(),
 });
 
 /** GET /api/review/queue — validates status, limit, cursor only.
