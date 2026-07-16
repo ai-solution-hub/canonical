@@ -284,6 +284,57 @@ describe('journal-search — bounded output (S447 show-valve pattern, ID-156.2)'
   });
 });
 
+// ID-156.2 Checker finding: journalDayKey() returns null for the rare
+// journal label with NO leading YYYY-MM-DD at all (distinct from Entry D
+// above, whose human label still starts with a valid calendar date). That
+// null branch had zero coverage — prove callers exclude it from a
+// date-filtered search (never silently include an entry outside the range)
+// but still surface it, sorted last, in an unfiltered scan.
+describe('journal-search — dateless journal label, null dayKey (ID-156.2)', () => {
+  const dateless = {
+    ...DOC,
+    tasks: [
+      ...DOC.tasks,
+      task('3', 'in_progress', [
+        subtask(
+          '1',
+          '<info added on undated-legacy-note>\nEntry E (dateless)\n</info added on undated-legacy-note>',
+        ),
+      ]),
+    ],
+  };
+
+  it('sorts the dateless entry last, after every dated entry', async () => {
+    writeDoc(dateless);
+    const r = await run(args('journal-search', []));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const result = r.result as SearchResult;
+    const order = result.entries.map((e) => e.text.match(/Entry (\w)/)?.[1]);
+    expect(order).toEqual(['A', 'C', 'B', 'D', 'E']);
+  });
+
+  it('--since excludes the dateless entry rather than silently including it', async () => {
+    writeDoc(dateless);
+    const r = await run(args('journal-search', [], { since: '2026-01-01' }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const result = r.result as SearchResult;
+    expect(result.total).toBe(4);
+    expect(result.entries.some((e) => e.text.includes('Entry E'))).toBe(false);
+  });
+
+  it('--until excludes the dateless entry rather than silently including it', async () => {
+    writeDoc(dateless);
+    const r = await run(args('journal-search', [], { until: '2099-01-01' }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const result = r.result as SearchResult;
+    expect(result.total).toBe(4);
+    expect(result.entries.some((e) => e.text.includes('Entry E'))).toBe(false);
+  });
+});
+
 describe('journal-search — real CLI subprocess, USAGE/help completeness (ID-156.2)', () => {
   it('journal-search is documented in top-level --help with its flags', () => {
     const r = spawnSync('bun', [CLI, '--help'], {
