@@ -683,5 +683,264 @@ describe.skipIf(!CLONE_PRESENT)(
         expect(forced.envelope?.ok).toBe(true);
       },
     );
+
+    // ── ID-156.8 (DR-077) — create-initiative: the "parent-or-root" twin of
+    // create-project. dotted-path recordId contract per the 156.8 checker
+    // note: insertRecord returns the FULL dotted path for an
+    // initiative/sub-initiative create, never the bare local id. ─────────
+
+    it(
+      'create-initiative with no parentPath inserts a new TOP-LEVEL initiative (bare recordId)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '--id',
+          '99',
+          '--title',
+          'Fixture new top-level initiative',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { recordId: string };
+        expect(result.recordId).toBe('99');
+
+        const created = await showInitiative(dir, '99');
+        expect(created.title).toBe('Fixture new top-level initiative');
+        expect(created.status).toBe('proposed'); // withCreateDefaults default
+      },
+    );
+
+    it(
+      'create-initiative <parentPath> inserts a new sub-initiative (dotted-path recordId)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // top-level initiative "4" has no sub-initiatives in the fixture.
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '4',
+          '--id',
+          '1',
+          '--title',
+          'Fixture new sub-initiative under 4',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { recordId: string };
+        // Full DOTTED PATH, not the bare local id "1" — the 156.8 contract.
+        expect(result.recordId).toBe('4.1');
+
+        const parent = await showInitiative(dir, '4');
+        const subs = parent['sub-initiatives'] as {
+          id: string;
+          title: string;
+        }[];
+        expect(subs.find((s) => s.id === '1')?.title).toBe(
+          'Fixture new sub-initiative under 4',
+        );
+      },
+    );
+
+    it(
+      'create-initiative <nestedParentPath> inserts under a nested sub-initiative (double-dotted recordId)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // "1.2" -> initiative "1"'s second sub-initiative (starts with no
+        // nested sub-initiatives of its own... actually "1.2" already has a
+        // nested "1" — address "1.2" itself as the parent for a NEW sibling).
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '1.2',
+          '--id',
+          '9',
+          '--title',
+          'Fixture new nested sub-initiative under 1.2',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { recordId: string };
+        expect(result.recordId).toBe('1.2.9');
+      },
+    );
+
+    it(
+      'create-initiative rejects a duplicate sibling id (409 duplicate-id, sibling-scoped)',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        // top-level initiative "1" already has sub-initiatives "1" and "2".
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '1',
+          '--id',
+          '1',
+          '--title',
+          'Collides with existing sub-initiative id "1" under parent "1"',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('duplicate-id');
+      },
+    );
+
+    it(
+      'create-initiative allows the SAME bare id at an unrelated tree position (locally-, not globally-, unique)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // "4" has no sub-initiatives yet — id "1" is free there even though
+        // "1" (as a top-level initiative) and "1.1"/"1.2.1" already use it.
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '4',
+          '--id',
+          '1',
+          '--title',
+          'Locally-unique id, globally recurring',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { recordId: string };
+        expect(result.recordId).toBe('4.1');
+      },
+    );
+
+    it(
+      'create-initiative status <invalid> rejects invalid-status BEFORE any request is sent (INV-3, client-side)',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '--id',
+          'fixture-bad-status-initiative',
+          '--title',
+          'Should be rejected',
+          '--status',
+          'not-a-real-status',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('invalid-status');
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
+      'create-initiative against an unresolvable parentPath rejects record-not-found, nothing written',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '999',
+          '--id',
+          '1',
+          '--title',
+          'Parent does not exist',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.error).toBe('record-not-found');
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
+      'create-initiative against a PROJECT slug (not an initiative path) rejects initiatives-path-only',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          'fixture-nested-project',
+          '--id',
+          '1',
+          '--title',
+          'Parent is a project slug, not an initiative path',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('initiatives-path-only');
+      },
+    );
+
+    it(
+      'create-initiative --dry-run writes nothing and reports {dryRun:true,...}',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const r = runLedgerCli(dir, [
+          'create-initiative',
+          '--id',
+          'fixture-dryrun-initiative',
+          '--title',
+          'Should never be written',
+          '--dry-run',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { dryRun: boolean };
+        expect(result.dryRun).toBe(true);
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
+      'create-initiative over the description budget rejects budget-exceeded; --force downgrades and writes (parity with create-project)',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const overBudget = 'x'.repeat(2000); // budget: initiative.description = 1500
+        const rejected = runLedgerCli(dir, [
+          'create-initiative',
+          '--id',
+          'fixture-over-budget-initiative',
+          '--title',
+          'Over budget',
+          '--description',
+          overBudget,
+        ]);
+        expect(rejected.exitCode).toBe(1);
+        expect(rejected.envelope?.ok).toBe(false);
+        expect(rejected.envelope?.error).toBe('budget-exceeded');
+
+        const forced = runLedgerCli(dir, [
+          'create-initiative',
+          '--id',
+          'fixture-over-budget-initiative',
+          '--title',
+          'Over budget',
+          '--description',
+          overBudget,
+          '--force',
+        ]);
+        expect(forced.exitCode).toBe(0);
+        expect(forced.envelope?.ok).toBe(true);
+      },
+    );
+
+    it(
+      'create-initiative with no body input at all rejects missing-args',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const r = runLedgerCli(dir, ['create-initiative']);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('missing-args');
+      },
+    );
   },
 );

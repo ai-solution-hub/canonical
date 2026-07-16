@@ -50,6 +50,9 @@
  *     verb below builds a ServerIntent routed through the transport, no in-process
  *     writer, DR-073/DR-074):
  *     create-project   <initiativePath> <projectJson | --title …>  (caller-supplied slug)
+ *     create-initiative [<parentPath>] <initiativeJson | --title …>  (ID-156.8, DR-077 —
+ *                      no parentPath = new top-level initiative; parentPath = new
+ *                      sub-initiative under it)
  *     update-project   <slug> <field> <value | --file <path>>      (incl `status`)
  *     update-initiative <initiativePath> <field> <value | --file <path>>  (ID-156.7 —
  *                      initiative/sub-initiative fields only, incl `status`; rejects a
@@ -239,9 +242,22 @@ type ServerIntent =
        * the dotted initiative/sub-initiative path the new project inserts
        * under (threaded to the server's `POST /record` `initiativePath` body
        * field — task-view `patch-server.ts` `handlePostRecord`). Ignored by
-       * every other slug's create.
+       * every other slug's create. ID-156.8: for an initiative/sub-initiative
+       * create (`recordKind:'initiative'`) this is the OPTIONAL parent path —
+       * absent/undefined addresses the tree ROOT (a new top-level
+       * initiative), matching `insertRecord`'s parent-or-root contract.
        */
       initiativePath?: string;
+      /**
+       * ID-156.8: which initiatives node shape this create addresses —
+       * `'project'` (default, matches every pre-existing caller/server
+       * behaviour when the field is absent) or `'initiative'` (the new
+       * top-level/sub-initiative "parent-or-root" shape). Threaded to the
+       * server's `POST /record` optional `recordKind` body field
+       * (`patch-server.ts` `handlePostRecord` — 79ae1ff). Ignored by every
+       * non-`initiatives` slug's create.
+       */
+      recordKind?: 'project' | 'initiative';
     }
   | {
       kind: 'subtask-create';
@@ -1638,8 +1654,9 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   delete-backlog <itemId>
   delete-subtask <taskId.subId>                 (legacy <taskId> <subId>)
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
-initiatives write verbs (ID-148.7/ID-156.7 — server-routed ServerIntents, no in-process writer, DR-073/DR-074):
+initiatives write verbs (ID-148.7/ID-156.7/ID-156.8 — server-routed ServerIntents, no in-process writer, DR-073/DR-074):
   create-project    <initiativePath> <projectJson | --title …>  (caller-supplied slug — never a bare digit-dotted path, e.g. "4"/"4.2")
+  create-initiative [<parentPath>] <initiativeJson | --title …>  (DR-077; no parentPath = new top-level initiative; parentPath = new sub-initiative under it)
   update-project    <slug> <field> <value | --file <path>>      (incl \`status\`)
   update-initiative <initiativePath> <field> <value | --file <path>>  (initiative/sub-initiative fields only, incl \`status\`; rejects a project slug)
   delete-project    <slug>                                      (rejects project-not-empty)
@@ -1976,6 +1993,12 @@ async function buildTransportRequest(
           // absent field.
           ...(intent.initiativePath !== undefined
             ? { initiativePath: intent.initiativePath }
+            : {}),
+          // ID-156.8: only threaded for an initiative/sub-initiative create;
+          // absent (the pre-existing default) preserves byte-identical
+          // request bodies for every project/task/backlog/retro create.
+          ...(intent.recordKind !== undefined
+            ? { recordKind: intent.recordKind }
             : {}),
         },
       };
@@ -2636,9 +2659,13 @@ function coerceFieldValue(
  * `lib/ledger/record-mutate.ts` `CREATE_DEFAULTS.project` so the CLI-side
  * `insertRecord` oracle pre-check (which requires every non-optional
  * `ProjectSchema` field present) validates a bare `create-project <path>
- * --title X` identically to the server's own `withCreateDefaults` merge. */
+ * --title X` identically to the server's own `withCreateDefaults` merge.
+ * ID-156.8: `initiative` ADDED, values ported VERBATIM from the vendored
+ * `lib/ledger/record-mutate.ts` `CREATE_DEFAULTS.initiative` for the same
+ * parity reason — `create-initiative`'s bare-minimal invocation must satisfy
+ * `InitiativeSchema`'s non-optional fields identically to the server. */
 const CREATE_DEFAULTS: Record<
-  'subtask' | 'task' | 'item' | 'retro' | 'project',
+  'subtask' | 'task' | 'item' | 'retro' | 'project' | 'initiative',
   Record<string, unknown>
 > = {
   subtask: {
@@ -2707,6 +2734,20 @@ const CREATE_DEFAULTS: Record<
     linked_backlog: [],
     originating_session: [],
   },
+  // ID-156.8 (parent-or-root): `id` is caller-supplied (no auto-id, same
+  // discipline as `project`); `status: 'proposed'` is the lowest/untriaged
+  // INITIATIVE_STATUSES value. Fields kept to the shape SHARED by both a
+  // top-level Initiative and a nested SubInitiative — `linked_tasks`/
+  // `linked_backlog` are Initiative-only transitional tolerance fields with
+  // no SubInitiative analog, so (matching the vendored oracle's own
+  // CREATE_DEFAULTS.initiative) they are not defaulted here either.
+  initiative: {
+    description: '',
+    status: 'proposed',
+    projects: [],
+    originating_session: [],
+    'sub-initiatives': [],
+  },
 };
 
 /**
@@ -2716,7 +2757,7 @@ const CREATE_DEFAULTS: Record<
  * write timestamp when absent.
  */
 function withCreateDefaults(
-  recordKind: 'subtask' | 'task' | 'item' | 'retro' | 'project',
+  recordKind: 'subtask' | 'task' | 'item' | 'retro' | 'project' | 'initiative',
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const defaults = { ...CREATE_DEFAULTS[recordKind] };
@@ -5349,6 +5390,123 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           slug: ledgerSlug('initiatives'),
           recordId: path,
           patches: [patch],
+        },
+      });
+    }
+
+    // ID-156.8 (DR-077, Liam-ratified S477): `create-initiative` — minimal
+    // CLI + server, no UI create surface. Creates a new TOP-LEVEL initiative
+    // when no `<parentPath>` is given (root), or a new sub-initiative under
+    // an EXISTING `<parentPath>` (dotted, e.g. "4"/"4.2") when one is —
+    // task-view's `insertRecord`/`insertInitiativeAt` "parent-or-root"
+    // contract (df84019/79ae1ff). Distinguishing the two invocation shapes:
+    // a record body is ALWAYS a JSON object (`{…}`/`[…]`) when passed
+    // positionally (every other create verb's `<recordJson>` convention) or
+    // supplied via `--file`/named flags — never a bare non-JSON-shaped
+    // string. So a `p[0]` that does NOT start with `{`/`[` can only be the
+    // parentPath; a `{`/`[`-shaped (or absent) `p[0]` leaves `p` untouched
+    // for `readRecordInput` (root create). This also correctly rejects a
+    // project-slug-shaped `p[0]` as a parentPath candidate (resolved and
+    // rejected below), not silently misparsed as malformed JSON. recordId
+    // contract (156.8 checker note): `insertRecord` returns the FULL DOTTED
+    // PATH for an initiative/sub-initiative create (parentPath + local id,
+    // or the bare local id at root) — never the bare local id alone.
+    case 'create-initiative': {
+      const looksLikeJsonBody = (s: string): boolean =>
+        s.startsWith('{') || s.startsWith('[');
+      let parentPath: string | undefined;
+      let bodyPositionals = p;
+      if (p[0] !== undefined && !looksLikeJsonBody(p[0])) {
+        parentPath = p[0];
+        bodyPositionals = p.slice(1);
+      }
+      const loaded = await loadInitiativesLedger(dir, 'create-initiative');
+      if (!loaded.ok) return loaded.result;
+      // A supplied parentPath must resolve to an EXISTING initiative/
+      // sub-initiative node — never a project slug — BEFORE building the
+      // intent (disambiguate-before-mutate, matching update-initiative).
+      if (parentPath !== undefined) {
+        const resolved = resolveRecordId(
+          loaded.doc as unknown as TreeDoc,
+          parentPath,
+        );
+        if (resolved.kind === 'project') {
+          return cliErr(
+            'create-initiative',
+            'initiatives-path-only',
+            `"${parentPath}" is a project slug, not an initiative/sub-initiative path — create-initiative's optional parent addresses initiatives only`,
+          );
+        }
+        if (resolved.kind === 'not-found') {
+          return cliErr(
+            'create-initiative',
+            'record-not-found',
+            `no initiative/sub-initiative at path "${parentPath}"`,
+          );
+        }
+      }
+      const bodyArgs: ParsedArgs = { ...args, positionals: bodyPositionals };
+      const input = readRecordInput(bodyArgs);
+      if (!input.ok) return input.result;
+      const record = withCreateDefaults(
+        'initiative',
+        input.value as Record<string, unknown>,
+      );
+      // INV-3 — client-side status-enum surfacing at CREATE time, validation
+      // parity with the sibling verbs (update-initiative already does this
+      // at field-patch time; create-project has no create-time equivalent
+      // today, but the {156.8} scope explicitly calls for it here).
+      const statusCandidate = (record as { status?: unknown }).status;
+      if (typeof statusCandidate === 'string') {
+        const statusCheck = requireValidInitiativeStatus(
+          'create-initiative',
+          statusCandidate,
+        );
+        if (!statusCheck.ok) return statusCheck.result;
+      }
+      // insertRecord is the CLI-side duplicate-id (sibling-scoped) + schema +
+      // tree-path oracle (esc-4 retained; TECH §2 INV-13); the record-set +
+      // budget gates run server-side (R1b). `nodeKind:'initiative'` selects
+      // the parent-or-root tree-insert arm over the default project arm.
+      const ins = insertRecord(
+        loaded.detected,
+        record,
+        parentPath,
+        'initiative',
+      );
+      if (!ins.ok) {
+        if (ins.kind === 'schema-error')
+          return {
+            ok: false,
+            subcommand: 'create-initiative',
+            error: 'schema-error',
+            issues: ins.zodError.issues,
+            expected: describeExpectedShape(ins.zodError),
+          };
+        if (ins.kind === 'duplicate-id')
+          return cliErr('create-initiative', 'duplicate-id', ins.recordId);
+        return cliErr(
+          'create-initiative',
+          ins.kind,
+          'detail' in ins ? ins.detail : undefined,
+        );
+      }
+      return commitMutation({
+        subcommand: 'create-initiative',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: {
+          recordId: ins.recordId,
+          ...(parentPath !== undefined ? { parentPath } : {}),
+        },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'record-create',
+          slug: ledgerSlug('initiatives'),
+          record,
+          ...(parentPath !== undefined ? { initiativePath: parentPath } : {}),
+          recordKind: 'initiative',
         },
       });
     }
