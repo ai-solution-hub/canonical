@@ -206,11 +206,24 @@ services:
   # STAGING. Mirrors `bid-worker-platform` in docker-compose.platform.yaml —
   # see that service's comment block for the full G8 deploy-gap rationale
   # (ID-145 {145.13}, BI-20). Staging-scoped values only differ below.
+  #
+  # CNB GOTCHA (confirmed ID-145.31/S481): the buildpack ENTRYPOINT
+  # (/cnb/process/web) pins the container to the `web` process and never
+  # execs `command:` — hence `entrypoint: ["/cnb/lifecycle/launcher"]` below,
+  # which execs the custom command under the buildpack env instead.
   # ----------------------------------------------------------------------------
   bid-worker-platform-staging:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    # DR-059 provisioning note (ID-145 {145.31}): LibreOffice (soffice) for
+    # this worker's .doc/.xls convert-on-upload lane is baked into THIS
+    # shared image by the "Bake git + LibreOffice" post-pack layer in
+    # .github/workflows/onprem-deploy.yml — not a change here or to any
+    # buildpack/Dockerfile. cocoindex-platform-staging above shares the same
+    # image but never calls soffice itself (accepted bloat, G8 folded-worker
+    # decision — see the block comment above this service).
     container_name: ca-bid-worker-platform-staging
     restart: unless-stopped
+    entrypoint: ["/cnb/lifecycle/launcher"]
     command: ["python3", "-m", "scripts.bid_worker"]
 
     deploy:
