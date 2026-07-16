@@ -1,8 +1,9 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 import { WorkflowStepper } from '@/components/procurement/workflow-stepper';
 import { ItemInlineStates } from '@/components/procurement/item-inline-states';
+import { cn } from '@/lib/utils';
 import type { ProcurementWorkflowState } from '@/types/procurement';
 
 /**
@@ -17,12 +18,15 @@ import type { ProcurementWorkflowState } from '@/types/procurement';
  * truth the server-side `computeWorkflowTransition` write path is gated on, so
  * this host does not re-derive or re-gate transitions itself.
  *
- * `availableTransitions` mirrors the header toolbar's own `regularTransitions`
- * (which excludes the outcome branch once submitted, since that flow routes
- * through the "Record Outcome" dialog instead) — it is accepted here so
- * `page.tsx` never has to re-thread new props, but deliberately NOT used to
- * gate the stepper: BI-13 requires the full 10-state machine, so the stepper
- * computes its own valid next states straight off `workflowState`.
+ * ID-145 {145.50} — `canEdit` (threaded from `useUserRole()` via page.tsx,
+ * the SAME viewer/editor signal every sibling panel — `ItemQuestionsPanel`,
+ * `ItemCoveragePanel`, `ItemDocumentsTab` — gates on) controls whether the
+ * stepper is interactive. Non-editor/viewer roles get a visibly-labelled,
+ * `inert` (unfocusable, unclickable) stepper instead of relying solely on
+ * the server-side transition gate (BI-47) — presentation-layer only, that
+ * gate is untouched. `onTransition` is also withheld when `!canEdit` as a
+ * second, independent line of defence, and the wrapper carries
+ * `aria-disabled` for assistive tech that doesn't yet honour `inert`.
  */
 export interface ItemWorkflowPanelProps {
   workflowState: ProcurementWorkflowState | null;
@@ -30,7 +34,8 @@ export interface ItemWorkflowPanelProps {
   submissionDate?: string | null;
   issuingOrganisation?: string | null;
   outcome?: 'won' | 'lost' | 'withdrawn' | null;
-  availableTransitions?: ProcurementWorkflowState[];
+  /** Viewer/editor signal (`useUserRole().canEdit`) — non-editors get a read-only stepper. */
+  canEdit: boolean;
   onTransition?: (state: ProcurementWorkflowState) => void;
   transitioning?: boolean;
   className?: string;
@@ -42,6 +47,7 @@ export function ItemWorkflowPanel({
   submissionDate,
   issuingOrganisation,
   outcome,
+  canEdit,
   onTransition,
   transitioning,
   className,
@@ -65,14 +71,28 @@ export function ItemWorkflowPanel({
 
   return (
     <div data-testid="item-workflow-panel" className={rootClassName}>
-      <WorkflowStepper
-        currentState={workflowState}
-        onTransition={onTransition}
-        deadline={deadline}
-        submissionDate={submissionDate}
-        issuingOrganisation={issuingOrganisation}
-        outcome={outcome}
-      />
+      {!canEdit && (
+        <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="size-3" aria-hidden="true" />
+          View only — you don&apos;t have permission to change this bid&apos;s
+          workflow state.
+        </p>
+      )}
+      <div
+        data-testid="workflow-stepper-wrapper"
+        inert={!canEdit}
+        aria-disabled={!canEdit}
+        className={cn(!canEdit && 'pointer-events-none opacity-60')}
+      >
+        <WorkflowStepper
+          currentState={workflowState}
+          onTransition={canEdit ? onTransition : undefined}
+          deadline={deadline}
+          submissionDate={submissionDate}
+          issuingOrganisation={issuingOrganisation}
+          outcome={outcome}
+        />
+      </div>
       {transitioning && (
         <p
           role="status"

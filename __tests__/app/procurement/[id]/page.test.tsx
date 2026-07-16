@@ -741,6 +741,34 @@ describe('ProcurementDetailPage', () => {
     );
   });
 
+  // ID-145 {145.50} — `canEdit` threaded from `useUserRole()` into
+  // `ItemWorkflowPanel`: a viewer sees a non-interactive, visibly-labelled
+  // stepper instead of the page relying solely on the server-side gate
+  // (BI-47); admin/editor stepper behaviour is unchanged.
+  it('marks the workflow stepper non-interactive for a viewer role', () => {
+    mockUseUserRole.canEdit = false;
+    mockUseUserRole.role = 'viewer';
+    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
+    expect(
+      within(screen.getByTestId('item-workflow-panel')).getByText(/View only/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('workflow-stepper-wrapper')).toHaveAttribute(
+      'inert',
+    );
+  });
+
+  it('keeps the workflow stepper fully interactive for an editor role', () => {
+    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
+    expect(
+      within(screen.getByTestId('item-workflow-panel')).queryByText(
+        /View only/,
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('workflow-stepper-wrapper')).not.toHaveAttribute(
+      'inert',
+    );
+  });
+
   // ---- Open Session link ----
 
   it('shows Open Session button linking to session page', () => {

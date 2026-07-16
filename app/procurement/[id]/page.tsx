@@ -339,7 +339,7 @@ export default function ProcurementDetailPage({
           submissionDate={metadata?.submission_date ?? null}
           issuingOrganisation={metadata?.buyer ?? null}
           outcome={metadata?.outcome ?? null}
-          availableTransitions={regularTransitions}
+          canEdit={canEdit}
           onTransition={handleStatusTransition}
           transitioning={transitioning}
         />
