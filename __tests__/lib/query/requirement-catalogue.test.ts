@@ -2,12 +2,20 @@
  * Requirement-catalogue query-glue tests (ID-147 {147.16} — TECH §7/§H1,
  * PRODUCT §H1/§H3; ID-145 BI-24/BI-47).
  *
- * Covers the plain async fetch/save functions directly against the shared
+ * `fetchRequirementTemplates` is covered directly against the shared
  * Supabase mock (`__tests__/helpers/mock-supabase.ts`), independent of any
  * React/QueryClient scaffolding — mirrors the
  * `__tests__/lib/query/promotion-candidates-fetcher.test.ts` convention.
+ *
+ * `saveRequirementTemplate` is covered via a stubbed `fetch` — ID-147
+ * {147.16} fix-mode remediation (Checker FAIL) re-pointed writes at the
+ * admin/editor-gated `app/api/procurement/requirement-catalogue/route.ts`
+ * (see the source module doc), so these tests now assert the fetch/route
+ * contract (method, path, body) rather than a direct Supabase client chain
+ * — mirrors `__tests__/components/question-answer-editor.test.tsx`'s
+ * `mockFetchJson` pattern for `lib/query/procurement-question-answer-slot.ts`.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
 
 const { mockCreateClient } = vi.hoisted(() => ({
@@ -29,7 +37,7 @@ import {
 function makeRow(
   overrides: Partial<RequirementTemplateRow> = {},
 ): RequirementTemplateRow {
-  return {
+  const base: Record<string, unknown> = {
     id: 'a0000000-0000-4000-8000-000000000001',
     template_name: 'Standard PSQ',
     template_version: 'v1',
@@ -54,12 +62,25 @@ function makeRow(
     created_at: '2026-07-01T08:00:00Z',
     updated_at: '2026-07-01T08:00:00Z',
     ...overrides,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  };
+  return base as RequirementTemplateRow;
+}
+
+/** Stubs `fetch` with a single resolved JSON response. */
+function mockFetchJson(body: unknown, ok = true, status = 200) {
+  return vi.fn().mockResolvedValue({
+    ok,
+    status,
+    json: () => Promise.resolve(body),
+  });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('requirementCatalogueKeys', () => {
@@ -128,10 +149,10 @@ describe('fetchRequirementTemplates', () => {
 });
 
 describe('saveRequirementTemplate — create (no id)', () => {
-  it('inserts into form_requirement_templates and returns the persisted row', async () => {
+  it('POSTs to the requirement-catalogue route and returns the persisted row', async () => {
     const created = makeRow();
-    const table = createMockSupabaseTable({ data: created, error: null });
-    mockCreateClient.mockReturnValue(table);
+    const fetchMock = mockFetchJson(created);
+    vi.stubGlobal('fetch', fetchMock);
 
     const values = {
       template_name: 'Standard PSQ',
@@ -143,36 +164,53 @@ describe('saveRequirementTemplate — create (no id)', () => {
       is_mandatory: true,
       is_current: true,
       display_order: 0,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any;
+    };
 
     const result = await saveRequirementTemplate({ values });
 
-    expect(table.from).toHaveBeenCalledWith('form_requirement_templates');
-    expect(table._chain.insert).toHaveBeenCalledWith(values);
-    expect(table._chain.update).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/procurement/requirement-catalogue',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      }),
+    );
     expect(result).toEqual(created);
   });
 
-  it('throws when the insert errors', async () => {
-    const table = createMockSupabaseTable({
-      data: null,
-      error: new Error('insert boom'),
-    });
-    mockCreateClient.mockReturnValue(table);
+  it('throws the route error message when the POST fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetchJson({ error: 'Validation failed' }, false, 400),
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await expect(
-      saveRequirementTemplate({ values: {} as any }),
-    ).rejects.toThrow();
+    await expect(saveRequirementTemplate({ values: {} })).rejects.toThrow(
+      'Validation failed',
+    );
+  });
+
+  it('falls back to a generic message when the failed POST has no JSON body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.reject(new Error('not json')),
+      }),
+    );
+
+    await expect(saveRequirementTemplate({ values: {} })).rejects.toThrow(
+      'Failed to save requirement (500)',
+    );
   });
 });
 
 describe('saveRequirementTemplate — update (id supplied)', () => {
-  it('updates the row matching id and returns the persisted row', async () => {
+  it('PATCHes the requirement-catalogue route with id folded into the body', async () => {
     const updated = makeRow({ requirement_text: 'Updated wording.' });
-    const table = createMockSupabaseTable({ data: updated, error: null });
-    mockCreateClient.mockReturnValue(table);
+    const fetchMock = mockFetchJson(updated);
+    vi.stubGlobal('fetch', fetchMock);
 
     const values = { requirement_text: 'Updated wording.' };
     const result = await saveRequirementTemplate({
@@ -180,22 +218,25 @@ describe('saveRequirementTemplate — update (id supplied)', () => {
       values,
     });
 
-    expect(table.from).toHaveBeenCalledWith('form_requirement_templates');
-    expect(table._chain.update).toHaveBeenCalledWith(values);
-    expect(table._chain.eq).toHaveBeenCalledWith('id', updated.id);
-    expect(table._chain.insert).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/procurement/requirement-catalogue',
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: updated.id, ...values }),
+      }),
+    );
     expect(result).toEqual(updated);
   });
 
-  it('throws when the update errors', async () => {
-    const table = createMockSupabaseTable({
-      data: null,
-      error: new Error('update boom'),
-    });
-    mockCreateClient.mockReturnValue(table);
+  it('throws the route error message when the PATCH fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetchJson({ error: 'Requirement not found' }, false, 404),
+    );
 
     await expect(
       saveRequirementTemplate({ id: 'row-1', values: {} }),
-    ).rejects.toThrow();
+    ).rejects.toThrow('Requirement not found');
   });
 });

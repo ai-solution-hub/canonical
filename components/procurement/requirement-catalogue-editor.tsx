@@ -28,8 +28,14 @@
  * reusable across forms, not scoped to any one item.
  */
 
-import { useMemo, useState } from 'react';
-import { ClipboardList, Loader2, Pencil, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  ClipboardList,
+  Loader2,
+  Pencil,
+  Plus,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -548,7 +554,7 @@ export function RequirementCatalogueEditor({
   className?: string;
 }) {
   const { canEdit } = useUserRole();
-  const { data: rows, isLoading } = useRequirementTemplates();
+  const { data: rows, isLoading, isError, error } = useRequirementTemplates();
   const [panelState, setPanelState] = useState<
     { mode: 'add' } | { mode: 'edit'; row: RequirementTemplateRow } | null
   >(null);
@@ -559,10 +565,43 @@ export function RequirementCatalogueEditor({
     setPanelState(null);
   }
 
+  // A failed fetch must not be masked as "no requirements yet" (silent
+  // failure) — surface it distinctly, inline and via toast, matching the
+  // save-path toast.error pattern above.
+  useEffect(() => {
+    if (isError) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to load the requirement catalogue',
+      );
+    }
+  }, [isError, error]);
+
   if (isLoading) {
     return (
       <div className={cn('flex items-center justify-center py-12', className)}>
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div
+        role="alert"
+        className={cn(
+          'flex flex-col items-center justify-center gap-2 rounded-lg border bg-card py-12 text-center',
+          className,
+        )}
+      >
+        <AlertTriangle className="size-8 text-destructive" aria-hidden="true" />
+        <p className="text-sm font-medium text-destructive">
+          Failed to load the requirement catalogue
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {error instanceof Error ? error.message : 'Please try again.'}
+        </p>
       </div>
     );
   }

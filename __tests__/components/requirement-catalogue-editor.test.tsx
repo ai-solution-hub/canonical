@@ -226,6 +226,31 @@ describe('RequirementCatalogueEditor — list rendering', () => {
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
+  it('shows a distinct error state (not the empty state) and toasts when the fetch fails', async () => {
+    configureRole('viewer');
+    mockUseRequirementTemplates.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error('network unreachable'),
+    });
+    render(<RequirementCatalogueEditor />);
+
+    expect(
+      screen.getByText(/failed to load the requirement catalogue/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText('network unreachable')).toBeInTheDocument();
+    // Must NOT be masked as the empty state.
+    expect(
+      screen.queryByText(/no catalogue requirements yet/i),
+    ).not.toBeInTheDocument();
+
+    const { toast } = await import('sonner');
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('network unreachable'),
+    );
+  });
+
   it('renders row fields: requirement text, type badge, domain/subtopic, mandatory flag', () => {
     configureRole('viewer');
     render(<RequirementCatalogueEditor />);

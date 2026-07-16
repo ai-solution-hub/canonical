@@ -15,20 +15,27 @@
  * resolves to the `api.form_requirement_templates` security_invoker view at
  * runtime — see `lib/supabase/schema.ts`), mirroring the established
  * direct-read precedent in `hooks/use-taxonomy-admin.ts`
- * (`fetchSubtopicsForDomain`). Writes do the same rather than routing through
- * a bespoke API route: this Subtask's file-ownership boundary is this file +
- * `components/procurement/requirement-catalogue-editor.tsx` only (no
- * `app/api/**` route), and the catalogue's own RLS policies already gate
- * INSERT/UPDATE to admin/editor and DELETE to admin
- * (`template_requirements_insert` / `_update` / `_delete`, defined against
- * the table's pre-{145.16} name `form_template_requirements` — a plain
- * `ALTER TABLE … RENAME TO` does not rename policies, so these are still the
- * live policy names on the renamed `form_requirement_templates` table). BI-47
- * ("catalogue writes are admin/editor-gated") is therefore enforced at the
- * database layer regardless of what the UI does; the component additionally
- * hides create/edit affordances from non-editors via `useUserRole()` so
- * reviewer/viewer roles see a read-only surface (belt + braces, not the sole
- * gate).
+ * (`fetchSubtopicsForDomain`) — reads carry no write risk, so no server-route
+ * indirection is needed.
+ *
+ * Writes route through `app/api/procurement/requirement-catalogue/route.ts`
+ * (POST create / PATCH update), each gated server-side with
+ * `getAuthorisedClient(['admin','editor'])` + `authFailureResponse(auth)` —
+ * the repo's standard admin-mutation pattern (mirrors
+ * `app/api/layers/route.ts` and the sibling {147.17} editor's reuse of
+ * `getAuthorisedClient`-gated PATCH routes). ID-147 {147.16} fix-mode
+ * remediation (Checker FAIL): the original executor commit (5088e664) wrote
+ * directly through the browser Supabase client, gated only by RLS +
+ * client-side UI-hiding, which deviated from the brief's
+ * `auth.success`/`authFailureResponse` server-side pattern. The catalogue's
+ * own RLS policies (`template_requirements_insert`/`_update`, admin+editor —
+ * defined against the table's pre-{145.16} name `form_template_requirements`;
+ * a plain `ALTER TABLE … RENAME TO` does not rename policies, so these are
+ * still the live policy names on the renamed `form_requirement_templates`
+ * table) remain as defence-in-depth underneath the route, not the sole gate.
+ * The component additionally hides create/edit affordances from non-editors
+ * via `useUserRole()` so reviewer/viewer roles see a read-only surface (belt
+ * + braces, not the sole gate).
  *
  * Columns cited against the {145.16} W1c migration
  * (`supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql` STEP 3 —
@@ -122,8 +129,10 @@ export function useRequirementTemplates() {
 }
 
 // ---------------------------------------------------------------------------
-// Write (create + update — admin/editor-gated by RLS, BI-47)
+// Write (create + update — admin/editor-gated server-side, BI-47)
 // ---------------------------------------------------------------------------
+
+const REQUIREMENT_CATALOGUE_API_PATH = '/api/procurement/requirement-catalogue';
 
 export interface SaveRequirementTemplateParams {
   /** Present for an update; absent for a create. */
@@ -134,32 +143,34 @@ export interface SaveRequirementTemplateParams {
 /**
  * Plain async create/update, exported separately from the `useMutation`
  * wrapper below for the same direct-testability reason as
- * `fetchRequirementTemplates` above. Keyed off whether `id` is supplied.
+ * `fetchRequirementTemplates` above. Keyed off whether `id` is supplied —
+ * POSTs to create, PATCHes (with `id` folded into the body) to update, via
+ * the admin/editor-gated `app/api/procurement/requirement-catalogue/route.ts`
+ * (see the module doc for why this is a server route rather than a direct
+ * client write).
  */
 export async function saveRequirementTemplate({
   id,
   values,
 }: SaveRequirementTemplateParams): Promise<RequirementTemplateRow> {
-  const supabase = createClient();
+  const res = await fetch(REQUIREMENT_CATALOGUE_API_PATH, {
+    method: id ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? { id, ...values } : values),
+  });
 
-  if (id) {
-    const { data, error } = await supabase
-      .from('form_requirement_templates')
-      .update(values)
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+  if (!res.ok) {
+    // Deliberate swallow: the error body is optional detail only — a
+    // malformed/absent JSON body must not mask the real failure (the
+    // non-OK HTTP status), so it falls back to a generic message below.
+    // Mirrors lib/query/procurement-question-answer-slot.ts.
+    const body = await res.json().catch((_err) => null);
+    throw new Error(
+      body?.error ?? `Failed to save requirement (${res.status})`,
+    );
   }
 
-  const { data, error } = await supabase
-    .from('form_requirement_templates')
-    .insert(values as RequirementTemplateInsert)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  return res.json();
 }
 
 /**
