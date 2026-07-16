@@ -27,6 +27,9 @@
       "bold": [
         "bold"
       ],
+      "boldTags": [
+        "STRONG"
+      ],
       "tables": [
         {
           "headers": [
@@ -50,7 +53,8 @@
       ],
       "code": [
         "const configValue = 1;"
-      ]
+      ],
+      "codeHighlighted": false
     },
     "migrated": {
       "headings": [
@@ -79,6 +83,9 @@
       "bold": [
         "bold"
       ],
+      "boldTags": [
+        "STRONG"
+      ],
       "tables": [
         {
           "headers": [
@@ -102,7 +109,8 @@
       ],
       "code": [
         "const configValue = 1;"
-      ]
+      ],
+      "codeHighlighted": false
     }
   },
   "reviewStyle": {
@@ -117,13 +125,15 @@
         ]
       ],
       "bold": [],
+      "boldTags": [],
       "tables": [],
       "blockquotes": [
         "Reviewer note: minor formatting issues remain outstanding."
       ],
       "code": [
         "{ \"status\": \"approved\" }"
-      ]
+      ],
+      "codeHighlighted": false
     },
     "migrated": {
       "headings": [],
@@ -136,13 +146,15 @@
         ]
       ],
       "bold": [],
+      "boldTags": [],
       "tables": [],
       "blockquotes": [
         "Reviewer note: minor formatting issues remain outstanding."
       ],
       "code": [
         "{ \"status\": \"approved\" }"
-      ]
+      ],
+      "codeHighlighted": false
     }
   },
   "qaPairStyle": {
@@ -165,6 +177,7 @@
       ],
       "lists": [],
       "bold": [],
+      "boldTags": [],
       "tables": [
         {
           "headers": [
@@ -184,7 +197,8 @@
         }
       ],
       "blockquotes": [],
-      "code": []
+      "code": [],
+      "codeHighlighted": false
     }
   }
 }

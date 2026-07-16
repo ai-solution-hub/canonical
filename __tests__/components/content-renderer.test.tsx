@@ -51,9 +51,11 @@ interface StructuralSummary {
   links: { text: string; href: string | null }[];
   lists: string[][];
   bold: string[];
+  boldTags: string[];
   tables: { headers: string[]; rows: string[][] }[];
   blockquotes: string[];
   code: string[];
+  codeHighlighted: boolean;
 }
 
 function normaliseWhitespace(text: string | null): string {
@@ -80,16 +82,19 @@ function extractStructuralSummary(container: HTMLElement): StructuralSummary {
       .map((li) => normaliseWhitespace(li.textContent)),
   );
 
-  // react-markdown renders `**bold**` as a semantic `<strong>`; Streamdown's
-  // default renders it as `<span data-streamdown="strong" class="font-semibold">`
-  // — visually identical (bold weight), no `<strong>` tag. Match both so the
-  // parity check reflects what a sighted user actually sees (§I2), not a tag
-  // name. (The semantic-tag gap is a Streamdown-wide characteristic, not
-  // introduced by this migration — flagged separately, out of this
-  // Subtask's boundary.)
-  const bold = Array.from(
+  // react-markdown renders `**bold**` as a semantic `<strong>`. Streamdown's
+  // un-overridden default renders `<span data-streamdown="strong">` instead
+  // (visually identical bold weight, no `<strong>` tag — a WCAG gap); the
+  // ID-145.46 `strong` override restores the semantic tag so the migrated
+  // path matches the baseline exactly. The `[data-streamdown="strong"]`
+  // selector is kept only as a defensive fallback (so a regression back to
+  // Streamdown's default still surfaces as bold content, not silence) —
+  // `boldTags` below asserts the actual tag name used, closing that gap.
+  const boldEls = Array.from(
     container.querySelectorAll('strong, b, [data-streamdown="strong"]'),
-  ).map((el) => normaliseWhitespace(el.textContent));
+  );
+  const bold = boldEls.map((el) => normaliseWhitespace(el.textContent));
+  const boldTags = boldEls.map((el) => el.tagName);
 
   const tables = Array.from(container.querySelectorAll('table')).map(
     (table) => ({
@@ -108,11 +113,33 @@ function extractStructuralSummary(container: HTMLElement): StructuralSummary {
     (bq) => normaliseWhitespace(bq.textContent),
   );
 
-  const code = Array.from(container.querySelectorAll('pre')).map((pre) =>
-    normaliseWhitespace(pre.textContent),
+  const codeBlocks = Array.from(container.querySelectorAll('pre'));
+  const code = codeBlocks.map((pre) => normaliseWhitespace(pre.textContent));
+  // ID-145.46: Streamdown's un-overridden default `code` lazy-loads a Shiki
+  // highlighter chunk that wraps every token in its own `<span>` and stamps
+  // `data-streamdown` markers on the tree — the async chunk resolution is
+  // what leaked React act() warnings and broke the suite. The `code`
+  // override renders plain, non-highlighted markup instead; `codeHighlighted`
+  // asserts no Shiki/Streamdown artifact survives in either renderer's
+  // output (both the react-markdown baseline and the fixed migrated path
+  // must be plain).
+  const codeHighlighted = codeBlocks.some(
+    (pre) =>
+      pre.hasAttribute('data-streamdown') ||
+      pre.querySelector('[data-streamdown], span') !== null,
   );
 
-  return { headings, links, lists, bold, tables, blockquotes, code };
+  return {
+    headings,
+    links,
+    lists,
+    bold,
+    boldTags,
+    tables,
+    blockquotes,
+    code,
+    codeHighlighted,
+  };
 }
 
 /** The incumbent renderer's exact former configuration (no heading-id
@@ -296,7 +323,11 @@ describe('ContentRenderer', () => {
       coreBaseline.unmount();
 
       const coreMigrated = renderMigrated(CORE_CORPUS);
-      await settle(); // CORE_CORPUS has a fenced code block (Shiki lazy-loads)
+      // CORE_CORPUS has a fenced code block. Post-ID-145.46 the `code`
+      // override renders plain markup synchronously (no Shiki lazy-load), so
+      // this settle() is no longer strictly required for this corpus —
+      // kept as a harmless defensive flush.
+      await settle();
       const coreMigratedSummary = extractStructuralSummary(
         coreMigrated.container,
       );
@@ -309,7 +340,7 @@ describe('ContentRenderer', () => {
       reviewBaseline.unmount();
 
       const reviewMigrated = renderMigrated(REVIEW_STYLE_CORPUS);
-      await settle(); // REVIEW_STYLE_CORPUS also has a fenced code block
+      await settle(); // REVIEW_STYLE_CORPUS also has a fenced code block — same defensive-flush note as above
       const reviewMigratedSummary = extractStructuralSummary(
         reviewMigrated.container,
       );
@@ -321,6 +352,15 @@ describe('ContentRenderer', () => {
       // style corpus.
       expect(coreMigratedSummary).toEqual(coreBaselineSummary);
       expect(reviewMigratedSummary).toEqual(reviewBaselineSummary);
+
+      // ID-145.46 suite-breaker fix, asserted explicitly (not just folded
+      // into the deep-equal above): code must never render Shiki-highlighted
+      // (the async chunk import is what leaked act() warnings and broke the
+      // suite), and bold must render a real `<strong>` tag (Streamdown's
+      // un-overridden default is a non-semantic `<span>`).
+      expect(coreMigratedSummary.codeHighlighted).toBe(false);
+      expect(coreMigratedSummary.boldTags).toEqual(['STRONG']);
+      expect(reviewMigratedSummary.codeHighlighted).toBe(false);
 
       const qaPairMigrated = renderMigrated(QA_PAIR_CORPUS);
       const qaPairMigratedSummary = extractStructuralSummary(

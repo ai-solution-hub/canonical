@@ -135,6 +135,43 @@ function createContentComponents(idCounts: Map<string, number>): Components {
         </a>
       );
     },
+    // Streamdown's default `code` component lazy-loads a Shiki highlighter
+    // chunk (`import('./highlighted-body-...')`) whose resolution lands
+    // outside React's `act()` — a leaked-act warning this repo's strict test
+    // setup (`__tests__/setup.ts`) turns into a hard failure. The incumbent
+    // react-markdown path never syntax-highlighted (§I2 parity), so this
+    // override renders plain, non-highlighted markup and never touches the
+    // Shiki path. Streamdown's default `pre` (left un-overridden) clones its
+    // rendered `code` child with a `data-block` prop for fenced/block code;
+    // a bare inline `` `code` `` span has no such prop — mirrors
+    // Streamdown's own internal inline/block distinction so `pre` doesn't
+    // need to be reimplemented here.
+    code: ({ className, children, ...rest }) => {
+      const isBlockCode = 'data-block' in rest;
+      if (isBlockCode) {
+        return (
+          <pre>
+            <code className={className} {...rest}>
+              {children}
+            </code>
+          </pre>
+        );
+      }
+      return (
+        <code className={className} {...rest}>
+          {children}
+        </code>
+      );
+    },
+    // Streamdown's default renders `**bold**` as
+    // `<span data-streamdown="strong">`, not a semantic `<strong>` — a
+    // prose-styling + WCAG regression vs. the incumbent react-markdown path.
+    // Restore the semantic tag.
+    strong: ({ className, children, ...rest }) => (
+      <strong className={className} {...rest}>
+        {children}
+      </strong>
+    ),
   };
 }
 

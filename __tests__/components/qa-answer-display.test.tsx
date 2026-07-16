@@ -1041,9 +1041,12 @@ describe('QAAnswerDisplay — copy button raw-markdown regression (§7.1)', () =
     // not pre-rendered HTML in the prop), so the parent reading
     // `item.answer_standard` will get the raw markdown shown above.
     expect(document.querySelector('strong')).toHaveTextContent('Bold');
+    // Streamdown's bundled rehype-harden pass canonicalises a bare-origin
+    // URL through the WHATWG URL constructor, which appends the trailing
+    // slash — expected §I3 behaviour, not a regression.
     expect(document.querySelector('a')).toHaveAttribute(
       'href',
-      'http://example.com',
+      'http://example.com/',
     );
   });
 });
