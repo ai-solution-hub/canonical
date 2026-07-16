@@ -56,6 +56,27 @@ const OTHER_FORM_ID = 'b2c3d4e5-f6a7-4901-bcde-f12345678901';
 const ENGAGEMENT_ID = 'c3d4e5f6-a7b8-4012-cdef-123456789012';
 const ATTACHMENT_ID = 'd4e5f6a7-b8c9-4123-def0-234567890123';
 
+/**
+ * The shape of the storage bucket double `createMockSupabaseClient()` wires
+ * `storage.from()` to resolve to. Declared locally (not imported from the
+ * shared helper) because `MockSupabaseClient['storage']['from']`'s
+ * `ReturnType<typeof vi.fn>` type is a bare, un-parameterised Mock — calling
+ * it directly does not typecheck (TS2348); the cast below is the minimal
+ * local fix, confined to this test file.
+ */
+interface MockStorageBucket {
+  upload: ReturnType<typeof vi.fn>;
+  remove: ReturnType<typeof vi.fn>;
+}
+
+/** The `tender-documents` Storage bucket double (`mockSupabase.storage.from('tender-documents')`). */
+function bucket(): MockStorageBucket {
+  const from = mockSupabase.storage.from as unknown as (
+    bucketName: string,
+  ) => MockStorageBucket;
+  return from('tender-documents');
+}
+
 function makeMockFile(bytes: Uint8Array, name: string, type: string): File {
   return createMockFile({ name, content: bytes, type });
 }
@@ -300,8 +321,7 @@ describe('POST /api/procurement/[id]/attachments', () => {
     expect(body.form_instance_id).toBe(FORM_ID);
     expect(body.role).toBe('form_source');
 
-    const bucket = mockSupabase.storage.from('tender-documents');
-    const uploadedPath = bucket.upload.mock.calls[0][0];
+    const uploadedPath = bucket().upload.mock.calls[0][0];
     expect(uploadedPath).toMatch(
       new RegExp(`^${FORM_ID}/attachments/[0-9a-f-]{36}-cv\\.pdf$`),
     );
@@ -341,8 +361,7 @@ describe('POST /api/procurement/[id]/attachments', () => {
     expect(body.engagement_group_id).toBe(ENGAGEMENT_ID);
     expect(body.form_instance_id).toBeNull();
 
-    const bucket = mockSupabase.storage.from('tender-documents');
-    const uploadedPath = bucket.upload.mock.calls[0][0];
+    const uploadedPath = bucket().upload.mock.calls[0][0];
     expect(uploadedPath).toMatch(
       new RegExp(`^engagement/${ENGAGEMENT_ID}/[0-9a-f-]{36}-cv\\.pdf$`),
     );
@@ -373,8 +392,7 @@ describe('POST /api/procurement/[id]/attachments', () => {
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain('Engagement not found');
 
-    const bucket = mockSupabase.storage.from('tender-documents');
-    expect(bucket.remove).toHaveBeenCalledTimes(1);
+    expect(bucket().remove).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -473,8 +491,7 @@ describe('DELETE /api/procurement/[id]/attachments', () => {
     expect(res.status).toBe(204);
     expect(mockSupabase._chain.delete).toHaveBeenCalledTimes(1);
 
-    const bucket = mockSupabase.storage.from('tender-documents');
-    expect(bucket.remove).toHaveBeenCalledWith([
+    expect(bucket().remove).toHaveBeenCalledWith([
       `${FORM_ID}/attachments/x-cv.pdf`,
     ]);
   });

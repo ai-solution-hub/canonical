@@ -278,10 +278,12 @@ export const POST = defineRoute(
       // specific form's context, whether the attach itself ends up
       // form-scoped or engagement-scoped.
       //
-      // ID-145 {145.6}/{145.7} type-regen-skip allowance: `form_instances`
+      // ID-145 {145.6}/{145.7} type-regen-skip allowance: `form_attachments`
       // is POST-W1 schema, not yet in the generated Database type (staging
       // DB pre-push). Expected typecheck drift, journalled not chased —
-      // same allowance {145.9}/{145.19} already took.
+      // same allowance {145.9}/{145.19} already took. (`form_instances`
+      // itself already typechecks clean — the drift is on the
+      // `form_attachments` call sites below, not this lookup.)
       const formResult = await tryQuery<{ id: string }>(
         supabase.from('form_instances').select('id').eq('id', id).single(),
         'procurement.attachments.formLookup',
