@@ -60,6 +60,46 @@ describe('loadBranding', () => {
     }
   });
 
+  // ID-156.4: the WCAG-contrast advisory was leaking into every scripts/*.ts
+  // CLI invocation (e.g. ledger-cli.ts, which transitively imports BRANDING
+  // via lib/validation/schemas.ts), breaking naive stdout+stderr-merged jq
+  // piping. Gate to the app/dev surface: suppress ONLY when the process
+  // entry point is a scripts/ CLI — never for the app/build/SSR/test surface
+  // this advisory is intended for.
+  it('does NOT emit the [branding] advisory when the process entry point is a scripts/ CLI', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('window', undefined);
+    const originalArgv1 = process.argv[1];
+    process.argv[1] = '/repo/scripts/ledger-cli.ts';
+    try {
+      loadBranding('default');
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('[branding]'),
+      );
+    } finally {
+      process.argv[1] = originalArgv1;
+      vi.unstubAllGlobals();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('still emits the [branding] advisory server-side for a non-scripts/ entry point', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('window', undefined);
+    const originalArgv1 = process.argv[1];
+    process.argv[1] = '/repo/node_modules/.bin/next';
+    try {
+      loadBranding('default');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[branding]'),
+      );
+    } finally {
+      process.argv[1] = originalArgv1;
+      vi.unstubAllGlobals();
+      warnSpy.mockRestore();
+    }
+  });
+
   it('resolves to default for an overlay id absent from the public tree', () => {
     // Post-untrack (ID-68.22): client branding JSON + assets are no longer
     // committed to the public tree — they are fetched into

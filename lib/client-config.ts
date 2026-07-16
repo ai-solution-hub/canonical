@@ -615,6 +615,27 @@ import { logger } from '@/lib/logger/client';
  * the lookup map. Throws if the selected JSON fails schema validation or
  * if the contrast Tier 2 check reports any errors.
  */
+// ID-156.4: `BRANDING` is computed at MODULE INIT (see the export below), so
+// any process that transitively imports this file pays the `loadBranding()`
+// side effect unconditionally — including `scripts/*.ts` CLIs, which reach it
+// via `lib/validation/schemas.ts` (imported for unrelated schema constants,
+// e.g. `BARE_ID_REGEX`). ledger-cli.ts is the concrete case: every invocation
+// printed the `[branding]` WCAG-contrast advisory, polluting any
+// stdout+stderr-merged `| jq` pipe even though ledger-cli has nothing to do
+// with branding. The advisory is a real deployment-config diagnostic for the
+// app/build/SSR surface (kept — see the `window` check below); it is pure
+// noise on a bare script invocation. Detect that narrow case the same way the
+// `scripts/*.ts` self-invocation guards already do elsewhere in this repo
+// (`process.argv[1]` path matching) — additive only: it can only ever
+// SUPPRESS the advisory for a `scripts/` entry point, never for anything
+// else, so the app/build/SSR/test surface this diagnostic targets is
+// unaffected (Next.js/vitest/Playwright entry points never resolve under a
+// top-level `scripts/` path segment).
+function isScriptEntryPoint(): boolean {
+  const entry = process.argv[1];
+  return typeof entry === 'string' && /(^|[/\\])scripts[/\\]/.test(entry);
+}
+
 export function loadBranding(idOverride?: string): BrandingConfig {
   const id = idOverride ?? clientEnv.NEXT_PUBLIC_CLIENT_ID;
   const raw = CLIENT_BRANDING_MAP[id] ?? CLIENT_BRANDING_MAP.default;
@@ -632,8 +653,9 @@ export function loadBranding(idOverride?: string): BrandingConfig {
   // the browser, where a full page load repeats them on every navigation and
   // drowns the console (the active client's primary trips the 3:1 non-text
   // threshold). The E2E console-gate still allowlists `[branding]` defensively;
-  // this keeps the noise out of the browser console entirely.
-  if (typeof window === 'undefined') {
+  // this keeps the noise out of the browser console entirely. Also NOT on a
+  // bare `scripts/` CLI invocation (ID-156.4) — see isScriptEntryPoint above.
+  if (typeof window === 'undefined' && !isScriptEntryPoint()) {
     for (const w of report.warnings) {
       logger.warn(`[branding] ${w}`);
     }

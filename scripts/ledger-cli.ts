@@ -1662,13 +1662,13 @@ function emit(result: CliResult, pretty: boolean): never {
     }
   } else {
     stream.write(`${JSON.stringify(result)}\n`);
-    // warnings + mirror reminder always go to stderr so stdout stays a clean
-    // single-line JSON envelope the Orchestrator can parse.
-    if (result.ok && result.warnings?.length) {
-      process.stderr.write(
-        `${JSON.stringify({ warnings: result.warnings })}\n`,
-      );
-    }
+    // ID-156.4: `result.warnings` already serialises INTO the envelope above
+    // (it is a property on `result`) — this used to ALSO re-emit the
+    // identical array as a bare trailing `{"warnings":[...]}` line on
+    // stderr, double-printing the same content and confusing any
+    // stdout+stderr-merged consumer. Emit once, envelope only; the mirror
+    // reminder below is a DIFFERENT (human prose) message, not a duplicate,
+    // so it stays.
     if (result.ok && result.mirrorStale && result.mirrorStaleReason)
       process.stderr.write(mirrorReminderFor(result.mirrorStaleReason));
   }
