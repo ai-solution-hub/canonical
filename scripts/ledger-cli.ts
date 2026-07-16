@@ -50,6 +50,9 @@
  *     writer, DR-073/DR-074):
  *     create-project   <initiativePath> <projectJson | --title …>  (caller-supplied slug)
  *     update-project   <slug> <field> <value | --file <path>>      (incl `status`)
+ *     update-initiative <initiativePath> <field> <value | --file <path>>  (ID-156.7 —
+ *                      initiative/sub-initiative fields only, incl `status`; rejects a
+ *                      project slug — use update-project for those)
  *     delete-project   <slug>                                      (rejects project-not-empty)
  *     link-tasks       <slug> <taskId…>          unlink-tasks   <slug> <taskId…>
  *     link-backlog     <slug> <backlogId…>       unlink-backlog <slug> <backlogId…>
@@ -141,8 +144,14 @@ import { RetroRecordSchema } from '@/lib/validation/retro-schema';
 import {
   InitiativesSchema,
   ProjectSchema,
+  // ID-156.7: `InitiativeSchema` + `INITIATIVE_STATUSES` added — the new
+  // `update-initiative` verb's field-edit coercion + status-enum guard need
+  // the initiative-kind shape+enum, mirroring how `ProjectSchema` +
+  // `PROJECT_STATUSES` already back `update-project`.
+  InitiativeSchema,
   parseInitiativesWithWarnings,
   PROJECT_STATUSES,
+  INITIATIVE_STATUSES,
   type InitiativesDocument,
   type Initiative,
   type SubInitiative,
@@ -2419,9 +2428,15 @@ function shapeShowRecord(
  * ID-148.7: `project` ADDED — `update-project`/link/unlink verbs coerce
  * against `ProjectSchema.shape` (`status`/`summary`/`description` stay
  * strings; `blocked_by`/`blocking`/`linked_tasks`/`linked_backlog`/
- * `originating_session` are arrays). */
+ * `originating_session` are arrays).
+ * ID-156.7: `initiative` ADDED — `update-initiative` coerces against
+ * `InitiativeSchema.shape` (top-level shape; sub-initiative edits share the
+ * same coercion table since the two shapes overlap on every field
+ * `update-initiative` can reach — the server's `SUB_INITIATIVE_KNOWN_FIELDS`
+ * keyset guard, not this table, is what rejects the initiative-4-only
+ * `linked_tasks`/`linked_backlog` fields on a nested sub-initiative). */
 const EDIT_SCHEMAS: Record<
-  'subtask' | 'task' | 'item' | 'project',
+  'subtask' | 'task' | 'item' | 'project' | 'initiative',
   { shape: Record<string, ZodTypeAny> }
 > = {
   subtask: SubtaskSchema,
@@ -2430,6 +2445,7 @@ const EDIT_SCHEMAS: Record<
   task: TaskSchema,
   item: BacklogItemSchema,
   project: ProjectSchema,
+  initiative: InitiativeSchema,
 };
 
 /**
@@ -2446,7 +2462,7 @@ const EDIT_SCHEMAS: Record<
  *     keyset guard rejects the unknown field downstream).
  */
 function coerceFieldValue(
-  recordKind: 'subtask' | 'task' | 'item' | 'project',
+  recordKind: 'subtask' | 'task' | 'item' | 'project' | 'initiative',
   field: string,
   raw: string,
 ): unknown {
@@ -2985,6 +3001,31 @@ function requireValidProjectStatus(
         subcommand,
         'invalid-status',
         `"${value}" is not a valid project status — known: [${PROJECT_STATUSES.join(', ')}]`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * ID-156.7 — status-enum guard parity with {@link requireValidProjectStatus}
+ * for `update-initiative <path> status <value>`. Same INV-3 defense-in-depth
+ * framing: the server (`gates/status-enum-gate.ts`) is authoritative against
+ * `INITIATIVE_STATUSES`; this is the fast client-side pre-flight. Kept as a
+ * sibling function (not generalised into one parametrised guard) to match
+ * this file's existing one-guard-per-kind convention.
+ */
+function requireValidInitiativeStatus(
+  subcommand: string,
+  value: string,
+): { ok: true } | { ok: false; result: CliResult } {
+  if (!(INITIATIVE_STATUSES as readonly string[]).includes(value)) {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'invalid-status',
+        `"${value}" is not a valid initiative status — known: [${INITIATIVE_STATUSES.join(', ')}]`,
       ),
     };
   }
@@ -4890,6 +4931,89 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           kind: 'field-patch',
           slug: ledgerSlug('initiatives'),
           recordId: slug,
+          patches: [patch],
+        },
+      });
+    }
+
+    // ID-156.7: `update-initiative` — the initiative/sub-initiative twin of
+    // `update-project`. S477 discovery: `update-project`'s resolution +
+    // fieldPath (`['projects', slug, field]`) is PROJECT-ONLY — running it
+    // against an initiative path (e.g. "4") fails `walk-error` ("Project slug
+    // not found"), even though the vendored server-side walker
+    // (`applyInitiativesPatch`, lib/ledger/patch-apply.ts) ALREADY accepts an
+    // `['initiatives', dottedPath, field]` fieldPath addressing an initiative
+    // or sub-initiative — confirmed by reading the vendored oracle before
+    // writing this verb (no upstream task-view change needed; this is a
+    // CLIENT-side gap only). This verb resolves the id via the SAME
+    // `resolveRecordId` primitive `link-tasks`/`unlink-tasks`/etc. already use
+    // (INV-6-style disambiguation) so a project slug is rejected with a
+    // pointer to `update-project`, never silently mis-addressed.
+    case 'update-initiative': {
+      const [path, field] = p;
+      if (!path || !field)
+        return cliErr(
+          'update-initiative',
+          'missing-args',
+          'update-initiative <initiativePath> <field> <value | --file <path>>',
+        );
+      const arity = checkFieldEditArity('update-initiative', p, flags.file);
+      if (!arity.ok) return arity.result;
+      const valueRes = readFieldValue('update-initiative', flags.file, p[2]);
+      if (!valueRes.ok) return valueRes.result;
+      const value = valueRes.raw;
+      // INV-3 — client-side status-enum surfacing, parity with update-project.
+      if (field === 'status') {
+        const statusCheck = requireValidInitiativeStatus(
+          'update-initiative',
+          value,
+        );
+        if (!statusCheck.ok) return statusCheck.result;
+      }
+      const loaded = await loadInitiativesLedger(dir, 'update-initiative');
+      if (!loaded.ok) return loaded.result;
+      // Disambiguate BEFORE building the patch: `path` must resolve to an
+      // initiative/sub-initiative node, not a project slug.
+      const resolved = resolveRecordId(loaded.doc as unknown as TreeDoc, path);
+      if (resolved.kind === 'project') {
+        return cliErr(
+          'update-initiative',
+          'initiatives-path-only',
+          `"${path}" is a project slug, not an initiative/sub-initiative path — update-initiative addresses initiatives only; use update-project instead`,
+        );
+      }
+      if (resolved.kind === 'not-found') {
+        return cliErr(
+          'update-initiative',
+          'record-not-found',
+          `no initiative/sub-initiative at path "${path}"`,
+        );
+      }
+      const newValue = coerceFieldValue('initiative', field, value);
+      const patch: FieldPatch = {
+        fieldPath: ['initiatives', path, field],
+        newValue,
+      };
+      // CLI-side validation oracle (esc-4 retained); budget + record-set
+      // gates run server-side (R1b). `--force` still threads through for
+      // budget.
+      const m2 = fieldPatchMutation(
+        'update-initiative',
+        loaded.detected,
+        patch,
+      );
+      if (!m2.ok) return m2.result;
+      return commitMutation({
+        subcommand: 'update-initiative',
+        path: ledgerPath(dir, 'initiatives'),
+        resultPayload: { path, field },
+        dryRun: flags.dryRun,
+        regenMirrors: !flags.noRegenMirrors,
+        force: flags.force,
+        serverIntent: {
+          kind: 'field-patch',
+          slug: ledgerSlug('initiatives'),
+          recordId: path,
           patches: [patch],
         },
       });

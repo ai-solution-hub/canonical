@@ -127,6 +127,19 @@ async function listProjectSlugs(dir: string): Promise<string[]> {
   return res.records.map((p) => p.id);
 }
 
+/** ID-156.7 — LOCAL read of one TOP-LEVEL initiative (`show initiatives <id>`,
+ * {148.6}). Nested sub-initiative state is reached by drilling into the
+ * returned doc's `'sub-initiatives'` array (no dedicated per-path show verb
+ * exists). */
+async function showInitiative(
+  dir: string,
+  id: string,
+): Promise<Record<string, unknown>> {
+  const r = await run(localArgs('show', ['initiatives', id], dir));
+  if (!r.ok) throw new Error(`show initiatives ${id} failed: ${r.error}`);
+  return r.result as Record<string, unknown>;
+}
+
 // Honour $TMPDIR (sandbox-writable); os.tmpdir() can report a blocked path.
 const TMP_BASE = process.env.TMPDIR ?? tmpdir();
 let fixtureRoots: string[] = [];
@@ -226,6 +239,148 @@ describe.skipIf(!CLONE_PRESENT)(
         expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
           before,
         );
+      },
+    );
+
+    // ── ID-156.7 — update-initiative (initiative/sub-initiative twin of
+    // update-project; S477 discovery: update-project's fieldPath is
+    // project-only, so it walk-errors against an initiative path even though
+    // the vendored server-side patch-apply already handles
+    // ['initiatives', dottedPath, field]) ────────────────────────────────
+
+    it(
+      'update-initiative <topLevelPath> status <value> writes a valid enum value',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // fixture initiative "4" starts status:"active".
+        const r = runLedgerCli(dir, [
+          'update-initiative',
+          '4',
+          'status',
+          'planned',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const after = await showInitiative(dir, '4');
+        expect(after.status).toBe('planned');
+      },
+    );
+
+    it(
+      'update-initiative <dottedSubPath> status <value> writes the nested sub-initiative',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // "1.1" -> initiative "1"'s first sub-initiative, starts status:"active".
+        const r = runLedgerCli(dir, [
+          'update-initiative',
+          '1.1',
+          'status',
+          'completed',
+        ]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const parent = await showInitiative(dir, '1');
+        const subs = parent['sub-initiatives'] as {
+          id: string;
+          status: string;
+        }[];
+        expect(subs.find((s) => s.id === '1')?.status).toBe('completed');
+      },
+    );
+
+    it(
+      'update-initiative <path> status <invalid> rejects invalid-status BEFORE any request is sent (INV-3, client-side)',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const r = runLedgerCli(dir, [
+          'update-initiative',
+          '4',
+          'status',
+          'not-a-real-status',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('invalid-status');
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
+      'update-initiative against a project slug (not an initiative path) rejects initiatives-path-only, pointing to update-project',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const r = runLedgerCli(dir, [
+          'update-initiative',
+          'fixture-nested-project',
+          'status',
+          'planned',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.ok).toBe(false);
+        expect(r.envelope?.error).toBe('initiatives-path-only');
+      },
+    );
+
+    it(
+      'update-initiative against an unknown path rejects record-not-found, nothing written',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const r = runLedgerCli(dir, [
+          'update-initiative',
+          '999',
+          'status',
+          'planned',
+        ]);
+        expect(r.exitCode).toBe(1);
+        expect(r.envelope?.error).toBe('record-not-found');
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
+      'update-initiative 4 linked_tasks/linked_backlog [] empties the transitional off-project links (S477 immediate consumer, DR-074)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        // fixture initiative "4" starts linked_tasks:["10","20"], linked_backlog:["5"]
+        // — the same transitional shape as the live initiative-4 this verb
+        // exists to redistribute-then-clear.
+        const before = await showInitiative(dir, '4');
+        expect(before.linked_tasks).toEqual(['10', '20']);
+        expect(before.linked_backlog).toEqual(['5']);
+
+        const tasksCleared = runLedgerCli(dir, [
+          'update-initiative',
+          '4',
+          'linked_tasks',
+          '[]',
+        ]);
+        expect(tasksCleared.exitCode).toBe(0);
+        expect(tasksCleared.envelope?.ok).toBe(true);
+
+        const backlogCleared = runLedgerCli(dir, [
+          'update-initiative',
+          '4',
+          'linked_backlog',
+          '[]',
+        ]);
+        expect(backlogCleared.exitCode).toBe(0);
+        expect(backlogCleared.envelope?.ok).toBe(true);
+
+        const after = await showInitiative(dir, '4');
+        expect(after.linked_tasks).toEqual([]);
+        expect(after.linked_backlog).toEqual([]);
       },
     );
 
