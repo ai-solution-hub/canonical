@@ -18,6 +18,13 @@
  * passes through `rehype-harden`'s default hardening untouched — Streamdown
  * already resolves it to its full absolute href and opens it in a new tab
  * (§I3 "external links hardened + full URL shown").
+ *
+ * The `code`/`strong` a11y/test-hostile-default overrides (Shiki-lazy-load
+ * act() leak; non-semantic bold) originated here and were extracted to
+ * `components/shared/streamdown-components.tsx` (ID-161) so
+ * `<FileRenderPane>`, the other Streamdown render site, gets the same fix —
+ * see that module's doc comment for the defects and why `a` stays local to
+ * each site instead of joining the shared pair.
  */
 import { useMemo } from 'react';
 import { Streamdown, type Components, type ExtraProps } from 'streamdown';
@@ -25,6 +32,7 @@ import {
   normaliseInternalMdLinksForStreamdown,
   INTERNAL_LINK_MARKER,
 } from '@/lib/okf/prepare-streamdown-content';
+import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 import { cn } from '@/lib/utils';
 
 interface ContentRendererProps {
@@ -135,43 +143,10 @@ function createContentComponents(idCounts: Map<string, number>): Components {
         </a>
       );
     },
-    // Streamdown's default `code` component lazy-loads a Shiki highlighter
-    // chunk (`import('./highlighted-body-...')`) whose resolution lands
-    // outside React's `act()` — a leaked-act warning this repo's strict test
-    // setup (`__tests__/setup.ts`) turns into a hard failure. The incumbent
-    // react-markdown path never syntax-highlighted (§I2 parity), so this
-    // override renders plain, non-highlighted markup and never touches the
-    // Shiki path. Streamdown's default `pre` (left un-overridden) clones its
-    // rendered `code` child with a `data-block` prop for fenced/block code;
-    // a bare inline `` `code` `` span has no such prop — mirrors
-    // Streamdown's own internal inline/block distinction so `pre` doesn't
-    // need to be reimplemented here.
-    code: ({ className, children, ...rest }) => {
-      const isBlockCode = 'data-block' in rest;
-      if (isBlockCode) {
-        return (
-          <pre>
-            <code className={className} {...rest}>
-              {children}
-            </code>
-          </pre>
-        );
-      }
-      return (
-        <code className={className} {...rest}>
-          {children}
-        </code>
-      );
-    },
-    // Streamdown's default renders `**bold**` as
-    // `<span data-streamdown="strong">`, not a semantic `<strong>` — a
-    // prose-styling + WCAG regression vs. the incumbent react-markdown path.
-    // Restore the semantic tag.
-    strong: ({ className, children, ...rest }) => (
-      <strong className={className} {...rest}>
-        {children}
-      </strong>
-    ),
+    // `code`/`strong`: shared a11y/test-hostile-default overrides (ID-161)
+    // — see `components/shared/streamdown-components.tsx` for the Shiki-lazy
+    // -load act()-leak and non-semantic-bold defects this fixes.
+    ...sharedStreamdownComponents,
   };
 }
 

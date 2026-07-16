@@ -6,8 +6,21 @@
  * pattern: the connected container owns the TanStack Query call).
  */
 import { describe, it, expect, vi } from 'vitest';
+import { act } from 'react';
 import { render, screen } from '@testing-library/react';
 import { FileRenderPane } from '@/components/okf/file-render-pane';
+
+/** Streamdown lazy-loads its Shiki code-block highlighter; a pending resolve
+ * that lands after a synchronous test body returns leaks a React "not
+ * wrapped in act" warning into a LATER test (`__tests__/setup.ts` throws on
+ * it). Flush one tick inside `act()` before asserting whenever a rendered
+ * corpus contains a fenced code block — mirrors
+ * `__tests__/components/content-renderer.test.tsx`. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
 
 vi.mock('next/link', () => ({
   default: ({
@@ -144,5 +157,73 @@ describe('FileRenderPane', () => {
       'href',
       '/okf/first-client',
     );
+  });
+
+  // ---------------------------------------------------------------------
+  // Streamdown a11y/test-hostile-default overrides (ID-161)
+  // ---------------------------------------------------------------------
+  // `<FileRenderPane>` was the unfixed Streamdown render site — it only
+  // ever overrode `a` (for in-app tree navigation). It now also consumes
+  // `sharedStreamdownComponents` (merged with its own `a` override, not
+  // clobbered by it) for the same `code`/`strong` fix
+  // `<ContentRenderer>` already had. See
+  // `components/shared/streamdown-components.tsx` for the defects.
+  describe('Streamdown a11y/test-hostile-default overrides (ID-161)', () => {
+    it('renders bold text as a semantic <strong>, not a data-streamdown span', () => {
+      render(
+        <FileRenderPane
+          bundleId="first-client"
+          path="index.md"
+          content="Some **bold** text in the file body."
+          isLoading={false}
+          isError={false}
+          knownMdPaths={new Set()}
+          onNavigate={vi.fn()}
+        />,
+      );
+      const bold = screen.getByText('bold');
+      expect(bold.tagName).toBe('STRONG');
+      expect(
+        screen.queryByText('bold', { selector: '[data-streamdown="strong"]' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders fenced code as plain markup with no Shiki highlight leak', async () => {
+      const { container } = render(
+        <FileRenderPane
+          bundleId="first-client"
+          path="index.md"
+          content={['```ts', 'const x = 1;', '```'].join('\n')}
+          isLoading={false}
+          isError={false}
+          knownMdPaths={new Set()}
+          onNavigate={vi.fn()}
+        />,
+      );
+      await settle(); // fenced code block — Shiki lazy-loads if un-overridden
+      const pre = container.querySelector('pre');
+      expect(pre).not.toBeNull();
+      expect(pre?.querySelector('[data-streamdown]')).toBeNull();
+      expect(pre?.querySelector('span')).toBeNull();
+      expect(pre?.textContent).toContain('const x = 1;');
+    });
+
+    it('preserves link role for a genuine external link (not the linkSafety button default)', () => {
+      render(
+        <FileRenderPane
+          bundleId="first-client"
+          path="index.md"
+          content="See the [official register](https://example.com/register) for the source record."
+          isLoading={false}
+          isError={false}
+          knownMdPaths={new Set()}
+          onNavigate={vi.fn()}
+        />,
+      );
+      const link = screen.getByRole('link', { name: 'official register' });
+      expect(link.tagName).toBe('A');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
   });
 });
