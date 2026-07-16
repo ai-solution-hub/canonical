@@ -55,6 +55,7 @@
     "knip:files": "knip --no-config-hints --include files",
     "knip:exports": "knip --no-config-hints --include exports,types",
     "ci:knip-check": "bun run scripts/check-knip-baseline.ts",
+    "check:migration-fn-table-refs": "bun run scripts/check-migration-fn-table-refs.ts",
     "eval:classification": "bun run scripts/eval-classification.ts",
     "eval:search": "bun run scripts/eval-search.ts",
     "eval:procurement-drafting": "bun run scripts/eval-procurement-drafting.ts",
