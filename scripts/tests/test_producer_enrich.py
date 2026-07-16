@@ -1113,6 +1113,77 @@ class TestRoutingHintPopulation:
         assert "OPTIONAL" in PASS1_INSTRUCTION_PROMPT
         assert '"confidence"' not in PASS1_INSTRUCTION_PROMPT
 
+    @pytest.mark.parametrize(
+        "malformed_purpose",
+        [
+            pytest.param(123, id="non_string_int"),
+            pytest.param(["not", "a", "string"], id="non_string_list"),
+            pytest.param("   ", id="blank_whitespace_only"),
+            pytest.param(None, id="explicit_null"),
+        ],
+    )
+    def test_parse_pass1_response_treats_a_malformed_present_routing_hint_as_absent(
+        self, malformed_purpose: object
+    ) -> None:
+        """Checker finding ({132.42} fix): `_read_optional_hint` documents
+        FOUR "treat as absent" branches — missing key, a non-string value,
+        a blank/whitespace-only string, and an explicit `null` — but the
+        prior tests in this class only exercised true key-absence and a
+        well-formed present value. This proves each malformed-but-PRESENT
+        branch actually falls through to `None` too, exactly as a real
+        terminal JSON payload could carry them (a model emitting
+        `"purpose": null`, `"purpose": "   "`, or a wrong-typed value)."""
+        uri = build_source_document_uri(_SD_ID)
+        payload = json.loads(_envelope_json(citations=[uri, "topics/gdpr.md"]))
+        payload["purpose"] = malformed_purpose
+        message = _MockMessage(
+            [TextBlock(type="text", text=json.dumps(payload))], stop_reason="end_turn"
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.purpose is None
+
+    def test_end_to_end_draft_omits_frontmatter_lines_for_malformed_routing_hints_on_all_three_keys(
+        self,
+    ) -> None:
+        """The malformed-value tolerance above is `_read_optional_hint`'s
+        SHARED behaviour across all three routing-hint keys, not a
+        `purpose`-only special case — proved end-to-end here with a
+        DIFFERENT malformed shape on each of `purpose`/`task`/`audience`
+        (non-string, blank string, explicit null respectively), confirming
+        each resolves to `None` AND is omitted from the rendered
+        frontmatter (never emitted as an empty/garbage line)."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        uri = build_source_document_uri(_SD_ID)
+        payload = json.loads(_envelope_json(citations=[uri, "topics/gdpr.md"]))
+        payload["purpose"] = 42  # non-string
+        payload["task"] = "   "  # blank/whitespace-only
+        payload["audience"] = None  # explicit null
+        final = _MockMessage(
+            [TextBlock(type="text", text=json.dumps(payload))], stop_reason="end_turn"
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert draft.frontmatter.purpose is None
+        assert draft.frontmatter.task is None
+        assert draft.frontmatter.audience is None
+        rendered = draft.rendered_markdown
+        assert "purpose:" not in rendered
+        assert "task:" not in rendered
+        assert "audience:" not in rendered
+
 
 # ============================================================================
 # END-TO-END WIRING
