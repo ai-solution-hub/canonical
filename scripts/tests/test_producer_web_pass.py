@@ -77,6 +77,7 @@ from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: E402
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
+    derive_concept_confidence,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_source_document_uri,
@@ -178,16 +179,20 @@ def _product_raw() -> ConceptRaw:
 
 def _product_draft(key: ConceptKey) -> ConceptDraft:
     """A Pass-1-shaped `ConceptDraft` — the "previous state" every Pass-2
-    test enriches from."""
+    test enriches from. `confidence` mirrors what a real Pass-1 draft always
+    carries (bl-477 A19 — the producer ALWAYS emits it): a single record
+    anchor and no corroborating citation resolves `partial`."""
+    resource = build_source_document_uri(_SD_ID)
+    citation = build_source_document_uri(_SD_ID)
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,
         title="Learning Management System",
         description="The client's in-house LMS offering.",
         timestamp="2026-01-01T00:00:00Z",
         tags=("product", "lms"),
-        resource=build_source_document_uri(_SD_ID),
+        resource=resource,
+        confidence=derive_concept_confidence(resource=resource, citations=[citation]),
     )
-    citation = build_source_document_uri(_SD_ID)
     body = (
         f"The LMS is the client's learning-management product.\n\n"
         f"{_render_citations_section([citation])}"
@@ -672,6 +677,16 @@ class TestParseReferenceConcept:
         with pytest.raises(web_pass.Pass2EnrichError, match="missing required"):
             web_pass._parse_reference_concept(raw, seen_gated_anchors=set())
 
+    def test_reference_concept_always_emits_confidence_partial(self) -> None:
+        """A19 (bl-477, {132.42}): a reference concept's `resource` is
+        `citations[0]` — a gated `reference_items` web anchor, never a
+        per-row anchor — so `derive_concept_confidence` always resolves
+        `partial` here regardless of how many citations it carries
+        (FRONTMATTER-WAVE.md §"Applied at all three call sites")."""
+        anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
+        draft = web_pass._parse_reference_concept(self._raw(), seen_gated_anchors={anchor})
+        assert draft.frontmatter.confidence == "partial"
+
 
 # ============================================================================
 # SECURITY — the http_client injection seam must not reopen the
@@ -1065,12 +1080,77 @@ class TestRunWebPassEndToEnd:
             assert reference.rel_path == "references/lms-public-docs.md"
             assert f"[1] [{gated_anchor}]({gated_anchor})" in reference.body
 
+            # ── A19 (bl-477, {132.42}): the enriched concept's final
+            # citations (prior source_documents anchor + the newly-minted
+            # reference_items anchor) are TWO distinct record anchors
+            # corroborating the Pass-1 per-row `resource:` — the Pass-1
+            # draft was `partial`; recomputed from the FINAL (resource,
+            # citations) this legitimately upgrades to `strong` (monotonic,
+            # never a silent downgrade). The reference concept itself stays
+            # `partial` — its resource is a gated web anchor, not per-row.
+            assert draft.frontmatter.confidence == "partial"
+            assert result.concept.frontmatter.confidence == "strong"
+            assert reference.frontmatter.confidence == "partial"
+
             return result
 
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             _run(Path(tmp))
+
+    def test_recomputes_confidence_from_final_citations_never_carries_over_pass1_value(
+        self, tmp_path: Path
+    ) -> None:
+        """A19 (bl-477, {132.42}), isolated from the full egress-confinement
+        exercise above: `run_web_pass` recomputes `confidence` from the
+        FINAL enriched `(resource, citations)` rather than copying
+        `draft.frontmatter.confidence` forward unchanged."""
+        (tmp_path / "services").mkdir()
+        (tmp_path / "services" / "lms.md").write_text("Our LMS is ISO 27001-certified.")
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
+        )
+        draft = _product_draft(key)
+        assert draft.frontmatter.confidence == "partial"  # sanity on the Pass-1 fixture
+
+        gated_url = f"https://{_ALLOWED_HOST}/services/lms.md"
+        gated_anchor = reference_item_uri_from_source_url(gated_url)
+        fetch_call = ToolUseBlock(
+            type="tool_use", id="toolu_1", name="fetch_url", input={"url": gated_url}
+        )
+        fetch_turn = _MockMessage([fetch_call], stop_reason="tool_use")
+
+        prior_citation = build_source_document_uri(_SD_ID)
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[prior_citation, gated_anchor]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([fetch_turn, final])
+        gated_corpus = web_pass.GatedCorpusConfig(
+            sources=(web_pass.GatedSource(host=_ALLOWED_HOST, max_depth=5, local_root=tmp_path),)
+        )
+
+        async def _exercise() -> "web_pass.WebPassResult":
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft, key, source, gated_corpus, http_client=_FakeHttpClient({})
+                )
+
+        result = asyncio.run(_exercise())
+        # resource stays the Pass-1 per-row anchor; TWO distinct record
+        # anchors now corroborate it — the honest upgrade to `strong`.
+        assert result.concept.frontmatter.resource == build_source_document_uri(_SD_ID)
+        assert result.concept.frontmatter.confidence == "strong"
 
     def test_augmentation_guard_refuses_a_result_that_drops_a_prior_citation(self) -> None:
         """S451 rider fold-in 2 enforcement — a terminal envelope whose

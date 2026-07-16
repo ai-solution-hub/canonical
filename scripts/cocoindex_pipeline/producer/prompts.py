@@ -66,13 +66,19 @@ WORKFLOW
 3. CROSS-LINK — call list_concepts to see the full concept catalogue (every concept's bundle path and type). Where this concept is clearly related to another concept in the catalogue, add that concept's bundle path (for example "products/lms.md") to your "citations" array as a cross-link. Concept cross-links use the bare bundle path — never a canonical:// uri, never a database id. If you also link to another concept as a markdown link INSIDE your body prose, the link target must be the bundle-ABSOLUTE path with a leading "/" (for example "[Product LMS](/products/lms.md)") — never a relative path and never a path without the leading "/".
 
 OUTPUT CONTRACT — read carefully
-When your draft is ready, respond with PLAIN TEXT ONLY — do not call any more tools. Your entire final message must be a single JSON object (no markdown code fence, no commentary before or after it) with exactly these keys:
+When your draft is ready, respond with PLAIN TEXT ONLY — do not call any more tools. Your entire final message must be a single JSON object (no markdown code fence, no commentary before or after it) with these REQUIRED keys:
 
   "title"       — a short, human-readable concept title.
   "description" — a one-sentence summary of the concept (used in the document's frontmatter).
   "tags"        — a JSON array of short lower-case tags (may be empty).
   "body"        — the distilled markdown body prose. Do not include a "# Citations" heading yourself — it is appended separately from your "citations" array, rendered as a numbered list of markdown links. Any markdown link to another concept inside this body must use the bundle-absolute leading-"/" form described in the WORKFLOW.
   "citations"   — a JSON array of every anchor string (record anchors and/or concept cross-link paths) backing this draft, copied verbatim from tool results. This array must be non-empty for any concept with backing records — an uncited factual claim is a defect.
+
+You may ALSO include these OPTIONAL keys when clearly evident from the records — omit any of them entirely (do not emit an empty string) when they are not:
+
+  "purpose"     — a short phrase naming what this concept is used for.
+  "task"        — a short phrase naming the task or workflow this concept supports.
+  "audience"    — a short phrase naming who this concept is written for.
 
 Write in UK English (organisation, colour, -ise endings). Do not describe your own process in the body — write the concept document itself, for a knowledgeable reader who wants a clear, accurate account of this concept."""
 

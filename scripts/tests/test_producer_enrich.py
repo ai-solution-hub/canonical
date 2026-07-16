@@ -86,6 +86,9 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
     READ_CONCEPT_RAW_TOOL,
     SAMPLE_ROWS_TOOL,
 )
+from scripts.cocoindex_pipeline.producer.prompts import (  # noqa: E402
+    PASS1_INSTRUCTION_PROMPT,
+)
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_q_a_pairs_query_uri,
     build_reference_item_uri,
@@ -298,18 +301,32 @@ class TestZeroWebEgress:
             assert tool_names == {"read_concept_raw", "sample_rows", "list_concepts"}
 
 
-def _envelope_json(*, citations: "list[str] | None" = None) -> str:
-    return json.dumps(
-        {
-            "title": "Learning Management System",
-            "description": "The client's in-house LMS offering.",
-            "tags": ["product", "lms"],
-            "body": "The LMS is the client's learning-management product.",
-            "citations": citations
-            if citations is not None
-            else [build_source_document_uri(_SD_ID), "topics/gdpr.md"],
-        }
-    )
+def _envelope_json(
+    *,
+    citations: "list[str] | None" = None,
+    purpose: "str | None" = None,
+    task: "str | None" = None,
+    audience: "str | None" = None,
+) -> str:
+    payload: "dict[str, Any]" = {
+        "title": "Learning Management System",
+        "description": "The client's in-house LMS offering.",
+        "tags": ["product", "lms"],
+        "body": "The LMS is the client's learning-management product.",
+        "citations": citations
+        if citations is not None
+        else [build_source_document_uri(_SD_ID), "topics/gdpr.md"],
+    }
+    # bl-456 routing hints — OPTIONAL terminal-JSON keys; only included in
+    # the payload when the caller supplies one, mirroring a model that omits
+    # them entirely rather than emitting an empty string.
+    if purpose is not None:
+        payload["purpose"] = purpose
+    if task is not None:
+        payload["task"] = task
+    if audience is not None:
+        payload["audience"] = audience
+    return json.dumps(payload)
 
 
 # ============================================================================
@@ -898,6 +915,203 @@ class TestTerminalTextContract:
         draft = asyncio.run(_exercise())
         assert draft.frontmatter.title == "Learning Management System"
         assert "# Citations" in draft.body
+
+
+# ============================================================================
+# ID-132 FRONTMATTER-WAVE (bl-456/bl-477, {132.42}) — confidence + routing
+# hints POPULATED at the Pass-1 `build_concept_frontmatter` call site.
+# ============================================================================
+
+
+class TestConfidencePopulation:
+    """A19 (bl-477): `enrich_concept` derives `confidence` deterministically
+    from `(resource, envelope.citations)` via `derive_concept_confidence` —
+    never asked of the model. See `derive_concept_confidence`'s own unit
+    tests (`test_producer_frontmatter.py`) for the rule's full truth table;
+    this class proves it is actually WIRED at this call site."""
+
+    def test_draft_with_two_record_anchor_citations_and_per_row_resource_emits_confidence_strong(
+        self,
+    ) -> None:
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        # _product_raw() has BOTH source_documents (drives the per-row
+        # `resource:`) and reference_items — two DISTINCT record anchors.
+        two_record_anchors = [
+            build_source_document_uri(_SD_ID),
+            build_reference_item_uri(_RI_ID),
+        ]
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=two_record_anchors))],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert draft.frontmatter.resource == build_source_document_uri(_SD_ID)
+        assert draft.frontmatter.confidence == "strong"
+
+    def test_draft_with_a_single_record_anchor_citation_emits_confidence_partial(
+        self,
+    ) -> None:
+        """The default envelope fixture cites ONE record anchor plus a
+        concept cross-link (which does not corroborate) — the honest
+        Path-1 default."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert draft.frontmatter.confidence == "partial"
+
+
+class TestRoutingHintPopulation:
+    """bl-456: `purpose`/`task`/`audience` are OPTIONAL, model-authored
+    terminal-JSON keys — read-if-present, absent-tolerant, never required
+    (NOT in `_REQUIRED_ENVELOPE_KEYS`)."""
+
+    def test_parse_pass1_response_reads_routing_hints_when_the_model_supplies_them(
+        self,
+    ) -> None:
+        uri = build_source_document_uri(_SD_ID)
+        message = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_envelope_json(
+                        citations=[uri, "topics/gdpr.md"],
+                        purpose="Explain the LMS offering to a prospect",
+                        task="Answering a procurement RFI question",
+                        audience="Buyer-side evaluation committee",
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.purpose == "Explain the LMS offering to a prospect"
+        assert envelope.task == "Answering a procurement RFI question"
+        assert envelope.audience == "Buyer-side evaluation committee"
+
+    def test_parse_pass1_response_tolerates_absent_routing_hints(self) -> None:
+        """The default envelope fixture carries no purpose/task/audience
+        keys at all — absence must never raise (they are NOT required
+        envelope keys)."""
+        uri = build_source_document_uri(_SD_ID)
+        message = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[uri, "topics/gdpr.md"]))],
+            stop_reason="end_turn",
+        )
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+        assert envelope.purpose is None
+        assert envelope.task is None
+        assert envelope.audience is None
+
+    def test_end_to_end_draft_threads_routing_hints_into_frontmatter_when_supplied(
+        self,
+    ) -> None:
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_envelope_json(
+                        purpose="Explain the LMS offering to a prospect",
+                        task="Answering a procurement RFI question",
+                        audience="Buyer-side evaluation committee",
+                    ),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert draft.frontmatter.purpose == "Explain the LMS offering to a prospect"
+        assert draft.frontmatter.task == "Answering a procurement RFI question"
+        assert draft.frontmatter.audience == "Buyer-side evaluation committee"
+        rendered = draft.rendered_markdown
+        assert "purpose: Explain the LMS offering to a prospect" in rendered
+        assert "task: Answering a procurement RFI question" in rendered
+        assert "audience: Buyer-side evaluation committee" in rendered
+
+    def test_end_to_end_draft_omits_routing_hint_lines_when_the_model_does_not_supply_them(
+        self,
+    ) -> None:
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+        assert draft.frontmatter.purpose is None
+        assert draft.frontmatter.task is None
+        assert draft.frontmatter.audience is None
+        rendered = draft.rendered_markdown
+        assert "purpose:" not in rendered
+        assert "task:" not in rendered
+        assert "audience:" not in rendered
+
+    def test_pass1_instruction_prompt_documents_the_three_optional_routing_hint_keys(
+        self,
+    ) -> None:
+        """Static guard: the terminal-JSON contract the model is instructed
+        against must actually document the three OPTIONAL routing-hint keys
+        (bl-456) as OPTIONAL — a silent prompt regression here would leave
+        the population tests above exercising a contract the model is never
+        told about. `confidence` is deliberately NOT asserted here — it is
+        NEVER a model key (A19, bl-477)."""
+        assert '"purpose"' in PASS1_INSTRUCTION_PROMPT
+        assert '"task"' in PASS1_INSTRUCTION_PROMPT
+        assert '"audience"' in PASS1_INSTRUCTION_PROMPT
+        assert "OPTIONAL" in PASS1_INSTRUCTION_PROMPT
+        assert '"confidence"' not in PASS1_INSTRUCTION_PROMPT
 
 
 # ============================================================================

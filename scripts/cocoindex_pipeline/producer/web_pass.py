@@ -131,6 +131,7 @@ from scripts.cocoindex_pipeline.producer.enrich import (
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     build_concept_frontmatter,
+    derive_concept_confidence,
     render_concept_frontmatter,
 )
 from scripts.cocoindex_pipeline.producer.prompts import PASS2_INSTRUCTION_PROMPT
@@ -638,6 +639,10 @@ def _parse_reference_concept(
         timestamp=datetime.now(timezone.utc),
         tags=(*tags_raw, _REFERENCE_CONCEPT_TAG),
         resource=citations[0],
+        # A19 (bl-477) — `citations[0]` is a gated web anchor, never a
+        # per-row anchor, so this always resolves `partial` (FRONTMATTER-
+        # WAVE.md §"Applied at all three call sites").
+        confidence=derive_concept_confidence(resource=citations[0], citations=citations),
     )
     full_body = f"{body.rstrip()}\n\n{_render_citations_section(citations)}"
     return ReferenceConceptDraft(
@@ -867,6 +872,15 @@ async def run_web_pass(
         timestamp=datetime.now(timezone.utc),
         tags=envelope.tags,
         resource=draft.frontmatter.resource,
+        # A19 (bl-477) — recomputed from the FINAL enriched (resource,
+        # citations), not carried over from `draft.frontmatter.confidence`:
+        # a Pass-1 `partial` concept that gains a per-row anchor + a second
+        # record citation during Pass-2 enrichment legitimately becomes
+        # `strong` — monotonic in grounding, never a silent downgrade
+        # (FRONTMATTER-WAVE.md §"Applied at all three call sites").
+        confidence=derive_concept_confidence(
+            resource=draft.frontmatter.resource, citations=envelope.citations
+        ),
     )
     enriched = ConceptDraft(key=key, frontmatter=frontmatter, body=new_body)
     reference_concepts = tuple(

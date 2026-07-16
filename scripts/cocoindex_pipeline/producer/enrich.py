@@ -30,7 +30,9 @@ mechanically checkable property. The testable proxy it enforces instead:
 is treated as a producer defect, matching BI-17's "an uncited assertion is a
 producer defect" framing), (b) every entry in that array must resolve
 through the `producer/resource_uri.py` builders — either the BI-6/BI-8
-record-anchor FORM (`producer.validator.is_valid_concept_resource_uri`) or
+record-anchor FORM (`producer.frontmatter.is_valid_concept_resource_uri` —
+relocated here by {132.41}; `producer.validator` still re-exports it
+unchanged) or
 the BI-9 concept cross-link path FORM (`resource_uri.concept_citation_path`,
 which itself rejects a bare uuid or a `canonical://` uri), and (c) — the
 PROVENANCE check, not just the format check — a record-anchor citation must
@@ -132,6 +134,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     build_concept_frontmatter,
+    derive_concept_confidence,
     render_concept_frontmatter,
 )
 from scripts.cocoindex_pipeline.producer.prompts import PASS1_INSTRUCTION_PROMPT
@@ -194,13 +197,21 @@ class ConceptDraft:
 @dataclass(frozen=True)
 class _Pass1Envelope:
     """The parsed, validated terminal-JSON contract `PASS1_INSTRUCTION_
-    PROMPT` asks the model for."""
+    PROMPT` asks the model for.
+
+    `purpose`/`task`/`audience` (bl-456 routing hints, ID-132
+    FRONTMATTER-WAVE) are OPTIONAL, model-authored terminal-JSON keys — read
+    if present, `None` when the model omits them (they are deliberately NOT
+    in `_REQUIRED_ENVELOPE_KEYS`)."""
 
     title: str
     description: str
     tags: "tuple[str, ...]"
     body: str
     citations: "tuple[str, ...]"
+    purpose: "str | None" = None
+    task: "str | None" = None
+    audience: "str | None" = None
 
 
 # ── BI-8 q_a_pairs anchor (topic locator only) ──────────────────────────
@@ -514,6 +525,21 @@ def _recover_terminal_json_object(
     return payload
 
 
+def _read_optional_hint(payload: "Mapping[str, Any]", key: str) -> "str | None":
+    """bl-456 routing hints (`purpose`/`task`/`audience`) — OPTIONAL,
+    model-authored terminal-JSON keys. Per FRONTMATTER-WAVE.md's field
+    table these get "no positive shape check" (unlike the required `title`/
+    `description`/`body`): a missing key, an explicit `null`, a non-string
+    value, or a blank string are all treated as "the model did not supply
+    this hint" and the field is OMITTED from the emitted frontmatter
+    entirely (`build_concept_frontmatter`'s BI-10 stray-pointer guard still
+    runs on whatever string value IS returned here)."""
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value
+
+
 def _parse_pass1_response(
     message: "anthropic.types.Message",
     *,
@@ -565,6 +591,9 @@ def _parse_pass1_response(
         tags=tuple(tags),
         body=body,
         citations=validated_citations,
+        purpose=_read_optional_hint(payload, "purpose"),
+        task=_read_optional_hint(payload, "task"),
+        audience=_read_optional_hint(payload, "audience"),
     )
 
 
@@ -671,6 +700,13 @@ async def enrich_concept(
         timestamp=datetime.now(timezone.utc),
         tags=envelope.tags,
         resource=resource,
+        purpose=envelope.purpose,
+        task=envelope.task,
+        audience=envelope.audience,
+        # A19 (bl-477) — deterministic, NEVER model-authored (FRONTMATTER-
+        # WAVE.md); derived from the SAME `(resource, citations)` this call
+        # already resolved, not asked of the model.
+        confidence=derive_concept_confidence(resource=resource, citations=envelope.citations),
     )
     body = f"{envelope.body.rstrip()}\n\n{_render_citations_section(envelope.citations)}"
     return ConceptDraft(key=key, frontmatter=frontmatter, body=body)
