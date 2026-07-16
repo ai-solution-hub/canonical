@@ -1,19 +1,24 @@
 'use client';
 
-import type { ProcurementQuestionStats } from '@/types/procurement';
+import { Upload } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { ConfidenceDot } from '@/components/shared/confidence-badge';
+import { ReadinessChecklist } from '@/components/procurement/readiness-checklist';
+import type {
+  ConfidencePosture,
+  ProcurementQuestionStats,
+} from '@/types/procurement';
 import type { ReadinessData } from '@/hooks/procurement/use-procurement-readiness';
 
 /**
- * STUB — scaffolded by ID-145 {145.42} (145W-2), FILLED by {145.44}.
- *
- * {145.44} renders the coverage surfaces consuming the {145.18} shape:
- * drafting progress, confidence-posture breakdown, and submission
- * readiness — the same honest-per-question-state discipline (BI-40) applied
- * at the roll-up level. This stub renders a minimal placeholder — props are
- * the {145.18} stats shape plus the already-fetched `useProcurementReadiness`
- * result {145.44} needs, so that subtask never has to re-edit `page.tsx` (or
- * re-fetch readiness itself — `page.tsx` already calls the hook for the
- * header's `ReadinessBadge`).
+ * ID-145 {145.44} (BI-40, roll-up level). Renders the coverage surfaces
+ * consuming the {145.18} stats shape: drafting progress, confidence-posture
+ * breakdown, and submission readiness — applying the same honest,
+ * no-all-or-nothing-framing discipline as the per-question panel, but at the
+ * roll-up level (an honest empty state rather than a mislabelled zero when
+ * there is nothing to show yet, mirroring PRODUCT invariant 32's dashboard
+ * precedent). Reuses the existing `ReadinessChecklist` component wholesale —
+ * no new readiness UI is introduced here.
  */
 export interface ItemCoveragePanelProps {
   procurementId: string;
@@ -29,21 +34,113 @@ export interface ItemCoveragePanelProps {
   className?: string;
 }
 
-export function ItemCoveragePanel({
+interface PostureCount {
+  posture: ConfidencePosture;
+  count: number;
+}
+
+function derivePostureBreakdown(
+  stats: ProcurementQuestionStats | null,
+): PostureCount[] {
+  if (!stats) return [];
+  return (
+    [
+      { posture: 'strong_match', count: stats.strong_match_count },
+      { posture: 'partial_match', count: stats.partial_match_count },
+      { posture: 'needs_sme', count: stats.needs_sme_count },
+      { posture: 'no_content', count: stats.no_content_count },
+    ] as PostureCount[]
+  ).filter((p) => p.count > 0);
+}
+
+function ProgressCard({
   totalQuestions,
   completedCount,
+  progressPercent,
+}: {
+  totalQuestions: number;
+  completedCount: number;
+  progressPercent: number;
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <h2 className="text-sm font-medium text-foreground">Progress</h2>
+      {totalQuestions > 0 ? (
+        <div className="mt-3 space-y-2">
+          <Progress value={progressPercent} className="h-2" />
+          <p className="text-sm text-muted-foreground">
+            {completedCount} of {totalQuestions} questions drafted (
+            {progressPercent}%)
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
+          <Upload
+            className="size-6 text-muted-foreground/50"
+            aria-hidden="true"
+          />
+          <p className="text-sm text-muted-foreground">
+            No questions extracted yet.
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            Questions will be automatically extracted from your tender document.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfidenceBreakdownCard({ breakdown }: { breakdown: PostureCount[] }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <h2 className="text-sm font-medium text-foreground">
+        Confidence Breakdown
+      </h2>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        {breakdown.map(({ posture, count }) => (
+          <ConfidenceDot key={posture} posture={posture} count={count} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ItemCoveragePanel({
+  stats,
+  totalQuestions,
+  completedCount,
+  progressPercent,
+  canEdit,
+  readiness,
+  readinessLoading,
+  readinessError,
+  onRefreshReadiness,
   className,
 }: ItemCoveragePanelProps) {
+  const postureBreakdown = derivePostureBreakdown(stats);
+
   return (
-    <div
-      data-testid="item-coverage-panel"
-      className={className ?? 'rounded-lg border bg-card p-4'}
-    >
-      <p className="text-sm text-muted-foreground">
-        Coverage panel — {completedCount} of {totalQuestions} covered. (
-        {'{145.44}'} wires the confidence breakdown + submission readiness
-        here.)
-      </p>
+    <div data-testid="item-coverage-panel" className={className ?? 'space-y-4'}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ProgressCard
+          totalQuestions={totalQuestions}
+          completedCount={completedCount}
+          progressPercent={progressPercent}
+        />
+        {postureBreakdown.length > 0 && (
+          <ConfidenceBreakdownCard breakdown={postureBreakdown} />
+        )}
+      </div>
+
+      {canEdit && totalQuestions > 0 && (
+        <ReadinessChecklist
+          readiness={readiness}
+          isLoading={readinessLoading}
+          error={readinessError}
+          onRefresh={onRefreshReadiness}
+        />
+      )}
     </div>
   );
 }
