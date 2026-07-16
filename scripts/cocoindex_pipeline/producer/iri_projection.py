@@ -39,11 +39,13 @@ invariants IRI-1/2/3/7/8 (this Subtask's slice; IRI-4/5/6/9/10/12 land in
   overlay->base yet) — see `ALIAS_SHAPE_EXAMPLE` below, a documented hook
   only.
 
-**OQ-1 (namespace authority, unratified).** `IRI_BASE_NAMESPACE`'s concrete
-value is a placeholder pending owner ratification — see the constant's
-inline comment. The first real client-bundle mint is gated on that
-ratification (IRI-10); this module's determinism/collision/split behaviour
-is unaffected by whichever literal namespace value is ultimately ratified.
+**DR-082 (namespace authority, RATIFIED S481).** `IRI_BASE_NAMESPACE`'s
+concrete value — `https://w3id.org/canonical/ontology` — is owner-ratified
+(bl-457 OQ-1 -> DR-082); see the constant's inline comment. A one-time w3id
+GitHub PR to register `/canonical/` remains owner-side before the FIRST
+published client-bundle mint (IRI-10); this module's determinism/collision/
+split behaviour was already unaffected by whichever literal value would be
+ratified, and stays unaffected now that one has been.
 """
 
 from __future__ import annotations
@@ -62,7 +64,11 @@ from scripts.cocoindex_pipeline.producer.validator import (
 
 logger = logging.getLogger(__name__)
 
-# OQ-1 UNRATIFIED PLACEHOLDER — namespace authority pending owner ratification (bl-457)
+# DR-082 (S481, owner-ratified 2026-07-16): namespace authority = w3id.org/canonical
+# (bl-457 OQ-1 -> DR-082; a one-time w3id GitHub PR to register /canonical/ remains
+# owner-side before the first published client-bundle mint, IRI-10). The VALUE below
+# is UNCHANGED from the {132.43} placeholder — only this comment's status changes,
+# unratified -> ratified.
 IRI_BASE_NAMESPACE: str = "https://w3id.org/canonical/ontology"
 
 # The three EffectiveOntology dimensions, paired with the base-vocabulary
@@ -87,6 +93,19 @@ ALIAS_SHAPE_EXAMPLE: dict[str, str] = {"@id": "...", "sameAs": "..."}
 # separated only by an already-valid '-' character.
 _INVALID_RUN_RE = re.compile(r"[^a-z0-9_-]+")
 _DASH_COLLAPSE_RE = re.compile(r"-{2,}")
+
+# {132.44} rider A ({132.43} checker-nit): `project_context`'s returned
+# `@context` dict carries these two RESERVED namespace-prefix keys
+# (`"base"` always; `"client"` when a client-id is set) alongside every
+# minted term entry. A term whose `slug()` collides with one of these
+# reserved keys would otherwise silently `dict`-overwrite the namespace
+# prefix itself (`context.update(_mint_bucket(...))` runs AFTER the prefix
+# keys are seeded) — `_mint_bucket` below treats that as a collision
+# (logged + `diagnostics.collisions`), never a silent overwrite. Currently
+# unreachable via the ratified base vocabulary (no base term is named
+# `base`/`client`); reachable only via an arbitrary client-authored overlay
+# term.
+_RESERVED_PREFIX_SLUGS: frozenset[str] = frozenset({"base", "client"})
 
 
 def _base_namespace() -> str:
@@ -149,11 +168,35 @@ def _mint_bucket(
     when two distinct terms in this SAME bucket slug to the same fragment,
     the first (sorted) is kept and minted; the second is DROPPED from the
     returned mapping and appended to `collisions` (logged at WARNING) —
-    never raises."""
+    never raises. A term whose slug equals a RESERVED prefix key
+    (`_RESERVED_PREFIX_SLUGS` — `"base"`/`"client"`) is likewise dropped +
+    recorded as a collision, rather than silently overwriting that
+    reserved `@context` entry once `project_context` merges this bucket's
+    mapping in (rider A, {132.43} checker-nit)."""
     minted: dict[str, str] = {}
     winners_by_slug: dict[str, str] = {}
     for term in terms:
         fragment = slug(term)
+        if fragment in _RESERVED_PREFIX_SLUGS:
+            collisions.append(
+                {
+                    "scope": scope_label,
+                    "dimension": dimension,
+                    "slug": fragment,
+                    "kept": f"<reserved @context prefix key {fragment!r}>",
+                    "dropped": term,
+                }
+            )
+            logger.warning(
+                "iri_projection: term %r in scope=%s dimension=%s slugs to "
+                "the RESERVED @context prefix key %r — dropped rather than "
+                "silently overwriting the reserved namespace-prefix entry",
+                term,
+                scope_label,
+                dimension,
+                fragment,
+            )
+            continue
         winner = winners_by_slug.get(fragment)
         if winner is not None:
             collisions.append(

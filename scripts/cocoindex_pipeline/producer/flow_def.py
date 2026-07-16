@@ -220,6 +220,17 @@ def _resolve_bundle_dir(bundle_dir: "str | Path | None") -> "Path | None":
     return resolved
 
 
+def _resolve_client_id() -> "str | None":
+    """{132.44} bl-457 G-IRI-PROJECTION IRI-6/IRI-10: resolve the client-id
+    source — `OKF_CLIENT_ID` from the environment (mirrors `_resolve_
+    bundle_dir`'s `OKF_BUNDLE_DIR` read). Unset or empty resolves to
+    `None` — `write_bundle`'s `context.jsonld` then ships base-only, with
+    every overlay term recorded as an advisory un-projected diagnostic
+    (IRI-6's non-gating fallback) rather than guessing/deriving a client
+    identity a later real `OKF_CLIENT_ID` would permanently contradict."""
+    return os.environ.get("OKF_CLIENT_ID", "") or None
+
+
 async def _draft_concepts(
     concepts: "Sequence[Any]",
     source: Any,
@@ -351,7 +362,9 @@ async def run_producer_flow(
          a `gated_corpus` is configured. One concept's fault is contained.
       3. `write_bundle(...)` — validator-gate + `declare_file` every concept,
          regenerate `index.md`, append the `log.md` run block, ship the DR-027
-         ontology artefact.
+         ontology artefact plus the {132.44} bl-457 `context.jsonld` IRI
+         projection (`client_id=_resolve_client_id()` — the resolved
+         `OKF_CLIENT_ID`, or `None` for a base-only projection, IRI-6).
       4. `declare_concept_embedding(...)` for each added/changed concept when a
          `re_target` is supplied (skipped otherwise — BI-25/26).
       5. `git_sync.reapply_overrides(...)` folds any injected `overrides` onto
@@ -406,6 +419,7 @@ async def run_producer_flow(
         drafts,
         reference_drafts,
         theme_config=theme_config,
+        client_id=_resolve_client_id(),
         timestamp=timestamp,
     )
     if failures:

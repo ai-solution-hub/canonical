@@ -312,6 +312,32 @@ class TestIdleMode:
         assert result is None
 
 
+# ── {132.44} bl-457 IRI-6/IRI-10: OKF_CLIENT_ID resolution ────────────────
+
+
+class TestClientIdResolution:
+    """`_resolve_client_id` mirrors `_resolve_bundle_dir`'s `OKF_BUNDLE_DIR`
+    read (unset/empty -> `None`, IRI-6's non-gating fallback)."""
+
+    def test_resolve_client_id_reads_okf_client_id_env_var(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_CLIENT_ID", "acme")
+        assert env.flow_def._resolve_client_id() == "acme"
+
+    def test_resolve_client_id_unset_resolves_to_none(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("OKF_CLIENT_ID", raising=False)
+        assert env.flow_def._resolve_client_id() is None
+
+    def test_resolve_client_id_empty_string_resolves_to_none(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_CLIENT_ID", "")
+        assert env.flow_def._resolve_client_id() is None
+
+
 # ── Owner ruling S456: a log.md-only diff is a no-op — no commit ─────────
 
 
@@ -431,6 +457,58 @@ class TestDegradation:
 
         ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
         assert ontology["overlay"] is None
+
+    def test_context_jsonld_is_base_only_when_okf_client_id_unset(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """{132.44} bl-457 IRI-6: a real producer run with `OKF_CLIENT_ID`
+        unset resolves `client_id=None` at the `write_bundle` call site —
+        `context.jsonld` ships base-only, even with a client-authored
+        overlay present (advisory un-projected diagnostic, run not
+        aborted)."""
+        monkeypatch.delenv("OKF_CLIENT_ID", raising=False)
+        (bundle_dir / "ontology-overlay.json").write_text(
+            json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        context = json.loads(
+            (bundle_dir / "context.jsonld").read_text(encoding="utf-8")
+        )["@context"]
+        assert "client" not in context
+        assert "widget" not in context
+
+    def test_context_jsonld_projects_overlay_under_client_ns_when_okf_client_id_set(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """{132.44} bl-457 IRI-2/5/6: a real producer run with `OKF_CLIENT_ID`
+        set resolves `client_id` at the `write_bundle` call site — the
+        SAME composed `EffectiveOntology` `write_bundle` already lints
+        concepts against is what `context.jsonld` projects, so the
+        client-authored overlay term mints under the client namespace."""
+        monkeypatch.setenv("OKF_CLIENT_ID", "acme")
+        (bundle_dir / "ontology-overlay.json").write_text(
+            json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        from scripts.cocoindex_pipeline.producer import iri_projection
+
+        context = json.loads(
+            (bundle_dir / "context.jsonld").read_text(encoding="utf-8")
+        )["@context"]
+        assert context["client"] == f"{iri_projection._client_namespace('acme')}#"
+        assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
 
     def test_stages_regardless_of_seed_contract_status(
         self, env, bundle_dir: Path, repo: Path

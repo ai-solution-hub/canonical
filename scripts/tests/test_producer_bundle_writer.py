@@ -91,6 +91,7 @@ from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft  # noqa: E40
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
 )
+from scripts.cocoindex_pipeline.producer import iri_projection  # noqa: E402
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_source_document_uri,
 )
@@ -98,6 +99,7 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
     ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
+    EffectiveOntology,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import (  # noqa: E402
     ReferenceConceptDraft,
@@ -706,6 +708,167 @@ def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
     assert payload["overlay"] == overlay
     assert payload["base"]["concept_types"] == sorted(ALLOWED_CONCEPT_TYPES)
     assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# {132.44} context.jsonld emission (bl-457 G-IRI-PROJECTION IRI-4/5/6/9/12)
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_context_filename_is_reserved() -> None:
+    """{132.44}: `context.jsonld` is a reserved bundle-level filename —
+    parity with `ontology.json`/`README.md`/etc (never mistaken for a
+    concept `.md` path). It is a `.jsonld` file, so `_existing_concept_
+    paths`'s `rglob("*.md")` scan structurally never picks it up either
+    way — asserted for intent/parity per IRI-PROJECTION.md's direct-reads
+    note on `_RESERVED_BUNDLE_FILENAMES`."""
+    assert "context.jsonld" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+    assert bundle_writer.CONTEXT_FILENAME == "context.jsonld"
+
+
+def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> None:
+    """IRI-4/5: every base-vocabulary term across all three dimensions
+    resolves to its base IRI; no `client` prefix is emitted absent a
+    client-id (IRI-6)."""
+    eo = EffectiveOntology.base_only()
+    content = bundle_writer.write_context_artefact(tmp_path, eo)
+    payload = json.loads(content)
+
+    assert set(payload) == {"@context"}
+    context = payload["@context"]
+    assert "client" not in context
+    for term in ALLOWED_CONCEPT_TYPES:
+        assert context[term] == iri_projection.mint_iri(term, scope=None)
+    for term in ALLOWED_ENTITY_TYPES:
+        assert context[term] == iri_projection.mint_iri(term, scope=None)
+    for term in ALLOWED_RELATIONSHIP_TYPES:
+        assert context[term] == iri_projection.mint_iri(term, scope=None)
+
+    on_disk = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    assert on_disk == payload
+
+
+def test_write_context_artefact_projects_overlay_under_client_ns_when_client_id_set(
+    tmp_path: Path,
+) -> None:
+    """IRI-2/5/6: with an explicit client-id, an overlay term mints under
+    the client namespace (never under base)."""
+    eo = EffectiveOntology.compose({"entity_types": ["widget"]})
+    content = bundle_writer.write_context_artefact(tmp_path, eo, client_id="acme")
+    context = json.loads(content)["@context"]
+
+    assert context["client"] == f"{iri_projection._client_namespace('acme')}#"
+    assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
+    assert "/base#" not in context["widget"]
+
+
+def test_write_context_artefact_persists_only_the_context_key(tmp_path: Path) -> None:
+    """This Subtask's diagnostics-persistence design decision: `project_
+    context` returns `{"@context": ..., "diagnostics": ...}` as SIBLING
+    keys, but `context.jsonld`'s on-disk shape stays spec-conformant —
+    ONLY `"@context"` is persisted, even when a run produces a non-empty
+    `diagnostics` (a slug collision here) — `project_context` already logs
+    every diagnostic finding at WARNING as it occurs, so nothing is
+    silently lost by leaving it out of the file."""
+    eo = EffectiveOntology.compose({"concept_types": ["Foo Bar", "foo-bar"]})
+    content = bundle_writer.write_context_artefact(tmp_path, eo, client_id="acme")
+    payload = json.loads(content)
+
+    assert list(payload.keys()) == ["@context"]
+    on_disk = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    assert list(on_disk.keys()) == ["@context"]
+
+
+def test_write_bundle_writes_context_jsonld_base_only_when_no_client_id(
+    tmp_path: Path,
+) -> None:
+    """IRI-4/5/9: a full `write_bundle` run (no `client_id` kwarg) ships
+    `context.jsonld` base-only, alongside every other bundle artefact."""
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert (tmp_path / "context.jsonld").is_file()
+    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    assert "client" not in payload["@context"]
+    assert payload["@context"]["topic"] == iri_projection.mint_iri("topic", scope=None)
+
+
+def test_write_bundle_projects_overlay_iris_under_client_ns_when_client_id_passed(
+    tmp_path: Path,
+) -> None:
+    """IRI-2/5/6: a `write_bundle(..., client_id=...)` run composes the
+    client-authored overlay (`ontology-overlay.json`) into the SAME
+    `EffectiveOntology` `context.jsonld` projects — an overlay term mints
+    under the client namespace when `client_id` is supplied."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
+
+    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    context = payload["@context"]
+    assert context["client"] == f"{iri_projection._client_namespace('acme')}#"
+    assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
+
+
+def test_write_bundle_client_id_absent_is_base_only_and_run_not_aborted(
+    tmp_path: Path,
+) -> None:
+    """IRI-6: an overlay IS present but `client_id` is NOT passed to
+    `write_bundle` — overlay-term IRIs are never guessed/derived; the
+    overlay term is left un-projected (advisory) and the run is NOT
+    aborted (concept files, index.md, log.md, ontology.json all still
+    land normally)."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.added == ("topics/alpha.md",)
+    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    context = payload["@context"]
+    assert "client" not in context
+    assert "widget" not in context
+
+
+def test_write_bundle_context_jsonld_byte_identical_on_two_identical_runs(
+    tmp_path: Path,
+) -> None:
+    """IRI-12/BI-18: two runs over unchanged inputs (same effective
+    ontology, same client-id) produce a byte-identical `context.jsonld` —
+    no spurious churn feeding the {132.35} BI-18 re-proof."""
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
+    first = (tmp_path / "context.jsonld").read_bytes()
+
+    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
+    second = (tmp_path / "context.jsonld").read_bytes()
+
+    assert first == second
+
+
+def test_write_bundle_does_not_report_a_committed_context_jsonld_as_removed(
+    tmp_path: Path,
+) -> None:
+    """§9 reserved-file parity (mirrors README.md/CONFORMANCE.md): a
+    pre-existing `context.jsonld` from a prior run is never reported as
+    `RunSummary.removed` — trivially true since it is not a `.md` path
+    `_existing_concept_paths` scans, but asserted here for parity/defence-
+    in-depth with the other reserved bundle-level artefacts."""
+    (tmp_path / "context.jsonld").write_text('{"@context": {}}\n', encoding="utf-8")
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.removed == ()
+    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    assert "context.jsonld" not in log_text
 
 
 # ─────────────────────────────────────────────────────────────────────────

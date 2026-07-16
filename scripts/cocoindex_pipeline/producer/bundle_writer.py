@@ -153,6 +153,7 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     render_concept_frontmatter,
 )
+from scripts.cocoindex_pipeline.producer import iri_projection
 from scripts.cocoindex_pipeline.producer.validator import (
     ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
@@ -170,13 +171,18 @@ from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 # overlay source; S464 rider R1 additionally reserves the committed bundle
 # README, and the OKF v0.1 conformance wave reserves the hand-authored
 # bundle-root CONFORMANCE.md, so neither ever surfaces as a false
-# `RunSummary.removed` entry — see `_existing_concept_paths`).
+# `RunSummary.removed` entry — see `_existing_concept_paths`). {132.44}
+# (bl-457 G-IRI-PROJECTION IRI-4/9) adds the JSON-LD `@context` artefact —
+# a `.jsonld` file, so `_existing_concept_paths`'s `rglob("*.md")` scan
+# structurally never picks it up either way; reserved here for
+# intent/parity with the other bundle-level artefacts.
 INDEX_FILENAME = "index.md"
 LOG_FILENAME = "log.md"
 ONTOLOGY_FILENAME = "ontology.json"
 README_FILENAME = "README.md"
 CONFORMANCE_FILENAME = "CONFORMANCE.md"
 OVERLAY_FILENAME = "ontology-overlay.json"
+CONTEXT_FILENAME = "context.jsonld"
 _RESERVED_BUNDLE_FILENAMES = frozenset(
     {
         INDEX_FILENAME,
@@ -185,6 +191,7 @@ _RESERVED_BUNDLE_FILENAMES = frozenset(
         README_FILENAME,
         CONFORMANCE_FILENAME,
         OVERLAY_FILENAME,
+        CONTEXT_FILENAME,
     }
 )
 
@@ -791,6 +798,45 @@ def write_ontology_artefact(
     return content
 
 
+def write_context_artefact(
+    bundle_dir: Path,
+    effective_ontology: "EffectiveOntology",
+    *,
+    client_id: "str | None" = None,
+) -> str:
+    """{132.44} bl-457 G-IRI-PROJECTION (IRI-4/5/6/9/12): serialises
+    `iri_projection.project_context`'s `@context` term->IRI map to the
+    reserved `context.jsonld` bundle artefact — self-contained (IRI-4),
+    all three CV dimensions (IRI-5), client-overlay-gated (IRI-6), never
+    gating the run (IRI-9), byte-deterministic (IRI-12).
+
+    **Diagnostics-persistence design decision (this Subtask).**
+    `project_context` returns `{"@context": {...}, "diagnostics": {...}}`
+    — `"diagnostics"` (slug collisions + un-projected overlay terms) is a
+    SIBLING key, advisory only (see `iri_projection.py`'s own docstring),
+    NOT part of the on-disk shape IRI-PROJECTION.md's §Projection
+    mechanics worked example specifies (`{"@context": {...}}` only). This
+    function persists ONLY the `"@context"` key to `context.jsonld` —
+    `project_context` ALSO already logs every diagnostic finding at
+    WARNING as it occurs, so nothing is silently lost by leaving
+    `"diagnostics"` out of the file; keeping the on-disk shape to the
+    spec-conformant `{"@context": ...}` also avoids coupling {132.39}'s
+    JSON-LD consumer to an advisory shape that may evolve independently
+    of the `@context` contract.
+
+    Mirrors `write_ontology_artefact`'s serialisation contract exactly
+    (`json.dumps(..., indent=2, sort_keys=True)` — IRI-12 byte-
+    determinism).
+    """
+    projection = iri_projection.project_context(effective_ontology, client_id=client_id)
+    payload = {"@context": projection["@context"]}
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    localfs.declare_file(
+        bundle_dir / CONTEXT_FILENAME, content, create_parent_dirs=True
+    )
+    return content
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # write_bundle — the per-run G-BUNDLE orchestration
 # ─────────────────────────────────────────────────────────────────────────
@@ -827,12 +873,22 @@ def write_bundle(
     moved: "Mapping[str, str]" = MappingProxyType({}),
     orphaned_anchors: "Sequence[str]" = (),
     client_ontology_overlay: "Mapping[str, object] | None" = None,
+    client_id: "str | None" = None,
     timestamp: "str | None" = None,
 ) -> RunSummary:
     """The per-run G-BUNDLE orchestration: validator-gate + `declare_file`
     every concept (BI-13/BI-11), regenerate `index.md` (BI-5), append one
     `log.md` run block (BI-11/BI-18/BI-22), and ship the DR-027 ontology
+    artefact plus the {132.44} bl-457 `context.jsonld` IRI-projection
     artefact. Returns the `RunSummary` this run produced.
+
+    `client_id` (bl-457 G-IRI-PROJECTION IRI-2/6/10) threads through to
+    `write_context_artefact`'s `iri_projection.project_context` call —
+    `None` (the default; no `OKF_CLIENT_ID` resolved at the `flow_def.py`
+    call site) mints `context.jsonld` base-only, with every overlay term
+    recorded as an advisory un-projected diagnostic rather than guessing a
+    client namespace (IRI-6: published IRIs are irreversible, so an
+    overlay IRI is never minted under an unconfirmed client-id).
 
     `moved` is an explicit caller-supplied `{old_rel_path: new_rel_path}`
     map (BI-2/BI-9: "the producer... must record such moves so inbound
@@ -953,6 +1009,7 @@ def write_bundle(
         bundle_dir / INDEX_FILENAME, regenerate_indexes(themes), create_parent_dirs=True
     )
     write_ontology_artefact(bundle_dir, client_overlay=overlay)
+    write_context_artefact(bundle_dir, effective_ontology, client_id=client_id)
     append_log_entry(bundle_dir, summary, timestamp=timestamp)
 
     return summary

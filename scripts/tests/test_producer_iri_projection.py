@@ -224,6 +224,59 @@ class TestCollisionGuard:
 
 
 # ──────────────────────────────────────────
+# ({132.44} rider A — {132.43} checker-nit) reserved-prefix-key guard
+# ──────────────────────────────────────────
+
+
+class TestReservedPrefixKeyGuard:
+    """A term whose `slug()` equals the reserved `"base"`/`"client"` prefix
+    key is a collision against that reserved key — logged + recorded in
+    `diagnostics.collisions` — never a silent `dict` overwrite of the
+    namespace-prefix entry. Currently unreachable via the ratified base
+    vocabulary (no base term is named `base`/`client`); exercised here via
+    an overlay term, the only reachable path today."""
+
+    def test_overlay_term_slugging_to_base_is_dropped_not_overwritten(self):
+        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        result = ip.project_context(eo, client_id="acme")
+        context = result["@context"]
+
+        # The reserved "base" prefix key still holds the base NAMESPACE —
+        # never clobbered by the "base" overlay term's own minted IRI.
+        assert context["base"] == f"{ip._base_namespace()}#"
+
+        collisions = result["diagnostics"]["collisions"]
+        assert any(
+            c["slug"] == "base" and c["dropped"] == "base" for c in collisions
+        )
+
+    def test_overlay_term_slugging_to_client_is_dropped_not_overwritten(self):
+        eo = EffectiveOntology.compose({"entity_types": ["client"]})
+        result = ip.project_context(eo, client_id="acme")
+        context = result["@context"]
+
+        assert context["client"] == f"{ip._client_namespace('acme')}#"
+
+        collisions = result["diagnostics"]["collisions"]
+        assert any(
+            c["slug"] == "client" and c["dropped"] == "client" for c in collisions
+        )
+
+    def test_reserved_prefix_collision_never_raises(self):
+        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        # Must not raise despite the reserved-key collision.
+        ip.project_context(eo, client_id="acme")
+
+    def test_reserved_prefix_collision_logs_warning(self, caplog):
+        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        with caplog.at_level(logging.WARNING):
+            ip.project_context(eo, client_id="acme")
+        assert any(
+            "reserved" in record.message.lower() for record in caplog.records
+        )
+
+
+# ──────────────────────────────────────────
 # (e) client_id=None -> base-only + diagnostic (IRI-6)
 # ──────────────────────────────────────────
 
