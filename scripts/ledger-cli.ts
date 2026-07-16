@@ -4268,6 +4268,17 @@ async function run(args: ParsedArgs): Promise<CliResult> {
           'missing-args',
           'append-journal <taskId.subId> <text> (legacy: <taskId> <subId> <text>)',
         );
+      // bl-452: a scratchpad-path drift once made a `cat` return nothing, and
+      // the resulting empty string passed straight through into a real
+      // `<info added on …></info added on …>` block on {132.32} (append-only
+      // — the residue is permanent). Reject empty/whitespace-only text
+      // client-side, before any ledger read, so nothing is ever written.
+      if (!text.trim())
+        return cliErr(
+          'append-journal',
+          'schema-error',
+          'append-journal text must be non-empty (whitespace-only counts as empty)',
+        );
       const loaded = await loadLedger(ledgerPath(dir, 'task'));
       if (!loaded.ok) return loaded.result;
       if (loaded.detected.kind !== 'task-list')
