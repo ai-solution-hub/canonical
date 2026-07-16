@@ -595,6 +595,7 @@ export function derivePrimaryForeground(primary: string): string {
 // lib/branding/clients/{id}.json (tracked or deploy-overlaid),
 // (2) run `bun run generate:branding`, (3) set NEXT_PUBLIC_CLIENT_ID
 // in the deployment environment.
+import { relative, resolve as resolvePath, sep } from 'node:path';
 import { CLIENT_BRANDING_MAP } from '@/lib/branding/client-branding-map.generated';
 import { clientEnv } from '@/lib/env-client';
 import { logger } from '@/lib/logger/client';
@@ -624,16 +625,28 @@ import { logger } from '@/lib/logger/client';
 // stdout+stderr-merged `| jq` pipe even though ledger-cli has nothing to do
 // with branding. The advisory is a real deployment-config diagnostic for the
 // app/build/SSR surface (kept — see the `window` check below); it is pure
-// noise on a bare script invocation. Detect that narrow case the same way the
-// `scripts/*.ts` self-invocation guards already do elsewhere in this repo
-// (`process.argv[1]` path matching) — additive only: it can only ever
-// SUPPRESS the advisory for a `scripts/` entry point, never for anything
-// else, so the app/build/SSR/test surface this diagnostic targets is
-// unaffected (Next.js/vitest/Playwright entry points never resolve under a
-// top-level `scripts/` path segment).
+// noise on a bare script invocation. Detect that narrow case, additive only:
+// it can only ever SUPPRESS the advisory for a `scripts/` entry point, never
+// for anything else, so the app/build/SSR/test surface this diagnostic
+// targets is unaffected.
+//
+// Tightened post-Checker-review: the first cut matched `scripts` as a path
+// segment ANYWHERE in the absolute entry path
+// (`/(^|[/\\])scripts[/\\]/`), which — unlike every other
+// `process.argv[1]` self-invocation guard in this repo (those anchor to a
+// filename, e.g. `endsWith('eval-classification.ts')`) — would false-positive
+// on an ANCESTOR directory merely named `scripts` (e.g. a checkout under
+// `~/scripts/canonical`), suppressing the advisory app-wide for every entry
+// point (next dev/build, vitest included). Anchor to the REPO-RELATIVE entry
+// instead: this repo's own top-level `scripts/*.ts` CLIs are always invoked
+// as `bun scripts/<name>.ts` from the repo root, so resolving the entry
+// relative to `process.cwd()` and requiring it start with `scripts/` scopes
+// the suppression to this repo's own scripts directory, never an ancestor.
 function isScriptEntryPoint(): boolean {
   const entry = process.argv[1];
-  return typeof entry === 'string' && /(^|[/\\])scripts[/\\]/.test(entry);
+  if (typeof entry !== 'string') return false;
+  const rel = relative(process.cwd(), resolvePath(entry)).split(sep).join('/');
+  return rel.startsWith('scripts/');
 }
 
 export function loadBranding(idOverride?: string): BrandingConfig {
