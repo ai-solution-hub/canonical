@@ -536,6 +536,74 @@ export type Database = {
           },
         ]
       }
+      engagement_group_content: {
+        Row: {
+          created_at: string | null
+          engagement_group_id: string | null
+          id: string | null
+          q_a_pair_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          engagement_group_id?: string | null
+          id?: string | null
+          q_a_pair_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          engagement_group_id?: string | null
+          id?: string | null
+          q_a_pair_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_group_content_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_group_content_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_groups: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_groups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entity_aliases: {
         Row: {
           alias: string | null
@@ -1293,6 +1361,13 @@ export type Database = {
           workflow_state?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "form_instances_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "form_templates_created_by_fkey"
             columns: ["created_by"]
