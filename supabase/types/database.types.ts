@@ -4720,6 +4720,7 @@ export type Database = {
           normalisation_version: number | null
           op_id: string | null
           source_document_id: string
+          updated_at: string
         }
         Insert: {
           canonical_name: string
@@ -4734,6 +4735,7 @@ export type Database = {
           normalisation_version?: number | null
           op_id?: string | null
           source_document_id: string
+          updated_at?: string
         }
         Update: {
           canonical_name?: string
@@ -4748,6 +4750,7 @@ export type Database = {
           normalisation_version?: number | null
           op_id?: string | null
           source_document_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -4798,6 +4801,7 @@ export type Database = {
           source_document_id: string | null
           source_entity: string
           target_entity: string
+          updated_at: string
         }
         Insert: {
           confidence?: number | null
@@ -4807,6 +4811,7 @@ export type Database = {
           source_document_id?: string | null
           source_entity: string
           target_entity: string
+          updated_at?: string
         }
         Update: {
           confidence?: number | null
@@ -4816,6 +4821,7 @@ export type Database = {
           source_document_id?: string | null
           source_entity?: string
           target_entity?: string
+          updated_at?: string
         }
         Relationships: [
           {
