@@ -527,7 +527,10 @@ export async function fetchTemplateRequirements(
     const embeddingsResult = await supabase
       .from('record_embeddings')
       .select('owner_id, embedding')
-      .eq('owner_kind', 'form_template_requirement' satisfies RecordEmbeddingsOwnerKind)
+      .eq(
+        'owner_kind',
+        'form_template_requirement' satisfies RecordEmbeddingsOwnerKind,
+      )
       .in(
         'owner_id',
         rows.map((row) => row.id),
@@ -634,10 +637,10 @@ export async function fetchContentForMatching(
   const embeddingsResult = await supabase
     .from('record_embeddings')
     .select('owner_id, embedding')
-    .in(
-      'owner_kind',
-      ['q_a_pair', 'reference_item'] satisfies RecordEmbeddingsOwnerKind[],
-    )
+    .in('owner_kind', [
+      'q_a_pair',
+      'reference_item',
+    ] satisfies RecordEmbeddingsOwnerKind[])
     .in('owner_id', allIds)
     .eq('model', EMBEDDING_MODEL);
 

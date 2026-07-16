@@ -976,7 +976,8 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             .from('record_embeddings')
             .upsert(
               {
-                owner_kind: 'source_document' satisfies RecordEmbeddingsOwnerKind,
+                owner_kind:
+                  'source_document' satisfies RecordEmbeddingsOwnerKind,
                 owner_id: item.id,
                 model: 'text-embedding-3-large',
                 embedding: regeneratedEmbedding,

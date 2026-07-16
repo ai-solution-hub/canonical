@@ -573,7 +573,8 @@ export async function registerGovernanceTools(
                   .from('record_embeddings')
                   .upsert(
                     {
-                      owner_kind: 'q_a_pair' satisfies RecordEmbeddingsOwnerKind,
+                      owner_kind:
+                        'q_a_pair' satisfies RecordEmbeddingsOwnerKind,
                       owner_id: itemId,
                       model: 'text-embedding-3-large',
                       embedding: JSON.stringify(embedding),
