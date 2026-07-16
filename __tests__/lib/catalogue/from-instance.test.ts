@@ -80,6 +80,7 @@ function makeField(
     reference_urls: null,
     row_index: null,
     table_index: null,
+    geometry: null,
     updated_at: null,
     ...overrides,
   };
