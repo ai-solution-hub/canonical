@@ -165,6 +165,33 @@ describe('ledger-cli — append-journal (inv 7)', () => {
     expect(after).toMatch(/<info added on .+Z>/);
     if (prior) expect(after.startsWith(prior)).toBe(true);
   });
+
+  // bl-452 (ID-156.5): a scratchpad-path drift once made a `cat` return
+  // nothing, and the resulting empty string passed straight through into a
+  // real `<info added on …></info added on …>` block on {132.32} (append-only
+  // — the residue is permanent). Guard client-side so an empty or
+  // whitespace-only text rejects with schema-error and nothing is written.
+  it('rejects empty text with schema-error and writes nothing', async () => {
+    const taskId = firstTaskId();
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const r = await run(args('append-journal', [`${taskId}.${subId}`, '']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('schema-error');
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
+  });
+
+  it('rejects whitespace-only text with schema-error and writes nothing', async () => {
+    const taskId = firstTaskId();
+    const subId = String(read('task-list').tasks[0].subtasks[0].id);
+    const before = readFileSync(join(dir, 'task-list.json'), 'utf8');
+    const r = await run(
+      args('append-journal', [`${taskId}.${subId}`, '   \n\t  ']),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('schema-error');
+    expect(readFileSync(join(dir, 'task-list.json'), 'utf8')).toBe(before);
+  });
 });
 
 describe('ledger-cli — add-subtask (inv 8)', () => {
