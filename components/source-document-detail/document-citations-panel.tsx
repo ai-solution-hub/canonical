@@ -13,8 +13,6 @@ import { cn } from '@/lib/utils';
 import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
 import {
   useDocumentCitations,
-  type CitationSummary,
-  type CitationsByKind,
   type CitationTargetKind,
 } from '@/hooks/source-document-detail/use-source-document-detail';
 
@@ -22,20 +20,29 @@ import {
  * DocumentCitationsPanel — id-135 {135.16} (TECH §3 BI-27, §4, AAT-4).
  * Extended at ID-145 {145.47} (TECH §3/§4, PRODUCT §D1-D5, "wiring" in that
  * Subtask's file ownership) with optional bidirectional-selection props so
- * `ItemCitationOverlay` can pair this panel with a PDF spatial overlay.
+ * `ItemCitationOverlay` can pair this panel with a PDF spatial overlay, and
+ * (Checker F1 fix) split into a data-fetching wrapper (`DocumentCitationsPanel`,
+ * unchanged contract, `useDocumentCitations` internally) and a data-agnostic
+ * presentational view (`CitationsPanelView`) — `ItemCitationOverlay` reads
+ * citations from a DIFFERENT axis/route (`useProcurementFormCitations`, the
+ * form's own citing-side citations) and renders that data through
+ * `CitationsPanelView` directly, reusing this exact markup/behaviour without
+ * a second implementation.
  *
  * Renders citation rows grouped/labelled by the id-131 BI-23 CITE-EXT
- * `cited_target_kind` (the 4 always-present buckets on `CitationsByKind`:
- * `q_a_pair`, `reference_item`, `source_document`, `concept`), each group
- * carrying a text+icon label (BI-4 — never colour-only).
+ * `cited_target_kind` (the 4 always-present buckets, keyed by
+ * `CitationTargetKind`: `q_a_pair`, `reference_item`, `source_document`,
+ * `concept`), each group carrying a text+icon label (BI-4 — never
+ * colour-only).
  *
- * `citations` is 0 rows today (the common path until the id-131 {131.11}
- * G-cluster lands extended-contract writers — AAT-4, a Task-level
- * dependency) — that renders a CLEAR "no citations yet" empty state, never
- * an error (BI-27). Own independent TanStack query (BI-30): loading renders
- * a skeleton, a fetch failure renders its own localised non-technical error
- * + retry (the shared `SectionErrorState`, {135.18} convergence pass),
- * without failing the wider Surface B detail page.
+ * `citations` is 0 rows today for `DocumentCitationsPanel`'s own Surface-B
+ * axis (the common path until the id-131 {131.11} G-cluster lands
+ * extended-contract writers — AAT-4, a Task-level dependency) — that
+ * renders a CLEAR "no citations yet" empty state, never an error (BI-27).
+ * Own independent TanStack query (BI-30): loading renders a skeleton, a
+ * fetch failure renders its own localised non-technical error + retry (the
+ * shared `SectionErrorState`, {135.18} convergence pass), without failing
+ * the wider Surface B detail page.
  *
  * §D1-D5 wiring (all optional, backward compatible — `SourceDocumentDetailClient`
  * passes only `documentId` and is unaffected): when `onSelectCitation` is
@@ -64,6 +71,22 @@ const KIND_META: Record<
   concept: { label: 'Concepts', icon: Tag },
 };
 
+/**
+ * The subset of a citation row this component's markup actually reads —
+ * satisfied structurally by both `CitationSummary` (source-documents
+ * citations route) and `ProcurementCitationRow` (procurement citations
+ * route), so `CitationsPanelView` is reusable across both citation-read
+ * axes without a generic type param.
+ */
+export interface CitationRowLike {
+  id: string;
+  cited_text: string | null;
+  citation_type: string;
+  created_at: string;
+}
+
+export type CitationsPanelData = Record<CitationTargetKind, CitationRowLike[]>;
+
 export interface DocumentCitationsPanelProps {
   documentId: string;
   /** Shared selection id (147-H pattern). Omitted: rows are plain, non-interactive list items (existing behaviour). */
@@ -84,6 +107,43 @@ export function DocumentCitationsPanel({
     useDocumentCitations(documentId);
 
   return (
+    <CitationsPanelView
+      citations={data?.citations}
+      isLoading={isLoading}
+      isError={isError}
+      onRetry={() => refetch()}
+      selectedId={selectedId}
+      onSelectCitation={onSelectCitation}
+      resolvedCitationIds={resolvedCitationIds}
+    />
+  );
+}
+
+export interface CitationsPanelViewProps {
+  citations: CitationsPanelData | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  selectedId?: string | null;
+  onSelectCitation?: (citationId: string) => void;
+  resolvedCitationIds?: ReadonlySet<string>;
+}
+
+/**
+ * The data-agnostic citations presentation — loading skeleton, localised
+ * error + retry, grouped list, or honest empty state. Any caller can drive
+ * it with its OWN query result (see the module doc above).
+ */
+export function CitationsPanelView({
+  citations,
+  isLoading,
+  isError,
+  onRetry,
+  selectedId,
+  onSelectCitation,
+  resolvedCitationIds,
+}: CitationsPanelViewProps) {
+  return (
     <section
       aria-label="Citations"
       className="space-y-4 rounded-lg border border-border bg-card p-4"
@@ -95,11 +155,11 @@ export function DocumentCitationsPanel({
         <SectionErrorState
           heading="Couldn't load citations"
           message="Something went wrong while loading citations. This is usually temporary."
-          onRetry={() => refetch()}
+          onRetry={onRetry}
         />
       ) : (
         <CitationsGroupedList
-          citations={data?.citations}
+          citations={citations}
           selectedId={selectedId}
           onSelectCitation={onSelectCitation}
           resolvedCitationIds={resolvedCitationIds}
@@ -109,7 +169,7 @@ export function DocumentCitationsPanel({
   );
 }
 
-function totalCitations(citations: CitationsByKind | undefined): number {
+function totalCitations(citations: CitationsPanelData | undefined): number {
   if (!citations) return 0;
   return KIND_ORDER.reduce((sum, kind) => sum + citations[kind].length, 0);
 }
@@ -120,7 +180,7 @@ function CitationsGroupedList({
   onSelectCitation,
   resolvedCitationIds,
 }: {
-  citations: CitationsByKind | undefined;
+  citations: CitationsPanelData | undefined;
   selectedId?: string | null;
   onSelectCitation?: (citationId: string) => void;
   resolvedCitationIds?: ReadonlySet<string>;
@@ -153,7 +213,7 @@ function CitationKindGroup({
   resolvedCitationIds,
 }: {
   kind: CitationTargetKind;
-  rows: CitationSummary[];
+  rows: CitationRowLike[];
   selectedId?: string | null;
   onSelectCitation?: (citationId: string) => void;
   resolvedCitationIds?: ReadonlySet<string>;
@@ -189,7 +249,7 @@ function CitationRow({
   isResolved,
   onSelect,
 }: {
-  row: CitationSummary;
+  row: CitationRowLike;
   isSelected: boolean;
   isResolved: boolean;
   onSelect?: (citationId: string) => void;

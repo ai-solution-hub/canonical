@@ -439,6 +439,17 @@ export const queryKeys = {
      * parallel-wave append-only convention for this file.
      */
     fields: (formId: string) => ['procurement', 'fields', formId] as const,
+    /**
+     * §D citation-overlay read (ID-145 {145.47} Checker F1 fix, TECH §3/§4,
+     * PRODUCT §D1-D5). `GET /api/procurement/[id]/citations` — the form's
+     * OWN citing-side citations (form_questions -> form_responses ->
+     * citations, `citing_kind='form_response'`), NOT the
+     * `sourceDocuments.citations(id)` axis (`cited_source_document_id`,
+     * which a form's own drafted-response citations never populate).
+     * Appended here per the parallel-wave append-only convention.
+     */
+    citations: (formId: string) =>
+      ['procurement', 'citations', formId] as const,
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

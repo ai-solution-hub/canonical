@@ -137,6 +137,10 @@ export function createMockSupabaseClient(): MockSupabaseClient {
     getPublicUrl: vi
       .fn()
       .mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+    createSignedUrl: vi.fn().mockResolvedValue({
+      data: { signedUrl: 'https://example.com/signed-url' },
+      error: null,
+    }),
   };
 
   return {

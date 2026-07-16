@@ -1,9 +1,14 @@
 /**
  * ItemCitationOverlay (components/procurement/item-citation-overlay.tsx)
- * — ID-145 {145.47} (TECH §3/§4, PRODUCT §D1-D5, DR-064).
+ * — ID-145 {145.47} (TECH §3/§4, PRODUCT §D1-D5, DR-064), Checker F1 fix.
  *
  * Behaviour under contract (test-philosophy.md — observable behaviour, not
  * implementation):
+ *  - AXIS FIX: citations are read via `GET /api/procurement/[id]/citations`
+ *    (the form's own citing-side citations), NEVER the
+ *    `cited_source_document_id = formId` axis; a resolved citation's
+ *    spatial-overlay target is `resolved_source_document_id` (the citation's
+ *    OWN q_a_pair's backing document), NOT `formId`.
  *  - §D5: no citations at all -> the panel's own honest empty state, no
  *    overlay pane, never a blank/error panel.
  *  - §D4: a resolved DOCX/XLSX target document stays text-anchored (no
@@ -15,10 +20,10 @@
  *  - Bidirectional select: choosing the citation row selects/scrolls the
  *    box; choosing the box selects the row.
  *
- * `DocumentCitationsPanel` is used FOR REAL (not mocked) — both it and this
- * component call `useDocumentCitations(formId)` independently and share the
- * same TanStack Query cache entry, so this test exercises the actual
- * end-to-end wiring rather than a stubbed contract.
+ * `CitationsPanelView` is used FOR REAL (not mocked) — it renders exactly
+ * the data this component's own `useProcurementFormCitations` query
+ * resolves, so this test exercises the actual end-to-end wiring rather than
+ * a stubbed contract.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -76,37 +81,55 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 const FORM_ID = '11111111-1111-4111-8111-111111111111';
+const DOCUMENT_ID = '22222222-2222-4222-8222-222222222222';
 
 function emptyCitationsByKind() {
-  return { q_a_pair: [], reference_item: [], source_document: [], concept: [] };
+  return {
+    q_a_pair: [],
+    reference_item: [],
+    source_document: [],
+    concept: [],
+  };
 }
 
 function mockCitationsAndBinary({
   qaPair = [] as Array<Record<string, unknown>>,
   mimeType = 'application/pdf',
+  documentId = DOCUMENT_ID,
 }: {
   qaPair?: Array<Record<string, unknown>>;
   mimeType?: string;
+  documentId?: string;
 } = {}) {
   mockFetch.mockImplementation((input: string) => {
-    if (input.includes('/citations')) {
+    // AXIS FIX: only the procurement-scoped citations route is ever read —
+    // the (wrong) source-documents axis must never be requested.
+    if (
+      input.includes('/api/source-documents/') &&
+      input.includes('/citations')
+    ) {
+      return Promise.reject(
+        new Error(`must not read the wrong citations axis: ${input}`),
+      );
+    }
+    if (input === `/api/procurement/${FORM_ID}/citations`) {
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () =>
           Promise.resolve({
-            document_id: FORM_ID,
+            form_instance_id: FORM_ID,
             citations: { ...emptyCitationsByKind(), q_a_pair: qaPair },
           }),
       });
     }
-    if (input.includes('/binary-url')) {
+    if (input === `/api/source-documents/${documentId}/binary-url`) {
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () =>
           Promise.resolve({
-            signed_url: 'https://signed.example/doc',
+            signed_url: `https://signed.example/${documentId}`,
             expires_in: 300,
             mime_type: mimeType,
           }),
@@ -114,6 +137,27 @@ function mockCitationsAndBinary({
     }
     return Promise.reject(new Error(`unexpected fetch: ${input}`));
   });
+}
+
+function citationRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'cite-1',
+    cited_kind: 'q_a_pair',
+    citing_kind: 'form_response',
+    citation_type: 'reference',
+    cited_text: 'tender deadline',
+    cited_start: null,
+    cited_end: null,
+    cited_location_kind: null,
+    cited_q_a_pair_id: 'qa-1',
+    cited_reference_item_id: null,
+    // Always null on the citing axis (Checker F1) — never the overlay target.
+    cited_source_document_id: null,
+    cited_concept_path: null,
+    created_at: '2026-03-14T09:00:00.000Z',
+    resolved_source_document_id: DOCUMENT_ID,
+    ...overrides,
+  };
 }
 
 function renderComponent() {
@@ -166,6 +210,47 @@ describe('ItemCitationOverlay', () => {
     );
   });
 
+  it('reads the form-scoped citing-axis route, never the wrong source-documents axis', async () => {
+    mockCitationsAndBinary({
+      qaPair: [citationRow()],
+      mimeType: 'application/pdf',
+    });
+    renderComponent();
+
+    await waitFor(() =>
+      expect(
+        mockFetch.mock.calls.some(
+          ([url]) => url === `/api/procurement/${FORM_ID}/citations`,
+        ),
+      ).toBe(true),
+    );
+    expect(
+      mockFetch.mock.calls.some(
+        ([url]) =>
+          String(url).includes('/api/source-documents/') &&
+          String(url).includes('/citations'),
+      ),
+    ).toBe(false);
+  });
+
+  it("resolves a citation's spatial-overlay target from its OWN resolved_source_document_id, never formId", async () => {
+    mockCitationsAndBinary({ qaPair: [citationRow()] });
+    renderComponent();
+
+    await waitFor(() =>
+      expect(
+        mockFetch.mock.calls.some(
+          ([url]) => url === `/api/source-documents/${DOCUMENT_ID}/binary-url`,
+        ),
+      ).toBe(true),
+    );
+    expect(
+      mockFetch.mock.calls.some(
+        ([url]) => url === `/api/source-documents/${FORM_ID}/binary-url`,
+      ),
+    ).toBe(false);
+  });
+
   it("§D5 — renders the panel's honest empty state and no overlay pane when there are no citations", async () => {
     mockCitationsAndBinary({ qaPair: [] });
     renderComponent();
@@ -174,29 +259,34 @@ describe('ItemCitationOverlay', () => {
       expect(screen.getByText(/no citations yet/i)).toBeInTheDocument(),
     );
     expect(screen.queryByTestId('pdf-document-mock')).not.toBeInTheDocument();
-    // §D1 scope: binary-url is never fetched with zero citations (no target
-    // to resolve, and no needless network call).
+    // Nothing to resolve spatially -> no needless binary-url network call.
     expect(
       mockFetch.mock.calls.some(([url]) => String(url).includes('/binary-url')),
     ).toBe(false);
   });
 
-  it('§D4 — a DOCX/XLSX-backed citation stays text-anchored, no overlay pane', async () => {
+  it('§D1 scope — a citation with no resolved backing document stays text-anchored, no pane', async () => {
     mockCitationsAndBinary({
       qaPair: [
-        {
-          id: 'cite-1',
-          cited_kind: 'q_a_pair',
-          citing_kind: 'form_response',
-          citation_type: 'reference',
-          cited_text: 'The tender deadline is 5pm.',
-          cited_q_a_pair_id: 'qa-1',
-          cited_reference_item_id: null,
-          cited_source_document_id: FORM_ID,
-          cited_concept_path: null,
-          created_at: '2026-03-14T09:00:00.000Z',
-        },
+        citationRow({
+          cited_text: 'no evidence document on this answer',
+          resolved_source_document_id: null,
+        }),
       ],
+    });
+    renderComponent();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('no evidence document on this answer'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('pdf-document-mock')).not.toBeInTheDocument();
+  });
+
+  it('§D4 — a resolved DOCX/XLSX-backed citation stays text-anchored, no overlay pane', async () => {
+    mockCitationsAndBinary({
+      qaPair: [citationRow({ cited_text: 'The tender deadline is 5pm.' })],
       mimeType:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
@@ -213,20 +303,7 @@ describe('ItemCitationOverlay', () => {
   describe('§D1/§D3 — PDF spatial overlay + bidirectional selection', () => {
     function mockOneCitation() {
       mockCitationsAndBinary({
-        qaPair: [
-          {
-            id: 'cite-1',
-            cited_kind: 'q_a_pair',
-            citing_kind: 'form_response',
-            citation_type: 'reference',
-            cited_text: 'tender deadline',
-            cited_q_a_pair_id: 'qa-1',
-            cited_reference_item_id: null,
-            cited_source_document_id: FORM_ID,
-            cited_concept_path: null,
-            created_at: '2026-03-14T09:00:00.000Z',
-          },
-        ],
+        qaPair: [citationRow()],
         mimeType: 'application/pdf',
       });
     }
@@ -256,18 +333,9 @@ describe('ItemCitationOverlay', () => {
     it('an unresolved citation (text not found on the rendered page) stays a plain text-anchored row, never a box', async () => {
       mockCitationsAndBinary({
         qaPair: [
-          {
-            id: 'cite-1',
-            cited_kind: 'q_a_pair',
-            citing_kind: 'form_response',
-            citation_type: 'reference',
+          citationRow({
             cited_text: 'this exact phrase never appears on the page',
-            cited_q_a_pair_id: 'qa-1',
-            cited_reference_item_id: null,
-            cited_source_document_id: FORM_ID,
-            cited_concept_path: null,
-            created_at: '2026-03-14T09:00:00.000Z',
-          },
+          }),
         ],
         mimeType: 'application/pdf',
       });

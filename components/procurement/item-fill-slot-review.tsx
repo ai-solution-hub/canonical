@@ -23,6 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
 import { PdfDocument } from '@/components/reader/pdf-document';
 import {
@@ -72,13 +73,32 @@ function useSignedFormUrl(storagePath: string | null) {
     supabase.storage
       .from('documents')
       .createSignedUrl(storagePath, 3600)
-      .then(({ data }) => {
-        if (!cancelled && data?.signedUrl) setSignedUrl(data.signedUrl);
-      })
-      .catch(() => {
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (data?.signedUrl) {
+          setSignedUrl(data.signedUrl);
+          return;
+        }
         // Signed-URL failure degrades to "spatial pane stays loading" —
         // PdfDocument itself never mounts without a URL, and the slot list
-        // (the primary content) is unaffected either way.
+        // (the primary content) is unaffected either way — but the failure
+        // must be OBSERVABLE, never silent (Checker F2).
+        logBestEffortWarn(
+          'procurement.fill-slot.signed-url',
+          'Failed to create a signed URL for the form PDF',
+          { storagePath, error: error?.message },
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logBestEffortWarn(
+          'procurement.fill-slot.signed-url',
+          'Signed URL request threw',
+          {
+            storagePath,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
       });
 
     return () => {

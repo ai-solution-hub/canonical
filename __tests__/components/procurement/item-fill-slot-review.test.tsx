@@ -15,6 +15,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient } from '@/__tests__/helpers/query-wrapper';
+import {
+  createMockSupabaseClient,
+  type MockSupabaseClient,
+} from '@/__tests__/helpers/mock-supabase';
 import { ItemFillSlotReview } from '@/components/procurement/item-fill-slot-review';
 
 // PdfDocument is mocked to a minimal controlled-page stub — its own
@@ -48,18 +52,24 @@ vi.mock('@/components/reader/pdf-document', () => ({
   ),
 }));
 
-const { mockCreateClient } = vi.hoisted(() => ({
+const { mockCreateClient, mockLogBestEffortWarn } = vi.hoisted(() => ({
   mockCreateClient: vi.fn(),
+  mockLogBestEffortWarn: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: mockCreateClient,
 }));
 
+vi.mock('@/lib/supabase/telemetry', () => ({
+  logBestEffortWarn: mockLogBestEffortWarn,
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 const FORM_ID = '11111111-1111-4111-8111-111111111111';
+const FORM_STORAGE_PATH = `${FORM_ID}/original.pdf`;
 
 function mockFormFieldsResponse(overrides: Record<string, unknown> = {}) {
   mockFetch.mockResolvedValue({
@@ -70,7 +80,7 @@ function mockFormFieldsResponse(overrides: Record<string, unknown> = {}) {
         id: FORM_ID,
         name: 'Tender form',
         mime_type: 'application/pdf',
-        storage_path: `${FORM_ID}/original.pdf`,
+        storage_path: FORM_STORAGE_PATH,
         fields: [],
         summary: {},
         completions: [],
@@ -79,17 +89,20 @@ function mockFormFieldsResponse(overrides: Record<string, unknown> = {}) {
   });
 }
 
+/** Shared Supabase client mock (__tests__/CLAUDE.md — never hand-roll). Its `documents` bucket's `createSignedUrl` defaults to success; override per-test for failure-path assertions. */
+let mockSupabaseClient: ReturnType<typeof createMockSupabaseClient>;
+
 function mockSignedUrlSuccess() {
-  mockCreateClient.mockReturnValue({
-    storage: {
-      from: () => ({
-        createSignedUrl: () =>
-          Promise.resolve({
-            data: { signedUrl: 'https://signed.example/original.pdf' },
-          }),
-      }),
-    },
-  });
+  mockSupabaseClient = createMockSupabaseClient();
+  mockCreateClient.mockReturnValue(mockSupabaseClient);
+}
+
+/** The shape `createMockSupabaseClient()` wires `storage.from()` to resolve to. */
+function documentsBucket(client: MockSupabaseClient) {
+  const from = client.storage.from as unknown as (name: string) => {
+    createSignedUrl: ReturnType<typeof vi.fn>;
+  };
+  return from('documents');
 }
 
 function renderComponent() {
@@ -271,6 +284,49 @@ describe('ItemFillSlotReview', () => {
       // The slot list's "Company name" row now reflects the shared selection.
       const slotButton = screen.getByText('Company name').closest('button')!;
       expect(slotButton).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+
+  describe('signed-URL failure path (Checker F2 — never a silent swallow)', () => {
+    it('logs a best-effort warning when createSignedUrl resolves with an error', async () => {
+      mockFormFieldsResponse({ fields: [] });
+      documentsBucket(mockSupabaseClient).createSignedUrl.mockResolvedValueOnce(
+        {
+          data: null,
+          error: { message: 'Storage bucket not found' },
+        },
+      );
+      renderComponent();
+
+      await waitFor(() =>
+        expect(mockLogBestEffortWarn).toHaveBeenCalledWith(
+          'procurement.fill-slot.signed-url',
+          'Failed to create a signed URL for the form PDF',
+          expect.objectContaining({
+            storagePath: FORM_STORAGE_PATH,
+            error: 'Storage bucket not found',
+          }),
+        ),
+      );
+    });
+
+    it('logs a best-effort warning when the createSignedUrl request rejects', async () => {
+      mockFormFieldsResponse({ fields: [] });
+      documentsBucket(mockSupabaseClient).createSignedUrl.mockRejectedValueOnce(
+        new Error('network down'),
+      );
+      renderComponent();
+
+      await waitFor(() =>
+        expect(mockLogBestEffortWarn).toHaveBeenCalledWith(
+          'procurement.fill-slot.signed-url',
+          'Signed URL request threw',
+          expect.objectContaining({
+            storagePath: FORM_STORAGE_PATH,
+            error: 'network down',
+          }),
+        ),
+      );
     });
   });
 });
