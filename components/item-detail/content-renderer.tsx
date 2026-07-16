@@ -1,8 +1,30 @@
 'use client';
 
+/**
+ * `<ContentRenderer>` — DR-040 Streamdown migration (ID-145.46, folded from
+ * id-147 PRODUCT §I2/§I3, TECH §7). Was the last incumbent `react-markdown` +
+ * `remark-gfm` site consumed by `qa-pair-renderer.tsx` (and, more broadly,
+ * every other markdown-bearing item-detail surface — reference articles,
+ * review cards, response-version-history, content-library results). GFM is
+ * bundled by Streamdown natively, so no `remarkPlugins` are passed (§I2 — no
+ * `remark-gfm` regression). Heading-id injection mirrors
+ * `components/okf/file-render-pane.tsx`'s `Streamdown components={...}`
+ * pattern. Internal `.md`-style relative links are pre-resolved via the same
+ * `normaliseInternalMdLinksForStreamdown` shim `<FileRenderPane>` uses, so
+ * they survive Streamdown's bundled `rehype-harden` pass instead of being
+ * replaced with a `[blocked]` placeholder (§I3); the marker prefix is
+ * stripped back off for display since this renderer has no bundle-tree
+ * navigation target of its own. Any other link (a genuine external URL)
+ * passes through `rehype-harden`'s default hardening untouched — Streamdown
+ * already resolves it to its full absolute href and opens it in a new tab
+ * (§I3 "external links hardened + full URL shown").
+ */
 import { useMemo } from 'react';
-import Markdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Streamdown, type Components } from 'streamdown';
+import {
+  normaliseInternalMdLinksForStreamdown,
+  INTERNAL_LINK_MARKER,
+} from '@/lib/okf/prepare-streamdown-content';
 import { cn } from '@/lib/utils';
 
 interface ContentRendererProps {
@@ -54,10 +76,11 @@ function getTextContent(children: React.ReactNode): string {
 }
 
 /**
- * Create react-markdown heading components that add slugified id attributes.
- * Tracks duplicates per render via a shared counter map.
+ * Create Streamdown heading components that add slugified id attributes, plus
+ * an `a` override handling the `normaliseInternalMdLinksForStreamdown` marker
+ * (§I3). Heading-id tracking dedupes per render via a shared counter map.
  */
-function createHeadingComponents(idCounts: Map<string, number>): Components {
+function createContentComponents(idCounts: Map<string, number>): Components {
   function makeHeading(Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') {
     return function HeadingWithId(props: React.ComponentProps<typeof Tag>) {
       const { children, ...rest } = props;
@@ -83,6 +106,28 @@ function createHeadingComponents(idCounts: Map<string, number>): Components {
     h4: makeHeading('h4'),
     h5: makeHeading('h5'),
     h6: makeHeading('h6'),
+    a: ({ href, children, ...rest }) => {
+      // A resolved-internal-link marker (§I3) has no bundle-tree navigation
+      // target here, unlike `<FileRenderPane>` — strip the marker back to a
+      // plain relative path for display rather than leaking the internal
+      // marker prefix. Any other href (a genuine external URL) is whatever
+      // Streamdown's `rehype-harden` pass already resolved it to (the full
+      // absolute URL) — shown verbatim, opened in a new tab.
+      const resolvedHref =
+        href && href.startsWith(INTERNAL_LINK_MARKER)
+          ? `/${href.slice(INTERNAL_LINK_MARKER.length)}`
+          : href;
+      return (
+        <a
+          href={resolvedHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          {...rest}
+        >
+          {children}
+        </a>
+      );
+    },
   };
 }
 
@@ -91,11 +136,19 @@ export function ContentRenderer({ content, className }: ContentRendererProps) {
   const isMarkdown = useMemo(() => hasMarkdown(content), [content]);
 
   // Heading id deduplication — recreate on each content change
-  const headingComponents = useMemo(() => {
+  const contentComponents = useMemo(() => {
     const idCounts = new Map<string, number>();
-    return createHeadingComponents(idCounts);
+    return createContentComponents(idCounts);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- content dep is intentional: reset id counters when content changes
   }, [content]);
+
+  // Pre-resolve internal `.md`-style relative links (§I3) — see
+  // `normaliseInternalMdLinksForStreamdown`'s doc comment for why this must
+  // happen up front rather than lazily in the `a` override.
+  const preparedContent = useMemo(
+    () => normaliseInternalMdLinksForStreamdown(content, ''),
+    [content],
+  );
 
   if (isMarkdown) {
     return (
@@ -115,9 +168,9 @@ export function ContentRenderer({ content, className }: ContentRendererProps) {
           className,
         )}
       >
-        <Markdown remarkPlugins={[remarkGfm]} components={headingComponents}>
-          {content}
-        </Markdown>
+        <Streamdown components={contentComponents}>
+          {preparedContent}
+        </Streamdown>
       </div>
     );
   }
