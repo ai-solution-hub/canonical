@@ -184,6 +184,47 @@ describe.skipIf(!CLONE_PRESENT)(
     );
 
     it(
+      // ID-156.6 gap (d), bl-468: a slug shaped like a bare digit-dotted
+      // initiative/sub-initiative path (e.g. "4") would be misresolved as an
+      // initiative path FIRST by resolveRecordId — permanently unreachable as
+      // a project by id afterwards. Client-side create-time guard.
+      'create-project rejects a digit-dotted-path-shaped slug BEFORE any request is sent (invalid-slug, client-side)',
+      { timeout: 20_000 },
+      () => {
+        const dir = fixtureDir();
+        const before = readFileSync(join(dir, 'initiatives.json'), 'utf8');
+        const bareDigit = runLedgerCli(dir, [
+          'create-project',
+          '1',
+          '--id',
+          '4',
+          '--title',
+          'Should be rejected — collides with initiative-path shape',
+        ]);
+        expect(bareDigit.exitCode).toBe(1);
+        expect(bareDigit.envelope?.ok).toBe(false);
+        expect(bareDigit.envelope?.error).toBe('invalid-slug');
+
+        const dottedPath = runLedgerCli(dir, [
+          'create-project',
+          '1',
+          '--id',
+          '4.2',
+          '--title',
+          'Should also be rejected — dotted path shape',
+        ]);
+        expect(dottedPath.exitCode).toBe(1);
+        expect(dottedPath.envelope?.ok).toBe(false);
+        expect(dottedPath.envelope?.error).toBe('invalid-slug');
+
+        // never reached the server — on-disk bytes untouched.
+        expect(readFileSync(join(dir, 'initiatives.json'), 'utf8')).toBe(
+          before,
+        );
+      },
+    );
+
+    it(
       'create-project rejects a duplicate slug (409 duplicate-id, oracle pre-check)',
       { timeout: 20_000 },
       () => {

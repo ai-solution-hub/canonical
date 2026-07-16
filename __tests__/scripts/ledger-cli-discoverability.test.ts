@@ -174,6 +174,65 @@ describe('ledger-cli — schema subcommand', () => {
     await run(args('schema', ['task']));
     expect(statSync(join(dir, 'task-list.json')).mtimeMs).toBe(before);
   });
+
+  // ── ID-156.6 gap (c) — `schema project|initiative` previously rejected
+  // with `bad-schema-target` even though both are first-class editable
+  // kinds since {148.7}; the bad-schema-target enum also still advertised
+  // the retired `roadmap`/`theme` targets. ───────────────────────────────
+
+  it('schema project prints the project field/budget lines (INITIATIVES_BUDGETS)', async () => {
+    const r = await run(args('schema', ['project']));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const text = r.result as string;
+      expect(text).toContain('project.summary: string ≤500');
+      expect(text).toContain('project.description: string ≤1500');
+      expect(text).toContain('project.linked_tasks: string[]');
+    }
+  });
+
+  it('schema initiative prints the initiative field/budget lines (INITIATIVES_BUDGETS)', async () => {
+    const r = await run(args('schema', ['initiative']));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const text = r.result as string;
+      expect(text).toContain('initiative.description: string ≤1500');
+      expect(text).toContain('initiative.status: string');
+    }
+  });
+
+  it('schema initiatives prints BOTH project and initiative slices side-by-side', async () => {
+    const r = await run(args('schema', ['initiatives']));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const text = r.result as string;
+      expect(text).toContain('project.summary: string ≤500');
+      expect(text).toContain('initiative.description: string ≤1500');
+    }
+  });
+
+  it('schema (no arg) now also includes project and initiative', async () => {
+    const r = await run(args('schema', []));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const text = r.result as string;
+      expect(text).toContain('project.summary: string ≤500');
+      expect(text).toContain('initiative.description: string ≤1500');
+    }
+  });
+
+  it('bad-schema-target no longer advertises retired roadmap/theme, and lists initiatives/project/initiative', async () => {
+    const r = await run(args('schema', ['nonsense']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toBe('bad-schema-target');
+      expect(r.detail).not.toMatch(/\broadmap\b/);
+      expect(r.detail).not.toMatch(/\btheme\b/);
+      expect(r.detail).toContain('initiatives');
+      expect(r.detail).toContain('project');
+      expect(r.detail).toContain('initiative');
+    }
+  });
 });
 
 // ── per-subcommand `--help` ───────────────────────────────────────────────────
@@ -308,6 +367,73 @@ describe('ledger-cli — ID-35.34 top-level --help prominence', () => {
     ];
     for (const sub of subcommands) {
       expect(firstThirty).toContain(sub);
+    }
+  });
+});
+
+// ── ID-156.6 gaps (a)/(b) — ledger-enum parentheticals + the initiatives
+// write-verb listing were both stale/absent in the runtime USAGE const
+// (S477 discovery: `bad-ledger`/`bad-schema-target` error strings already
+// carried the initiatives enum, but the USAGE `show`/`list` lines and the
+// full initiatives write-verb list — create-project…move-backlog, now
+// +update-initiative — never did). ──────────────────────────────────────
+
+describe('ledger-cli — ID-156.6 USAGE ledger-enum parentheticals (gap a)', () => {
+  it('top-level --help show line enumerates initiatives|project', () => {
+    const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
+    const r = spawnSync('bun', [cliPath, '--help'], {
+      encoding: 'utf8',
+      cwd: resolve(__dirname, '../..'),
+    });
+    expect(r.status).toBe(0);
+    const showLine = r.stdout
+      .split('\n')
+      .find((l) => l.trim().startsWith('show '));
+    expect(showLine).toBeDefined();
+    expect(showLine).toContain('initiatives');
+    expect(showLine).toContain('project');
+  });
+
+  it('top-level --help list line enumerates initiatives|projects', () => {
+    const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
+    const r = spawnSync('bun', [cliPath, '--help'], {
+      encoding: 'utf8',
+      cwd: resolve(__dirname, '../..'),
+    });
+    expect(r.status).toBe(0);
+    const listLine = r.stdout
+      .split('\n')
+      .find((l) => l.trim().startsWith('list '));
+    expect(listLine).toBeDefined();
+    expect(listLine).toContain('initiatives');
+    expect(listLine).toContain('projects');
+  });
+});
+
+describe('ledger-cli — ID-156.6 USAGE lists every initiatives write verb (gap b)', () => {
+  it('top-level --help documents all 9 pre-existing write verbs plus update-initiative', () => {
+    const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
+    const r = spawnSync('bun', [cliPath, '--help'], {
+      encoding: 'utf8',
+      cwd: resolve(__dirname, '../..'),
+    });
+    expect(r.status).toBe(0);
+    // The nine verbs the S477 finding named, plus ID-156.7's new tenth verb —
+    // USAGE previously listed NONE of them anywhere in the output.
+    const verbs = [
+      'create-project',
+      'update-project',
+      'update-initiative',
+      'delete-project',
+      'link-tasks',
+      'unlink-tasks',
+      'link-backlog',
+      'unlink-backlog',
+      'move-task',
+      'move-backlog',
+    ];
+    for (const verb of verbs) {
+      expect(r.stdout, `--help output missing "${verb}"`).toContain(verb);
     }
   });
 });
