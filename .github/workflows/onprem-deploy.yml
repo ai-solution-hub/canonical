@@ -308,8 +308,9 @@ jobs:
           echo "Published ${IMAGE}:${TAG}"
 
       - name:
-          Bake `git` into the published image (thin post-pack layer — ID-132
-          {132.35} G-DEPLOY-PROOF Defect C)
+          Bake `git` + LibreOffice into the published image (thin post-pack
+          layer — ID-132 {132.35} G-DEPLOY-PROOF Defect C + ID-145 {145.31}
+          DR-059 doc/xls convert-on-upload)
         run: |
           set -euo pipefail
           # DEFECT C (ID-132 {132.35} deploy proof, RUN 1): the deployed
@@ -337,6 +338,37 @@ jobs:
           # FROM semantics inherit them unchanged from the base image as
           # long as this layer's Dockerfile never redeclares them (it does
           # not).
+          #
+          # ID-145 {145.31} DR-059 LibreOffice provisioning (this SAME apt
+          # layer is the fix): scripts/bid_worker.py's
+          # `_convert_legacy_office_to_ooxml` shells out to `soffice
+          # --headless --norestore --convert-to <ext> --outdir <dir>
+          # <input>` to convert legacy .doc/.xls (OLE2) uploads to real
+          # OOXML (.docx/.xlsx) — but this image never provisioned
+          # LibreOffice, so every .doc/.xls upload RuntimeErrors in prod
+          # (a {145.13} Checker FAIL gate — DR-059 was 0% functional
+          # despite green mocked-subprocess unit tests). `bid-worker-platform`
+          # (deploy/coolify/docker-compose.platform.yaml) runs the SAME
+          # published image as this cocoindex sidecar via a `command:`
+          # override (G8 folded-worker deploy decision — no second
+          # image/service), so THIS is the one and only place both
+          # consumers get soffice from. Package choice: `libreoffice-writer`
+          # + `libreoffice-calc` — the two metapackages that pull in
+          # `libreoffice-core` (ships the `soffice` binary itself) plus the
+          # legacy .doc/.xls import filters and the .docx/.xlsx export
+          # filters bid_worker.py's `--convert-to` invocation needs.
+          # `--no-install-recommends` keeps `libreoffice-java-common` /
+          # `default-jre` OUT — a plain Writer/Calc `--convert-to` does not
+          # need Java, and pulling a JRE would balloon the shared image far
+          # beyond the LibreOffice-only delta. The cocoindex pipeline itself
+          # never calls soffice — this bloat is accepted, shared-image
+          # collateral from the G8 decision, not something to work around by
+          # splitting the image. `&& soffice --headless --version` is
+          # appended to the RUN below so a broken/missing LibreOffice
+          # install fails THIS `docker build` immediately (a build-time
+          # smoke test: binary present + runs) — this is NOT the deployed-
+          # runtime .doc/.xls -> OOXML conversion smoke-test, which remains
+          # a separate pre-go-live deploy gate (see the {145.31} journal).
           docker pull "${IMAGE}:${TAG}"
           ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${IMAGE}:${TAG}")"
           echo "Base image user (restored after the root apt-get layer): '${ORIG_USER:-cnb}'"
@@ -350,12 +382,12 @@ jobs:
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${IMAGE}:${TAG}
           USER root
-          RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+          RUN apt-get update && apt-get install -y --no-install-recommends git libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version
           USER ${ORIG_USER:-cnb}
           DOCKERFILE
           docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
           docker push "${IMAGE}:${TAG}"
-          echo "Re-published ${IMAGE}:${TAG} with git baked in (same pinned tag)."
+          echo "Re-published ${IMAGE}:${TAG} with git + LibreOffice (soffice) baked in (same pinned tag)."
 
       - name:
           Inv-9 assertion — cocoindex image carries NO Playwright / Chromium
@@ -409,6 +441,13 @@ jobs:
           # Deliberately NO `set -e` — this step must never return non-zero.
           set -uo pipefail
           BUDGET=5691392819 # 5.3 GB (on-disk reference budget)
+          # NOTE (ID-145 {145.31}): the "Bake git + LibreOffice" post-pack
+          # layer above now adds libreoffice-writer + libreoffice-calc to
+          # this SAME image (DR-059 doc/xls convert-on-upload) — an expected
+          # ~400-700MB delta. Left as a warn-only note rather than bumping
+          # BUDGET: this check is T-OQ4 log+warn-never-fail, so a stale
+          # threshold cannot break the build; bump BUDGET here if/when the
+          # warn becomes noisy against the new baseline.
           # Sum the compressed layer sizes from the registry manifest WITHOUT
           # pulling the image. buildx imagetools --raw emits the manifest JSON;
           # the layer `size` fields are the compressed on-the-wire bytes. For a
@@ -454,7 +493,7 @@ jobs:
             echo ""
             echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
             echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
-            echo "- **Post-pack layer:** \`git\` baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C) — the buildpacks build itself is untouched"
+            echo "- **Post-pack layer:** \`git\` + LibreOffice (\`soffice\`) baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C; LibreOffice added {145.31} for DR-059 .doc/.xls convert-on-upload) — the buildpacks build itself is untouched"
             echo "- **Next:** the \`deploy-cocoindex\` job ({66.11}) bumps Coolify \`COCOINDEX_IMAGE_TAG\` to this tag + triggers a deploy"
           } >> "$GITHUB_STEP_SUMMARY"
 
