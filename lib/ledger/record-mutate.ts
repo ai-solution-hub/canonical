@@ -1,5 +1,5 @@
 /**
- * VENDORED from task-view @ v0.10.1-task-view (packages/server/record-mutate.ts).
+ * VENDORED from task-view @ v0.12.1-task-view (packages/server/record-mutate.ts).
  * Body byte-faithful; only schema import specifiers rewired
  * `@task-view/schemas/*` → `@/lib/validation/*`. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
@@ -10,6 +10,17 @@
  * subtask-CRUD block — KH-origin logic round-tripped into upstream, inert
  * from KH's oracle callsites); see lib/ledger/README.md for the full
  * five-category re-vendor delta inventory this Subtask left behind.
+ * ID-156 re-vendor (`v0.11.0`→`v0.12.1`): gained (a) ID-156.6's server-side
+ * `invalid-slug` guard — a project-nodeKind create whose slug is shaped like
+ * a bare digit-dotted initiative path is rejected BEFORE the duplicate-id
+ * check (mirrors canonical's own `create-project` CLI client-side guard,
+ * same regex, never applies to `nodeKind: "initiative"`); (b) ID-156.8's
+ * `nodeKind` param on `insertRecord` — `"initiative"` addresses the OTHER
+ * initiatives node shape (top-level or nested initiative, parent-or-root,
+ * sibling-scoped duplicate-id check via the new `siblingInitiativeIds`, full
+ * dotted-path `recordId` return) alongside the pre-existing `"project"`
+ * default; (c) ID-156.3's `blocked_by`/`blocking` structural defaults on the
+ * `task` CREATE_DEFAULTS entry, parity with the pre-existing `project` entry.
  *
  * ROLE (ID-90.22 R1b/R2): CLI-side validation oracle. `scripts/ledger-cli.ts`'s
  * create / delete / promote handlers call `insertRecord` / `removeRecord` as
@@ -74,6 +85,8 @@ import {
   allProjectSlugs,
   findProjectBySlug,
   insertProjectAt,
+  insertInitiativeAt,
+  siblingInitiativeIds,
   removeProjectBySlug,
   type TreeDoc,
 } from './initiatives-tree';
@@ -106,7 +119,24 @@ export type RecordMutateResult =
    * `linked_tasks`/`linked_backlog` is rejected rather than silently
    * orphaning those cross-ledger references. Unlink first (edit the
    * project's linked_tasks/linked_backlog fields to empty), then delete. */
-  | { ok: false; kind: 'project-not-empty'; recordId: string };
+  | { ok: false; kind: 'project-not-empty'; recordId: string }
+  /** CREATE only, initiatives kind, nodeKind "project" (ID-156.6 upstream):
+   * the supplied slug is shaped like a bare digit-dotted initiative/
+   * sub-initiative path (e.g. "4", "4.2") — `resolveRecordId` tries the
+   * initiative-path interpretation FIRST, so such a slug would insert
+   * successfully but then be PERMANENTLY unreachable as a project by every
+   * id-addressed verb (GET/PATCH/DELETE). Server-side equivalent of
+   * canonical's `create-project` CLI client-side guard (ledger-cli.ts,
+   * ID-156.6 gap d) — this closes the gap for any OTHER caller reaching
+   * this path directly. */
+  | { ok: false; kind: 'invalid-slug'; recordId: string };
+
+/** ID-156.6 upstream: a project slug shaped like a bare digit-dotted
+ * initiative/sub-initiative path — see `RecordMutateResult`'s
+ * `invalid-slug` doc. Mirrors canonical's ledger-cli.ts client-side guard
+ * byte-for-byte (same regex) so the two can never drift on what counts as
+ * an unreachable slug shape. */
+const DIGIT_DOTTED_PATH_SLUG = /^\d+(\.\d+)*$/;
 
 // ── id extraction ─────────────────────────────────────────────────────────────
 
@@ -210,14 +240,25 @@ function rebuildDetected(
  * Duplicate id is rejected with a `duplicate-id` result BEFORE the parse,
  * matching the existing 409/422 conventions (the caller maps it to 409).
  *
- * ID-148.10 (INV-13): for `detected.kind === "initiatives"`, `parentPath`
- * is REQUIRED — the dotted initiative/sub-initiative path the new project
- * inserts under. An absent or unresolvable path is `invalid-body`.
+ * ID-148.10 (INV-13): for `detected.kind === "initiatives"` with the
+ * default `nodeKind: "project"`, `parentPath` is REQUIRED — the dotted
+ * initiative/sub-initiative path the new project inserts under. An absent
+ * or unresolvable path is `invalid-body`.
+ *
+ * ID-156.8: `nodeKind: "initiative"` addresses the OTHER initiatives node
+ * shape — a new top-level initiative (`parentPath` absent/empty, "root") or
+ * a new sub-initiative under an existing path ("parent"). Its duplicate-id
+ * check is scoped to SIBLINGS at the insertion point (`siblingInitiativeIds`)
+ * rather than the tree-wide project-slug set — initiative/sub-initiative
+ * ids are only locally unique (the same bare id legitimately recurs at
+ * unrelated tree positions). `nodeKind` is ignored for every other
+ * `detected.kind`.
  */
 export function insertRecord(
   detected: KnownDetected,
   record: unknown,
   parentPath?: string,
+  nodeKind: 'project' | 'initiative' = 'project',
 ): RecordMutateResult {
   const newId = extractId(record);
   if (newId === null) {
@@ -228,7 +269,28 @@ export function insertRecord(
         'Record body must be an object carrying a string or numeric `id` field.',
     };
   }
-  if (existingIds(detected).has(newId)) {
+  const isInitiativeCreate =
+    detected.kind === 'initiatives' && nodeKind === 'initiative';
+  // ID-156.6 upstream: project-slug-shape guard, BEFORE the duplicate-id
+  // check — a digit-dotted slug is invalid regardless of whether it also
+  // happens to collide with an existing id. Never applies to nodeKind
+  // "initiative" (a bare digit IS that node shape's legitimate local id).
+  if (
+    detected.kind === 'initiatives' &&
+    !isInitiativeCreate &&
+    DIGIT_DOTTED_PATH_SLUG.test(newId)
+  ) {
+    return { ok: false, kind: 'invalid-slug', recordId: newId };
+  }
+  if (isInitiativeCreate) {
+    const siblings = siblingInitiativeIds(
+      detected.data as unknown as TreeDoc,
+      parentPath,
+    );
+    if (siblings.includes(newId)) {
+      return { ok: false, kind: 'duplicate-id', recordId: newId };
+    }
+  } else if (existingIds(detected).has(newId)) {
     return { ok: false, kind: 'duplicate-id', recordId: newId };
   }
 
@@ -237,17 +299,28 @@ export function insertRecord(
   const rawClone = structuredClone(detected.data) as Record<string, unknown>;
 
   if (detected.kind === 'initiatives') {
-    if (parentPath === undefined || parentPath === '') {
-      return {
-        ok: false,
-        kind: 'invalid-body',
-        detail:
-          'initiatives project creates require a `parentPath` (the dotted initiative/sub-initiative path to insert under).',
-      };
-    }
-    const inserted = insertProjectAt(rawClone as TreeDoc, parentPath, record);
-    if (!inserted.ok) {
-      return { ok: false, kind: 'invalid-body', detail: inserted.detail };
+    if (isInitiativeCreate) {
+      const inserted = insertInitiativeAt(
+        rawClone as TreeDoc,
+        parentPath,
+        record,
+      );
+      if (!inserted.ok) {
+        return { ok: false, kind: 'invalid-body', detail: inserted.detail };
+      }
+    } else {
+      if (parentPath === undefined || parentPath === '') {
+        return {
+          ok: false,
+          kind: 'invalid-body',
+          detail:
+            'initiatives project creates require a `parentPath` (the dotted initiative/sub-initiative path to insert under).',
+        };
+      }
+      const inserted = insertProjectAt(rawClone as TreeDoc, parentPath, record);
+      if (!inserted.ok) {
+        return { ok: false, kind: 'invalid-body', detail: inserted.detail };
+      }
     }
   } else {
     const collectionKey = collectionKeyFor(detected.kind);
@@ -279,10 +352,23 @@ export function insertRecord(
   const parsed = reparse(detected.kind, rawClone);
   if (!parsed.ok)
     return { ok: false, kind: 'schema-error', zodError: parsed.zodError };
+  // ID-156.8: an initiative/sub-initiative's addressable identity is its
+  // FULL dotted path (parentPath + its own local id, or the bare local id
+  // at root) — NOT the bare local id alone, which is only locally unique
+  // and ambiguous below the root. `mirror-generator.ts`'s
+  // `resolveTopLevelInitiativeId` and the record-set gate's
+  // `allInitiativePaths` both resolve/enumerate by full path, matching how
+  // GET/PATCH/DELETE already address existing initiative/sub-initiative
+  // nodes (`resolveInitiativeNode`/`resolveRecordId`).
+  const recordId = isInitiativeCreate
+    ? parentPath && parentPath !== ''
+      ? `${parentPath}.${newId}`
+      : newId
+    : newId;
   return {
     ok: true,
     detected: rebuildDetected(detected.kind, parsed.data),
-    recordId: newId,
+    recordId,
   };
 }
 
@@ -385,11 +471,14 @@ export function removeRecord(
 /** The documented record kinds, each with structural create defaults.
  * ID-148.10: `project` replaces the retired `theme` (initiatives projects
  * are created via a dedicated tree-insert, not a flat-collection push, but
- * still need the SAME structural-defaults treatment). */
+ * still need the SAME structural-defaults treatment). ID-156.8: `initiative`
+ * is the OTHER initiatives node shape — a top-level initiative or
+ * sub-initiative, also tree-inserted rather than flat-collection-pushed. */
 export type CreateRecordKind =
   | 'subtask'
   | 'task'
   | 'project'
+  | 'initiative'
   | 'item'
   | 'retro';
 
@@ -405,6 +494,10 @@ const CREATE_DEFAULTS: Record<CreateRecordKind, Record<string, unknown>> = {
   task: {
     status: 'pending',
     dependencies: [],
+    // ID-156.3: parity with the Project record's blocked_by/blocking
+    // structural defaults (below).
+    blocked_by: [],
+    blocking: [],
     subtasks: [],
     effort_estimate: null,
     owner: null,
@@ -427,6 +520,22 @@ const CREATE_DEFAULTS: Record<CreateRecordKind, Record<string, unknown>> = {
     linked_tasks: [],
     linked_backlog: [],
     originating_session: [],
+  },
+  // ID-156.8: initiatives initiative/sub-initiative structural defaults.
+  // `status: "proposed"` is the lowest/untriaged INITIATIVE_STATUSES value
+  // (initiatives-schema.ts). Fields kept to the shape SHARED by both a
+  // top-level Initiative and a nested SubInitiative — `substrate_doc` is
+  // optional on both (omitted, unlike project's forced `""`) and
+  // `linked_tasks`/`linked_backlog` are Initiative-only transitional
+  // tolerance fields with no SubInitiative analog, so they are not
+  // defaulted here either (a caller targeting a top-level create may still
+  // supply them explicitly — supplied fields win).
+  initiative: {
+    description: '',
+    status: 'proposed',
+    projects: [],
+    originating_session: [],
+    'sub-initiatives': [],
   },
   item: {
     // `type` / `track` are required scalars with no inherent empty value;

@@ -29,7 +29,7 @@ intentional difference from upstream is the schema import specifier
 (`@task-view/schemas/*` → `@/lib/validation/{task-list,initiatives,backlog}-schema.ts`,
 which export the identical symbols). The bodies are byte-faithful.
 
-**Pinned release:** `v0.11.0-task-view` (the same `TASK_VIEW_TAG` used by
+**Pinned release:** `v0.12.1-task-view` (the same `TASK_VIEW_TAG` used by
 `scripts/regen-mirrors.sh` and `ci.yml`).
 
 **ID-148.12 re-vendor lineage (Option C).** The three retained primitives had NOT actually
@@ -137,6 +137,50 @@ When task-view cuts a new schema- or primitive-bearing release:
 
 The non-blocking `task-view-vendor-drift.yml` reminder surfaces a `::warning::` when the
 four retained files (or the schema-arm assets) drift from upstream.
+
+**ID-157 — louder drift escalation + the TASK_VIEW_TAG-bump checklist gate.** The
+primitive-drift step's `::warning::` went unactioned for ~5 upstream releases before the
+ID-148.12 re-vendor above caught up (bl-464) — a bare log annotation was not enough.
+`task-view-vendor-drift.yml` now ALSO (a) writes a Step Summary entry for both the schema-
+and primitive-drift steps, and (b) on primitive drift, posts/updates a sticky PR comment
+carrying a drift-age tier (`scripts/task-view-drift-age.ts` — how long `lib/ledger/` has
+lagged the last `TASK_VIEW_TAG` move). A separate "TASK_VIEW_TAG bump checklist gate" step
+warns (loudly, still non-blocking — OQ-T2 stands) when a PR bumps `TASK_VIEW_TAG` (step 1
+above) without a `lib/ledger/` change (step 2 above, or this README) landing alongside it
+in the SAME PR — a correlation hint only: the two steps can legitimately land in separate
+PRs, so confirm the re-vendor already happened before merging a bare tag bump that trips
+this warning.
+
+**ID-156 re-vendor lineage (`v0.11.0` → `v0.12.1-task-view`, CRITICAL PATH).** The
+vendored copy had drifted two releases behind the live task-view checkout
+(v0.11.0-vendored vs v0.12.0-checked-out), producing a corrupting-class schema skew: the
+v0.11.0-strict `TaskSchema` (via `lib/validation/task-list-schema.ts`) rejected the
+`blocked_by`/`blocking` fields the v0.12.0 server was already stamping onto every new Task
+create (`unrecognized_keys`), freezing every real-ledger `open-task`/`promote` against the
+live checkout — two live incidents (S477, S479) before this re-vendor landed. The diff
+decomposes into exactly two categories:
+
+1. **Zero delta** — `detect-schema.ts` and `patch-apply.ts` are byte-identical at
+   `v0.12.1` to the prior `v0.10.1` sync point (confirmed by upstream diff-stat; no
+   `packages/server/{detect-schema,patch-apply}.ts` hunks between `v0.11.0` and
+   `v0.12.1`). Their header comments still cite `v0.10.1-task-view` as the last actual
+   body sync — this is intentional (the comment records when the BODY last changed, not
+   the tag pin — see the ID-148.13 precedent above for the same convention).
+2. **Body changes** — `initiatives-tree.ts` gained `insertInitiativeAt` +
+   `siblingInitiativeIds` (ID-156.8's initiative/sub-initiative "parent-or-root" create
+   primitives); `record-mutate.ts` gained (a) the ID-156.6 `invalid-slug` server-side
+   guard (digit-dotted project-slug rejection, `nodeKind: "project"` only), (b) the
+   ID-156.8 `nodeKind` param on `insertRecord` (`"initiative"` addresses the new node
+   shape, sibling-scoped duplicate-id check, full dotted-path `recordId` return), and (c)
+   the ID-156.3 `blocked_by`/`blocking` structural defaults on the `task`
+   `CREATE_DEFAULTS` entry (parity with the pre-existing `project` entry).
+
+**Schema delta:** `lib/validation/task-list-schema.ts`'s `TaskSchema` gains
+`blocked_by`/`blocking` (`z.array(z.string()).default([])` each) — the fields the
+`.strict()` schema was rejecting. `.default([])` keeps every pre-existing `task-list.json`
+Task record valid with neither field present (record-set delta-0). `initiatives-schema.ts`
+/ `backlog-schema.ts` carry no delta at this tag (upstream diff-stat confirms only
+`packages/schemas/src/task-list-schema.ts` changed).
 
 ## CLI command surface
 

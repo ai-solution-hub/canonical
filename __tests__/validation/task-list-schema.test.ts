@@ -210,6 +210,44 @@ describe('TaskSchema shape', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// blocked_by / blocking (ID-156.3 — parity with the initiatives Project
+// record's fields; re-vendored from task-view v0.12.1-task-view)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe('TaskSchema — blocked_by/blocking fields (ID-156.3)', () => {
+  it('defaults blocked_by/blocking to [] for a pre-existing record without them', () => {
+    const result = TaskSchema.safeParse(VALID_TASK);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.blocked_by).toEqual([]);
+      expect(result.data.blocking).toEqual([]);
+    }
+  });
+
+  it('accepts explicit blocked_by/blocking Task-id arrays', () => {
+    const result = TaskSchema.safeParse({
+      ...VALID_TASK,
+      blocked_by: ['30'],
+      blocking: ['40', '41'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.blocked_by).toEqual(['30']);
+      expect(result.data.blocking).toEqual(['40', '41']);
+    }
+  });
+
+  it('rejects a non-string element in blocked_by/blocking', () => {
+    expect(
+      TaskSchema.safeParse({ ...VALID_TASK, blocked_by: [30] }).success,
+    ).toBe(false);
+    expect(
+      TaskSchema.safeParse({ ...VALID_TASK, blocking: [40] }).success,
+    ).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // SubtaskSchema shape (inv 9, 10, 11, 12)
 // ──────────────────────────────────────────────────────────────────────────────
 

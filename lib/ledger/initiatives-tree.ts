@@ -1,5 +1,5 @@
 /**
- * VENDORED from task-view @ v0.10.1-task-view (packages/server/initiatives-tree.ts).
+ * VENDORED from task-view @ v0.12.1-task-view (packages/server/initiatives-tree.ts).
  * Body byte-faithful; this module has no schema imports, so there is no
  * import-specifier rewire to apply — it is copied as-is. Re-vendor per
  * lib/ledger/README.md. Guarded by task-view-vendor-drift.yml (ID-35.10).
@@ -7,6 +7,10 @@
  * v0.5.0 sync point. Transitively imported by the re-vendored
  * `patch-apply.ts`/`record-mutate.ts` (INV-13); see lib/ledger/README.md for
  * the full five-category re-vendor delta inventory this Subtask left behind.
+ * ID-156.8 re-vendor (`v0.11.0`→`v0.12.1`): gained `insertInitiativeAt` +
+ * `siblingInitiativeIds` — the initiative/sub-initiative "parent-or-root"
+ * create primitives `record-mutate.ts`'s `insertRecord` calls for
+ * `nodeKind: "initiative"` creates (see that file's matching note).
  *
  * ROLE: shared tree-walk primitives for the CLI-side validation oracle's
  * nested-initiatives arm. `scripts/ledger-cli.ts` does not import this module
@@ -203,6 +207,77 @@ export function insertProjectAt(
   }
   (node.projects as unknown[]).push(record);
   return { ok: true };
+}
+
+export type InsertInitiativeResult =
+  | { ok: true }
+  | { ok: false; detail: string };
+
+/**
+ * Insert `record` as a new initiative/sub-initiative node (ID-156.8,
+ * "parent-or-root"): a new TOP-LEVEL initiative when `parentPath` is
+ * absent/empty (pushed onto `doc.initiatives[]`), or a new sub-initiative
+ * under the node resolved by `parentPath` (pushed onto that node's
+ * `sub-initiatives[]` array, creating it if the node structurally lacks
+ * one — mirrors `insertProjectAt`'s defensive-create discipline). Returns a
+ * `detail` error when a supplied `parentPath` does not resolve.
+ *
+ * Unlike `insertProjectAt` (which always requires a `parentPath` — a
+ * project has no "root" position), an initiative/sub-initiative's parent is
+ * OPTIONAL: the root IS a valid insertion point (a brand new top-level
+ * initiative). The caller (`record-mutate.ts`) is responsible for
+ * constructing the inserted node's full dotted PATH (`parentPath` + the
+ * record's own local `id`, or the bare local `id` at root) — this function
+ * only performs the tree splice.
+ */
+export function insertInitiativeAt(
+  doc: TreeDoc,
+  parentPath: string | undefined,
+  record: unknown,
+): InsertInitiativeResult {
+  if (parentPath === undefined || parentPath === '') {
+    if (!Array.isArray(doc.initiatives)) {
+      doc.initiatives = [];
+    }
+    (doc.initiatives as unknown[]).push(record);
+    return { ok: true };
+  }
+  const node = resolveInitiativeNode(doc, parentPath);
+  if (!node) {
+    return {
+      ok: false,
+      detail: `Initiative path "${parentPath}" not found in canonical initiatives[]/sub-initiatives[] tree.`,
+    };
+  }
+  if (!Array.isArray(node['sub-initiatives'])) {
+    node['sub-initiatives'] = [];
+  }
+  (node['sub-initiatives'] as unknown[]).push(record);
+  return { ok: true };
+}
+
+/**
+ * The sibling id-set at the insertion point for a NEW initiative/sub-
+ * initiative (ID-156.8) — the top-level `initiatives[]` ids when
+ * `parentPath` is absent/empty, or the resolved parent node's EXISTING
+ * `sub-initiatives[]` ids otherwise. Initiative/sub-initiative ids are only
+ * LOCALLY unique (siblings under the same parent) — unlike a project's
+ * globally-unique slug (`allProjectSlugs`), the SAME bare id legitimately
+ * recurs at unrelated tree positions (e.g. the fixture's top-level "1" and
+ * "4.2"'s own child "1"). An unresolvable `parentPath` returns an empty
+ * set — the insert step above surfaces the "not found" error separately, so
+ * a false "not duplicate" here is harmless (the create still fails).
+ */
+export function siblingInitiativeIds(
+  doc: TreeDoc,
+  parentPath: string | undefined,
+): string[] {
+  if (parentPath === undefined || parentPath === '') {
+    return asNodeArray(doc.initiatives).map((n) => n.id);
+  }
+  const node = resolveInitiativeNode(doc, parentPath);
+  if (!node) return [];
+  return asNodeArray(node['sub-initiatives']).map((n) => n.id);
 }
 
 // ── removal ────────────────────────────────────────────────────────────────
