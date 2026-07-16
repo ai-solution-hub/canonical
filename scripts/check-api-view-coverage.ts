@@ -71,6 +71,12 @@ const INTERNAL_ONLY_TABLES: readonly string[] = [
   // other view uses). Reachable only via a direct Postgres connection until
   // whichever {145.x} Subtask needs API-reachable engagement-group reads
   // (grouping surfaces land in {145.19}) moves it to SURFACE_TABLES.
+  // {145.35} sibling Subtask — new M:N LINK table (engagement_group_content)
+  // reached only via the group-side batch endpoint, no PostgREST `.from()`
+  // consumer, no anon grants. Same rationale as engagement_groups above:
+  // pre-classified here so check-api-view-coverage passes once its
+  // migration (20260716130000) lands in the same push batch.
+  'engagement_group_content',
   'engagement_groups',
   'entity_pair_resolutions',
   'procurement_workspaces',

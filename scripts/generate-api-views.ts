@@ -134,6 +134,7 @@ export const SURFACE_TABLES: readonly string[] = [
   'notifications',
   'pipeline_runs',
   'processing_queue',
+  'promotion_dispositions',
   'q_a_extractions',
   'q_a_pair_dedup_proposals',
   'q_a_pair_history',
