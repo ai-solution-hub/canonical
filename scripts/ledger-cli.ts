@@ -27,6 +27,7 @@
  *                    get task <taskId>.<subId> [field]  (S447 subtask path)
  *     journal        <taskId>                      (S447 per-subtask journal index)
  *     journal        <taskId.subId> [--last n]     (S447 chronological journal thread)
+ *     journal-search [--since ISO --until ISO --task id --export path]  (ID-156.2 cross-task search)
  *     schema         [ledger|recordKind]           (field names + types + budgets)
  *     list           <ledger> [filters]            (read-only filtered snapshot; default `list task`)
  *   status flips / field edits:
@@ -104,7 +105,7 @@
  */
 
 import { resolve } from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { ZodError } from 'zod';
 
@@ -580,6 +581,9 @@ interface ParsedArgs {
      * parseArgs stays a pure tokeniser). List-subcommand only; `--status`,
      * `--depends` etc. reuse their existing keys. Optional for back-compat.
      *   - `since`     : ISO date; keep records whose date field is on/after it.
+     *                   ID-156.2: also read by `journal-search` (day-key
+     *                   compare against each journal block's opening
+     *                   timestamp — see `journalDayKey`).
      *   - `theme`     : theme-id filter (task.capability_theme / a roadmap id).
      *   - `dependsOn` : keep records whose dependency array contains this id.
      *   - `recent`    : last-N (raw string → Number() at the call site).
@@ -623,6 +627,24 @@ interface ParsedArgs {
     summary?: boolean;
     noJournals?: boolean;
     last?: string;
+    /**
+     * ID-156.2 `journal-search` value-flags (all read-only; no write gate,
+     * no server round-trip). Raw string tokens — coerced/validated at the
+     * `journal-search` call site, never here (parseArgs stays a pure
+     * tokeniser).
+     *   - `until`  : ISO date upper bound (day-key compare, paired with the
+     *                pre-existing `since` above for the lower bound).
+     *   - `task`   : scope the search to one task id (ANY status — a closed/
+     *                cancelled task is still in scope; that is the whole
+     *                point of a cross-task search).
+     *   - `export` : write the FULL untruncated match list to this path
+     *                (arbitrary file write the operator asked for, not a
+     *                ledger mutation). stdout still returns the size-shaped
+     *                (bounded) payload, plus a pointer to the export.
+     */
+    until?: string;
+    task?: string;
+    export?: string;
   };
 }
 
@@ -673,6 +695,10 @@ const VALUE_FLAGS: Record<string, keyof ParsedArgs['flags']> = {
   // ID-148.7 — `move-task`/`move-backlog <id> --from <slug> --to <slug>`.
   '--from': 'from',
   '--to': 'to',
+  // ID-156.2 — `journal-search --since ISO --until ISO --task <id> --export <path>`.
+  '--until': 'until',
+  '--task': 'task',
+  '--export': 'export',
 };
 
 /** ID-35.15 boolean flags. Presence sets the corresponding `flags` key true. */
@@ -1410,6 +1436,26 @@ const SUBCOMMAND_HELP: Record<
       'merged chronologically BEFORE the live blocks, marked with provenance.',
     kinds: ['subtask'],
   },
+  'journal-search': {
+    synopsis:
+      'cross-task/cross-subtask journal search across the ' +
+      'WHOLE ledger (read-only, no server round-trip; ID-156.2). Scans every ' +
+      'task regardless of status — a closed/cancelled task is still in scope, ' +
+      'since parallel worktree sessions journalling to closed tasks is exactly ' +
+      'the contradiction this verb surfaces. Results are sorted chronologically ' +
+      'across tasks (a cross-task TIME view, the whole point of the verb).',
+    flags:
+      '--since <ISO date> / --until <ISO date> (day-key range filter — compares ' +
+      'the leading YYYY-MM-DD of each journal timestamp, so both a full ISO ' +
+      'instant and a hand-authored human label match; an entry whose timestamp ' +
+      'carries no leading date is excluded from a date-filtered search) | ' +
+      '--task <taskId> (scope to one task, any status; default = every task) | ' +
+      '--export <path> (write the FULL untruncated match list to this file — an ' +
+      'arbitrary file write, not a ledger mutation). Bounded like `show`: the ' +
+      'full match list if it fits ≤48KB, else degrades to a ' +
+      '{task,subtask,timestamp} index (text dropped) with a `notice` pointing ' +
+      'at --export/--since/--until/--task.',
+  },
   schema: {
     synopsis:
       'schema [ledger|recordKind] — print field names + types + budgets',
@@ -1573,6 +1619,7 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
                  get task <taskId>.<subId> [field]              (subtask path)
   journal        <taskId>                       (per-subtask journal index — counts, not content)
   journal        <taskId.subId> [--last n]      (chronological journal thread; --last warns on supersession)
+  journal-search [--since ISO --until ISO --task id --export path]  (ID-156.2; cross-task/cross-subtask journal search over the WHOLE ledger incl. done/cancelled tasks; read-only, no server round-trip; bounded like show; --help for detail)
   schema         [ledger|recordKind]           (print field names + types + budgets; ledger|recordKind: task|backlog|retro|initiatives|subtask|item|project|initiative)
   list           <ledger> [filters]            (ledger: task|backlog|retro|initiatives|projects; read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks}; retired: roadmap/umbrellas)
                  "list initiatives" / "list projects" (ID-148.6; --initiative <id> scopes list projects)
@@ -2140,6 +2187,28 @@ function splitDetailsJournals(details: string): {
     timestamp: o.ts,
   }));
   return { preamble, blocks };
+}
+
+/** Matches a leading zero-padded calendar date at the start of a string. */
+const DAY_KEY_RE = /^(\d{4}-\d{2}-\d{2})/;
+
+/**
+ * ID-156.2 — extract the leading `YYYY-MM-DD` day-key from a journal opening
+ * timestamp (or from a `--since`/`--until` flag value). Both real ISO
+ * instants (`2026-06-15T00:00:00.000Z`, written by `journalBlock()`) and the
+ * hand-authored human labels the corpus also carries (`2026-06-15 (S355
+ * …)`, per the `splitDetailsJournals` doc comment above) start with a
+ * zero-padded calendar date, so comparing on THIS prefix (not a parsed
+ * `Date`/full instant) sidesteps both the human-label quirk and timezone
+ * precision entirely, and matches `--since`/`--until`'s day-granularity
+ * contract. Returns null for the rare label with no leading date at all —
+ * callers exclude such entries from a date-filtered search (never silently
+ * include an entry outside the range) but still surface them when no
+ * --since/--until is passed.
+ */
+function journalDayKey(timestamp: string): string | null {
+  const m = DAY_KEY_RE.exec(timestamp.trim());
+  return m ? m[1] : null;
 }
 
 /**
@@ -3619,6 +3688,161 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         ok: true,
         subcommand: 'journal',
         result: { task: task.id, subtasks: index },
+      };
+    }
+
+    // ── ID-156.2 — cross-task/cross-subtask journal search ──────────────────
+    // Motivation: parallel worktree sessions journal to closed tasks; without
+    // a cross-task time view, contradictions between concurrent sessions are
+    // invisible. Read-only (no server round-trip — same rationale as
+    // `journal`/`show`/`list`: nothing here is a ledger mutation), scans
+    // EVERY task regardless of status (a closed/cancelled task is still in
+    // scope — that is the whole point), and is bounded like `show`'s
+    // ≤48KB valve (`--export` carries the full untruncated detail to disk).
+    case 'journal-search': {
+      const loaded = await loadLedger(ledgerPath(dir, 'task'));
+      if (!loaded.ok) return loaded.result;
+      if (loaded.detected.kind !== 'task-list')
+        return cliErr(
+          'journal-search',
+          'wrong-ledger',
+          'journal-search reads the task ledger',
+        );
+      const tasks = loaded.detected.data.tasks;
+
+      let sinceKey: string | undefined;
+      if (flags.since !== undefined) {
+        const k = journalDayKey(flags.since);
+        if (!k)
+          return cliErr(
+            'journal-search',
+            'bad-flag-value',
+            `--since must start with a YYYY-MM-DD date (got "${flags.since}")`,
+          );
+        sinceKey = k;
+      }
+      let untilKey: string | undefined;
+      if (flags.until !== undefined) {
+        const k = journalDayKey(flags.until);
+        if (!k)
+          return cliErr(
+            'journal-search',
+            'bad-flag-value',
+            `--until must start with a YYYY-MM-DD date (got "${flags.until}")`,
+          );
+        untilKey = k;
+      }
+
+      // --task scopes to one task id, ANY status — a closed/cancelled task
+      // is still in scope (parallel sessions journalling to closed tasks is
+      // exactly the contradiction this verb exists to surface).
+      let scoped = tasks;
+      if (flags.task !== undefined) {
+        const task = tasks.find((t) => t.id === flags.task);
+        if (!task)
+          return cliErr(
+            'journal-search',
+            'record-not-found',
+            `task id ${flags.task}`,
+          );
+        scoped = [task];
+      }
+
+      interface MatchedEntry {
+        task: string;
+        subtask: string;
+        timestamp: string;
+        dayKey: string | null;
+        text: string;
+      }
+      const matches: MatchedEntry[] = [];
+      for (const task of scoped) {
+        for (const sub of task.subtasks) {
+          const details =
+            typeof (sub as { details?: unknown }).details === 'string'
+              ? ((sub as { details: string }).details as string)
+              : '';
+          const { blocks } = splitDetailsJournals(details);
+          for (const b of blocks) {
+            const dayKey = journalDayKey(b.timestamp);
+            if (
+              sinceKey !== undefined &&
+              (dayKey === null || dayKey < sinceKey)
+            )
+              continue;
+            if (
+              untilKey !== undefined &&
+              (dayKey === null || dayKey > untilKey)
+            )
+              continue;
+            matches.push({
+              task: task.id,
+              subtask: String(sub.id),
+              timestamp: b.timestamp,
+              dayKey,
+              text: b.raw,
+            });
+          }
+        }
+      }
+
+      // Cross-task chronological view — the whole point of the verb. Entries
+      // with no extractable day-key (a rare unparseable legacy label) sort
+      // last, in original scan order (stable sort).
+      matches.sort((a, b) => {
+        if (a.dayKey === b.dayKey) return 0;
+        if (a.dayKey === null) return 1;
+        if (b.dayKey === null) return -1;
+        return a.dayKey < b.dayKey ? -1 : 1;
+      });
+
+      const total = matches.length;
+
+      // --export <path>: write the FULL untruncated match list to disk. This
+      // is an arbitrary file write the OPERATOR asked for, not a ledger
+      // mutation — no server round-trip, consistent with the rest of this
+      // read-only verb.
+      let exported: { path: string; bytes: number } | undefined;
+      if (flags.export !== undefined) {
+        const payload = JSON.stringify({ total, entries: matches }, null, 2);
+        await writeFile(flags.export, payload, 'utf8');
+        exported = {
+          path: flags.export,
+          bytes: Buffer.byteLength(payload, 'utf8'),
+        };
+      }
+
+      // Bound output size (S447 `show`-valve pattern): the full match list if
+      // it fits, else degrade to a compact {task,subtask,timestamp} index
+      // (text dropped) — --export above always carries the full detail.
+      const full = { total, shown: total, truncated: false, entries: matches };
+      if (showFits(full)) {
+        return {
+          ok: true,
+          subcommand: 'journal-search',
+          result: exported ? { ...full, exported } : full,
+        };
+      }
+      const compact = matches.map((m) => ({
+        task: m.task,
+        subtask: m.subtask,
+        timestamp: m.timestamp,
+      }));
+      const degraded = withShowNotice(
+        {
+          total,
+          shown: compact.length,
+          truncated: true,
+          entries: compact,
+        },
+        `journal-search matched ${total} entries, exceeding ${SHOW_SIZE_LIMIT >> 10}KB — degraded to a ` +
+          '{task,subtask,timestamp} index (text dropped). Pass --export <path> for the full detail, ' +
+          'or narrow with --since/--until/--task.',
+      );
+      return {
+        ok: true,
+        subcommand: 'journal-search',
+        result: exported ? { ...degraded, exported } : degraded,
       };
     }
 
