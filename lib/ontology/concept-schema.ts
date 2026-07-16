@@ -58,6 +58,23 @@ export const CONCEPT_TYPE_VALUES = [
 ] as const;
 
 /**
+ * {132.41} bl-477 — the ratified A19 confidence vocabulary. Mirrors
+ * `producer/frontmatter.py` / `producer/validator.py`'s own
+ * `_CONFIDENCE_VALUES` frozenset — by convention, not import (cross-language,
+ * same S448 `CONCEPT_TYPE_VALUES` single-const-array precedent above). A
+ * concept's `confidence` is OPTIONAL and, when present, computed
+ * deterministically by the producer — never model-authored (see
+ * FRONTMATTER-WAVE.md §"Design — A19 producer-drafted confidence-setting
+ * rule").
+ */
+export const CONFIDENCE_VALUES = [
+  'strong',
+  'partial',
+  'no-content',
+  'needs-SME',
+] as const;
+
+/**
  * `resource:`, in its per-row anchor form, must be a
  * `canonical://<table>/<uuid>` URI (scheme owned by ID-132). `<table>` is
  * restricted to `source_documents | reference_items` — the two tables whose
@@ -96,6 +113,16 @@ export const ConceptFrontmatterSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   timestamp: z.string().min(1),
+  // {132.41} bl-456 routing hints — free optional strings, no positive
+  // shape check beyond being a string (mirrors `producer/frontmatter.py`:
+  // hints get the BI-10 stray-pointer guard at write time, not a schema
+  // shape rule at read time).
+  purpose: z.string().optional(),
+  task: z.string().optional(),
+  audience: z.string().optional(),
+  // {132.41} bl-477 — A19 confidence, OPTIONAL at read (OKF consumers must
+  // tolerate absence) even though the Path-1 producer always writes it.
+  confidence: z.enum(CONFIDENCE_VALUES).optional(),
   resource: z
     .string()
     .refine(isValidConceptResourceUri, {

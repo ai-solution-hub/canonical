@@ -10,11 +10,18 @@
  *
  * ID-132 owns the producer call site; this Subtask (ID-133) owns only the
  * frontmatter contract, so no wiring/caller is exercised here.
+ *
+ * {132.41} FRONTMATTER-WAVE.md §"Shared frontmatter contract extension":
+ * bl-456 routing hints (`purpose`/`task`/`audience`, free optional strings)
+ * + bl-477 A19 `confidence` enum — both OPTIONAL, mirroring the landed
+ * Python emitter/validator (`producer/frontmatter.py` /
+ * `producer/validator.py`).
  */
 import { describe, it, expect } from 'vitest';
 
 import {
   CONCEPT_TYPE_VALUES,
+  CONFIDENCE_VALUES,
   parseConceptFrontmatter,
 } from '@/lib/ontology/concept-schema';
 
@@ -175,6 +182,66 @@ describe('parseConceptFrontmatter', () => {
 
     expect(() =>
       parseConceptFrontmatter(conceptMarkdown(badResource)),
+    ).toThrow();
+  });
+
+  // ────────────────────────────────────────
+  // {132.41} bl-456 routing hints + bl-477 A19 confidence
+  // ────────────────────────────────────────
+
+  it('exposes the A19 confidence vocabulary as a single ratifiable source of truth', () => {
+    expect(CONFIDENCE_VALUES).toEqual([
+      'strong',
+      'partial',
+      'no-content',
+      'needs-SME',
+    ]);
+  });
+
+  it('accepts a concept carrying all four routing-hint + confidence fields', () => {
+    const withHints = [
+      WELL_FORMED_FRONTMATTER,
+      'purpose: Explain photovoltaic panel options',
+      'task: answer a procurement question',
+      'audience: SME buyer',
+      'confidence: strong',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(withHints));
+
+    expect(parsed).toMatchObject({
+      purpose: 'Explain photovoltaic panel options',
+      task: 'answer a procurement question',
+      audience: 'SME buyer',
+      confidence: 'strong',
+    });
+  });
+
+  it('accepts a concept with none of the four fields (all optional)', () => {
+    const parsed = parseConceptFrontmatter(
+      conceptMarkdown(WELL_FORMED_FRONTMATTER),
+    );
+
+    expect(parsed.purpose).toBeUndefined();
+    expect(parsed.task).toBeUndefined();
+    expect(parsed.audience).toBeUndefined();
+    expect(parsed.confidence).toBeUndefined();
+  });
+
+  it.each(['strong', 'partial', 'no-content', 'needs-SME'])(
+    'accepts confidence value %s',
+    (value) => {
+      const withConfidence = `${WELL_FORMED_FRONTMATTER}\nconfidence: ${value}`;
+      const parsed = parseConceptFrontmatter(conceptMarkdown(withConfidence));
+      expect(parsed.confidence).toBe(value);
+    },
+  );
+
+  it('rejects an out-of-vocabulary confidence value via ZodError', () => {
+    const badConfidence = `${WELL_FORMED_FRONTMATTER}\nconfidence: banana`;
+
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown(badConfidence)),
     ).toThrow();
   });
 });

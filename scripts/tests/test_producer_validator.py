@@ -598,3 +598,98 @@ def test_validate_concept_raises_without_overlay_and_passes_with_it():
         v.validate_concept(fm, body=_VALID_BODY)
 
     v.validate_concept(fm, body=_VALID_BODY, effective_ontology=eo)  # does not raise
+
+
+# ──────────────────────────────────────────
+# bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
+# extension (FRONTMATTER-WAVE.md §"Shared frontmatter contract extension").
+# ──────────────────────────────────────────
+
+
+def test_as_mapping_carries_the_four_new_fields_from_a_concept_frontmatter_instance():
+    """Load-bearing: `_as_mapping` must carry purpose/task/audience/confidence
+    so downstream checks (BI-10 stray-pointer, A19 membership) see them."""
+    from scripts.cocoindex_pipeline.producer import frontmatter as fm_module
+
+    record = fm_module.build_concept_frontmatter(
+        **_valid_frontmatter(),
+        purpose="Explain X",
+        task="answer Y",
+        audience="Z",
+        confidence="strong",
+    )
+    mapping = v._as_mapping(record)
+    assert mapping["purpose"] == "Explain X"
+    assert mapping["task"] == "answer Y"
+    assert mapping["audience"] == "Z"
+    assert mapping["confidence"] == "strong"
+
+
+def test_absence_of_all_four_new_fields_is_never_an_error():
+    errors = v.check_concept(_valid_frontmatter(), body=_VALID_BODY)
+    assert errors == []
+
+
+@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
+def test_check_confidence_accepts_every_a19_value(value):
+    assert v.check_confidence(value) == []
+
+
+def test_check_confidence_returns_empty_on_absence():
+    assert v.check_confidence(None) == []
+
+
+def test_check_confidence_rejects_an_invalid_value():
+    errors = v.check_confidence("banana")
+    assert len(errors) == 1
+
+
+def test_concept_with_invalid_confidence_fails_the_gate():
+    errors = v.check_concept(
+        _valid_frontmatter(confidence="banana"), body=_VALID_BODY
+    )
+    assert any("confidence" in err.lower() for err in errors)
+
+
+@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
+def test_concept_with_each_a19_confidence_value_passes_the_gate(value):
+    errors = v.check_concept(_valid_frontmatter(confidence=value), body=_VALID_BODY)
+    assert errors == []
+
+
+def test_concept_without_confidence_key_passes_the_gate():
+    """Absence — the key not present at all in a raw mapping (as opposed to
+    a dataclass-carried explicit `None`) — is also never an error."""
+    fm = _valid_frontmatter()
+    assert "confidence" not in fm
+    errors = v.check_concept(fm, body=_VALID_BODY)
+    assert errors == []
+
+
+def test_routing_hint_embedding_a_canonical_uri_is_a_bi10_violation():
+    """Proves `_as_mapping` carries the hint fields — the existing
+    `check_no_stray_pointer` BI-10 scan then guards them automatically, with
+    no separate positive check needed."""
+    errors = v.check_concept(
+        _valid_frontmatter(purpose=f"See {_RESOURCE} for details"), body=_VALID_BODY
+    )
+    assert any("BI-10" in err for err in errors)
+
+
+@pytest.mark.parametrize("hint_field", ["purpose", "task", "audience"])
+def test_any_routing_hint_embedding_a_canonical_uri_is_a_bi10_violation(hint_field):
+    errors = v.check_concept(
+        _valid_frontmatter(**{hint_field: f"See {_RESOURCE} for details"}),
+        body=_VALID_BODY,
+    )
+    assert any("BI-10" in err for err in errors)
+
+
+def test_routing_hints_carry_arbitrary_strings_without_a_positive_check():
+    """Hints get NO positive shape check — any non-pointer-carrying string is
+    fine, absence is fine."""
+    errors = v.check_concept(
+        _valid_frontmatter(purpose="Anything at all", task="", audience=None),
+        body=_VALID_BODY,
+    )
+    assert errors == []

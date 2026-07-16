@@ -190,6 +190,165 @@ def test_emit_concept_frontmatter_builds_and_renders_in_one_call():
 
 
 # ──────────────────────────────────────────
+# bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
+# extension (FRONTMATTER-WAVE.md §"Shared frontmatter contract extension").
+# ──────────────────────────────────────────
+
+
+def test_build_concept_frontmatter_defaults_new_fields_to_none():
+    record = fm.build_concept_frontmatter(**_base_kwargs())
+    assert record.purpose is None
+    assert record.task is None
+    assert record.audience is None
+    assert record.confidence is None
+
+
+def test_build_concept_frontmatter_carries_routing_hints_and_confidence():
+    record = fm.build_concept_frontmatter(
+        **_base_kwargs(
+            purpose="Explain encryption-at-rest options",
+            task="answer a procurement question",
+            audience="SME buyer",
+            confidence="strong",
+        )
+    )
+    assert record.purpose == "Explain encryption-at-rest options"
+    assert record.task == "answer a procurement question"
+    assert record.audience == "SME buyer"
+    assert record.confidence == "strong"
+
+
+@pytest.mark.parametrize("hint_field", ["purpose", "task", "audience"])
+def test_routing_hint_embedding_a_canonical_uri_is_rejected(hint_field):
+    """BI-10: routing hints get the same contains_record_pointer guard the
+    existing string fields get."""
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(**{hint_field: f"See {_RESOURCE}"}))
+
+
+@pytest.mark.parametrize("hint_field", ["purpose", "task", "audience"])
+def test_routing_hint_embedding_a_bare_uuid_is_rejected(hint_field):
+    poisoned = f"Anchor: {uuid.uuid4()}"
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(**{hint_field: poisoned}))
+
+
+@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
+def test_build_concept_frontmatter_accepts_every_a19_confidence_value(value):
+    record = fm.build_concept_frontmatter(**_base_kwargs(confidence=value))
+    assert record.confidence == value
+
+
+def test_build_concept_frontmatter_rejects_invalid_confidence_value():
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(confidence="banana"))
+
+
+def test_render_omits_routing_hints_and_confidence_when_none():
+    record = fm.build_concept_frontmatter(**_base_kwargs())
+    text = fm.render_concept_frontmatter(record)
+    assert "purpose:" not in text
+    assert "task:" not in text
+    assert "audience:" not in text
+    assert "confidence:" not in text
+
+
+def test_render_emits_routing_hints_and_confidence_only_when_set():
+    record = fm.build_concept_frontmatter(
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="partial")
+    )
+    text = fm.render_concept_frontmatter(record)
+    assert "purpose: Explain X" in text
+    assert "task: answer Y" in text
+    assert "audience: Z" in text
+    assert "confidence: partial" in text
+
+
+def test_render_new_fields_appear_in_fixed_order_after_description_before_resource():
+    record = fm.build_concept_frontmatter(
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="partial")
+    )
+    text = fm.render_concept_frontmatter(record)
+    order = [
+        text.index("description:"),
+        text.index("purpose:"),
+        text.index("task:"),
+        text.index("audience:"),
+        text.index("confidence:"),
+        text.index("resource:"),
+    ]
+    assert order == sorted(order)
+
+
+@pytest.mark.parametrize("value", ["no-content", "needs-SME"])
+def test_render_hyphenated_confidence_values_are_unquoted(value):
+    """The hyphenated A19 values must not match any _YAML_* ambiguity
+    pattern (both are anchored on `$`, neither is bool/null/number/
+    timestamp-shaped) — they render as plain, unquoted scalars."""
+    record = fm.build_concept_frontmatter(**_base_kwargs(confidence=value))
+    text = fm.render_concept_frontmatter(record)
+    assert f"confidence: {value}\n" in text
+    assert f'confidence: "{value}"' not in text
+
+
+def test_emit_concept_frontmatter_threads_routing_hints_and_confidence():
+    text = fm.emit_concept_frontmatter(
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="strong")
+    )
+    assert "purpose: Explain X" in text
+    assert "confidence: strong" in text
+
+
+# ──────────────────────────────────────────
+# A19 (bl-477) — derive_concept_confidence: the deterministic, never
+# model-authored confidence-setting rule (FRONTMATTER-WAVE.md §"Design — A19
+# producer-drafted confidence-setting rule").
+# ──────────────────────────────────────────
+
+
+def test_derive_concept_confidence_is_strong_for_per_row_anchor_plus_two_record_citations():
+    resource = ru.build_source_document_uri(uuid.uuid4())
+    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
+    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "strong"
+
+
+def test_derive_concept_confidence_is_partial_for_per_row_anchor_with_one_record_citation():
+    resource = ru.build_source_document_uri(uuid.uuid4())
+    citations = [ru.build_reference_item_uri(uuid.uuid4())]
+    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+
+
+def test_derive_concept_confidence_is_partial_for_qa_pairs_query_anchor():
+    """A q_a_pairs query-form resource is not a PER-ROW anchor."""
+    resource = ru.build_q_a_pairs_query_uri(scope_tag="pricing")
+    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
+    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+
+
+def test_derive_concept_confidence_is_partial_when_resource_is_none():
+    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
+    assert fm.derive_concept_confidence(resource=None, citations=citations) == "partial"
+
+
+def test_derive_concept_confidence_cross_link_only_second_citation_does_not_lift_to_strong():
+    """Only distinct RECORD anchors corroborate — a concept cross-link path
+    is not fresh record grounding."""
+    resource = ru.build_source_document_uri(uuid.uuid4())
+    citations = [ru.build_source_document_uri(uuid.uuid4()), "topics/gdpr.md"]
+    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+
+
+def test_derive_concept_confidence_is_partial_for_reference_concept_web_anchor():
+    """A Pass-2 reference concept whose `resource` is a gated web
+    `reference_items` anchor is honest "grounded but thin" — partial, even
+    with a corroborating citation, unless it independently clears the
+    per-row + >=2 bar."""
+    resource = ru.build_reference_item_uri(uuid.uuid4())
+    citations = [resource]
+    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+
+
+# ──────────────────────────────────────────
 # {132.7} S451 rider fold-in 1 — YAML-1.1 type-ambiguity quoting.
 #
 # The reference agent serialises via `yaml.safe_dump`, which quotes any

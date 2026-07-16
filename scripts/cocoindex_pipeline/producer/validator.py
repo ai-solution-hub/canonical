@@ -94,7 +94,10 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from scripts.cocoindex_pipeline.producer.frontmatter import ConceptFrontmatter
+from scripts.cocoindex_pipeline.producer.frontmatter import (
+    ConceptFrontmatter,
+    is_valid_concept_resource_uri,
+)
 from scripts.cocoindex_pipeline.producer.resource_uri import (
     contains_record_pointer,
     is_canonical_resource_uri,
@@ -277,15 +280,12 @@ class EffectiveOntology:
 _REQUIRED_STRING_KEYS = ("type", "title", "description", "timestamp")
 _REQUIRED_KEYS = _REQUIRED_STRING_KEYS + ("tags",)
 
-# BI-6: the two resource forms `producer/resource_uri.py` actually emits.
-_PER_ROW_RESOURCE_RE = re.compile(
-    r"^canonical://(?:source_documents|reference_items)/"
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-)
-_QA_PAIRS_QUERY_RESOURCE_RE = re.compile(
-    r"^canonical://q_a_pairs\?(?:scope_tag=[^&]+|domain=[^&]+&subtopic=[^&]+)$"
-)
+# A19 (bl-477): the ratified confidence vocabulary — duplicated (not
+# imported) from `producer/frontmatter.py`'s own `_CONFIDENCE_VALUES` by
+# design (defence in depth: the producer asserts membership at draft time,
+# this gate re-asserts it at validate time — the two must be changed
+# together, never silently diverge).
+_CONFIDENCE_VALUES = frozenset({"strong", "partial", "no-content", "needs-SME"})
 
 # BI-9/BI-10: the only body section a Canonical uuid may appear in.
 _CITATIONS_HEADING = "Citations"
@@ -317,6 +317,13 @@ def _as_mapping(frontmatter: "Mapping[str, object] | ConceptFrontmatter") -> "Ma
             "timestamp": frontmatter.timestamp,
             "tags": list(frontmatter.tags),
             "resource": frontmatter.resource,
+            # bl-456/bl-477 (FRONTMATTER-WAVE.md): load-bearing — omitting
+            # these would silently drop them from every downstream check
+            # (BI-10 stray-pointer scan, A19 confidence membership).
+            "purpose": frontmatter.purpose,
+            "task": frontmatter.task,
+            "audience": frontmatter.audience,
+            "confidence": frontmatter.confidence,
         }
     return frontmatter
 
@@ -357,17 +364,6 @@ def check_type_membership(
     return []
 
 
-def is_valid_concept_resource_uri(value: object) -> bool:
-    """BI-6: True iff `value` is one of the two `canonical://` forms
-    `producer/resource_uri.py` actually emits (the per-row anchor form, or
-    the BI-8 `q_a_pairs` table/query form)."""
-    if not isinstance(value, str):
-        return False
-    return bool(
-        _PER_ROW_RESOURCE_RE.match(value) or _QA_PAIRS_QUERY_RESOURCE_RE.match(value)
-    )
-
-
 def check_resource_scheme(resource: object) -> "list[str]":
     """BI-6: `resource`, when present, must satisfy
     `is_valid_concept_resource_uri`. Absence is not an error here — see
@@ -380,6 +376,23 @@ def check_resource_scheme(resource: object) -> "list[str]":
             "(BI-6) — expected canonical://{source_documents,reference_"
             "items}/<uuid> or canonical://q_a_pairs?scope_tag=<tag>|"
             "domain=<domain>&subtopic=<subtopic>"
+        ]
+    return []
+
+
+def check_confidence(value: object) -> "list[str]":
+    """A19 (bl-477): `confidence`, when present, must be one of the
+    ratified vocabulary (`strong`/`partial`/`no-content`/`needs-SME`).
+    Absence — including an explicit `None`, the `ConceptFrontmatter`
+    dataclass default for a field never populated — is not an error; the
+    OKF SPEC optional-tolerant posture (module docstring) applies here
+    exactly as it does to `resource:`."""
+    if value is None:
+        return []
+    if value not in _CONFIDENCE_VALUES:
+        return [
+            f"confidence {value!r} is outside the ratified A19 vocabulary "
+            f"{sorted(_CONFIDENCE_VALUES)}"
         ]
     return []
 
@@ -516,6 +529,8 @@ def check_concept(
         errors += check_type_membership(fm["type"], effective_ontology=effective_ontology)
     if "resource" in fm:
         errors += check_resource_scheme(fm["resource"])
+    if "confidence" in fm:
+        errors += check_confidence(fm["confidence"])
     errors += check_no_stray_pointer(fm, body)
     errors += lint_entity_relation_mentions(
         entities=entities, relationships=relationships, effective_ontology=effective_ontology
