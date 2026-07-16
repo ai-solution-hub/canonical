@@ -175,6 +175,15 @@ export const queryKeys = {
       ['source-documents', 'citations', documentId] as const,
     derivedPairs: (documentId: string) =>
       ['source-documents', 'derived-pairs', documentId] as const,
+    /**
+     * Signed binary URL + mime_type read (ID-145 {145.47}, TECH §3/§4,
+     * PRODUCT §D1 — `ItemCitationOverlay` resolves the cited document's own
+     * PDF/DOCX/XLSX file to decide PDF-only spatial overlay vs text-anchored,
+     * §D4). Wraps the existing `GET /api/source-documents/[id]/binary-url`
+     * route (id-117 {117.6}) — appended here, not a new endpoint.
+     */
+    binaryUrl: (documentId: string) =>
+      ['source-documents', 'binary-url', documentId] as const,
   },
 
   // Workspaces
@@ -420,6 +429,16 @@ export const queryKeys = {
           engagementGroupId,
         ] as const,
     },
+    /**
+     * §C fill-slot review read (ID-145 {145.47}, TECH §3/§4, PRODUCT
+     * §C1-C4). The existing `GET /api/procurement/[id]/fields` route
+     * ({145.19}) returns the form's document info (storage_path/mime_type),
+     * its `fields` (now including the `geometry` jsonb, ID-147 {147.9}/
+     * {147.10}), and the mapping/fill `summary` in one payload — this key
+     * covers that whole read. Appended here (not inserted mid-group) per the
+     * parallel-wave append-only convention for this file.
+     */
+    fields: (formId: string) => ['procurement', 'fields', formId] as const,
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

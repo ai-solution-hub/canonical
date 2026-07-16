@@ -55,11 +55,17 @@ export const GET = defineRoute(
         );
       }
 
-      // Fetch fields with their mapped bid question data.
+      // Fetch fields with their mapped bid question data. `geometry`
+      // (nullable jsonb, ID-147 {147.9}/{147.10}) is added here at {145.47}
+      // (TECH §3/§4) so the §C fill-slot spatial-overlay read has it — the
+      // UI validates it through `geometrySchema` on read
+      // (lib/domains/procurement/geometry-schema.ts); a malformed/legacy
+      // blob or a DOCX/XLSX form's NULL degrades to the list, never a box
+      // (§C4).
       const { data: fields, error: fieldsError } = await supabase
         .from('form_instance_fields')
         .select(
-          'id, form_instance_id, field_type, table_index, row_index, col_index, question_text, section_name, word_limit, placeholder_text, question_id, mapping_status, mapping_confidence, fill_status, fill_error, sequence, created_at, updated_at',
+          'id, form_instance_id, field_type, table_index, row_index, col_index, question_text, section_name, word_limit, placeholder_text, question_id, mapping_status, mapping_confidence, fill_status, fill_error, geometry, sequence, created_at, updated_at',
         )
         .eq('form_instance_id', id)
         .order('sequence', { ascending: true });

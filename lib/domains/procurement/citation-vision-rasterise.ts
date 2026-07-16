@@ -22,20 +22,24 @@
  *    built. The pixel bbox Claude returns then needs no further
  *    conversion — it divides directly by the dimensions we chose.
  *
- * No live Anthropic call is made from this module. That live call belongs
- * with the wiring work at {145.47} (W7) — this Subtask's file-ownership
- * boundary is the two NEW derivation lib modules only, and registering a
- * new AI touchpoint means editing the cross-cutting `lib/ai/grounding.ts`
- * B-INV-35 registry (+ its conformance test), which sits outside that
- * boundary. This module delivers everything the wire-time call needs:
- * the self-rasterise/pre-resize step, the request shape, the response
- * parser, and the B2 pixel-to-percentage math.
+ * The live Anthropic call (`deriveVisionHighlightLive`, below) was wired at
+ * {145.47} (W7, ID-145.47) — deferred from {147.12} because it required a
+ * new `lib/ai/grounding.ts` B-INV-35 registry entry (+ conformance test),
+ * outside that Subtask's file-ownership boundary. `AI_TOUCHPOINT_GROUNDING`
+ * declares this touchpoint `forced_tool_strict` (the tool below sets
+ * `strict: true`, added at {145.47} alongside the live call — the pure
+ * `buildVisionBoundingBoxRequest` builder pre-dates the grounding
+ * declaration, so the strict flag lands here rather than duplicating the
+ * tool schema at the call site).
  */
 
 import type {
   HighlightArea,
   CitationHighlightResult,
 } from './citation-highlight-derivation';
+import type Anthropic from '@anthropic-ai/sdk';
+import { getAnthropicClient, getModelForTier } from '@/lib/anthropic';
+import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 
 // ──────────────────────────────────────────
 // Types
@@ -125,6 +129,8 @@ export interface VisionBoundingBoxRequest {
   tools: Array<{
     name: string;
     description: string;
+    /** B-INV-35 `forced_tool_strict` — recursively-closed schema below. */
+    strict: true;
     input_schema: Record<string, unknown>;
   }>;
   tool_choice: { type: 'tool'; name: string };
@@ -361,6 +367,9 @@ export function buildVisionBoundingBoxRequest(
         name: BOUNDING_BOX_TOOL_NAME,
         description:
           'Report the pixel bounding box of the located citation text, or that it could not be found on the page.',
+        // Grounding shape: forced_tool_strict (B-INV-35,
+        // AI_TOUCHPOINT_GROUNDING['citation-vision-rasterise.deriveVisionHighlightLive']).
+        strict: true,
         input_schema: {
           type: 'object',
           properties: {
@@ -429,4 +438,65 @@ export function deriveVisionHighlight(
   if (!area) return { status: 'unmappable' };
 
   return { status: 'mapped', method: 'vision', area };
+}
+
+// ──────────────────────────────────────────
+// Live call (ID-145 {145.47} — deferred from {147.12})
+// ──────────────────────────────────────────
+
+/**
+ * B2 live orchestration: build the forced-tool request, make the actual
+ * Anthropic call, then delegate to {@link deriveVisionHighlight} for the
+ * parse + pixel-to-percentage math — the pure post-processing stays a
+ * single, independently-tested code path regardless of caller.
+ *
+ * Grounding shape: `forced_tool_strict`
+ * (B-INV-35, `AI_TOUCHPOINT_GROUNDING['citation-vision-rasterise.deriveVisionHighlightLive']`
+ * — lib/ai/grounding.ts). B-INV-36: `assertSuccessfulStop` surfaces a
+ * refusal/max_tokens stop reason before the tool_use block is read — never
+ * silently substituting an "unmappable" default that would look identical
+ * to a genuine "text not found" answer from the model.
+ *
+ * Model: `getModelForTier('analysis')` — a fast, cheap, single-forced-tool
+ * detection pass (same tier as `generateSearchQueries`/
+ * `extractTenderMetadata`), not the drafting tier. Callers self-rasterise
+ * via `rasterisePageForVision` first (client/worker-side — never a native
+ * PDF upload) and pass the SAME `resizedDims` the image was pre-resized to,
+ * so the returned pixel bbox needs no further conversion.
+ */
+export async function deriveVisionHighlightLive(
+  image: VisionImageSource,
+  citedText: string,
+  resizedDims: PixelSize,
+): Promise<CitationHighlightResult> {
+  const anthropic = getAnthropicClient();
+  const request = buildVisionBoundingBoxRequest(image, citedText);
+
+  // `request.content`/`request.tools` are loosely-typed (module-doc: a
+  // structural mirror, decoupled from the Anthropic SDK's own content-block
+  // union — see the top-of-file rationale) but are exactly the shape
+  // `messages.create` expects at runtime; cast at this single call boundary
+  // rather than widening the pure builder's exported types.
+  const response = await anthropic.messages.create({
+    model: getModelForTier('analysis'),
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: request.content as Anthropic.ContentBlockParam[],
+      },
+    ],
+    tools: request.tools as unknown as Anthropic.Tool[],
+    tool_choice: request.tool_choice,
+  });
+
+  assertSuccessfulStop(
+    response,
+    'citation-vision-rasterise.deriveVisionHighlightLive',
+  );
+
+  return deriveVisionHighlight(
+    response as unknown as VisionBoundingBoxMessageLike,
+    resizedDims,
+  );
 }

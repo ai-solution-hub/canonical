@@ -250,4 +250,92 @@ describe('GET /api/procurement/:id/fields', () => {
     expect(json.completions).toEqual([]);
     expect(mockSupabase.rpc).not.toHaveBeenCalled();
   });
+
+  it('passes the geometry jsonb column through on each field (ID-145 {145.47}, §C fill-slot overlay read)', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: TEMPLATE_UUID,
+        name: 'Tender form',
+        description: null,
+        filename: 'tender.pdf',
+        storage_path: `${TEMPLATE_UUID}/original.pdf`,
+        file_size: 12000,
+        mime_type: 'application/pdf',
+        processing_status: 'analysed',
+        field_count: 2,
+        mapped_count: 0,
+        structure_path: null,
+        created_by: 'test-user-id',
+        created_at: '2026-03-01T10:00:00Z',
+        updated_at: '2026-03-01T11:00:00Z',
+      },
+      error: null,
+    });
+
+    const geometryField = {
+      id: 'field-geo',
+      form_instance_id: TEMPLATE_UUID,
+      field_type: 'text',
+      table_index: null,
+      row_index: null,
+      col_index: null,
+      question_text: 'Company name',
+      section_name: null,
+      word_limit: null,
+      placeholder_text: null,
+      question_id: null,
+      mapping_status: 'unmapped',
+      mapping_confidence: null,
+      fill_status: 'pending',
+      fill_error: null,
+      geometry: {
+        left: 0.1,
+        top: 0.2,
+        width: 0.3,
+        height: 0.05,
+        page: 1,
+        rotation: 0,
+      },
+      sequence: 1,
+      created_at: '2026-03-01T10:05:00Z',
+      updated_at: '2026-03-01T10:05:00Z',
+    };
+    const noGeometryField = {
+      ...geometryField,
+      id: 'field-no-geo',
+      question_text: 'Company address',
+      geometry: null,
+      sequence: 2,
+    };
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({
+            data: [geometryField, noGeometryField],
+            error: null,
+          });
+        }
+        return resolve({ data: [], error: null });
+      },
+    );
+
+    const req = createTestRequest(`/api/procurement/${TEMPLATE_UUID}/fields`);
+    const params = createTestParams({ id: TEMPLATE_UUID });
+    const res = await getFormFields(req, { params });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.fields[0].geometry).toEqual({
+      left: 0.1,
+      top: 0.2,
+      width: 0.3,
+      height: 0.05,
+      page: 1,
+      rotation: 0,
+    });
+    expect(json.fields[1].geometry).toBeNull();
+  });
 });

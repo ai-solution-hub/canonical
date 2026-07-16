@@ -42,7 +42,8 @@ export type AiTouchpointId =
   | 'extract-content.extractStructuredContent'
   | 'match.assessConfidence'
   | 'vision.analyseVision'
-  | 'change-reports.generateChangeReport';
+  | 'change-reports.generateChangeReport'
+  | 'citation-vision-rasterise.deriveVisionHighlightLive';
 
 /**
  * The canonical grounding shape per touchpoint. The Checker audits each call
@@ -84,4 +85,10 @@ export const AI_TOUCHPOINT_GROUNDING: Record<AiTouchpointId, GroundingShape> = {
 
   // change-reports.ts — forced-tool structured digest.
   'change-reports.generateChangeReport': 'forced_tool_strict',
+
+  // citation-vision-rasterise.ts — ID-147 {147.12} B2 vision-fallback citation
+  // bounding-box detection (DR-064, PRODUCT §D2 approximate path), live call
+  // wired at ID-145 {145.47}. Forced tool_choice + a strict:true, closed
+  // (additionalProperties:false) `report_citation_bounding_box` tool.
+  'citation-vision-rasterise.deriveVisionHighlightLive': 'forced_tool_strict',
 };

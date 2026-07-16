@@ -202,6 +202,22 @@ vi.mock('@/components/procurement/tender-metadata-prompt', () => ({
   ),
 }));
 
+// {145.47} filled these two stubs with real implementations that render a
+// PDF (react-pdf/pdfjs-dist, browser-only — `DOMMatrix` etc. are absent in
+// this jsdom test run). Their own behaviour is covered by
+// item-fill-slot-review.test.tsx / item-citation-overlay.test.tsx; this
+// page composition test only needs their stable mount points.
+vi.mock('@/components/procurement/item-fill-slot-review', () => ({
+  ItemFillSlotReview: ({ formId }: { formId: string }) => (
+    <div data-testid="item-fill-slot-review">{formId}</div>
+  ),
+}));
+vi.mock('@/components/procurement/item-citation-overlay', () => ({
+  ItemCitationOverlay: ({ formId }: { formId: string }) => (
+    <div data-testid="item-citation-overlay">{formId}</div>
+  ),
+}));
+
 // Import AFTER mocks
 import ProcurementDetailPage from '@/app/procurement/[id]/page';
 
