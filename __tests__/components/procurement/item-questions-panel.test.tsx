@@ -3,9 +3,12 @@
  *
  * Behaviour under test: honest mixed per-question states (approved / drafted
  * / matched / empty, no all-or-nothing framing), the bulk Find-answers /
- * Draft-All actions, and the zero-candidate manual-answer affordance that
- * saves directly to the knowledge base via the existing
- * `POST /api/q-a-pairs/batch` route.
+ * Draft-All actions, and the zero-candidate manual-answer affordance's TWO
+ * acts (fix dispatch on the {145.44} Checker FAIL — BI-40's literal
+ * contract): the PRIMARY, deterministic act (answer the question directly
+ * via `POST /api/procurement/[id]/responses/manual`) and the OPTIONAL,
+ * SEPARATE secondary act (also add the answer to the knowledge base via the
+ * existing `POST /api/q-a-pairs/batch`).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -321,7 +324,7 @@ describe('ItemQuestionsPanel', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('saves a manual answer as a manually_authored Q&A pair and refreshes on success', async () => {
+  it('answers the question directly as the PRIMARY, deterministic act (no promotion requested)', async () => {
     const user = userEvent.setup();
     const onQuestionsChanged = vi.fn();
     const empty = makeQuestion({
@@ -330,11 +333,11 @@ describe('ItemQuestionsPanel', () => {
     });
     mockFetch.mockReturnValueOnce(
       jsonResponse({
-        created: 1,
-        failed: 0,
-        items: [{ id: 'qa-1', title: empty.question_text, status: 'created' }],
-        pipeline_run_id: null,
-        batch_id: 'batch-1',
+        id: 'resp-1',
+        question_id: empty.id,
+        response_text: 'We follow our safeguarding policy at all times.',
+        review_status: 'draft',
+        drafted_by: 'user-1',
       }),
     );
 
@@ -358,12 +361,101 @@ describe('ItemQuestionsPanel', () => {
       textarea,
       'We follow our safeguarding policy at all times.',
     );
-    await user.click(
-      screen.getByRole('button', { name: /Save to knowledge base/ }),
+    // The promotion checkbox is left unchecked — corpus promotion is opt-in.
+    await user.click(screen.getByRole('button', { name: /Save answer/ }));
+
+    await waitFor(() =>
+      expect(mockToast.success).toHaveBeenCalledWith('Answer saved.'),
+    );
+    // ONLY the primary answer-the-question call is made — no corpus write.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/procurement/form-1/responses/manual`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          question_id: empty.id,
+          response_text: 'We follow our safeguarding policy at all times.',
+        }),
+      }),
+    );
+    expect(onQuestionsChanged).toHaveBeenCalledTimes(1);
+    // The form collapses back to the affordance button after a successful save.
+    expect(
+      screen.getByRole('button', { name: 'Answer this question directly' }),
+    ).toBeInTheDocument();
+  });
+
+  it('also promotes to the knowledge base as a SEPARATE, OPTIONAL act when the checkbox is checked', async () => {
+    const user = userEvent.setup();
+    const empty = makeQuestion({
+      confidence_posture: 'no_content',
+      question_text: 'What is your approach to safeguarding?',
+    });
+    mockFetch
+      .mockReturnValueOnce(
+        jsonResponse({
+          id: 'resp-1',
+          question_id: empty.id,
+          response_text: 'We follow our safeguarding policy at all times.',
+          review_status: 'draft',
+          drafted_by: 'user-1',
+        }),
+      )
+      .mockReturnValueOnce(
+        jsonResponse({
+          created: 1,
+          failed: 0,
+          items: [
+            { id: 'qa-1', title: empty.question_text, status: 'created' },
+          ],
+          pipeline_run_id: null,
+          batch_id: 'batch-1',
+        }),
+      );
+
+    render(
+      <ItemQuestionsPanel
+        procurementId="form-1"
+        questions={[empty]}
+        canEdit={true}
+        totalQuestions={1}
+      />,
     );
 
-    await waitFor(() => expect(mockToast.success).toHaveBeenCalled());
-    expect(mockFetch).toHaveBeenCalledWith(
+    await user.click(
+      screen.getByRole('button', { name: 'Answer this question directly' }),
+    );
+    const textarea = screen.getByLabelText(
+      `Manual answer for: ${empty.question_text}`,
+    );
+    await user.type(
+      textarea,
+      'We follow our safeguarding policy at all times.',
+    );
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Also add this answer to your knowledge base',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: /Save answer/ }));
+
+    await waitFor(() =>
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'Answer saved and added to your knowledge base.',
+      ),
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Call 1: the primary act (answer the question).
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      1,
+      `/api/procurement/form-1/responses/manual`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+    // Call 2: the secondary, optional act (corpus promotion) — only fires
+    // because the checkbox was checked.
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
       '/api/q-a-pairs/batch',
       expect.objectContaining({
         method: 'POST',
@@ -378,8 +470,52 @@ describe('ItemQuestionsPanel', () => {
         }),
       }),
     );
-    expect(onQuestionsChanged).toHaveBeenCalledTimes(1);
-    // The form collapses back to the affordance button after a successful save.
+  });
+
+  it('treats a promotion failure as non-blocking — the primary save still counts as a success', async () => {
+    const user = userEvent.setup();
+    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    mockFetch
+      .mockReturnValueOnce(
+        jsonResponse({
+          id: 'resp-1',
+          question_id: empty.id,
+          response_text: 'An answer.',
+          review_status: 'draft',
+          drafted_by: 'user-1',
+        }),
+      )
+      .mockReturnValueOnce(
+        jsonResponse({ error: 'Failed to create Q&A draft' }, false, 500),
+      );
+
+    render(
+      <ItemQuestionsPanel
+        procurementId="form-1"
+        questions={[empty]}
+        canEdit={true}
+        totalQuestions={1}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Answer this question directly' }),
+    );
+    const textarea = screen.getByLabelText(
+      `Manual answer for: ${empty.question_text}`,
+    );
+    await user.type(textarea, 'An answer.');
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Also add this answer to your knowledge base',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: /Save answer/ }));
+
+    await waitFor(() =>
+      expect(mockToast.success).toHaveBeenCalledWith('Answer saved.'),
+    );
+    expect(mockToast.error).toHaveBeenCalledWith('Failed to create Q&A draft');
+    // The primary act's success collapses the form regardless.
     expect(
       screen.getByRole('button', { name: 'Answer this question directly' }),
     ).toBeInTheDocument();
@@ -399,20 +535,22 @@ describe('ItemQuestionsPanel', () => {
     await user.click(
       screen.getByRole('button', { name: 'Answer this question directly' }),
     );
-    await user.click(
-      screen.getByRole('button', { name: /Save to knowledge base/ }),
-    );
+    await user.click(screen.getByRole('button', { name: /Save answer/ }));
     expect(mockToast.error).toHaveBeenCalledWith(
       'Enter an answer before saving',
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('surfaces a backend failure honestly and keeps the answer editable', async () => {
+  it('surfaces a primary-save backend failure honestly and keeps the answer editable', async () => {
     const user = userEvent.setup();
     const empty = makeQuestion({ confidence_posture: 'no_content' });
     mockFetch.mockReturnValueOnce(
-      jsonResponse({ error: 'Failed to create Q&A draft' }, false, 500),
+      jsonResponse(
+        { error: 'This question already has a response' },
+        false,
+        409,
+      ),
     );
 
     render(
@@ -430,19 +568,19 @@ describe('ItemQuestionsPanel', () => {
       `Manual answer for: ${empty.question_text}`,
     );
     await user.type(textarea, 'An answer that fails to save.');
-    await user.click(
-      screen.getByRole('button', { name: /Save to knowledge base/ }),
-    );
+    await user.click(screen.getByRole('button', { name: /Save answer/ }));
 
     await waitFor(() =>
       expect(mockToast.error).toHaveBeenCalledWith(
-        'Failed to create Q&A draft',
+        'This question already has a response',
       ),
     );
-    // Stays expanded — the user's text is not lost on failure.
+    // Stays expanded — the user's text is not lost on failure, and no
+    // promotion call was ever attempted (the primary act failed first).
     expect(
       screen.getByLabelText(`Manual answer for: ${empty.question_text}`),
     ).toHaveValue('An answer that fails to save.');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   // ---- Section grouping ----

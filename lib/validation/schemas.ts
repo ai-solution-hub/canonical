@@ -986,6 +986,17 @@ export const ResponseDraftStreamBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
 });
 
+/**
+ * POST /api/procurement/[id]/responses/manual — ID-145 {145.44} fix dispatch
+ * (BI-40/BI-22). Creates a `form_responses` row directly from a user-typed
+ * answer for a question that has none yet (the zero-candidate manual-answer
+ * affordance's primary act — deterministic, unlike corpus-only promotion).
+ */
+export const ResponseManualCreateBodySchema = z.object({
+  question_id: z.string().uuid(),
+  response_text: z.string().trim().min(1, 'An answer is required').max(100000),
+});
+
 /** POST /api/procurement/[id]/responses/draft-all */
 export const ResponseDraftAllBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),

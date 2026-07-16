@@ -15,6 +15,8 @@ import {
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { ConfidenceBadge } from '@/components/shared/confidence-badge';
 import { cn } from '@/lib/utils';
 import type { ProcurementQuestion } from '@/types/procurement';
@@ -25,14 +27,18 @@ import type { ProcurementQuestion } from '@/types/procurement';
  * (drafted/approved/matched/empty) shown HONESTLY — no all-or-nothing
  * framing. A zero-candidate question (no usable match — `confidence_posture`
  * is `null`/`no_content`, i.e. no `question_matches` candidate cleared even
- * the minimal similarity bar, {145.17}) surfaces a manual-answer affordance:
- * the user types an answer, which is saved directly as a `manually_authored`
- * `q_a_pairs` row via the existing `/api/q-a-pairs/batch` route (ID-131
- * {131.21}) — closing the BI-22 gap loop (draft the missing answer -> promote
- * to corpus -> re-match) and feeding the BI-24 catalogue. This is
- * deliberately NOT primary drafting/authoring UI (that stays with the
- * secondary drafting stack, {145.45}) — it is a narrow fallback for
- * questions the corpus cannot currently answer at all.
+ * the minimal similarity bar, {145.17}) surfaces a manual-answer affordance
+ * with TWO acts (fix dispatch on the {145.44} Checker FAIL — BI-40's literal
+ * contract): (1) the PRIMARY, deterministic act — save the answer directly
+ * against this question via `POST /api/procurement/[id]/responses/manual`,
+ * so the question leaves the "empty" state immediately, never contingent on
+ * a later re-match clearing `MATCH_THRESHOLDS`; (2) an OPTIONAL, SEPARATE
+ * secondary act — also add the same answer to the knowledge base as a
+ * `manually_authored` `q_a_pairs` row via the existing `/api/q-a-pairs/batch`
+ * route (ID-131 {131.21}), closing the BI-22 gap loop / feeding BI-24
+ * cataloguing. This is deliberately NOT primary drafting/authoring UI (that
+ * stays with the secondary drafting stack, {145.45}) — it is a narrow
+ * fallback for questions the corpus cannot currently answer at all.
  */
 export interface ItemQuestionsPanelProps {
   procurementId: string;
@@ -167,14 +173,18 @@ function groupBySections(questions: ProcurementQuestion[]): GroupedSection[] {
 
 function ManualAnswerAffordance({
   question,
+  procurementId,
   onAnswered,
 }: {
   question: ProcurementQuestion;
+  procurementId: string;
   onAnswered?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [answerText, setAnswerText] = useState('');
+  const [alsoPromote, setAlsoPromote] = useState(false);
   const [saving, setSaving] = useState(false);
+  const promoteCheckboxId = `manual-answer-promote-${question.id}`;
 
   async function handleSave() {
     const trimmed = answerText.trim();
@@ -185,31 +195,65 @@ function ManualAnswerAffordance({
 
     setSaving(true);
     try {
-      const res = await fetch('/api/q-a-pairs/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [
-            {
-              question_text: question.question_text,
-              answer_standard: trimmed,
-            },
-          ],
-        }),
-      });
-
+      // PRIMARY act (deterministic): answer this question directly. The
+      // question leaves the "empty" state as soon as this succeeds -- never
+      // contingent on a later "Find answers" re-match.
+      const res = await fetch(
+        `/api/procurement/${procurementId}/responses/manual`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question_id: question.id,
+            response_text: trimmed,
+          }),
+        },
+      );
       const body = await res.json().catch(() => null);
-
-      if (!res.ok || !body || body.created < 1) {
-        const message =
-          body?.items?.[0]?.error ?? body?.error ?? 'Failed to save answer';
-        throw new Error(message);
+      if (!res.ok || !body?.id) {
+        throw new Error(body?.error ?? 'Failed to save answer');
       }
 
-      toast.success(
-        'Answer added to your knowledge base — run "Find answers" to match it here.',
-      );
+      // SECONDARY act (optional, separate): only when explicitly requested,
+      // also add the same answer to the knowledge base. A failure here never
+      // undoes the primary save -- it is surfaced as its own honest warning.
+      if (alsoPromote) {
+        try {
+          const promoteRes = await fetch('/api/q-a-pairs/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              items: [
+                {
+                  question_text: question.question_text,
+                  answer_standard: trimmed,
+                },
+              ],
+            }),
+          });
+          const promoteBody = await promoteRes.json().catch(() => null);
+          if (!promoteRes.ok || !promoteBody || promoteBody.created < 1) {
+            throw new Error(
+              promoteBody?.items?.[0]?.error ??
+                promoteBody?.error ??
+                'Failed to add to the knowledge base',
+            );
+          }
+          toast.success('Answer saved and added to your knowledge base.');
+        } catch (promoteErr) {
+          toast.success('Answer saved.');
+          toast.error(
+            promoteErr instanceof Error
+              ? promoteErr.message
+              : 'Failed to add to the knowledge base',
+          );
+        }
+      } else {
+        toast.success('Answer saved.');
+      }
+
       setAnswerText('');
+      setAlsoPromote(false);
       setExpanded(false);
       onAnswered?.();
     } catch (err) {
@@ -244,9 +288,23 @@ function ManualAnswerAffordance({
         rows={4}
         value={answerText}
         onChange={(e) => setAnswerText(e.target.value)}
-        placeholder="Type your answer. Saving adds it to your knowledge base so future matching can find it."
+        placeholder="Type your answer. This answers the question directly."
         disabled={saving}
       />
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={promoteCheckboxId}
+          checked={alsoPromote}
+          onCheckedChange={(checked) => setAlsoPromote(checked === true)}
+          disabled={saving}
+        />
+        <Label
+          htmlFor={promoteCheckboxId}
+          className="text-xs font-normal text-muted-foreground"
+        >
+          Also add this answer to your knowledge base
+        </Label>
+      </div>
       <div className="flex gap-2">
         <Button size="sm" onClick={handleSave} disabled={saving}>
           {saving ? (
@@ -254,7 +312,7 @@ function ManualAnswerAffordance({
           ) : (
             <Sparkles className="size-3.5" aria-hidden="true" />
           )}
-          Save to knowledge base
+          Save answer
         </Button>
         <Button
           variant="outline"
@@ -262,6 +320,7 @@ function ManualAnswerAffordance({
           onClick={() => {
             setExpanded(false);
             setAnswerText('');
+            setAlsoPromote(false);
           }}
           disabled={saving}
         >
@@ -280,11 +339,13 @@ function QuestionStateRow({
   question,
   index,
   canEdit,
+  procurementId,
   onAnswered,
 }: {
   question: ProcurementQuestion;
   index: number;
   canEdit: boolean;
+  procurementId: string;
   onAnswered?: () => void;
 }) {
   const state = deriveQuestionState(question);
@@ -316,7 +377,11 @@ function QuestionStateRow({
       </div>
 
       {state === 'empty' && canEdit && (
-        <ManualAnswerAffordance question={question} onAnswered={onAnswered} />
+        <ManualAnswerAffordance
+          question={question}
+          procurementId={procurementId}
+          onAnswered={onAnswered}
+        />
       )}
     </div>
   );
@@ -346,6 +411,7 @@ function NoQuestionsState() {
 // ---------------------------------------------------------------------------
 
 export function ItemQuestionsPanel({
+  procurementId,
   questions,
   canEdit,
   totalQuestions,
@@ -429,6 +495,7 @@ export function ItemQuestionsPanel({
                       question={question}
                       index={indexByQuestionId.get(question.id) ?? 0}
                       canEdit={canEdit}
+                      procurementId={procurementId}
                       onAnswered={onQuestionsChanged}
                     />
                   ))}
