@@ -19,7 +19,6 @@ import { render, screen } from '@testing-library/react';
 
 import { ItemQuestionsPanel } from '@/components/procurement/item-questions-panel';
 import { ItemCoveragePanel } from '@/components/procurement/item-coverage-panel';
-import { ItemGroupingRail } from '@/components/procurement/item-grouping-rail';
 import { ItemFillSlotReview } from '@/components/procurement/item-fill-slot-review';
 import { ItemCitationOverlay } from '@/components/procurement/item-citation-overlay';
 
@@ -53,27 +52,6 @@ describe('item-page child-component stubs', () => {
     );
     expect(screen.getByTestId('item-coverage-panel')).toHaveTextContent(
       '3 of 10',
-    );
-  });
-
-  it('ItemGroupingRail renders the sibling count', () => {
-    render(
-      <ItemGroupingRail
-        engagementGroupId="eg-1"
-        currentFormId="form-1"
-        siblings={[
-          {
-            id: 'form-2',
-            name: 'ITT',
-            form_type: 'itt',
-            workflow_state: 'drafting',
-            reference_number: null,
-          },
-        ]}
-      />,
-    );
-    expect(screen.getByTestId('item-grouping-rail')).toHaveTextContent(
-      '1 related form',
     );
   });
 

@@ -220,7 +220,7 @@ describe('ItemDocumentsTab', () => {
     expect(viewer).toHaveTextContent('sq.docx');
   });
 
-  it('lists an engagement-scoped attachment but marks it not-yet-previewable, and never fetches a preview link for it', async () => {
+  it('previews an engagement-scoped attachment (ID-145 {145.19} folded-in gap fix)', async () => {
     const user = userEvent.setup();
     const engagementAttachment = makeAttachment({
       id: 'att-3',
@@ -240,12 +240,20 @@ describe('ItemDocumentsTab', () => {
       />,
     );
 
-    expect(screen.getByText(/Preview not yet available/)).toBeInTheDocument();
+    // No longer disabled — `tender/download` now resolves engagement-scoped
+    // paths too (server-side verified against this form's own
+    // engagement_group_id).
+    expect(
+      screen.queryByText(/Preview not yet available/),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByText('engagement-cv.pdf'));
-    expect(
-      await screen.findByText(/Preview isn't available for this document yet/),
-    ).toBeInTheDocument();
-    expect(global.fetch).not.toHaveBeenCalled();
+    const viewer = await screen.findByTestId('mock-pdf-viewer');
+    expect(viewer).toHaveTextContent('engagement-cv.pdf');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/procurement/${PROCUREMENT_ID}/tender/download?path=`,
+      ),
+    );
   });
 });

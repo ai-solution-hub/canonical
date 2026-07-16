@@ -192,6 +192,24 @@ vi.mock('@/components/shared/streaming-phase-indicator', () => ({
   ),
 }));
 
+vi.mock('@/components/procurement/streaming-answer-preview', () => ({
+  StreamingAnswerPreview: ({
+    text,
+    isStreaming,
+  }: {
+    text: string;
+    isStreaming: boolean;
+  }) => (
+    <div
+      data-testid="streaming-answer-preview"
+      data-text={text}
+      data-is-streaming={isStreaming}
+    >
+      {text}
+    </div>
+  ),
+}));
+
 vi.mock('@/components/content/content-library-drawer', () => ({
   ContentLibraryDrawer: () => (
     <div data-testid="content-library-drawer">Library</div>
@@ -273,6 +291,7 @@ function makeStreamCoordinationReturn(overrides: Record<string, unknown> = {}) {
     setEditorContent: overrides.setEditorContent ?? vi.fn(),
     stream: overrides.stream ?? {
       phase: 'idle',
+      text: '',
       error: null,
       qualityScore: null,
       cancel: vi.fn(),
@@ -993,6 +1012,42 @@ describe('Session Page Mobile Layout', () => {
       // The session page renders a Separator between the action bar and tools group
       const separators = document.querySelectorAll('[data-slot="separator"]');
       expect(separators.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ========================================================================
+  // §I4 — the streamed answer renders via Streamdown natively (ID-145 {145.19})
+  // ========================================================================
+
+  describe('Streaming answer preview (§I4)', () => {
+    it('shows the streaming answer preview with the live text while a draft is actively streaming', () => {
+      setupDefaults({
+        isStreaming: true,
+        stream: {
+          phase: 'drafting',
+          text: 'Our approach to this contract',
+          error: null,
+          qualityScore: null,
+          cancel: vi.fn(),
+        },
+      });
+      render(<ProcurementSessionPage params={mockParams} />);
+
+      const preview = screen.getByTestId('streaming-answer-preview');
+      expect(preview).toHaveAttribute(
+        'data-text',
+        'Our approach to this contract',
+      );
+      expect(preview).toHaveAttribute('data-is-streaming', 'true');
+    });
+
+    it('does not show the streaming answer preview when idle', () => {
+      setupDefaults({ isStreaming: false });
+      render(<ProcurementSessionPage params={mockParams} />);
+
+      expect(
+        screen.queryByTestId('streaming-answer-preview'),
+      ).not.toBeInTheDocument();
     });
   });
 });

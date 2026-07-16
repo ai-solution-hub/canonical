@@ -49,9 +49,12 @@ interface DocumentEntry {
   dateLabel: string | null;
   /** The path passed to `tender/download?path=` to resolve a preview src. */
   storagePath: string;
-  /** Engagement-scoped attachments live outside this form's own storage
-   * prefix — `tender/download`'s path-prefix guard cannot resolve them yet
-   * (OOS — see the PR notes), so they list but do not preview. */
+  /** Whether `tender/download` can resolve a preview src for this entry.
+   * ID-145 {145.19} folded-in gap (DR-068 §A6): `tender/download` now
+   * accepts BOTH this form's own `${procurementId}/` prefix AND an
+   * `engagement/<groupId>/` prefix for the group this form itself belongs
+   * to, so an engagement-scoped attachment previews too, not just a
+   * form-scoped one. */
   previewable: boolean;
 }
 
@@ -78,9 +81,14 @@ function attachmentToEntry(
     size: attachment.file_size,
     dateLabel: attachment.created_at,
     storagePath: attachment.storage_path,
-    // Only a form-scoped attachment's storage_path starts with this form's
-    // own `${id}/` prefix — the prefix `tender/download` requires.
-    previewable: attachment.storage_path.startsWith(`${procurementId}/`),
+    // A form-scoped attachment's storage_path starts with this form's own
+    // `${id}/` prefix; an engagement-scoped one starts with `engagement/`
+    // (ID-145 {145.19} folded-in gap — `tender/download` now resolves both,
+    // the latter verified server-side against this form's own
+    // `engagement_group_id`).
+    previewable:
+      attachment.storage_path.startsWith(`${procurementId}/`) ||
+      attachment.storage_path.startsWith('engagement/'),
   };
 }
 
