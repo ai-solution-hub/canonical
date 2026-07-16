@@ -3354,11 +3354,9 @@ export type Database = {
           action_type: string | null
           id: string | null
           note: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           owner_kind: string | null
           performed_at: string | null
           performed_by: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id: string | null
           source_document_id: string | null
         }
@@ -3366,11 +3364,9 @@ export type Database = {
           action_type?: string | null
           id?: string | null
           note?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           owner_kind?: string | null
           performed_at?: string | null
           performed_by?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id?: string | null
           source_document_id?: string | null
         }
@@ -3378,11 +3374,9 @@ export type Database = {
           action_type?: string | null
           id?: string | null
           note?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           owner_kind?: string | null
           performed_at?: string | null
           performed_by?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id?: string | null
           source_document_id?: string | null
         }
@@ -7614,39 +7608,30 @@ export type Database = {
           action_type: string
           id: string
           note: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           owner_kind: string
           performed_at: string
           performed_by: string
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id: string | null
-          // INTERIM (ID-152): relaxed to nullable pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           source_document_id: string | null
         }
         Insert: {
           action_type: string
           id?: string
           note?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
-          owner_kind: string
+          owner_kind?: string
           performed_at?: string
           performed_by: string
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id?: string | null
-          // INTERIM (ID-152): relaxed to nullable pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           source_document_id?: string | null
         }
         Update: {
           action_type?: string
           id?: string
           note?: string | null
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           owner_kind?: string
           performed_at?: string
           performed_by?: string
-          // INTERIM (ID-152): pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           q_a_pair_id?: string | null
-          // INTERIM (ID-152): relaxed to nullable pending migration 20260716120000_id152_verification_history_polymorphic.sql push + regen
           source_document_id?: string | null
         }
         Relationships: [
