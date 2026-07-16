@@ -894,9 +894,15 @@ export const ProcurementUpdateBodySchema = z.object({
  * copy (`procurementFormTypeKeys` in `components/procurement/form-type-picker`)
  * for the same compile-time-tuple reason; this server-side copy avoids pulling
  * the 'use client' picker module into API routes.
+ *
+ * No 'bid' entry (ID-145 BI-8, {145.38}): 'Bid' is retired as a first-class
+ * form-type — it no longer appears in `api.form_types`, mirroring the
+ * already-'bid'-free client-side copy in `form-type-picker.tsx`
+ * ({145.27}+{145.28}). A regression test in
+ * `__tests__/validation/procurement-schemas.test.ts` guards against
+ * reintroduction.
  */
 export const PROCUREMENT_FORM_TYPE_KEYS = [
-  'bid',
   'checklist',
   'itt',
   'psq',
