@@ -1,32 +1,25 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use } from 'react';
 import { notFound } from 'next/navigation';
 import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   ArrowRight,
   Award,
-  Building2,
-  Calendar,
   ClipboardList,
   Download,
   Eye,
-  Hash,
   FileText,
   Upload,
-  RefreshCw,
   Trash2,
   Loader2,
   PenLine,
   MoreHorizontal,
-  AlertCircle,
   Sheet,
   Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,42 +40,57 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
-import {
-  ProcurementWorkflowBadge,
-  ProcurementWorkflowStepper,
-} from '@/components/procurement/procurement-workflow-indicator';
+import { ItemPageFrame } from '@/components/procurement/item-page-frame';
+import { ItemDocumentsTab } from '@/components/procurement/item-documents-tab';
+import { ItemWorkflowPanel } from '@/components/procurement/item-workflow-panel';
+import { ItemInlineStates } from '@/components/procurement/item-inline-states';
+import { ItemQuestionsPanel } from '@/components/procurement/item-questions-panel';
+import { ItemCoveragePanel } from '@/components/procurement/item-coverage-panel';
+import { ItemGroupingRail } from '@/components/procurement/item-grouping-rail';
+import { ItemFillSlotReview } from '@/components/procurement/item-fill-slot-review';
+import { ItemCitationOverlay } from '@/components/procurement/item-citation-overlay';
+import { ProcurementWorkflowBadge } from '@/components/procurement/procurement-workflow-indicator';
 import { ProcurementExportMenu } from '@/components/procurement/procurement-export-menu';
-import {
-  ReadinessChecklist,
-  ReadinessBadge,
-} from '@/components/procurement/readiness-checklist';
+import { ReadinessBadge } from '@/components/procurement/readiness-checklist';
 import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 import { ProcurementOutcomeDialog } from '@/components/procurement/procurement-outcome';
 import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
-import { ConfidenceDot } from '@/components/shared/confidence-badge';
-import { QuestionList } from '@/components/procurement/question-list';
 import { QuestionReview } from '@/components/procurement/question-review';
-import { TenderUpload } from '@/components/procurement/tender-upload';
 import { TenderMetadataPrompt } from '@/components/procurement/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useFormActions } from '@/hooks/procurement/use-procurement-actions';
 import { useProcurementExport } from '@/hooks/procurement/use-procurement-export';
 import { useProcurementReadiness } from '@/hooks/procurement/use-procurement-readiness';
+import type { ReadinessData } from '@/hooks/procurement/use-procurement-readiness';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/domains/procurement/procurement-helpers';
+import {
+  deriveEngagementGroupId,
+  deriveEngagementSiblings,
+  deriveFormSourceAttachments,
+  deriveReferenceEvidenceAttachments,
+} from '@/lib/domains/procurement/procurement-detail-shape';
 import { PROCUREMENT_WORKFLOW_LABELS } from '@/lib/domains/procurement/procurement-workflow';
 import { cn } from '@/lib/utils';
 import type {
   Procurement,
   ProcurementMetadata,
   ProcurementQuestionStats,
-  TenderDocument,
-  ConfidencePosture,
   ProcurementWorkflowState,
-  ExtractionResult,
 } from '@/types/procurement';
 
+// ID-145 {145.42} (145W-2, PLAN.md Wave 3) — the §A hybrid frame (DR-068):
+// a custom domain-shaped frame (header + optional engagement rail +
+// Documents tab), NOT Extend's Finder. This subtask ALSO establishes the
+// child-component structure — `ItemWorkflowPanel`, `ItemInlineStates`,
+// `ItemQuestionsPanel`, `ItemCoveragePanel`, `ItemGroupingRail`,
+// `ItemFillSlotReview`, `ItemCitationOverlay` — that {145.43}/{145.44}/
+// {145.45}/{145.47} fill in parallel WITHOUT re-touching this file (each is
+// currently a minimal placeholder — see each component's own file header).
+// The action toolbar (transitions/export/delete/outcome/KB-review), the
+// question-review banner + cost-estimate dialog, and the Overview tab's
+// NextActionCard/Details/tender-documents-prompt are unchanged page-level
+// chrome, not claimed by any of those five subtasks.
 export default function ProcurementDetailPage({
   params,
 }: {
@@ -145,7 +153,7 @@ export default function ProcurementDetailPage({
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <ProcurementDetailSkeleton />
+        <ItemInlineStates variant="loading" />
       </div>
     );
   }
@@ -161,95 +169,58 @@ export default function ProcurementDetailPage({
   if (!bid || !procurementStatus) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <Link
-          href="/procurement"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to Procurement
-        </Link>
-        <div
-          className="mt-8 flex flex-col items-center justify-center py-20 text-center"
-          role="alert"
-        >
-          <AlertCircle
-            className="size-10 text-muted-foreground/50"
-            aria-hidden="true"
-          />
-          <h2 className="mt-4 text-lg font-semibold text-foreground">
-            Procurement not found
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This bid may have been deleted or you may not have access.
-          </p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link href="/procurement">Return to Procurement</Link>
-          </Button>
-        </div>
+        <ItemInlineStates variant="error" />
       </div>
     );
   }
 
+  // ID-145 {145.42} — TECH §6 group-A GET ADD: §A3 engagement gate + §A5
+  // role-split attachments, folded into the SAME `bid` (detail GET) response.
+  const engagementGroupId = deriveEngagementGroupId(bid);
+  const engagementSiblings = deriveEngagementSiblings(bid);
+  const formSourceAttachments = deriveFormSourceAttachments(bid);
+  const referenceEvidenceAttachments = deriveReferenceEvidenceAttachments(bid);
+
+  const deadlineProximity = metadata?.deadline
+    ? getDeadlineProximity(metadata.deadline)
+    : null;
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      {/* Back link */}
-      <Link
-        href="/procurement"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        Back to Procurement
-      </Link>
-
-      {/* Header */}
-      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-foreground">
-              {bid.name}
-            </h1>
-            <ProcurementWorkflowBadge state={procurementStatus} />
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            {metadata?.buyer && (
-              <span className="inline-flex items-center gap-1.5">
-                <Building2 className="size-3.5" aria-hidden="true" />
-                {metadata.buyer}
-              </span>
+    <ItemPageFrame
+      backHref="/procurement"
+      name={bid.name}
+      stateBadge={<ProcurementWorkflowBadge state={procurementStatus} />}
+      issuingOrganisation={metadata?.buyer || null}
+      deadlineLabel={
+        metadata?.deadline ? formatDateUK(metadata.deadline) : null
+      }
+      deadlineProximityBadge={
+        deadlineProximity && (
+          <span
+            className={cn(
+              'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+              deadlineProximity.isOverdue
+                ? 'bg-form-overdue-bg text-form-overdue border border-form-overdue-border'
+                : 'bg-status-warning/10 text-status-warning',
             )}
-            {metadata?.deadline && (
-              <span className="inline-flex items-center gap-1.5">
-                <Calendar className="size-3.5" aria-hidden="true" />
-                {formatDateUK(metadata.deadline)}
-                {(() => {
-                  const proximity = getDeadlineProximity(metadata.deadline);
-                  if (!proximity) return null;
-                  return (
-                    <span
-                      className={cn(
-                        'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                        proximity.isOverdue
-                          ? 'bg-form-overdue-bg text-form-overdue border border-form-overdue-border'
-                          : 'bg-status-warning/10 text-status-warning',
-                      )}
-                    >
-                      {proximity.label}
-                    </span>
-                  );
-                })()}
-              </span>
-            )}
-            {metadata?.reference_number && (
-              <span className="inline-flex items-center gap-1.5">
-                <Hash className="size-3.5" aria-hidden="true" />
-                {metadata.reference_number}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        {canEdit && (
+          >
+            {deadlineProximity.label}
+          </span>
+        )
+      }
+      referenceNumber={metadata?.reference_number ?? null}
+      estimatedValue={metadata?.estimated_value ?? null}
+      groupingRail={
+        engagementGroupId ? (
+          <ItemGroupingRail
+            engagementGroupId={engagementGroupId}
+            currentFormId={id}
+            siblings={engagementSiblings}
+          />
+        ) : undefined
+      }
+      actions={
+        canEdit && (
           <>
             {/* Desktop actions — hidden on mobile */}
             <div className="hidden items-center gap-2 sm:flex">
@@ -346,9 +317,9 @@ export default function ProcurementDetailPage({
               />
             </div>
           </>
-        )}
-      </div>
-
+        )
+      }
+    >
       {/* Extracted metadata prompt */}
       {extractedMetadata && (
         <div className="mt-4 rounded-lg border border-[var(--highlight-border)] bg-[var(--highlight-bg)] p-4">
@@ -360,9 +331,18 @@ export default function ProcurementDetailPage({
         </div>
       )}
 
-      {/* State stepper */}
+      {/* Workflow panel (§G stepper host — {145.43} fills) */}
       <div className="mt-4">
-        <ProcurementWorkflowStepper state={procurementStatus} />
+        <ItemWorkflowPanel
+          workflowState={procurementStatus}
+          deadline={metadata?.deadline ?? null}
+          submissionDate={metadata?.submission_date ?? null}
+          issuingOrganisation={metadata?.buyer ?? null}
+          outcome={metadata?.outcome ?? null}
+          availableTransitions={regularTransitions}
+          onTransition={handleStatusTransition}
+          transitioning={transitioning}
+        />
       </div>
 
       {/* Tabs */}
@@ -422,17 +402,17 @@ export default function ProcurementDetailPage({
             procurementId={id}
             procurementStatus={procurementStatus}
             stats={stats}
-            progressPercent={progressPercent}
-            completedCount={completedCount}
             totalQuestions={totalQuestions}
+            completedCount={completedCount}
+            progressPercent={progressPercent}
             canEdit={canEdit}
-            onSwitchTab={setActiveTab}
-            onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
-            onShowKBReview={() => setShowKBReview(true)}
             readiness={readiness}
             readinessLoading={readinessLoading}
             readinessError={readinessError}
             onRefreshReadiness={refreshReadiness}
+            onSwitchTab={setActiveTab}
+            onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
+            onShowKBReview={() => setShowKBReview(true)}
           />
         )}
         {activeTab === 'questions' && (
@@ -447,62 +427,40 @@ export default function ProcurementDetailPage({
                 />
               </div>
             )}
-            {/* Bulk actions for question list tab */}
-            {canEdit && totalQuestions > 0 && (
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                {stats && stats.unmatched_count > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={handleMatchQuestions}
-                  >
-                    <RefreshCw className="size-3.5" aria-hidden="true" />
-                    Find answers for {stats.unmatched_count} questions
-                  </Button>
-                )}
-                {['drafting', 'in_review'].includes(procurementStatus) && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={draftingAll}
-                    onClick={() => setShowCostEstimate(true)}
-                  >
-                    {draftingAll ? (
-                      <Loader2
-                        className="size-3.5 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <PenLine className="size-3.5" aria-hidden="true" />
-                    )}
-                    {draftingAll ? 'Drafting...' : 'Draft All'}
-                  </Button>
-                )}
-                <CostEstimateDialog
-                  open={showCostEstimate}
-                  onOpenChange={setShowCostEstimate}
-                  procurementId={id}
-                  onProceed={handleDraftAll}
-                />
-              </div>
-            )}
-            <QuestionList
+            <ItemQuestionsPanel
               procurementId={id}
               questions={questions}
               canEdit={canEdit}
+              totalQuestions={totalQuestions}
+              unmatchedCount={stats?.unmatched_count}
+              onMatchQuestions={handleMatchQuestions}
+              onDraftAll={handleDraftAll}
+              draftingAll={draftingAll}
               onQuestionsChanged={() => {
                 fetchQuestions();
                 fetchProcurement();
               }}
             />
+            <CostEstimateDialog
+              open={showCostEstimate}
+              onOpenChange={setShowCostEstimate}
+              procurementId={id}
+              onProceed={handleDraftAll}
+            />
+            {/* {145.47} — fill-slot review + citation overlay pair with the
+                question/drafting surfaces (both PDF-only, DR-064). */}
+            <div className="mt-4 space-y-4">
+              <ItemFillSlotReview formId={id} />
+              <ItemCitationOverlay formId={id} />
+            </div>
           </>
         )}
         {activeTab === 'documents' && (
-          <DocumentsTab
+          <ItemDocumentsTab
             procurementId={id}
             tenderDocuments={bid.tender_documents ?? []}
+            formSourceAttachments={formSourceAttachments}
+            referenceEvidenceAttachments={referenceEvidenceAttachments}
             canEdit={canEdit}
             onUploadComplete={handleUploadComplete}
           />
@@ -549,7 +507,7 @@ export default function ProcurementDetailPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ItemPageFrame>
   );
 }
 
@@ -704,61 +662,38 @@ function OverviewTab({
   procurementId,
   procurementStatus,
   stats,
-  progressPercent,
-  completedCount,
   totalQuestions,
+  completedCount,
+  progressPercent,
   canEdit,
-  onSwitchTab,
-  onShowOutcomeDialog,
-  onShowKBReview,
   readiness,
   readinessLoading,
   readinessError,
   onRefreshReadiness,
+  onSwitchTab,
+  onShowOutcomeDialog,
+  onShowKBReview,
 }: {
   bid: Procurement;
   metadata: ProcurementMetadata | null;
   procurementId: string;
   procurementStatus: ProcurementWorkflowState;
   stats: ProcurementQuestionStats | null;
-  progressPercent: number;
-  completedCount: number;
   totalQuestions: number;
+  completedCount: number;
+  progressPercent: number;
   canEdit: boolean;
-  onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
-  onShowOutcomeDialog: () => void;
-  onShowKBReview: () => void;
-  readiness:
-    | import('@/hooks/procurement/use-procurement-readiness').ReadinessData
-    | null;
+  readiness: ReadinessData | null;
   readinessLoading: boolean;
   readinessError: string | null;
   onRefreshReadiness: () => void;
+  onSwitchTab: (tab: 'overview' | 'questions' | 'documents') => void;
+  onShowOutcomeDialog: () => void;
+  onShowKBReview: () => void;
 }) {
   // ID-145 {145.18} re-point: `metadata` is derived directly off the flat
   // form_instances response by the hook (BI-1 — no `domain_metadata` read)
-  // and passed in as a prop. It may be null for a not-yet-loaded item.
-  const postureBreakdown = stats
-    ? [
-        {
-          posture: 'strong_match' as ConfidencePosture,
-          count: stats.strong_match_count,
-        },
-        {
-          posture: 'partial_match' as ConfidencePosture,
-          count: stats.partial_match_count,
-        },
-        {
-          posture: 'needs_sme' as ConfidencePosture,
-          count: stats.needs_sme_count,
-        },
-        {
-          posture: 'no_content' as ConfidencePosture,
-          count: stats.no_content_count,
-        },
-      ].filter((p) => p.count > 0)
-    : [];
-
+  // and passed in as a prop.
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Next action prompt — full width */}
@@ -770,140 +705,81 @@ function OverviewTab({
         onShowKBReview={onShowKBReview}
       />
 
-      {/* Progress */}
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="text-sm font-medium text-foreground">Progress</h2>
-        {totalQuestions > 0 ? (
-          <div className="mt-3 space-y-2">
-            <Progress value={progressPercent} className="h-2" />
-            <p className="text-sm text-muted-foreground">
-              {completedCount} of {totalQuestions} questions drafted (
-              {progressPercent}%)
-            </p>
-          </div>
+      {/* Coverage (progress/confidence/readiness) — {145.44} fills */}
+      <div className="lg:col-span-2">
+        <ItemCoveragePanel
+          procurementId={procurementId}
+          stats={stats}
+          totalQuestions={totalQuestions}
+          completedCount={completedCount}
+          progressPercent={progressPercent}
+          canEdit={canEdit}
+          readiness={readiness}
+          readinessLoading={readinessLoading}
+          readinessError={readinessError}
+          onRefreshReadiness={onRefreshReadiness}
+        />
+      </div>
+
+      {/* Procurement details — full width now the confidence card moved into
+          ItemCoveragePanel (avoids grid asymmetry). */}
+      <div className="rounded-lg border bg-card p-4 lg:col-span-2">
+        <h2 className="text-sm font-medium text-foreground">Details</h2>
+        {metadata?.estimated_value ||
+        metadata?.reference_number ||
+        metadata?.deadline ||
+        bid.description ||
+        metadata?.notes ? (
+          <dl className="mt-3 space-y-2 text-sm">
+            {metadata?.estimated_value && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Estimated Value</dt>
+                <dd className="font-medium">{metadata.estimated_value}</dd>
+              </div>
+            )}
+            {metadata?.reference_number && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Reference</dt>
+                <dd className="font-medium">{metadata.reference_number}</dd>
+              </div>
+            )}
+            {metadata?.deadline && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Deadline</dt>
+                <dd className="font-medium">
+                  {formatDateUK(metadata.deadline)}
+                </dd>
+              </div>
+            )}
+            {bid.description && (
+              <div>
+                <dt className="text-muted-foreground">Description</dt>
+                <dd className="mt-1 text-foreground">{bid.description}</dd>
+              </div>
+            )}
+            {metadata?.notes && (
+              <div>
+                <dt className="text-muted-foreground">Notes</dt>
+                <dd className="mt-1 text-foreground">{metadata.notes}</dd>
+              </div>
+            )}
+          </dl>
         ) : (
           <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
-            <Upload
+            <ClipboardList
               className="size-6 text-muted-foreground/50"
               aria-hidden="true"
             />
             <p className="text-sm text-muted-foreground">
-              No questions extracted yet.
+              No details added yet.
             </p>
             <p className="text-xs text-muted-foreground/70">
-              Questions will be automatically extracted from your tender
-              document.
+              Add bid details like deadline, estimated value, and reference
+              number to track this opportunity.
             </p>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-1 gap-1.5"
-                onClick={() => onSwitchTab('documents')}
-              >
-                <Upload className="size-3.5" aria-hidden="true" />
-                Upload Document
-              </Button>
-            )}
           </div>
         )}
       </div>
-
-      {/* Confidence breakdown */}
-      {postureBreakdown.length > 0 && (
-        <div className="rounded-lg border bg-card p-4">
-          <h2 className="text-sm font-medium text-foreground">
-            Confidence Breakdown
-          </h2>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-            {postureBreakdown.map(({ posture, count }) => (
-              <ConfidenceDot key={posture} posture={posture} count={count} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Submission readiness — full width */}
-      {totalQuestions > 0 && canEdit && (
-        <div className="lg:col-span-2">
-          <ReadinessChecklist
-            readiness={readiness}
-            isLoading={readinessLoading}
-            error={readinessError}
-            onRefresh={onRefreshReadiness}
-          />
-        </div>
-      )}
-
-      {/* Procurement details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
-      {(() => {
-        const hasDetails =
-          metadata?.estimated_value ||
-          metadata?.reference_number ||
-          metadata?.deadline ||
-          bid.description ||
-          metadata?.notes;
-        return (
-          <div
-            className={cn(
-              'rounded-lg border bg-card p-4',
-              postureBreakdown.length === 0 && 'lg:col-span-2',
-            )}
-          >
-            <h2 className="text-sm font-medium text-foreground">Details</h2>
-            {hasDetails ? (
-              <dl className="mt-3 space-y-2 text-sm">
-                {metadata?.estimated_value && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Estimated Value</dt>
-                    <dd className="font-medium">{metadata.estimated_value}</dd>
-                  </div>
-                )}
-                {metadata?.reference_number && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Reference</dt>
-                    <dd className="font-medium">{metadata.reference_number}</dd>
-                  </div>
-                )}
-                {metadata?.deadline && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Deadline</dt>
-                    <dd className="font-medium">
-                      {formatDateUK(metadata.deadline)}
-                    </dd>
-                  </div>
-                )}
-                {bid.description && (
-                  <div>
-                    <dt className="text-muted-foreground">Description</dt>
-                    <dd className="mt-1 text-foreground">{bid.description}</dd>
-                  </div>
-                )}
-                {metadata?.notes && (
-                  <div>
-                    <dt className="text-muted-foreground">Notes</dt>
-                    <dd className="mt-1 text-foreground">{metadata.notes}</dd>
-                  </div>
-                )}
-              </dl>
-            ) : (
-              <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
-                <ClipboardList
-                  className="size-6 text-muted-foreground/50"
-                  aria-hidden="true"
-                />
-                <p className="text-sm text-muted-foreground">
-                  No details added yet.
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Add bid details like deadline, estimated value, and reference
-                  number to track this opportunity.
-                </p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Tender documents — upload affordance only (docs tab covers uploaded files) */}
       {(bid.tender_documents?.length ?? 0) === 0 && (
@@ -1067,136 +943,6 @@ function NextActionCard({
             </Button>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function DocumentsTab({
-  procurementId,
-  tenderDocuments,
-  canEdit,
-  onUploadComplete,
-}: {
-  procurementId: string;
-  tenderDocuments: TenderDocument[];
-  canEdit: boolean;
-  onUploadComplete: (result?: ExtractionResult) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      {canEdit && (
-        <TenderUpload
-          procurementId={procurementId}
-          onUploadComplete={onUploadComplete}
-        />
-      )}
-
-      {tenderDocuments.length > 0 ? (
-        <div className="rounded-lg border">
-          <div className="p-4">
-            <h2 className="text-sm font-medium text-foreground">
-              Uploaded Documents ({tenderDocuments.length})
-            </h2>
-          </div>
-          <div className="divide-y">
-            {tenderDocuments.map((doc) => (
-              <div key={doc.path} className="flex items-center gap-3 px-4 py-3">
-                <FileText
-                  className="size-5 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{doc.filename}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {Math.round(doc.size / 1024)} KB
-                    {doc.uploaded_at &&
-                      ` · Uploaded ${formatDateUK(doc.uploaded_at)}`}
-                  </p>
-                </div>
-                <TenderDownloadLink procurementId={procurementId} doc={doc} />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
-          <Upload
-            className="size-8 text-muted-foreground/50"
-            aria-hidden="true"
-          />
-          <p className="mt-2 text-sm text-muted-foreground">
-            No tender documents uploaded yet.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TenderDownloadLink({
-  procurementId,
-  doc,
-}: {
-  procurementId: string;
-  doc: TenderDocument;
-}) {
-  const [downloading, setDownloading] = useState(false);
-
-  async function handleDownload() {
-    setDownloading(true);
-    try {
-      const res = await fetch(
-        `/api/procurement/${procurementId}/tender/download?path=${encodeURIComponent(doc.path)}`,
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? 'Failed to get download link');
-      }
-      const { download_url } = await res.json();
-      // Open signed URL in new tab to trigger browser download
-      window.open(download_url, '_blank');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Download failed';
-      toast.error(msg);
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <button
-      onClick={handleDownload}
-      disabled={downloading}
-      className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
-      aria-label={`Download ${doc.filename}`}
-    >
-      {downloading ? (
-        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-      ) : (
-        <Download className="size-3.5" aria-hidden="true" />
-      )}
-      Download
-    </button>
-  );
-}
-
-function ProcurementDetailSkeleton() {
-  return (
-    <div className="animate-pulse">
-      <div className="h-4 w-24 rounded bg-muted" />
-      <div className="mt-4 flex items-center gap-3">
-        <div className="h-6 w-64 rounded bg-muted" />
-        <div className="h-6 w-20 rounded-full bg-muted" />
-      </div>
-      <div className="mt-3 flex gap-4">
-        <div className="h-4 w-32 rounded bg-muted" />
-        <div className="h-4 w-28 rounded bg-muted" />
-      </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-32 rounded-lg border bg-card" />
-        ))}
       </div>
     </div>
   );

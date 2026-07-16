@@ -3,13 +3,18 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check } from 'lucide-react';
-import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { tryQuery } from '@/lib/supabase/safe';
 import { queryKeys } from '@/lib/query/query-keys';
+
+// ID-145 {145.42} (frame-rebuild orphan sweep): `procurementFormTypeKeys` /
+// `procurementFormTypeEnum` / `ProcurementFormType` were a compile-time
+// mirror of the CV form-type list with zero live consumers (knip-confirmed —
+// no request-body Zod schema ever imported the enum). Retired outright, not
+// just de-exported, since nothing in this file used them either.
 
 /**
  * `form_type` picker — net-new IA (ID-130 {130.12}, PRODUCT B-16 / TECH T-B16).
@@ -30,32 +35,8 @@ import { queryKeys } from '@/lib/query/query-keys';
  * confirming (confirm-first; never silent-assign).
  */
 
-/**
- * Closed list of procurement-applicable `form_type` keys (TECH T-B12, post AD-4
- * `pqq`->`psq` rename). The picker's *option list* is fetched at runtime from
- * `api.form_types` (below) so the controlled vocabulary stays the single source
- * of truth — a future CV add/remove needs no code change. This enum exists ONLY
- * as the minimal compile-time tuple for request-body validation where a Zod
- * schema needs the closed set; it is NOT a second hand-maintained option list.
- *
- * No 'bid' entry (ID-145 BI-8/BI-12, {145.27}+{145.28}): 'Bid' is retired as a
- * first-class creation label — it no longer appears in `api.form_types`, so it
- * is dropped from this compile-time mirror too.
- */
-export const procurementFormTypeKeys = [
-  'checklist',
-  'itt',
-  'psq',
-  'questionnaire',
-  'rfp',
-  'tender',
-] as const;
-
-export const procurementFormTypeEnum = z.enum(procurementFormTypeKeys);
-export type ProcurementFormType = z.infer<typeof procurementFormTypeEnum>;
-
 /** Option projected from `api.form_types` (the CV single source of truth). */
-export interface FormTypeOption {
+interface FormTypeOption {
   key: string;
   label: string;
 }
@@ -84,8 +65,13 @@ async function fetchProcurementFormTypes(): Promise<FormTypeOption[]> {
     .map((row) => ({ key: row.key, label: row.label }));
 }
 
-/** TanStack Query hook for the CV-driven procurement form_type option list. */
-export function useProcurementFormTypes() {
+/**
+ * TanStack Query hook for the CV-driven procurement form_type option list.
+ * Module-private — only `FormTypePicker` (below) consumes it; no other
+ * module imports it (knip-confirmed, ID-145 {145.42} orphan sweep), so it
+ * is not exported.
+ */
+function useProcurementFormTypes() {
   return useQuery({
     queryKey: queryKeys.procurement.formTypes.list,
     queryFn: fetchProcurementFormTypes,

@@ -147,9 +147,6 @@ vi.mock('@/components/procurement/procurement-workflow-indicator', () => ({
   ProcurementWorkflowBadge: ({ state }: { state: string }) => (
     <span data-testid="bid-state-badge">{state}</span>
   ),
-  ProcurementWorkflowStepper: ({ state }: { state: string }) => (
-    <div data-testid="bid-state-stepper">{state}</div>
-  ),
 }));
 
 vi.mock('@/components/procurement/procurement-export-menu', () => ({
@@ -169,16 +166,6 @@ vi.mock('@/components/procurement/procurement-outcome', () => ({
 vi.mock('@/components/procurement/kb-integration-review', () => ({
   KBIntegrationReview: ({ open }: { open: boolean }) =>
     open ? <div data-testid="kb-integration-review">KB Review</div> : null,
-}));
-
-vi.mock('@/components/shared/confidence-badge', () => ({
-  ConfidenceDot: ({ posture, count }: { posture: string; count: number }) => (
-    <span data-testid={`confidence-dot-${posture}`}>{count}</span>
-  ),
-}));
-
-vi.mock('@/components/procurement/question-list', () => ({
-  QuestionList: () => <div data-testid="question-list">QuestionList</div>,
 }));
 
 vi.mock('@/components/procurement/question-review', () => ({
@@ -361,14 +348,12 @@ describe('ProcurementDetailPage', () => {
 
   // ---- Loading and null states ----
 
-  it('renders skeleton when loading', () => {
+  it('renders a loading state (ItemInlineStates, {145.42}) while loading', () => {
     mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({ loading: true }),
     );
-    const { container } = renderWithQuery(
-      <ProcurementDetailPage params={mockParams} />,
-    );
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
+    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('shows not-found state when bid is null', () => {
@@ -561,35 +546,41 @@ describe('ProcurementDetailPage', () => {
 
   // ---- Overview tab content ----
 
-  it('shows progress heading in overview tab', () => {
+  // ID-145 {145.42}: the Progress / Confidence Breakdown / Submission
+  // Readiness cards moved into `ItemCoveragePanel` (a minimal placeholder
+  // scaffolded here — {145.44} fills it with the real progress bar +
+  // confidence breakdown + readiness checklist). page.tsx's own
+  // responsibility is just mounting it correctly on the Overview tab.
+  it('mounts ItemCoveragePanel on the overview tab with the completion counts ({145.44} fills the real progress/confidence UI)', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(screen.getByText('Progress')).toBeInTheDocument();
+    expect(screen.getByTestId('item-coverage-panel')).toHaveTextContent(
+      '5 of 10',
+    );
   });
 
-  it('shows progress bar with completion text', () => {
-    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.getByText('5 of 10 questions drafted (50%)'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows upload prompt when zero questions', () => {
+  it('mounts ItemCoveragePanel even at zero questions without crashing', () => {
     mockUseFormActions.mockReturnValue(
-      makeDefaultHookReturn({ totalQuestions: 0 }),
+      makeDefaultHookReturn({ totalQuestions: 0, completedCount: 0 }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(screen.getByText(/No questions extracted yet/)).toBeInTheDocument();
+    expect(screen.getByTestId('item-coverage-panel')).toBeInTheDocument();
   });
 
   it('shows bid details section', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     expect(screen.getByText('Details')).toBeInTheDocument();
-    expect(screen.getByText('£50,000')).toBeInTheDocument();
+    // §A1: estimated_value now ALSO appears in the item-page-frame header —
+    // both occurrences are expected (header + Overview Details card).
+    expect(screen.getAllByText('£50,000').length).toBeGreaterThanOrEqual(1);
   });
 
   // ---- Questions tab ----
 
-  it('shows bulk actions in questions tab for editors with questions', () => {
+  // ID-145 {145.42}: the bulk-action buttons (Find answers / Draft All) and
+  // QuestionList moved into `ItemQuestionsPanel` (a minimal placeholder
+  // scaffolded here — {145.44} fills the real honest per-question states +
+  // bulk actions). page.tsx's own responsibility is mounting it correctly.
+  it('mounts ItemQuestionsPanel on the questions tab with the question count ({145.44} fills the real bulk actions)', () => {
     mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({
         activeTab: 'questions',
@@ -599,23 +590,7 @@ describe('ProcurementDetailPage', () => {
       }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.getByText(/Find answers for 3 questions/),
-    ).toBeInTheDocument();
-  });
-
-  it('shows Draft All button when procurementStatus is drafting', () => {
-    mockUseFormActions.mockReturnValue(
-      makeDefaultHookReturn({
-        activeTab: 'questions',
-        totalQuestions: 10,
-        procurementStatus: 'drafting',
-      }),
-    );
-    renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.getByRole('button', { name: /Draft All/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('item-questions-panel')).toHaveTextContent('10');
   });
 
   // ---- Documents tab ----
@@ -716,9 +691,15 @@ describe('ProcurementDetailPage', () => {
 
   // ---- State stepper ----
 
-  it('renders the ProcurementWorkflowStepper', () => {
+  // ID-145 {145.42}: the standalone `ProcurementWorkflowStepper` block moved
+  // into `ItemWorkflowPanel` (a minimal placeholder scaffolded here —
+  // {145.43} wires the real Warm Meridian stepper, 147-L). page.tsx's own
+  // responsibility is mounting it with the current workflow state.
+  it('mounts ItemWorkflowPanel with the current workflow state ({145.43} wires the real stepper)', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(screen.getByTestId('bid-state-stepper')).toBeInTheDocument();
+    expect(screen.getByTestId('item-workflow-panel')).toHaveTextContent(
+      'drafting',
+    );
   });
 
   // ---- Open Session link ----
@@ -882,7 +863,11 @@ describe('ProcurementDetailPage', () => {
       expect(screen.getByText('Start answering questions')).toBeInTheDocument();
     });
 
-    it('still renders Submission Readiness on Overview', () => {
+    // ID-145 {145.42}: Submission Readiness moved into `ItemCoveragePanel`
+    // (a minimal placeholder scaffolded here — {145.44} restores the real
+    // `ReadinessChecklist` render). Confirms page.tsx still mounts the
+    // coverage panel on Overview, not that the checklist itself renders yet.
+    it('still mounts the coverage surface on Overview ({145.44} restores the real Submission Readiness UI)', () => {
       mockUseFormActions.mockReturnValue(
         makeDefaultHookReturn({
           activeTab: 'overview',
@@ -891,7 +876,7 @@ describe('ProcurementDetailPage', () => {
         }),
       );
       renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-      expect(screen.getByTestId('readiness-checklist')).toBeInTheDocument();
+      expect(screen.getByTestId('item-coverage-panel')).toBeInTheDocument();
     });
   });
 });

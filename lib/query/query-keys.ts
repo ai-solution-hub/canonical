@@ -399,11 +399,14 @@ export const queryKeys = {
     /**
      * Labelled reference/evidence attachment store (ID-147 {147.7}/{147.8},
      * TECH §2 / PRODUCT §A6). The READ side is folded into
-     * `procurement.detail(id)` ({145.19} group-A GET) — these keys exist so
-     * the POST/DELETE mutations in `[id]/attachments/route.ts` have a stable
-     * handle to invalidate, and for any future dedicated attachments-only
-     * fetch. `byForm` keys a form-scoped attach; `byEngagement` keys an
-     * engagement-scoped attach (§A6 "form OR engagement level").
+     * `procurement.detail(id)` (group-A GET — landed {145.42}, TECH §6): the
+     * item-page frame invalidates `procurement.detail(id)` after an
+     * attach/detach, it never fetches these keys directly today. They exist
+     * so the POST/DELETE mutations in `[id]/attachments/route.ts` have a
+     * stable handle to invalidate, and for any future dedicated
+     * attachments-only fetch. `byForm` keys a form-scoped attach;
+     * `byEngagement` keys an engagement-scoped attach (§A6 "form OR
+     * engagement level").
      */
     attachments: {
       all: ['procurement', 'attachments'] as const,

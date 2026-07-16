@@ -48,7 +48,29 @@ const UUID_RE =
 
 /** The flat `form_instances` detail columns this route surfaces (BI-1, BI-5, BI-13). */
 const FORM_DETAIL_COLUMNS =
-  'id, name, description, form_type, processing_status, workflow_state, deadline, submission_date, issuing_organisation, outcome, outcome_notes, outcome_recorded_at, outcome_recorded_by, reference_number, estimated_value, created_by, created_at, updated_at';
+  'id, name, description, form_type, processing_status, workflow_state, deadline, submission_date, issuing_organisation, outcome, outcome_notes, outcome_recorded_at, outcome_recorded_by, reference_number, estimated_value, engagement_group_id, created_by, created_at, updated_at';
+
+/** A `form_attachments` row as read by the group-A GET fold (§A5/§A6, {147.7}). */
+interface FormAttachmentRow {
+  id: string;
+  filename: string;
+  storage_path: string;
+  mime_type: string | null;
+  file_size: number | null;
+  role: string;
+  form_instance_id: string | null;
+  engagement_group_id: string | null;
+  created_at: string;
+}
+
+/** A sibling `form_instances` row for the §A3 engagement rail (read-only lineage). */
+interface EngagementSiblingRow {
+  id: string;
+  name: string | null;
+  form_type: string | null;
+  workflow_state: string | null;
+  reference_number: string | null;
+}
 
 /**
  * Result of validating + computing a `canTransition`-gated workflow-state
@@ -228,10 +250,96 @@ export const GET = defineRoute(
         uploaded_at: file.created_at,
       }));
 
+      // ID-145 {145.42} (TECH §6 group-A GET ADD) — fold the `form_attachments`
+      // read in, split by role for the §A5 Documents-tab two-group split. A
+      // form always sees its OWN form-scoped attachments; when grouped
+      // (engagement_group_id set) it ALSO sees the engagement-scoped ones
+      // (§A6 "form OR engagement level"). Independent enrichment like stats/
+      // storage above — a failure here degrades to warnings[], never a 500.
+      const engagementGroupId =
+        typeof form.engagement_group_id === 'string'
+          ? form.engagement_group_id
+          : null;
+
+      let attachmentsFormSource: FormAttachmentRow[] = [];
+      let attachmentsReferenceEvidence: FormAttachmentRow[] = [];
+      const attachmentsSelect =
+        'id, filename, storage_path, mime_type, file_size, role, form_instance_id, engagement_group_id, created_at';
+      const attachmentsQuery = engagementGroupId
+        ? supabase
+            .from('form_attachments')
+            .select(attachmentsSelect)
+            .or(
+              `form_instance_id.eq.${id},engagement_group_id.eq.${engagementGroupId}`,
+            )
+        : supabase
+            .from('form_attachments')
+            .select(attachmentsSelect)
+            .eq('form_instance_id', id);
+
+      const attachmentsResult = await tryQuery<FormAttachmentRow[]>(
+        attachmentsQuery,
+        'procurement.detail.attachments',
+      );
+      if (!attachmentsResult.ok) {
+        logger.error(
+          { err: attachmentsResult.error },
+          'Failed to fetch form attachments',
+        );
+        warnings.push(
+          'Attachments could not be loaded: ' +
+            safeErrorMessage(
+              attachmentsResult.error,
+              'attachments query failed',
+            ),
+        );
+      } else {
+        const rows = attachmentsResult.data ?? [];
+        attachmentsFormSource = rows.filter((r) => r.role === 'form_source');
+        attachmentsReferenceEvidence = rows.filter(
+          (r) => r.role === 'reference_evidence',
+        );
+      }
+
+      // §A3 engagement sibling-rail read — read-only lineage, only when
+      // grouped. NO roll-up/aggregation is computed here (S470 owner ruling,
+      // §A4) — just the sibling identity fields the rail lists.
+      let engagementSiblings: EngagementSiblingRow[] = [];
+      if (engagementGroupId) {
+        const siblingsResult = await tryQuery<EngagementSiblingRow[]>(
+          supabase
+            .from('form_instances')
+            .select('id, name, form_type, workflow_state, reference_number')
+            .eq('engagement_group_id', engagementGroupId)
+            .neq('id', id),
+          'procurement.detail.engagementSiblings',
+        );
+        if (!siblingsResult.ok) {
+          logger.error(
+            { err: siblingsResult.error },
+            'Failed to fetch engagement sibling forms',
+          );
+          warnings.push(
+            'Related engagement forms could not be loaded: ' +
+              safeErrorMessage(
+                siblingsResult.error,
+                'engagement siblings query failed',
+              ),
+          );
+        } else {
+          engagementSiblings = siblingsResult.data ?? [];
+        }
+      }
+
       const responseBody: Record<string, unknown> = {
         ...form,
         question_stats: questionStats,
         tender_documents: tenderDocuments,
+        attachments: {
+          form_source: attachmentsFormSource,
+          reference_evidence: attachmentsReferenceEvidence,
+        },
+        engagement_siblings: engagementSiblings,
       };
       if (warnings.length > 0) {
         responseBody.warnings = warnings;
@@ -549,6 +657,42 @@ export const DELETE = defineRoute(
             logger.error(
               { procurementId: id, error: tenderRemoveError },
               'Procurement DELETE: failed to remove tender documents (orphaned)',
+            );
+          }
+        }
+
+        // ID-145 {145.42} (TECH §2 storage-cleanup contract) — best-effort
+        // remove() of this form's OWN form-scoped `form_attachments` storage
+        // objects. The FK `ON DELETE CASCADE` on `form_instance_id` removes
+        // the DB rows when the `form_instances` row below is deleted, but a
+        // Postgres cascade cannot reach Supabase Storage (the "FK CASCADE
+        // gap") — this is the primary cleanup mechanism; the {147.8}
+        // orphan-sweep cron is the backstop for anything missed. Only
+        // form-scoped attachments (§A7): an engagement-scoped attachment
+        // CASCADEs on `engagement_group_id`, not on this form's delete, so
+        // deleting this form must never touch it.
+        const { data: attachmentRows, error: attachmentListError } =
+          await supabase
+            .from('form_attachments')
+            .select('storage_path')
+            .eq('form_instance_id', id);
+        if (attachmentListError) {
+          logger.error(
+            { procurementId: id, error: attachmentListError },
+            'Procurement DELETE: failed to list form attachments for cleanup (orphaned files possible)',
+          );
+        }
+        const attachmentPaths = (attachmentRows ?? [])
+          .map((a) => a.storage_path)
+          .filter(Boolean);
+        if (attachmentPaths.length) {
+          const { error: attachmentRemoveError } = await serviceClient.storage
+            .from('tender-documents')
+            .remove(attachmentPaths);
+          if (attachmentRemoveError) {
+            logger.error(
+              { procurementId: id, error: attachmentRemoveError },
+              'Procurement DELETE: failed to remove form attachments (orphaned; orphan-sweep backstop will reconcile)',
             );
           }
         }
