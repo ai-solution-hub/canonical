@@ -30,8 +30,20 @@ const _TENDER_QUESTIONS_SCHEMA = {
                 properties: {
                   question_text: { type: 'string' as const },
                   question_sequence: { type: 'integer' as const },
-                  word_limit: { type: ['integer', 'null'] as const },
-                  evaluation_weight: { type: ['number', 'null'] as const },
+                  // Nullable under strict:true — the strict-mode subset has
+                  // no array-valued `type`; value-or-null is anyOf (bl-471).
+                  word_limit: {
+                    anyOf: [
+                      { type: 'integer' as const },
+                      { type: 'null' as const },
+                    ],
+                  },
+                  evaluation_weight: {
+                    anyOf: [
+                      { type: 'number' as const },
+                      { type: 'null' as const },
+                    ],
+                  },
                   category: {
                     type: 'string' as const,
                     enum: ['mandatory', 'desirable', 'informational'],
@@ -119,8 +131,20 @@ const EXTRACT_QUESTIONS_TOOL = {
                 properties: {
                   question_text: { type: 'string' as const },
                   question_sequence: { type: 'integer' as const },
-                  word_limit: { type: ['integer', 'null'] as const },
-                  evaluation_weight: { type: ['number', 'null'] as const },
+                  // Nullable under strict:true — the strict-mode subset has
+                  // no array-valued `type`; value-or-null is anyOf (bl-471).
+                  word_limit: {
+                    anyOf: [
+                      { type: 'integer' as const },
+                      { type: 'null' as const },
+                    ],
+                  },
+                  evaluation_weight: {
+                    anyOf: [
+                      { type: 'number' as const },
+                      { type: 'null' as const },
+                    ],
+                  },
                   category: {
                     type: 'string' as const,
                     enum: ['mandatory', 'desirable', 'informational'],
@@ -424,42 +448,30 @@ const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
   input_schema: {
     type: 'object' as const,
     properties: {
+      // Nullable under strict:true — the strict-mode subset has no
+      // array-valued `type`; value-or-null is anyOf, which also needs no
+      // SDK-type cast (bl-471, fix pattern 0682d507).
       buyer_name: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' }, { type: 'null' }],
         description: 'The buying organisation / contracting authority name',
       },
       deadline: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' }, { type: 'null' }],
         description:
           'Submission deadline in ISO 8601 format (e.g., 2026-04-15T17:00:00Z). Convert from UK date formats (DD/MM/YYYY).',
       },
       reference_number: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' }, { type: 'null' }],
         description:
           'Tender reference number, ITT reference, procurement reference, or contract number',
       },
       estimated_value: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' }, { type: 'null' }],
         description:
           'Contract value or budget (as displayed, e.g., "£500,000" or "£1.2m per annum")',
       },
       title: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' }, { type: 'null' }],
         description:
           'The formal tender/contract title from the document cover page or header',
       },
