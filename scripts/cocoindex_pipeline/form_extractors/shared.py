@@ -92,6 +92,15 @@ class ExtractedField(BaseModel):
     # Inv-14 — external reference URLs preserved per question / section.
     reference_urls: list[str] = Field(default_factory=list)
 
+    # ID-147 {147.9} (TECH §3, DR-064 Option A; PRODUCT §C1/§C4) —
+    # DISPLAYED (post-rotation) top-left page-fraction geometry, carried
+    # through unchanged from PdfDetectedField.geometry for PDF-sourced
+    # fields (see pdf.py's _normalise_geometry). None for DOCX/XLSX
+    # fields (no spatial geometry there) and for any PDF field whose
+    # page rotation could not be normalised — §C4 degrade: the UI lists
+    # the slot without a spatial overlay, never draws a misaligned box.
+    geometry: dict[str, float | int] | None = None
+
 
 class ExtractedForm(BaseModel):
     """Wrapper carrying form-level metadata + per-field rows.

@@ -951,7 +951,10 @@ class TestAnalyseFormJob:
         )
 
         fake_field = MagicMock(
-            question_text="Company name?", page_number=0, sequence=0
+            question_text="Company name?",
+            page_number=0,
+            sequence=0,
+            geometry=None,
         )
         fake_pdf_result = MagicMock(
             fields=[fake_field], fillable_pdf_bytes=b"%PDF-fillable-artefact"

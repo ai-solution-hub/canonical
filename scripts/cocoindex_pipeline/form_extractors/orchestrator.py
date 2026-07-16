@@ -55,8 +55,11 @@ same adapter for its ``form_instance_fields`` rows, rather than paying
 for a second, redundant commonforms detection pass through this
 dispatcher. See ``_pdf_result_to_extracted_form``'s docstring for the
 GEOMETRY-PERSISTENCE decision (``table_index``/``row_index`` repurposed
-for page/reading-order; the richer bbox/widget-type geometry lives in
-the fillable-PDF artefact, not the DB row).
+for page/reading-order; the DISPLAYED-space ``geometry`` dict — carried
+through since ID-147 {147.9}, TECH §3/DR-064 Option A — rides alongside
+on ``ExtractedField.geometry``; the fillable-PDF artefact's own
+``/Rect`` entries remain the fill-time source of truth for the {145.15}
+fill step).
 
 The commonforms/pypdf/pdfplumber stack is heavyweight (torch closure)
 and only installed where ``requirements.txt`` is applied — the import
@@ -128,14 +131,18 @@ def _pdf_result_to_extracted_form(
         correct page-major reading order for PDF rows).
       - ``col_index`` stays unused (``None``) — flat-PDF detection has
         no column concept the way an OOXML table cell does.
-    The RICHER geometry (bbox, acroform widget type) is deliberately
-    NOT persisted to the DB row here — the caller (the {145.13} worker)
-    instead persists ``result.fillable_pdf_bytes`` (the commonforms
-    fillable-PDF artefact) to Storage; that artefact's own AcroForm
-    ``/Rect`` entries ARE the fill-time geometry, read back by the
-    {145.15} fill step directly off the artefact rather than off a
-    reconstructed DB row — pdf.py's own module docstring flags this
-    reconciliation as deliberately left to this wiring subtask.
+    GEOMETRY CARRY-THROUGH (ID-147 {147.9}, TECH §3 / DR-064 Option A):
+    ``field.geometry`` — pdf.py's ``_normalise_geometry`` DISPLAYED
+    (post-rotation) top-left page-fraction dict, or ``None`` when the
+    field's page rotation could not be normalised — is carried straight
+    through onto ``ExtractedField.geometry`` unchanged (a pure
+    passthrough, no re-derivation here). This is in ADDITION to, not a
+    replacement for, the raw acroform widget type / bbox still living
+    only on ``PdfFieldDetectionResult`` — the {145.13} worker still
+    separately persists ``result.fillable_pdf_bytes`` (the commonforms
+    fillable-PDF artefact) to Storage for the {145.15} fill step, which
+    reads that artefact's own AcroForm ``/Rect`` entries directly rather
+    than reconstructing them from a DB row.
 
     ``field_type`` is the constant ``'empty_cell'`` (PDF-sourced fields
     carry no placeholder/highlight distinction — pdf.py's own
@@ -151,6 +158,7 @@ def _pdf_result_to_extracted_form(
             table_index=field.page_number,
             row_index=field.sequence,
             sequence=field.sequence,
+            geometry=field.geometry,
         )
         for field in result.fields
     ]

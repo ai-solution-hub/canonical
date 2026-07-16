@@ -121,9 +121,23 @@ class TestSuffixDispatch:
         """``.pdf`` dispatches to ``_detect_pdf_fields`` then shape-adapts
         via ``_pdf_result_to_extracted_form`` (ID-145.13 wiring).
         GEOMETRY-PERSISTENCE assertion: ``table_index`` <- page_number,
-        ``row_index`` <- sequence, ``col_index`` stays unused (None)."""
+        ``row_index`` <- sequence, ``col_index`` stays unused (None).
+        GEOMETRY CARRY-THROUGH assertion (ID-147 {147.9}): the
+        detector's ``geometry`` dict rides through unchanged onto
+        ``ExtractedField.geometry``."""
+        fake_geometry = {
+            "left": 0.1,
+            "top": 0.2,
+            "width": 0.3,
+            "height": 0.05,
+            "page": 2,
+            "rotation": 0,
+        }
         fake_field = SimpleNamespace(
-            question_text="Company name?", page_number=2, sequence=5
+            question_text="Company name?",
+            page_number=2,
+            sequence=5,
+            geometry=fake_geometry,
         )
         fake_result = SimpleNamespace(
             fields=[fake_field], fillable_pdf_bytes=b"%PDF-fake-fillable"
@@ -152,6 +166,34 @@ class TestSuffixDispatch:
         assert field.row_index == 5  # sequence (reading order)
         assert field.col_index is None  # no column concept for flat PDF
         assert field.sequence == 5
+        assert field.geometry == fake_geometry
+
+    def test_pdf_field_with_no_geometry_degrades_to_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A detected field whose page rotation could not be normalised
+        (pdf.py's ``_normalise_geometry`` ValueError guard) carries
+        ``geometry=None`` through — §C4 degrade, never a misaligned
+        box."""
+        fake_field = SimpleNamespace(
+            question_text="Unmappable field?",
+            page_number=0,
+            sequence=0,
+            geometry=None,
+        )
+        fake_result = SimpleNamespace(
+            fields=[fake_field], fillable_pdf_bytes=b"%PDF-fake-fillable"
+        )
+        monkeypatch.setattr(
+            orch_module, "_detect_pdf_fields", lambda raw, name: fake_result
+        )
+
+        result = asyncio.run(
+            extract_form_structure(_MINIMAL_PDF_BYTES, "blank.pdf")
+        )
+
+        assert isinstance(result, ExtractedForm)
+        assert result.fields[0].geometry is None
 
     def test_pdf_detection_error_wraps_as_form_extraction_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -207,6 +249,10 @@ class TestSuffixDispatch:
         result = asyncio.run(extract_form_structure(b"PK\x03\x04", "sheet.xlsx"))
         assert isinstance(result, ExtractedForm)
         assert result.form_metadata.form_format == "xlsx"
+        # §C4 degrade: no spatial geometry for the DOCX/XLSX path — only
+        # table_index/row_index reading order (unaffected by this
+        # subtask, asserted here as the negative-space guard).
+        assert result.fields[0].geometry is None
 
     def test_docx_routes_to_docx_extract(
         self, monkeypatch: pytest.MonkeyPatch
@@ -219,6 +265,7 @@ class TestSuffixDispatch:
         result = asyncio.run(extract_form_structure(b"PK\x03\x04", "doc.docx"))
         assert isinstance(result, ExtractedForm)
         assert result.form_metadata.form_format == "docx"
+        assert result.fields[0].geometry is None  # §C4 degrade
 
     def test_xls_returns_none_and_logs_skip(
         self, caplog: pytest.LogCaptureFixture
