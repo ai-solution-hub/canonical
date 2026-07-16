@@ -122,10 +122,23 @@ vi.mock('@/lib/domains/procurement/procurement-helpers', () => ({
     mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
-  PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
-  PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
-}));
+// {145.43} landed the real WorkflowStepper into the page tree, which pulls
+// canTransition/getAvailableTransitions/isTerminal from this module — mirror
+// page.test.tsx: keep the real module and override only the two label maps.
+vi.mock(
+  '@/lib/domains/procurement/procurement-workflow',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/domains/procurement/procurement-workflow')
+      >();
+    return {
+      ...actual,
+      PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
+      PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
+    };
+  },
+);
 
 vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
