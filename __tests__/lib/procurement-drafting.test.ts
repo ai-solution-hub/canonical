@@ -435,8 +435,9 @@ describe('draftResponse (Pass 2)', () => {
     await draftResponse(sampleQuestion, sampleContent, sampleAnalysis);
 
     const callArgs = mockCreate.mock.calls[0][0];
-    // System prompt is an array with a text block
-    const systemText = callArgs.system[0].text;
+    // System prompt is an array: [0] cached (skills+role), [1] uncached
+    // (per-question — ID-154 prompt-cache placement fix).
+    const systemText = callArgs.system[1].text;
     expect(systemText).toContain('90-95%');
     expect(systemText).toContain('500-word limit');
   });
@@ -449,7 +450,8 @@ describe('draftResponse (Pass 2)', () => {
     await draftResponse(sampleQuestionNoLimit, sampleContent, sampleAnalysis);
 
     const callArgs = mockCreate.mock.calls[0][0];
-    const systemText = callArgs.system[0].text;
+    // ID-154: per-question content lives in the uncached block ([1]).
+    const systemText = callArgs.system[1].text;
     expect(systemText).toContain('No specific limit');
     expect(systemText).not.toContain('90-95%');
   });
@@ -572,8 +574,9 @@ describe('runDraftingPipeline (Full Orchestration)', () => {
     await runDraftingPipeline(sampleQuestion, sampleContent);
 
     // Pass 2 (second mockCreate call) should include analysis-derived content
+    // in the uncached (per-question) system block — ID-154.
     const pass2Args = mockCreate.mock.calls[1][0];
-    const systemText = pass2Args.system[0].text;
+    const systemText = pass2Args.system[1].text;
     // Analysis suggested headings should appear in the system prompt
     expect(systemText).toContain('Encryption Standards');
     expect(systemText).toContain('Certifications');
