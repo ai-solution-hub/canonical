@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { join } from 'node:path';
 import {
   loadBranding,
   BRANDING,
@@ -65,12 +66,15 @@ describe('loadBranding', () => {
   // via lib/validation/schemas.ts), breaking naive stdout+stderr-merged jq
   // piping. Gate to the app/dev surface: suppress ONLY when the process
   // entry point is a scripts/ CLI — never for the app/build/SSR/test surface
-  // this advisory is intended for.
+  // this advisory is intended for. Anchored to process.cwd() (tightened
+  // post-Checker-review — see isScriptEntryPoint's doc comment), so the fake
+  // entry here is built from the REAL cwd, matching this repo's actual
+  // `bun scripts/<name>.ts`-from-repo-root invocation convention.
   it('does NOT emit the [branding] advisory when the process entry point is a scripts/ CLI', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubGlobal('window', undefined);
     const originalArgv1 = process.argv[1];
-    process.argv[1] = '/repo/scripts/ledger-cli.ts';
+    process.argv[1] = join(process.cwd(), 'scripts', 'ledger-cli.ts');
     try {
       loadBranding('default');
       expect(warnSpy).not.toHaveBeenCalledWith(
@@ -87,7 +91,7 @@ describe('loadBranding', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.stubGlobal('window', undefined);
     const originalArgv1 = process.argv[1];
-    process.argv[1] = '/repo/node_modules/.bin/next';
+    process.argv[1] = join(process.cwd(), 'node_modules', '.bin', 'next');
     try {
       loadBranding('default');
       expect(warnSpy).toHaveBeenCalledWith(
@@ -95,6 +99,34 @@ describe('loadBranding', () => {
       );
     } finally {
       process.argv[1] = originalArgv1;
+      vi.unstubAllGlobals();
+      warnSpy.mockRestore();
+    }
+  });
+
+  // ID-156.4 checker finding: the original `/(^|[/\\])scripts[/\\]/` match
+  // tested the ABSOLUTE entry path for a `scripts` segment ANYWHERE in it,
+  // so a repo checked out under an ancestor directory literally named
+  // `scripts` (e.g. `~/scripts/canonical`) would false-positive-suppress the
+  // advisory for every entry point — next dev/build, vitest included — not
+  // just this repo's own top-level scripts/ CLIs. Prove the tightened,
+  // cwd-relative anchor does NOT reproduce that false positive: an entry
+  // point that lives under an ancestor `scripts/` directory OUTSIDE the
+  // current working directory must still emit the advisory.
+  it('still emits the [branding] advisory for an entry point under an ancestor scripts/ dir outside cwd (ID-156.4 false-positive regression)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('window', undefined);
+    const originalArgv1 = process.argv[1];
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/home/dev/repo');
+    process.argv[1] = '/home/dev/scripts/unrelated-project/app.ts';
+    try {
+      loadBranding('default');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[branding]'),
+      );
+    } finally {
+      process.argv[1] = originalArgv1;
+      cwdSpy.mockRestore();
       vi.unstubAllGlobals();
       warnSpy.mockRestore();
     }
