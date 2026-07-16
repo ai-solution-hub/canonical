@@ -18,6 +18,7 @@ import {
   rmSync,
   existsSync,
   symlinkSync,
+  lstatSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -323,6 +324,51 @@ describe('assertSpawnSourcePinned (bl-482)', () => {
       expect(() => assertSpawnSourcePinned(tmpRoot, TAG)).not.toThrow();
     } finally {
       rmSync(sharedCacheRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a REAL (non-symlinked) tag dir whose realpath escapes .cache/ via an intermediate symlinked segment', () => {
+    // The tag dir itself (the FINAL path component lstat checks) is a genuine
+    // directory, not a symlink — so check 1 (isSymbolicLink) passes it
+    // through. But `task-view-<tag>` is only ever a single path segment when
+    // `tag` itself contains no "/". A tag string CONTAINING a "/" makes
+    // `task-view-${tag}` a multi-segment relative path, e.g.
+    // "task-view-escaped/real" — giving "task-view-escaped" (an
+    // INTERMEDIATE segment, distinct from the lstat'd final component
+    // "real") room to be a symlink that redirects outside .cache/, while
+    // "real" itself stays a genuine, non-symlinked directory. This is a
+    // real, reachable escape of the realpath-containment check (lines
+    // ~294-301), not a restatement of the check-1 symlink case.
+    const escapedTag = 'escaped/real';
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'escape-target-'));
+    const realFinalDir = join(outsideRoot, 'real');
+    mkdirSync(join(realFinalDir, 'apps/server'), { recursive: true });
+    writeFileSync(join(realFinalDir, 'apps/server/index.ts'), '// fake');
+    writeFileSync(
+      join(realFinalDir, 'package.json'),
+      JSON.stringify({ name: 'task-view', version: PKG_VERSION }),
+    );
+
+    const cacheDir = resolve(tmpRoot, '.cache');
+    const intermediateSegment = resolve(cacheDir, 'task-view-escaped');
+    symlinkSync(outsideRoot, intermediateSegment); // intermediate segment → OUTSIDE .cache/
+
+    const dir = resolve(cacheDir, `task-view-${escapedTag}`); // .cache/task-view-escaped/real
+    expect(lstatSync(dir).isSymbolicLink()).toBe(false); // final component genuinely NOT a symlink
+
+    try {
+      assertSpawnSourcePinned(tmpRoot, escapedTag);
+      expect.unreachable('expected assertSpawnSourcePinned to throw');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toMatch(/escapes the \.cache\/ root/);
+      expect(message).toContain(dir); // names the offending path
+      expect(message).toContain(
+        `git clone --depth 1 --branch ${escapedTag} https://github.com/liam-jons/task-view.git`,
+      ); // names the re-clone command
+    } finally {
+      rmSync(intermediateSegment, { force: true }); // remove the symlink, not its target
+      rmSync(outsideRoot, { recursive: true, force: true });
     }
   });
 });

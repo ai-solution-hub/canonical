@@ -147,12 +147,17 @@ function makeFixture(): { root: string; fakeBinDir: string } {
   return { root, fakeBinDir };
 }
 
-function runScript(root: string, fakeBinDir: string): SpawnSyncReturns<string> {
+function runScript(
+  root: string,
+  fakeBinDir: string,
+  extraEnv: Record<string, string> = {},
+): SpawnSyncReturns<string> {
   const env = { ...process.env } as Record<string, string | undefined>;
   delete env.KH_PRIVATE_DOCS_DIR;
   delete env.TASK_VIEW_TAG;
   delete env.TASK_VIEW_DIR;
   env.PATH = `${fakeBinDir}:${process.env.PATH ?? ''}`;
+  Object.assign(env, extraEnv);
   return spawnSync('bash', [join(root, 'scripts/regen-mirrors.sh')], {
     cwd: root,
     env: env as NodeJS.ProcessEnv,
@@ -232,5 +237,42 @@ describe('regen-mirrors.sh clone/re-clone guard (bl-482)', () => {
     expect(result.stdout).not.toContain('cloning task-view');
     // Untouched — the marker from the pre-seeded "genuine" repo survives.
     expect(existsSync(join(dir, 'MARKER'))).toBe(true);
+  });
+
+  it('TASK_VIEW_DIR override WITHOUT .git exits 1 with the documented error, never reaching the clone branch', () => {
+    const { root, fakeBinDir } = makeFixture();
+    const overrideDir = mkdtempSync(join(tmpdir(), 'override-no-git-'));
+    cleanupDirs.push(overrideDir);
+    writeFileSync(join(overrideDir, 'MARKER'), 'not-a-clone'); // real dir, no .git
+
+    const result = runScript(root, fakeBinDir, { TASK_VIEW_DIR: overrideDir });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `error: TASK_VIEW_DIR=${overrideDir} has no .git — not a working clone`,
+    );
+    expect(result.stdout).not.toContain('cloning task-view');
+    // Untouched — the override dir was never rm -rf'd.
+    expect(existsSync(join(overrideDir, 'MARKER'))).toBe(true);
+  });
+
+  it('TASK_VIEW_DIR override WITH .git is reused untouched (no clone, no rm -rf) even on tag/HEAD mismatch', () => {
+    const { root, fakeBinDir } = makeFixture();
+    const overrideDir = mkdtempSync(join(tmpdir(), 'override-with-git-'));
+    cleanupDirs.push(overrideDir);
+    // A real repo whose HEAD does NOT match the pinned TAG at all (no tag ref
+    // exists for it here) — the override must bypass the drift check
+    // entirely, not merely tolerate a match.
+    makeRealGitRepoAt(overrideDir, { marker: 'unpinned-dev-checkout' });
+
+    const result = runScript(root, fakeBinDir, { TASK_VIEW_DIR: overrideDir });
+
+    expect(result.stdout).toContain(
+      'using TASK_VIEW_DIR override (unpinned, dev escape hatch)',
+    );
+    expect(result.stdout).not.toContain('cloning task-view');
+    expect(result.stdout).not.toMatch(/does not match pinned tag/);
+    // The caller's own working clone was never touched.
+    expect(existsSync(join(overrideDir, 'MARKER'))).toBe(true);
   });
 });
