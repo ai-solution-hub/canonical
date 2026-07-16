@@ -396,6 +396,27 @@ export const queryKeys = {
       all: ['procurement', 'form-types'] as const,
       list: ['procurement', 'form-types', 'list'] as const,
     },
+    /**
+     * Labelled reference/evidence attachment store (ID-147 {147.7}/{147.8},
+     * TECH §2 / PRODUCT §A6). The READ side is folded into
+     * `procurement.detail(id)` ({145.19} group-A GET) — these keys exist so
+     * the POST/DELETE mutations in `[id]/attachments/route.ts` have a stable
+     * handle to invalidate, and for any future dedicated attachments-only
+     * fetch. `byForm` keys a form-scoped attach; `byEngagement` keys an
+     * engagement-scoped attach (§A6 "form OR engagement level").
+     */
+    attachments: {
+      all: ['procurement', 'attachments'] as const,
+      byForm: (formId: string) =>
+        ['procurement', 'attachments', 'form', formId] as const,
+      byEngagement: (engagementGroupId: string) =>
+        [
+          'procurement',
+          'attachments',
+          'engagement',
+          engagementGroupId,
+        ] as const,
+    },
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).
