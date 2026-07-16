@@ -14,13 +14,34 @@ turns) was empirically import-and-call verified against the pinned
 Reuses 3 `extraction.py` anchors verified at head rather than
 reimplementing them:
 
-  - `ANTHROPIC_MODEL` (extraction.py:71) — default `model`.
+  - `ANTHROPIC_MODEL` (extraction.py:71) — the fallback `PRODUCER_MODEL`
+    (below) resolves to when no override is set.
   - `_anthropic_retry` (extraction.py:916) — the tenacity 503/rate-limit/
     connection retry wrapper around each `messages.create` call.
   - `_guard_not_truncated` (extraction.py:862) — raises
     `TruncatedExtractionError` (also extraction.py) when a turn hits the
     `max_tokens` ceiling, so a truncated tool-use turn or final body
     surfaces loudly instead of as a downstream parse error.
+
+**`PRODUCER_MODEL` (ID-132 {132.35} slice B, S481 owner ratification, DR-079:
+non-client bundles run GLM-5.2).** The deployed producer agent-loop had no
+env indirection for the model slug — `ANTHROPIC_BASE_URL`/`ANTHROPIC_API_KEY`
+are already SDK-env-readable (`anthropic==0.79.0`, verified), but the model
+string was hardcoded via `ANTHROPIC_MODEL`. `PRODUCER_MODEL` is a NEW,
+producer-package-scoped env override — `extraction.py`'s own `ANTHROPIC_MODEL`
+constant and its 4 extractor call sites are deliberately UNCHANGED (the
+isolation is the point of adding a new var rather than making
+`ANTHROPIC_MODEL` itself env-read). Read ONCE at import time — mirrors
+`ANTHROPIC_MODEL`'s own plain-constant posture; the deploy environment (a
+Coolify secret) is set before the process boots, so there is no
+live-reconfiguration need. Unset/empty falls back unchanged to
+`ANTHROPIC_MODEL`. This is `run_tool_use_loop`'s own default `model` below,
+and both producer passes (`enrich.py:enrich_concept`, `web_pass.py:
+run_web_pass`) default their own `model` parameter to it too. **DR-060**: a
+deploy-time `PRODUCER_MODEL` value change is drafting-config exactly like a
+literal `ANTHROPIC_MODEL` edit — see `producer/enrich.py`'s module docstring
+"Config-surface invalidation" section for the manual `@coco.fn(...,
+version=N)` bump contract this falls under.
 
 Scope (per the {132.5} brief): the GENERIC loop + the Pass-1 tool SCHEMAS
 only (`READ_CONCEPT_RAW_TOOL`, `SAMPLE_ROWS_TOOL` — the Source-adapter
@@ -60,6 +81,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
@@ -73,6 +95,11 @@ from scripts.cocoindex_pipeline.extraction import (
 )
 
 _logger = logging.getLogger(__name__)
+
+# Producer-scoped model override (ID-132 {132.35} slice B) — see the module
+# docstring's "PRODUCER_MODEL" section above. Read ONCE at import time;
+# unset/empty falls back unchanged to ANTHROPIC_MODEL.
+PRODUCER_MODEL = os.environ.get("PRODUCER_MODEL") or ANTHROPIC_MODEL
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +283,7 @@ async def run_tool_use_loop(
     system: list[Mapping[str, Any]],
     extractor_name: str,
     max_tokens: int,
-    model: str = ANTHROPIC_MODEL,
+    model: str = PRODUCER_MODEL,
 ) -> anthropic.types.Message:
     """The Anthropic tool-use agent loop (TECH §'The agent-loop port').
 

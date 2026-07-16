@@ -40,6 +40,7 @@ files (ID-44.5).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import sys
 import uuid
@@ -81,6 +82,7 @@ _coco_stub = _make_coco_stub()
 with stubbed_sys_modules({"cocoindex": _coco_stub}):
     from scripts.cocoindex_pipeline.producer import enrich  # noqa: E402
 
+from scripts.cocoindex_pipeline.producer import agent_loop  # noqa: E402
 from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
     LIST_CONCEPTS_TOOL,
     READ_CONCEPT_RAW_TOOL,
@@ -1579,3 +1581,56 @@ class TestEntityMentionSdAnchorMinting:
 
         assert "resource" not in payload["entity_mentions"][0]
         assert seen_anchors == set()
+
+
+# ============================================================================
+# PRODUCER_MODEL — env override threading (ID-132 {132.35} slice B, S481
+# GLM-5.2 ratification, DR-079). See `test_producer_agent_loop.py::
+# TestProducerModelEnvOverride` for the env-set/unset RESOLUTION-logic proof
+# (`agent_loop.PRODUCER_MODEL` itself) — this class proves the WIRING half:
+# `enrich_concept`'s own `model` parameter is identical to `agent_loop.
+# PRODUCER_MODEL` at import time, and genuinely reaches the Anthropic
+# API-call layer.
+# ============================================================================
+
+
+class TestProducerModelWiring:
+    def test_default_model_matches_agent_loop_producer_model_at_import_time(
+        self,
+    ) -> None:
+        default = inspect.signature(enrich.enrich_concept).parameters["model"].default
+        assert default == agent_loop.PRODUCER_MODEL
+
+    def test_an_explicit_model_override_reaches_every_messages_create_call(
+        self,
+    ) -> None:
+        """Proves `model` threads all the way to `client.messages.create`
+        for Pass-1 — the load-bearing plumbing PRODUCER_MODEL relies on
+        (the default parameter mechanism is proven separately in
+        `test_producer_agent_loop.py`; this proves the CALL CHAIN carries
+        whatever value `model` is, default or override, through to the real
+        API-call layer, exactly what a deployed `PRODUCER_MODEL=glm-5.2-...`
+        run needs)."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(
+                    key, source, model="glm-5.2-test-override"
+                )
+
+        asyncio.run(_exercise())
+
+        assert client.messages.create.call_args_list  # sanity: at least 1 call
+        for call in client.messages.create.call_args_list:
+            assert call.kwargs["model"] == "glm-5.2-test-override"

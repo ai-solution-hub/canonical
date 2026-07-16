@@ -112,9 +112,10 @@ import httpx
 from anthropic.types import MessageParam
 
 from scripts.cocoindex_pipeline.extract import clean_html
-from scripts.cocoindex_pipeline.extraction import ANTHROPIC_MODEL, _strip_code_fence
+from scripts.cocoindex_pipeline.extraction import _strip_code_fence
 from scripts.cocoindex_pipeline.producer.agent_loop import (
     LIST_CONCEPTS_TOOL,
+    PRODUCER_MODEL,
     READ_CONCEPT_RAW_TOOL,
     SAMPLE_ROWS_TOOL,
     WEB_FETCH_TOOL,
@@ -775,7 +776,7 @@ async def run_web_pass(
     gated_corpus: GatedCorpusConfig,
     *,
     http_client: Any = None,
-    model: str = ANTHROPIC_MODEL,
+    model: str = PRODUCER_MODEL,
     max_tokens: int = _MAX_TOKENS_PASS2,
 ) -> WebPassResult:
     """Pass-2 (BI-16): enrich `draft` from the GATED corpus ONLY.

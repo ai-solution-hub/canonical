@@ -32,6 +32,7 @@ boots at collection time (ID-44.5).
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import sys
 import uuid
@@ -71,6 +72,7 @@ _coco_stub = _make_coco_stub()
 with stubbed_sys_modules({"cocoindex": _coco_stub}):
     from scripts.cocoindex_pipeline.producer import web_pass  # noqa: E402
 
+from scripts.cocoindex_pipeline.producer import agent_loop  # noqa: E402
 from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: E402
     ConceptDraft,
     _render_citations_section,
@@ -1264,3 +1266,62 @@ class TestRunWebPassEndToEnd:
         for call in anthropic_client.messages.create.call_args_list:
             tool_names = {t["name"] for t in call.kwargs["tools"]}
             assert tool_names == {"read_concept_raw", "sample_rows", "list_concepts", "fetch_url"}
+
+
+# ============================================================================
+# PRODUCER_MODEL — env override threading (ID-132 {132.35} slice B, S481
+# GLM-5.2 ratification, DR-079). Mirrors `test_producer_enrich.py::
+# TestProducerModelWiring` — the env-set/unset RESOLUTION-logic proof lives
+# in `test_producer_agent_loop.py::TestProducerModelEnvOverride`; this class
+# proves `run_web_pass`'s own `model` parameter is identical to `agent_loop.
+# PRODUCER_MODEL` at import time and genuinely reaches the Anthropic
+# API-call layer (Pass-2's half of "both passes").
+# ============================================================================
+
+
+class TestProducerModelWiring:
+    def test_default_model_matches_agent_loop_producer_model_at_import_time(
+        self,
+    ) -> None:
+        default = inspect.signature(web_pass.run_web_pass).parameters["model"].default
+        assert default == agent_loop.PRODUCER_MODEL
+
+    def test_an_explicit_model_override_reaches_every_messages_create_call(
+        self,
+    ) -> None:
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
+        )
+        draft = _product_draft(key)
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[build_source_document_uri(_SD_ID)]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([final])
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+
+        async def _exercise() -> Any:
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft,
+                    key,
+                    source,
+                    gated_corpus,
+                    http_client=_FakeHttpClient({}),
+                    model="glm-5.2-test-override",
+                )
+
+        asyncio.run(_exercise())
+
+        assert anthropic_client.messages.create.call_args_list  # sanity: at least 1 call
+        for call in anthropic_client.messages.create.call_args_list:
+            assert call.kwargs["model"] == "glm-5.2-test-override"

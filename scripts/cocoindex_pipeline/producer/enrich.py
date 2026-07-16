@@ -93,6 +93,16 @@ version=N)` kwarg by hand and record the reason in the bundle's OKF §7
 NO `deps=` kwarg — data-change staleness stays fully covered by
 `content_version` (MD-3/6/7) regardless.
 
+**`PRODUCER_MODEL` (ID-132 {132.35} slice B, `producer/agent_loop.py`) falls
+under this SAME contract.** `PRODUCER_MODEL` is a producer-scoped env
+override of `ANTHROPIC_MODEL` (S481, DR-079: non-client bundles run
+GLM-5.2) and is this function's own `model` default below — a deploy-time
+`PRODUCER_MODEL` value change is drafting-config exactly like a literal
+`ANTHROPIC_MODEL` edit, so it too requires the SAME manual `@coco.fn(...,
+version=N)` bump + bundle `log.md` note before the next producer run, never
+an auto `deps=` invalidation. No second `version=` bump lands in THIS
+commit — `version=1` (below) has not yet been consumed by any deployed run.
+
 **`version=1` (S481, this bump — the lever exercised for the first time).**
 `{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
 (`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config
@@ -134,10 +144,11 @@ import anthropic
 import cocoindex as coco  # public top-level surface — `@coco.fn` decorator
 from anthropic.types import MessageParam
 
-from scripts.cocoindex_pipeline.extraction import ANTHROPIC_MODEL, _strip_code_fence
+from scripts.cocoindex_pipeline.extraction import _strip_code_fence
 from scripts.cocoindex_pipeline.producer.agent_loop import (
     LIST_CONCEPTS_TOOL,
     PASS1_TOOLS,
+    PRODUCER_MODEL,
     run_tool_use_loop,
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (
@@ -646,7 +657,7 @@ async def enrich_concept(
     key: ConceptKey,
     source: Source,
     *,
-    model: str = ANTHROPIC_MODEL,
+    model: str = PRODUCER_MODEL,
     max_tokens: int = _MAX_TOKENS_PASS1,
 ) -> ConceptDraft:
     """Pass-1 (BI-15): draft `key`'s concept body + BI-12 frontmatter from
@@ -663,9 +674,11 @@ async def enrich_concept(
     `source` is excluded via `memo_key` (MD-2) so the unpickleable
     `LRecordsSource` never reaches the fingerprint; `key.content_version`
     (MD-3) is the BI-18 delta signal — see the module docstring for the full
-    mechanism, and note a drafting-config change (prompt/model/max_tokens) is
-    a MANUAL `version=` bump recorded in the bundle's `log.md`, never an auto
-    `deps=` invalidation. `version=1` (S481, this bump) is DR-060's contract
+    mechanism, and note a drafting-config change (prompt/model/max_tokens —
+    a `PRODUCER_MODEL` env override counts identically to a literal
+    `ANTHROPIC_MODEL` edit, {132.35} slice B) is a MANUAL `version=` bump
+    recorded in the bundle's `log.md`, never an auto `deps=` invalidation.
+    `version=1` (S481, this bump) is DR-060's contract
     exercised for real: {132.41}/{132.42} added 3 optional routing-hint keys
     to `PASS1_INSTRUCTION_PROMPT` and grew the emitted frontmatter to carry
     `confidence` (+hints when supplied) — both a drafting-config change and

@@ -24,6 +24,8 @@ call-count needed to prove retry/loop iteration actually happened.
 from __future__ import annotations
 
 import asyncio
+import importlib
+import inspect
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,6 +46,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
     TruncatedExtractionError,
 )
+from scripts.cocoindex_pipeline.producer import agent_loop as _agent_loop_module  # noqa: E402
 from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
     PASS1_TOOLS,
     READ_CONCEPT_RAW_TOOL,
@@ -488,3 +491,90 @@ class TestAnthropicRetryIsExercised:
         with pytest.raises(anthropic.InternalServerError):
             asyncio.run(_exercise())
         assert client.messages.create.call_count == 4
+
+
+# ============================================================================
+# PRODUCER_MODEL — env override (ID-132 {132.35} slice B, S481 GLM-5.2
+# ratification, DR-079: non-client bundles run GLM-5.2).
+# ============================================================================
+
+
+class TestProducerModelEnvOverride:
+    """`agent_loop.PRODUCER_MODEL` is a producer-scoped env override of
+    `ANTHROPIC_MODEL`, read ONCE at import time
+    (`os.environ.get("PRODUCER_MODEL") or ANTHROPIC_MODEL`) — mirrors
+    `ANTHROPIC_MODEL`'s own plain-constant posture (the deploy env is a
+    Coolify secret set before the process boots; no live-reconfiguration
+    need). `extraction.py`'s lane is untouched — a NEW var, not an env-read
+    `ANTHROPIC_MODEL`.
+
+    Reload-based (`importlib.reload`, this suite's existing precedent —
+    `test_cocoindex_ingest_once.py`/`test_cocoindex_server.py`): safe to
+    confine to THIS module because `agent_loop.py` imports no `cocoindex`
+    (confirmed at the module docstring/imports — it's a plain stdlib+
+    anthropic-only module), so a reload here cannot leak a stubbed engine
+    state into sibling test files the way reloading `enrich.py`/`web_pass.py`
+    would. Each test restores the pre-test (env-unset) state in a `finally`
+    so no reload side effect survives past the test — other test files'
+    already-collected `from agent_loop import run_tool_use_loop` bindings
+    are also untouched by any of this (a name import copies the function
+    object once at collection time; it does not track later reloads of the
+    module it came from)."""
+
+    def test_env_unset_falls_back_to_anthropic_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("PRODUCER_MODEL", raising=False)
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_MODEL == _agent_loop_module.ANTHROPIC_MODEL
+            default = inspect.signature(
+                _agent_loop_module.run_tool_use_loop
+            ).parameters["model"].default
+            assert default == _agent_loop_module.ANTHROPIC_MODEL
+        finally:
+            importlib.reload(_agent_loop_module)
+
+    def test_env_empty_string_also_falls_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicitly-empty `PRODUCER_MODEL` (e.g. an unset Coolify secret
+        rendered as `""`) must fall back exactly like an absent var — the
+        brief's `or ANTHROPIC_MODEL` posture, not `is None`."""
+        monkeypatch.setenv("PRODUCER_MODEL", "")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_MODEL == _agent_loop_module.ANTHROPIC_MODEL
+        finally:
+            monkeypatch.delenv("PRODUCER_MODEL", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_env_set_overrides_the_default_for_run_tool_use_loop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRODUCER_MODEL", "glm-5.2-test-override")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_MODEL == "glm-5.2-test-override"
+            default = inspect.signature(
+                _agent_loop_module.run_tool_use_loop
+            ).parameters["model"].default
+            assert default == "glm-5.2-test-override"
+        finally:
+            monkeypatch.delenv("PRODUCER_MODEL", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_extraction_lane_is_untouched_by_the_producer_override(self) -> None:
+        """DO-NOT (brief): extraction.py's OWN `ANTHROPIC_MODEL` constant and
+        its 4 extractor call sites stay env-free — `PRODUCER_MODEL` is
+        producer-package-scoped only, never threaded into `extraction.py`.
+        Grep-level static guard: this isolation boundary has no runtime
+        behaviour of its own to exercise (test-philosophy.md: behaviour-
+        first, but a pure "this module must not import/mention that name"
+        boundary is exactly what a static assertion proxies for — same
+        posture as `test_producer_enrich.py::TestZeroWebEgress`'s "no
+        `import httpx`" guard)."""
+        extraction_source = (
+            _REPO_ROOT / "scripts" / "cocoindex_pipeline" / "extraction.py"
+        ).read_text()
+        assert "PRODUCER_MODEL" not in extraction_source
