@@ -152,6 +152,10 @@ import {
   parseInitiativesWithWarnings,
   PROJECT_STATUSES,
   INITIATIVE_STATUSES,
+  // ID-156.6 gap (c): the separate project/initiative budget registry —
+  // `schema project|initiative` prints these via `budgetFor`, mirroring how
+  // `LEDGER_BUDGETS` backs the four original kinds.
+  INITIATIVES_BUDGETS,
   type InitiativesDocument,
   type Initiative,
   type SubInitiative,
@@ -1107,8 +1111,17 @@ function nextId(
 /** The documented record kinds, each backed by a Zod object schema. WS-C C2
  * adds `retro`. ID-148.12: `theme` RETIRED (TECH §3.2/§3.4, INV-7/INV-12(d)) —
  * the roadmap server arm is repurposed to initiatives, which has no flat
- * theme-record analog; `RoadmapThemeSchema` is no longer imported. */
-type SchemaRecordKind = 'task' | 'subtask' | 'item' | 'retro';
+ * theme-record analog; `RoadmapThemeSchema` is no longer imported.
+ * ID-156.6 gap (c): `project`/`initiative` ADDED — `schema project|initiative`
+ * was previously rejected (`bad-schema-target`) even though both are
+ * first-class editable kinds since {148.7}. */
+type SchemaRecordKind =
+  | 'task'
+  | 'subtask'
+  | 'item'
+  | 'retro'
+  | 'project'
+  | 'initiative';
 
 /** Schemas keyed by record kind. Zod v4 exposes `.shape` directly even with a
  * trailing `.superRefine` (TaskSchema) — so all shapes are introspectable. */
@@ -1120,6 +1133,8 @@ const SCHEMA_SHAPES: Record<
   subtask: SubtaskSchema,
   item: BacklogItemSchema,
   retro: RetroRecordSchema,
+  project: ProjectSchema,
+  initiative: InitiativeSchema,
 };
 
 /** The label each record kind reads as at the point of use (RESEARCH §5.2):
@@ -1129,16 +1144,44 @@ const KIND_LABEL: Record<SchemaRecordKind, string> = {
   subtask: 'subtask',
   item: 'backlog',
   retro: 'retro',
+  project: 'project',
+  initiative: 'initiative',
 };
 
 /** Budget registry key per record kind (the registry is keyed by record kind,
- * not by the `backlog` display label). */
-const KIND_BUDGET_KEY: Record<SchemaRecordKind, LedgerRecordKind> = {
+ * not by the `backlog` display label). ID-156.6: `project`/`initiative` are
+ * NOT keys of `LedgerRecordKind` — their budgets live in the SEPARATE
+ * `INITIATIVES_BUDGETS` registry (lib/validation/initiatives-schema.ts; see
+ * that file's header for the two-registry split rationale), so this map only
+ * covers the four `LEDGER_BUDGETS`-backed kinds; {@link budgetFor} branches on
+ * kind before consulting either registry. */
+const KIND_BUDGET_KEY: Record<
+  Exclude<SchemaRecordKind, 'project' | 'initiative'>,
+  LedgerRecordKind
+> = {
   task: 'task',
   subtask: 'subtask',
   item: 'item',
   retro: 'retro',
 };
+
+/** Per-field char budget for a record kind, dispatching to whichever registry
+ * backs it (ID-156.6): `project`/`initiative` consult `INITIATIVES_BUDGETS`
+ * (lib/validation/initiatives-schema.ts); every other kind consults the
+ * unified `LEDGER_BUDGETS` via {@link KIND_BUDGET_KEY}. Returns `undefined`
+ * for an unbudgeted field (e.g. `project.id`), matching the prior inline
+ * lookup's behaviour. */
+function budgetFor(kind: SchemaRecordKind, field: string): number | undefined {
+  if (kind === 'project')
+    return (INITIATIVES_BUDGETS.project as Record<string, number>)[field];
+  if (kind === 'initiative')
+    return (INITIATIVES_BUDGETS.initiative as Record<string, number>)[field];
+  const budgets = LEDGER_BUDGETS[KIND_BUDGET_KEY[kind]] as Record<
+    string,
+    number
+  >;
+  return budgets[field];
+}
 
 /** Per-field human annotations layered on top of the derived type label. */
 const FIELD_NOTES: Partial<Record<SchemaRecordKind, Record<string, string>>> = {
@@ -1226,11 +1269,7 @@ function labelField(
 ): string {
   const base = zodTypeLabel(schema);
   const { optional, nullable } = fieldModifiers(schema);
-  const budgets = LEDGER_BUDGETS[KIND_BUDGET_KEY[kind]] as Record<
-    string,
-    number
-  >;
-  const budget = budgets[field];
+  const budget = budgetFor(kind, field);
 
   const parts = [`${base}`];
   if (budget !== undefined) parts.push(`≤${budget}`);
@@ -1259,16 +1298,22 @@ function renderKind(kind: SchemaRecordKind): string {
  * A ledger name resolves to ALL its record kinds (task → task + subtask).
  * ID-148.12: `roadmap`/`theme` targets RETIRED (no 'theme' SchemaRecordKind
  * any more) — `schema roadmap`/`schema theme` now correctly resolve to
- * `bad-schema-target` via the `SCHEMA_TARGETS[target]` undefined lookup. */
+ * `bad-schema-target` via the `SCHEMA_TARGETS[target]` undefined lookup.
+ * ID-156.6 gap (c): `initiatives`/`project`/`initiative` ADDED — `initiatives`
+ * resolves to BOTH kinds side-by-side (same `task` → `[task, subtask]`
+ * convention), `project`/`initiative` resolve to just their own kind. */
 const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
   // ledger names
   task: ['task', 'subtask'],
   backlog: ['item'],
   // WS-C C2: the retro ledger surfaces the single retro record kind.
   retro: ['retro'],
+  initiatives: ['project', 'initiative'],
   // record-kind aliases
   subtask: ['subtask'],
   item: ['item'],
+  project: ['project'],
+  initiative: ['initiative'],
 };
 
 /**
@@ -1280,7 +1325,9 @@ const SCHEMA_TARGETS: Record<string, SchemaRecordKind[]> = {
 function renderSchema(target?: string): string | null {
   let kinds: SchemaRecordKind[];
   if (target === undefined) {
-    kinds = ['task', 'subtask', 'item', 'retro'];
+    // ID-156.6 gap (c): `project`/`initiative` joined the default (no-target)
+    // universe alongside the four original kinds.
+    kinds = ['task', 'subtask', 'item', 'retro', 'project', 'initiative'];
   } else {
     const resolved = SCHEMA_TARGETS[target];
     if (!resolved) return null;
@@ -1518,7 +1565,7 @@ const SUBCOMMAND_HELP: Record<
 };
 
 const USAGE = `ledger-cli — mutate the KH workflow ledgers
-  show           <ledger> <id>                 (ledger: task|backlog|retro; retired: roadmap/umbrellas — see RETIRED_VERBS)
+  show           <ledger> <id>                 (ledger: task|backlog|retro|initiatives|project; retired: roadmap/umbrellas — see RETIRED_VERBS)
                  [--full|--summary|--no-journals|--fields csv]  (default guaranteed ≤48KB: stub journals → degrade to summary; --full opts out)
                  "show initiatives [id]" = initiatives.json read, no id = whole doc, id = one top-level initiative (ID-148.6)
                  "show project <slug>" = one project anywhere in the initiative tree (ID-148.6)
@@ -1526,8 +1573,8 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
                  get task <taskId>.<subId> [field]              (subtask path)
   journal        <taskId>                       (per-subtask journal index — counts, not content)
   journal        <taskId.subId> [--last n]      (chronological journal thread; --last warns on supersession)
-  schema         [ledger|recordKind]           (print field names + types + budgets)
-  list           <ledger> [filters]            (read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks}; retired: roadmap/umbrellas)
+  schema         [ledger|recordKind]           (print field names + types + budgets; ledger|recordKind: task|backlog|retro|initiatives|subtask|item|project|initiative)
+  list           <ledger> [filters]            (ledger: task|backlog|retro|initiatives|projects; read-only snapshot; default "list task" = non-cancelled {id,title,status,subtasks}; retired: roadmap/umbrellas)
                  "list initiatives" / "list projects" (ID-148.6; --initiative <id> scopes list projects)
   flip-task      <taskId> <status>
   flip-subtask   <taskId.subId> <status>        (legacy <taskId> <subId> <status>)
@@ -1543,6 +1590,15 @@ const USAGE = `ledger-cli — mutate the KH workflow ledgers
   delete-backlog <itemId>
   delete-subtask <taskId.subId>                 (legacy <taskId> <subId>)
   promote        <backlogId> <taskJson | --file <path> (- = stdin) | --title …>
+initiatives write verbs (ID-148.7/ID-156.7 — server-routed ServerIntents, no in-process writer, DR-073/DR-074):
+  create-project    <initiativePath> <projectJson | --title …>  (caller-supplied slug — never a bare digit-dotted path, e.g. "4"/"4.2")
+  update-project    <slug> <field> <value | --file <path>>      (incl \`status\`)
+  update-initiative <initiativePath> <field> <value | --file <path>>  (initiative/sub-initiative fields only, incl \`status\`; rejects a project slug)
+  delete-project    <slug>                                      (rejects project-not-empty)
+  link-tasks        <slug> <taskId…>          unlink-tasks   <slug> <taskId…>
+  link-backlog      <slug> <backlogId…>       unlink-backlog <slug> <backlogId…>
+  move-task         <taskId> --from <slug> --to <slug>          (atomic re-parent)
+  move-backlog      <backlogId> --from <slug> --to <slug>       (atomic re-parent)
 retired (ID-148, INV-7 — return {ok:false,error:'retired-verb'|'retired-flag'}):
   update-roadmap, create-theme, update-umbrella, show/list roadmap|umbrellas,
   promote --capability-theme. Use the \`initiatives\` verbs instead (see
@@ -3577,7 +3633,11 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         return cliErr(
           'schema',
           'bad-schema-target',
-          `target must be one of: task|roadmap|backlog|subtask|theme|item (got "${target}")`,
+          // ID-156.6 gap (c): derived from `SCHEMA_TARGETS` keys (never a
+          // hand-maintained enum string) so this can never re-drift — the
+          // prior hardcoded list still advertised retired `roadmap`/`theme`
+          // targets and omitted `initiatives`/`project`/`initiative`.
+          `target must be one of: ${Object.keys(SCHEMA_TARGETS).join('|')} (got "${target}")`,
         );
       return { ok: true, subcommand: 'schema', result: out };
     }
@@ -4852,6 +4912,30 @@ async function run(args: ParsedArgs): Promise<CliResult> {
         'project',
         input.value as Record<string, unknown>,
       );
+      // ID-156.6 gap (d), bl-468: reject a slug shaped like a bare
+      // digit-dotted initiative/sub-initiative path (e.g. "4", "4.2") —
+      // `resolveRecordId` (lib/ledger/initiatives-tree.ts, the SAME
+      // disambiguation `link-tasks`/`unlink-tasks`/`link-backlog`/
+      // `unlink-backlog`/`move-task`/`move-backlog`/`update-initiative` use)
+      // tries the initiative-path interpretation FIRST — a project created
+      // with such a slug would insert successfully here but then be
+      // PERMANENTLY unreachable as a project by every id-addressed verb
+      // (each would misresolve it as an initiative path instead). Client-side
+      // guard only — the upstream task-view create-record path has no
+      // equivalent check today (journalled as an out-of-scope upstream
+      // intent; lib/ledger/** stays vendored/byte-faithful, never hand-edited
+      // here).
+      const slugCandidate = (record as { id?: unknown }).id;
+      if (
+        typeof slugCandidate === 'string' &&
+        /^\d+(\.\d+)*$/.test(slugCandidate)
+      ) {
+        return cliErr(
+          'create-project',
+          'invalid-slug',
+          `project slug "${slugCandidate}" is shaped like an initiative/sub-initiative path (digits and dots only) — resolveRecordId resolves that shape as an initiative path FIRST, so this slug would never be reachable as a project by id; choose a kebab-case slug instead`,
+        );
+      }
       // insertRecord is the CLI-side duplicate-slug + schema + tree-path
       // oracle (esc-4 retained; TECH §2 INV-13); the record-set + budget
       // gates run server-side (R1b).
