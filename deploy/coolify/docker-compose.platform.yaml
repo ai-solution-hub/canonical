@@ -226,6 +226,13 @@ services:
   # deploys/no Coolify this round); confirm at first real rollout per the
   # runbook.
   #
+  # CNB GOTCHA CONFIRMED (ID-145.31/S481): the above assumption was wrong —
+  # the buildpack ENTRYPOINT is /cnb/process/web, which pins the container
+  # to the `web` process type and never execs `command:` at all (logs showed
+  # the cocoindex HTTP wrapper booting instead of the poller). Fixed via
+  # `entrypoint: ["/cnb/lifecycle/launcher"]` below, which execs the custom
+  # command under the buildpack env — empirically proven on Server B.
+  #
   # No Traefik ingress — bid_worker.py has no HTTP server (a pure poller),
   # unlike cocoindex-platform's /walk /health /extract surface above.
   # ----------------------------------------------------------------------------
@@ -239,6 +246,7 @@ services:
     # `scripts.cocoindex_pipeline.form_extractors` (package-qualified)
     # resolves; the old bare-script form only put `scripts/` itself on
     # sys.path, not the repo root.
+    entrypoint: ["/cnb/lifecycle/launcher"]
     command: ["python3", "-m", "scripts.bid_worker"]
 
     # Resource caps — the analyse_form PDF Plane-2 lane runs commonforms'
