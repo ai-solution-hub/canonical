@@ -303,6 +303,23 @@ describe('ledger-cli — get single-field read', () => {
     if (!r.ok) expect(r.error).toBe('bad-ledger');
   });
 
+  // ID-156 close-out residue fix (journaled on 156.6, DR-021-routed here):
+  // the detail string used to hand-maintain "task|backlog|retro", never
+  // updated when `initiatives` joined `LEDGER_FILES` under 148.7. Now
+  // DERIVED from `LEDGER_FILES` (minus retired names) so it can't re-drift —
+  // parity with `schema`'s `bad-schema-target` fix above.
+  it('bad-ledger detail derives from LEDGER_FILES — never roadmap, always initiatives', async () => {
+    const r = await run(args('get', ['nope', '100']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.detail).not.toMatch(/\broadmap\b/);
+      expect(r.detail).toContain('task');
+      expect(r.detail).toContain('backlog');
+      expect(r.detail).toContain('retro');
+      expect(r.detail).toContain('initiatives');
+    }
+  });
+
   it('is read-only — touches no ledger file', async () => {
     const before = statSync(join(dir, 'product-backlog.json')).mtimeMs;
     await run(args('get', ['backlog', '100', 'status']));

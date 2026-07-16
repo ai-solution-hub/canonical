@@ -713,6 +713,27 @@ describe.skipIf(!CLONE_PRESENT)(
     );
 
     it(
+      'create-initiative accepts a raw positional JSON body, no parentPath (third invocation shape, parity with --id/--title flags)',
+      { timeout: 20_000 },
+      async () => {
+        const dir = fixtureDir();
+        const body = JSON.stringify({
+          id: '77',
+          title: 'Fixture positional-JSON-body initiative',
+        });
+        const r = runLedgerCli(dir, ['create-initiative', body]);
+        expect(r.exitCode).toBe(0);
+        expect(r.envelope?.ok).toBe(true);
+        const result = r.envelope?.result as { recordId: string };
+        expect(result.recordId).toBe('77');
+
+        const created = await showInitiative(dir, '77');
+        expect(created.title).toBe('Fixture positional-JSON-body initiative');
+        expect(created.status).toBe('proposed'); // withCreateDefaults default
+      },
+    );
+
+    it(
       'create-initiative <parentPath> inserts a new sub-initiative (dotted-path recordId)',
       { timeout: 20_000 },
       async () => {

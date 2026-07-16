@@ -3524,7 +3524,20 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       const getRetired = checkRetiredLedgerName('get', ledger);
       if (getRetired) return getRetired;
       if (!(ledger in LEDGER_FILES))
-        return cliErr('get', 'bad-ledger', `ledger must be task|backlog|retro`);
+        return cliErr(
+          'get',
+          'bad-ledger',
+          // ID-156 close-out residue (journaled on 156.6, DR-021-routed here):
+          // this hand-maintained string used to read "task|backlog|retro",
+          // omitting `initiatives` (added to `LEDGER_FILES` under 148.7). Now
+          // DERIVED from the SAME `LEDGER_FILES` keys this branch dispatches
+          // on, minus the retired names `checkRetiredLedgerName` already
+          // caught above (`roadmap`) — same never-drift-again pattern as
+          // `schema`'s `bad-schema-target` (Object.keys(SCHEMA_TARGETS)).
+          `ledger must be one of: ${Object.keys(LEDGER_FILES)
+            .filter((k) => !(k in RETIRED_LEDGER_NAMES))
+            .join('|')} (got "${ledger}")`,
+        );
       const loaded = await loadLedger(ledgerPath(dir, ledger as LedgerName));
       if (!loaded.ok) return loaded.result;
       const d = loaded.detected;
