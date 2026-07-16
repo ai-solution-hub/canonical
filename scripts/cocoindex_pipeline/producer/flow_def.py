@@ -231,6 +231,30 @@ def _resolve_client_id() -> "str | None":
     return os.environ.get("OKF_CLIENT_ID", "") or None
 
 
+def _resolve_bundle_class() -> "str | None":
+    """OV-10 (ID-132 {132.37} G-OVERLAY-PLATFORM-REJECT, DR-054/DR-079):
+    resolve the run's bundle-CLASS signal — `OKF_BUNDLE_CLASS` from the
+    environment (mirrors `_resolve_bundle_dir`'s `OKF_BUNDLE_DIR` read and
+    `_resolve_client_id`'s `OKF_CLIENT_ID` read). Unset or empty resolves to
+    `None`.
+
+    Deliberately NOT derived from `_resolve_client_id()`'s presence/absence
+    — a `client_business` run can legitimately exist BEFORE its
+    `OKF_CLIENT_ID` is configured (IRI-6's own non-gating fallback), so
+    "no client_id yet" is not a safe proxy for "not a client-business
+    bundle". This is instead an explicit, independent signal an operator
+    sets per bundle-repo deployment, one of DR-079's four ratified values —
+    `"client_business"`, `"system_baseline"`, `"showcase"`,
+    `"internal_dev"`.
+
+    `None` is deliberately NOT treated as `"client_business"` by
+    `bundle_writer.write_bundle`'s OV-10 gate: an unresolved/ambiguous
+    signal defaults to the SAFE (reject-on-discovered-overlay) posture,
+    never the permissive one — see `bundle_writer.
+    OntologyOverlayClassError`."""
+    return os.environ.get("OKF_BUNDLE_CLASS", "") or None
+
+
 async def _draft_concepts(
     concepts: "Sequence[Any]",
     source: Any,
@@ -365,6 +389,10 @@ async def run_producer_flow(
          ontology artefact plus the {132.44} bl-457 `context.jsonld` IRI
          projection (`client_id=_resolve_client_id()` — the resolved
          `OKF_CLIENT_ID`, or `None` for a base-only projection, IRI-6).
+         `bundle_class=_resolve_bundle_class()` (OV-10, ID-132 {132.37}) is
+         threaded the same way — the resolved `OKF_BUNDLE_CLASS`, or `None`
+         when unset — so `write_bundle` hard-rejects a discovered overlay
+         file for any bundle_class other than exactly `"client_business"`.
       4. `declare_concept_embedding(...)` for each added/changed concept when a
          `re_target` is supplied (skipped otherwise — BI-25/26).
       5. `git_sync.reapply_overrides(...)` folds any injected `overrides` onto
@@ -419,6 +447,7 @@ async def run_producer_flow(
         drafts,
         reference_drafts,
         theme_config=theme_config,
+        bundle_class=_resolve_bundle_class(),
         client_id=_resolve_client_id(),
         timestamp=timestamp,
     )

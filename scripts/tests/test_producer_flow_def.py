@@ -338,6 +338,82 @@ class TestClientIdResolution:
         assert env.flow_def._resolve_client_id() is None
 
 
+# ── {132.37} G-OVERLAY-PLATFORM-REJECT, DR-054/DR-079: OKF_BUNDLE_CLASS ───
+
+
+class TestBundleClassResolution:
+    """`_resolve_bundle_class` mirrors `_resolve_client_id`'s `OKF_CLIENT_ID`
+    read (unset/empty -> `None`) — but, unlike `client_id`, `None` here is
+    NOT a safe/non-gating default: `bundle_writer.write_bundle`'s OV-10
+    gate treats an unresolved `bundle_class` the same as a confirmed
+    non-client-business class when an overlay is discovered (reject)."""
+
+    def test_resolve_bundle_class_reads_okf_bundle_class_env_var(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
+        assert env.flow_def._resolve_bundle_class() == "client_business"
+
+    def test_resolve_bundle_class_unset_resolves_to_none(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("OKF_BUNDLE_CLASS", raising=False)
+        assert env.flow_def._resolve_bundle_class() is None
+
+    def test_resolve_bundle_class_empty_string_resolves_to_none(
+        self, env, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "")
+        assert env.flow_def._resolve_bundle_class() is None
+
+
+class TestBundleClassGate:
+    """OV-10 end-to-end, through the REAL `run_producer_flow` composed
+    entry point — not only the `write_bundle` unit call
+    (`TestDegradation`'s overlay tests above already cover the
+    `client_business`-permitted composition path end-to-end)."""
+
+    def test_non_client_business_run_with_stray_overlay_aborts(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stray `ontology-overlay.json` in a non-client-business bundle
+        checkout (e.g. the showcase bundle) ABORTS the run with a clear
+        error — the testStrategy's hard-reject clause, exercised through
+        the full composed flow, not only a direct `write_bundle` call."""
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "showcase")
+        (bundle_dir / "ontology-overlay.json").write_text(
+            json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        with pytest.raises(env.bundle_writer.OntologyOverlayClassError):
+            asyncio.run(
+                env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+            )
+
+        assert not (bundle_dir / "topics/alpha.md").exists()
+        assert not (bundle_dir / "ontology.json").exists()
+
+    def test_non_client_business_run_without_overlay_file_stays_base_only(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The testStrategy's third clause: a non-client-business run with
+        NO overlay file present is unaffected by the gate — it stays
+        base-only (`overlay: null`) and publishes successfully, exactly as
+        before this Subtask's gate existed."""
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "showcase")
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
+        assert ontology["overlay"] is None
+
+
 # ── Owner ruling S456: a log.md-only diff is a no-op — no commit ─────────
 
 
@@ -419,14 +495,18 @@ class TestDegradation:
         assert report.embedded == ()
 
     def test_composes_a_client_overlay_from_the_bundle_dir_end_to_end(
-        self, env, bundle_dir: Path
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """OV-4 (ID-132 {132.34} G-OVERLAY-CV): a REAL `run_producer_flow`
         run — not only a direct `write_bundle` unit call — exercises the
         overlay READ end-to-end. The sole production caller
         (`flow_def.py:379-385`) never explicitly supplies
         `client_ontology_overlay`; composing an overlay for a real run
-        depends entirely on `write_bundle`'s own bundle_dir read."""
+        depends entirely on `write_bundle`'s own bundle_dir read.
+        `OKF_BUNDLE_CLASS=client_business` (ID-132 {132.37} OV-10) is set so
+        the class gate permits composition — see `TestBundleClassGate`
+        below for the gate's own end-to-end tests."""
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
         (bundle_dir / "ontology-overlay.json").write_text(
             json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
         )
@@ -465,8 +545,11 @@ class TestDegradation:
         unset resolves `client_id=None` at the `write_bundle` call site —
         `context.jsonld` ships base-only, even with a client-authored
         overlay present (advisory un-projected diagnostic, run not
-        aborted)."""
+        aborted). `OKF_BUNDLE_CLASS=client_business` (ID-132 {132.37}
+        OV-10) is set so the class gate permits the overlay to compose at
+        all — orthogonal to this test's IRI-6 assertion."""
         monkeypatch.delenv("OKF_CLIENT_ID", raising=False)
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
         (bundle_dir / "ontology-overlay.json").write_text(
             json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
         )
@@ -490,8 +573,11 @@ class TestDegradation:
         set resolves `client_id` at the `write_bundle` call site — the
         SAME composed `EffectiveOntology` `write_bundle` already lints
         concepts against is what `context.jsonld` projects, so the
-        client-authored overlay term mints under the client namespace."""
+        client-authored overlay term mints under the client namespace.
+        `OKF_BUNDLE_CLASS=client_business` (ID-132 {132.37} OV-10) is set
+        so the class gate permits the overlay to compose at all."""
         monkeypatch.setenv("OKF_CLIENT_ID", "acme")
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
         (bundle_dir / "ontology-overlay.json").write_text(
             json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
         )

@@ -806,7 +806,9 @@ def test_write_bundle_projects_overlay_iris_under_client_ns_when_client_id_passe
     )
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
+    bundle_writer.write_bundle(
+        tmp_path, [draft], bundle_class="client_business", client_id="acme"
+    )
 
     payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
     context = payload["@context"]
@@ -821,13 +823,17 @@ def test_write_bundle_client_id_absent_is_base_only_and_run_not_aborted(
     `write_bundle` — overlay-term IRIs are never guessed/derived; the
     overlay term is left un-projected (advisory) and the run is NOT
     aborted (concept files, index.md, log.md, ontology.json all still
-    land normally)."""
+    land normally). `bundle_class="client_business"` here is orthogonal to
+    this test's IRI-6 assertion — it is passed only so the OV-10 gate
+    (ID-132 {132.37}) permits the overlay to compose at all; see
+    `test_write_bundle_hard_rejects_...` below for the class-gate's own
+    tests."""
     (tmp_path / "ontology-overlay.json").write_text(
         json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
     )
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft])
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     assert summary.added == ("topics/alpha.md",)
     payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
@@ -928,7 +934,7 @@ def test_overlay_file_is_read_and_never_declared_or_deleted(tmp_path: Path) -> N
     )
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft])
+    bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     declared_paths = {str(call.args[0]) for call in _localfs_stub.declare_file.call_args_list}
     assert str(tmp_path / "ontology-overlay.json") not in declared_paths
@@ -1026,7 +1032,7 @@ def test_ontology_artefact_overlay_carries_source_and_sha256_provenance(
     (tmp_path / "ontology-overlay.json").write_bytes(raw)
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft])
+    bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
     overlay = ontology["overlay"]
@@ -1047,7 +1053,9 @@ def test_overlay_present_empty_is_distinct_from_overlay_absent(tmp_path: Path) -
 
     (tmp_path / "ontology-overlay.json").write_text(json.dumps({}), encoding="utf-8")
     present_draft = _draft("topics/present.md", title="Present")
-    bundle_writer.write_bundle(tmp_path, [absent_draft, present_draft])
+    bundle_writer.write_bundle(
+        tmp_path, [absent_draft, present_draft], bundle_class="client_business"
+    )
     present_ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
 
     overlay = present_ontology["overlay"]
@@ -1076,6 +1084,124 @@ def test_write_bundle_accepts_overlay_added_concept_type_only_with_overlay(
     (tmp_path / "ontology-overlay.json").write_text(
         json.dumps({"concept_types": ["widget_type"]}), encoding="utf-8"
     )
-    overlay_summary = bundle_writer.write_bundle(tmp_path, [draft])
+    overlay_summary = bundle_writer.write_bundle(
+        tmp_path, [draft], bundle_class="client_business"
+    )
     assert overlay_summary.added == ("topics/widget.md",)
     assert (tmp_path / "topics/widget.md").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Bundle-CLASS discriminator (ID-132 {132.37} G-OVERLAY-PLATFORM-REJECT,
+# DR-054/DR-079) — OV-10
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_ontology_overlay_class_error_is_an_ontology_overlay_error(tmp_path: Path) -> None:
+    """`OntologyOverlayClassError` subclasses `OntologyOverlayError` — an
+    existing `except OntologyOverlayError` catch site keeps working
+    unchanged even though this is a distinct failure mode (a present-and-
+    VALID overlay in the wrong bundle class, not a schema violation)."""
+    assert issubclass(bundle_writer.OntologyOverlayClassError, bundle_writer.OntologyOverlayError)
+
+
+def test_write_bundle_hard_rejects_overlay_for_each_non_client_business_class(
+    tmp_path: Path,
+) -> None:
+    """OV-10: DR-079's other three ratified bundle classes — system-
+    baseline, showcase, internal-dev — are ALL platform-owned and ride the
+    same `write_bundle` spine; every one of them must hard-reject a stray
+    overlay exactly like the (retired-terminology) 'platform bundle' case
+    OV-10 originally named. Nothing is published this run (mirrors OV-5's
+    all-or-nothing fail-loud posture)."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    for non_client_class in ("system_baseline", "showcase", "internal_dev"):
+        with pytest.raises(bundle_writer.OntologyOverlayClassError):
+            bundle_writer.write_bundle(tmp_path, [draft], bundle_class=non_client_class)
+
+        assert not (tmp_path / "topics/alpha.md").exists()
+        assert not (tmp_path / "ontology.json").exists()
+        assert not (tmp_path / "log.md").exists()
+
+
+def test_write_bundle_hard_rejects_overlay_when_bundle_class_is_unset(
+    tmp_path: Path,
+) -> None:
+    """OV-10: an unresolved/ambiguous `bundle_class` (the default, `None`)
+    is deliberately NOT treated as a safe stand-in for `"client_business"`
+    — a silently-permissive default is exactly the bug this Subtask kills.
+    A stray overlay file discovered with no class signal at all hard-
+    rejects, same as a confirmed non-client-business class."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    with pytest.raises(bundle_writer.OntologyOverlayClassError):
+        bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert not (tmp_path / "topics/alpha.md").exists()
+    assert not (tmp_path / "ontology.json").exists()
+
+
+def test_write_bundle_composes_overlay_when_bundle_class_is_client_business(
+    tmp_path: Path,
+) -> None:
+    """OV-10/OV-4: the ONE permitted class — `"client_business"` — composes
+    a discovered overlay normally, exactly as before this Subtask's gate
+    existed (the testStrategy's "a client-bundle run with the same file
+    composes normally" clause)."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
+
+    assert summary.added == ("topics/alpha.md",)
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"]["entity_types"] == ["widget"]
+
+
+def test_write_bundle_non_client_business_class_without_overlay_file_stays_base_only(
+    tmp_path: Path,
+) -> None:
+    """OV-10/OV-12: the gate only fires when an overlay is DISCOVERED — a
+    non-client-business bundle_class with no overlay file present composes
+    `overlay: null` and publishes successfully, same as always (the
+    testStrategy's "platform run without the file stays base-only
+    overlay:null" clause)."""
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="showcase")
+
+    assert summary.added == ("topics/alpha.md",)
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"] is None
+
+
+def test_write_bundle_explicit_client_ontology_overlay_kwarg_bypasses_the_class_gate(
+    tmp_path: Path,
+) -> None:
+    """The OV-10 class gate only guards the auto-discovered (`read_client_
+    overlay`) path — the pre-existing `client_ontology_overlay` kwarg is a
+    caller-supplied escape hatch (tests; `write_ontology_artefact`'s own
+    direct-call test) that has already taken responsibility for its
+    provenance, so it composes regardless of `bundle_class` (no overlay
+    FILE was discovered on disk to reject)."""
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(
+        tmp_path,
+        [draft],
+        client_ontology_overlay={"entity_types": ["widget"]},
+        bundle_class="showcase",
+    )
+
+    assert summary.added == ("topics/alpha.md",)
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"]["entity_types"] == ["widget"]

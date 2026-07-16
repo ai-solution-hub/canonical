@@ -698,6 +698,54 @@ class OntologyOverlayError(ValueError):
     (OV-4/OV-11) — it never raises this."""
 
 
+# OV-10 (ID-132 {132.37} G-OVERLAY-PLATFORM-REJECT, DR-054/DR-079): the
+# bundle-CLASS discriminator. DR-079 ratified FOUR bundle classes — only
+# "client_business" is a client-owned repo entitled to author a client
+# overlay (DR-016); "system_baseline" (bl-465), "showcase" (the synthetic-
+# corpus bundle this Subtask's provenance calls "the platform bundle" —
+# terminology retired in favour of the class name) and "internal_dev"
+# (bl-478) are ALL platform-owned and ride the SAME `write_bundle` spine
+# (Path-2/RepoDocsSource) — none of them is ever a client-overlay consumer
+# (DR-027: the platform is the base authority for all three). A bare
+# boolean would not generalise to this four-class taxonomy; the reject rule
+# below is keyed on the class value itself so it already covers every
+# platform-owned class, not just one.
+BundleClass = Literal["client_business", "system_baseline", "showcase", "internal_dev"]
+
+_CLIENT_BUSINESS_BUNDLE_CLASS: BundleClass = "client_business"
+
+
+class OntologyOverlayClassError(OntologyOverlayError):
+    """OV-10 (ID-132 {132.37}, DR-054/DR-079): raised when `write_bundle`
+    discovers a PRESENT, schema-valid `ontology-overlay.json` (`read_client_
+    overlay` returned non-`None`) but the run's `bundle_class` is not
+    exactly `"client_business"` — only the client-business class may
+    compose a client overlay; the other three ratified classes (system-
+    baseline, showcase, internal-dev) are all platform-owned and must
+    hard-reject a stray overlay exactly like the legacy "platform bundle"
+    case OV-10 originally named (OQ-OV-5).
+
+    An unset/`None` `bundle_class` is ALSO rejected here — deliberately NOT
+    treated as a safe stand-in for `"client_business"`. `bundle_class` is
+    an explicit, caller-supplied signal (`producer/flow_def.py`'s
+    `_resolve_bundle_class`, an `OKF_BUNDLE_CLASS` env var read); it is
+    never derived from `client_id`'s presence, because a client-business
+    run can legitimately exist BEFORE its `OKF_CLIENT_ID` is configured
+    (bl-457 IRI-6's own non-gating fallback) — treating "no client_id yet"
+    as "not client-business" would misclassify that legitimate run. Given
+    that ambiguity, defaulting an unresolved signal to *permissive*
+    composition would silently reintroduce the exact bug this error exists
+    to kill (a stray overlay file in a non-client-business bundle checkout
+    composing instead of hard-rejecting), so the unresolved case is treated
+    the same as a confirmed non-client-business class: reject.
+
+    Subclasses `OntologyOverlayError` (not a bare new error family) — this
+    is a DISTINCT failure mode from OV-5's schema-validation failure (a
+    present-but-INVALID overlay never reaches this check; `read_client_
+    overlay` already raised). This fires for a present-and-VALID overlay in
+    the WRONG (or unresolved) bundle class."""
+
+
 # OV-2: the overlay's three permitted top-level keys — closed schema, any
 # other key (including a singular typo like `entity_type`, or a `remove`/
 # `exclude` mechanism) is a validation failure (OQ-OV-4/OV-3).
@@ -873,6 +921,7 @@ def write_bundle(
     moved: "Mapping[str, str]" = MappingProxyType({}),
     orphaned_anchors: "Sequence[str]" = (),
     client_ontology_overlay: "Mapping[str, object] | None" = None,
+    bundle_class: "BundleClass | None" = None,
     client_id: "str | None" = None,
     timestamp: "str | None" = None,
 ) -> RunSummary:
@@ -917,7 +966,9 @@ def write_bundle(
     already-landed `client_ontology_overlay` kwarg remains a raw,
     unvalidated escape hatch for an explicit caller-supplied mapping
     (tests; `write_ontology_artefact`'s own direct-call test), used INSTEAD
-    of the read when supplied. A present-but-invalid overlay file raises
+    of the read when supplied (and INSTEAD of the OV-10 class gate below —
+    a caller passing this kwarg directly has already taken responsibility
+    for its provenance). A present-but-invalid overlay file raises
     `OntologyOverlayError` here, BEFORE any `declare_file` call this run
     would otherwise make (OV-5: fail-loud, all-or-nothing — no bundle is
     published for that run). The resulting overlay (or `None`) both (a)
@@ -927,12 +978,32 @@ def write_bundle(
     `write_ontology_artefact` unchanged via the pre-existing
     `client_ontology_overlay` pass-through (the `write_ontology_artefact`
     call below).
+
+    **Bundle-CLASS discriminator (OV-10, ID-132 {132.37}, DR-054/DR-079).**
+    When the overlay is DISCOVERED via the `read_client_overlay` file read
+    (not the explicit `client_ontology_overlay` kwarg) and is non-`None`,
+    `bundle_class` must be exactly `"client_business"` — DR-079's other
+    three ratified classes (system-baseline, showcase, internal-dev) are
+    all platform-owned and must never self-overlay. `bundle_class` unset
+    (`None`, the ambiguous case — see `OntologyOverlayClassError`) is
+    treated the same as a confirmed non-client-business class: reject
+    rather than silently compose. Raises `OntologyOverlayClassError` before
+    any `declare_file` call this run would otherwise make, exactly
+    mirroring OV-5's all-or-nothing fail-loud posture.
     """
-    overlay = (
-        client_ontology_overlay
-        if client_ontology_overlay is not None
-        else read_client_overlay(bundle_dir)
-    )
+    if client_ontology_overlay is not None:
+        overlay = client_ontology_overlay
+    else:
+        overlay = read_client_overlay(bundle_dir)
+        if overlay is not None and bundle_class != _CLIENT_BUSINESS_BUNDLE_CLASS:
+            raise OntologyOverlayClassError(
+                f"{OVERLAY_FILENAME} was found at {bundle_dir} but "
+                f"bundle_class={bundle_class!r} is not "
+                f"{_CLIENT_BUSINESS_BUNDLE_CLASS!r} — only the "
+                "client-business bundle class may compose a client overlay "
+                "(DR-054/DR-079, OV-10). Aborting rather than silently "
+                "composing."
+            )
     effective_ontology = EffectiveOntology.compose(overlay)
 
     previous_paths = _existing_concept_paths(bundle_dir)
