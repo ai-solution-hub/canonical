@@ -105,6 +105,24 @@ console.error = (...args: unknown[]) => {
   realConsoleError(...args);
 };
 
+import { afterAll } from 'vitest';
+import { reapEphemeralServersForTest } from '@/scripts/ledger-server-lifecycle';
+
+// ID-156.9 test reaper (testStrategy: a full __tests__/scripts/ run leaves
+// ZERO live ephemeral ledger servers). Every ensureServer() ephemeral spawn
+// this test FILE creates is tracked in an in-memory, per-process registry
+// (scripts/ledger-server-lifecycle.ts); stopEphemeralServer already reaps the
+// normal kill-on-success path, so this backstop only ever finds work when a
+// test threw/timed out before its finally-block ran. Registered globally
+// (not just in __tests__/scripts/) — a no-op for every file that never calls
+// ensureServer, since the registry stays empty. Vitest's default
+// `pool: 'forks'` isolation reloads this setup file (and the lifecycle
+// module's registry) fresh per test file, so this afterAll reaps exactly
+// this file's own spawns, never a parallel session's.
+afterAll(() => {
+  reapEphemeralServersForTest();
+});
+
 import '@testing-library/jest-dom/vitest';
 
 // Skip browser polyfills in node environment (real DB integration tests use @vitest-environment node)
