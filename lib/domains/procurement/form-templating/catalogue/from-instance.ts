@@ -51,6 +51,7 @@ import {
 } from '@/lib/auth/client';
 import { tryQuery, type Result } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -71,8 +72,11 @@ const EMBEDDING_DIMENSIONS = 1024;
 /**
  * The `record_embeddings.owner_kind` value for this catalogue ({130.24}
  * DR-036 — `record_embeddings_owner_kind_chk` widened to include it).
+ * ID-151: type-annotated against the shared RecordEmbeddingsOwnerKind union
+ * so a typo here would fail tsc.
  */
-const RECORD_EMBEDDINGS_OWNER_KIND = 'form_template_requirement';
+const RECORD_EMBEDDINGS_OWNER_KIND: RecordEmbeddingsOwnerKind =
+  'form_template_requirement';
 
 /**
  * Non-NULL `template_version` sentinel ({52.22} design §2.2). The natural key

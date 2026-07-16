@@ -9,6 +9,7 @@ import {
   SendToReviewBodySchema,
   SendToReviewResultSchema,
 } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 30;
@@ -42,7 +43,7 @@ export const POST = defineRoute(
         .select(
           'source_document_id, governance_review_status, content_owner_id, source_documents!inner(id, filename, suggested_title)',
         )
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .in('source_document_id', itemIds);
 
       if (fetchErr) {
@@ -109,7 +110,7 @@ export const POST = defineRoute(
             governance_review_status: 'pending',
             governance_review_due: reviewDue,
           })
-          .eq('owner_kind', 'source_document')
+          .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
           .in('source_document_id', eligible);
 
         if (updateErr) {

@@ -14,6 +14,7 @@ import {
   ReviewQueueResponseSchema,
   UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -442,7 +443,7 @@ async function countVerified(
   return supabase
     .from('record_lifecycle')
     .select('source_document_id', { count: 'exact', head: true })
-    .eq('owner_kind', 'source_document')
+    .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
     .not('verified_at', 'is', null);
 }
 

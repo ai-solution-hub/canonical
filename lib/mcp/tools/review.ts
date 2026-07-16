@@ -31,6 +31,7 @@ import type {
   QueueItem,
   WhatsInMyQueueData,
 } from '@/lib/mcp/formatters';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import {
   buildAttentionItems,
   type AttentionItem,
@@ -303,7 +304,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
             supabase
               .from('record_lifecycle')
               .select('source_document_id')
-              .eq('owner_kind', 'source_document')
+              .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
               .in('freshness', args.filter_freshness),
             'mcp.review.create_review_assignment.freshness_filter',
           );

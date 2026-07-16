@@ -50,6 +50,7 @@ import { logger } from '@/lib/logger';
 import { PermanentJobError } from '@/lib/queue/dispatch';
 import { createServiceClient } from '@/lib/supabase/server';
 import { normaliseTag } from '@/lib/validation/schemas';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database, Json } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
@@ -975,7 +976,7 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             .from('record_embeddings')
             .upsert(
               {
-                owner_kind: 'source_document',
+                owner_kind: 'source_document' satisfies RecordEmbeddingsOwnerKind,
                 owner_id: item.id,
                 model: 'text-embedding-3-large',
                 embedding: regeneratedEmbedding,

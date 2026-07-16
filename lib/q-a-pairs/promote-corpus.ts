@@ -87,6 +87,7 @@ import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 // only the pure-DB source_document_id provenance link survives, so the fs /
 // path / carried-set-serialise / write-back-restore imports are no longer used.
 import { qaSidecarRelPath, sdUuid5 } from '@/lib/q-a-pairs/sidecar-path';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -1201,7 +1202,7 @@ async function embedAndPublish(
     .from('record_embeddings')
     .upsert(
       {
-        owner_kind: 'q_a_pair',
+        owner_kind: 'q_a_pair' satisfies RecordEmbeddingsOwnerKind,
         owner_id: pairId,
         model: 'text-embedding-3-large',
         embedding: serialisedEmbedding,

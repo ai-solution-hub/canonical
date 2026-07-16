@@ -4,6 +4,7 @@
 import { formatDateUK } from '@/lib/format';
 import { htmlToMarkdown } from '@/lib/content/html-to-markdown';
 import { truncate, formatProgress } from './shared';
+import type { CitedKind } from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Procurement detail
@@ -169,7 +170,9 @@ export function formatProcurementQuestion(
 
 export interface CitationResult {
   id: string;
-  cited_kind: string;
+  // ID-151: was bare `string` — narrowed to the shared CitedKind alias for
+  // citations.cited_kind's pg enum (cited_target_kind).
+  cited_kind: CitedKind;
   // ID-131.19 (M6, S450 GO tail): `cited_content_item_id` + the
   // `content_item` CHECK branch were DROPPED from `citations` at M6 — the
   // production writer (app/api/procurement/[id]/responses/draft-stream/

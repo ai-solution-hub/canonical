@@ -23,6 +23,7 @@ import {
   buildDisambiguationBlock,
 } from '@/lib/client-config';
 import { sb } from '@/lib/supabase/safe';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { logger } from '@/lib/logger';
 
@@ -1809,7 +1810,7 @@ ${contentForClassification}`,
       .from('record_embeddings')
       .upsert(
         {
-          owner_kind: 'source_document',
+          owner_kind: 'source_document' satisfies RecordEmbeddingsOwnerKind,
           owner_id: itemId,
           model: 'text-embedding-3-large',
           embedding: regeneratedEmbedding,

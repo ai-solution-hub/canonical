@@ -21,8 +21,12 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
-export type ReviewItemOwnerKind = 'source_document' | 'q_a_pair';
+// ID-151: alias onto the shared record_lifecycle/verification_history
+// 2-value domain (this file's own name kept — it is the established,
+// meaningful name at this call site's "review item" domain).
+export type ReviewItemOwnerKind = FacetOwnerKind;
 
 const OWNER_TABLE: Record<
   ReviewItemOwnerKind,

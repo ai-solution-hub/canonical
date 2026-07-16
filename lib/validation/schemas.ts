@@ -6,6 +6,7 @@ import { validateWebUrl } from '@/lib/intelligence/url-validation';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 import { BRANDING } from '@/lib/client-config';
 import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
+import { FacetOwnerKindSchema } from '@/lib/validation/owner-kind';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -217,7 +218,10 @@ export const ReviewActionBodySchema = z.object({
   // Verify (hooks/use-library-bulk-actions.ts) also omits it today — out of
   // this Subtask's file-ownership boundary — so the q_a_pairs fallback probe
   // is what un-404s it; a future explicit 'q_a_pair' caller skips the probe.
-  owner_kind: z.enum(['source_document', 'q_a_pair']).optional(),
+  // ID-151: shared FacetOwnerKindSchema (record_lifecycle +
+  // verification_history's identical 2-value domain), not a locally
+  // hand-rolled z.enum.
+  owner_kind: FacetOwnerKindSchema.optional(),
 });
 
 /** GET /api/review/queue — validates status, limit, cursor only.

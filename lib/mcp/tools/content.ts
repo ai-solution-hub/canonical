@@ -18,6 +18,7 @@ import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import type { PipelineRunStatus } from '@/lib/pipeline/record-run';
 import type { Database, Json } from '@/supabase/types/database.types';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import {
   formatContentItem,
   formatCreatedItem,
@@ -93,7 +94,7 @@ async function fetchAndFormatContentItems(
       supabase
         .from('record_lifecycle')
         .select('source_document_id, freshness, governance_review_status')
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .in(
           'source_document_id',
           rows.map((r) => r.id).filter((id): id is string => !!id),
@@ -283,7 +284,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           supabase
             .from('record_lifecycle')
             .select('freshness, governance_review_status')
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', item.id!)
             .maybeSingle(),
           'mcp.content.get_item.lifecycle',
@@ -1213,7 +1214,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             .from('record_lifecycle')
             .upsert(
               {
-                owner_kind: 'source_document' as const,
+                owner_kind: 'source_document' as const satisfies FacetOwnerKind,
                 source_document_id: args.id,
                 ...facetUpdate,
               },
@@ -1651,7 +1652,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             supabase
               .from('record_lifecycle')
               .select('source_document_id, content_owner_id')
-              .eq('owner_kind', 'source_document')
+              .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
               .in(
                 'source_document_id',
                 capped.map((i) => i.id).filter((id): id is string => !!id),

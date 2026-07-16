@@ -11,6 +11,7 @@ import { sb, SupabaseError } from '@/lib/supabase/safe';
 import { BRANDING } from '@/lib/client-config';
 import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -151,7 +152,7 @@ export async function getItemProvenance(
     supabase
       .from('record_lifecycle')
       .select('next_review_date, review_cadence_days, verified_at')
-      .eq('owner_kind', 'source_document')
+      .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .eq('owner_id', itemId)
       .maybeSingle(),
     'provenance.item.recordLifecycle',

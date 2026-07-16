@@ -64,6 +64,7 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { safeErrorMessage } from '@/lib/error';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import type { SupabaseClientLike } from '@/lib/q-a-pairs/promote-corpus';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
@@ -370,7 +371,7 @@ async function bestEffortReEmbed(
     .from('record_embeddings')
     .upsert(
       {
-        owner_kind: 'q_a_pair',
+        owner_kind: 'q_a_pair' satisfies RecordEmbeddingsOwnerKind,
         owner_id: pairId,
         model: 'text-embedding-3-large',
         embedding: serialisedEmbedding,

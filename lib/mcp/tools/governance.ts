@@ -19,6 +19,10 @@ import {
 } from '@/lib/mcp/auth';
 import { sb, tryQuery, isOk } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
+import type {
+  FacetOwnerKind,
+  RecordEmbeddingsOwnerKind,
+} from '@/lib/validation/owner-kind';
 import {
   formatDeleteContent,
   formatGovernanceReviewAction,
@@ -569,7 +573,7 @@ export async function registerGovernanceTools(
                   .from('record_embeddings')
                   .upsert(
                     {
-                      owner_kind: 'q_a_pair',
+                      owner_kind: 'q_a_pair' satisfies RecordEmbeddingsOwnerKind,
                       owner_id: itemId,
                       model: 'text-embedding-3-large',
                       embedding: JSON.stringify(embedding),
@@ -1144,7 +1148,10 @@ export async function registerGovernanceTools(
         // content-drift: q_a_pairs have no home for it).
         let displayTitle = '(untitled)';
         let ownerUpdatedBy: string | null = null;
-        if (item.owner_kind === 'source_document' && item.source_document_id) {
+        if (
+          item.owner_kind === ('source_document' satisfies FacetOwnerKind) &&
+          item.source_document_id
+        ) {
           const sdRes = await tryQuery(
             supabase
               .from('source_documents')
@@ -1156,7 +1163,10 @@ export async function registerGovernanceTools(
           const sd = isOk(sdRes) ? sdRes.data : null;
           displayTitle = sd?.suggested_title ?? '(untitled)';
           ownerUpdatedBy = sd?.updated_by ?? null;
-        } else if (item.owner_kind === 'q_a_pair' && item.q_a_pair_id) {
+        } else if (
+          item.owner_kind === ('q_a_pair' satisfies FacetOwnerKind) &&
+          item.q_a_pair_id
+        ) {
           const qaRes = await tryQuery(
             supabase
               .from('q_a_pairs')

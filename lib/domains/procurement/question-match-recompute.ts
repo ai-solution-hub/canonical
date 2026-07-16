@@ -44,6 +44,7 @@ import { getOrganisationProfile } from '@/lib/organisation-profile';
 import { tryQuery } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 
 /** Matches the `model` literal every other record_embeddings writer uses
  * (classify.ts, promote-corpus.ts, the {130.15}/{131.11} migrate scripts) —
@@ -124,7 +125,7 @@ export async function recomputeQuestionMatches(
           .from('record_embeddings')
           .upsert(
             {
-              owner_kind: 'form_question',
+              owner_kind: 'form_question' satisfies RecordEmbeddingsOwnerKind,
               owner_id: formQuestionId,
               model: EMBEDDING_MODEL,
               embedding: serialisedEmbedding,

@@ -27,6 +27,7 @@ import type {
 } from '@/lib/mcp/formatters';
 import { createMcpClient } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Type alias for the extra parameter in tool callbacks
@@ -394,7 +395,7 @@ export async function fetchQualityBriefingData(
     supabase
       .from('record_lifecycle')
       .select('source_document_id, freshness, previous_freshness')
-      .eq('owner_kind', 'source_document')
+      .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .not('previous_freshness', 'is', null)
       .limit(100),
     'mcp.shared.quality_briefing.freshness_facet',
