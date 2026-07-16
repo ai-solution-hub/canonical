@@ -400,12 +400,12 @@ jobs:
             if [ -n "$TAG_BUMP_DATE" ] && [ -n "$VENDOR_SYNC_DATE" ]; then
               DRIFT_AGE_JSON="$(bun scripts/task-view-drift-age.ts --tag-bump-date "$TAG_BUMP_DATE" --vendor-sync-date "$VENDOR_SYNC_DATE" 2>/dev/null || echo '{}')"
             fi
-            AGE_DAYS="$(echo "$DRIFT_AGE_JSON" | jq -r '.ageDays // "unknown"')"
-            AGE_TIER="$(echo "$DRIFT_AGE_JSON" | jq -r '.tier // "unknown"')"
-            AGE_MESSAGE="$(echo "$DRIFT_AGE_JSON" | jq -r '.message // "Drift-age could not be computed (commit lookup failed) — treat as unknown, not zero."')"
+            AGE_DAYS="$(echo "$DRIFT_AGE_JSON" | jq -r '.ageDays // "unknown"' || true)"
+            AGE_TIER="$(echo "$DRIFT_AGE_JSON" | jq -r '.tier // "unknown"' || true)"
+            AGE_MESSAGE="$(echo "$DRIFT_AGE_JSON" | jq -r '.message // "Drift-age could not be computed (commit lookup failed) — treat as unknown, not zero."' || true)"
 
             MARKER="<!-- task-view-primitive-drift-bot:ID-157 -->"
-            BODY_FILE="$(mktemp)"
+            BODY_FILE="$(mktemp || true)"
             {
               echo "$MARKER"
               echo "### ⚠️ task-view primitive vendor drift (non-blocking)"
@@ -416,10 +416,10 @@ jobs:
               echo "- $AGE_MESSAGE"
               echo
               echo "Re-vendor per \`lib/ledger/README.md\`'s Re-vendor procedure, then push a follow-up commit. This check never blocks the build (OQ-T2) — this comment is a reminder only."
-            } > "$BODY_FILE"
+            } > "$BODY_FILE" 2>/dev/null || true
 
             COMMENTS_JSON="$(gh api "repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" 2>/dev/null || echo '[]')"
-            EXISTING_COMMENT_ID="$(echo "$COMMENTS_JSON" | jq -r --arg marker "$MARKER" '[.[] | select(.body | contains($marker))] | last | .id // empty')"
+            EXISTING_COMMENT_ID="$(echo "$COMMENTS_JSON" | jq -r --arg marker "$MARKER" '[.[] | select(.body | contains($marker))] | last | .id // empty' || true)"
 
             if [ -n "$EXISTING_COMMENT_ID" ]; then
               gh api -X PATCH "repos/$REPO/issues/comments/$EXISTING_COMMENT_ID" -f body="$(cat "$BODY_FILE")" >/dev/null 2>&1 \
@@ -457,8 +457,8 @@ jobs:
             exit 0
           fi
 
-          BASE_TAGS="$(printf '%s\n' "$BASE_CONTENT" | grep -o 'TASK_VIEW_TAG: [^[:space:]]*' | sort -u)"
-          HEAD_TAGS="$(grep -o 'TASK_VIEW_TAG: [^[:space:]]*' "$WORKFLOW_FILE" | sort -u)"
+          BASE_TAGS="$(printf '%s\n' "$BASE_CONTENT" | grep -o 'TASK_VIEW_TAG: [^[:space:]]*' | sort -u || true)"
+          HEAD_TAGS="$(grep -o 'TASK_VIEW_TAG: [^[:space:]]*' "$WORKFLOW_FILE" | sort -u || true)"
 
           {
             echo "### TASK_VIEW_TAG bump checklist"
