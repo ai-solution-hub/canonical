@@ -13,7 +13,7 @@ import {
   ProcurementUpdateBodySchema,
   validateFormOutcome,
 } from '@/lib/validation/schemas';
-import { tryQuery } from '@/lib/supabase/safe';
+import { tryQuery, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -70,6 +70,59 @@ interface EngagementSiblingRow {
   form_type: string | null;
   workflow_state: string | null;
   reference_number: string | null;
+}
+
+/**
+ * Raw shape of the §A3 sibling-rail query result BEFORE the lineage sort —
+ * carries `created_at` as the tiebreaker only ({145.51}); stripped before the
+ * row is returned in the public `EngagementSiblingRow` shape.
+ */
+interface EngagementSiblingQueryRow extends EngagementSiblingRow {
+  created_at: string;
+}
+
+/**
+ * BI-28/29 lineage rank (PSQ -> ITT -> tender) for the §A3 sibling-rail
+ * deterministic order ({145.51}, S481 curator promotion — an existing gap
+ * flagged from {145.42}/{145.45}). supabase-js `.order()` cannot express a
+ * CASE/sequence expression, and the natural `form_type` enum order
+ * (`PROCUREMENT_FORM_TYPE_KEYS` in `lib/validation/schemas.ts` — alphabetical)
+ * does NOT match the lineage, so this route sorts server-side after the
+ * fetch instead — still server-side, still deterministic. `form_type`s
+ * outside the known lineage (checklist/questionnaire/rfp/…) have no defined
+ * lineage position, so they sort AFTER the known PSQ -> ITT -> tender triad.
+ */
+const ENGAGEMENT_LINEAGE_RANK: Record<string, number> = {
+  psq: 0,
+  itt: 1,
+  tender: 2,
+};
+const UNRANKED_LINEAGE_POSITION = 3;
+
+function engagementLineageRank(formType: string | null): number {
+  if (formType !== null && formType in ENGAGEMENT_LINEAGE_RANK) {
+    return ENGAGEMENT_LINEAGE_RANK[formType];
+  }
+  return UNRANKED_LINEAGE_POSITION;
+}
+
+/**
+ * Sort §A3 sibling rows into BI-28/29 lineage order (PSQ -> ITT -> tender),
+ * `created_at` ascending as the deterministic tiebreaker (both within a
+ * lineage rank and among unranked types), then strip the tiebreaker field
+ * before returning the public row shape ItemGroupingRail consumes as-is.
+ */
+function sortEngagementSiblingsByLineage(
+  rows: EngagementSiblingQueryRow[],
+): EngagementSiblingRow[] {
+  return [...rows]
+    .sort((a, b) => {
+      const rankDiff =
+        engagementLineageRank(a.form_type) - engagementLineageRank(b.form_type);
+      if (rankDiff !== 0) return rankDiff;
+      return a.created_at.localeCompare(b.created_at);
+    })
+    .map(({ created_at: _created_at, ...row }) => row);
 }
 
 /**
@@ -306,12 +359,25 @@ export const GET = defineRoute(
       // §A4) — just the sibling identity fields the rail lists.
       let engagementSiblings: EngagementSiblingRow[] = [];
       if (engagementGroupId) {
-        const siblingsResult = await tryQuery<EngagementSiblingRow[]>(
-          supabase
-            .from('form_instances')
-            .select('id, name, form_type, workflow_state, reference_number')
-            .eq('engagement_group_id', engagementGroupId)
-            .neq('id', id),
+        // `created_at` is fetched ONLY as the lineage-sort tiebreaker
+        // ({145.51}) — stripped before it reaches `engagementSiblings`.
+        const siblingsQuery = supabase
+          .from('form_instances')
+          .select(
+            'id, name, form_type, workflow_state, reference_number, created_at',
+          )
+          .eq('engagement_group_id', engagementGroupId)
+          .neq('id', id);
+        // Cast needed: adding `created_at` to the previously 5-column
+        // select tips supabase-js's stale-types overload resolution onto an
+        // unrelated table shape (the pre-existing `form_instances` vs
+        // generated-types mismatch this file's header already documents) —
+        // same precedent as the `as unknown as Database[...]` cast on the
+        // PATCH write path below.
+        const siblingsResult = await tryQuery<EngagementSiblingQueryRow[]>(
+          siblingsQuery as unknown as PostgrestLike<
+            EngagementSiblingQueryRow[]
+          >,
           'procurement.detail.engagementSiblings',
         );
         if (!siblingsResult.ok) {
@@ -327,7 +393,9 @@ export const GET = defineRoute(
               ),
           );
         } else {
-          engagementSiblings = siblingsResult.data ?? [];
+          engagementSiblings = sortEngagementSiblingsByLineage(
+            siblingsResult.data ?? [],
+          );
         }
       }
 

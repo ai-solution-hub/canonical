@@ -831,6 +831,102 @@ describe('GET /api/procurement/[id]', () => {
     expect(body.engagement_siblings[0].name).toBe('ITT');
   });
 
+  // ID-145 {145.51} (S481 curator promotion) — the {145.42} sibling-rail read
+  // had no explicit ORDER BY, so API order silently matched whatever
+  // Supabase/Postgres returned. This asserts the BI-28/29 lineage order
+  // (PSQ -> ITT -> tender) is now deterministic regardless of fetch order.
+  it('orders engagement_siblings by BI-28/29 lineage (PSQ -> ITT -> tender) regardless of fetch order, unranked types last, created_at tiebreak within a rank', async () => {
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { ...MOCK_FORM_DETAIL, engagement_group_id: ENGAGEMENT_GROUP_UUID },
+      error: null,
+    });
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+    mockSupabase.storage.from.mockReturnValue({
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      upload: vi.fn(),
+      download: vi.fn(),
+      remove: vi.fn(),
+      getPublicUrl: vi.fn(),
+    });
+
+    mockSupabase._chain.then
+      // 1st awaited non-.single() query: the form_attachments fold.
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+      )
+      // 2nd: the engagement sibling-rail read — deliberately fetched OUT of
+      // lineage order (tender, then an unranked type, then two ITTs, then
+      // PSQ) to prove the route re-orders it rather than relying on
+      // Supabase/Postgres row order.
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: 'sibling-tender',
+              name: 'Tender',
+              form_type: 'tender',
+              workflow_state: 'drafting',
+              reference_number: null,
+              created_at: '2026-01-05T00:00:00Z',
+            },
+            {
+              id: 'sibling-questionnaire',
+              name: 'Extra Questionnaire',
+              form_type: 'questionnaire',
+              workflow_state: 'draft',
+              reference_number: null,
+              created_at: '2026-01-01T00:00:00Z',
+            },
+            {
+              id: 'sibling-itt-b',
+              name: 'ITT (later)',
+              form_type: 'itt',
+              workflow_state: 'drafting',
+              reference_number: null,
+              created_at: '2026-01-04T00:00:00Z',
+            },
+            {
+              id: 'sibling-psq',
+              name: 'PSQ',
+              form_type: 'psq',
+              workflow_state: 'submitted',
+              reference_number: null,
+              created_at: '2026-01-02T00:00:00Z',
+            },
+            {
+              id: 'sibling-itt-a',
+              name: 'ITT (earlier)',
+              form_type: 'itt',
+              workflow_state: 'drafting',
+              reference_number: null,
+              created_at: '2026-01-03T00:00:00Z',
+            },
+          ],
+          error: null,
+        }),
+      );
+
+    const req = createTestRequest(`/api/procurement/${VALID_UUID}`);
+    const res = await getBid(req, {
+      params: createTestParams({ id: VALID_UUID }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // PSQ -> ITT (earlier first, created_at tiebreak) -> ITT (later) ->
+    // tender -> unranked questionnaire last.
+    expect(body.engagement_siblings.map((s: { id: string }) => s.id)).toEqual([
+      'sibling-psq',
+      'sibling-itt-a',
+      'sibling-itt-b',
+      'sibling-tender',
+      'sibling-questionnaire',
+    ]);
+    // The `created_at` tiebreaker is fetched server-side only — it must
+    // never leak into the API response shape ItemGroupingRail consumes.
+    expect(body.engagement_siblings[0]).not.toHaveProperty('created_at');
+  });
+
   it('returns 200 with warnings[] when the attachments fold fails (partial response)', async () => {
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: MOCK_FORM_DETAIL,
