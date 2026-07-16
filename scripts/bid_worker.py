@@ -501,7 +501,15 @@ def _write_form_instance_fields(supabase: Client, form_id: str, fields: list) ->
     """Insert Plane-2 ExtractedField rows into form_instance_fields (coords
     + fill_status='pending' per BI-20). ``fields`` is a list of this
     package's ``ExtractedField`` Pydantic rows (docx/xlsx readers, or the
-    PDF adapter's shape-adapted rows — same type either way)."""
+    PDF adapter's shape-adapted rows — same type either way).
+
+    ID-147 {147.10} (TECH §3, DR-064 Option A; PRODUCT §C1/§C4): forwards
+    ``f.geometry`` — {147.9}'s DISPLAYED (post-rotation) page-fraction dict
+    for PDF-sourced fields — onto the row's ``geometry`` jsonb column
+    (20260716130000_id147_form_instance_fields_geometry.sql, nullable).
+    ``None`` for docx/xlsx fields (the readers never set it) and for any
+    PDF field whose rotation could not be normalised; persisted as SQL
+    NULL, never a fabricated box (§C4 degrade)."""
     if not fields:
         return 0
     rows = [
@@ -520,6 +528,7 @@ def _write_form_instance_fields(supabase: Client, form_id: str, fields: list) ->
             "sequence": f.sequence,
             "is_mandatory": f.is_mandatory,
             "reference_urls": f.reference_urls,
+            "geometry": f.geometry,
         }
         for f in fields
     ]
@@ -646,9 +655,14 @@ def analyse_form_job(supabase: Client, payload: dict) -> dict:
 
     if fillable_pdf_bytes is not None:
         # {145.15} (fill step) consumes this artefact's own AcroForm /Rect
-        # entries as the fill-time geometry (form_instance_fields has no
-        # bbox/page columns — the GEOMETRY-PERSISTENCE decision documented
-        # on orchestrator._pdf_result_to_extracted_form).
+        # entries as the fill-time geometry — the GEOMETRY-PERSISTENCE
+        # decision documented on orchestrator._pdf_result_to_extracted_form.
+        # ID-147 {147.10} adds a `geometry` jsonb column to
+        # form_instance_fields, but that column carries the DISPLAYED
+        # page-fraction summary for the read-side spatial overlay (§C1/§C4),
+        # NOT fill-time precision — the fill step still reads this stored
+        # fillable-PDF artefact's own /Rect entries directly rather than
+        # reconstructing them from the DB row.
         supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).upload(
             f"{form_id}/fillable.pdf",
             fillable_pdf_bytes,

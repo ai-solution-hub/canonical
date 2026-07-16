@@ -768,6 +768,60 @@ class TestWriteFormInstanceFields:
         assert count == 0
         mock_sb.from_.assert_not_called()
 
+    def test_persists_geometry_dict_onto_row(self):
+        """ID-147 {147.10}: the DISPLAYED page-fraction geometry dict
+        produced by {147.9}'s PDF adapter (ExtractedField.geometry) is
+        forwarded onto the persisted form_instance_fields row."""
+        from bid_worker import _write_form_instance_fields
+        from scripts.cocoindex_pipeline.form_extractors.shared import ExtractedField
+
+        mock_sb = _make_mock_supabase()
+        mock_sb.from_.return_value.insert.return_value.execute.return_value = (
+            MagicMock()
+        )
+
+        geometry = {
+            "page": 0,
+            "top": 0.12,
+            "left": 0.34,
+            "width": 0.2,
+            "height": 0.03,
+        }
+        field = ExtractedField(
+            question_text="Q1?",
+            field_type="empty_cell",
+            fill_status="pending",
+            sequence=0,
+            geometry=geometry,
+        )
+        _write_form_instance_fields(mock_sb, "form-1", [field])
+
+        rows_arg = mock_sb.from_.return_value.insert.call_args[0][0]
+        assert rows_arg[0]["geometry"] == geometry
+
+    def test_docx_field_leaves_geometry_null(self):
+        """§C4 degrade: a DOCX/XLSX-sourced ExtractedField carries no
+        geometry (the readers never set it) — the persisted row's
+        geometry is NULL, never a fabricated box."""
+        from bid_worker import _write_form_instance_fields
+        from scripts.cocoindex_pipeline.form_extractors.shared import ExtractedField
+
+        mock_sb = _make_mock_supabase()
+        mock_sb.from_.return_value.insert.return_value.execute.return_value = (
+            MagicMock()
+        )
+
+        field = ExtractedField(
+            question_text="Q1?",
+            field_type="empty_cell",
+            fill_status="pending",
+            sequence=0,
+        )  # geometry defaults to None — docx.py/xlsx.py never populate it
+        _write_form_instance_fields(mock_sb, "form-1", [field])
+
+        rows_arg = mock_sb.from_.return_value.insert.call_args[0][0]
+        assert rows_arg[0]["geometry"] is None
+
 
 _DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -868,6 +922,11 @@ class TestAnalyseFormJob:
         mock_sb.from_.return_value.update.assert_any_call(
             {"processing_status": "analysed"}
         )
+        # ID-147 {147.10} §C4 degrade: a DOCX-sourced field carries no
+        # geometry — the persisted row's geometry is NULL, not a fabricated
+        # box.
+        rows_arg = mock_sb.from_.return_value.insert.call_args[0][0]
+        assert rows_arg[0]["geometry"] is None
 
     @patch("bid_worker._extract_plane1_questions")
     @patch("bid_worker.extract_form_structure")
@@ -979,6 +1038,62 @@ class TestAnalyseFormJob:
             b"%PDF-fillable-artefact",
             {"content-type": "application/pdf", "upsert": "true"},
         )
+
+    def test_pdf_geometry_dict_persists_onto_form_instance_fields_row(self):
+        """ID-147 {147.10}: the analyse_form lane end-to-end — a PDF field's
+        {147.9} geometry dict rides through
+        _pdf_result_to_extracted_form -> _write_form_instance_fields onto
+        the persisted form_instance_fields row (TECH §3, DR-064 Option A)."""
+        from bid_worker import analyse_form_job
+        import bid_worker
+
+        mock_sb = _make_mock_supabase()
+        _mock_table_select_single(
+            mock_sb,
+            {
+                "id": "form-1",
+                "storage_path": "form-1/document.pdf",
+                "mime_type": _PDF_MIME,
+            },
+        )
+        mock_sb.storage.from_.return_value.download.return_value = (
+            b"%PDF-1.4-fake-bytes"
+        )
+        self._wire_form_questions_dedup_noop(mock_sb)
+        mock_sb.from_.return_value.update.return_value.eq.return_value.execute.return_value = (
+            MagicMock()
+        )
+
+        geometry = {
+            "page": 0,
+            "top": 0.1,
+            "left": 0.2,
+            "width": 0.3,
+            "height": 0.04,
+        }
+        fake_field = MagicMock(
+            question_text="Company name?",
+            page_number=0,
+            sequence=0,
+            geometry=geometry,
+        )
+        fake_pdf_result = MagicMock(
+            fields=[fake_field], fillable_pdf_bytes=b"%PDF-fillable-artefact"
+        )
+
+        with patch.object(
+            bid_worker._form_orchestrator,
+            "_detect_pdf_fields",
+            return_value=fake_pdf_result,
+        ), patch.object(
+            bid_worker, "_extract_plane1_questions", return_value=[]
+        ):
+            analyse_form_job(
+                mock_sb, {"body": {"form_id": "form-1"}, "auth_context": {}}
+            )
+
+        rows_arg = mock_sb.from_.return_value.insert.call_args[0][0]
+        assert rows_arg[0]["geometry"] == geometry
 
     @patch("bid_worker._extract_plane1_questions")
     @patch("bid_worker.extract_form_structure")
