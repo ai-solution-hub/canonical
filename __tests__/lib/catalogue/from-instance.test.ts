@@ -772,6 +772,32 @@ describe('classifyField — Anthropic classification (ID-154: strict tool_use)',
     });
   });
 
+  it('expresses matching_guidance nullability via anyOf, not an array-valued type (strict-mode-supported subset)', async () => {
+    const anthropic = makeAnthropic({
+      requirement_type: 'data',
+      matching_keywords: ['VAT number'],
+      matching_guidance: null,
+    });
+
+    await classifyField(anthropic, makeField());
+
+    const createMock = anthropic.messages.create as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const call = createMock.mock.calls[0][0];
+    const guidanceSchema = call.tools[0].input_schema.properties
+      .matching_guidance as Record<string, unknown>;
+
+    // Array-valued `type` is NOT in Anthropic's supported strict-mode JSON
+    // Schema subset — asserting its absence guards against regressing back
+    // to the (undefined-behaviour-under-strict-mode) shape.
+    expect(guidanceSchema).not.toHaveProperty('type');
+    expect(guidanceSchema.anyOf).toEqual([
+      { type: 'string' },
+      { type: 'null' },
+    ]);
+  });
+
   it('rejects a response with an out-of-set requirement_type', async () => {
     const anthropic = makeAnthropic({
       requirement_type: 'info_only',

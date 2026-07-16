@@ -223,6 +223,18 @@ export async function readInstanceFields(
  * `scripts/catalogue-from-instance.ts` (which calls `classifyField` once
  * per instance field) — there is no separate tool definition to update
  * there, since it calls through this same function.
+ *
+ * `matching_guidance` expresses nullability via `anyOf: [{type:'string'},
+ * {type:'null'}]`, NOT an array-valued `type: ['string','null']` — the
+ * latter is outside Anthropic's supported strict-mode JSON Schema subset
+ * (confirmed against the live structured-outputs docs) and risks a 400 /
+ * undefined behaviour under `strict: true`, which would undermine the very
+ * fix this tool exists to make. `anyOf` IS in the supported subset and
+ * needs no SDK-type cast (unlike extract-questions.ts's pre-existing
+ * `TENDER_METADATA_TOOL`/`EXTRACT_QUESTIONS_TOOL` fields, which use the
+ * array-valued form behind an `as unknown as` cast — a separate,
+ * already-shipped, out-of-scope defect tracked independently, not fixed
+ * here).
  */
 const CLASSIFY_FIELD_TOOL = {
   name: 'classify_field' as const,
@@ -241,10 +253,7 @@ const CLASSIFY_FIELD_TOOL = {
         items: { type: 'string' as const },
       },
       matching_guidance: {
-        type: [
-          'string',
-          'null',
-        ] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        anyOf: [{ type: 'string' as const }, { type: 'null' as const }],
       },
     },
     required: [
