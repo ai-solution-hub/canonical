@@ -3134,6 +3134,47 @@ function requireProject(
   return { ok: true, project: resolved.location.project as unknown as Project };
 }
 
+/** ID-156 code-simplification pass: the "require initiative" counterpart to
+ * `requireProject` above — same `resolveRecordId` disambiguation primitive,
+ * opposite direction, extracted from the near-identical blocks `{156.7}`
+ * `update-initiative` and `{156.8}` `create-initiative` each had inline.
+ * `path === undefined` short-circuits to ok (create-initiative's optional
+ * parentPath, root-create case — nothing to disambiguate); update-initiative
+ * always supplies a defined `path`. A project-slug match rejects
+ * `initiatives-path-only` with the caller-supplied `replacementHint` (the two
+ * verbs point callers at different remedies); `not-found` rejects
+ * generically. */
+function requireInitiativePath(
+  subcommand: string,
+  doc: InitiativesDocument,
+  path: string | undefined,
+  replacementHint: string,
+): { ok: true } | { ok: false; result: CliResult } {
+  if (path === undefined) return { ok: true };
+  const resolved = resolveRecordId(doc as unknown as TreeDoc, path);
+  if (resolved.kind === 'project') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'initiatives-path-only',
+        `"${path}" is a project slug, not an initiative/sub-initiative path — ${replacementHint}`,
+      ),
+    };
+  }
+  if (resolved.kind === 'not-found') {
+    return {
+      ok: false,
+      result: cliErr(
+        subcommand,
+        'record-not-found',
+        `no initiative/sub-initiative at path "${path}"`,
+      ),
+    };
+  }
+  return { ok: true };
+}
+
 /** Bare-digit id validation on task/backlog ids threaded to link/unlink/move
  * (TECH §3.3). Project ids (slugs) are validated separately via
  * `requireProject`'s tree-walk. */
@@ -5362,21 +5403,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       if (!loaded.ok) return loaded.result;
       // Disambiguate BEFORE building the patch: `path` must resolve to an
       // initiative/sub-initiative node, not a project slug.
-      const resolved = resolveRecordId(loaded.doc as unknown as TreeDoc, path);
-      if (resolved.kind === 'project') {
-        return cliErr(
-          'update-initiative',
-          'initiatives-path-only',
-          `"${path}" is a project slug, not an initiative/sub-initiative path — update-initiative addresses initiatives only; use update-project instead`,
-        );
-      }
-      if (resolved.kind === 'not-found') {
-        return cliErr(
-          'update-initiative',
-          'record-not-found',
-          `no initiative/sub-initiative at path "${path}"`,
-        );
-      }
+      const pathCheck = requireInitiativePath(
+        'update-initiative',
+        loaded.doc,
+        path,
+        'update-initiative addresses initiatives only; use update-project instead',
+      );
+      if (!pathCheck.ok) return pathCheck.result;
       const newValue = coerceFieldValue('initiative', field, value);
       const patch: FieldPatch = {
         fieldPath: ['initiatives', path, field],
@@ -5438,26 +5471,13 @@ async function run(args: ParsedArgs): Promise<CliResult> {
       // A supplied parentPath must resolve to an EXISTING initiative/
       // sub-initiative node — never a project slug — BEFORE building the
       // intent (disambiguate-before-mutate, matching update-initiative).
-      if (parentPath !== undefined) {
-        const resolved = resolveRecordId(
-          loaded.doc as unknown as TreeDoc,
-          parentPath,
-        );
-        if (resolved.kind === 'project') {
-          return cliErr(
-            'create-initiative',
-            'initiatives-path-only',
-            `"${parentPath}" is a project slug, not an initiative/sub-initiative path — create-initiative's optional parent addresses initiatives only`,
-          );
-        }
-        if (resolved.kind === 'not-found') {
-          return cliErr(
-            'create-initiative',
-            'record-not-found',
-            `no initiative/sub-initiative at path "${parentPath}"`,
-          );
-        }
-      }
+      const pathCheck = requireInitiativePath(
+        'create-initiative',
+        loaded.doc,
+        parentPath,
+        "create-initiative's optional parent addresses initiatives only",
+      );
+      if (!pathCheck.ok) return pathCheck.result;
       const bodyArgs: ParsedArgs = { ...args, positionals: bodyPositionals };
       const input = readRecordInput(bodyArgs);
       if (!input.ok) return input.result;
