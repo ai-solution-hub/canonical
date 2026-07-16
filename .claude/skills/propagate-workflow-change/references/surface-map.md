@@ -32,6 +32,7 @@ surface:
 | `show <ledger> <id> [--full\|--summary\|--no-journals\|--fields csv]` | record (`ledger`: task\|backlog\|retro; `roadmap`/`umbrellas` are **RETIRED** `<ledger>` values, see below). **S447: DEFAULT is size-shaped ≤48KB** — stubs subtask journals → degrades to summary; `--full` opts out (verbatim) | do NOT treat a bare `show` as journal-complete on large tasks |
 | `get <ledger> <id> [field]` | single field; **S447: `get task <N>.<M> [field]` reaches one subtask** (no whole-task fetch); no field = show | |
 | `journal <taskId>` / `journal <taskId.subId> [--last n]` | **S447 READ command** — per-subtask index (counts) / chronological thread; `--last` warns on supersession; resolves compaction archive-pointers | start-session, handoff, task-checker |
+| `journal-search [--since ISO --until ISO --task id --export path]` | **ID-156.2 READ command** — cross-task/cross-subtask journal search over the WHOLE ledger incl. done/cancelled tasks; read-only, no server round-trip; `--export` writes full untruncated output to file; ≤48KB show-valve degradation | (new — no propagation dependents yet, add here when one appears) |
 | `list <ledger> [filters]` | filtered snapshot; **S447: default `list task` roll-up now `{id,title,status,subtasks}`** (subtasks done/total) | start-session, triage-finding |
 | `append-journal <taskId[.subId]> <text>` | **WRITE** verb — append `<info added on …>` block to `details` (the read counterpart is `journal`; NOT renamed) | update-roadmap-backlog, cli-mechanics |
 | `add-subtask <taskId> …` / `add-subtasks <taskId> --file -` | insert Subtask(s) | task-planner, workflow-curator, triage-finding |
@@ -39,6 +40,7 @@ surface:
 | `schema [ledger|recordKind]` | prints field name + type + budget | triage-finding, field-schemas |
 | `show initiatives [id]` / `list initiatives` / `list projects [--initiative <id>]` / `show project <slug>` | **ID-148.6 — initiatives read verbs (landed)** | start-session §2e, workflow-curator |
 | `create-project <initiativePath> <projectJson>` / `update-project <slug> <field> <value>` / `delete-project <slug>` (rejects project-not-empty) / `link-tasks`\|`unlink-tasks <slug> <ids…>` / `link-backlog`\|`unlink-backlog <slug> <ids…>` / `move-task`\|`move-backlog <id> --from <slug> --to <slug>` | **ID-148.7 — initiatives write verbs (landed).** Every verb builds a `ServerIntent` routed through the transport — no in-process writer (DR-073/074) | update-roadmap-backlog (no designed Create-mode mapping yet — ID-148.11 ambiguous case) |
+| `create-initiative [<parentPath>] <initiativeJson \| --title …>` / `update-initiative <initiativePath> <field> <value \| --file>` | **ID-156.8/ID-156.7 (DR-077) — initiatives create/update verbs (landed).** No `parentPath` = new top-level initiative; `parentPath` given = new sub-initiative under it; `recordId` returned is the FULL DOTTED PATH; `update-initiative` guards the status enum and rejects a project slug | closes the "no verb creates a top-level initiative" gap cited by workflow-orchestration, triage-finding, update-roadmap-backlog (+field-schemas.md), workflow-curator.md, this file |
 
 **RETIRED verbs (ID-148.8/DR-073/074 — return a clean `retired-verb`/`retired-flag`
 envelope, nothing read/written, before any file access):** `update-roadmap` → use the
@@ -154,9 +156,11 @@ write it**. The initiatives → sub-initiatives → projects topology is the rep
 strategic-grouping model (start-session 2e now surfaces the owning Initiative/Project via
 `list projects` or a direct `Read` of `initiatives.json`, ~40KB), but there is no
 initiatives-side analog of "add this Task to a cross-cutting grouping after the fact" —
-`create-project` requires an existing initiative/sub-initiative path and there is no verb
-to create a brand-new top-level initiative. This procedural gap is unresolved — see
-ID-148.11's ambiguous-cases list.
+`create-project` requires an existing initiative/sub-initiative path. **Superseded
+(ID-156.8/DR-077):** `create-initiative [<parentPath>] <initiativeJson | --title …>` now
+creates a brand-new top-level initiative (no `parentPath`) or a sub-initiative
+(`parentPath` given), closing the verb gap; the procedural question of WHEN to mint one
+vs reuse an existing initiative remains open — see ID-148.11's ambiguous-cases list.
 
 ### ID-148 — initiatives cutover (landed, ID-148.8/DR-073/074)
 
@@ -169,9 +173,29 @@ ServerIntents); `capability_theme`/`themes[]` retire with no analog; `originatin
 `lib/validation/doc-link.ts`; `TASK_VIEW_TAG` = `v0.10.1-task-view`. Propagated (ID-148.11)
 into: update-roadmap-backlog (+ both references/), propagate-workflow-change (this file),
 workflow-orchestration, triage-finding (+ examples.md), start-session, workflow-curator.md,
-shared-discipline.md, root CLAUDE.md, plus ~19 docs-site reference docs. **Open gap**: no
-curator write path exists for a `decision: roadmap`-shaped finding (no verb creates a new
-top-level initiative) — flagged to the owner, not resolved by this sweep.
+shared-discipline.md, root CLAUDE.md, plus ~19 docs-site reference docs. **Open gap —
+partially closed (ID-156.8/DR-077, see the ID-156 entry below):** `create-initiative` now
+creates a new top-level initiative (or sub-initiative), but no curator procedure yet
+decides WHEN a `decision: roadmap`-shaped finding should call it vs reuse an existing
+initiative — flagged to the owner, not resolved by this sweep.
+
+### ID-156 — journal-search + initiatives create verbs, CLI hygiene (landed, S472→S479)
+
+Landed since the ID-156 subtasks were authored: `journal-search` (new cross-task/
+cross-subtask READ verb, glossary row above); `create-initiative`/`update-initiative`
+(new initiatives write verbs, DR-077, glossary row above — closes the top-level-initiative
+create gap tracked since ID-148.11, though the WHEN-to-mint-one procedure is still
+undesigned); ledger-cli USAGE now documents all 11 initiatives write verbs; `schema`
+accepts `project|initiative|initiatives` kinds with a derived bad-target enum; `get`'s
+bad-ledger error is derived from live ledger names (includes `initiatives`); `create-project`
+rejects digit-dotted slugs; `append-journal` rejects empty/whitespace-only text (exit 1,
+nothing written); Task records carry `blocked_by`/`blocking` (string arrays, default `[]`);
+stdout hygiene — the `[branding]` WCAG advisory line is gone and warnings print exactly
+once (JSON envelope only, no duplicate trailing line); ephemeral ledger servers self-reap
+(kill-on-success + `--parent-pid` + 30s idle-exit + test reaper — no more orphan-server
+accumulation); `TASK_VIEW_TAG` = `v0.12.1-task-view` (the v0.11.0-strict schema-skew freeze
+is LIFTED). Propagated (this sweep, S479) into: workflow-orchestration, triage-finding,
+update-roadmap-backlog (+ field-schemas.md), workflow-curator.md, this file.
 
 ## Homograph traps (grep over-matches — discard these)
 

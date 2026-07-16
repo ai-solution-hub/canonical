@@ -179,10 +179,11 @@ Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 > deleted, and the roadmap ledger's data was repurposed server-side to the SERVER-managed
 > `initiatives.json` (writes via ServerIntent through the task-view patch-server). The
 > initiatives `create-project` verb requires an **existing** initiative/sub-initiative
-> path — there is no verb to create a brand-new top-level initiative, so **no designed
-> write path exists for a genuinely-new strategic finding**. Return `decision: roadmap`
-> with the proposed shape below and flag it as an open procedural gap (ID-148.11
-> ambiguous case) rather than assuming a write will succeed.
+> path — `create-initiative [<parentPath>] <initiativeJson | --title …>` (ID-156.8/
+> DR-077) now creates one when none exists, but **no designed procedure decides WHEN a
+> genuinely-new strategic finding should mint a fresh initiative vs attach to an existing
+> one**. Return `decision: roadmap` with the proposed shape below and flag it as an open
+> procedural gap (ID-148.11 ambiguous case) rather than assuming which to do.
 
 Roadmap-strategic findings were previously chained through a flat list of **themes** —
 multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining

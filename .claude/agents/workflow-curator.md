@@ -137,7 +137,9 @@ the defect rather than guess.
   DR-073/074); `create-theme`/`update-roadmap`/`update-umbrella` all return a clean
   `retired-verb` envelope. **The curator's write path for a `decision: roadmap` finding is
   currently undesigned** — the initiatives `create-project` verb requires an existing
-  initiative/sub-initiative path and there is no verb to create a new top-level initiative;
+  initiative/sub-initiative path; `create-initiative [<parentPath>] <initiativeJson |
+  --title …>` (ID-156.8/DR-077) now creates a new top-level initiative (or sub-initiative,
+  given `parentPath`), but no procedure decides WHEN to mint one vs reuse an existing one —
   flag such findings to the orchestrator rather than guessing a write (ID-148.11 ambiguous
   case). The CLI surface provides atomic-write, default-on mirror regen, a write-time
   budget gate, and a record-set gate. Code-change suggestions belong in the subtask spec,
@@ -280,11 +282,12 @@ Invoke the `triage-finding` skill. It returns a structured decision:
   `target: "roadmap"` → `create-theme` now returns a clean `retired-verb` envelope
   (nothing written). The roadmap ledger's data was repurposed server-side to the
   SERVER-managed `initiatives.json`; the initiatives `create-project` verb requires an
-  **existing** initiative/sub-initiative path and there is no verb to create a new
-  top-level initiative. There is currently no designed curator write path for a
-  strategic/cross-cutting finding — return to the orchestrator with `decision: roadmap`
-  and the finding detail, and flag it as an open procedural gap (ID-148.11) rather than
-  attempting a write.
+  **existing** initiative/sub-initiative path — `create-initiative [<parentPath>]
+  <initiativeJson | --title …>` (ID-156.8/DR-077) now creates a new top-level initiative
+  (or sub-initiative). There is currently no designed curator procedure for WHEN a
+  strategic/cross-cutting finding should mint a fresh initiative vs attach to an existing
+  one — return to the orchestrator with `decision: roadmap` and the finding detail, and
+  flag it as an open procedural gap (ID-148.11) rather than attempting a write.
 - (Historical, pre-retirement flow — kept for orientation only, not executable: invoke
   `update-roadmap-backlog` with `target: "roadmap"`, plus the finding detail, target
   section, and provenance; CLI subcommand mapping was `target: "roadmap"` →

@@ -116,6 +116,7 @@ Creates:
 | Target | Command |
 |---|---|
 | ~~Roadmap theme~~ | ~~`create-theme`~~ **RETIRED** — use the initiatives `create-project <initiativePath>` verb (requires an existing initiative/sub-initiative path) |
+| New top-level or sub-initiative | `create-initiative [<parentPath>] <initiativeJson \| --title …>` (ID-156.8/DR-077; no `parentPath` = top-level) |
 | Backlog item | `create-backlog` |
 | New top-level Task | `open-task` |
 | Backlog → Task (atomic) | `promote` |
@@ -125,6 +126,7 @@ Updates (single field per invocation):
 | Target | Command | Form |
 |---|---|---|
 | ~~Roadmap theme — any field~~ | ~~`update-roadmap`~~ | **RETIRED** — use `update-project <slug> <field> <value>` (initiatives projects) |
+| Initiative/sub-initiative — any field | `update-initiative` | `update-initiative <initiativePath> <field> <value \| --file>` (ID-156.7; rejects a project slug) |
 | Backlog item — any field | `update-backlog` | `update-backlog <itemId> <field> <value>` |
 | Task — any field except status | `update-task` | `update-task <taskId> <field> <value>` |
 | Task — status only | `flip-task` | `flip-task <taskId> <status>` |
