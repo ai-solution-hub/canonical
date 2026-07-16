@@ -51,8 +51,43 @@ DIR="${TASK_VIEW_DIR:-$REPO/.cache/task-view-$TAG}"
 
 echo "→ task-view: tag=$TAG dir=$DIR"
 
-# --- clone-if-missing --------------------------------------------------------
-if [ ! -d "$DIR/.git" ]; then
+# --- clone-if-missing / re-clone-if-symlinked-or-drifted ---------------------
+# bl-482: the bare `[ ! -d "$DIR/.git" ]` check passes trivially when $DIR is a
+# SYMLINK to a live, mutable task-view checkout (a real `.git` dir sits at the
+# far end of the link) — so moving/rebasing that live checkout silently
+# changed what every clone-if-missing call reused, regardless of $TAG. This
+# was the recurrence vector behind the S477/S479 real-ledger corruption
+# incidents. Applies ONLY to the tag-keyed cache path (the default $DIR) — an
+# explicit TASK_VIEW_DIR override is a documented dev escape hatch for an
+# unpinned working clone and must NOT be re-cloned/deleted out from under the
+# caller.
+NEED_CLONE=0
+if [ -n "${TASK_VIEW_DIR:-}" ]; then
+  # Explicit override: trust the caller's working clone as-is, unpinned.
+  if [ ! -d "$DIR/.git" ]; then
+    echo "error: TASK_VIEW_DIR=$DIR has no .git — not a working clone" >&2
+    exit 1
+  fi
+  echo "→ using TASK_VIEW_DIR override (unpinned, dev escape hatch)"
+elif [ ! -d "$DIR/.git" ]; then
+  NEED_CLONE=1
+elif [ -L "$DIR" ]; then
+  echo "→ $DIR is a SYMLINK (resolves to $(readlink "$DIR")) — refusing the live/mutable checkout, re-cloning"
+  NEED_CLONE=1
+else
+  # Even a REAL (non-symlinked) cache dir can drift from the pinned tag (e.g.
+  # a manual checkout of a different ref). Compare HEAD against the tag's
+  # peeled commit — both resolve locally for a `--depth 1 --branch <TAG>`
+  # shallow clone (no network round-trip needed).
+  HEAD_SHA="$(git -C "$DIR" rev-parse HEAD 2>/dev/null || true)"
+  TAG_SHA="$(git -C "$DIR" rev-parse "refs/tags/$TAG^{commit}" 2>/dev/null || true)"
+  if [ -z "$HEAD_SHA" ] || [ -z "$TAG_SHA" ] || [ "$HEAD_SHA" != "$TAG_SHA" ]; then
+    echo "→ $DIR HEAD ($HEAD_SHA) does not match pinned tag $TAG ($TAG_SHA) — re-cloning"
+    NEED_CLONE=1
+  fi
+fi
+
+if [ "$NEED_CLONE" = "1" ]; then
   echo "→ cloning task-view @ $TAG"
   rm -rf "$DIR"
   mkdir -p "$(dirname "$DIR")"
@@ -68,7 +103,7 @@ if [ ! -d "$DIR/.git" ]; then
   # Genuine errors (network, auth, missing tag) still hit stderr. ID-35.33.
   git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$TAG" \
     https://github.com/liam-jons/task-view.git "$DIR"
-else
+elif [ -z "${TASK_VIEW_DIR:-}" ]; then
   echo "→ reusing cached clone"
 fi
 
