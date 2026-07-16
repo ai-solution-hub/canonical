@@ -11,10 +11,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureUnauthenticated,
+  type MockSupabaseClient,
 } from '@/__tests__/helpers/mock-supabase';
 import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
-const mockSupabase = createMockSupabaseClient();
+// `engagement_groups` is INTERNAL_ONLY (absent from the `api` Data-API
+// surface) — the route routes it through `.schema('public')` (post-push
+// integration fix, {145.35} follow-up). `MockSupabaseClient` has no
+// `.schema()` member (it's not part of the shared helper's surface), so
+// this local `.schema` double is added here rather than in the shared
+// `mock-supabase.ts` — keeps the change scoped to this route's tests.
+const mockSupabase = createMockSupabaseClient() as MockSupabaseClient & {
+  schema: ReturnType<typeof vi.fn>;
+};
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -50,6 +59,7 @@ function resetMocks() {
   });
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.schema = vi.fn().mockReturnValue({ from: mockSupabase.from });
 }
 
 describe('GET /api/engagement-groups', () => {
@@ -79,6 +89,11 @@ describe('GET /api/engagement-groups', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual(groups);
+    // `engagement_groups` is INTERNAL_ONLY — must be reached via
+    // `.schema('public')`, never a bare `.from()` (which would 404 against
+    // the `api` schema, PGRST205). Asserting the schema hop catches a
+    // regression back to the api-routed client.
+    expect(mockSupabase.schema).toHaveBeenCalledWith('public');
     expect(mockSupabase.from).toHaveBeenCalledWith('engagement_groups');
     expect(mockSupabase._chain.order).toHaveBeenCalledWith('name');
   });

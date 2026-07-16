@@ -16,13 +16,23 @@ import {
   createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
+  type MockSupabaseClient,
 } from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
 } from '@/__tests__/helpers/mock-next';
 
-const mockSupabase = createMockSupabaseClient();
+// `engagement_groups` and `engagement_group_content` are both INTERNAL_ONLY
+// (absent from the `api` Data-API surface) — the route routes both through
+// `.schema('public')` (post-push integration fix, {145.35} follow-up).
+// `MockSupabaseClient` has no `.schema()` member (it's not part of the
+// shared helper's surface), so this local `.schema` double is added here
+// rather than in the shared `mock-supabase.ts` — keeps the change scoped to
+// this route's tests.
+const mockSupabase = createMockSupabaseClient() as MockSupabaseClient & {
+  schema: ReturnType<typeof vi.fn>;
+};
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -96,6 +106,7 @@ function resetMocks() {
   );
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.schema = vi.fn().mockReturnValue({ from: mockSupabase.from });
   mockSupabase.rpc.mockReset();
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
@@ -177,6 +188,11 @@ describe('POST /api/engagement-groups/[id]/content', () => {
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error).toMatch(/not found/i);
+    // `engagement_groups` is INTERNAL_ONLY — the existence check must go
+    // through `.schema('public')`, never a bare `.from()` (PGRST205 against
+    // the api schema). Catches a regression back to the api-routed client.
+    expect(mockSupabase.schema).toHaveBeenCalledWith('public');
+    expect(mockSupabase.from).toHaveBeenCalledWith('engagement_groups');
   });
 
   it('links the batch idempotently via upsert with onConflict + ignoreDuplicates', async () => {
@@ -194,6 +210,12 @@ describe('POST /api/engagement-groups/[id]/content', () => {
     const json = await res.json();
     expect(json).toEqual({ success: true, linked: 2 });
 
+    // Both INTERNAL_ONLY tables (`engagement_groups` group-existence check
+    // and the `engagement_group_content` upsert) must be reached via
+    // `.schema('public')`, never a bare `.from()` — asserting the schema
+    // hop catches a regression back to the api-routed client (PGRST205).
+    expect(mockSupabase.schema).toHaveBeenCalledWith('public');
+    expect(mockSupabase.from).toHaveBeenCalledWith('engagement_groups');
     expect(mockSupabase.from).toHaveBeenCalledWith('engagement_group_content');
     expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
       [

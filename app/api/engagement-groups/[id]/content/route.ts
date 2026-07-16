@@ -24,6 +24,18 @@
 // policy (get_user_role() IN ('admin','editor')) — the route-level check
 // gives a friendly 403 rather than relying on RLS to silently 0-row the
 // write.
+//
+// Schema routing (post-push integration fix, {145.35} follow-up): both
+// `engagement_groups` and `engagement_group_content` are INTERNAL_ONLY —
+// deliberately absent from the `api` Data-API surface
+// (`scripts/check-api-view-coverage.ts` `INTERNAL_ONLY_TABLES`). The
+// standard authorised client routes bare `.from()` calls to the `api`
+// schema at runtime (`lib/supabase/schema.ts` `DB_OPTION`), where neither
+// table exists — PostgREST returns PGRST205 (relation not found). Every
+// access to these two tables below goes through the documented per-call
+// `.schema('public')` override (`lib/supabase/schema.ts` module doc,
+// INV-12) instead. RLS still applies via the caller's JWT — this only
+// changes schema resolution, not the auth posture.
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
@@ -62,6 +74,7 @@ export const POST = defineRoute(
       const { q_a_pair_ids } = parsed.data;
 
       const groupLookup = await supabase
+        .schema('public')
         .from('engagement_groups')
         .select('id')
         .eq('id', engagementGroupId)
@@ -94,10 +107,14 @@ export const POST = defineRoute(
 
       // `engagement_group_content` is authored-only (migration not yet
       // pushed) — no entry in database.types.ts yet. Cast to the minimal
-      // `.from(): any` shape (mirrors the {145.34} `promotion_dispositions`
-      // INTERIM precedent, lib/q-a-pairs/promotion-candidate-review.ts).
+      // `.schema().from(): any` shape (mirrors the {145.34}
+      // `promotion_dispositions` INTERIM precedent,
+      // lib/q-a-pairs/promotion-candidate-review.ts) and route it through
+      // `.schema('public')` — see the module-header note on why the bare
+      // `.from()` on the standard client 404s (PGRST205) for this table.
       const interimClient = supabase as unknown as InterimTableClient;
       const insertResult = await interimClient
+        .schema('public')
         .from('engagement_group_content')
         .upsert(rows, {
           onConflict: 'engagement_group_id,q_a_pair_id',

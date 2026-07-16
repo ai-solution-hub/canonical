@@ -12,6 +12,16 @@
 // No POST here — engagement group CREATION is out of this Subtask's scope
 // (the picker only lists EXISTING groups); the write path this Subtask adds
 // is POST /api/engagement-groups/[id]/content (group-side batch assign).
+//
+// Schema routing (post-push integration fix, {145.35} follow-up):
+// `engagement_groups` is INTERNAL_ONLY — deliberately absent from the `api`
+// Data-API surface (`scripts/check-api-view-coverage.ts`
+// `INTERNAL_ONLY_TABLES`). The standard authenticated client routes bare
+// `.from()` calls to the `api` schema at runtime (`lib/supabase/schema.ts`
+// `DB_OPTION`), where this table doesn't exist — PostgREST returns PGRST205
+// (relation not found). `.schema('public')` below is the documented
+// per-call override (`lib/supabase/schema.ts` module doc, INV-12); RLS
+// still applies via the caller's JWT.
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthenticatedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
@@ -38,6 +48,7 @@ export const GET = defineRoute(
       const { supabase } = auth;
 
       const { data, error } = await supabase
+        .schema('public')
         .from('engagement_groups')
         .select('id, name')
         .order('name');

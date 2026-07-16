@@ -46,15 +46,29 @@ export interface EngagementGroupContentInsert {
 }
 
 /**
- * Minimal `.from()`-only client shape for querying a table not yet present
- * in the generated `Database` type — mirrors `SupabaseClientLike`
+ * Minimal `.schema().from()`-only client shape for querying a table not yet
+ * present in the generated `Database` type — mirrors `SupabaseClientLike`
  * (`lib/q-a-pairs/promote-corpus.ts`), the {145.34} INTERIM-table precedent.
  * A real `SupabaseClient<Database>` (e.g. from `getAuthorisedClient()`)
  * structurally satisfies this interface, so callers pass it straight
  * through with a single `as unknown as InterimTableClient` cast, scoped to
- * the one `.from('engagement_group_content')` call site.
+ * the one `.schema('public').from('engagement_group_content')` call site.
+ *
+ * The `.schema('public')` hop is required at the call site (not just the
+ * type seam): `engagement_group_content` is INTERNAL_ONLY — deliberately
+ * absent from the `api` Data-API surface
+ * (`scripts/check-api-view-coverage.ts` `INTERNAL_ONLY_TABLES`) — so the
+ * standard authorised client, which routes `.from()` to `api` at runtime
+ * (`lib/supabase/schema.ts` `DB_OPTION`), cannot reach it; PostgREST returns
+ * PGRST205 (relation not found) without the override. Per
+ * `lib/supabase/schema.ts`'s module doc (INV-12), this is the documented
+ * per-call `.schema('public')` escape hatch on the SERVER/SERVICE client —
+ * RLS still applies via the caller's JWT, only the schema resolution
+ * changes.
  */
 export interface InterimTableClient {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  from: (table: string) => any;
+  schema: (schemaName: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    from: (table: string) => any;
+  };
 }
