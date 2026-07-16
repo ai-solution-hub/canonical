@@ -411,17 +411,19 @@ describe('ledger-cli — ID-156.6 USAGE ledger-enum parentheticals (gap a)', () 
 });
 
 describe('ledger-cli — ID-156.6 USAGE lists every initiatives write verb (gap b)', () => {
-  it('top-level --help documents all 9 pre-existing write verbs plus update-initiative', () => {
+  it('top-level --help documents all 9 pre-existing write verbs plus update-initiative and create-initiative', () => {
     const cliPath = resolve(__dirname, '../..', 'scripts/ledger-cli.ts');
     const r = spawnSync('bun', [cliPath, '--help'], {
       encoding: 'utf8',
       cwd: resolve(__dirname, '../..'),
     });
     expect(r.status).toBe(0);
-    // The nine verbs the S477 finding named, plus ID-156.7's new tenth verb —
-    // USAGE previously listed NONE of them anywhere in the output.
+    // The nine verbs the S477 finding named, plus ID-156.7's update-initiative
+    // and ID-156.8's create-initiative (11 total) — USAGE previously listed
+    // NONE of them anywhere in the output.
     const verbs = [
       'create-project',
+      'create-initiative',
       'update-project',
       'update-initiative',
       'delete-project',
