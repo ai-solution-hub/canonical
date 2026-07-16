@@ -1,26 +1,35 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
+import { WorkflowStepper } from '@/components/procurement/workflow-stepper';
+import { ItemInlineStates } from '@/components/procurement/item-inline-states';
 import type { ProcurementWorkflowState } from '@/types/procurement';
 
 /**
- * STUB — scaffolded by ID-145 {145.42} (145W-2), FILLED by {145.43}.
+ * ID-145 {145.43} — the stepper host: wires the custom Warm Meridian
+ * `WorkflowStepper` (ID-147 {147.15}, PRODUCT §G) into the item page over the
+ * {145.18} shape. State stepper/badge over the 10-state machine +
+ * deadline/submission_date/issuing_organisation/outcome (§G1/§G4, BI-13); the
+ * transition control offers only valid next states, refusing an invalid jump
+ * with a surfaced reason (§G3, BI-18) — `WorkflowStepper` already implements
+ * this via `canTransition`/`getAvailableTransitions`
+ * (`lib/domains/procurement/procurement-workflow.ts`), the SAME source of
+ * truth the server-side `computeWorkflowTransition` write path is gated on, so
+ * this host does not re-derive or re-gate transitions itself.
  *
- * {145.43} wires the custom Warm Meridian stepper (147-L) into the item page
- * over the {145.18} shape: state stepper/badge over the 10-state machine +
- * deadline/submission_date/issuing_organisation/outcome (PRODUCT §G,
- * ID-145 BI-13), and a state-transition control that offers only valid
- * transitions (BI-18, §G3). This stub renders a minimal placeholder — the
- * props below are the {145.18}/route.ts data + handlers {145.43} needs, so
- * that subtask never has to re-edit `page.tsx` to thread new data in
- * (145W-2 establishes the child-component structure, 145W-3/4/5/7 fill it in
- * parallel — see PLAN.md Wave 3).
+ * `availableTransitions` mirrors the header toolbar's own `regularTransitions`
+ * (which excludes the outcome branch once submitted, since that flow routes
+ * through the "Record Outcome" dialog instead) — it is accepted here so
+ * `page.tsx` never has to re-thread new props, but deliberately NOT used to
+ * gate the stepper: BI-13 requires the full 10-state machine, so the stepper
+ * computes its own valid next states straight off `workflowState`.
  */
 export interface ItemWorkflowPanelProps {
   workflowState: ProcurementWorkflowState | null;
   deadline?: string | null;
   submissionDate?: string | null;
   issuingOrganisation?: string | null;
-  outcome?: string | null;
+  outcome?: 'won' | 'lost' | 'withdrawn' | null;
   availableTransitions?: ProcurementWorkflowState[];
   onTransition?: (state: ProcurementWorkflowState) => void;
   transitioning?: boolean;
@@ -29,20 +38,51 @@ export interface ItemWorkflowPanelProps {
 
 export function ItemWorkflowPanel({
   workflowState,
+  deadline,
+  submissionDate,
+  issuingOrganisation,
+  outcome,
+  onTransition,
+  transitioning,
   className,
 }: ItemWorkflowPanelProps) {
+  const rootClassName = className ?? 'rounded-lg border bg-card p-4';
+
+  // Defensive render for the legacy-shape case (BI-19) — `workflow_state` is
+  // typed nullable ({145.18} note) even though `deriveProcurementStatus`
+  // defaults live reads to 'draft'; a genuinely absent state renders an
+  // honest empty card rather than a stepper anchored on a made-up state.
+  if (!workflowState) {
+    return (
+      <div data-testid="item-workflow-panel" className={rootClassName}>
+        <ItemInlineStates
+          variant="empty"
+          message="Workflow state is not available for this item."
+        />
+      </div>
+    );
+  }
+
   return (
-    <div
-      data-testid="item-workflow-panel"
-      className={className ?? 'rounded-lg border bg-card p-4'}
-    >
-      <p className="text-sm text-muted-foreground">
-        Workflow stepper — current state:{' '}
-        <span className="font-medium text-foreground">
-          {workflowState ?? 'unknown'}
-        </span>
-        . ({'{145.43}'} wires the full Warm Meridian stepper here.)
-      </p>
+    <div data-testid="item-workflow-panel" className={rootClassName}>
+      <WorkflowStepper
+        currentState={workflowState}
+        onTransition={onTransition}
+        deadline={deadline}
+        submissionDate={submissionDate}
+        issuingOrganisation={issuingOrganisation}
+        outcome={outcome}
+      />
+      {transitioning && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+          Updating workflow state…
+        </p>
+      )}
     </div>
   );
 }

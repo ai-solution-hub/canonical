@@ -80,7 +80,7 @@ export interface ProcurementDetailResponse {
   question_stats?: unknown;
   warnings?: string[];
 
-  // ID-147 {145.42} additions (TECH §6 group-A GET ADD).
+  // ID-145 {145.42} additions (TECH §6 group-A GET ADD).
   /** Set only when the form belongs to an engagement group (§A3 gate). */
   engagement_group_id?: string | null;
   /** §A5 role split — folded `form_attachments` read. */

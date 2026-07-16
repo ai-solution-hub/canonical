@@ -1,32 +1,48 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Inbox, Loader2, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 /**
- * STUB (functional minimum) — scaffolded by ID-145 {145.42} (145W-2), FILLED
- * by {145.43}.
- *
- * The item-page BI-19 empty/loading/error states — distinct from the
- * per-viewer §B6 states (147-O/`viewer-states.tsx` owns those). {145.43}
- * upgrades this to the full empty-card/spinner/soft-error-with-retry
- * treatment (BI-19); this stub keeps the page usably honest in the
- * meantime (never a blank pane) with a minimal loading spinner and a
- * non-colour-only error notice, replacing the previous bespoke skeleton
- * markup that lived inline in `page.tsx`.
+ * ID-145 {145.43} (BI-19) — the item-page empty/loading/error states, distinct
+ * from the per-viewer §B6 states (`147-O`/`viewer-states.tsx` owns those, one
+ * per document viewer). Replaces the {145.42} loading/error-only stub: adds
+ * the `empty` variant (an "empty card" — used by `ItemWorkflowPanel` for the
+ * defensive legacy-shape case where `workflow_state` is genuinely absent, see
+ * `procurement-detail-shape.ts`'s {145.18} note) and a retry affordance on
+ * `error` (soft-error + retry, never a silent dead end), modelled on the same
+ * reload-based retry pattern as `SourceDocumentDetailError`
+ * (`components/source-document-detail/source-document-detail-client.tsx`).
+ * Never a blank pane; every variant carries a text label or icon meaning
+ * (WCAG 2.1 AA, never colour-only).
  */
-export type ItemInlineStateVariant = 'loading' | 'error';
+export type ItemInlineStateVariant = 'empty' | 'loading' | 'error';
 
 export interface ItemInlineStatesProps {
   variant: ItemInlineStateVariant;
   message?: string;
+  /**
+   * Called when the user retries after an `error`. Omit to fall back to a
+   * full page reload (the only retry a caller without its own refetch can
+   * offer, e.g. `page.tsx`'s top-level fetch-failure render).
+   */
+  onRetry?: () => void;
 }
 
 const DEFAULT_ERROR_MESSAGE =
   'This item could not be loaded. It may have been deleted, or you may not have access.';
+const DEFAULT_EMPTY_MESSAGE = 'Nothing to show here yet.';
 
-export function ItemInlineStates({ variant, message }: ItemInlineStatesProps) {
+function reloadPage() {
+  window.location.reload();
+}
+
+export function ItemInlineStates({
+  variant,
+  message,
+  onRetry,
+}: ItemInlineStatesProps) {
   if (variant === 'loading') {
     return (
       <div
@@ -40,6 +56,21 @@ export function ItemInlineStates({ variant, message }: ItemInlineStatesProps) {
           aria-hidden="true"
         />
         <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
+  if (variant === 'empty') {
+    return (
+      <div
+        role="status"
+        data-testid="item-inline-states-empty"
+        className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center"
+      >
+        <Inbox className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {message ?? DEFAULT_EMPTY_MESSAGE}
+        </p>
       </div>
     );
   }
@@ -60,9 +91,15 @@ export function ItemInlineStates({ variant, message }: ItemInlineStatesProps) {
       <p className="max-w-sm text-sm text-muted-foreground">
         {message ?? DEFAULT_ERROR_MESSAGE}
       </p>
-      <Button asChild variant="outline" className="mt-2">
-        <Link href="/procurement">Return to Procurement</Link>
-      </Button>
+      <div className="mt-2 flex items-center gap-2">
+        <Button variant="outline" onClick={onRetry ?? reloadPage}>
+          <RefreshCcw className="size-4" aria-hidden="true" />
+          Try again
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href="/procurement">Return to Procurement</Link>
+        </Button>
+      </div>
     </div>
   );
 }

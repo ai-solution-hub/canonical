@@ -9,13 +9,14 @@
  * mirror-structure convention — until then this file just proves each stub
  * renders without crashing and exposes a stable mount point (`data-testid`)
  * for `page.tsx`'s composition tests to key off.
+ *
+ * {145.43} filled `ItemWorkflowPanel` + `ItemInlineStates` — their coverage
+ * moved to `item-workflow-panel.test.tsx` + `item-inline-states.test.tsx`.
  */
 import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-import { ItemWorkflowPanel } from '@/components/procurement/item-workflow-panel';
-import { ItemInlineStates } from '@/components/procurement/item-inline-states';
 import { ItemQuestionsPanel } from '@/components/procurement/item-questions-panel';
 import { ItemCoveragePanel } from '@/components/procurement/item-coverage-panel';
 import { ItemGroupingRail } from '@/components/procurement/item-grouping-rail';
@@ -23,28 +24,6 @@ import { ItemFillSlotReview } from '@/components/procurement/item-fill-slot-revi
 import { ItemCitationOverlay } from '@/components/procurement/item-citation-overlay';
 
 describe('item-page child-component stubs', () => {
-  it('ItemWorkflowPanel renders the current workflow state', () => {
-    render(<ItemWorkflowPanel workflowState="drafting" />);
-    const panel = screen.getByTestId('item-workflow-panel');
-    expect(panel).toHaveTextContent('drafting');
-  });
-
-  it('ItemInlineStates renders a loading indicator for variant="loading"', () => {
-    render(<ItemInlineStates variant="loading" />);
-    expect(
-      screen.getByTestId('item-inline-states-loading'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
-  it('ItemInlineStates renders "Procurement not found" + a return link for variant="error"', () => {
-    render(<ItemInlineStates variant="error" />);
-    expect(screen.getByText('Procurement not found')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Return to Procurement' }),
-    ).toHaveAttribute('href', '/procurement');
-  });
-
   it('ItemQuestionsPanel renders the total question count', () => {
     render(
       <ItemQuestionsPanel

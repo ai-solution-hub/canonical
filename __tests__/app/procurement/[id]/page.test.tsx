@@ -117,10 +117,27 @@ vi.mock('@/lib/domains/procurement/procurement-helpers', () => ({
     mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
-  PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
-  PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
-}));
+// ID-145 {145.43}: partial mock only — `ItemWorkflowPanel` now wires in the
+// real `WorkflowStepper` (147-L), which needs the real `canTransition` /
+// `getAvailableTransitions` / `isTerminal` / `PROCUREMENT_WORKFLOW_STATES`
+// exports from this SAME module (the single source of truth {145.43}'s host
+// deliberately does not re-derive). Only the two label maps are overridden
+// (with fixtures identical to the real ones) to keep this file's existing
+// label-fixture-driven assertions decoupled from the lib module.
+vi.mock(
+  '@/lib/domains/procurement/procurement-workflow',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/domains/procurement/procurement-workflow')
+      >();
+    return {
+      ...actual,
+      PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
+      PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
+    };
+  },
+);
 
 vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
@@ -201,6 +218,18 @@ function renderWithQuery(ui: React.ReactElement) {
   return render(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
   );
+}
+
+// ID-145 {145.43}: the header action toolbar's per-transition buttons and the
+// now-real `WorkflowStepper`'s own per-state step buttons can share the same
+// accessible name (e.g. both render an "In Review" button) — the stepper
+// wraps its steps in `role="list"` (`aria-label="Workflow state progress"`),
+// the toolbar does not, so this disambiguates "the toolbar's copy" from
+// "the stepper's copy" without depending on DOM order.
+function findToolbarButton(name: string) {
+  return screen
+    .queryAllByRole('button', { name })
+    .find((button) => !button.closest('[role="list"]'));
 }
 
 // ---------------------------------------------------------------------------
@@ -465,18 +494,14 @@ describe('ProcurementDetailPage', () => {
       }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.getByRole('button', { name: 'In Review' }),
-    ).toBeInTheDocument();
+    expect(findToolbarButton('In Review')).toBeInTheDocument();
   });
 
   it('hides action buttons for viewers', () => {
     mockUseUserRole.canEdit = false;
     mockUseUserRole.role = 'viewer';
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.queryByRole('button', { name: 'In Review' }),
-    ).not.toBeInTheDocument();
+    expect(findToolbarButton('In Review')).toBeUndefined();
   });
 
   it('filters out withdrawn from transition buttons', () => {
@@ -486,12 +511,8 @@ describe('ProcurementDetailPage', () => {
       }),
     );
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
-    expect(
-      screen.getByRole('button', { name: 'In Review' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Withdrawn' }),
-    ).not.toBeInTheDocument();
+    expect(findToolbarButton('In Review')).toBeInTheDocument();
+    expect(findToolbarButton('Withdrawn')).toBeUndefined();
   });
 
   // ---- Admin-only delete ----
@@ -692,13 +713,15 @@ describe('ProcurementDetailPage', () => {
   // ---- State stepper ----
 
   // ID-145 {145.42}: the standalone `ProcurementWorkflowStepper` block moved
-  // into `ItemWorkflowPanel` (a minimal placeholder scaffolded here —
-  // {145.43} wires the real Warm Meridian stepper, 147-L). page.tsx's own
-  // responsibility is mounting it with the current workflow state.
-  it('mounts ItemWorkflowPanel with the current workflow state ({145.43} wires the real stepper)', () => {
+  // into `ItemWorkflowPanel`. {145.43} wires the real Warm Meridian stepper
+  // (147-L) — page.tsx's own responsibility is mounting it with the current
+  // workflow state; the stepper's own behaviour (labels, transitions,
+  // refusal reasons) is covered by `workflow-stepper.test.tsx` and
+  // `item-workflow-panel.test.tsx`.
+  it('mounts ItemWorkflowPanel with the current workflow state', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     expect(screen.getByTestId('item-workflow-panel')).toHaveTextContent(
-      'drafting',
+      'Drafting',
     );
   });
 
