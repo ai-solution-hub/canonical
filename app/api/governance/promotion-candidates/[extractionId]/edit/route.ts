@@ -16,6 +16,9 @@
 // q_a_pairs — squash_baseline.sql:7132-7133); alternate_question_phrasings
 // OPTIONAL (defaults to []). `.strict()` rejects stray keys so a typo never
 // silently no-ops part of the edit.
+//
+// {145.34}: threads the reviewer's `auth.user.id` through as `actor` so
+// editAwaitingReviewCandidate can record an append-only disposition row.
 
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
@@ -60,6 +63,7 @@ export const POST = defineRoute(
         auth.supabase,
         extractionId,
         parsed.data,
+        auth.user.id,
       );
 
       if (!result.ok) {

@@ -128,7 +128,11 @@ describe('POST /api/governance/promotion-candidates/:id/accept', () => {
         extraction: { id: EXTRACTION_ID },
       });
       await POST(makeRequest(), makeContext());
-      expect(mockAccept).toHaveBeenCalledWith(mockSupabase, EXTRACTION_ID);
+      expect(mockAccept).toHaveBeenCalledWith(
+        mockSupabase,
+        EXTRACTION_ID,
+        'u1',
+      );
     });
 
     it('returns disposition + pair + extraction in the body', async () => {

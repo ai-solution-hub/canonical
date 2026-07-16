@@ -1,6 +1,7 @@
 /**
  * lib/q-a-pairs/promotion-candidate-review.ts tests (ID-145 {145.30} — BI-38
- * amendment, DR-062, S470).
+ * amendment, DR-062, S470; {145.34} — append-only disposition audit +
+ * reject-suppression, S474 owner ruling).
  *
  * Acceptance (testStrategy): a reviewer accepts/edits/rejects an individual
  * `awaiting_review` promotion candidate (an extraction linked to an
@@ -17,6 +18,14 @@
  * fields EQUAL to the pair's (new) carried fields, so the RPC's branch-3 diff
  * predicate (20260707140000_id138_promotion_candidates_published_diff.sql)
  * naturally stops re-selecting the row — no new "dismissed" column needed.
+ *
+ * {145.34} additions (S474): each accept/edit/reject now ALSO writes exactly
+ * one append-only `promotion_dispositions` row (action, actor, timestamp,
+ * proposed snapshot) — Gap 1 (no durable audit of what was proposed). reject
+ * additionally consults the LATEST disposition for the extraction and
+ * suppresses (no fresh disposition row, no fresh human judgement) a re-fired
+ * IDENTICAL rejected proposal — Gap 2 (a corpus re-walk re-diverging the same
+ * extraction to the same text a human already rejected).
  *
  * Mock discipline: shared createMockSupabaseTableDispatch() — never hand-roll
  * Supabase mocks. generateEmbedding stubbed via vi.hoisted() per
@@ -49,6 +58,7 @@ import {
 
 const EXTRACTION_ID = '11111111-1111-4111-8111-111111111111';
 const PAIR_ID = '22222222-2222-4222-8222-222222222222';
+const ACTOR_ID = '33333333-3333-4333-8333-333333333333';
 
 function extractionRow(over: Record<string, unknown> = {}) {
   return {
@@ -78,6 +88,10 @@ function pairRow(over: Record<string, unknown> = {}) {
  *   q_a_extractions: read (.maybeSingle) THEN optional reconcile write (.maybeSingle)
  *   q_a_pairs: read (.maybeSingle) THEN optional carried write (.maybeSingle)
  *   record_embeddings: upsert (.maybeSingle)
+ *   promotion_dispositions ({145.34}): latest-disposition SELECT (.maybeSingle,
+ *     reject-only lookup) + the disposition INSERT (bare `.then()` — see
+ *     recordDisposition, which never calls `.select()`/`.maybeSingle()` on
+ *     its own write).
  */
 function build(opts: {
   extraction?: Record<string, unknown> | null;
@@ -86,6 +100,11 @@ function build(opts: {
   pairWriteResult?: Record<string, unknown> | null;
   pairWriteError?: { message: string; code: string } | null;
   extractionWriteError?: { message: string; code: string } | null;
+  /** The latest promotion_dispositions row for this extraction, or null/
+   *  undefined when none exists yet (first-time action). */
+  latestDisposition?: Record<string, unknown> | null;
+  /** Simulates the disposition INSERT itself failing. */
+  dispositionInsertError?: { message: string; code: string } | null;
 }) {
   const dispatch = createMockSupabaseTableDispatch({
     q_a_extractions: {
@@ -97,6 +116,12 @@ function build(opts: {
       error: null,
     },
     record_embeddings: { data: { id: 'emb-1' }, error: null },
+    promotion_dispositions: {
+      data: opts.dispositionInsertError
+        ? null
+        : (opts.latestDisposition ?? null),
+      error: opts.dispositionInsertError ?? null,
+    },
   });
 
   const extractionChain = dispatch._chains.q_a_extractions;
@@ -123,6 +148,16 @@ function build(opts: {
     });
   }
 
+  // reject's Gap-2 latest-disposition lookup (`.select()....maybeSingle()`) —
+  // configured explicitly so it never accidentally observes the
+  // dispositionInsertError base resolution above (a DIFFERENT terminal,
+  // `.then()`, services the INSERT — see recordDisposition).
+  const dispositionChain = dispatch._chains.promotion_dispositions;
+  dispositionChain.maybeSingle.mockResolvedValueOnce({
+    data: opts.latestDisposition ?? null,
+    error: null,
+  });
+
   return dispatch;
 }
 
@@ -137,6 +172,7 @@ describe('loadAwaitingReviewCandidate gate (shared by accept/edit/reject)', () =
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('not_found');
@@ -149,6 +185,7 @@ describe('loadAwaitingReviewCandidate gate (shared by accept/edit/reject)', () =
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('not_awaiting_review');
@@ -161,6 +198,7 @@ describe('loadAwaitingReviewCandidate gate (shared by accept/edit/reject)', () =
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('not_awaiting_review');
@@ -173,6 +211,7 @@ describe('loadAwaitingReviewCandidate gate (shared by accept/edit/reject)', () =
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('not_awaiting_review');
@@ -183,6 +222,7 @@ describe('loadAwaitingReviewCandidate gate (shared by accept/edit/reject)', () =
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('not_awaiting_review');
@@ -202,6 +242,7 @@ describe('acceptAwaitingReviewCandidate', () => {
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(true);
@@ -218,7 +259,11 @@ describe('acceptAwaitingReviewCandidate', () => {
   it('re-generates the embedding for the new question text and dual-writes record_embeddings', async () => {
     const client = build({ pairWriteResult: pairRow() });
 
-    await acceptAwaitingReviewCandidate(client as never, EXTRACTION_ID);
+    await acceptAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
 
     expect(mockGenerateEmbedding).toHaveBeenCalledWith(
       'What is your H&S policy (re-walked)?',
@@ -233,7 +278,11 @@ describe('acceptAwaitingReviewCandidate', () => {
   it('does NOT reconcile the extraction row (the pair now equals it — self-cleaning)', async () => {
     const client = build({ pairWriteResult: pairRow() });
 
-    await acceptAwaitingReviewCandidate(client as never, EXTRACTION_ID);
+    await acceptAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
 
     const extractionChain = client._chains.q_a_extractions;
     expect(extractionChain.update).not.toHaveBeenCalled();
@@ -245,7 +294,11 @@ describe('acceptAwaitingReviewCandidate', () => {
       pairWriteResult: pairRow(),
     });
 
-    await acceptAwaitingReviewCandidate(client as never, EXTRACTION_ID);
+    await acceptAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
 
     const payload = client._chains.q_a_pairs.update.mock.calls[0][0];
     expect(payload.answer_standard).toBe(
@@ -260,6 +313,7 @@ describe('acceptAwaitingReviewCandidate', () => {
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(true);
@@ -276,6 +330,7 @@ describe('acceptAwaitingReviewCandidate', () => {
     const result = await acceptAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(false);
@@ -304,6 +359,7 @@ describe('editAwaitingReviewCandidate', () => {
       client as never,
       EXTRACTION_ID,
       EDIT,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(true);
@@ -320,7 +376,12 @@ describe('editAwaitingReviewCandidate', () => {
       }),
     });
 
-    await editAwaitingReviewCandidate(client as never, EXTRACTION_ID, EDIT);
+    await editAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      EDIT,
+      ACTOR_ID,
+    );
 
     const extractionPayload =
       client._chains.q_a_extractions.update.mock.calls[0][0];
@@ -334,7 +395,12 @@ describe('editAwaitingReviewCandidate', () => {
       extractionWriteResult: extractionRow(),
     });
 
-    await editAwaitingReviewCandidate(client as never, EXTRACTION_ID, EDIT);
+    await editAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      EDIT,
+      ACTOR_ID,
+    );
 
     expect(mockGenerateEmbedding).toHaveBeenCalledWith(EDIT.question_text);
   });
@@ -345,10 +411,15 @@ describe('editAwaitingReviewCandidate', () => {
       extractionWriteResult: extractionRow(),
     });
 
-    await editAwaitingReviewCandidate(client as never, EXTRACTION_ID, {
-      question_text: EDIT.question_text,
-      answer_standard: EDIT.answer_standard,
-    });
+    await editAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      {
+        question_text: EDIT.question_text,
+        answer_standard: EDIT.answer_standard,
+      },
+      ACTOR_ID,
+    );
 
     const pairPayload = client._chains.q_a_pairs.update.mock.calls[0][0];
     expect(pairPayload.alternate_question_phrasings).toEqual([]);
@@ -367,6 +438,7 @@ describe('rejectAwaitingReviewCandidate', () => {
     const result = await rejectAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(true);
@@ -382,7 +454,11 @@ describe('rejectAwaitingReviewCandidate', () => {
       }),
     });
 
-    await rejectAwaitingReviewCandidate(client as never, EXTRACTION_ID);
+    await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
 
     const extractionPayload =
       client._chains.q_a_extractions.update.mock.calls[0][0];
@@ -397,7 +473,11 @@ describe('rejectAwaitingReviewCandidate', () => {
   it('never calls generateEmbedding (the pair text is unchanged)', async () => {
     const client = build({ extractionWriteResult: extractionRow() });
 
-    await rejectAwaitingReviewCandidate(client as never, EXTRACTION_ID);
+    await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
 
     expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
@@ -411,9 +491,228 @@ describe('rejectAwaitingReviewCandidate', () => {
     const result = await rejectAwaitingReviewCandidate(
       client as never,
       EXTRACTION_ID,
+      ACTOR_ID,
     );
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('write_failed');
+  });
+});
+
+describe('promotion disposition audit — Gap 1 ({145.34}, S474)', () => {
+  it('accept writes exactly ONE promotion_dispositions row capturing the adopted carried fields', async () => {
+    const client = build({ pairWriteResult: pairRow() });
+
+    const result = await acceptAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    const dispositionChain = client._chains.promotion_dispositions;
+    expect(dispositionChain.insert).toHaveBeenCalledTimes(1);
+    const payload = dispositionChain.insert.mock.calls[0][0];
+    expect(payload.extraction_id).toBe(EXTRACTION_ID);
+    expect(payload.action).toBe('accept');
+    expect(payload.actor).toBe(ACTOR_ID);
+    expect(payload.proposed_snapshot).toEqual({
+      question_text: 'What is your H&S policy (re-walked)?',
+      answer_standard: 'We maintain a documented H&S policy (re-walked).',
+      alternate_question_phrasings: ['H&S policy?'],
+    });
+    expect(dispositionChain.update).not.toHaveBeenCalled();
+    expect(dispositionChain.delete).not.toHaveBeenCalled();
+  });
+
+  it('edit writes exactly ONE promotion_dispositions row capturing the admin-supplied carried fields', async () => {
+    const EDIT = {
+      question_text: 'Do you hold a valid H&S policy document?',
+      answer_standard: 'Yes — reviewed annually.',
+      alternate_question_phrasings: ['H&S policy document?'],
+    };
+    const client = build({
+      pairWriteResult: pairRow(EDIT),
+      extractionWriteResult: extractionRow({
+        extracted_question_text: EDIT.question_text,
+        extracted_answer_text: EDIT.answer_standard,
+        alternate_question_phrasings: EDIT.alternate_question_phrasings,
+      }),
+    });
+
+    const result = await editAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      EDIT,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    const dispositionChain = client._chains.promotion_dispositions;
+    expect(dispositionChain.insert).toHaveBeenCalledTimes(1);
+    const payload = dispositionChain.insert.mock.calls[0][0];
+    expect(payload.extraction_id).toBe(EXTRACTION_ID);
+    expect(payload.action).toBe('edit');
+    expect(payload.actor).toBe(ACTOR_ID);
+    expect(payload.proposed_snapshot).toEqual(EDIT);
+    expect(dispositionChain.update).not.toHaveBeenCalled();
+    expect(dispositionChain.delete).not.toHaveBeenCalled();
+  });
+
+  it('reject (first time) writes ONE promotion_dispositions row capturing what the extraction PROPOSED — NOT the pair values it reconciles down to', async () => {
+    const client = build({
+      extractionWriteResult: extractionRow({
+        extracted_question_text: 'What is your H&S policy?',
+        extracted_answer_text: 'We maintain a documented H&S policy.',
+        alternate_question_phrasings: [],
+      }),
+    });
+
+    const result = await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    const dispositionChain = client._chains.promotion_dispositions;
+    expect(dispositionChain.insert).toHaveBeenCalledTimes(1);
+    const payload = dispositionChain.insert.mock.calls[0][0];
+    expect(payload.extraction_id).toBe(EXTRACTION_ID);
+    expect(payload.action).toBe('reject');
+    expect(payload.actor).toBe(ACTOR_ID);
+    // the RAW re-walked (pre-reconcile) extraction text — the pair's
+    // PUBLISHED values ('What is your H&S policy?') are what the extraction
+    // reconciles DOWN to, not what was proposed.
+    expect(payload.proposed_snapshot).toEqual({
+      question_text: 'What is your H&S policy (re-walked)?',
+      answer_standard: 'We maintain a documented H&S policy (re-walked).',
+      alternate_question_phrasings: ['H&S policy?'],
+    });
+    expect(dispositionChain.update).not.toHaveBeenCalled();
+    expect(dispositionChain.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns write_failed when the disposition INSERT errors (accept still performed the pair write)', async () => {
+    const client = build({
+      pairWriteResult: pairRow(),
+      dispositionInsertError: { message: 'db boom', code: 'XXXXX' },
+    });
+
+    const result = await acceptAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe('write_failed');
+  });
+});
+
+describe('reject suppression — re-fired identical rejected proposal — Gap 2 ({145.34}, S474)', () => {
+  const REWALKED_SNAPSHOT = {
+    question_text: 'What is your H&S policy (re-walked)?',
+    answer_standard: 'We maintain a documented H&S policy (re-walked).',
+    alternate_question_phrasings: ['H&S policy?'],
+  };
+
+  it('suppresses an IDENTICAL re-fired rejected proposal: no new disposition row, no fresh human judgement needed', async () => {
+    const client = build({
+      extractionWriteResult: extractionRow(),
+      latestDisposition: {
+        id: 'disp-1',
+        extraction_id: EXTRACTION_ID,
+        action: 'reject',
+        actor: ACTOR_ID,
+        created_at: '2026-07-01T00:00:00Z',
+        proposed_snapshot: REWALKED_SNAPSHOT,
+      },
+    });
+
+    const result = await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    // still reconciles silently — the extraction still converges to the
+    // pair's published values so it drops out of awaiting_review.
+    expect(client._chains.q_a_extractions.update).toHaveBeenCalledTimes(1);
+    // suppressed: no NEW disposition row for a proposal already on record.
+    expect(client._chains.promotion_dispositions.insert).not.toHaveBeenCalled();
+  });
+
+  it('does NOT suppress when the latest rejected proposal has DIFFERENT carried fields (a genuinely new re-walk diff)', async () => {
+    const client = build({
+      extractionWriteResult: extractionRow(),
+      latestDisposition: {
+        id: 'disp-1',
+        extraction_id: EXTRACTION_ID,
+        action: 'reject',
+        actor: ACTOR_ID,
+        created_at: '2026-07-01T00:00:00Z',
+        proposed_snapshot: {
+          question_text: 'A totally different earlier re-walked question?',
+          answer_standard: 'A different earlier answer.',
+          alternate_question_phrasings: [],
+        },
+      },
+    });
+
+    const result = await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(client._chains.promotion_dispositions.insert).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('does NOT suppress when the latest disposition for this extraction is accept/edit, not reject', async () => {
+    const client = build({
+      extractionWriteResult: extractionRow(),
+      latestDisposition: {
+        id: 'disp-1',
+        extraction_id: EXTRACTION_ID,
+        action: 'accept',
+        actor: ACTOR_ID,
+        created_at: '2026-07-01T00:00:00Z',
+        proposed_snapshot: REWALKED_SNAPSHOT,
+      },
+    });
+
+    const result = await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(client._chains.promotion_dispositions.insert).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('does NOT suppress on the very first reject (no prior disposition at all)', async () => {
+    const client = build({
+      extractionWriteResult: extractionRow(),
+      latestDisposition: null,
+    });
+
+    const result = await rejectAwaitingReviewCandidate(
+      client as never,
+      EXTRACTION_ID,
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(client._chains.promotion_dispositions.insert).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });
