@@ -4,8 +4,8 @@
 // links a BATCH of q_a_pairs onto ONE engagement group via the additive
 // `engagement_group_content` M:N link table (schema shape (b) from the
 // {145.35} design pass — supabase/migrations/20260716130000_id145_35_
-// engagement_group_content.sql, authored-only, not yet pushed). Does NOT
-// touch `q_a_pairs.source_form_instance_id` (a provenance/lineage field,
+// engagement_group_content.sql). Does NOT touch
+// `q_a_pairs.source_form_instance_id` (a provenance/lineage field,
 // {145.23}) — assigning content to a group is a LINK, never a re-point.
 //
 // Replaces the retired PATCH /api/q-a-pairs/[id]/workspace as the target of
@@ -25,25 +25,23 @@
 // gives a friendly 403 rather than relying on RLS to silently 0-row the
 // write.
 //
-// Schema routing (post-push integration fix, {145.35} follow-up): both
-// `engagement_groups` and `engagement_group_content` are INTERNAL_ONLY —
-// deliberately absent from the `api` Data-API surface
-// (`scripts/check-api-view-coverage.ts` `INTERNAL_ONLY_TABLES`). The
-// standard authorised client routes bare `.from()` calls to the `api`
-// schema at runtime (`lib/supabase/schema.ts` `DB_OPTION`), where neither
-// table exists — PostgREST returns PGRST205 (relation not found). Every
-// access to these two tables below goes through the documented per-call
-// `.schema('public')` override (`lib/supabase/schema.ts` module doc,
-// INV-12) instead. RLS still applies via the caller's JWT — this only
-// changes schema resolution, not the auth posture.
+// Schema routing (fix-Executor, {145.35} S481 live post-push smoke
+// FAILURE): both `engagement_groups` and `engagement_group_content` were
+// originally INTERNAL_ONLY, reached via a per-call `.schema('public')`
+// override — that override 500s live with PostgREST's "Invalid schema:
+// public" (post-ID-115, `public` is UNEXPOSED at the Data API layer for
+// every caller, not merely untyped-for). Both tables are now surfaced as
+// `api` views (`20260716150000_id145_35_api_views_engagement_groups.sql`,
+// `scripts/generate-api-views.ts` `SURFACE_TABLES`), so every access below
+// uses the standard authorised client's bare `.from()` — already routed to
+// the `api` schema at runtime (`lib/supabase/schema.ts` `DB_OPTION`) —
+// exactly like every other surfaced table. RLS still applies via the
+// caller's JWT.
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import type {
-  EngagementGroupContentInsert,
-  InterimTableClient,
-} from '@/types/engagement-group-content';
+import type { TablesInsert } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -74,7 +72,6 @@ export const POST = defineRoute(
       const { q_a_pair_ids } = parsed.data;
 
       const groupLookup = await supabase
-        .schema('public')
         .from('engagement_groups')
         .select('id')
         .eq('id', engagementGroupId)
@@ -98,23 +95,14 @@ export const POST = defineRoute(
         );
       }
 
-      const rows: EngagementGroupContentInsert[] = q_a_pair_ids.map(
+      const rows: TablesInsert<'engagement_group_content'>[] = q_a_pair_ids.map(
         (qAPairId) => ({
           engagement_group_id: engagementGroupId,
           q_a_pair_id: qAPairId,
         }),
       );
 
-      // `engagement_group_content` is authored-only (migration not yet
-      // pushed) — no entry in database.types.ts yet. Cast to the minimal
-      // `.schema().from(): any` shape (mirrors the {145.34}
-      // `promotion_dispositions` INTERIM precedent,
-      // lib/q-a-pairs/promotion-candidate-review.ts) and route it through
-      // `.schema('public')` — see the module-header note on why the bare
-      // `.from()` on the standard client 404s (PGRST205) for this table.
-      const interimClient = supabase as unknown as InterimTableClient;
-      const insertResult = await interimClient
-        .schema('public')
+      const insertResult = await supabase
         .from('engagement_group_content')
         .upsert(rows, {
           onConflict: 'engagement_group_id,q_a_pair_id',

@@ -2,12 +2,13 @@
  * API route test for POST /api/engagement-groups/[id]/content — ID-145
  * {145.35} group-side batch assign (BI-33 owner ruling, S479).
  *
- * Migration `20260716130000_id145_35_engagement_group_content.sql` is
- * authored-only (not pushed to staging in this worktree) — this suite
- * covers the route's LOGIC against the shared mock Supabase client. The
- * true end-to-end/integration assertion (a real DB round-trip through the
- * new table) is DEFERRED to post-migration-push per the {145.35} dispatch
- * brief's testStrategy.
+ * Base migration `20260716130000_id145_35_engagement_group_content.sql` and
+ * the companion `api` view migration
+ * `20260716150000_id145_35_api_views_engagement_groups.sql` (fix-Executor,
+ * S481) are both authored — this suite covers the route's LOGIC against the
+ * shared mock Supabase client. The true end-to-end/integration assertion (a
+ * real DB round-trip through the surfaced `api` views) is DEFERRED to
+ * post-migration-push per the {145.35} dispatch brief's testStrategy.
  *
  * @vitest-environment node
  */
@@ -23,16 +24,11 @@ import {
   createTestParams,
 } from '@/__tests__/helpers/mock-next';
 
-// `engagement_groups` and `engagement_group_content` are both INTERNAL_ONLY
-// (absent from the `api` Data-API surface) — the route routes both through
-// `.schema('public')` (post-push integration fix, {145.35} follow-up).
-// `MockSupabaseClient` has no `.schema()` member (it's not part of the
-// shared helper's surface), so this local `.schema` double is added here
-// rather than in the shared `mock-supabase.ts` — keeps the change scoped to
-// this route's tests.
-const mockSupabase = createMockSupabaseClient() as MockSupabaseClient & {
-  schema: ReturnType<typeof vi.fn>;
-};
+// `engagement_groups` and `engagement_group_content` are both now surfaced
+// as `api` views (20260716150000_id145_35_api_views_engagement_groups.sql,
+// {145.35} fix-Executor, S481) — the route reaches both via the standard
+// authorised client's bare `.from()`, no `.schema()` override needed.
+const mockSupabase: MockSupabaseClient = createMockSupabaseClient();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -106,7 +102,6 @@ function resetMocks() {
   );
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
-  mockSupabase.schema = vi.fn().mockReturnValue({ from: mockSupabase.from });
   mockSupabase.rpc.mockReset();
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
@@ -188,10 +183,9 @@ describe('POST /api/engagement-groups/[id]/content', () => {
     expect(res.status).toBe(404);
     const json = await res.json();
     expect(json.error).toMatch(/not found/i);
-    // `engagement_groups` is INTERNAL_ONLY — the existence check must go
-    // through `.schema('public')`, never a bare `.from()` (PGRST205 against
-    // the api schema). Catches a regression back to the api-routed client.
-    expect(mockSupabase.schema).toHaveBeenCalledWith('public');
+    // `engagement_groups` is surfaced as an `api` view — the existence check
+    // must go through the standard client's bare `.from()`, never a
+    // `.schema()` override (the S481 live-500 regression this fix addresses).
     expect(mockSupabase.from).toHaveBeenCalledWith('engagement_groups');
   });
 
@@ -210,11 +204,10 @@ describe('POST /api/engagement-groups/[id]/content', () => {
     const json = await res.json();
     expect(json).toEqual({ success: true, linked: 2 });
 
-    // Both INTERNAL_ONLY tables (`engagement_groups` group-existence check
-    // and the `engagement_group_content` upsert) must be reached via
-    // `.schema('public')`, never a bare `.from()` — asserting the schema
-    // hop catches a regression back to the api-routed client (PGRST205).
-    expect(mockSupabase.schema).toHaveBeenCalledWith('public');
+    // Both surfaced `api` views (`engagement_groups` group-existence check
+    // and the `engagement_group_content` upsert) must be reached via the
+    // standard client's bare `.from()`, never a `.schema()` override — the
+    // S481 live-500 regression this fix addresses.
     expect(mockSupabase.from).toHaveBeenCalledWith('engagement_groups');
     expect(mockSupabase.from).toHaveBeenCalledWith('engagement_group_content');
     expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
