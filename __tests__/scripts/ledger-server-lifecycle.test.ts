@@ -17,6 +17,7 @@ import {
   readFileSync,
   rmSync,
   existsSync,
+  symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -27,6 +28,7 @@ import {
   ledgerKey,
   resolveTag,
   resolveExpectedVersion,
+  assertSpawnSourcePinned,
   stopEphemeralServer,
   reapEphemeralServersForTest,
   type SpawnSeam,
@@ -240,6 +242,91 @@ describe('resolveExpectedVersion (inv 48)', () => {
   });
 });
 
+// ── assertSpawnSourcePinned (bl-482 symlink/drift refusal) ────────────────────
+
+describe('assertSpawnSourcePinned (bl-482)', () => {
+  const TAG = 'v0.4.0-task-view';
+
+  it('passes silently for a genuine (non-symlinked) tag-pinned clone dir', () => {
+    // makeFakeRepo() already provisions a REAL directory (not a symlink) at
+    // .cache/task-view-<tag>/ with a well-formed package.json.
+    expect(() => assertSpawnSourcePinned(tmpRoot, TAG)).not.toThrow();
+  });
+
+  it('throws a remediation error naming the offending path when the tag dir is missing', () => {
+    const missingTag = 'v9.9.9-absent';
+    expect(() => assertSpawnSourcePinned(tmpRoot, missingTag)).toThrow(
+      /does not exist/,
+    );
+    try {
+      assertSpawnSourcePinned(tmpRoot, missingTag);
+      expect.unreachable('expected assertSpawnSourcePinned to throw');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toContain(`task-view-${missingTag}`);
+      expect(message).toContain(
+        `git clone --depth 1 --branch ${missingTag} https://github.com/liam-jons/task-view.git`,
+      );
+    }
+  });
+
+  it('refuses a SYMLINKED tag dir with a remediation error naming the offending path + re-clone command', () => {
+    // Simulate the bl-482 bug directly: .cache/task-view-<tag> is a symlink to
+    // a live, mutable dev checkout instead of an immutable tag-pinned clone.
+    const liveCheckout = mkdtempSync(join(tmpdir(), 'live-checkout-'));
+    mkdirSync(join(liveCheckout, 'apps/server'), { recursive: true });
+    writeFileSync(join(liveCheckout, 'apps/server/index.ts'), '// fake');
+    writeFileSync(
+      join(liveCheckout, 'package.json'),
+      JSON.stringify({ name: 'task-view', version: PKG_VERSION }),
+    );
+
+    const dir = resolve(tmpRoot, `.cache/task-view-${TAG}`);
+    rmSync(dir, { recursive: true, force: true }); // remove makeFakeRepo's real dir
+    symlinkSync(liveCheckout, dir);
+
+    try {
+      assertSpawnSourcePinned(tmpRoot, TAG);
+      expect.unreachable('expected assertSpawnSourcePinned to throw');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toMatch(/SYMLINK/);
+      expect(message).toContain(dir); // names the offending path
+      expect(message).toContain(
+        `git clone --depth 1 --branch ${TAG} https://github.com/liam-jons/task-view.git`,
+      ); // names the re-clone command
+    } finally {
+      rmSync(liveCheckout, { recursive: true, force: true });
+    }
+  });
+
+  it('allows a REAL clone reached through a symlinked .cache ROOT (bl-296 worktree cache-sharing stays legitimate)', () => {
+    // Distinguishes the ACCEPTED sharing pattern (a worktree's whole .cache/
+    // is a symlink to another checkout's real .cache/ — bl-296) from the
+    // bl-482 BUG (an individual task-view-<tag> ENTRY is a symlink to a live,
+    // mutable checkout). Here .cache itself is redirected, but the tag dir
+    // reached through it is a genuine clone — containment must still PASS.
+    const sharedCacheRoot = mkdtempSync(join(tmpdir(), 'shared-cache-root-'));
+    const realTagDir = join(sharedCacheRoot, `task-view-${TAG}`);
+    mkdirSync(join(realTagDir, 'apps/server'), { recursive: true });
+    writeFileSync(join(realTagDir, 'apps/server/index.ts'), '// fake');
+    writeFileSync(
+      join(realTagDir, 'package.json'),
+      JSON.stringify({ name: 'task-view', version: PKG_VERSION }),
+    );
+
+    const cacheDir = resolve(tmpRoot, '.cache');
+    rmSync(cacheDir, { recursive: true, force: true });
+    symlinkSync(sharedCacheRoot, cacheDir);
+
+    try {
+      expect(() => assertSpawnSourcePinned(tmpRoot, TAG)).not.toThrow();
+    } finally {
+      rmSync(sharedCacheRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 // ── reuse existing server ─────────────────────────────────────────────────────
 
 describe('ensureServer reuses a healthy daemon', () => {
@@ -444,6 +531,50 @@ describe('ensureServer spawns on missing handle', () => {
 
     expect(spawnCalls[0]).not.toContain('--parent-pid');
     expect(result.ephemeral).toBe(false);
+  });
+});
+
+// ── end-to-end spawn-source refusal (bl-482) ──────────────────────────────────
+
+describe('ensureServer refuses a symlinked spawn source end-to-end (bl-482)', () => {
+  it('rejects BEFORE invoking the spawn seam when .cache/task-view-<tag> is a symlink, naming the path in the error', async () => {
+    const liveCheckout = mkdtempSync(join(tmpdir(), 'live-checkout-e2e-'));
+    mkdirSync(join(liveCheckout, 'apps/server'), { recursive: true });
+    writeFileSync(join(liveCheckout, 'apps/server/index.ts'), '// fake');
+    writeFileSync(
+      join(liveCheckout, 'package.json'),
+      JSON.stringify({ name: 'task-view', version: PKG_VERSION }),
+    );
+
+    const tagDir = resolve(tmpRoot, '.cache/task-view-v0.4.0-task-view');
+    rmSync(tagDir, { recursive: true, force: true });
+    symlinkSync(liveCheckout, tagDir);
+
+    const { seam, spawnCalls } = makeSpawnSeam();
+    try {
+      await expect(
+        ensureServer({ repoRoot: tmpRoot, spawnSeam: seam, deadlineMs: 5000 }),
+      ).rejects.toThrow(/SYMLINK/);
+      // Never reached the spawn seam — refusal happens before touching the
+      // handle file or spawning the child (no silent fall-back to the live
+      // checkout).
+      expect(spawnCalls).toHaveLength(0);
+    } finally {
+      rmSync(liveCheckout, { recursive: true, force: true });
+    }
+  });
+
+  it('proceeds to spawn when .cache/task-view-<tag> is a genuine clone dir', async () => {
+    // makeFakeRepo() already provisions a real (non-symlinked) dir — this is
+    // the baseline "real clone dir → spawn proceeds" acceptance case.
+    const { seam, spawnCalls } = makeSpawnSeam();
+    const result = await ensureServer({
+      repoRoot: tmpRoot,
+      spawnSeam: seam,
+      deadlineMs: 5000,
+    });
+    expect(spawnCalls.length).toBe(1);
+    expect(result.reused).toBe(false);
   });
 });
 

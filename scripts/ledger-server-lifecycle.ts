@@ -26,9 +26,14 @@
  *   - Non-default --ledger-dir → EPHEMERAL per-invocation server, no
  *     handle-file pollution. Handle files live in .cache/ (gitignored).
  *   - O_EXCL lock prevents concurrent spawn races.
+ *   - Spawn-source pinning (bl-482): before every spawn, `.cache/task-view-<tag>`
+ *     MUST be a genuine, tag-pinned clone — never a symlink to a live/mutable
+ *     checkout, never a path escaping .cache/ (see assertSpawnSourcePinned).
+ *     Refusal is loud (named path + re-clone remediation), never a silent
+ *     fall-back to whatever the live checkout currently is.
  */
 
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, sep } from 'node:path';
 import {
   readFileSync,
   writeFileSync,
@@ -36,6 +41,8 @@ import {
   mkdirSync,
   renameSync,
   rmSync,
+  lstatSync,
+  realpathSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
@@ -221,6 +228,81 @@ export function resolveExpectedVersion(repoRoot: string, tag: string): string {
     );
   }
   return version;
+}
+
+// ── spawn-source pinning refusal (bl-482) ──────────────────────────────────────
+//
+// scripts/regen-mirrors.sh's clone-if-missing guard only ever checked
+// `[ ! -d "$DIR/.git" ]` — a SYMLINKED `.cache/task-view-<tag>` entry (pointing
+// at a live, mutable dev checkout) passes that trivially, so moving the linked
+// checkout silently changes what EVERY persistent + ephemeral server executes,
+// regardless of the pinned TASK_VIEW_TAG. This was the recurrence vector behind
+// both real-ledger corruption incidents (S477 open-task; S479 ID-159 create).
+// Refuse to spawn from anything but an immutable, tag-pinned clone:
+//   1. NOT a symlink (lstat) — catches the observed bug directly.
+//   2. realpath-contained under .cache/ — catches an intermediate symlinked
+//      path segment redirecting the clone elsewhere (defense in depth; the
+//      worktree-shared `.cache` symlink itself is fine, since it still
+//      resolves INTO the same real cache root — see bl-296).
+//   3. Carries a genuine, well-formed package.json (resolveExpectedVersion
+//      already fails loud on a missing/malformed one) — a cheap sanity check
+//      that this is actually a task-view clone, not an empty/foreign dir.
+// Never silently falls back to the live checkout — always throws loud with the
+// offending path + the exact re-clone remediation command.
+export function assertSpawnSourcePinned(repoRoot: string, tag: string): void {
+  const cacheRoot = resolve(repoRoot, '.cache');
+  const dir = resolve(cacheRoot, `task-view-${tag}`);
+  const recloneCmd = `git clone --depth 1 --branch ${tag} https://github.com/liam-jons/task-view.git ${dir}`;
+
+  let st: ReturnType<typeof lstatSync>;
+  try {
+    st = lstatSync(dir);
+  } catch {
+    throw new Error(
+      `Spawn source missing: ${dir} does not exist. Provision the pinned clone:\n` +
+        `  ${recloneCmd}`,
+    );
+  }
+
+  if (st.isSymbolicLink()) {
+    let target = '<unresolvable>';
+    try {
+      target = realpathSync(dir);
+    } catch {
+      // Dangling symlink — leave the placeholder; the message below still
+      // names the offending path itself.
+    }
+    throw new Error(
+      `Refusing to spawn: ${dir} is a SYMLINK (resolves to ${target}). The ` +
+        `ledger server must run from an immutable, tag-pinned clone, never a ` +
+        `live/mutable working checkout — this is the recurrence vector behind ` +
+        `bl-482 (S477/S479 real-ledger corruption). Remediate:\n` +
+        `  rm ${dir}\n  ${recloneCmd}`,
+    );
+  }
+
+  let realDir: string;
+  let realCacheRoot: string;
+  try {
+    realDir = realpathSync(dir);
+    realCacheRoot = realpathSync(cacheRoot);
+  } catch (err) {
+    throw new Error(
+      `Cannot verify spawn source pinning for ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (realDir !== realCacheRoot && !realDir.startsWith(realCacheRoot + sep)) {
+    throw new Error(
+      `Refusing to spawn: ${dir} resolves to ${realDir}, which escapes the ` +
+        `.cache/ root (${realCacheRoot}) — an intermediate symlinked path ` +
+        `segment is redirecting the pinned clone elsewhere. Remediate:\n` +
+        `  rm -rf ${dir}\n  ${recloneCmd}`,
+    );
+  }
+
+  // Sanity: a genuine task-view clone has a well-formed package.json; this
+  // throws loud (same "missing/malformed" shape) if it does not.
+  resolveExpectedVersion(repoRoot, tag);
 }
 
 // ── handle file ───────────────────────────────────────────────────────────────
@@ -445,6 +527,11 @@ async function spawnAndWait(
     idleExit,
     parentPid,
   } = args;
+
+  // bl-482: refuse to spawn from a symlinked/drifted source BEFORE touching
+  // the handle file or invoking the spawn seam — never silently fall back to
+  // whatever the live checkout currently is.
+  assertSpawnSourcePinned(repoRoot, tag);
 
   const serverEntry = resolve(
     repoRoot,
