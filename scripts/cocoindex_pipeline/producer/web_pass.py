@@ -120,6 +120,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
     SAMPLE_ROWS_TOOL,
     WEB_FETCH_TOOL,
     ToolExecutor,
+    producer_async_client,
     run_tool_use_loop,
 )
 from scripts.cocoindex_pipeline.producer.enrich import (
@@ -833,7 +834,7 @@ async def run_web_pass(
             {"role": "user", "content": _seed_user_message(key, draft)}
         ]
 
-        anthropic_client = anthropic.AsyncAnthropic()
+        anthropic_client = producer_async_client()
         response = await run_tool_use_loop(
             client=anthropic_client,
             messages=messages,

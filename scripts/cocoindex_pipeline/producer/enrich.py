@@ -103,6 +103,14 @@ version=N)` bump + bundle `log.md` note before the next producer run, never
 an auto `deps=` invalidation. No second `version=` bump lands in THIS
 commit — `version=1` (below) has not yet been consumed by any deployed run.
 
+**`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` (ID-132 {132.35} slice C,
+`producer/agent_loop.py:producer_async_client`) fall under the SAME
+contract too.** A deploy-time value change to either — e.g. rerouting the
+producer to an Anthropic-compatible endpoint — is drafting-config
+identically to a `PRODUCER_MODEL`/`ANTHROPIC_MODEL` edit: the SAME manual
+`version=` bump + bundle `log.md` note applies, never an auto `deps=`
+invalidation. No `version=` bump lands in THIS commit either.
+
 **`version=1` (S481, this bump — the lever exercised for the first time).**
 `{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
 (`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config
@@ -149,6 +157,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
     LIST_CONCEPTS_TOOL,
     PASS1_TOOLS,
     PRODUCER_MODEL,
+    producer_async_client,
     run_tool_use_loop,
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (
@@ -706,7 +715,7 @@ async def enrich_concept(
         {"role": "user", "content": _seed_user_message(key)}
     ]
 
-    client = anthropic.AsyncAnthropic()
+    client = producer_async_client()
     response = await run_tool_use_loop(
         client=client,
         messages=messages,

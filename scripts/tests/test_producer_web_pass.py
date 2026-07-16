@@ -1325,3 +1325,57 @@ class TestProducerModelWiring:
         assert anthropic_client.messages.create.call_args_list  # sanity: at least 1 call
         for call in anthropic_client.messages.create.call_args_list:
             assert call.kwargs["model"] == "glm-5.2-test-override"
+
+
+# ============================================================================
+# producer_async_client() wiring (ID-132 {132.35} slice C, S481 deploy-rider
+# 3). See `test_producer_agent_loop.py::TestProducerAsyncClientFactory` for
+# the env-set/unset RESOLUTION-logic proof; mirrors `test_producer_enrich.
+# py::TestProducerAsyncClientFactoryWiring` — this class proves Pass-2's
+# half of "both producer passes use the factory".
+# ============================================================================
+
+
+class TestProducerAsyncClientFactoryWiring:
+    def test_run_web_pass_calls_the_shared_producer_async_client_factory(
+        self,
+    ) -> None:
+        """Patches the NAME `web_pass.producer_async_client` (the import
+        site itself) rather than `anthropic.AsyncAnthropic` — a direct proof
+        `run_web_pass` goes through the shared factory, not a bare
+        construction of its own."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
+        )
+        draft = _product_draft(key)
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[build_source_document_uri(_SD_ID)]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([final])
+        factory = MagicMock(name="producer_async_client", return_value=anthropic_client)
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+
+        async def _exercise() -> Any:
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.producer_async_client",
+                factory,
+            ):
+                return await web_pass.run_web_pass(
+                    draft,
+                    key,
+                    source,
+                    gated_corpus,
+                    http_client=_FakeHttpClient({}),
+                )
+
+        asyncio.run(_exercise())
+
+        factory.assert_called_once_with()
+        assert anthropic_client.messages.create.call_args_list

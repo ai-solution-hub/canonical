@@ -578,3 +578,118 @@ class TestProducerModelEnvOverride:
             _REPO_ROOT / "scripts" / "cocoindex_pipeline" / "extraction.py"
         ).read_text()
         assert "PRODUCER_MODEL" not in extraction_source
+
+
+# ============================================================================
+# PRODUCER_BASE_URL/PRODUCER_AUTH_TOKEN + producer_async_client() — env
+# override + client factory (ID-132 {132.35} slice C, S481 deploy-rider 3 —
+# the endpoint/auth sibling of TestProducerModelEnvOverride above).
+# ============================================================================
+
+
+class TestProducerAsyncClientFactory:
+    """`agent_loop.producer_async_client()` constructs the shared Anthropic
+    client both producer passes use. Same reload-based posture/rationale as
+    `TestProducerModelEnvOverride` (this module imports no `cocoindex`, so a
+    reload here is confined and safe — see that class's docstring for the
+    full argument).
+
+    Asserts on the CONSTRUCTED CLIENT's `base_url`/`auth_token` attributes
+    (real `anthropic.AsyncAnthropic` instances — construction is a cheap,
+    network-free `__init__`, empirically confirmed) rather than mock-call
+    shape, per the brief."""
+
+    def test_both_unset_returns_a_bare_client_byte_for_byte(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """DO-NOT (brief): no new REQUIRED config — both unset must produce
+        the exact same client a bare `AsyncAnthropic()` would (still itself
+        reading process-wide `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` if
+        THOSE happen to be set, exactly like `extraction.py`'s 4 sites)."""
+        monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+        monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_BASE_URL == ""
+            assert _agent_loop_module.PRODUCER_AUTH_TOKEN == ""
+            client = _agent_loop_module.producer_async_client()
+            bare = anthropic.AsyncAnthropic()
+            assert str(client.base_url) == str(bare.base_url)
+            assert client.auth_token == bare.auth_token
+        finally:
+            importlib.reload(_agent_loop_module)
+
+    def test_env_empty_string_also_falls_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicitly-empty var (e.g. an unset Coolify secret rendered as
+        `""`) must fall back exactly like an absent one — the `or ""`
+        posture mirrors `PRODUCER_MODEL`'s `or ANTHROPIC_MODEL`."""
+        monkeypatch.setenv("PRODUCER_BASE_URL", "")
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_BASE_URL == ""
+            assert _agent_loop_module.PRODUCER_AUTH_TOKEN == ""
+        finally:
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_both_set_passes_both_through_explicitly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The real deploy shape (S481): PRODUCER_BASE_URL + PRODUCER_AUTH_
+        TOKEN set together (mirrors the OpenRouter "Anthropic Skin"
+        precedent) — the constructed client's own attributes carry both
+        values through."""
+        monkeypatch.setenv("PRODUCER_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "test-producer-auth-token")
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            assert str(client.base_url) == "https://openrouter.ai/api/"
+            assert client.auth_token == "test-producer-auth-token"
+        finally:
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_process_wide_anthropic_base_url_cannot_surprise_the_producer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The isolation proof itself: with a (hypothetical) process-wide
+        `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN` ALSO set — exactly the
+        DR-079 leak scenario the brief describes — `PRODUCER_BASE_URL`/
+        `PRODUCER_AUTH_TOKEN` still win for the producer's own client,
+        because they're passed as explicit non-`None` constructor kwargs
+        (empirically, an explicit `None` would NOT suppress the SDK's own
+        env fallback, but a real value does)."""
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://leaked-global.example.com")
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "leaked-global-token")
+        monkeypatch.setenv("PRODUCER_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "test-producer-auth-token")
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            assert str(client.base_url) == "https://openrouter.ai/api/"
+            assert client.auth_token == "test-producer-auth-token"
+        finally:
+            monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+            monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_extraction_lane_is_untouched_by_the_producer_client_override(
+        self,
+    ) -> None:
+        """DO-NOT (brief): extraction.py's 4 bare `AsyncAnthropic()` call
+        sites stay free of the new producer-scoped vars/factory — mirrors
+        `TestProducerModelEnvOverride`'s equivalent grep-guard."""
+        extraction_source = (
+            _REPO_ROOT / "scripts" / "cocoindex_pipeline" / "extraction.py"
+        ).read_text()
+        assert "PRODUCER_BASE_URL" not in extraction_source
+        assert "PRODUCER_AUTH_TOKEN" not in extraction_source
+        assert "producer_async_client" not in extraction_source

@@ -43,6 +43,30 @@ literal `ANTHROPIC_MODEL` edit — see `producer/enrich.py`'s module docstring
 "Config-surface invalidation" section for the manual `@coco.fn(...,
 version=N)` bump contract this falls under.
 
+**`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` + `producer_async_client()`
+(ID-132 {132.35} slice C, S481 deploy-rider 3 — the endpoint/auth sibling of
+the `PRODUCER_MODEL` slice B above).** `extraction.py`'s 4 bare
+`anthropic.AsyncAnthropic()` call sites and this package's own 2
+(`enrich.py:enrich_concept`, `web_pass.py:run_web_pass`) share ONE process
+(`server.py`'s `/walk`/`/extract`/`/producer-run`) — the SDK's own
+`AsyncAnthropic.__init__` (`anthropic==0.79.0`, empirically verified) falls
+back to reading the process-wide `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`
+env whenever its `base_url`/`auth_token` constructor params are left `None`,
+so setting those globally to route the producer to an Anthropic-compatible
+endpoint (e.g. OpenRouter's "Anthropic Skin", `z-ai/glm-5.2` — the docubot
+precedent, `docs-site harness/scripts/docubot/run-agent.ts:52-54`) would
+ALSO redirect `extraction.py` — DR-079 requires extraction stay on
+Anthropic. `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` are NEW,
+producer-package-scoped vars `extraction.py` never reads;
+`producer_async_client()` (below) is the shared factory both producer call
+sites now use in place of a bare `AsyncAnthropic()` — see its own docstring
+for the isolation mechanics. Read ONCE at import time — same posture as
+`PRODUCER_MODEL`. **DR-060**: a deploy-time value change here is
+drafting-config exactly like a `PRODUCER_MODEL`/`ANTHROPIC_MODEL` edit — see
+`producer/enrich.py`'s module docstring "Config-surface invalidation"
+section for the manual `version=` bump contract this falls under too. No
+`version=` bump lands in this commit.
+
 Scope (per the {132.5} brief): the GENERIC loop + the Pass-1 tool SCHEMAS
 only (`READ_CONCEPT_RAW_TOOL`, `SAMPLE_ROWS_TOOL` — the Source-adapter
 tools). Tool executors are taken as INJECTABLE callables (`ToolExecutor`) —
@@ -100,6 +124,51 @@ _logger = logging.getLogger(__name__)
 # docstring's "PRODUCER_MODEL" section above. Read ONCE at import time;
 # unset/empty falls back unchanged to ANTHROPIC_MODEL.
 PRODUCER_MODEL = os.environ.get("PRODUCER_MODEL") or ANTHROPIC_MODEL
+
+# Producer-scoped endpoint/auth override (ID-132 {132.35} slice C) — see the
+# module docstring's "PRODUCER_BASE_URL/PRODUCER_AUTH_TOKEN" section above.
+# Read ONCE at import time; empty string means "no override" for that field
+# (mirrors PRODUCER_MODEL's `or` posture rather than `is None`, so an
+# explicitly-empty Coolify secret behaves exactly like an unset one).
+PRODUCER_BASE_URL = os.environ.get("PRODUCER_BASE_URL") or ""
+PRODUCER_AUTH_TOKEN = os.environ.get("PRODUCER_AUTH_TOKEN") or ""
+
+
+def producer_async_client() -> anthropic.AsyncAnthropic:
+    """Construct the Anthropic async client both producer Anthropic call
+    sites (`enrich.py:enrich_concept`, `web_pass.py:run_web_pass`) use, in
+    place of a bare `anthropic.AsyncAnthropic()` — see the module
+    docstring's `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` section above.
+
+    When BOTH `PRODUCER_BASE_URL` and `PRODUCER_AUTH_TOKEN` are unset/empty
+    this returns a bare `AsyncAnthropic()` — byte-for-byte today's
+    behaviour (it still itself reads the process-wide `ANTHROPIC_BASE_URL`/
+    `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`, exactly like
+    `extraction.py`'s 4 call sites, so a deploy that sets neither new var is
+    completely unaffected — no new REQUIRED config).
+
+    When either is set, this passes it as an EXPLICIT `base_url=`/
+    `auth_token=` constructor kwarg rather than leaving the param `None`.
+    Empirically (`anthropic==0.79.0`), `AsyncAnthropic.__init__` treats an
+    explicit `None` identically to an omitted param and STILL falls back to
+    reading the global env var (`if base_url is None: base_url = os.environ
+    .get("ANTHROPIC_BASE_URL")` — verified against the installed SDK
+    source), so only passing an actual non-`None` value suppresses that
+    fallback. Passing the field that IS set explicitly is exactly what
+    closes the isolation gap: the process-wide `ANTHROPIC_BASE_URL`/
+    `ANTHROPIC_AUTH_TOKEN` can no longer surprise the producer once its own
+    `PRODUCER_*` var is set for that field. (Only the field that is set is
+    passed — the other still resolves via the SDK's own normal env/default
+    behaviour; the real deploy plan sets both together, mirroring the
+    OpenRouter "Anthropic Skin" precedent, so this asymmetric case does not
+    arise in practice.)
+    """
+    kwargs: dict[str, str] = {}
+    if PRODUCER_BASE_URL:
+        kwargs["base_url"] = PRODUCER_BASE_URL
+    if PRODUCER_AUTH_TOKEN:
+        kwargs["auth_token"] = PRODUCER_AUTH_TOKEN
+    return anthropic.AsyncAnthropic(**kwargs)
 
 
 # ---------------------------------------------------------------------------

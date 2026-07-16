@@ -1634,3 +1634,46 @@ class TestProducerModelWiring:
         assert client.messages.create.call_args_list  # sanity: at least 1 call
         for call in client.messages.create.call_args_list:
             assert call.kwargs["model"] == "glm-5.2-test-override"
+
+
+# ============================================================================
+# producer_async_client() wiring (ID-132 {132.35} slice C, S481 deploy-rider
+# 3). See `test_producer_agent_loop.py::TestProducerAsyncClientFactory` for
+# the env-set/unset RESOLUTION-logic proof (`agent_loop.producer_async_
+# client` itself) — this class proves the WIRING half: `enrich_concept`
+# constructs its Anthropic client via the shared factory, not a bare
+# `anthropic.AsyncAnthropic()` call of its own.
+# ============================================================================
+
+
+class TestProducerAsyncClientFactoryWiring:
+    def test_enrich_concept_calls_the_shared_producer_async_client_factory(
+        self,
+    ) -> None:
+        """Patches the NAME `enrich.producer_async_client` (the import site
+        itself) rather than `anthropic.AsyncAnthropic` — a direct proof
+        `enrich_concept` goes through the shared factory, not a bare
+        construction of its own."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        final = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+        )
+        client = _mock_client([_read_concept_raw_tool_turn(key), final])
+        factory = MagicMock(name="producer_async_client", return_value=client)
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.producer_async_client",
+                factory,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        asyncio.run(_exercise())
+
+        factory.assert_called_once_with()
+        # The client the factory returned is the one that actually ran the
+        # Pass-1 loop — proof the return value is used, not just called.
+        assert client.messages.create.call_args_list
