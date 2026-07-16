@@ -512,9 +512,12 @@ bun scripts/ledger-cli.ts promote <backlogId> <taskJson>
 > projects (only **projects** carry `linked_tasks`/`linked_backlog`, DR-074); linking a
 > newly-promoted Task's project into an initiative uses `link-tasks <slug> <taskId…>` — but
 > only against an **existing** project (`create-project` requires an existing
-> initiative/sub-initiative path; there is no verb to create a brand-new top-level
-> initiative). The exact task-pickup procedure for surfacing a new Task's strategic
-> grouping is undesigned — flagged for the owner (ID-148.11).
+> initiative/sub-initiative path; `create-initiative [<parentPath>] <initiativeJson |
+> --title …>` (ID-156.8/DR-077) now creates a brand-new top-level initiative when
+> `parentPath` is omitted, or a sub-initiative under it when given). The exact
+> task-pickup procedure for deciding WHEN a newly-promoted Task's strategic grouping
+> warrants a fresh initiative vs an existing one is still undesigned — flagged for the
+> owner (ID-148.11).
 
 **Orchestrator-direct:** The curator handles triage and create; the
 Orchestrator handles the backlog → task-list lifecycle transition via the

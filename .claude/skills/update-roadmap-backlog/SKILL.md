@@ -58,13 +58,15 @@ any byte is written. Detail (gates, error codes, exit envelope, budgets): **read
 > projects`, `create-project`, `update-project`, `delete-project`,
 > `link-tasks`/`unlink-tasks`, `link-backlog`/`unlink-backlog`,
 > `move-task`/`move-backlog`) is the replacement write surface, but
-> `create-project` requires an **existing** `initiativePath` — there is no
-> verb to create a brand-new top-level initiative or sub-initiative. **The
-> exact curator Create-mode procedure for a finding that would previously
-> have become a new roadmap theme is undesigned — flagged for the owner
-> (ID-148.11).** The Create/Update/Delete/Promote sections below still
-> describe the retired roadmap-theme/umbrella flow verbatim pending that
-> redesign; retired tokens are tagged inline where they recur.
+> `create-project` requires an **existing** `initiativePath`; `create-initiative
+> [<parentPath>] <initiativeJson | --title …>` (ID-156.8/DR-077) now closes that
+> gap — omitting `parentPath` creates a brand-new top-level initiative, passing
+> one creates a sub-initiative under it. **The exact curator Create-mode procedure
+> for a finding that would previously have become a new roadmap theme — i.e.
+> WHEN to call `create-initiative` vs reuse an existing one — remains undesigned,
+> flagged for the owner (ID-148.11).** The Create/Update/Delete/Promote sections
+> below still describe the retired roadmap-theme/umbrella flow verbatim pending
+> that redesign; retired tokens are tagged inline where they recur.
 
 Create is the default mode (Steps 1–6 below). Update, Delete, and Promote have
 their own sections; all share the target → file mapping (Step 1) and the CLI
@@ -154,8 +156,8 @@ Input modes per record-creating command: positional JSON | `--file <path>`
 # Roadmap theme — RETIRED (ID-148.8): `create-theme` now returns a clean
 # `retired-verb` envelope, nothing written. Use the initiatives
 # `create-project <initiativePath> <projectJson>` verb instead — it requires
-# an existing initiative/sub-initiative path (see landed-state note above;
-# no verb creates a brand-new top-level initiative).
+# an existing initiative/sub-initiative path; `create-initiative [<parentPath>]`
+# (ID-156.8) creates that path fresh when none exists (see landed-state note above).
 
 # Backlog item (description ≤500)
 bun scripts/ledger-cli.ts create-backlog '<itemJson>'
@@ -272,8 +274,9 @@ below.
 Used **only** for `cancelled` backlog items and **reclassifications**. The
 `reclassified_to_roadmap` reason's follow-up create (`delete-backlog` then
 `create-theme`) is **RETIRED** — `create-theme` returns `retired-verb`; the
-equivalent reclassification onto the initiatives/projects surface is
-undesigned (flagged for the owner, ID-148.11).
+equivalent reclassification onto the initiatives/projects surface (`create-project`
+under an existing initiative, or `create-initiative` (ID-156.8) for a brand-new one)
+has no designed procedure for WHICH to use — flagged for the owner (ID-148.11).
 
 The only record-removing subcommands are `delete-backlog` and `delete-subtask`
 — there is **no `delete-task`, no `delete-roadmap`**. Done Tasks and done themes

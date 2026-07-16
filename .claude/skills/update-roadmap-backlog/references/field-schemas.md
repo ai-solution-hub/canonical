@@ -22,7 +22,9 @@ roadmap-schema.ts` (this schema's source) is deleted in both repos. The
 roadmap ledger's data was repurposed server-side to the SERVER-managed
 `initiatives.json` (vendored twin: `lib/validation/initiatives-schema.ts`),
 writes via ServerIntent through the task-view patch-server — not this skill's
-Create flow, and the exact curator procedure for a would-be new theme is
+Create flow. `create-initiative [<parentPath>] <initiativeJson | --title …>`
+(ID-156.8/DR-077) can now mint a would-be new theme's replacement (a top-level
+or sub-initiative), but the exact curator procedure for WHEN to do so is
 undesigned (flagged for the owner, ID-148.11). Table below kept **for
 historical orientation only**:
 
