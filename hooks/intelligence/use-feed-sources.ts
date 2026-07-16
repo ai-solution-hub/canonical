@@ -14,7 +14,7 @@ export interface FeedSource {
   polling_interval_minutes: number;
   is_active: boolean;
   last_polled_at: string | null;
-  last_status: string | null;
+  last_polled_status: string | null;
   consecutive_failures: number;
   etag: string | null;
   last_modified: string | null;

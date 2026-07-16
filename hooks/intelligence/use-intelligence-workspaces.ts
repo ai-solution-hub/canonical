@@ -38,9 +38,9 @@ export interface IntelligenceWorkspace {
    * (above) — do NOT read them from here.
    */
   domain_metadata: Json | null;
-  is_archived: boolean;
-  created_at: string;
-  updated_at: string;
+  is_archived: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
   /** Joined from company_profiles */
   company_profile_name?: string;
   /** Aggregate counts */
