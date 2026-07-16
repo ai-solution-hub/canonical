@@ -706,19 +706,141 @@ class TestCitationValidationProxy:
 
 
 class TestMemoisationProxy:
-    def test_enrich_concept_is_declared_coco_fn_memo_true(self) -> None:
-        assert enrich.enrich_concept.__coco_fn_kwargs__ == {"memo": True}
+    def test_enrich_concept_is_declared_coco_fn_memo_true_and_excludes_source(
+        self,
+    ) -> None:
+        """{132.38} G-MEMO-DELTA, DR-060 (S469 owner ratification): the
+        decorator is EXACTLY `@coco.fn(memo=True, memo_key={'source': None})`
+        — `source` excluded (MD-2), NO `deps=` kwarg. OQ-MD-1 ratified AWAY
+        from the `deps={...}` drafting-config auto-invalidation design
+        MEMO-DELTA.md's body text proposed: a prompt/model/max_tokens change
+        is a MANUAL `@coco.fn(..., version=N)` bump recorded in the bundle's
+        OKF `log.md` (`bundle_writer.append_log_entry`), never an
+        engine-level fingerprint input. This exact-equality assertion is
+        also the empirical proof there is no stray `deps=` kwarg."""
+        assert enrich.enrich_concept.__coco_fn_kwargs__ == {
+            "memo": True,
+            "memo_key": {"source": None},
+        }
 
     def test_concept_key_is_frozen_and_equal_by_value(self) -> None:
         """The memo-keyed arg (BI-2/BI-18) — the SAME frozen/value-equal
         property `test_l_records_source.py::TestConceptKeyShape` pins,
         reasserted here because it is what makes `enrich_concept`'s
-        `@coco.fn(memo=True)` declaration meaningful: an equal-valued
-        `ConceptKey` for an unchanged concept memo-hits."""
+        `@coco.fn(memo=True, memo_key={'source': None})` declaration
+        meaningful: an equal-valued `ConceptKey` for an unchanged concept
+        memo-hits."""
         a = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
         b = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
         assert a == b
         assert hash(a) == hash(b)
+
+
+# ============================================================================
+# MD-4 non-leak (ID-132 {132.38} G-MEMO-DELTA) — content_version must NOT
+# leak into identity/routing/dedup/write-path/find.
+# ============================================================================
+
+
+class TestContentVersionNonLeak:
+    """MD-4: `content_version` participates ONLY in the memo fingerprint.
+    Two `ConceptKey`s differing ONLY in `content_version` must be
+    indistinguishable to every other consumer: `bundle_write_path_for_key`,
+    `read_concept`'s dispatch (proved via an identical issued-query
+    sequence), and `find()`'s membership test."""
+
+    @staticmethod
+    def _keys() -> "tuple[ConceptKey, ConceptKey]":
+        base = dict(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        return (
+            ConceptKey(**base, content_version="v-a"),
+            ConceptKey(**base, content_version="v-b"),
+        )
+
+    def test_bundle_write_path_for_key_is_identical(self) -> None:
+        from scripts.cocoindex_pipeline.producer.bundle_writer import (
+            bundle_write_path_for_key,
+        )
+
+        key_a, key_b = self._keys()
+        assert bundle_write_path_for_key(key_a) == bundle_write_path_for_key(key_b)
+
+    def test_read_concept_issues_the_identical_query_sequence(self) -> None:
+        from scripts.cocoindex_pipeline.sources.l_records import LRecordsSource
+
+        class _RecordingPool:
+            def __init__(self) -> None:
+                self.calls: "list[tuple[str, tuple]]" = []
+
+            async def fetch(self, query: str, *args: object) -> list:
+                self.calls.append((query, args))
+                return []
+
+        async def _exercise(key: ConceptKey) -> "list[tuple[str, tuple]]":
+            pool = _RecordingPool()
+            await LRecordsSource(pool).read_concept(key)
+            return pool.calls
+
+        key_a, key_b = self._keys()
+        calls_a = asyncio.run(_exercise(key_a))
+        calls_b = asyncio.run(_exercise(key_b))
+        assert calls_a == calls_b
+
+    def test_find_membership_is_identical(self) -> None:
+        from scripts.cocoindex_pipeline.sources.l_records import LRecordsSource
+
+        class _StubPool:
+            async def fetch(self, *args: object, **kwargs: object) -> list:
+                return []
+
+        async def _exercise(key: ConceptKey) -> "list[str]":
+            src = LRecordsSource(_StubPool())
+            src.list_concepts = AsyncMock(return_value=[key])  # type: ignore[method-assign]
+            hits = await src.find("gdpr")
+            return [k.rel_path for k in hits]
+
+        key_a, key_b = self._keys()
+        assert asyncio.run(_exercise(key_a)) == asyncio.run(_exercise(key_b))
+
+
+# ============================================================================
+# MD-9 (ID-132 {132.38} G-MEMO-DELTA, DR-054/DR-027) — the effective ontology
+# is excluded from the Pass-1 fingerprint; grep-assert guard.
+# ============================================================================
+
+
+class TestEffectiveOntologyExcludedFromPass1:
+    """MD-9: the `EffectiveOntology` overlay governs the concept-WRITE gate
+    ({132.34}/{132.35}), never the Pass-1 draft. A grep-assert guard so a
+    future change threading the ontology into Pass-1 prompting is caught —
+    per MD-9's forward guard, such a change MUST then join the manual
+    `version=` invalidation lever, not silently drift the memo fingerprint."""
+
+    def test_no_ontology_symbol_imported_into_pass1_modules(self) -> None:
+        """AST-level (not a raw text/grep match): checks actual `import`/
+        `from ... import ...` statements only, so this guard is immune to a
+        docstring/comment merely NAMING `EffectiveOntology` in prose (as this
+        module's own memoisation docstring now does, describing why it is
+        OUT of scope) — it must fail only on a real import."""
+        import ast
+        import re
+
+        pipeline_root = Path(__file__).resolve().parents[1] / "cocoindex_pipeline"
+        needle = re.compile(r"effective_?ontology|overlay", re.IGNORECASE)
+        for rel in ("producer/enrich.py", "producer/agent_loop.py", "producer/prompts.py"):
+            tree = ast.parse((pipeline_root / rel).read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""] + [alias.name for alias in node.names]
+                else:
+                    continue
+                offenders = [n for n in names if needle.search(n)]
+                assert not offenders, (
+                    f"{rel} imports ontology symbol(s) {offenders} (MD-9) — "
+                    "an overlay change must never re-draft a Pass-1 concept"
+                )
 
 
 # ============================================================================

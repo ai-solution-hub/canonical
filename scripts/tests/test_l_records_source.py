@@ -145,33 +145,54 @@ class TestSourceProtocolConformance:
 def _five_type_pool(
     *, company_exists: bool = True, won_bids: "list[dict] | None" = None
 ) -> FakePool:
+    """{132.38} MD-5/C-2: `list_concepts()` now issues one additional
+    `content_version` aggregate query per enumeration branch (8 total, see
+    `l_records.py`'s "content_version aggregate signal" section) — every
+    marker below is chosen to be a substring of EXACTLY ONE SQL constant
+    (verified: the enum-query markers were narrowed where a version-aggregate
+    query embeds the SAME enumeration subquery, e.g. `AS scope_tag` vs the
+    aggregate's `AS tag` alias). None of the tests built on this fixture
+    assert on `content_version` values, so every aggregate rule here returns
+    empty rows — dedicated realistic-data fixtures live in
+    `TestContentVersionSensitivity` below."""
     pool = FakePool()
     pool.when(
-        "SELECT DISTINCT unnest(scope_tag)",
+        "AS scope_tag FROM q_a_pairs",
         [{"scope_tag": "gdpr"}, {"scope_tag": "encryption"}],
     )
+    pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
     pool.when(
         "SELECT DISTINCT sd.primary_domain AS domain",
         [{"domain": "security", "subtopic": "penetration-testing"}],
     )
+    pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
     pool.when(
-        "SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1",
+        "entity_type = $1 ORDER BY 1",
         [{"canonical_name": "LMS"}, {"canonical_name": "Audit"}],
         arg_matcher=lambda args: args == ("product",),
     )
     pool.when(
-        "SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1",
+        "entity_type = $1 ORDER BY 1",
         [{"canonical_name": "ISO 27001"}],
         arg_matcher=lambda args: args == ("certification",),
     )
+    pool.when("p.canonical_name AS canonical_name", [])
     pool.when(
         "LIMIT 1",
         [{"id": "sd-co"}] if company_exists else [],
     )
+    pool.when("em_max FROM source_documents sd", [])
+    pool.when("ri_max FROM source_documents sd", [])
     pool.when(
-        "SELECT DISTINCT em.canonical_name FROM entity_mentions em",
+        "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions",
+        [],
+        arg_matcher=lambda args: args == ("certification",),
+    )
+    pool.when(
+        "JOIN source_documents sd ON sd.id = em.source_document_id",
         [{"canonical_name": "Acme Corp"}],
     )
+    pool.when("c.canonical_name AS canonical_name", [])
     pool.when(
         # won-bid case_study enumeration grain (S443 amendment / BI-4 / DR-029;
         # {145.24}: form_instances-direct query post-{145.6} W1e, no more
@@ -179,6 +200,7 @@ def _five_type_pool(
         "COALESCE(issuing_organisation, name) AS buyer",
         [] if won_bids is None else won_bids,
     )
+    pool.when("w.workspace_id AS workspace_id", [])
     return pool
 
 
@@ -476,16 +498,23 @@ class TestReadConceptCaseStudy:
 def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     """A corpus whose ONLY concept evidence is won procurement workspaces —
     every other enumeration query returns empty, so `list_concepts()` yields
-    exactly the won-bid case_study grain."""
+    exactly the won-bid case_study grain. {132.38} MD-5/C-2: markers mirror
+    `_five_type_pool`'s disambiguation (see that fixture's docstring)."""
     pool = FakePool()
-    pool.when("SELECT DISTINCT unnest(scope_tag)", [])
+    pool.when("AS scope_tag FROM q_a_pairs", [])
+    pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
     pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
-    pool.when(
-        "SELECT DISTINCT canonical_name FROM entity_mentions WHERE entity_type = $1", []
-    )
+    pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+    pool.when("entity_type = $1 ORDER BY 1", [])
+    pool.when("p.canonical_name AS canonical_name", [])
     pool.when("LIMIT 1", [])
-    pool.when("SELECT DISTINCT em.canonical_name FROM entity_mentions em", [])
+    pool.when("em_max FROM source_documents sd", [])
+    pool.when("ri_max FROM source_documents sd", [])
+    pool.when("count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", [])
+    pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
+    pool.when("c.canonical_name AS canonical_name", [])
     pool.when("COALESCE(issuing_organisation, name) AS buyer", won_bids)
+    pool.when("w.workspace_id AS workspace_id", [])
     return pool
 
 
@@ -792,70 +821,119 @@ class TestFind:
         assert _run(src.find("nonexistent-needle")) == []
 
 
-# ── Defect A ESCALATION (ID-132 {132.35} G-DEPLOY-PROOF) — memo-key protocol ──
+class _UnpicklablePool:
+    """Stands in for the real `asyncpg.Pool`, which holds live locks/sockets
+    and is genuinely unpicklable — a plain self-contained double would
+    accidentally succeed via `_canonicalize`'s `pickle.dumps` fallback and
+    mask the RUN-1 defect this canary reproduces/proves-fixed."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+
+    async def fetch(self, *args: object, **kwargs: object) -> list:
+        return []
+
+
+# ── Defect A FIXED (ID-132 {132.38} G-MEMO-DELTA, DR-060) — memo-key protocol ──
 #
 # RUN 1 of the {132.35} deploy proof crashed inside a REAL cocoindex App run:
-# `enrich_concept(key, source)` is `@coco.fn(memo=True)`, and the installed
-# engine's `memo_fingerprint._make_call_canonical` (cocoindex==1.0.7,
-# `_internal/memo_fingerprint.py:372-401`) canonicalizes EVERY positional/
-# keyword arg of a memoised call — `source` (an `LRecordsSource` wrapping a
-# live `asyncpg.Pool`) included. `enrich.py`'s prior docstring claim that
-# `source` "is not part of the memo fingerprint's data-varying surface" was
-# never actually exercised (the S463 harness had no ambient ComponentContext,
-# so `enrich_concept` ran unmemoised, silently) and is FALSE against the
-# installed engine — see `enrich.py`'s corrected module docstring.
+# `enrich_concept(key, source)` was `@coco.fn(memo=True)` (no exclusion), and
+# the installed engine's `memo_fingerprint._make_call_canonical`
+# (cocoindex==1.0.7, `_internal/memo_fingerprint.py:372-401`) canonicalizes
+# EVERY positional/keyword arg of a memoised call — `source` (an
+# `LRecordsSource` wrapping a live `asyncpg.Pool`) included, raising
+# `TypeError: Unsupported type for memoization key`. {132.35} escalated
+# rather than shipped an ad hoc fix, because excluding `source` alone is
+# identity-only and would silently serve stale drafts (DR-047).
 #
-# This class pins the CURRENT, ESCALATED state — NOT fixed by this Subtask:
-# (1) LRecordsSource is NOT memo-keyable against the REAL engine's checker
-# (reproduces RUN 1's exact TypeError against a pool double shaped like the
-# real asyncpg.Pool — unpicklable, holding live lock/socket state, unlike a
-# plain self-contained double which would accidentally succeed via the
-# pickle-fallback and mask the defect); (2) ConceptKey carries NO
-# content-varying signal in ANY of its fields, so even a `source`-side-only
-# fix cannot satisfy BI-18's "a targeted record change re-drafts exactly
-# that concept" direction — a memo-hit on an identity-unchanged-but-
-# content-changed record would silently serve a STALE draft. Kept GREEN
-# deliberately: whoever implements the real fix (a per-concept content-
-# versioning mechanism) must touch these assertions, forcing a conscious
-# update rather than a silent staleness regression.
+# {132.38} MEMO-DELTA (owner-ratified S469, DR-060) lands the real fix, and
+# this class EVOLVES from pinning the unfixed state to pinning the FIXED
+# contract (MD-11): (1) `source` is EXCLUDED via `memo_key={'source': None}`
+# (MD-2) — proven both ways: WITHOUT the exclusion the RUN-1 TypeError still
+# reproduces (the problem this fix solves), WITH it applied the same call
+# fingerprints cleanly; (2) `ConceptKey.content_version` (MD-3) now drives
+# the fingerprint — two keys with identical identity but different
+# `content_version` fingerprint DIFFERENTLY (re-draft), identical
+# `content_version` fingerprints IDENTICALLY (memo-hit). MD-8 (drafting-config
+# invalidation) is NOT probed here empirically — DR-060 (S469 ratification of
+# OQ-MD-1) rejected the `deps={...}` auto-invalidation design; a config
+# re-draft is a MANUAL `@coco.fn(..., version=N)` bump recorded in the
+# bundle's OKF `log.md` (`bundle_writer.append_log_entry`), not an
+# engine-level fingerprint input — see `enrich.py`'s decorator + module
+# docstring for the authoritative statement of that contract.
 class TestMemoKeyProtocolEscalation:
-    def test_lrecords_source_is_not_memo_keyable_against_the_installed_engine(self):
-        """Reproduces RUN 1's `TypeError: Unsupported type for memoization
-        key` against the REAL installed `cocoindex==1.0.7` engine — no App/
-        Environment boot required: `memo_fingerprint()` is a pure
-        canonicalize + hash utility (empirically verified standalone,
-        unlike `coco.App(...).update_blocking()`), so this needs neither the
-        bl-218/bl-239 subprocess-isolation pattern nor an engine-availability
-        skipif guard.
-        """
+    def _enrich_concept_shaped(
+        self, key: object, source: object, *, model: str = "m", max_tokens: int = 1
+    ) -> None:
+        """A plain function shaped exactly like `enrich.enrich_concept`'s
+        signature (`key`, `source`, keyword-only `model`/`max_tokens`) —
+        never called, only fingerprinted. Kept local (not imported from
+        `enrich.py`) so this canary needs no `cocoindex` stub: it exercises
+        the REAL installed engine's pure canonicalize/fingerprint utilities
+        directly, no App/Environment boot required (mirrors the pre-fix
+        canary's `memo_fingerprint()`-is-a-pure-utility precedent)."""
+        raise NotImplementedError  # pragma: no cover — never invoked
+
+    def test_source_arg_still_unfingerprintable_without_the_memo_key_exclusion(self):
+        """The PROBLEM this fix solves, still reproducible on demand: an
+        unexcluded `source` arg (shaped like the real unpicklable
+        `asyncpg.Pool`-backed `LRecordsSource`) raises exactly RUN 1's
+        `TypeError` when fingerprinted with no `memo_key` plan applied."""
+        from cocoindex._internal.memo_fingerprint import fingerprint_call
+
+        source = _UnpicklablePool()
+        with pytest.raises(TypeError, match="Unsupported type for memoization key"):
+            fingerprint_call(
+                self._enrich_concept_shaped, (object(), source), {}, []
+            )
+
+    def test_memo_key_source_none_excludes_source_and_fingerprints_cleanly(self):
+        """MD-2 (fixed contract): `memo_key={'source': None}` — the EXACT
+        kwarg `enrich.py`'s decorator carries — strips `source` from the
+        fingerprint input BEFORE canonicalization
+        (`_internal/function.py:418-448` `_apply_memo_key`/
+        `_normalize_memo_key`, empirically verified against
+        `cocoindex==1.0.7`), so the SAME unpicklable pool double that raises
+        in the test above no longer reaches `_canonicalize` and no
+        `TypeError` fires."""
+        from cocoindex._internal.function import _apply_memo_key, _normalize_memo_key
+        from cocoindex._internal.memo_fingerprint import fingerprint_call
+
+        source = _UnpicklablePool()
+        args = (object(), source)
+        plan = _normalize_memo_key(self._enrich_concept_shaped, {"source": None})
+        fixed_args, fixed_kwargs = _apply_memo_key(args, {}, plan)
+
+        assert source not in fixed_args  # excluded, not merely transformed
+        fingerprint_call(self._enrich_concept_shaped, fixed_args, fixed_kwargs, [])
+
+    def test_content_version_drives_the_fingerprint(self):
+        """MD-3 (the BI-18 delta lever, fixed contract): two `ConceptKey`s
+        with identical identity but DIFFERENT `content_version` fingerprint
+        differently (re-draft); identical `content_version` fingerprints
+        identically (memo-hit) — `_canonicalize_dataclass`
+        (`memo_fingerprint.py:131-151`) fingerprints every field in
+        definition order, `content_version` included."""
         from cocoindex._internal.memo_fingerprint import memo_fingerprint
 
-        class _UnpicklablePool:
-            """Stands in for the real `asyncpg.Pool`, which holds live
-            locks/sockets and is genuinely unpicklable — a plain
-            self-contained pool double would accidentally succeed via
-            `_canonicalize`'s `pickle.dumps` fallback and mask the defect."""
+        base = dict(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        key_a1 = ConceptKey(**base, content_version="v-a")
+        key_a2 = ConceptKey(**base, content_version="v-a")
+        key_b = ConceptKey(**base, content_version="v-b")
 
-            def __init__(self) -> None:
-                self._lock = threading.Lock()
+        assert bytes(memo_fingerprint(key_a1)) == bytes(memo_fingerprint(key_a2))
+        assert bytes(memo_fingerprint(key_a1)) != bytes(memo_fingerprint(key_b))
 
-            async def fetch(self, *args: object, **kwargs: object) -> list:
-                return []
+    def test_concept_key_now_carries_the_content_version_delta_signal(self):
+        """Evolution of the {132.35} Defect A field-set pin (MD-11): the real
+        fix landed — `content_version` is `ConceptKey`'s LAST field (MD-3),
+        the per-concept BI-18 delta signal `_canonicalize_dataclass`
+        fingerprints like every other field. Order (not just membership) is
+        pinned — MD-4 requires it stay last, appended-not-inserted, so every
+        pre-existing positional `ConceptKey(...)` construction stays valid."""
+        field_names = [f.name for f in dataclasses.fields(ConceptKey)]
 
-        source = LRecordsSource(_UnpicklablePool())
-
-        with pytest.raises(TypeError, match="Unsupported type for memoization key"):
-            memo_fingerprint(source)
-
-    def test_concept_key_carries_no_content_varying_signal(self):
-        """The {132.35} Defect A delta-contract trace: `ConceptKey`'s fields
-        are exhaustively LOCATOR/identity fields — enumerated here so this
-        test breaks (forcing deliberate review) the day a content-hash/
-        `updated_at`/version-shaped field is added, which is the real fix
-        this Subtask escalated rather than implemented ad hoc."""
-        field_names = {f.name for f in dataclasses.fields(ConceptKey)}
-
-        assert field_names == {
+        assert field_names == [
             "rel_path",
             "concept_type",
             "scope_tag",
@@ -863,10 +941,364 @@ class TestMemoKeyProtocolEscalation:
             "subtopic",
             "entity_id",
             "workspace_id",
-        }, (
-            "ConceptKey's field set changed — if a content-hash/updated_at/"
-            "version field was ADDED, the {132.35} Defect A escalation "
-            "(enrich_concept's memo key carries no content-varying signal) "
-            "may now be resolved; update enrich.py's memoisation docstring "
-            "and re-evaluate whether `source` can safely become memo-keyable."
+            "content_version",
+        ]
+
+
+# ── content_version aggregate signal (ID-132 {132.38} G-MEMO-DELTA) ─────
+#
+# MD-5 (bounded, N-independent query count), MD-6 (sensitivity — changes iff
+# a backing row is inserted/deleted/edited; deterministic; no wall-clock),
+# MD-7 (backing-set coverage per type's read grid, including the
+# `entity_mentions` in-place-edit case now that {132.40}'s migration gives it
+# `updated_at` + an `ON UPDATE` trigger, so the aggregate is uniformly
+# `count(*) + max(updated_at)` — no content-hash fallback needed, DR-060).
+
+
+def _other_types_empty(pool: "FakePool") -> "FakePool":
+    """Register empty-returning rules for every enumeration + content_version
+    aggregate query this fixture is NOT exercising, so `list_concepts()`
+    (which always fans out to all six `_list_*` methods) never hits an
+    unmatched-rule `AssertionError`."""
+    pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+    pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+    pool.when("entity_type = $1 ORDER BY 1", [])
+    pool.when("p.canonical_name AS canonical_name", [])
+    pool.when("LIMIT 1", [])
+    pool.when("em_max FROM source_documents sd", [])
+    pool.when("ri_max FROM source_documents sd", [])
+    pool.when("count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", [])
+    pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
+    pool.when("c.canonical_name AS canonical_name", [])
+    pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
+    pool.when("w.workspace_id AS workspace_id", [])
+    return pool
+
+
+def _topic_scope_tag_pool(*, em_max: "str | None") -> "FakePool":
+    """A single `topic` concept (`scope_tag='gdpr'`) with a version-aggregate
+    row whose `entity_mentions` term is parameterised by `em_max` — mirrors
+    an in-place edit to an EXISTING `entity_mentions` row (e.g. a
+    `confidence` bump) that moves `updated_at` without touching `created_at`
+    or the row count (MD-7's explicit in-place-edit case, now closed by the
+    {132.40} migration's `updated_at` + trigger rather than a content hash)."""
+    pool = FakePool()
+    pool.when("AS scope_tag FROM q_a_pairs", [{"scope_tag": "gdpr"}])
+    pool.when(
+        "t.tag AS tag, count(DISTINCT qa.id)",
+        [
+            {
+                "tag": "gdpr",
+                "qa_count": 1,
+                "qa_max": "t0",
+                "sd_count": 1,
+                "sd_max": "t0",
+                "ri_count": 0,
+                "ri_max": None,
+                "rl_count": 0,
+                "rl_max": None,
+                "em_count": 1,
+                "em_max": em_max,
+            }
+        ],
+    )
+    return _other_types_empty(pool)
+
+
+class TestContentVersionSensitivity:
+    """MD-5/MD-6/MD-7: `content_version` changes iff a backing row is
+    inserted/deleted/edited (including in-place), is deterministic (no
+    wall-clock), and covers the full per-type read grid via a bounded number
+    of DB `fetch` calls (never O(N) concepts)."""
+
+    def test_topic_content_version_changes_on_entity_mentions_in_place_edit(self):
+        """MD-6/MD-7's explicit in-place-edit case: an `entity_mentions` row
+        keeps the SAME `created_at` but its `updated_at` moves (a
+        `confidence`/`context_snippet` edit, {132.40}'s trigger-maintained
+        column) — the topic's `content_version` MUST change, even though no
+        row was inserted or deleted."""
+        before = _run(LRecordsSource(_topic_scope_tag_pool(em_max="t0")).list_concepts())
+        after = _run(LRecordsSource(_topic_scope_tag_pool(em_max="t1")).list_concepts())
+
+        topic_before = next(k for k in before if k.concept_type == "topic")
+        topic_after = next(k for k in after if k.concept_type == "topic")
+
+        assert topic_before.content_version != topic_after.content_version
+
+    def test_topic_content_version_is_byte_identical_on_noop_reenumeration(self):
+        """MD-6: a no-op re-enumeration (byte-identical backing content)
+        yields a byte-identical `content_version` — no wall-clock/run
+        timestamp leaks in."""
+        first = _run(LRecordsSource(_topic_scope_tag_pool(em_max="t0")).list_concepts())
+        second = _run(LRecordsSource(_topic_scope_tag_pool(em_max="t0")).list_concepts())
+
+        topic_first = next(k for k in first if k.concept_type == "topic")
+        topic_second = next(k for k in second if k.concept_type == "topic")
+
+        assert topic_first.content_version == topic_second.content_version
+        assert topic_first.content_version != ""
+
+    def test_content_version_query_count_is_bounded_and_n_independent(self):
+        """MD-5: enumerating issues a BOUNDED, N-independent number of DB
+        `fetch` calls for the version signal — the same fixed count whether
+        the corpus enumerates one topic or several (never O(N) round-trips)."""
+        pool_one = _topic_scope_tag_pool(em_max="t0")
+        _run(LRecordsSource(pool_one).list_concepts())
+        one_topic_call_count = len(pool_one.calls)
+
+        many_pool = FakePool()
+        many_pool.when(
+            "AS scope_tag FROM q_a_pairs",
+            [{"scope_tag": f"tag-{i}"} for i in range(25)],
         )
+        many_pool.when(
+            "t.tag AS tag, count(DISTINCT qa.id)",
+            [
+                {
+                    "tag": f"tag-{i}",
+                    "qa_count": 1,
+                    "qa_max": "t0",
+                    "sd_count": 1,
+                    "sd_max": "t0",
+                    "ri_count": 0,
+                    "ri_max": None,
+                    "rl_count": 0,
+                    "rl_max": None,
+                    "em_count": 1,
+                    "em_max": "t0",
+                }
+                for i in range(25)
+            ],
+        )
+        _other_types_empty(many_pool)
+        _run(LRecordsSource(many_pool).list_concepts())
+        many_topics_call_count = len(many_pool.calls)
+
+        assert one_topic_call_count == many_topics_call_count
+
+    def test_product_content_version_changes_when_a_backing_row_updates(self):
+        """MD-6/MD-7 for the `product` grid (source_documents + q_a_pairs +
+        reference_items)."""
+
+        def _pool(sd_max: str) -> "FakePool":
+            pool = FakePool()
+            pool.when("AS scope_tag FROM q_a_pairs", [])
+            pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+            pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+            pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+            pool.when(
+                "entity_type = $1 ORDER BY 1",
+                [{"canonical_name": "LMS"}],
+                arg_matcher=lambda args: args == ("product",),
+            )
+            pool.when(
+                "p.canonical_name AS canonical_name",
+                [
+                    {
+                        "canonical_name": "LMS",
+                        "sd_count": 1,
+                        "sd_max": sd_max,
+                        "qa_count": 1,
+                        "qa_max": "t0",
+                        "ri_count": 0,
+                        "ri_max": None,
+                    }
+                ],
+            )
+            return _other_types_empty(pool)
+
+        before = _run(LRecordsSource(_pool("t0")).list_concepts())
+        after = _run(LRecordsSource(_pool("t1")).list_concepts())
+        product_before = next(k for k in before if k.concept_type == "product")
+        product_after = next(k for k in after if k.concept_type == "product")
+
+        assert product_before.content_version != product_after.content_version
+
+    def test_company_content_version_changes_when_a_backing_row_updates(self):
+        """MD-6/MD-7 for the `company` grid (source_documents +
+        reference_items + entity_mentions), singleton — no GROUP BY."""
+
+        def _pool(em_max: str) -> "FakePool":
+            pool = FakePool()
+            pool.when("AS scope_tag FROM q_a_pairs", [])
+            pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+            pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+            pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+            pool.when("entity_type = $1 ORDER BY 1", [])
+            pool.when("p.canonical_name AS canonical_name", [])
+            pool.when("LIMIT 1", [{"id": "sd-co"}])
+            pool.when(
+                "em_max FROM source_documents sd",
+                [
+                    {
+                        "sd_count": 2,
+                        "sd_max": "t0",
+                        "ri_count": 1,
+                        "ri_max": "t0",
+                        "em_count": 1,
+                        "em_max": em_max,
+                    }
+                ],
+            )
+            pool.when("ri_max FROM source_documents sd", [])
+            pool.when(
+                "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
+            )
+            pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
+            pool.when("c.canonical_name AS canonical_name", [])
+            pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
+            pool.when("w.workspace_id AS workspace_id", [])
+            return pool
+
+        before = _run(LRecordsSource(_pool("t0")).list_concepts())
+        after = _run(LRecordsSource(_pool("t1")).list_concepts())
+        company_before = next(k for k in before if k.concept_type == "company")
+        company_after = next(k for k in after if k.concept_type == "company")
+
+        assert company_before.content_version != company_after.content_version
+
+    def test_certification_content_version_changes_on_entity_mentions_in_place_edit(
+        self,
+    ):
+        """MD-6/MD-7's explicit in-place-edit case for `certification`: its
+        OWN `entity_mentions` (by canonical_name, across all docs) is the
+        per-name term — a `confidence` edit there must change that
+        certification's `content_version` without touching the shared
+        compliance-doc `source_documents`/`reference_items` term."""
+
+        def _pool(em_max: str) -> "FakePool":
+            pool = FakePool()
+            pool.when("AS scope_tag FROM q_a_pairs", [])
+            pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+            pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+            pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+            pool.when(
+                "entity_type = $1 ORDER BY 1",
+                [],
+                arg_matcher=lambda args: args == ("product",),
+            )
+            pool.when(
+                "entity_type = $1 ORDER BY 1",
+                [{"canonical_name": "ISO 27001"}],
+                arg_matcher=lambda args: args == ("certification",),
+            )
+            pool.when("p.canonical_name AS canonical_name", [])
+            pool.when("LIMIT 1", [])
+            pool.when("em_max FROM source_documents sd", [])
+            pool.when(
+                "ri_max FROM source_documents sd",
+                [{"sd_count": 1, "sd_max": "t0", "ri_count": 1, "ri_max": "t0"}],
+            )
+            pool.when(
+                "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions",
+                [{"canonical_name": "ISO 27001", "em_count": 1, "em_max": em_max}],
+                arg_matcher=lambda args: args == ("certification",),
+            )
+            pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
+            pool.when("c.canonical_name AS canonical_name", [])
+            pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
+            pool.when("w.workspace_id AS workspace_id", [])
+            return pool
+
+        before = _run(LRecordsSource(_pool("t0")).list_concepts())
+        after = _run(LRecordsSource(_pool("t1")).list_concepts())
+        cert_before = next(k for k in before if k.concept_type == "certification")
+        cert_after = next(k for k in after if k.concept_type == "certification")
+
+        assert cert_before.content_version != cert_after.content_version
+
+    def test_case_study_named_client_content_version_changes_when_a_row_updates(self):
+        """MD-6/MD-7 for the named-clients `case_study` grid (source_documents
+        + q_a_pairs + reference_items)."""
+
+        def _pool(qa_max: str) -> "FakePool":
+            pool = FakePool()
+            pool.when("AS scope_tag FROM q_a_pairs", [])
+            pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+            pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+            pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+            pool.when("entity_type = $1 ORDER BY 1", [])
+            pool.when("p.canonical_name AS canonical_name", [])
+            pool.when("LIMIT 1", [])
+            pool.when("em_max FROM source_documents sd", [])
+            pool.when("ri_max FROM source_documents sd", [])
+            pool.when(
+                "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
+            )
+            pool.when(
+                "JOIN source_documents sd ON sd.id = em.source_document_id",
+                [{"canonical_name": "Acme Corp"}],
+            )
+            pool.when(
+                "c.canonical_name AS canonical_name",
+                [
+                    {
+                        "canonical_name": "Acme Corp",
+                        "sd_count": 1,
+                        "sd_max": "t0",
+                        "qa_count": 1,
+                        "qa_max": qa_max,
+                        "ri_count": 0,
+                        "ri_max": None,
+                    }
+                ],
+            )
+            pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
+            pool.when("w.workspace_id AS workspace_id", [])
+            return pool
+
+        before = _run(LRecordsSource(_pool("t0")).list_concepts())
+        after = _run(LRecordsSource(_pool("t1")).list_concepts())
+        cs_before = next(
+            k for k in before if k.concept_type == "case_study" and k.workspace_id is None
+        )
+        cs_after = next(
+            k for k in after if k.concept_type == "case_study" and k.workspace_id is None
+        )
+
+        assert cs_before.content_version != cs_after.content_version
+
+    def test_won_bid_case_study_content_version_changes_when_a_row_updates(self):
+        """MD-6/MD-7 for the won-bid `case_study` grid (q_a_pairs +
+        form_instances, {145.24})."""
+
+        def _pool(fi_max: str) -> "FakePool":
+            pool = FakePool()
+            pool.when("AS scope_tag FROM q_a_pairs", [])
+            pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+            pool.when("SELECT DISTINCT sd.primary_domain AS domain", [])
+            pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
+            pool.when("entity_type = $1 ORDER BY 1", [])
+            pool.when("p.canonical_name AS canonical_name", [])
+            pool.when("LIMIT 1", [])
+            pool.when("em_max FROM source_documents sd", [])
+            pool.when("ri_max FROM source_documents sd", [])
+            pool.when(
+                "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
+            )
+            pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
+            pool.when("c.canonical_name AS canonical_name", [])
+            pool.when(
+                "COALESCE(issuing_organisation, name) AS buyer",
+                [{"workspace_id": "ws-1", "buyer": "Transport for London"}],
+            )
+            pool.when(
+                "w.workspace_id AS workspace_id",
+                [
+                    {
+                        "workspace_id": "ws-1",
+                        "qa_count": 1,
+                        "qa_max": "t0",
+                        "fi_count": 1,
+                        "fi_max": fi_max,
+                    }
+                ],
+            )
+            return pool
+
+        before = _run(LRecordsSource(_pool("t0")).list_concepts())
+        after = _run(LRecordsSource(_pool("t1")).list_concepts())
+        wb_before = next(k for k in before if k.workspace_id == "ws-1")
+        wb_after = next(k for k in after if k.workspace_id == "ws-1")
+
+        assert wb_before.content_version != wb_after.content_version

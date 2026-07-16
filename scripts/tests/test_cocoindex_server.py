@@ -3303,3 +3303,25 @@ class TestForcedProducerReportWiring:
         assert "re_target=re_target" in source
         assert "repo_path=repo_path" in source
         assert "trigger_producer_post_walk" not in source
+
+    def test_update_blocking_establishes_the_component_context_md10(self) -> None:
+        """ID-132 {132.38} G-MEMO-DELTA MD-1/MD-10: the forced-run App's
+        `forced_app.update_blocking()` call is what supplies the live
+        cocoindex `ComponentContext` `enrich_concept`'s `@coco.fn(memo=True,
+        memo_key={'source': None})` needs to engage the memo at all — the
+        engine's own gate (`function.py:741-746` sync / `:1231` async:
+        `parent_ctx is None` → execute UNMEMOISED) means a bare
+        `_draft_concepts` loop call (unit tests, cocoindex stubbed) never
+        attempts a fingerprint. MD-1 makes NO change to this wiring — this
+        test pins that the forced-run App + `update_blocking()` establishment
+        stays intact, so the BI-18 Run-1 no-op proof (MD-10: two runs over
+        unchanged L-records make zero Anthropic drafting calls) is exercised
+        through a memo-LIVE surface, never the bare loop. Source-inspection
+        only (mirrors this class's other tests) — the real engine cannot
+        boot in unit tests."""
+        from scripts.cocoindex_pipeline import server as server_mod
+        import inspect
+
+        source = inspect.getsource(server_mod._build_forced_producer_report)
+        assert "coco.App(" in source
+        assert "forced_app.update_blocking()" in source

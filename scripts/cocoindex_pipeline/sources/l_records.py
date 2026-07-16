@@ -179,6 +179,28 @@ class ConceptKey:
     backlog-worthy naming-debt cleanup once those files' own Subtask can land
     the rename alongside its callers."""
 
+    content_version: str = ""
+    """**MEMO-FINGERPRINT-ONLY** (ID-132 {132.38} G-MEMO-DELTA, MD-3/MD-4,
+    DR-060). A deterministic, per-concept content signal computed by
+    `list_concepts()`'s six enumeration methods from the concept's OWN
+    backing-table read grid (MD-7) — set-based `count(*) + max(updated_at)`
+    terms per table, combined in fixed table order (MD-6: no wall-clock, no
+    run timestamp; byte-identical backing content → byte-identical value).
+    This is the BI-18 delta lever: `ConceptKey` is frozen and is the
+    `@coco.fn(memo=True, memo_key={'source': None})`-keyed argument on
+    `producer/enrich.py:enrich_concept`, so two enumerations of the SAME
+    concept with an unchanged `content_version` memo-HIT (skip drafting) and
+    a changed one memo-MISS (re-draft) — see `_canonicalize_dataclass`
+    (`memo_fingerprint.py:131-151`), which fingerprints every field.
+
+    **EXCLUDED from identity** (BI-2/MD-4) — this field participates ONLY in
+    the memo fingerprint, never in `__post_init__` validation, `read_concept`
+    type routing, `bundle_write_path`/`bundle_write_path_for_key`, the
+    won-bid buyer dedup, or `find()`'s `_concept_haystack`. A content change
+    must re-draft the SAME concept, not mint a new one. Kept LAST in field
+    order (after `workspace_id`) so every existing positional/keyword
+    `ConceptKey(...)` construction stays valid with its `""` default."""
+
     def __post_init__(self) -> None:
         if not self.rel_path:
             raise ValueError(
@@ -456,6 +478,174 @@ _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE = (
     "WHERE id = $1 AND outcome = 'won' ORDER BY id"
 )
 
+# ── ID-132 {132.38} G-MEMO-DELTA — the `content_version` aggregate signal
+# (MD-3/5/6/7, DR-060). One SET-BASED aggregate query per enumeration branch
+# (never per-concept, MD-5), grouped by the SAME identity the enumeration
+# query groups by, covering the SAME backing tables `read_concept` reads for
+# that type (the MD-7 read grid). Every table in every read grid now carries
+# `updated_at` — `q_a_pairs`/`source_documents`/`reference_items`/
+# `record_lifecycle`/`form_instances` always did; `entity_mentions`/
+# `entity_relationships` gained it + an `ON UPDATE` trigger via the {132.40}
+# migration (`20260716150000_id132_entity_updated_at.sql`, DR-060 OQ-MD-2) —
+# so the aggregate is UNIFORMLY `count(*) + max(updated_at)` per table, no
+# content-hash fallback needed anywhere (MD-7's original content-hash
+# requirement for those two tables is SUPERSEDED). Terms are combined by
+# `_combine_content_version` in FIXED table order (module-level constant per
+# type) — deterministic, no wall-clock, no run timestamp (MD-6). ──────────
+
+
+def _version_term(count: "int | None", max_ts: Any) -> str:
+    """One table's `count(*) + max(updated_at)` term, rendered deterministic
+    (`datetime.isoformat()` — never a wall-clock read; the value comes
+    straight off the aggregate row). `count` is coerced to `0` and `max_ts`
+    to `""` when a LEFT JOIN yields no matching rows for that table."""
+    ts = max_ts.isoformat() if hasattr(max_ts, "isoformat") else (max_ts or "")
+    return f"{count or 0}:{ts}"
+
+
+def _combine_content_version(*terms: str) -> str:
+    """Combine per-table `_version_term` strings, in the FIXED table order
+    the caller supplies them, into one `ConceptKey.content_version` value."""
+    return "|".join(terms)
+
+
+# topic (MD-7 grid: q_a_pairs, source_documents, reference_items,
+# record_lifecycle, entity_mentions, entity_relationships — matches
+# `_read_topic`'s assembly order). Two branches, mirroring the two
+# enumeration queries above: scope_tag-grouped and domain/subtopic-grouped.
+_SQL_TOPIC_SCOPE_TAG_VERSION = (
+    "SELECT t.tag AS tag, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
+    "count(DISTINCT rl.id) AS rl_count, max(rl.updated_at) AS rl_max, "
+    "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max, "
+    "count(DISTINCT er.id) AS er_count, max(er.updated_at) AS er_max "
+    "FROM (SELECT DISTINCT unnest(scope_tag) AS tag FROM q_a_pairs "
+    "WHERE publication_status = 'published' AND scope_tag IS NOT NULL "
+    "AND array_length(scope_tag, 1) > 0) t "
+    "JOIN q_a_pairs qa ON qa.scope_tag @> ARRAY[t.tag]::text[] "
+    "AND qa.publication_status = 'published' "
+    "LEFT JOIN source_documents sd ON sd.id = qa.source_document_id "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
+    "LEFT JOIN entity_relationships er ON er.source_document_id = sd.id "
+    "LEFT JOIN record_lifecycle rl ON "
+    "(rl.owner_kind = 'source_document' AND rl.source_document_id = sd.id) "
+    "OR (rl.owner_kind = 'q_a_pair' AND rl.q_a_pair_id = qa.id) "
+    "GROUP BY t.tag ORDER BY t.tag"
+)
+
+_SQL_TOPIC_DOMAIN_SUBTOPIC_VERSION = (
+    "SELECT sd.primary_domain AS domain, sd.primary_subtopic AS subtopic, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
+    "count(DISTINCT rl.id) AS rl_count, max(rl.updated_at) AS rl_max, "
+    "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max, "
+    "count(DISTINCT er.id) AS er_count, max(er.updated_at) AS er_max "
+    "FROM q_a_pairs qa "
+    "JOIN source_documents sd ON sd.id = qa.source_document_id "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
+    "LEFT JOIN entity_relationships er ON er.source_document_id = sd.id "
+    "LEFT JOIN record_lifecycle rl ON "
+    "(rl.owner_kind = 'source_document' AND rl.source_document_id = sd.id) "
+    "OR (rl.owner_kind = 'q_a_pair' AND rl.q_a_pair_id = qa.id) "
+    "WHERE qa.publication_status = 'published' "
+    "AND (qa.scope_tag IS NULL OR array_length(qa.scope_tag, 1) IS NULL) "
+    "AND sd.primary_domain IS NOT NULL AND sd.primary_subtopic IS NOT NULL "
+    "GROUP BY sd.primary_domain, sd.primary_subtopic ORDER BY 1, 2"
+)
+
+# product (MD-7 grid: source_documents, q_a_pairs, reference_items — matches
+# `_read_product`'s assembly order), grouped by canonical_name.
+_SQL_PRODUCT_VERSION = (
+    "SELECT p.canonical_name AS canonical_name, "
+    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+    "FROM (SELECT DISTINCT canonical_name FROM entity_mentions "
+    "WHERE entity_type = $1) p "
+    "LEFT JOIN source_documents sd ON "
+    "sd.filename ILIKE ('%' || p.canonical_name || '%') "
+    "OR sd.logical_path ILIKE ('%' || p.canonical_name || '%') "
+    "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
+    "OR qa.scope_tag @> ARRAY[p.canonical_name]::text[] "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "GROUP BY p.canonical_name ORDER BY p.canonical_name"
+)
+
+# company (MD-7 grid: source_documents, reference_items, entity_mentions —
+# matches `_read_company`'s assembly order). Singleton — no GROUP BY.
+_SQL_COMPANY_VERSION = (
+    "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
+    "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max "
+    "FROM source_documents sd "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
+    "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
+)
+
+# certification (MD-7 grid: source_documents, reference_items, entity_mentions
+# — matches `_read_certification`'s assembly order). `source_documents`/
+# `reference_items` are the SAME compliance-doc set for every certification
+# (one shared term); `entity_mentions` is grouped by canonical_name (the
+# certification's OWN mentions, across all docs — mirrors `_read_certification`).
+_SQL_CERTIFICATION_SD_RI_VERSION = (
+    "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+    "FROM source_documents sd "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
+)
+
+_SQL_CERTIFICATION_ENTITY_MENTIONS_VERSION = (
+    "SELECT canonical_name, count(*) AS em_count, max(updated_at) AS em_max "
+    "FROM entity_mentions WHERE entity_type = $1 GROUP BY canonical_name ORDER BY 1"
+)
+
+# case_study, named-clients grain (MD-7 grid: source_documents, q_a_pairs,
+# reference_items — matches `_read_case_study`'s assembly order). Grouped by
+# the SAME named-client `entity_mentions.canonical_name` the enumeration
+# query (`_SQL_DISTINCT_CASE_STUDY_ENTITIES`) groups by; `source_documents`/
+# `reference_items` are the shared named-clients doc set, `q_a_pairs` is the
+# per-entity union `_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY` selects (shared docs OR
+# this entity's scope_tag).
+_SQL_CASE_STUDY_NAMED_CLIENT_VERSION = (
+    "SELECT c.canonical_name AS canonical_name, "
+    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+    "FROM (SELECT DISTINCT em.canonical_name FROM entity_mentions em "
+    "JOIN source_documents sd0 ON sd0.id = em.source_document_id "
+    "WHERE em.entity_type = 'organisation' "
+    "AND (sd0.filename ILIKE ANY($1::text[]) OR sd0.logical_path ILIKE ANY($1::text[]))) c "
+    "LEFT JOIN source_documents sd ON "
+    "sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[]) "
+    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
+    "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
+    "OR qa.scope_tag @> ARRAY[c.canonical_name]::text[] "
+    "GROUP BY c.canonical_name ORDER BY c.canonical_name"
+)
+
+# case_study, won-bid grain (MD-7 grid: q_a_pairs, form_instances — matches
+# `_read_won_bid_case_study`'s assembly order), grouped by the won form's own
+# id (the `ConceptKey.workspace_id` locator, {145.24}).
+_SQL_WON_BID_CASE_STUDY_VERSION = (
+    "SELECT w.workspace_id AS workspace_id, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT fi.id) AS fi_count, max(fi.updated_at) AS fi_max "
+    "FROM (SELECT DISTINCT id AS workspace_id FROM form_instances "
+    "WHERE outcome = 'won') w "
+    "LEFT JOIN q_a_pairs qa ON qa.source_form_instance_id = w.workspace_id "
+    "AND qa.origin_kind = 'derived_from_form_response' "
+    "AND qa.publication_status = 'published' "
+    "LEFT JOIN form_instances fi ON fi.id = w.workspace_id AND fi.outcome = 'won' "
+    "GROUP BY w.workspace_id ORDER BY w.workspace_id"
+)
+
 _SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -514,17 +704,45 @@ class LRecordsSource:
         return keys
 
     async def _list_topic_concepts(self) -> "list[ConceptKey]":
+        """{132.38} MD-5: two additional set-based aggregate queries (one per
+        enumeration branch) populate `content_version` — grouped by the SAME
+        key each branch enumerates by, never a per-concept round-trip."""
         keys: "list[ConceptKey]" = []
-        for row in await self._pool.fetch(_SQL_TOPIC_SCOPE_TAGS):
+        scope_tag_rows = await self._pool.fetch(_SQL_TOPIC_SCOPE_TAGS)
+        version_by_tag = {
+            row["tag"]: _combine_content_version(
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("ri_count"), row.get("ri_max")),
+                _version_term(row.get("rl_count"), row.get("rl_max")),
+                _version_term(row.get("em_count"), row.get("em_max")),
+                _version_term(row.get("er_count"), row.get("er_max")),
+            )
+            for row in await self._pool.fetch(_SQL_TOPIC_SCOPE_TAG_VERSION)
+        }
+        for row in scope_tag_rows:
             tag = row["scope_tag"]
             keys.append(
                 ConceptKey(
                     rel_path=f"topics/{_slugify(tag)}.md",
                     concept_type="topic",
                     scope_tag=tag,
+                    content_version=version_by_tag.get(tag, ""),
                 )
             )
-        for row in await self._pool.fetch(_SQL_TOPIC_DOMAIN_SUBTOPICS):
+        domain_subtopic_rows = await self._pool.fetch(_SQL_TOPIC_DOMAIN_SUBTOPICS)
+        version_by_domain_subtopic = {
+            (row["domain"], row["subtopic"]): _combine_content_version(
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("ri_count"), row.get("ri_max")),
+                _version_term(row.get("rl_count"), row.get("rl_max")),
+                _version_term(row.get("em_count"), row.get("em_max")),
+                _version_term(row.get("er_count"), row.get("er_max")),
+            )
+            for row in await self._pool.fetch(_SQL_TOPIC_DOMAIN_SUBTOPIC_VERSION)
+        }
+        for row in domain_subtopic_rows:
             domain, subtopic = row["domain"], row["subtopic"]
             keys.append(
                 ConceptKey(
@@ -532,17 +750,29 @@ class LRecordsSource:
                     concept_type="topic",
                     domain=domain,
                     subtopic=subtopic,
+                    content_version=version_by_domain_subtopic.get(
+                        (domain, subtopic), ""
+                    ),
                 )
             )
         return keys
 
     async def _list_product_concepts(self) -> "list[ConceptKey]":
         rows = await self._pool.fetch(_SQL_DISTINCT_ENTITY_CANONICAL_NAMES, "product")
+        version_by_name = {
+            row["canonical_name"]: _combine_content_version(
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("ri_count"), row.get("ri_max")),
+            )
+            for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, "product")
+        }
         return [
             ConceptKey(
                 rel_path=f"products/{_slugify(row['canonical_name'])}.md",
                 concept_type="product",
                 entity_id=row["canonical_name"],
+                content_version=version_by_name.get(row["canonical_name"], ""),
             )
             for row in rows
         ]
@@ -553,17 +783,59 @@ class LRecordsSource:
         )
         if not rows:
             return []
-        return [ConceptKey(rel_path="company/overview.md", concept_type="company")]
+        version_rows = await self._pool.fetch(
+            _SQL_COMPANY_VERSION, list(_COMPANY_FILENAME_PATTERNS)
+        )
+        content_version = (
+            _combine_content_version(
+                _version_term(version_rows[0].get("sd_count"), version_rows[0].get("sd_max")),
+                _version_term(version_rows[0].get("ri_count"), version_rows[0].get("ri_max")),
+                _version_term(version_rows[0].get("em_count"), version_rows[0].get("em_max")),
+            )
+            if version_rows
+            else ""
+        )
+        return [
+            ConceptKey(
+                rel_path="company/overview.md",
+                concept_type="company",
+                content_version=content_version,
+            )
+        ]
 
     async def _list_certification_concepts(self) -> "list[ConceptKey]":
+        """{132.38} MD-7: `source_documents`/`reference_items` are the SAME
+        shared compliance-doc set for every certification (one un-grouped
+        aggregate); `entity_mentions` is the certification's OWN mentions,
+        grouped by `canonical_name` (mirrors `_read_certification`)."""
         rows = await self._pool.fetch(
             _SQL_DISTINCT_ENTITY_CANONICAL_NAMES, "certification"
         )
+        sd_ri_rows = await self._pool.fetch(
+            _SQL_CERTIFICATION_SD_RI_VERSION, list(_CERTIFICATION_FILENAME_PATTERNS)
+        )
+        shared_term = (
+            _combine_content_version(
+                _version_term(sd_ri_rows[0].get("sd_count"), sd_ri_rows[0].get("sd_max")),
+                _version_term(sd_ri_rows[0].get("ri_count"), sd_ri_rows[0].get("ri_max")),
+            )
+            if sd_ri_rows
+            else _combine_content_version(_version_term(0, None), _version_term(0, None))
+        )
+        em_by_name = {
+            row["canonical_name"]: _version_term(row.get("em_count"), row.get("em_max"))
+            for row in await self._pool.fetch(
+                _SQL_CERTIFICATION_ENTITY_MENTIONS_VERSION, "certification"
+            )
+        }
         return [
             ConceptKey(
                 rel_path=f"certifications/{_slugify(row['canonical_name'])}.md",
                 concept_type="certification",
                 entity_id=row["canonical_name"],
+                content_version=_combine_content_version(
+                    shared_term, em_by_name.get(row["canonical_name"], _version_term(0, None))
+                ),
             )
             for row in rows
         ]
@@ -572,11 +844,22 @@ class LRecordsSource:
         rows = await self._pool.fetch(
             _SQL_DISTINCT_CASE_STUDY_ENTITIES, list(_CASE_STUDY_FILENAME_PATTERNS)
         )
+        version_by_name = {
+            row["canonical_name"]: _combine_content_version(
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("ri_count"), row.get("ri_max")),
+            )
+            for row in await self._pool.fetch(
+                _SQL_CASE_STUDY_NAMED_CLIENT_VERSION, list(_CASE_STUDY_FILENAME_PATTERNS)
+            )
+        }
         return [
             ConceptKey(
                 rel_path=f"case-studies/{_slugify(row['canonical_name'])}.md",
                 concept_type="case_study",
                 entity_id=row["canonical_name"],
+                content_version=version_by_name.get(row["canonical_name"], ""),
             )
             for row in rows
         ]
@@ -587,8 +870,16 @@ class LRecordsSource:
         by (buyer, workspace_id), so deduping by buyer keeps the earliest
         workspace deterministically — a single case study per buyer (BI-2),
         even when a buyer has multiple won workspaces. Additive to the
-        named-clients grain above."""
+        named-clients grain above. {132.38} MD-7: `content_version` is
+        grouped by the won form's own id (the `workspace_id` locator)."""
         rows = await self._pool.fetch(_SQL_WON_BID_CASE_STUDIES)
+        version_by_workspace = {
+            row["workspace_id"]: _combine_content_version(
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("fi_count"), row.get("fi_max")),
+            )
+            for row in await self._pool.fetch(_SQL_WON_BID_CASE_STUDY_VERSION)
+        }
         keys: "list[ConceptKey]" = []
         seen_buyers: "set[str]" = set()
         for row in rows:
@@ -601,6 +892,7 @@ class LRecordsSource:
                     rel_path=f"case-studies/{_slugify(buyer)}.md",
                     concept_type="case_study",
                     entity_id=buyer,
+                    content_version=version_by_workspace.get(row["workspace_id"], ""),
                     workspace_id=row["workspace_id"],
                 )
             )

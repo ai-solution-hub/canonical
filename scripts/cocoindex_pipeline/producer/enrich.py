@@ -47,48 +47,61 @@ resource_uri builders from the row ids the Source adapter actually returned,
 and recorded into `seen_anchors` at mint time), so a validated citation is
 provably traceable to a real row this run actually read.
 
-**Memoisation (BI-18) — CORRECTED, ESCALATED (ID-132 {132.35} G-DEPLOY-PROOF
-Defect A, superseding the claim this docstring carried through the {132.35}
-S465 deploy proof).** `enrich_concept` is `@coco.fn(memo=True)`. The
-PREVIOUS version of this note claimed `source` "is not part of the memo
-fingerprint's data-varying surface" — that claim is FALSE against the
-installed engine and was never actually exercised: `cocoindex==1.0.7`'s
-`memo_fingerprint.fingerprint_call` → `_make_call_canonical` (`_internal/
-memo_fingerprint.py:372-401`) canonicalizes **every** positional/keyword arg
-of a memoised call, `source` included, with no "context arg" exemption
-anywhere in the engine. RUN 1 of the {132.35} deploy proof — the first REAL
-`cocoindex` App run this component had ever executed inside an ambient
-`ComponentContext` — hit this directly: `source` (an `LRecordsSource`
-wrapping a live `asyncpg.Pool`) has no `__coco_memo_key__` and is not
-`pickle`-able (the Pool holds live locks/sockets), so `_canonicalize`'s
-pickle-fallback raises and every one of 18/18 concepts failed drafting with
-`TypeError: Unsupported type for memoization key: LRecordsSource`. The prior
-claim went unchallenged only because the S463 standalone harness ran with NO
-ambient `ComponentContext` — `AsyncFunction.__call__` (`_internal/
-function.py`) takes the `parent_ctx is None` branch and executes unmemoised,
-silently, so the rejection this docstring should have described never fired
-in any prior test.
+**Memoisation (BI-18) — FIXED (ID-132 {132.38} G-MEMO-DELTA, MEMO-DELTA.md
+MD-1..MD-11, owner-ratified DR-060, superseding the {132.35} G-DEPLOY-PROOF
+Defect A escalation this docstring previously carried unfixed).**
+`enrich_concept` is `@coco.fn(memo=True, memo_key={'source': None})`.
 
-**The deeper gap this surfaced (Defect A, ESCALATED — NOT fixed as of this
-note).** Making `source` memo-keyable (e.g. a stable `__coco_memo_key__`
-constant) is not, by itself, a safe fix: `ConceptKey`'s own fields
-(`rel_path`/`concept_type`/`scope_tag`/`domain`/`subtopic`/`entity_id`/
-`workspace_id`, `sources/l_records.py`) are pure LOCATOR/identity fields —
-none of them, nor anything else `list_concepts()` populates for any of the 5
-ratified concept types, carries a content-hash/`updated_at`/version signal.
-With `source` pinned to a constant, the ENTIRE memo fingerprint would be
-identity-only, so a content edit to a q_a_pair/source_document that leaves
-the concept's identity unchanged would ALSO leave the memo fingerprint
-unchanged — a memo-HIT that silently serves a STALE draft, violating BI-18's
-"a targeted record change re-drafts exactly that concept" direction (DR-047:
-the memo-KEY rejection fix must not silently degrade correctness either).
-Closing this requires a genuine content-versioning design (e.g. a per-concept
-content fingerprint threaded onto `ConceptKey`, or a `__coco_memo_state__`
-validator with DB access at cache-hit time) — a materially different,
-non-minimal change this Subtask escalated rather than shipped ad hoc. See
-`scripts/tests/test_l_records_source.py::TestMemoKeyProtocolEscalation` for
-the executable trace (kept green intentionally, pinning the CURRENT
-unfixed state so it forces a deliberate update when the real fix lands).
+**`source` is EXCLUDED via `memo_key` (MD-2), not merely "not part of the
+fingerprint's data-varying surface".** The engine fingerprints **every**
+positional/keyword arg of a memoised call by default (`cocoindex==1.0.7`'s
+`memo_fingerprint.fingerprint_call` → `_make_call_canonical`, `_internal/
+memo_fingerprint.py:372-401`) — this is what made RUN 1 of the {132.35}
+deploy proof fail 18/18 with `TypeError: Unsupported type for memoization
+key: LRecordsSource` (`source` wraps a live, unpickleable `asyncpg.Pool`).
+The fix is `memo_key={'source': None}`: a parameter mapped to `None` is
+dropped from the fingerprint input BEFORE canonicalization
+(`_internal/function.py:418-448`, empirically verified), so the unpickleable
+adapter never reaches `_canonicalize`. `sources/l_records.py` stays
+cocoindex-free — no memo protocol is added to `LRecordsSource` itself.
+
+**The content-varying signal (Defect A's real fix): `ConceptKey.content_
+version` (MD-3).** Excluding `source` alone is identity-only and would
+silently serve stale drafts (DR-047 forbids this) — `ConceptKey` now carries
+a `content_version: str = ""` field (`sources/l_records.py`, LAST field,
+excluded from identity/routing/dedup/write-path per MD-4), populated by
+`list_concepts()`'s six enumeration methods from a deterministic per-table
+`count(*) + max(updated_at)` aggregate over each concept type's own backing
+read grid (MD-5/6/7). `ConceptKey` is frozen, so `_canonicalize_dataclass`
+(`memo_fingerprint.py:131-151`) fingerprints `content_version` like every
+other field: an unchanged `content_version` memo-HITs (skip drafting, BI-18
+no-op proof, MD-10); a changed one memo-MISSes (re-draft exactly that
+concept, MD-6's over-invalidation-biased sensitivity contract).
+
+**Config-surface invalidation is a MANUAL `version=` bump, NOT `deps=`
+(DR-060, S469 owner ratification of OQ-MD-1 — the MD-8 `deps={...}`
+auto-invalidation design in MEMO-DELTA.md's body text was NOT taken).** A
+change to `PASS1_INSTRUCTION_PROMPT`/`ANTHROPIC_MODEL`/`_MAX_TOKENS_PASS1`
+does **not** fold into the logic fingerprint and does **not** auto-invalidate
+the corpus — OKF treats concepts as durable, curated, git-versioned
+artefacts ("indefinite curation, not regeneration"), so a config-driven
+re-draft is a **deliberate operator decision**: bump the `@coco.fn(...,
+version=N)` kwarg by hand and record the reason in the bundle's OKF §7
+`log.md` (`bundle_writer.append_log_entry`). The decorator therefore carries
+NO `deps=` kwarg — data-change staleness stays fully covered by
+`content_version` (MD-3/6/7) regardless.
+
+**The effective ontology is excluded from the Pass-1 fingerprint (MD-9,
+DR-054/DR-027).** `EffectiveOntology` governs the concept-**write** gate
+({132.34}/{132.35}), not this draft — zero ontology imports exist in this
+module, `agent_loop.py`, or `prompts.py`. An overlay change must never
+re-draft a concept; if a future change threads the ontology into Pass-1
+prompting, it MUST then join the manual `version=` lever above (forward
+guard, MD-9).
+
+See `scripts/tests/test_l_records_source.py::TestMemoKeyProtocolEscalation`
+(evolved MD-11) and `scripts/tests/test_producer_enrich.py::
+TestMemoisationProxy` for the executable trace.
 
 **Collection safety.** Unlike `url_source.py`/`sources/l_records.py`/
 `producer/resource_uri.py` (deliberately cocoindex-free), this module DOES
@@ -590,7 +603,7 @@ def _seed_user_message(key: ConceptKey) -> str:
 # ── enrich_concept ───────────────────────────────────────────────────────
 
 
-@coco.fn(memo=True)
+@coco.fn(memo=True, memo_key={"source": None})
 async def enrich_concept(
     key: ConceptKey,
     source: Source,
@@ -607,9 +620,13 @@ async def enrich_concept(
     Pass-1 makes zero web calls (BI-15). The terminal response is parsed per
     the S451 rider's terminal-TEXT contract (fold-in 1: a JSON envelope in
     the final text turn, never a tool call; fold-in 3: all terminal
-    TextBlocks concatenated). `@coco.fn(memo=True)` on the frozen `key`
-    (BI-18) — see the module docstring for why `source` does not perturb
-    the memo fingerprint.
+    TextBlocks concatenated). `@coco.fn(memo=True, memo_key={'source': None})`
+    on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060): `source` is
+    excluded via `memo_key` (MD-2) so the unpickleable `LRecordsSource` never
+    reaches the fingerprint; `key.content_version` (MD-3) is the BI-18 delta
+    signal — see the module docstring for the full mechanism, and note a
+    drafting-config change (prompt/model/max_tokens) is a MANUAL `version=`
+    bump recorded in the bundle's `log.md`, never an auto `deps=` invalidation.
     """
     catalogue = await source.list_concepts()
     own_raw = await source.read_concept(key)
