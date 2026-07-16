@@ -498,4 +498,43 @@ describe('stdout purity — real CLI subprocess (ID-148.6, INV-11)', () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.subcommand).toBe('list');
   });
+
+  // ID-156.4: the [branding] WCAG-contrast advisory (lib/client-config.ts,
+  // pulled in transitively via lib/validation/schemas.ts) fired on every
+  // ledger-cli invocation regardless of subcommand. Assert it is gone from
+  // this real subprocess entirely (stdout AND stderr) — a plain `| jq .`
+  // pipe never sees stdout noise (console.warn goes to stderr), but the
+  // Orchestrator's stdout+stderr-merged capture did.
+  it('`list projects` never prints the [branding] advisory (any stream)', () => {
+    const r = spawnSync('bun', [CLI, 'list', 'projects', '--ledger-dir', dir], {
+      cwd: REPO,
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(0);
+    expect(r.stdout ?? '').not.toContain('[branding]');
+    expect(r.stderr ?? '').not.toContain('[branding]');
+  });
+
+  // ID-156.4: `show initiatives` on the base fixture surfaces real
+  // gitignored-substrate_doc warnings (see the D2 test above). The envelope
+  // already carries them on stdout; `emit()` used to ALSO re-serialise the
+  // identical array as a bare trailing `{"warnings":[...]}` line on stderr —
+  // a plain `| jq .` pipe never noticed (stdout stayed one line), but any
+  // stdout+stderr-merged consumer saw the warnings array twice. Assert
+  // `emit()` now emits it exactly once, envelope only.
+  it('`show initiatives` emits real warnings exactly once (envelope only, no stderr duplicate)', () => {
+    const r = spawnSync(
+      'bun',
+      [CLI, 'show', 'initiatives', '--ledger-dir', dir],
+      {
+        cwd: REPO,
+        encoding: 'utf8',
+      },
+    );
+    expect(r.status).toBe(0);
+    const parsed = JSON.parse((r.stdout ?? '').trim());
+    expect(parsed.ok).toBe(true);
+    expect(parsed.warnings?.length).toBeGreaterThan(0);
+    expect(r.stderr ?? '').not.toContain('"warnings"');
+  });
 });
