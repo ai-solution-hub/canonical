@@ -25,7 +25,8 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { SectionErrorState } from '@/components/source-document-detail/section-error-state';
-import { PdfDocument } from '@/components/reader/pdf-document';
+// ssr:false wrapper — react-pdf needs DOMMatrix, absent in Node SSR ({145.49}).
+import { PdfDocumentLazy as PdfDocument } from '@/components/reader/pdf-document-lazy';
 import {
   SpatialOverlay,
   type SpatialOverlayBox,

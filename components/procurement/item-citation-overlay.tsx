@@ -45,7 +45,8 @@
  */
 import * as React from 'react';
 import { FileQuestion } from 'lucide-react';
-import { PdfDocument } from '@/components/reader/pdf-document';
+// ssr:false wrapper — react-pdf needs DOMMatrix, absent in Node SSR ({145.49}).
+import { PdfDocumentLazy as PdfDocument } from '@/components/reader/pdf-document-lazy';
 import {
   SpatialOverlay,
   type SpatialOverlayBox,

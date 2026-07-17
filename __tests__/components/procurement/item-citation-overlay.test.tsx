@@ -37,8 +37,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient } from '@/__tests__/helpers/query-wrapper';
 import { ItemCitationOverlay } from '@/components/procurement/item-citation-overlay';
 
-vi.mock('@/components/reader/pdf-document', () => ({
-  PdfDocument: ({
+vi.mock('@/components/reader/pdf-document-lazy', () => ({
+  PdfDocumentLazy: ({
     currentPage,
     onPageChange,
     onTextLayerRenderSuccess,

@@ -51,8 +51,8 @@ vi.mock('@/components/diff/viewers/xlsx-viewer', () => ({
   ),
 }));
 
-vi.mock('@/components/reader/pdf-document', () => ({
-  PdfDocument: ({ sourceUrl }: { sourceUrl?: string | null }) => (
+vi.mock('@/components/reader/pdf-document-lazy', () => ({
+  PdfDocumentLazy: ({ sourceUrl }: { sourceUrl?: string | null }) => (
     <div data-testid="pdf-viewer">{sourceUrl}</div>
   ),
 }));

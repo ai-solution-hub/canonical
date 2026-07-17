@@ -21,15 +21,16 @@ import {
 } from '@/__tests__/helpers/mock-supabase';
 import { ItemFillSlotReview } from '@/components/procurement/item-fill-slot-review';
 
-// PdfDocument is mocked to a minimal controlled-page stub — its own
+// PdfDocument (mocked at its `pdf-document-lazy` ssr:false entry point,
+// {145.49}) is stubbed to a minimal controlled-page stand-in — its own
 // controlled-mode/overlay-slot contract is covered directly by
 // __tests__/components/reader/pdf-document.test.tsx. Here it exposes just
 // enough (`currentPage`, a page-change control, and the real
 // `renderPageOverlay` slot) to prove ItemFillSlotReview drives it correctly
 // and that the REAL `SpatialOverlay` (147-H) it renders into that slot
 // completes the bidirectional loop.
-vi.mock('@/components/reader/pdf-document', () => ({
-  PdfDocument: ({
+vi.mock('@/components/reader/pdf-document-lazy', () => ({
+  PdfDocumentLazy: ({
     currentPage,
     onPageChange,
     renderPageOverlay,

@@ -37,7 +37,8 @@ import {
 } from '@/components/item-detail/revision-diff-view';
 import { DocxViewer } from '@/components/diff/viewers/docx-viewer';
 import { XlsxViewer } from '@/components/diff/viewers/xlsx-viewer';
-import { PdfDocument } from '@/components/reader/pdf-document';
+// ssr:false wrapper — react-pdf needs DOMMatrix, absent in Node SSR ({145.49}).
+import { PdfDocumentLazy as PdfDocument } from '@/components/reader/pdf-document-lazy';
 import type { UnifiedDiff, UnifiedRevision } from '@/lib/diff/unified-revision';
 
 // ---------------------------------------------------------------------------
