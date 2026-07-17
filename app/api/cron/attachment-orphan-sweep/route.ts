@@ -39,6 +39,8 @@ import { logger } from '@/lib/logger';
 
 export const maxDuration = 60;
 
+type ServiceClient = ReturnType<typeof createServiceClient>;
+
 /** Default page size for the form-scoped sweep's `form_instances` scan. */
 const DEFAULT_FORM_SWEEP_LIMIT = 200;
 
@@ -103,8 +105,7 @@ async function removeOrphans(
  */
 async function sweepEngagementScoped(
   bucket: StorageLister,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  supabase: ServiceClient,
 ): Promise<SweepResult> {
   const removed: string[] = [];
   const failed: string[] = [];
@@ -167,17 +168,12 @@ async function sweepEngagementScoped(
  */
 async function sweepFormScoped(
   bucket: StorageLister,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  supabase: ServiceClient,
   limit: number,
 ): Promise<SweepResult & { formsScanned: number }> {
   const removed: string[] = [];
   const failed: string[] = [];
 
-  // ID-145 {145.6}/{145.7} type-regen-skip allowance: `form_instances` is
-  // POST-W1 schema, not yet in the generated Database type. Expected
-  // typecheck drift, journalled not chased — same allowance the sibling
-  // procurement routes already take.
   const formsResult = await tryQuery<Array<{ id: string }>>(
     supabase
       .from('form_instances')

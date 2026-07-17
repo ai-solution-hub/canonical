@@ -28,7 +28,7 @@
  * reusable across forms, not scoped to any one item.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ClipboardList,
@@ -559,7 +559,8 @@ export function RequirementCatalogueEditor({
     { mode: 'add' } | { mode: 'edit'; row: RequirementTemplateRow } | null
   >(null);
 
-  const sortedRows = useMemo(() => rows ?? [], [rows]);
+  // Ordering (template_name, then display_order) is applied by the fetcher.
+  const templateRows = rows ?? [];
 
   function closePanel() {
     setPanelState(null);
@@ -636,7 +637,7 @@ export function RequirementCatalogueEditor({
         />
       )}
 
-      {sortedRows.length === 0 ? (
+      {templateRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-card py-12 text-center">
           <ClipboardList
             className="size-8 text-muted-foreground/50"
@@ -665,7 +666,7 @@ export function RequirementCatalogueEditor({
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((row) => (
+              {templateRows.map((row) => (
                 <RequirementRow
                   key={row.id}
                   row={row}

@@ -447,7 +447,7 @@ export function ItemQuestionsPanel({
 
       {canEdit && totalQuestions > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          {!!unmatchedCount && unmatchedCount > 0 && (
+          {unmatchedCount !== undefined && unmatchedCount > 0 && (
             <Button
               variant="outline"
               size="sm"

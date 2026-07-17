@@ -40,10 +40,7 @@
  * Columns cited against the {145.16} W1c migration
  * (`supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql` STEP 3 —
  * pure rename, no column reshape) and the current `api.form_requirement_templates`
- * view definition (`supabase/migrations/20260712063000_id145_w1d_api_regen.sql`)
- * — `supabase/types/database.types.ts` is out of bounds for this Subtask
- * (Read-denied in this worktree), so the shape below is authored from the SQL,
- * not the generated types file.
+ * view definition (`supabase/migrations/20260712063000_id145_w1d_api_regen.sql`).
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
