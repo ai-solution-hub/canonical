@@ -63,6 +63,7 @@ import {
   type ProcurementResponse,
 } from '@/hooks/streaming/use-stream-coordination';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
+import { queryKeys } from '@/lib/query/query-keys';
 
 // ---------------------------------------------------------------------------
 // Global mocks
@@ -1386,6 +1387,96 @@ describe('useStreamCoordination', () => {
       expect(result.current.editorContent).toBe(
         '<p>User-authored response with substantive changes</p>',
       );
+    });
+  });
+
+  // =========================================================================
+  // Shared questions cache key — detail-page/session-page shape parity
+  // =========================================================================
+  //
+  // Regression: the ProcurementDetailPage (useFormData in
+  // hooks/procurement/use-procurement-actions.ts) and the session page
+  // (useProcurementSession) register queries under the SAME key,
+  // queryKeys.procurement.questions(id). The detail page caches the route
+  // envelope { questions, stats }; the session page previously cached the
+  // bare array. Navigating detail -> session within staleTime served the
+  // detail page's envelope to the session hook, crashing
+  // navigatorQuestions with "questions.map is not a function". One key MUST
+  // mean one shape: both sides now share fetchProcurementQuestions from
+  // lib/query/procurement-questions.ts, caching the envelope.
+
+  describe('questions cache shared with the detail page (same query key)', () => {
+    it('renders session questions from a cache entry left by the detail page', async () => {
+      setupDefaultFetch();
+      // Production-like cache config: the envelope seeded below stays fresh,
+      // exactly as it is when the user clicks "open session" on the detail
+      // page within staleTime of the detail page's own questions fetch.
+      const { Wrapper, queryClient } = createQueryWrapper({
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+      });
+      queryClient.setQueryData(queryKeys.procurement.questions('bid-1'), {
+        questions: [
+          {
+            id: 'q-1',
+            question_text: 'What is your approach?',
+            section_name: 'Section 1',
+            section_sequence: 1,
+            question_sequence: 1,
+            confidence_posture: 'strong_match',
+            status: 'not_started',
+            word_limit: 500,
+            has_variants: false,
+            assigned_to: null,
+            created_by: null,
+            created_at: '2026-01-01',
+            updated_at: '2026-01-01',
+            evaluation_weight: null,
+            response: { id: 'r-1', review_status: 'draft', word_count: 50 },
+          },
+          {
+            id: 'q-2',
+            question_text: 'Describe your team',
+            section_name: 'Section 2',
+            section_sequence: 1,
+            question_sequence: 2,
+            confidence_posture: null,
+            status: 'not_started',
+            word_limit: null,
+            has_variants: false,
+            assigned_to: null,
+            created_by: null,
+            created_at: '2026-01-01',
+            updated_at: '2026-01-01',
+            evaluation_weight: null,
+            response: null,
+          },
+        ],
+        stats: {
+          total_questions: 2,
+          strong_match_count: 1,
+          partial_match_count: 0,
+          needs_sme_count: 0,
+          no_content_count: 1,
+          unmatched_count: 0,
+          drafted_count: 0,
+          complete_count: 0,
+        },
+      });
+
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
+      );
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.questions).toHaveLength(2);
+      expect(
+        result.current.navigatorQuestions.map((q: { id: string }) => q.id),
+      ).toEqual(['q-1', 'q-2']);
     });
   });
 

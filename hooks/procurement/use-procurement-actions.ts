@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
+import { fetchProcurementQuestions } from '@/lib/query/procurement-questions';
 import { toast } from 'sonner';
 import {
   canTransition,
@@ -79,13 +80,14 @@ function useFormData(id: string) {
     procurementQuery.isSuccess &&
     procurementQuery.data === null;
 
+  // MUST use the shared fetcher: `useProcurementSession` (session page)
+  // registers a query under this SAME key, so both sides must cache the
+  // identical { questions, stats } envelope. A locally shaped queryFn here is
+  // what crashed the session page ("questions.map is not a function") when
+  // this page's cache entry was served to it on detail -> session navigation.
   const questionsQuery = useQuery({
     queryKey: queryKeys.procurement.questions(id),
-    queryFn: async () => {
-      const response = await fetch(`/api/procurement/${id}/questions`);
-      if (!response.ok) throw new Error('Failed to fetch questions');
-      return response.json();
-    },
+    queryFn: () => fetchProcurementQuestions(id),
   });
 
   const { refetch: refetchProcurement } = procurementQuery;

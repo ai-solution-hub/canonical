@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, ApiError } from '@/lib/query/fetchers';
+import { fetchProcurementQuestions } from '@/lib/query/procurement-questions';
 import { toast } from 'sonner';
 import type { ProcurementQuestion } from '@/types/procurement';
 import type {
@@ -34,19 +35,14 @@ async function fetchProcurementSummary(
   }
 }
 
-async function fetchProcurementQuestions(
-  procurementId: string,
-): Promise<ProcurementQuestion[]> {
-  // S152B WP5 / Q-37: do NOT swallow fetch errors here. Returning `[]`
-  // on failure made the caller render an empty-but-valid-looking state,
-  // masking real connectivity / auth / server problems from TanStack
-  // Query's `isError`/`error` state. Let the error propagate so the UI
-  // can render "Failed to load bid questions" instead.
-  const data = await fetchJson<{ questions: ProcurementQuestion[] }>(
-    `/api/procurement/${procurementId}/questions`,
-  );
-  return data.questions ?? [];
-}
+// Questions are fetched via the SHARED `fetchProcurementQuestions`
+// (lib/query/procurement-questions.ts): the detail page's `useFormData`
+// registers a query under the SAME `queryKeys.procurement.questions(id)` key,
+// so both hooks must cache the identical envelope shape — a locally defined
+// fetcher with its own shape is exactly what crashed this page (envelope
+// served from the detail page's cache entry where an array was expected).
+// Error posture (S152B WP5 / Q-37) is preserved there: fetch errors and
+// malformed payloads propagate to TanStack Query's `isError`/`error` state.
 
 async function fetchProcurementResponseData(
   procurementId: string,
@@ -125,8 +121,10 @@ export function useProcurementSession(
   // side of `??` creates a fresh array every render and invalidates the
   // downstream `navigatorQuestions` memo. Note: with React Compiler enabled
   // this pattern would be automatic, but the lint rule still requires it.
+  // `questionsQuery.data` is the shared { questions, stats } envelope (see
+  // fetchProcurementQuestions) — this hook consumes the questions slice only.
   const questions = useMemo(
-    () => questionsQuery.data ?? EMPTY_QUESTIONS,
+    () => questionsQuery.data?.questions ?? EMPTY_QUESTIONS,
     [questionsQuery.data],
   );
   const loading = procurementQuery.isLoading || questionsQuery.isLoading;
