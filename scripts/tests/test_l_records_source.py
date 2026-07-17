@@ -1302,3 +1302,278 @@ class TestContentVersionSensitivity:
         wb_after = next(k for k in after if k.workspace_id == "ws-1")
 
         assert wb_before.content_version != wb_after.content_version
+
+
+# ── ID-132 {132.36} G-CONCEPT-FEEDER — client-configurable overlay-added
+# concept-type feeder ────────────────────────────────────────────────────
+
+
+def _feeder_pool(entity_type: str, rows: "list[dict]") -> FakePool:
+    """A five-base-types-empty pool plus one `entity_mention` feeder grain
+    (`entity_type`) evidence set. The feeder's own enumeration/version
+    rules are registered FIRST via `arg_matcher` so they win over
+    `_other_types_empty`'s generic (no-arg-matcher) catch-alls for the SAME
+    marker substrings (`entity_type = $1 ORDER BY 1` / `p.canonical_name AS
+    canonical_name`, which `product`'s own query also shares)."""
+    pool = FakePool()
+    pool.when(
+        "entity_type = $1 ORDER BY 1",
+        rows,
+        arg_matcher=lambda args: args == (entity_type,),
+    )
+    pool.when(
+        "p.canonical_name AS canonical_name",
+        [
+            {
+                "canonical_name": row["canonical_name"],
+                "sd_count": 1,
+                "sd_max": "t0",
+                "qa_count": 1,
+                "qa_max": "t0",
+                "ri_count": 0,
+                "ri_max": None,
+            }
+            for row in rows
+        ],
+        arg_matcher=lambda args: args == (entity_type,),
+    )
+    pool.when("AS scope_tag FROM q_a_pairs", [])
+    pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+    return _other_types_empty(pool)
+
+
+class TestConceptFeederConceptKeyWidening:
+    """`_permit_overlay_concept_types` scopes `ConceptKey.__post_init__`'s
+    BI-4 widening to exactly its `with`-block — every OTHER construction
+    site keeps the pre-{132.36} closed-set behaviour."""
+
+    def test_permits_a_type_inside_the_context_manager(self):
+        from scripts.cocoindex_pipeline.sources.l_records import (
+            _permit_overlay_concept_types,
+        )
+
+        with _permit_overlay_concept_types(["partner"]):
+            key = ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
+        assert key.concept_type == "partner"
+
+    def test_type_is_rejected_again_once_the_context_manager_exits(self):
+        from scripts.cocoindex_pipeline.sources.l_records import (
+            _permit_overlay_concept_types,
+        )
+
+        with _permit_overlay_concept_types(["partner"]):
+            pass
+
+        with pytest.raises(ValueError, match="BI-4"):
+            ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
+
+    def test_q_a_pair_is_rejected_even_inside_the_context_manager(self):
+        """BI-3 is unconditional — an overlay can never smuggle in
+        'q_a_pair' as a permitted type."""
+        from scripts.cocoindex_pipeline.sources.l_records import (
+            _permit_overlay_concept_types,
+        )
+
+        with _permit_overlay_concept_types(["q_a_pair"]):
+            with pytest.raises(ValueError, match="q_a_pair"):
+                ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
+
+
+class TestConceptFeederListConcepts:
+    """`LRecordsSource(pool, concept_feeder_config=...)` enumerates an
+    overlay-added concept type via the `entity_mention` grain."""
+
+    def test_no_feeder_config_yields_zero_extra_concepts(self):
+        """Zero behaviour change absent a feeder config (mirrors OV-4/
+        OV-11's absence-is-not-an-error posture for the feeder)."""
+        pool = _other_types_empty(FakePool())
+        pool.when("AS scope_tag FROM q_a_pairs", [])
+        pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert keys == []
+
+    def test_feeder_config_enumerates_the_overlay_added_type(self):
+        pool = _feeder_pool("partner", [{"canonical_name": "Contoso"}])
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "partner": {"grain": "entity_mention", "entity_type": "partner"},
+            },
+        )
+
+        keys = _run(src.list_concepts())
+
+        assert len(keys) == 1
+        key = keys[0]
+        assert key.concept_type == "partner"
+        assert key.rel_path == "partner/contoso.md"
+        assert key.entity_id == "Contoso"
+        assert key.content_version != ""
+
+    def test_feeder_type_coexists_with_the_base_5_types(self):
+        pool = _five_type_pool()
+        pool.when(
+            "entity_type = $1 ORDER BY 1",
+            [{"canonical_name": "Contoso"}],
+            arg_matcher=lambda args: args == ("partner",),
+        )
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "partner": {"grain": "entity_mention", "entity_type": "partner"},
+            },
+        )
+
+        keys = _run(src.list_concepts())
+
+        assert {k.concept_type for k in keys} == CONCEPT_TYPES | {"partner"}
+
+    def test_multiple_feeder_types_all_enumerate(self):
+        # Built manually (not via `_feeder_pool`, which already finalises
+        # with `_other_types_empty`'s catch-all rules) so BOTH feeder
+        # types' specific `arg_matcher` rules are registered — and so win
+        # by registration order — BEFORE the generic no-arg-matcher
+        # catch-alls that would otherwise shadow the second type.
+        pool = FakePool()
+        pool.when(
+            "entity_type = $1 ORDER BY 1",
+            [{"canonical_name": "Contoso"}],
+            arg_matcher=lambda args: args == ("partner",),
+        )
+        pool.when(
+            "p.canonical_name AS canonical_name",
+            [
+                {
+                    "canonical_name": "Contoso",
+                    "sd_count": 1,
+                    "sd_max": "t0",
+                    "qa_count": 1,
+                    "qa_max": "t0",
+                    "ri_count": 0,
+                    "ri_max": None,
+                }
+            ],
+            arg_matcher=lambda args: args == ("partner",),
+        )
+        pool.when(
+            "entity_type = $1 ORDER BY 1",
+            [{"canonical_name": "GDPR Framework"}],
+            arg_matcher=lambda args: args == ("regulation_body",),
+        )
+        pool.when(
+            "p.canonical_name AS canonical_name",
+            [
+                {
+                    "canonical_name": "GDPR Framework",
+                    "sd_count": 1,
+                    "sd_max": "t0",
+                    "qa_count": 0,
+                    "qa_max": None,
+                    "ri_count": 0,
+                    "ri_max": None,
+                }
+            ],
+            arg_matcher=lambda args: args == ("regulation_body",),
+        )
+        pool.when("AS scope_tag FROM q_a_pairs", [])
+        pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+        _other_types_empty(pool)
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "partner": {"grain": "entity_mention", "entity_type": "partner"},
+                "regulation_body": {
+                    "grain": "entity_mention",
+                    "entity_type": "regulation_body",
+                },
+            },
+        )
+
+        keys = _run(src.list_concepts())
+
+        assert {k.concept_type for k in keys} == {"partner", "regulation_body"}
+        assert {k.rel_path for k in keys} == {
+            "partner/contoso.md",
+            "regulation_body/gdpr-framework.md",
+        }
+
+    def test_unsupported_grain_raises(self):
+        """Defends a caller that constructs `LRecordsSource` directly with
+        an unvalidated `concept_feeder_config` (bypassing `producer/
+        bundle_writer.read_concept_feeder_config`'s closed grain enum)."""
+        pool = _other_types_empty(FakePool())
+        pool.when("AS scope_tag FROM q_a_pairs", [])
+        pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "widget": {"grain": "raw_sql", "entity_type": "widget"},
+            },
+        )
+
+        with pytest.raises(ValueError, match="unsupported concept-feeder grain"):
+            _run(src.list_concepts())
+
+
+class TestConceptFeederReadConcept:
+    """`read_concept`/`sample_rows` route a feeder-fed key through the
+    `entity_mention` grain's join (identical shape to `_read_product`)."""
+
+    def _pool(self) -> FakePool:
+        pool = _feeder_pool("partner", [{"canonical_name": "Contoso"}])
+        pool.when(
+            "filename ILIKE ANY($1::text[])",
+            [{"id": "sd-contoso", "filename": "partner-contoso.md"}],
+            arg_matcher=lambda args: args == (["%Contoso%"],),
+        )
+        pool.when(
+            "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
+            [{"id": "qa-contoso-1", "source_document_id": "sd-contoso"}],
+        )
+        pool.when(
+            "FROM reference_items",
+            [{"id": "ri-contoso-1", "source_document_id": "sd-contoso"}],
+        )
+        return pool
+
+    def _feeder_key(self, pool: FakePool) -> "tuple[LRecordsSource, ConceptKey]":
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "partner": {"grain": "entity_mention", "entity_type": "partner"},
+            },
+        )
+        keys = _run(src.list_concepts())
+        return src, next(k for k in keys if k.concept_type == "partner")
+
+    def test_read_concept_returns_the_3_feeder_anchors(self):
+        src, key = self._feeder_key(self._pool())
+
+        raw = _run(src.read_concept(key))
+
+        assert [r["id"] for r in raw.source_documents] == ["sd-contoso"]
+        assert [r["id"] for r in raw.q_a_pairs] == ["qa-contoso-1"]
+        assert [r["id"] for r in raw.reference_items] == ["ri-contoso-1"]
+        assert raw.record_lifecycle == []
+        assert raw.entity_mentions == []
+
+    def test_sample_rows_samples_the_q_a_pairs_cluster_with_limit(self):
+        pool = self._pool()
+        src, key = self._feeder_key(pool)
+
+        rows = _run(src.sample_rows(key, 5))
+
+        assert [r["id"] for r in rows] == ["qa-contoso-1"]
+        query, args = pool.calls[-1]
+        assert query.rstrip().endswith("LIMIT $3")
+        assert args == (["sd-contoso"], "Contoso", 5)
+
+    def test_find_surfaces_the_feeder_concept(self):
+        src, _ = self._feeder_key(self._pool())
+
+        results = _run(src.find("contoso"))
+
+        assert [k.rel_path for k in results] == ["partner/contoso.md"]

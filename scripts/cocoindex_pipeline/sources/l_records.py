@@ -96,15 +96,76 @@ fully exercisable against a `FakePool` test double — see
 
 from __future__ import annotations
 
+import contextvars
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Protocol, Sequence, runtime_checkable
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    Mapping,
+    Protocol,
+    Sequence,
+    runtime_checkable,
+)
 
 # ── BI-4: the ratified concept-type set (topic/product/company/certification/
 # case_study — metric/playbook/dataset stay tags on `topic`, not types). ─────
 CONCEPT_TYPES: frozenset[str] = frozenset(
     {"topic", "product", "company", "certification", "case_study"}
 )
+
+# ── ID-132 {132.36} G-CONCEPT-FEEDER — overlay-added concept-type widening.
+# `ConceptKey.__post_init__`'s BI-4 membership check is closed against
+# `CONCEPT_TYPES` by default — UNCHANGED for every call site that never uses
+# the mechanism below (every existing test, every base-5-type `_list_*_
+# concepts` method). A client-configured `concept-feeder.json` (read by
+# `producer/bundle_writer.read_concept_feeder_config`, threaded into
+# `LRecordsSource.__init__`) can declare an OVERLAY-added concept type this
+# Source adapter should also enumerate/read; `_permit_overlay_concept_types`
+# scopes the WIDENED set to exactly the `with`-block that constructs those
+# `ConceptKey`s (see `list_concepts`) so no OTHER construction site — a
+# test, a future caller — is affected.
+#
+# A `contextvars.ContextVar` (not a bare module global): `list_concepts`
+# `await`s between the `_list_*_concepts` calls it wraps, so a bare mutable
+# global would leak across any concurrently-scheduled asyncio Task that ALSO
+# constructs a `ConceptKey` during that window; a `ContextVar` does not
+# (each Task gets its own context).
+#
+# Deliberately NOT threaded as a `ConceptKey` field: cocoindex's own
+# `_canonicalize_dataclass` (`cocoindex/_internal/memo_fingerprint.py`)
+# fingerprints EVERY dataclass field unconditionally (it does not honour
+# `field(compare=False)`), so a per-instance "allowed types" field would
+# silently invalidate EVERY concept's memo cache — not just feeder-fed
+# ones — on any feeder-config edit (a BI-18 memo-hygiene regression this
+# module must not introduce).
+#
+# The ACTUAL legality gate for an overlay-added type remains `producer/
+# validator.py`'s OV-8-composed `check_type_membership` — this mechanism
+# only lifts the Source adapter's OWN defence-in-depth guard so it does not
+# itself block a feeder-constructed key; a feeder-declared type absent from
+# the run's `ontology-overlay.json` still drafts (wasted work) but is
+# soft-rejected at the BI-13 gate (`RunSummary.validator_failures`), never
+# silently published. ───────────────────────────────────────────────────
+_permitted_overlay_concept_types: "contextvars.ContextVar[frozenset[str]]" = (
+    contextvars.ContextVar(
+        "_l_records_permitted_overlay_concept_types", default=frozenset()
+    )
+)
+
+
+@contextmanager
+def _permit_overlay_concept_types(types: "Iterable[str]") -> "Iterator[None]":
+    """Scope `ConceptKey.__post_init__`'s BI-4 check to ALSO accept `types`
+    for the duration of this `with` block only — see the constant above for
+    the full rationale (async-task-safe, memo-fingerprint-safe)."""
+    token = _permitted_overlay_concept_types.set(frozenset(types))
+    try:
+        yield
+    finally:
+        _permitted_overlay_concept_types.reset(token)
 
 # Owner-discretion filename/logical_path substring patterns (ILIKE ANY),
 # grounded in PRODUCT.md §"The first client's corpus" (already de-identified
@@ -133,8 +194,12 @@ class ConceptKey:
     changes the concept's identity."""
 
     concept_type: str
-    """One of the BI-4 ratified set (`CONCEPT_TYPES`) — never `'q_a_pair'`
-    (BI-3: a Q&A pair is never a concept). Validated in `__post_init__`."""
+    """One of the BI-4 ratified set (`CONCEPT_TYPES`), OR — ID-132 {132.36}
+    G-CONCEPT-FEEDER — a client-configured overlay-added type currently
+    permitted via `_permit_overlay_concept_types` (`list_concepts`'s feeder
+    pass only; every other construction site is unaffected). Never
+    `'q_a_pair'` (BI-3: a Q&A pair is never a concept — unconditional, even
+    for an overlay-permitted type). Validated in `__post_init__`."""
 
     scope_tag: "str | None" = None
     """`topic` locator: a single `q_a_pairs.scope_tag` array element this
@@ -207,11 +272,24 @@ class ConceptKey:
                 "ConceptKey.rel_path must be non-empty (BI-2: concept "
                 "identity = bundle rel_path = the cocoindex memo key)"
             )
-        if self.concept_type not in CONCEPT_TYPES:
+        if self.concept_type == "q_a_pair":
             raise ValueError(
-                f"ConceptKey.concept_type must be one of "
-                f"{sorted(CONCEPT_TYPES)} (BI-4 ratified set); a q_a_pair "
-                f"is never a concept (BI-3). Got {self.concept_type!r}."
+                "ConceptKey.concept_type may never be 'q_a_pair' (BI-3: a "
+                "q_a_pair is never a concept) — this holds unconditionally, "
+                "even for a concept type otherwise permitted via the "
+                "{132.36} concept-feeder mechanism."
+            )
+        if (
+            self.concept_type not in CONCEPT_TYPES
+            and self.concept_type not in _permitted_overlay_concept_types.get()
+        ):
+            permitted = sorted(_permitted_overlay_concept_types.get())
+            raise ValueError(
+                f"ConceptKey.concept_type must be one of {sorted(CONCEPT_TYPES)} "
+                "(BI-4 ratified set) or a concept type currently permitted "
+                "via the {132.36} concept-feeder mechanism "
+                f"({permitted or 'none'}); a q_a_pair is never a concept "
+                f"(BI-3). Got {self.concept_type!r}."
             )
         if self.scope_tag is not None and (
             self.domain is not None or self.subtopic is not None
@@ -682,17 +760,40 @@ class LRecordsSource:
     (`coco.use_context(DB_CTX)` at the producer's app_main call site, per
     `flow.py`'s existing convention) — the same `pool.fetch(query, *args)`
     contract `url_source.py`'s `FeedUrlSource` uses.
+
+    `concept_feeder_config` (ID-132 {132.36} G-CONCEPT-FEEDER) is the
+    optional, already-validated `{concept_type: {"grain": ..., "entity_
+    type": ...}, ...}` mapping `producer/bundle_writer.read_concept_feeder_
+    config` reads from the client-authored `concept-feeder.json` — see
+    that function's docstring for the schema. `None`/omitted (every
+    pre-{132.36} call site) is exactly `{}` — zero behaviour change.
     """
 
-    def __init__(self, pool: Any) -> None:
+    def __init__(
+        self,
+        pool: Any,
+        *,
+        concept_feeder_config: "Mapping[str, Mapping[str, str]] | None" = None,
+    ) -> None:
         self._pool = pool
+        # Trusts its shape (already validated by `read_concept_feeder_
+        # config`'s file-reading call site — single source of truth for the
+        # schema check, mirroring how `bundle_writer.write_bundle`'s
+        # `client_ontology_overlay` kwarg trusts an explicitly-supplied
+        # mapping rather than re-validating).
+        self._concept_feeder_config: "Mapping[str, Mapping[str, str]]" = (
+            concept_feeder_config or {}
+        )
 
     # ── list_concepts (abstract, base.py) ───────────────────────────────
 
     async def list_concepts(self) -> "list[ConceptKey]":
-        """Enumerate the concept set across all 5 ratified types (BI-4).
-        **Never enumerates a q_a_pair as a concept** (BI-3) — structurally
-        guaranteed by `ConceptKey.__post_init__`'s `CONCEPT_TYPES` check, in
+        """Enumerate the concept set across all 5 ratified types (BI-4),
+        PLUS — ID-132 {132.36} G-CONCEPT-FEEDER — any overlay-added type
+        `self._concept_feeder_config` declares (`{}`/absent: zero extra
+        concepts, unchanged pre-{132.36} behaviour). **Never enumerates a
+        q_a_pair as a concept** (BI-3) — structurally guaranteed by
+        `ConceptKey.__post_init__`'s unconditional `q_a_pair` check, in
         addition to no branch below ever constructing one."""
         keys: "list[ConceptKey]" = []
         keys.extend(await self._list_topic_concepts())
@@ -701,7 +802,78 @@ class LRecordsSource:
         keys.extend(await self._list_certification_concepts())
         keys.extend(await self._list_case_study_concepts())
         keys.extend(await self._list_won_bid_case_study_concepts())
+        with _permit_overlay_concept_types(self._concept_feeder_config):
+            keys.extend(await self._list_feeder_concepts())
         return keys
+
+    async def _list_feeder_concepts(self) -> "list[ConceptKey]":
+        """ID-132 {132.36} G-CONCEPT-FEEDER: enumerate every concept type
+        `self._concept_feeder_config` declares. `[]` when no feeder config
+        was supplied (the common case, and every bundle that never authors
+        `concept-feeder.json`).
+
+        v1 supports exactly ONE grain strategy — `entity_mention` —
+        deliberately: this module's own docstring already names the
+        per-type join grid as "the one part that cannot be lifted, because
+        it encodes *which records back which concept type*" (TECH:162-163);
+        a generic client-authored SQL DSL would both contradict that
+        judgement call and open a real query-injection surface.
+        `entity_mention` generalises the EXISTING `product`/`certification`
+        join pattern (a parametrised `entity_type`) — the one shape already
+        proven safe and reusable. Adding a second grain is a future
+        Subtask's code change, not a config-time escape hatch."""
+        keys: "list[ConceptKey]" = []
+        for concept_type, grain_config in self._concept_feeder_config.items():
+            grain = grain_config["grain"]
+            if grain == "entity_mention":
+                keys.extend(
+                    await self._list_entity_mention_grain_concepts(
+                        concept_type, grain_config["entity_type"]
+                    )
+                )
+                continue
+            # Unreachable via the validated read path
+            # (`producer/bundle_writer.read_concept_feeder_config`'s closed
+            # grain enum) — guards a caller that constructs `LRecordsSource`
+            # directly with an unvalidated `concept_feeder_config`.
+            raise ValueError(  # pragma: no cover
+                f"unsupported concept-feeder grain {grain!r} for concept "
+                f"type {concept_type!r}"
+            )
+        return keys
+
+    async def _list_entity_mention_grain_concepts(
+        self, concept_type: str, entity_type: str
+    ) -> "list[ConceptKey]":
+        """The `entity_mention` feeder grain's enumeration — reuses
+        `_SQL_DISTINCT_ENTITY_CANONICAL_NAMES`/`_SQL_PRODUCT_VERSION`
+        VERBATIM, parametrised by the feeder config's `entity_type` instead
+        of `_list_product_concepts`'s hard-coded `'product'` literal (both
+        queries already take `entity_type` as a bind parameter — no new
+        SQL). `rel_path` uses the client's OWN concept_type name as the
+        bundle directory (`{concept_type}/{slug}.md`) — never
+        auto-pluralised (an arbitrary client-chosen type name has no
+        principled English-plural rule)."""
+        rows = await self._pool.fetch(
+            _SQL_DISTINCT_ENTITY_CANONICAL_NAMES, entity_type
+        )
+        version_by_name = {
+            row["canonical_name"]: _combine_content_version(
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("ri_count"), row.get("ri_max")),
+            )
+            for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, entity_type)
+        }
+        return [
+            ConceptKey(
+                rel_path=f"{concept_type}/{_slugify(row['canonical_name'])}.md",
+                concept_type=concept_type,
+                entity_id=row["canonical_name"],
+                content_version=version_by_name.get(row["canonical_name"], ""),
+            )
+            for row in rows
+        ]
 
     async def _list_topic_concepts(self) -> "list[ConceptKey]":
         """{132.38} MD-5: two additional set-based aggregate queries (one per
@@ -902,9 +1074,12 @@ class LRecordsSource:
 
     async def read_concept(self, key: ConceptKey) -> ConceptRaw:
         """Run the per-type join grid (TECH §"Per-concept-type table/join
-        grid") and return the raw backing rows. `key.concept_type` is
-        validated at `ConceptKey` construction time, so the else-branch
-        below is unreachable in practice — kept as a defensive guard."""
+        grid") and return the raw backing rows. For a base ratified type,
+        `key.concept_type` is validated at `ConceptKey` construction time,
+        so the final else-branch below is unreachable for those — kept as a
+        defensive guard. ID-132 {132.36} G-CONCEPT-FEEDER: a `key.
+        concept_type` present in `self._concept_feeder_config` routes to
+        `_read_feeder_concept` instead."""
         if key.concept_type == "topic":
             return await self._read_topic(key)
         if key.concept_type == "product":
@@ -917,6 +1092,8 @@ class LRecordsSource:
             if key.workspace_id is not None:
                 return await self._read_won_bid_case_study(key)
             return await self._read_case_study(key)
+        if key.concept_type in self._concept_feeder_config:
+            return await self._read_feeder_concept(key)
         raise ValueError(
             f"unsupported concept_type {key.concept_type!r}"
         )  # pragma: no cover — unreachable, ConceptKey validates membership
@@ -983,6 +1160,11 @@ class LRecordsSource:
             patterns = list(_CERTIFICATION_FILENAME_PATTERNS)
         elif key.concept_type == "case_study":
             patterns = list(_CASE_STUDY_FILENAME_PATTERNS)
+        elif key.concept_type in self._concept_feeder_config:
+            # ID-132 {132.36}: the `entity_mention` grain shares the
+            # `product` pattern shape (filename/logical_path match on the
+            # entity's own canonical_name) — the only grain v1 supports.
+            patterns = [f"%{key.entity_id}%"]
         else:
             raise ValueError(
                 f"_source_documents_for_key does not handle "
@@ -1090,14 +1272,33 @@ class LRecordsSource:
             workspaces=[], q_a_pairs=qa_rows, form_templates=ft_rows
         )
 
+    async def _read_feeder_concept(self, key: ConceptKey) -> ConceptRaw:
+        """ID-132 {132.36} G-CONCEPT-FEEDER: the `entity_mention` grain's
+        read — identical join shape to `_read_product` (source_documents by
+        filename/logical_path match on `key.entity_id`, via `_source_
+        documents_for_key`'s feeder branch, + q_a_pairs by
+        source-docs-or-entity-scope-tag + reference_items). `read_concept`
+        only reaches here for a `key.concept_type` present in
+        `self._concept_feeder_config`."""
+        sd_rows = await self._source_documents_for_key(key)
+        sd_ids = [row["id"] for row in sd_rows]
+        qa_rows = await self._pool.fetch(
+            _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
+        )
+        ri_rows = await self._reference_items_by_source_docs(sd_ids)
+        return ConceptRaw(
+            source_documents=sd_rows, q_a_pairs=qa_rows, reference_items=ri_rows
+        )
+
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 
     async def sample_rows(self, key: ConceptKey, n: int) -> "list[Mapping[str, Any]]":
         """A bounded sample of the concept's backing rows for the Pass-1
-        prompt context window. `topic`/`product`/`case_study` sample their
-        `q_a_pairs` cluster (the primary per-type row source); `company`/
-        `certification` carry no q_a_pairs component (per the join grid),
-        so they sample their `source_documents` rows instead."""
+        prompt context window. `topic`/`product`/`case_study`/a {132.36}
+        feeder-fed concept type sample their `q_a_pairs` cluster (the
+        primary per-type row source); `company`/`certification` carry no
+        q_a_pairs component (per the join grid), so they sample their
+        `source_documents` rows instead."""
         if n <= 0:
             return []
         if key.concept_type == "topic":
@@ -1108,7 +1309,9 @@ class LRecordsSource:
             # source_documents exist for this grain).
             sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
             return await self._pool.fetch(sql, key.workspace_id, n)
-        if key.concept_type in ("product", "case_study"):
+        if key.concept_type in ("product", "case_study") or (
+            key.concept_type in self._concept_feeder_config
+        ):
             sd_rows = await self._source_documents_for_key(key)
             sd_ids = [row["id"] for row in sd_rows]
             sql = f"{_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY} LIMIT $3"
