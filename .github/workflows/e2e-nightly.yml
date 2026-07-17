@@ -195,6 +195,33 @@ jobs:
           bun run scripts/e2e-ephemeral-branch.ts wait-compute-healthy
           --branch-ref="$BRANCH_REF"
 
+      - name: Mirror parent PostgREST exposed-schemas onto the branch
+        # {128.10} iteration 6 (run 29580754072): a Management-API-created
+        # branch does NOT inherit the parent project's PostgREST
+        # exposed-schemas — it is born with the Supabase DEFAULT
+        # `db_schema: "public,graphql_public"` (empirically confirmed
+        # 2026-07-17 via a throwaway-branch probe) while the parent mirrors
+        # supabase/config.toml [api] `schemas=["api"]` (ID-115). Without this
+        # step the "Seed E2E users" step below dies with PGRST106 `Invalid
+        # schema: api` (scripts/seed-e2e-users.ts routes writes through the
+        # api-schema script client). Upstream inheritance has varied
+        # run-to-run (run 29541892444 provisioned green 13h earlier on
+        # byte-identical code) — this step is deterministic and idempotent
+        # regardless: PATCH + read-back-verify via setDataApiExposure
+        # (fail-loud when `api` did not land; clean no-op when the branch
+        # already exposes `api`). Placed AFTER compute-healthy (a config
+        # write fired mid-provisioning could race Supabase's own setup) and
+        # BEFORE migrate/wait-ready — wait-ready's `application_types` probe
+        # resolves the `api.*` view under api-only exposure once the migrate
+        # step has created it.
+        env:
+          SUPABASE_ACCESS_TOKEN:
+            ${{ secrets.SUPABASE_ACCESS_TOKEN_EXPERIMENTAL }}
+          BRANCH_REF: ${{ steps.create.outputs.branch-ref }}
+        run:
+          bun run scripts/e2e-ephemeral-branch.ts mirror-postgrest
+          --branch-ref="$BRANCH_REF"
+
       - name: Ensure psql is available
         # ubuntu-latest images ship postgresql-client, but install
         # defensively rather than assume — cheap when already present.

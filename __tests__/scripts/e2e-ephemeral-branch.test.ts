@@ -29,6 +29,7 @@ import {
   writeEnvVar,
   maskAndWriteEnvVar,
   emitBranchServiceRoleKeyToEnv,
+  mirrorBranchPostgrestConfig,
   EphemeralBranchError,
 } from '@/scripts/e2e-ephemeral-branch';
 
@@ -1205,6 +1206,107 @@ describe('emitBranchServiceRoleKeyToEnv — {128.10} ITERATION-5 FIX: consuming 
         branchProjectRef: undefined,
         token: 't',
       }),
+    ).rejects.toThrow(/--branch-ref/);
+  });
+});
+
+describe("mirrorBranchPostgrestConfig — {128.10} ITERATION-6 FIX: branches are born with default exposed-schemas, not the parent's", () => {
+  const defaultConfig = {
+    db_schema: 'public,graphql_public',
+    db_extra_search_path: 'public, extensions',
+    max_rows: 1000,
+  };
+  const mirroredConfig = {
+    db_schema: 'api',
+    db_extra_search_path: 'public, extensions',
+    max_rows: 1000,
+  };
+
+  it('PATCHes the branch /postgrest to api-only when born with the Supabase default, keeping public in the search path, and verifies read-back', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: true, json: defaultConfig }, // GET current
+      { ok: true, json: mirroredConfig }, // PATCH response (read-back verify)
+    ]);
+    const result = await mirrorBranchPostgrestConfig({
+      branchProjectRef: 'branchref',
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(result).toEqual({
+      changed: true,
+      before: 'public,graphql_public',
+      after: 'api',
+    });
+    expect(calls[0].url).toBe(
+      'https://api.supabase.com/v1/projects/branchref/postgrest',
+    );
+    expect(calls[0].init?.method).toBeUndefined(); // plain GET
+    expect(calls[1].url).toBe(
+      'https://api.supabase.com/v1/projects/branchref/postgrest',
+    );
+    expect(calls[1].init?.method).toBe('PATCH');
+    const body = JSON.parse(calls[1].init?.body as string);
+    expect(body.db_schema).toBe('api');
+    // `public` must stay in the search path — security_invoker api.* views
+    // resolve their `FROM public.<t>` base tables through it (config.toml
+    // [api] extra_search_path).
+    expect(body.db_extra_search_path).toContain('public');
+  });
+
+  it('is idempotent — a branch already isolated to api is a clean no-op (no PATCH issued)', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: true, json: mirroredConfig },
+    ]);
+    const result = await mirrorBranchPostgrestConfig({
+      branchProjectRef: 'branchref',
+      token: 't',
+      fetchImpl,
+      log: silent,
+    });
+    expect(result.changed).toBe(false);
+    expect(result.after).toBe('api');
+    expect(calls).toHaveLength(1); // GET only — never PATCHed
+  });
+
+  it('routes HTTP through fetchWithRetry — a transient 503 is retried, not fatal', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      { ok: false, status: 503, text: 'transient' },
+      { ok: true, json: defaultConfig },
+      { ok: true, json: mirroredConfig },
+    ]);
+    const result = await mirrorBranchPostgrestConfig({
+      branchProjectRef: 'branchref',
+      token: 't',
+      fetchImpl,
+      log: silent,
+      sleepFn: vi.fn().mockResolvedValue(undefined),
+    });
+    expect(result.after).toBe('api');
+    expect(calls).toHaveLength(3); // 503 → retried GET → PATCH
+  });
+
+  it('fails loud when the PATCH read-back does not show api (delegate verification)', async () => {
+    const { fetchImpl } = fakeFetch([
+      { ok: true, json: defaultConfig },
+      { ok: true, json: defaultConfig }, // PATCH "succeeded" but db_schema unchanged
+    ]);
+    await expect(
+      mirrorBranchPostgrestConfig({
+        branchProjectRef: 'branchref',
+        token: 't',
+        fetchImpl,
+        log: silent,
+      }),
+    ).rejects.toThrow(/expected "api"/);
+  });
+
+  it('fails loud when branchProjectRef is missing — mirrors the CLI --branch-ref requirement', async () => {
+    await expect(
+      mirrorBranchPostgrestConfig({ branchProjectRef: undefined, token: 't' }),
+    ).rejects.toBeInstanceOf(EphemeralBranchError);
+    await expect(
+      mirrorBranchPostgrestConfig({ branchProjectRef: undefined, token: 't' }),
     ).rejects.toThrow(/--branch-ref/);
   });
 });

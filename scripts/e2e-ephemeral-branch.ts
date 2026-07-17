@@ -147,6 +147,28 @@
  * `steps.keys.outputs.service-role-key` (a same-job STEP output, unaffected
  * by this bug) unchanged.
  *
+ * ITERATION-6 FIX ({128.10} surface, e2e-nightly run 29580754072): the "Seed
+ * E2E users" step died with PGRST106 `Invalid schema: api` — a
+ * Management-API-created branch does NOT inherit its parent project's
+ * PostgREST exposed-schemas. Empirically confirmed 2026-07-17 via a
+ * throwaway-branch probe (branch tjuhqymhgrkswxctgfon off the parent):
+ * the parent carries `db_schema: "api"` (the manual mirror of
+ * `supabase/config.toml` `[api] schemas` — ID-115) but the new branch was
+ * born with the Supabase DEFAULT `db_schema: "public,graphql_public"`, so
+ * `scripts/seed-e2e-users.ts`'s api-schema script client (ID-115) is
+ * refused. NB the previous nightly (run 29541892444, 13h earlier) had
+ * provisioned GREEN on byte-identical code, so upstream inheritance is
+ * nondeterministic or recently changed — the fix must not depend on it
+ * either way. The new `mirror-postgrest` subcommand
+ * (`mirrorBranchPostgrestConfig`) runs between wait-compute-healthy and
+ * migrate: it delegates to `setDataApiExposure`
+ * (scripts/set-data-api-exposure.ts — the single repo-wide codification of
+ * config.toml `[api]`'s schemas/extra_search_path for remote projects),
+ * PATCHing the BRANCH's own `/postgrest` config to `db_schema: "api"` with
+ * `public` kept in `db_extra_search_path`, verified by read-back,
+ * idempotent (already-`api` is a clean no-op), all through this file's own
+ * `fetchWithRetry`.
+ *
  * `waitForBranchReady` deliberately does NOT poll an undocumented branch
  * `status` enum. Instead it polls the branch's own PostgREST endpoint for
  * `public.application_types` — the table `supabase/seed.sql` §2·0 seeds
@@ -171,6 +193,7 @@
  *   bun run scripts/e2e-ephemeral-branch.ts sweep [--max-age-hours=6] [--dry-run]
  *   bun run scripts/e2e-ephemeral-branch.ts create --run-id=<id>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-compute-healthy --branch-ref=<ref>
+ *   bun run scripts/e2e-ephemeral-branch.ts mirror-postgrest --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts migrate --branch-id=<id> --branch-ref=<ref>
  *   bun run scripts/e2e-ephemeral-branch.ts wait-ready --branch-url=<url> --service-role-key=<key>
  *   bun run scripts/e2e-ephemeral-branch.ts keys --branch-ref=<ref>
@@ -183,8 +206,9 @@
  * only SUPABASE_ACCESS_TOKEN (it fetches the branch's own DB creds AND its
  * Supavisor pooler connection info directly — see the ROOT CAUSE + FIX note
  * above for why both `--branch-id` and `--branch-ref` are required) and the
- * `psql` binary on PATH. `keys-env` (ITERATION-5 FIX above) likewise needs
- * only SUPABASE_ACCESS_TOKEN + `--branch-ref` — no PLATFORM_PROJECT_REF.
+ * `psql` binary on PATH. `keys-env` (ITERATION-5 FIX above) and
+ * `mirror-postgrest` (ITERATION-6 FIX above) likewise need only
+ * SUPABASE_ACCESS_TOKEN + `--branch-ref` — no PLATFORM_PROJECT_REF.
  * Secret-shaped CLI outputs (service-role-key via `keys`/`keys-env`, and
  * `migrate`'s in-process DB password) are emitted via GitHub Actions
  * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` / `$GITHUB_ENV` or
@@ -194,6 +218,7 @@
 import { appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { setDataApiExposure } from '@/scripts/set-data-api-exposure';
 
 const MANAGEMENT_API = 'https://api.supabase.com';
 const DEFAULT_BRANCH_PREFIX = 'e2e-nightly-';
@@ -1148,6 +1173,59 @@ export async function emitBranchServiceRoleKeyToEnv(
   return keys;
 }
 
+export interface MirrorPostgrestOptions {
+  /** The branch's own project ref — the same non-secret value the workflow's
+   * `branch-ref` job output exposes. Validated here (not only in the CLI
+   * wrapper below) so a direct/programmatic call still fails loud on a
+   * missing/blank ref, matching this file's fail-loud convention. */
+  branchProjectRef: string | undefined;
+}
+
+/**
+ * `mirror-postgrest` subcommand core (see file-header ITERATION-6 FIX note):
+ * mirror the parent project's PostgREST exposed-schemas onto THIS branch —
+ * a Management-API-created branch is born with the Supabase DEFAULT
+ * `db_schema: "public,graphql_public"`, NOT the parent's `"api"` (empirically
+ * confirmed 2026-07-17; root cause of run 29580754072's PGRST106 seed
+ * failure).
+ *
+ * Delegates to `setDataApiExposure` (scripts/set-data-api-exposure.ts) so the
+ * canonical target values — `db_schema: "api"`, `db_extra_search_path`
+ * keeping `public` + `extensions` for the security_invoker views — live in
+ * exactly ONE place in the repo (that script is the ID-115 codification of
+ * `supabase/config.toml` `[api]`'s `schemas`/`extra_search_path` for remote
+ * projects; its own header cites config.toml). `apply: true` — no dry-run
+ * leg in CI. The delegate already GETs current state (idempotent no-op when
+ * the branch is already isolated to `api`), PATCHes, and fails loud when the
+ * read-back does not show `api`. All its HTTP is routed through THIS file's
+ * `fetchWithRetry` via `fetchImpl` injection, so 429/5xx/network flakes get
+ * the same bounded-retry treatment as every other Management API call here.
+ * Nothing secret-shaped is logged (only db_schema values — no keys, no
+ * response bodies).
+ */
+export async function mirrorBranchPostgrestConfig(
+  opts: MirrorPostgrestOptions & ManagementApiDeps,
+): Promise<{ changed: boolean; before: string; after: string }> {
+  if (!opts.branchProjectRef) {
+    throw new EphemeralBranchError(
+      '--branch-ref=<ref> is required to mirror PostgREST config onto this branch.',
+    );
+  }
+  const f = opts.fetchImpl ?? fetch;
+  const retryingFetch = (async (url: string | URL, init?: RequestInit) =>
+    fetchWithRetry(String(url), init, f, {
+      log: opts.log,
+      sleepFn: opts.sleepFn,
+    })) as typeof fetch;
+  return setDataApiExposure({
+    ref: opts.branchProjectRef,
+    token: opts.token,
+    apply: true,
+    fetchImpl: retryingFetch,
+    log: opts.log,
+  });
+}
+
 async function runSweep(): Promise<void> {
   const token = requireEnv('SUPABASE_ACCESS_TOKEN');
   const platformProjectRef = requireEnv('PLATFORM_PROJECT_REF');
@@ -1179,6 +1257,12 @@ async function runWaitComputeHealthy(): Promise<void> {
   const platformProjectRef = requireEnv('PLATFORM_PROJECT_REF');
   const branchRef = requireArg('branch-ref');
   await waitForBranchComputeHealthy({ platformProjectRef, branchRef, token });
+}
+
+async function runMirrorPostgrest(): Promise<void> {
+  const token = requireEnv('SUPABASE_ACCESS_TOKEN');
+  const branchProjectRef = requireArg('branch-ref');
+  await mirrorBranchPostgrestConfig({ branchProjectRef, token });
 }
 
 async function runMigrate(): Promise<void> {
@@ -1246,6 +1330,8 @@ async function main(): Promise<void> {
       return runCreate();
     case 'wait-compute-healthy':
       return runWaitComputeHealthy();
+    case 'mirror-postgrest':
+      return runMirrorPostgrest();
     case 'migrate':
       return runMigrate();
     case 'wait-ready':
@@ -1258,7 +1344,7 @@ async function main(): Promise<void> {
       return runDelete();
     default:
       throw new EphemeralBranchError(
-        `Unknown command "${command}". Expected one of: sweep, create, wait-compute-healthy, migrate, wait-ready, keys, keys-env, delete.`,
+        `Unknown command "${command}". Expected one of: sweep, create, wait-compute-healthy, mirror-postgrest, migrate, wait-ready, keys, keys-env, delete.`,
       );
   }
 }
