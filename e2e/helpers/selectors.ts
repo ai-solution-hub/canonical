@@ -13,7 +13,9 @@ export const selectors = {
     mainNav: 'nav[aria-label="Main navigation"]',
     mobileNav: 'nav[aria-label="Mobile navigation"]',
     homeLink: 'a:has-text("Canonical")',
-    browseLink: 'a[href="/browse"]',
+    // {135.32}: browseLink ('a[href="/browse"]') removed — the /browse nav
+    // link hasn't existed in site-header.tsx for a while (superseded by
+    // libraryLink below) and had zero callers anywhere in e2e/.
     libraryLink: 'a[href="/library"]',
     coverageLink: 'a[href="/coverage"]',
     procurementLink: 'a[href="/procurement"]',

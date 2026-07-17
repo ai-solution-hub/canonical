@@ -26,7 +26,7 @@ export function CoveragePageTabs() {
   // Wait for role to load before deciding, to avoid flickering editors.
   // Placed after all hooks to satisfy React rules-of-hooks.
   if (!loading && !canEdit) {
-    router.replace('/browse');
+    router.replace('/library');
     return null;
   }
 

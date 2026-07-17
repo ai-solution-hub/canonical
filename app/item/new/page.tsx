@@ -43,7 +43,7 @@ export default async function NewItemPage({ searchParams }: Props) {
   const role = roleResult.ok ? (roleResult.data?.role ?? 'viewer') : 'viewer';
 
   if (role === 'viewer') {
-    redirect('/browse');
+    redirect('/library');
   }
 
   const { tab } = await searchParams;

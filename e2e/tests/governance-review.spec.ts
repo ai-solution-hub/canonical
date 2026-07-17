@@ -201,8 +201,8 @@ test.describe('Review page — action bar', () => {
     const exitButton = actionBar.getByRole('button', { name: /Exit/ });
     await exitButton.click();
 
-    // Exit navigates to /browse
-    await expect(page).toHaveURL(/\/browse/);
+    // Exit navigates to /library. {135.32}: was /browse (dead route, 404).
+    await expect(page).toHaveURL(/\/library/);
   });
 
   test('keyboard shortcut help dialog opens', async ({

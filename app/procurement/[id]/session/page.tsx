@@ -410,7 +410,12 @@ export default function ProcurementSessionPage({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild className="gap-1.5">
-            <Link href={`/browse?from_bid=${id}`}>
+            {/* {135.32}: was /browse?from_bid=${id} (dead route, 404).
+                Repointed to /search per orchestrator ruling (Search-icon +
+                "find content while drafting" intent). from_bid dropped —
+                verified zero consumers anywhere in the codebase; no
+                persistence mechanism was ever built for it. */}
+            <Link href="/search">
               <Search className="size-3.5" aria-hidden="true" />
               Browse for content
             </Link>

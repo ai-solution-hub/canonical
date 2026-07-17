@@ -174,7 +174,8 @@ export function useReviewQueue(
   }, [nav.currentItem, actions.isActioning, session]);
 
   const handleExit = useCallback(() => {
-    router.push('/browse');
+    // {135.32}: was /browse (dead route, 404) — repointed to /library.
+    router.push('/library');
   }, [router]);
 
   const handleEdit = useCallback(() => {

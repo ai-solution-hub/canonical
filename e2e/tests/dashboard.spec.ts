@@ -38,7 +38,7 @@ test.describe('Dashboard -- hero and search', () => {
     ).toBeVisible();
   });
 
-  test('hero search submits and navigates to browse with query', async ({
+  test('hero search submits and navigates to search with query', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/');
@@ -61,8 +61,11 @@ test.describe('Dashboard -- hero and search', () => {
       await searchFromHeader(page, 'IT support');
     }
 
-    // Should navigate to /browse with query parameter
-    await expect(page).toHaveURL(/\/browse\?q=/, { timeout: 10000 });
+    // Should navigate to /search with query parameter. {135.32}: this
+    // assertion was stale even before this sweep — {135.23} already
+    // repointed the header search bar (components/browse/search-bar.tsx)
+    // to /search; this test never followed.
+    await expect(page).toHaveURL(/\/search\?q=/, { timeout: 10000 });
   });
 });
 

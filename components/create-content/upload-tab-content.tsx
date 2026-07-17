@@ -283,7 +283,7 @@ export function UploadTabContent({
             <Button variant="outline" size="sm" onClick={handleQABatchDismiss}>
               Done
             </Button>
-            <Button size="sm" onClick={() => window.open('/browse', '_blank')}>
+            <Button size="sm" onClick={() => window.open('/library', '_blank')}>
               View in Browse
             </Button>
           </div>

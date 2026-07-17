@@ -64,8 +64,9 @@ test.describe('Content creation -- page access and tab structure', () => {
   }) => {
     await page.goto('/item/new');
 
-    // Viewer should be redirected to /browse
-    await expect(page).toHaveURL(/\/browse/, { timeout: 10000 });
+    // Viewer should be redirected to /library. {135.32}: was /browse
+    // (dead route, 404).
+    await expect(page).toHaveURL(/\/library/, { timeout: 10000 });
   });
 
   test('editor role can access create page', async ({ editorPage: page }) => {

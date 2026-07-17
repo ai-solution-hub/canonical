@@ -547,7 +547,7 @@ describe('fetchReorientData', () => {
       const qualityItem = result.urgent.find((u) => u.type === 'quality_flag');
       expect(qualityItem).toBeDefined();
       expect(qualityItem!.title).toContain('4 unresolved quality flags');
-      expect(qualityItem!.href).toBe('/browse?quality=flagged');
+      expect(qualityItem!.href).toBe('/library?quality=flagged');
       expect(qualityItem!.priority).toBe(3);
     });
 
@@ -588,7 +588,7 @@ describe('fetchReorientData', () => {
       );
       expect(expiredItem).toBeDefined();
       expect(expiredItem!.title).toContain('4 content items');
-      expect(expiredItem!.href).toBe('/browse?freshness=stale,expired');
+      expect(expiredItem!.href).toBe('/library?freshness=stale,expired');
     });
 
     it('generates review_pending urgent item when governance reviews are pending', async () => {

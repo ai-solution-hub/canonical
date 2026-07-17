@@ -126,7 +126,9 @@ export async function navigateToSettingsSection(
 /**
  * Perform a search from the site header.
  * On mobile, the compact search bar is hidden; the header's search icon
- * routes to /browse so users can search/filter there.
+ * routes to /search so users can search/filter there. ({135.32}: comment
+ * corrected — was /browse, already stale before this sweep since
+ * components/browse/search-bar.tsx routes to /search per {135.23}.)
  * On desktop, fills the compact search bar in the header and submits.
  */
 export async function searchFromHeader(
@@ -134,10 +136,10 @@ export async function searchFromHeader(
   query: string,
 ): Promise<void> {
   if (isMobileViewport(page)) {
-    // Mobile: click search icon to navigate to /browse
+    // Mobile: click search icon to navigate to /search
     await page.getByRole('button', { name: 'Search' }).click();
-    await expect(page).toHaveURL(/\/browse/);
-    // Fill the search input on /browse (Radix Command input has role="combobox")
+    await expect(page).toHaveURL(/\/search/);
+    // Fill the search input on /search (Radix Command input has role="combobox")
     const searchInput = page.getByRole('combobox', { name: /search/i });
     await searchInput.fill(query);
     await searchInput.press('Enter');

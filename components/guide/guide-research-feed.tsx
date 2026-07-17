@@ -144,9 +144,14 @@ export function GuideResearchFeed({
     fetchResearch();
   }, [domainFilter, existingItems.length]);
 
+  // {135.32}: was /browse (dead route, 404) — repointed to /library, the
+  // browse surface's successor. `layer=research` dropped: LibraryFilters
+  // (hooks/browse/use-library-filters.ts) has no `layer` concept, so the
+  // param would have been silently ignored; `domain` IS supported and is
+  // preserved.
   const browseHref = domainFilter
-    ? `/browse?domain=${encodeURIComponent(domainFilter)}&layer=research`
-    : '/browse?layer=research';
+    ? `/library?domain=${encodeURIComponent(domainFilter)}`
+    : '/library';
 
   return (
     <div className="rounded-lg border bg-card p-4">

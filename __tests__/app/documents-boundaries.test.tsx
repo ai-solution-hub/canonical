@@ -72,11 +72,11 @@ describe('Diff Error Boundary', () => {
     expect(reset).toHaveBeenCalledOnce();
   });
 
-  it('has a navigation link to /browse', () => {
+  it('has a navigation link to /library', () => {
     render(<DiffError error={error} reset={reset} />);
     expect(
       screen.getByRole('link', { name: /back to browse/i }),
-    ).toHaveAttribute('href', '/browse');
+    ).toHaveAttribute('href', '/library');
   });
 
   it('calls logger.error with the error via useEffect', () => {

@@ -23,7 +23,7 @@ interface UseReviewShortcutsOptions {
  *  f           Flag current item for review
  *  ArrowRight  Skip to next item
  *  ArrowLeft   Go back to previous item
- *  Escape      Exit review (navigate to /browse)
+ *  Escape      Exit review (navigate to /library)
  *  e           Open current item in new tab (read-only view)
  *  ?           Toggle keyboard shortcuts help overlay
  *

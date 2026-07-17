@@ -65,7 +65,7 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
   });
 
   // Test 1: Viewer redirect
-  it('redirects viewer to /browse and renders null', () => {
+  it('redirects viewer to /library and renders null', () => {
     mockUserRole.role = 'viewer';
     mockUserRole.canEdit = false;
     mockUserRole.canAdmin = false;
@@ -73,7 +73,7 @@ describe('CoveragePageTabs access gating (P1-11)', () => {
 
     const { container } = render(<CoveragePageTabs />);
 
-    expect(mockReplace).toHaveBeenCalledWith('/browse');
+    expect(mockReplace).toHaveBeenCalledWith('/library');
     // Should render nothing (null) -- no content visible
     expect(container.innerHTML).toBe('');
   });

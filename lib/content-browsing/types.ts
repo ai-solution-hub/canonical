@@ -1,8 +1,9 @@
 /**
  * Shared types for content browsing hooks.
  *
- * Used by both `/library` and `/browse` surfaces to avoid duplicating
- * selection state, bulk operation progress, and URL filter primitives.
+ * Used by the `/library` surface (the sole surviving consumer — `/browse`
+ * was deleted at {131.17}) to avoid duplicating selection state, bulk
+ * operation progress, and URL filter primitives.
  */
 
 // ---------------------------------------------------------------------------

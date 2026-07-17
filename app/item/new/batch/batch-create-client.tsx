@@ -371,7 +371,7 @@ export function BatchCreateContent() {
                 </p>
                 <div className="flex gap-3">
                   <Link
-                    href="/browse"
+                    href="/library"
                     className="text-sm text-primary hover:underline"
                   >
                     View in Browse

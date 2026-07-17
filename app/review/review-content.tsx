@@ -316,7 +316,7 @@ export function ReviewContent({
                 Nice work! The knowledge base is fully reviewed.
               </p>
               <Button asChild variant="outline" className="mt-4">
-                <Link href="/browse">Back to Browse</Link>
+                <Link href="/library">Back to Browse</Link>
               </Button>
             </>
           ) : filters.assigned_to_me ? (

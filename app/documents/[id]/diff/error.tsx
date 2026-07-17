@@ -35,7 +35,7 @@ export default function DiffError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/browse">Back to Browse</Link>
+          <Link href="/library">Back to Browse</Link>
         </Button>
       </div>
     </div>

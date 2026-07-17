@@ -278,13 +278,13 @@ describe('DashboardFirstRunCard', () => {
     expect(link).toHaveAttribute('href', '/settings');
   });
 
-  // Additional: editor secondary CTA links to /browse
-  it('editor secondary CTA links to /browse', () => {
+  // Additional: editor secondary CTA links to /library
+  it('editor secondary CTA links to /library', () => {
     render(<DashboardFirstRunCard role="editor" />);
     const link = screen.getByRole('link', {
       name: 'Browse the knowledge base',
     });
-    expect(link).toHaveAttribute('href', '/browse');
+    expect(link).toHaveAttribute('href', '/library');
   });
 
   // Additional: shows error toast on updateUser failure

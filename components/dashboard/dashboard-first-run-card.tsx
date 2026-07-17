@@ -99,7 +99,7 @@ export function DashboardFirstRunCard({ role }: DashboardFirstRunCardProps) {
   const secondaryCta =
     role === 'admin'
       ? { label: 'Configure settings', href: '/settings' }
-      : { label: 'Browse the knowledge base', href: '/browse' };
+      : { label: 'Browse the knowledge base', href: '/library' };
 
   return (
     <div

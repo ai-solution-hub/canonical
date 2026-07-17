@@ -698,7 +698,7 @@ describe('useReviewQueue', () => {
       });
     });
 
-    it('handleExit navigates to /browse', () => {
+    it('handleExit navigates to /library', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -709,7 +709,7 @@ describe('useReviewQueue', () => {
         result.current.handleExit();
       });
 
-      expect(mockPush).toHaveBeenCalledWith('/browse');
+      expect(mockPush).toHaveBeenCalledWith('/library');
     });
 
     it('setFilters applies the provided filters', () => {

@@ -319,11 +319,11 @@ test.describe('Procurement session response actions', () => {
     const browseLink = page.getByRole('link', { name: /Browse for content/i });
     await expect(browseLink).toBeVisible();
 
-    // Verify it has the correct href
-    await expect(browseLink).toHaveAttribute(
-      'href',
-      new RegExp(`/browse\\?from_bid=${workerData.procurementId}`),
-    );
+    // Verify it has the correct href. {135.32}: was /browse?from_bid=<id>
+    // (dead route, 404) — repointed to /search per orchestrator ruling.
+    // from_bid dropped: it had zero consumers anywhere in the codebase, so
+    // it is no longer appended.
+    await expect(browseLink).toHaveAttribute('href', '/search');
   });
 
   test('content library drawer opens on Library button click', async ({
@@ -378,61 +378,17 @@ test.describe('Procurement session role gating', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. from_bid Persistence (P1-30)
+// 5. from_bid Persistence (P1-30) — RETIRED at {135.32}
 // ---------------------------------------------------------------------------
-
-test.describe('from_bid URL parameter persistence', () => {
-  test('from_bid persists after navigating from bid session to browse', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await gotoSession(page, workerData.procurementId);
-
-    // Click "Browse for content" link
-    const browseLink = page.getByRole('link', { name: /Browse for content/i });
-    await expect(browseLink).toBeVisible();
-    await browseLink.click();
-
-    // Should navigate to /browse with from_bid param
-    await expect(page).toHaveURL(
-      new RegExp(`/browse\\?from_bid=${workerData.procurementId}`),
-      { timeout: 10000 },
-    );
-
-    // Verify from_bid is in the URL
-    const url = new URL(page.url());
-    expect(url.searchParams.get('from_bid')).toBe(workerData.procurementId);
-  });
-
-  test('from_bid survives filter apply then clear in /browse', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    // Navigate directly to /browse with from_bid and an applied filter
-    await page.goto(
-      `/browse?from_bid=${workerData.procurementId}&domain=Corporate&q=test`,
-    );
-    await expect(page).toHaveURL(
-      new RegExp(`from_bid=${workerData.procurementId}.*domain=Corporate`),
-      { timeout: 10000 },
-    );
-
-    // Click the "Clear filters" / "Clear all" control. The Browse UI renders
-    // a clear-filters button when any filter is active.
-    const clearButton = page
-      .getByRole('button', { name: /clear (all )?filters?/i })
-      .first();
-    await expect(clearButton).toBeVisible({ timeout: 5000 });
-    await clearButton.click();
-
-    // After clearing, from_bid should still be in the URL but the filter
-    // params (domain, q) should be gone — SD-5 from_bid persistence.
-    await page.waitForURL(/from_bid=/, { timeout: 5000 });
-    const postClearUrl = new URL(page.url());
-    expect(postClearUrl.searchParams.get('from_bid')).toBe(
-      workerData.procurementId,
-    );
-    expect(postClearUrl.searchParams.get('domain')).toBeNull();
-    expect(postClearUrl.searchParams.get('q')).toBeNull();
-  });
-});
+//
+// This describe block tested `from_bid` query-param persistence through the
+// (never-live) `/browse` route's filter-clear flow. {135.32} audit: the
+// persistence mechanism this asserted was never implemented anywhere in the
+// codebase (no reader of `from_bid` exists in library-content.tsx,
+// use-library-filters.ts, or use-corpus-search.ts) — these tests always
+// asserted vapor functionality, on top of a route that itself 404'd. Now
+// that the "Browse for content" link is repointed to /search with from_bid
+// dropped (see 'browse for content link is visible' above), the feature
+// these tests exercised has no live counterpart to test. Retired rather
+// than repointed, per the same P0-18/ID-128.14 precedent used elsewhere in
+// this file for describe blocks whose behaviour has no live successor.

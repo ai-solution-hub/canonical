@@ -40,8 +40,9 @@ baseTest.describe(
 
     baseTest('redirects unauthenticated users to /login', async ({ page }) => {
       // The proxy.ts middleware redirects all unauthenticated non-API
-      // requests to /login
-      await page.goto('/browse');
+      // requests to /login. {135.32}: was /browse (dead route, 404) —
+      // /library is the live protected-route probe.
+      await page.goto('/library');
       await page.waitForURL('**/login**');
       await expect(page).toHaveURL(/\/login/);
     });
@@ -187,8 +188,10 @@ authTest.describe('Authentication — authenticated session', () => {
   authTest(
     'session persists across page navigation',
     async ({ authenticatedPage: page }) => {
-      // Navigate to several pages — none should redirect to /login
-      const pages = ['/browse', '/settings', '/library'];
+      // Navigate to several pages — none should redirect to /login.
+      // {135.32}: was /browse (dead route, 404) — /library already covered
+      // below, so this slot repoints to /search instead of duplicating it.
+      const pages = ['/search', '/settings', '/library'];
 
       for (const path of pages) {
         await page.goto(path);
@@ -371,7 +374,8 @@ authTest.describe('Authentication — authenticated session', () => {
 
       // Prove the session is actually dead — hitting a protected page
       // should redirect back to /login via proxy.ts, not let us through.
-      await page.goto('/browse');
+      // {135.32}: was /browse (dead route, 404).
+      await page.goto('/library');
       await expect(page).toHaveURL(/\/login/);
     },
   );

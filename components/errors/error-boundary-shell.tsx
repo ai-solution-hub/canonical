@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useErrorReport } from '@/components/errors/use-error-report';
 
 /** Standard error-boundary panel shell shared by the app error boundaries
- *  whose markup byte-matches the canonical template (e.g. app/browse, app/procurement).
+ *  whose markup byte-matches the canonical template (e.g. app/library, app/procurement).
  *  Boundaries that deviate keep bespoke markup and call useErrorReport directly. */
 export function ErrorBoundaryShell({
   error,

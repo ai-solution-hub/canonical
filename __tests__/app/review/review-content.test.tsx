@@ -436,7 +436,7 @@ describe('ReviewContent', () => {
       screen.getByText(/All 50 items have been verified/),
     ).toBeInTheDocument();
     const browseLink = screen.getByRole('link', { name: 'Back to Browse' });
-    expect(browseLink).toHaveAttribute('href', '/browse');
+    expect(browseLink).toHaveAttribute('href', '/library');
   });
 
   // 4. Empty queue — with filters shows "Clear filters" button

@@ -37,9 +37,11 @@ export default async function ReviewPage() {
   const role = roleResult.ok ? (roleResult.data?.role ?? 'viewer') : 'viewer';
 
   if (role === 'viewer') {
-    // Redirect viewers to browse with a query param the client can use
-    // to show a toast message
-    redirect('/browse?notice=review_requires_editor');
+    // Redirect viewers to the library with a query param the client can
+    // use to show a toast message. {135.32}: was /browse (never a live
+    // route — 404). No consumer currently reads `notice` client-side;
+    // preserved unchanged per the default query-param-preservation rule.
+    redirect('/library?notice=review_requires_editor');
   }
 
   return (

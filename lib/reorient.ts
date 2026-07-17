@@ -301,7 +301,7 @@ export async function fetchReorientData(
       priority: 2,
       title: `${staleOrExpired} content item${staleOrExpired === 1 ? '' : 's'} need${staleOrExpired === 1 ? 's' : ''} refreshing`,
       detail: 'Stale or expired items may contain outdated information',
-      href: '/browse?freshness=stale,expired',
+      href: '/library?freshness=stale,expired',
       entity_id: 'freshness',
     });
   }
@@ -338,7 +338,7 @@ export async function fetchReorientData(
       priority: 3,
       title: `${qualityFlags} unresolved quality flag${qualityFlags === 1 ? '' : 's'}`,
       detail: 'Items flagged during ingestion that need review',
-      href: '/browse?quality=flagged',
+      href: '/library?quality=flagged',
       entity_id: 'quality_flags',
     });
   }

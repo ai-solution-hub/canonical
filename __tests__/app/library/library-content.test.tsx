@@ -558,7 +558,7 @@ describe('LibraryContent', () => {
       expect(link).toBeInTheDocument();
       expect(link.closest('a')).toHaveAttribute(
         'href',
-        '/browse?q=cyber%20security',
+        '/search?q=cyber%20security',
       );
     });
   });
