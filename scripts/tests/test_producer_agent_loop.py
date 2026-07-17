@@ -925,3 +925,123 @@ class TestProviderRoutingExtraBodyWiring:
         assert _agent_loop_module._provider_routing_extra_body() == {
             "provider": {"order": ["z-ai"], "allow_fallbacks": True}
         }
+
+
+# ============================================================================
+# api_key="" suppression on producer_async_client() (ID-132 {132.35} slice
+# E, DR-079). Slice D's provider routing reached OpenRouter correctly, but
+# staging Run-1 still 404'd 18/18: the factory passed base_url=/auth_token=
+# in override mode but not api_key=, so the SDK fell back to the
+# process-wide ANTHROPIC_API_KEY and sent it as an X-Api-Key header
+# alongside the OpenRouter Bearer token, which pins OpenRouter's provider
+# selection to 'anthropic' regardless of body-level provider routing.
+# ============================================================================
+
+
+class TestProducerAsyncClientApiKeySuppression:
+    """`agent_loop.producer_async_client()` passes `api_key=""` whenever it
+    is in override mode (`PRODUCER_BASE_URL` and/or `PRODUCER_AUTH_TOKEN`
+    set), so the SDK never falls back to the process-wide `ANTHROPIC_API_
+    KEY` and emit it as an `X-Api-Key` header to a third-party endpoint.
+    Same reload-based posture as `TestProducerAsyncClientFactory` above —
+    asserts on the constructed client's own `api_key` attribute (real
+    `anthropic.AsyncAnthropic` instances, network-free `__init__`)."""
+
+    def test_both_unset_omits_api_key_entirely(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Both-unset stays byte-for-byte the slice B/C/D bare-client
+        posture — `api_key` is never explicitly passed, so the client's
+        `api_key` attribute matches a bare `AsyncAnthropic()`'s (whatever
+        that resolves to via the SDK's own `ANTHROPIC_API_KEY` env
+        fallback — `None` here since the test env carries no such var)."""
+        monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+        monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            bare = anthropic.AsyncAnthropic()
+            assert client.api_key == bare.api_key
+            assert client.api_key is None
+        finally:
+            importlib.reload(_agent_loop_module)
+
+    def test_base_url_only_set_passes_api_key_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Asymmetric override case — only `PRODUCER_BASE_URL` set — still
+        counts as override mode and still suppresses `api_key`."""
+        monkeypatch.setenv("PRODUCER_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            assert client.api_key == ""
+        finally:
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_auth_token_only_set_passes_api_key_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Asymmetric override case — only `PRODUCER_AUTH_TOKEN` set — still
+        counts as override mode and still suppresses `api_key`."""
+        monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "test-producer-auth-token")
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            assert client.api_key == ""
+        finally:
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_both_set_passes_api_key_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The real deploy shape (S481): both set together — the
+        OpenRouter-override posture the DR-079 Run-1 404 was probe-proven
+        against."""
+        monkeypatch.setenv("PRODUCER_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "test-producer-auth-token")
+        try:
+            importlib.reload(_agent_loop_module)
+            client = _agent_loop_module.producer_async_client()
+            assert client.api_key == ""
+            assert str(client.base_url) == "https://openrouter.ai/api/"
+            assert client.auth_token == "test-producer-auth-token"
+        finally:
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_override_mode_client_construction_does_not_raise(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Empirical proof (brief): `AsyncAnthropic(api_key="", base_url=...,
+        auth_token=...)` must not raise — the SDK's missing-key validation
+        only fires when NEITHER an `X-Api-Key` nor `Authorization` header
+        resolves truthy, and `auth_token` being set satisfies that here."""
+        monkeypatch.setenv("PRODUCER_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setenv("PRODUCER_AUTH_TOKEN", "test-producer-auth-token")
+        try:
+            importlib.reload(_agent_loop_module)
+            # No exception is the assertion.
+            _agent_loop_module.producer_async_client()
+        finally:
+            monkeypatch.delenv("PRODUCER_BASE_URL", raising=False)
+            monkeypatch.delenv("PRODUCER_AUTH_TOKEN", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_extraction_lane_is_untouched_by_the_api_key_suppression(
+        self,
+    ) -> None:
+        """DO-NOT (brief): extraction.py's 4 bare `AsyncAnthropic()` call
+        sites stay free of the slice E change — the process-wide
+        `ANTHROPIC_API_KEY` env var reaches them unmodified, mirroring
+        `TestProducerAsyncClientFactory`'s equivalent grep-guard."""
+        extraction_source = (
+            _REPO_ROOT / "scripts" / "cocoindex_pipeline" / "extraction.py"
+        ).read_text()
+        assert 'api_key=""' not in extraction_source

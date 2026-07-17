@@ -102,6 +102,38 @@ section for the manual `version=` bump contract this falls under too. No
 `version=` bump lands in this commit (`version=1` remains unconsumed by any
 deployed run).
 
+**api_key suppression on the producer client (ID-132 {132.35} slice E,
+DR-079 - the credential-hygiene sibling of the slice D provider-routing
+fix above).** Slice D's `PRODUCER_PROVIDER_ORDER` routing reached
+OpenRouter correctly, but staging Run-1 still 404'd 18/18:
+`producer_async_client()` passes `base_url=`/`auth_token=` in override
+mode but did not pass `api_key=`, so the anthropic SDK fell back to the
+process-wide `ANTHROPIC_API_KEY` env var (set in-container for the
+extraction lane) and sent it as an `X-Api-Key` header alongside the
+OpenRouter `Bearer` token. OpenRouter treats a request carrying an
+Anthropic-shaped `X-Api-Key` as pinned to `requested_providers=
+['anthropic']` regardless of the slice D `extra_body` provider directive -
+`anthropic` does not serve `z-ai/glm-5.2`, hence the 404. This is exactly
+the guard the docubot precedent (`docs-site harness/scripts/docubot/
+run-agent.ts:52-55`, `ANTHROPIC_API_KEY=''`) applies and this factory had
+omitted. `producer_async_client()` now passes `api_key=""` whenever it is
+in override mode (`PRODUCER_BASE_URL` and/or `PRODUCER_AUTH_TOKEN` set) -
+see its own docstring's "Slice E addendum" for the SDK-level mechanics.
+Two rationales, both load-bearing: (a) provider-pinning defeat - an
+Anthropic-shaped `X-Api-Key` silently overrides body-level provider
+routing on OpenRouter's Anthropic-skin endpoint; (b) credential hygiene -
+without this, the producer transmits the real Anthropic key to a
+third-party endpoint on every call, override mode or not. Process-local
+only: the env var `ANTHROPIC_API_KEY` itself is untouched, and
+`extraction.py`'s 4 bare `AsyncAnthropic()` call sites are unaffected (same
+isolation posture as slices B/C/D). **DR-060**: this is explicitly NOT
+config-surface under the drafting-config contract - it changes which auth
+HEADERS a request carries, not the inference OUTPUT (model, prompt,
+tools), so it carries no `version=` bump obligation (contrast
+`PRODUCER_MODEL`/`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN`/
+`PRODUCER_PROVIDER_ORDER` above, which DO gate on a manual `version=` bump
+because they can change what the model receives or which model answers).
+
 Scope (per the {132.5} brief): the GENERIC loop + the Pass-1 tool SCHEMAS
 only (`READ_CONCEPT_RAW_TOOL`, `SAMPLE_ROWS_TOOL` — the Source-adapter
 tools). Tool executors are taken as INJECTABLE callables (`ToolExecutor`) —
@@ -210,12 +242,41 @@ def producer_async_client() -> anthropic.AsyncAnthropic:
     behaviour; the real deploy plan sets both together, mirroring the
     OpenRouter "Anthropic Skin" precedent, so this asymmetric case does not
     arise in practice.)
+
+    Slice E addendum (ID-132 {132.35} slice E, DR-079) - api_key=""
+    suppression in override mode. Whenever this factory is in override
+    mode (kwargs non-empty - PRODUCER_BASE_URL and/or PRODUCER_AUTH_TOKEN
+    set), it ALSO passes api_key="". Both-unset is UNCHANGED - a bare
+    AsyncAnthropic(), same as slices B/C/D. See the module docstring's
+    "api_key suppression" section for the full rationale; summary: left
+    unset, the SDK falls back to the process-wide ANTHROPIC_API_KEY (set
+    in-container for the extraction lane) and sends it as an X-Api-Key
+    header alongside the OpenRouter Bearer token, and OpenRouter pins
+    requested_providers=['anthropic'] on any request carrying an
+    Anthropic-shaped X-Api-Key - silently defeating slice D's
+    provider-order routing with a 404 regardless of body content
+    (probe-proven: Bearer+X-Api-Key -> 404; same request with api_key=""
+    -> 200, model z-ai/glm-5.2). Empirically (anthropic==0.79.0),
+    AsyncAnthropic.__init__ only skips the ANTHROPIC_API_KEY env fallback
+    for a non-None api_key, and _api_key_auth only omits the X-Api-Key
+    header when self.api_key is None - an empty string is non-None, so it
+    still emits X-Api-Key: "", which OpenRouter treats as absent.
+    Construction does not raise (verified against the installed SDK). A
+    default_headers={"X-Api-Key": None} alternative was considered and
+    rejected: the SDK's header-merge path raises TypeError on an explicit
+    None header value - not a viable substitute.
     """
     kwargs: dict[str, str] = {}
     if PRODUCER_BASE_URL:
         kwargs["base_url"] = PRODUCER_BASE_URL
     if PRODUCER_AUTH_TOKEN:
         kwargs["auth_token"] = PRODUCER_AUTH_TOKEN
+    if kwargs:
+        # Override mode (ID-132 {132.35} slice E, DR-079) — suppress the
+        # SDK's env-var X-Api-Key fallback so the real Anthropic key never
+        # reaches a third-party endpoint. See this docstring's "Slice E
+        # addendum" above.
+        kwargs["api_key"] = ""
     return anthropic.AsyncAnthropic(**kwargs)
 
 
