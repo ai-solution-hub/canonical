@@ -1,27 +1,36 @@
 /**
- * ID-138 {138.9} REDESIGN (S445) — corpus_writer_fence_lease_acquire /
- * corpus_writer_fence_lease_release mutual-exclusion integration test.
+ * ID-138 {138.9} REDESIGN (S445) / ID-128 {128.20} ISOLATION (S461) —
+ * corpus_writer_fence_lease_acquire / corpus_writer_fence_lease_release
+ * mutual-exclusion integration test.
  *
- * RED UNTIL GO: migration 20260704120000_id138_writer_fence_lease.sql is
- * AUTHORED but NOT YET APPLIED (owner-gated coordinated GO; id138 serial
- * {138.5}->{138.6}->{138.7}->{138.9}). Until the GO, neither lease RPC
- * exists and every call below fails — that IS the expected pre-GO state,
- * not a test bug. (The PRIOR advisory-lock RPCs from
- * 20260703160400_id138_writer_fence.sql ARE already applied staging+prod,
- * but this suite no longer exercises them — see the REDESIGN rationale
- * below.)
+ * {128.20} TEST ISOLATION (this revision): this suite previously asserted
+ * exclusive-acquire semantics DIRECTLY against the SHARED production fence
+ * row (fence_name = public._corpus_writer_fence_lease_name() ==
+ * 'id138_corpus_writer_fence') — the SAME row every real corpus writer
+ * (pull-sync, write-back, upload, id-45 bulk-load, cocoindex-nightly)
+ * contends for. Any real writer holding that lease at test time made the
+ * exclusivity assertions below fail spuriously (empirically confirmed,
+ * CI run 29147882410, S461) even though the RPC itself was working exactly
+ * as designed. 20260717150000_id128_writer_fence_test_isolation.sql added
+ * an OPTIONAL `p_fence_name` parameter to both RPCs (defaulting
+ * server-side to the production domain when omitted, so no production
+ * caller is affected) — every `.rpc()` call below now passes a per-run
+ * random `TEST_FENCE_NAME`, so this suite operates on its OWN row, fully
+ * decoupled from live staging activity. See that migration's header for
+ * the full mechanism + the "why DROP+CREATE, not CREATE OR REPLACE"
+ * rationale.
  *
- * WHY THIS SUITE WAS REWORKED (S445 empirical defect): the original
- * advisory-lock primitive's version of this exact test (`Promise.all` of
- * two simultaneous `.rpc()` acquire calls) FAILED live on staging — both
- * calls returned `true`, because `pg_try_advisory_lock` is SESSION-scoped
- * and PostgREST does not guarantee that two separate `.rpc()` invocations
- * land on distinct backend connections; the two concurrent calls in that
- * run landed on the SAME pooled session, where the lock is reentrant. The
- * lease mechanism below fixes this at the ROW level (not the session
- * level) — see 20260704120000_id138_writer_fence_lease.sql header for the
- * full mechanism + a scratch-pg16 cross-session concurrency proof that
- * predates this live-DB suite.
+ * WHY THE LEASE MECHANISM EXISTS (S445 empirical defect, prior history):
+ * the original advisory-lock primitive's version of this exact test
+ * (`Promise.all` of two simultaneous `.rpc()` acquire calls) FAILED live on
+ * staging — both calls returned `true`, because `pg_try_advisory_lock` is
+ * SESSION-scoped and PostgREST does not guarantee that two separate
+ * `.rpc()` invocations land on distinct backend connections; the two
+ * concurrent calls in that run landed on the SAME pooled session, where
+ * the lock is reentrant. The lease mechanism fixes this at the ROW level
+ * (not the session level) — see 20260704140000_id138_writer_fence_lease.sql
+ * header for the full mechanism + a scratch-pg16 cross-session concurrency
+ * proof that predates this live-DB suite.
  *
  * Verifies TECH.md §2.6 R(ops) + §3.4 O (writer fencing):
  *   - a solo acquire succeeds and its matching release (same token)
@@ -35,7 +44,10 @@
  *     cross-session contention over a stateless RPC transport — though
  *     under the lease mechanism this no longer matters for CORRECTNESS
  *     (the row-level CAS is session-agnostic by construction), it remains
- *     the strongest test we can run against a live pooled endpoint.
+ *     the strongest test we can run against a live pooled endpoint. Because
+ *     this now runs against an ISOLATED per-run fence row (not the shared
+ *     production row), this assertion is deterministic regardless of
+ *     concurrent live-staging writer activity (ID-128 {128.20} AC-3).
  *   - both concurrent calls resolve promptly (try-semantics — neither
  *     blocks waiting for the other).
  *   - the LOSING caller's token can never release the WINNING caller's
@@ -55,18 +67,26 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // service-client MUST be imported first — it loads dotenv for all env vars.
 import { serviceClient } from './helpers/service-client';
 
-// TYPE ESCAPE (deliberate, temporary — see file header "RED UNTIL GO", and
-// mirrors id138-erasure-cascade.integration.test.ts / id138-admission-
-// identity.integration.test.ts): corpus_writer_fence_lease_acquire /
-// corpus_writer_fence_lease_release are authored but NOT YET in the
-// generated database.types.ts — apply is an owner-gated coordinated GO, and
-// FR-003 forbids regenerating/reading that generated file from this
-// Subtask. `SupabaseClient<any>` is the standard escape for calling a
-// not-yet-generated surface; DELETE this cast (revert to the plain typed
-// `serviceClient` import) once the coordinated GO regenerates types — `bun
-// run typecheck` will then hold this file to the real generated shape.
+// TYPE ESCAPE (deliberate — mirrors id138-erasure-cascade.integration.test.ts
+// / id138-admission-identity.integration.test.ts): the `p_fence_name`
+// parameter added by 20260717150000_id128_writer_fence_test_isolation.sql
+// is NOT reflected in the generated database.types.ts (types regen is
+// deliberately deferred — {128.20} is a narrow, additive, backward
+// -compatible RPC widening with no typed production caller of the new
+// param; see that migration's header). `SupabaseClient<any>` is the
+// standard escape for calling a param not yet in the generated surface;
+// narrow this back to a typed `.rpc()` call once a future types regen
+// picks up `p_fence_name` — `bun run typecheck` will then hold this file to
+// the real generated shape.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = serviceClient as unknown as SupabaseClient<any>;
+
+// ID-128 {128.20}: a per-test-run random fence name, isolating this suite's
+// exclusive-acquire assertions from the shared production fence row (and
+// from any other concurrent run of this same suite). Never the production
+// domain string ('id138_corpus_writer_fence') — collision with that is the
+// exact bug this Subtask fixes.
+const TEST_FENCE_NAME = `id128-test-writer-fence-${crypto.randomUUID()}`;
 
 function newToken(): string {
   return crypto.randomUUID();
@@ -96,10 +116,12 @@ describeIfEnv(
         p_holder_token: cleanupToken,
         p_holder: 'test-cleanup',
         p_ttl_seconds: 1,
+        p_fence_name: TEST_FENCE_NAME,
       });
       await db.rpc('corpus_writer_fence_lease_release', {
         p_holder_token: cleanupToken,
         p_holder: 'test-cleanup',
+        p_fence_name: TEST_FENCE_NAME,
       });
     }, 30_000);
 
@@ -108,6 +130,7 @@ describeIfEnv(
       const acquire = await db.rpc('corpus_writer_fence_lease_acquire', {
         p_holder_token: token,
         p_holder: 'solo-writer',
+        p_fence_name: TEST_FENCE_NAME,
       });
       expect(acquire.error).toBeNull();
       expect(acquire.data).toBe(true);
@@ -115,6 +138,7 @@ describeIfEnv(
       const release = await db.rpc('corpus_writer_fence_lease_release', {
         p_holder_token: token,
         p_holder: 'solo-writer',
+        p_fence_name: TEST_FENCE_NAME,
       });
       expect(release.error).toBeNull();
       expect(release.data).toBe(true);
@@ -129,10 +153,12 @@ describeIfEnv(
         db.rpc('corpus_writer_fence_lease_acquire', {
           p_holder_token: tokenA,
           p_holder: 'writer-a',
+          p_fence_name: TEST_FENCE_NAME,
         }),
         db.rpc('corpus_writer_fence_lease_acquire', {
           p_holder_token: tokenB,
           p_holder: 'writer-b',
+          p_fence_name: TEST_FENCE_NAME,
         }),
       ]);
       const elapsedMs = Date.now() - start;
@@ -156,6 +182,7 @@ describeIfEnv(
       const loserRelease = await db.rpc('corpus_writer_fence_lease_release', {
         p_holder_token: loserToken,
         p_holder: 'loser-cleanup',
+        p_fence_name: TEST_FENCE_NAME,
       });
       expect(loserRelease.error).toBeNull();
       expect(loserRelease.data).toBe(false);
@@ -166,6 +193,7 @@ describeIfEnv(
       const winnerRelease = await db.rpc('corpus_writer_fence_lease_release', {
         p_holder_token: winnerToken,
         p_holder: 'winner-cleanup',
+        p_fence_name: TEST_FENCE_NAME,
       });
       expect(winnerRelease.error).toBeNull();
       expect(winnerRelease.data).toBe(true);
@@ -177,6 +205,7 @@ describeIfEnv(
         {
           p_holder_token: newToken(),
           p_holder: 'contract-check',
+          p_fence_name: TEST_FENCE_NAME,
         },
       );
       expect(error).toBeNull();
