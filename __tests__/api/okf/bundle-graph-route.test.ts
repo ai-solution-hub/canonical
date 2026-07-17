@@ -136,4 +136,51 @@ describe('GET /api/okf/[bundleId]/graph', () => {
 
     expect(response.status).toBe(404);
   });
+
+  // PC-7c (TECH id-163) residual check: the deployment-level union graph
+  // ({132.49} buildUnionBundleGraph) already iterates every enumerated
+  // bundle root. This closes the remaining gap for the PER-BUNDLE graph
+  // route itself — that resolving two sibling bundles under one
+  // OKF_BUNDLE_ROOT via this route yields each bundle's OWN distinct concept
+  // graph over the real filesystem, not a hard-assumed single bundle.
+  it('resolves each sibling bundle to its own distinct concept graph when OKF_BUNDLE_ROOT holds two bundles (PC-7c residual, no N=1 assumption)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const secondBundleRoot = path.join(bundleParentDir, 'second-client');
+    mkdirSync(path.join(secondBundleRoot, 'people'), { recursive: true });
+    writeFileSync(
+      path.join(secondBundleRoot, 'people', 'jane.md'),
+      [
+        '---',
+        'type: Employee',
+        'title: Jane',
+        'description: Second bundle only.',
+        '---',
+        '',
+        'Jane body.',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const firstResponse = await GET(
+      createTestRequest('/api/okf/first-client/graph'),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+    const secondResponse = await GET(
+      createTestRequest('/api/okf/second-client/graph'),
+      { params: createTestParams({ bundleId: 'second-client' }) },
+    );
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    const firstBody = await firstResponse.json();
+    const secondBody = await secondResponse.json();
+
+    expect(
+      firstBody.nodes.map((n: { data: { id: string } }) => n.data.id),
+    ).toEqual(['tables/orders']);
+    expect(
+      secondBody.nodes.map((n: { data: { id: string } }) => n.data.id),
+    ).toEqual(['people/jane']);
+  });
 });

@@ -190,4 +190,44 @@ describe('GET /api/okf/[bundleId]/tree', () => {
 
     expect(response.status).toBe(500);
   });
+
+  // PC-7c (TECH id-163) residual check: enumerateOkfBundles() already unions
+  // every OKF_BUNDLE_ROOT subdir (proven in enumerate-bundles.test.ts /
+  // bundles-route.test.ts with two real sibling dirs). This closes the
+  // remaining gap — that the PER-BUNDLE tree route itself resolves each
+  // sibling to its OWN distinct tree, over the real filesystem, rather than
+  // hard-assuming a single bundle under the root (e.g. any accidental
+  // caching or "first entry under root" shortcut).
+  it('resolves each sibling bundle to its own distinct tree when OKF_BUNDLE_ROOT holds two bundles (PC-7c residual, no N=1 assumption)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const secondBundleRoot = path.join(bundleParentDir, 'second-client');
+    mkdirSync(secondBundleRoot, { recursive: true });
+    writeFileSync(
+      path.join(secondBundleRoot, 'second-only.md'),
+      '## Second\n',
+      'utf-8',
+    );
+
+    const firstResponse = await GET(
+      createTestRequest('/api/okf/first-client/tree'),
+      { params: createTestParams({ bundleId: 'first-client' }) },
+    );
+    const secondResponse = await GET(
+      createTestRequest('/api/okf/second-client/tree'),
+      { params: createTestParams({ bundleId: 'second-client' }) },
+    );
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    const firstNames = (await firstResponse.json()).tree
+      .map((n: { name: string }) => n.name)
+      .sort();
+    const secondNames = (await secondResponse.json()).tree
+      .map((n: { name: string }) => n.name)
+      .sort();
+
+    expect(firstNames).toEqual(['index.md', 'ontology.json', 'theme']);
+    expect(secondNames).toEqual(['second-only.md']);
+  });
 });

@@ -68,6 +68,33 @@ describe('ConceptDetail', () => {
     expect(screen.getByText('orders')).toBeInTheDocument();
   });
 
+  // PC-7c (TECH id-163) residual check: {163.3} added the schema/tool/api/
+  // navigation semantic-token MAPPINGS to conceptTypeTokenVars, and
+  // concept-type-tokens.test.ts already proves the mapping function itself
+  // resolves them. What was missing was proof at the RENDER site — that a
+  // system-type concept's badge actually picks up its own token pair rather
+  // than silently falling through to `--okf-concept-default-*` the way an
+  // unrecognised business type (e.g. the fixture's "BigQuery Table" above)
+  // does.
+  it('renders a system-type concept badge with its own semantic token, not the default fallback (PC-7c)', () => {
+    renderDetail({
+      node: {
+        data: {
+          ...ORDERS_NODE.data,
+          id: 'schemas/orders-table',
+          label: 'Orders table schema',
+          type: 'schema',
+        },
+      },
+      knownConceptIds: new Set(['schemas/orders-table']),
+    });
+
+    const badge = screen.getByText('schema');
+    expect(badge.className).toContain('--okf-concept-schema-bg');
+    expect(badge.className).toContain('--okf-concept-schema-text');
+    expect(badge.className).not.toContain('--okf-concept-default-bg');
+  });
+
   it('renders the body as markdown, rewriting a known internal link to an in-app button', () => {
     const onNavigate = vi.fn();
     renderDetail({ onNavigate });
