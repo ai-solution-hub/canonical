@@ -143,23 +143,6 @@ export function generateBulkIngestPrompt(context?: string): ClaudePrompt {
 }
 
 // ---------------------------------------------------------------------------
-// Document diff review prompts
-// ---------------------------------------------------------------------------
-
-export function generateDocumentDiffReviewPrompt(
-  filename: string,
-  changedCount: number,
-  affectedItemCount: number,
-): ClaudePrompt {
-  return {
-    label: 'Review document changes',
-    prompt: `An updated version of "${filename}" has been uploaded. There ${changedCount === 1 ? 'is' : 'are'} ${changedCount} ${changedCount === 1 ? 'change' : 'changes'} detected${affectedItemCount > 0 ? `, affecting ${affectedItemCount} KB ${affectedItemCount === 1 ? 'item' : 'items'}` : ''}. Please review the document changes and advise which KB items need updating.`,
-    description: `${changedCount} changes, ${affectedItemCount} items affected`,
-    category: 'general',
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Certification review prompts
 // ---------------------------------------------------------------------------
 

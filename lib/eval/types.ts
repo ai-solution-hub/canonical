@@ -6,14 +6,6 @@
  * and regression detection.
  */
 
-/** Base shape for any gold standard item */
-interface GoldStandardBase {
-  content_item_id: string;
-  title: string;
-  domain: string;
-  content_type: string;
-}
-
 /**
  * Per-item score from any eval suite
  * @public
@@ -69,26 +61,6 @@ export interface SearchTestCase {
     must_include_titles: string[];
     notes: string;
   };
-}
-
-/**
- * Classification gold standard item
- * @public
- */
-export interface ClassificationGoldItem extends GoldStandardBase {
-  expected_domain: string;
-  expected_subtopic: string;
-  expected_secondary_domain?: string;
-  expected_confidence_min?: number;
-}
-
-/** Summarisation gold standard item */
-export interface SummarisationGoldItem extends GoldStandardBase {
-  reference_executive: string;
-  reference_detailed: string;
-  reference_takeaways: string[];
-  source_text_snippet: string;
-  notes: string;
 }
 
 /**
