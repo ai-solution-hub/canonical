@@ -1295,3 +1295,174 @@ def test_write_bundle_explicit_client_ontology_overlay_kwarg_bypasses_the_class_
     assert summary.added == ("topics/alpha.md",)
     ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
     assert ontology["overlay"]["entity_types"] == ["widget"]
+
+
+# ── ID-132 {132.36} G-CONCEPT-FEEDER — `concept-feeder.json` reader +
+# class-gate ─────────────────────────────────────────────────────────────
+
+
+def test_concept_feeder_filename_is_reserved() -> None:
+    assert "concept-feeder.json" in bundle_writer._RESERVED_BUNDLE_FILENAMES
+
+
+def test_read_concept_feeder_config_absent_returns_none(tmp_path: Path) -> None:
+    """Absence is NOT an error (OV-4/OV-11 posture mirrored for the
+    feeder) — a bundle with no `concept-feeder.json` enumerates only the
+    base 5 types."""
+    assert bundle_writer.read_concept_feeder_config(tmp_path) is None
+
+
+def test_read_concept_feeder_config_parses_a_well_formed_file(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "partner": {"grain": "entity_mention", "entity_type": "partner"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = bundle_writer.read_concept_feeder_config(tmp_path)
+
+    assert config == {
+        "partner": {"grain": "entity_mention", "entity_type": "partner"},
+    }
+
+
+def test_read_concept_feeder_config_missing_concept_types_key_is_empty(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "concept-feeder.json").write_text(json.dumps({}), encoding="utf-8")
+
+    config = bundle_writer.read_concept_feeder_config(tmp_path)
+
+    assert config == {}
+
+
+def test_concept_feeder_config_that_is_not_valid_json_fails_loud(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_non_object_top_level_fails_loud(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_unknown_top_level_key_fails_loud(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps({"concept_type": {}}), encoding="utf-8"  # singular typo
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_declaring_a_base_ratified_type_fails_loud(
+    tmp_path: Path,
+) -> None:
+    """BI-4: a feeder entry may only name a NEW, overlay-added type — one of
+    the base 5 (already routed by the base `_list_*_concepts` methods)
+    would be an ambiguous shadow."""
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "product": {"grain": "entity_mention", "entity_type": "product"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_declaring_q_a_pair_fails_loud(tmp_path: Path) -> None:
+    """BI-3: a q_a_pair is never a concept — unconditional, even via the
+    feeder config."""
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "q_a_pair": {"grain": "entity_mention", "entity_type": "x"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_unrecognised_grain_fails_loud(tmp_path: Path) -> None:
+    """v1 supports exactly ONE grain (`entity_mention`) — a client-declared
+    grain outside that closed set is a config error, never a silent skip."""
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "partner": {"grain": "raw_sql", "entity_type": "partner"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_unknown_grain_config_key_fails_loud(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "partner": {
+                        "grain": "entity_mention",
+                        "entity_type": "partner",
+                        "extra": "surprise",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_empty_entity_type_fails_loud(tmp_path: Path) -> None:
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {"concept_types": {"partner": {"grain": "entity_mention", "entity_type": ""}}}
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_require_client_business_bundle_class_accepts_client_business() -> None:
+    # Does not raise.
+    bundle_writer.require_client_business_bundle_class(
+        "client_business", filename="concept-feeder.json"
+    )
+
+
+def test_require_client_business_bundle_class_rejects_every_other_class_and_none() -> None:
+    for non_client_class in (None, "system_baseline", "showcase", "internal_dev"):
+        with pytest.raises(bundle_writer.OntologyOverlayClassError):
+            bundle_writer.require_client_business_bundle_class(
+                non_client_class, filename="concept-feeder.json"
+            )

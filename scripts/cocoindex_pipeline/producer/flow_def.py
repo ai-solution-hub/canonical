@@ -5,7 +5,8 @@ G-FLOWDEF, the Task's own defining "2-pass producer" deliverable, extended by
 This module is the single place the already-landed producer pieces are
 composed into one runnable chain (the `producer` command entry point):
 
-    LRecordsSource.list_concepts()                 # {132.4} G-SOURCE
+    read_concept_feeder_config(bundle_dir)         # {132.36} G-CONCEPT-FEEDER
+      -> LRecordsSource(pool, concept_feeder_config=...).list_concepts()  # {132.4}/{132.36}
       -> enrich_concept(key, source)               # {132.8} G-PASS1  (mount_each grain)
       -> [run_web_pass(...) if gated_corpus]       # {132.9} G-PASS2  (optional)
       -> write_bundle(bundle_dir, drafts, ...)     # {132.10} G-BUNDLE
@@ -394,7 +395,16 @@ async def run_producer_flow(
     Idle no-op (returns `None`) unless `bundle_dir`/`OKF_BUNDLE_DIR` resolves
     to an existing directory AND a `pool` is supplied. Otherwise:
 
-      1. `LRecordsSource(pool).list_concepts()` — the concept catalogue.
+      0. `read_concept_feeder_config(resolved_bundle_dir)` (ID-132 {132.36}
+         G-CONCEPT-FEEDER) — reads the client-authored `concept-feeder.json`
+         (`None` when absent, zero extra concepts). A PRESENT file gates the
+         SAME OV-10 bundle-class discriminator `write_bundle`'s own overlay
+         read enforces (DR-054/DR-079) — checked HERE, before `LRecordsSource`
+         is even constructed, since the feeder config is consumed earlier in
+         the flow than overlay composition.
+      1. `LRecordsSource(pool, concept_feeder_config=...).list_concepts()` —
+         the concept catalogue, now including any overlay-added type the
+         feeder config declares.
       2. Per concept: `enrich_concept` (Pass-1); `run_web_pass` (Pass-2) when
          a `gated_corpus` is configured. One concept's fault is contained.
       3. `write_bundle(...)` — validator-gate + `declare_file` every concept,
@@ -429,8 +439,11 @@ async def run_producer_flow(
 
     # Lazy imports — see the module docstring's Collection-safety note.
     from scripts.cocoindex_pipeline.producer.bundle_writer import (  # noqa: PLC0415
+        CONCEPT_FEEDER_FILENAME,
         bundle_write_path,
         bundle_write_path_for_key,
+        read_concept_feeder_config,
+        require_client_business_bundle_class,
         write_bundle,
     )
     from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: PLC0415
@@ -443,7 +456,26 @@ async def run_producer_flow(
         LRecordsSource,
     )
 
-    source = LRecordsSource(pool)
+    # ID-132 {132.36} G-CONCEPT-FEEDER: read the client-authored
+    # `concept-feeder.json` BEFORE constructing the Source adapter —
+    # `LRecordsSource.list_concepts()` needs the feeder config in hand to
+    # enumerate any overlay-added concept type this run should also draft.
+    # A present file gates the SAME OV-10 bundle-class discriminator
+    # `write_bundle`'s own `ontology-overlay.json` read enforces
+    # (DR-054/DR-079) — not deferred to `write_bundle`, since the feeder
+    # config is consumed earlier in the flow than overlay composition.
+    # `read_concept_feeder_config`/`require_client_business_bundle_class`
+    # propagate `ConceptFeederConfigError`/`OntologyOverlayClassError`
+    # uncaught — fail-loud, mirroring `write_bundle`'s own overlay posture
+    # (a malformed/misplaced config aborts this producer run entirely).
+    resolved_bundle_class = _resolve_bundle_class()
+    concept_feeder_config = read_concept_feeder_config(resolved_bundle_dir)
+    if concept_feeder_config is not None:
+        require_client_business_bundle_class(
+            resolved_bundle_class, filename=CONCEPT_FEEDER_FILENAME
+        )
+
+    source = LRecordsSource(pool, concept_feeder_config=concept_feeder_config)
     concepts = await source.list_concepts()
 
     drafts, reference_drafts, failures, pass2_ran, failed_keys = await _draft_concepts(
@@ -467,7 +499,10 @@ async def run_producer_flow(
         reference_drafts,
         theme_config=theme_config,
         failed_rel_paths=failed_write_paths,
-        bundle_class=_resolve_bundle_class(),
+        # Reuses the SAME resolved value the {132.36} feeder-config gate
+        # above already computed (`resolved_bundle_class`) rather than
+        # re-reading `OKF_BUNDLE_CLASS` a second time.
+        bundle_class=resolved_bundle_class,
         client_id=_resolve_client_id(),
         timestamp=timestamp,
     )

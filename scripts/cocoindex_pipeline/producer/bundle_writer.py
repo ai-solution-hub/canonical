@@ -175,7 +175,11 @@ from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 # (bl-457 G-IRI-PROJECTION IRI-4/9) adds the JSON-LD `@context` artefact —
 # a `.jsonld` file, so `_existing_concept_paths`'s `rglob("*.md")` scan
 # structurally never picks it up either way; reserved here for
-# intent/parity with the other bundle-level artefacts.
+# intent/parity with the other bundle-level artefacts. {132.36}
+# G-CONCEPT-FEEDER adds `concept-feeder.json` — the same bl-463
+# `index-themes.json` reserved-sibling-file pattern applied to concept-type
+# feeding (client-authored, producer reads-only — see
+# `read_concept_feeder_config`).
 INDEX_FILENAME = "index.md"
 LOG_FILENAME = "log.md"
 ONTOLOGY_FILENAME = "ontology.json"
@@ -183,6 +187,7 @@ README_FILENAME = "README.md"
 CONFORMANCE_FILENAME = "CONFORMANCE.md"
 OVERLAY_FILENAME = "ontology-overlay.json"
 CONTEXT_FILENAME = "context.jsonld"
+CONCEPT_FEEDER_FILENAME = "concept-feeder.json"
 _RESERVED_BUNDLE_FILENAMES = frozenset(
     {
         INDEX_FILENAME,
@@ -192,6 +197,7 @@ _RESERVED_BUNDLE_FILENAMES = frozenset(
         CONFORMANCE_FILENAME,
         OVERLAY_FILENAME,
         CONTEXT_FILENAME,
+        CONCEPT_FEEDER_FILENAME,
     }
 )
 
@@ -769,7 +775,40 @@ class OntologyOverlayClassError(OntologyOverlayError):
     is a DISTINCT failure mode from OV-5's schema-validation failure (a
     present-but-INVALID overlay never reaches this check; `read_client_
     overlay` already raised). This fires for a present-and-VALID overlay in
-    the WRONG (or unresolved) bundle class."""
+    the WRONG (or unresolved) bundle class.
+
+    **{132.36} G-CONCEPT-FEEDER scope note.** Also raised (via
+    `require_client_business_bundle_class` below) when a schema-valid
+    `concept-feeder.json` is discovered in a non-`client_business` bundle —
+    the SAME class-discriminator failure mode, generalised from "a client
+    overlay" to "any client-owned reserved config file"."""
+
+
+def require_client_business_bundle_class(
+    bundle_class: "BundleClass | None", *, filename: str
+) -> None:
+    """Shared OV-10 class-gate (ID-132 {132.37} original + {132.36}
+    G-CONCEPT-FEEDER extension, DR-054/DR-079): a client-owned reserved
+    bundle-root config file discovered in a bundle whose resolved
+    `bundle_class` is not exactly `"client_business"` is a configuration
+    error. `bundle_class=None` (unresolved) is treated the same as a
+    confirmed non-client-business class — see `OntologyOverlayClassError`'s
+    own docstring for the full non-permissive-default rationale.
+
+    `write_bundle`'s own inline overlay-class check ({132.37}, already
+    shipped/tested) is left AS-IS rather than refactored onto this helper —
+    minimises blast radius on already-tested code. This helper backs the
+    NEW `concept-feeder.json` gate (`producer/flow_def.py`, which resolves
+    `bundle_class` before `write_bundle` ever runs, since the feeder config
+    is consumed earlier in the flow than overlay composition) and is
+    available for a future caller to consolidate onto."""
+    if bundle_class != _CLIENT_BUSINESS_BUNDLE_CLASS:
+        raise OntologyOverlayClassError(
+            f"{filename} was found but bundle_class={bundle_class!r} is not "
+            f"{_CLIENT_BUSINESS_BUNDLE_CLASS!r} — only the client-business "
+            "bundle class may compose client-owned config (DR-054/DR-079, "
+            "OV-10). Aborting rather than silently composing."
+        )
 
 
 # OV-2: the overlay's three permitted top-level keys — closed schema, any
@@ -838,6 +877,149 @@ def read_client_overlay(bundle_dir: Path) -> "dict[str, object] | None":
         "sha256": hashlib.sha256(raw).hexdigest(),
         **dimensions,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# ID-132 {132.36} G-CONCEPT-FEEDER — the client-configurable concept-feeder
+# config (`concept-feeder.json`), the bl-463 `index-themes.json` reserved-
+# sibling-file pattern applied to concept-type feeding. See `sources/
+# l_records.py`'s `LRecordsSource` for the CONSUMING half (enumeration/
+# read/sample of an overlay-added concept type via the `entity_mention`
+# grain).
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class ConceptFeederConfigError(ValueError):
+    """ID-132 {132.36} G-CONCEPT-FEEDER, DR-054: raised when a PRESENT
+    `concept-feeder.json` fails validation — invalid JSON, a non-object top
+    level, an unknown top-level key, a `concept_types` entry naming a type
+    that collides with a BASE ratified type (`ALLOWED_CONCEPT_TYPES`) or
+    `'q_a_pair'` (BI-3), or a grain config with an unrecognised `grain`
+    value or a non-string/empty `entity_type`. Mirrors `OntologyOverlayError`
+    (OV-5) — a present-but-invalid feeder config ABORTS the producer run for
+    that bundle rather than silently skipping the malformed entry (fail-loud,
+    DR-054 posture: composition gates legality, never falls open). An
+    ABSENT `concept-feeder.json` is NOT an error — `read_concept_feeder_
+    config` returns `None`, mirroring `read_client_overlay`'s OV-4 absence
+    posture."""
+
+
+_CONCEPT_FEEDER_GRAINS = frozenset({"entity_mention"})
+"""ID-132 {132.36} v1: the CLOSED set of feeder grain strategies the
+producer knows how to route (`sources.l_records.LRecordsSource`). NOT a
+client-extensible enum — a new grain is a future Subtask's code change, not
+a config-time escape hatch (deliberately narrow, mirroring `sources/
+l_records.py`'s own "bespoke, PRODUCT-level judgement call" posture for
+which records back which concept type — a generic client-authored SQL DSL
+would both contradict that judgement call and open a real query-injection
+surface)."""
+
+
+def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]":
+    """Closed-schema validation for `concept-feeder.json` (ID-132 {132.36}):
+    `data` must be a JSON object whose ONLY permitted top-level key is
+    `concept_types`, itself an object mapping a client-chosen concept-type
+    name to a grain-config object `{"grain": <one of
+    _CONCEPT_FEEDER_GRAINS>, "entity_type": <non-empty string>}`. A declared
+    type name may not equal a BASE ratified type (`ALLOWED_CONCEPT_TYPES` —
+    those already route via the base `_list_*_concepts` methods; a feeder
+    entry for one would be an ambiguous shadow) or `'q_a_pair'` (BI-3,
+    defence in depth ahead of `ConceptKey.__post_init__`'s own runtime
+    guard). Raises `ConceptFeederConfigError` on any violation."""
+    if not isinstance(data, dict):
+        raise ConceptFeederConfigError(
+            f"{CONCEPT_FEEDER_FILENAME} must be a JSON object at the top "
+            f"level, got {type(data).__name__}"
+        )
+    unknown_top_keys = sorted(set(data) - {"concept_types"})
+    if unknown_top_keys:
+        raise ConceptFeederConfigError(
+            f"{CONCEPT_FEEDER_FILENAME} has unknown top-level key(s) "
+            f"{unknown_top_keys} — only ['concept_types'] is permitted"
+        )
+    concept_types = data.get("concept_types", {})
+    if not isinstance(concept_types, dict):
+        raise ConceptFeederConfigError(
+            f"{CONCEPT_FEEDER_FILENAME}['concept_types'] must be a JSON "
+            f"object, got {type(concept_types).__name__}"
+        )
+    validated: "dict[str, dict[str, str]]" = {}
+    for concept_type, grain_config in concept_types.items():
+        if not isinstance(concept_type, str) or not concept_type.strip():
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'] keys must be "
+                f"non-empty strings, got {concept_type!r}"
+            )
+        if concept_type == "q_a_pair" or concept_type in ALLOWED_CONCEPT_TYPES:
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'] declares "
+                f"{concept_type!r}, which is a BASE ratified type or "
+                "'q_a_pair' — a feeder entry may only name a NEW, "
+                "overlay-added concept type (BI-3/BI-4)"
+            )
+        if not isinstance(grain_config, dict):
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}] "
+                f"must be a JSON object, got {type(grain_config).__name__}"
+            )
+        unknown_grain_keys = sorted(set(grain_config) - {"grain", "entity_type"})
+        if unknown_grain_keys:
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}] "
+                f"has unknown key(s) {unknown_grain_keys} — only "
+                "['grain', 'entity_type'] are permitted"
+            )
+        grain = grain_config.get("grain")
+        if grain not in _CONCEPT_FEEDER_GRAINS:
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}]"
+                f"['grain'] must be one of {sorted(_CONCEPT_FEEDER_GRAINS)}, "
+                f"got {grain!r}"
+            )
+        entity_type = grain_config.get("entity_type")
+        if not isinstance(entity_type, str) or not entity_type.strip():
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}]"
+                "['entity_type'] must be a non-empty string, got "
+                f"{entity_type!r}"
+            )
+        validated[concept_type] = {"grain": grain, "entity_type": entity_type}
+    return validated
+
+
+def read_concept_feeder_config(bundle_dir: Path) -> "dict[str, dict[str, str]] | None":
+    """OV-1-precedent read (ID-132 {132.36} G-CONCEPT-FEEDER, DR-054): read
+    + validate the client-authored `concept-feeder.json` at `bundle_dir`'s
+    root — the bl-463 `index-themes.json` reserved-sibling-file pattern
+    applied to concept-type feeding. Returns the validated `{concept_type:
+    {"grain": ..., "entity_type": ...}, ...}` mapping, or `None` when the
+    file is absent (absence is NOT an error — a bundle with no feeder
+    config enumerates only the base 5 types, unchanged). Raises
+    `ConceptFeederConfigError` for a present-but-invalid file (fail-loud,
+    mirrors `read_client_overlay`'s OV-5 posture).
+
+    The file is CLIENT-authored (DR-016) — this function only ever READS
+    it, never `declare_file`s or deletes it (`CONCEPT_FEEDER_FILENAME` is in
+    `_RESERVED_BUNDLE_FILENAMES`), so it is immune to cocoindex's own
+    orphan-delete reconciliation (module docstring's EXECUTOR-VERIFY
+    finding). Callers (`producer/flow_def.py`) must additionally gate this
+    file's PRESENCE against the run's `bundle_class` via
+    `require_client_business_bundle_class` — this function validates only
+    the file's OWN schema, mirroring `read_client_overlay`'s own separation
+    of "is this file well-formed" from "is this bundle allowed to have it"
+    (the latter check lives at the call site, not here)."""
+    path = bundle_dir / CONCEPT_FEEDER_FILENAME
+    try:
+        raw = path.read_bytes()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConceptFeederConfigError(
+            f"{CONCEPT_FEEDER_FILENAME} is not valid JSON: {exc}"
+        ) from exc
+    return _validate_concept_feeder_schema(data)
 
 
 def write_ontology_artefact(

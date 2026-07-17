@@ -184,8 +184,15 @@ def _wire_source(env, drafts_by_key: "dict[Any, Any]") -> None:
     keys = list(drafts_by_key)
 
     class _FakeSource:
-        def __init__(self, pool: Any) -> None:
+        def __init__(self, pool: Any, *, concept_feeder_config: Any = None) -> None:
             self.pool = pool
+            # {132.36} G-CONCEPT-FEEDER: accepted (mirrors the real
+            # `LRecordsSource.__init__` signature `run_producer_flow` now
+            # always calls with this kwarg) but unused — these fixtures
+            # pre-build their own `keys`/drafts and don't exercise the
+            # feeder enumeration path (see `TestConceptFeederWiring` below
+            # for that coverage).
+            self.concept_feeder_config = concept_feeder_config
 
         async def list_concepts(self):
             return keys
@@ -417,6 +424,122 @@ class TestBundleClassGate:
         assert ontology["overlay"] is None
 
 
+# ── ID-132 {132.36} G-CONCEPT-FEEDER end-to-end wiring ───────────────────
+
+
+class TestConceptFeederWiring:
+    """`concept-feeder.json` is read from `bundle_dir` and threaded into
+    `LRecordsSource`'s constructor, gated by the SAME OV-10 bundle-class
+    discriminator `TestBundleClassGate` exercises for the overlay."""
+
+    def test_feeder_config_is_read_and_threaded_into_the_source(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
+        (bundle_dir / "concept-feeder.json").write_text(
+            json.dumps(
+                {
+                    "concept_types": {
+                        "partner": {"grain": "entity_mention", "entity_type": "partner"},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        captured: "list[Any]" = []
+
+        class _CapturingSource:
+            def __init__(self, pool: Any, *, concept_feeder_config: Any = None) -> None:
+                captured.append(concept_feeder_config)
+
+            async def list_concepts(self):
+                return [draft.key]
+
+        async def _fake_enrich(key: Any, _source: Any) -> Any:
+            return draft
+
+        env.monkeypatch.setattr(env.l_records, "LRecordsSource", _CapturingSource)
+        env.monkeypatch.setattr(env.enrich, "enrich_concept", _fake_enrich)
+
+        asyncio.run(env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir))
+
+        assert captured == [
+            {"partner": {"grain": "entity_mention", "entity_type": "partner"}}
+        ]
+
+    def test_absent_feeder_config_threads_none_into_the_source(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """No `concept-feeder.json` -> `LRecordsSource` receives `None` for
+        `concept_feeder_config` (mirrors every other pre-{132.36} test in
+        this file, none of which write the file)."""
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        captured: "list[Any]" = []
+
+        class _CapturingSource:
+            def __init__(self, pool: Any, *, concept_feeder_config: Any = None) -> None:
+                captured.append(concept_feeder_config)
+
+            async def list_concepts(self):
+                return [draft.key]
+
+        async def _fake_enrich(key: Any, _source: Any) -> Any:
+            return draft
+
+        env.monkeypatch.setattr(env.l_records, "LRecordsSource", _CapturingSource)
+        env.monkeypatch.setattr(env.enrich, "enrich_concept", _fake_enrich)
+
+        asyncio.run(env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir))
+
+        assert captured == [None]
+
+    def test_feeder_config_in_a_non_client_business_bundle_aborts(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A `concept-feeder.json` present in a non-client-business bundle
+        checkout hard-rejects — the SAME OV-10 discriminator {132.37}
+        established for the overlay, extended to the feeder config. Checked
+        BEFORE `LRecordsSource` is even constructed, so nothing is drafted
+        or written this run (mirrors OV-5's all-or-nothing posture)."""
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "showcase")
+        (bundle_dir / "concept-feeder.json").write_text(
+            json.dumps(
+                {
+                    "concept_types": {
+                        "partner": {"grain": "entity_mention", "entity_type": "partner"},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        with pytest.raises(env.bundle_writer.OntologyOverlayClassError):
+            asyncio.run(
+                env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+            )
+
+        assert not (bundle_dir / "topics/alpha.md").exists()
+        assert not (bundle_dir / "ontology.json").exists()
+
+    def test_malformed_feeder_config_aborts_before_any_write(
+        self, env, bundle_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", "client_business")
+        (bundle_dir / "concept-feeder.json").write_text("{not valid json", encoding="utf-8")
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        with pytest.raises(env.bundle_writer.ConceptFeederConfigError):
+            asyncio.run(
+                env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+            )
+
+        assert not (bundle_dir / "topics/alpha.md").exists()
+
+
 # ── Owner ruling S456: a log.md-only diff is a no-op — no commit ─────────
 
 
@@ -637,7 +760,7 @@ class TestContainment:
         )
 
         class _FakeSource:
-            def __init__(self, pool: Any) -> None:
+            def __init__(self, pool: Any, *, concept_feeder_config: Any = None) -> None:
                 self.pool = pool
 
             async def list_concepts(self):
