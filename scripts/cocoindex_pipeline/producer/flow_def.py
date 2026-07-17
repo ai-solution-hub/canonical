@@ -112,6 +112,31 @@ from typing import Any, Awaitable, Callable, Sequence
 
 _logger = logging.getLogger(__name__)
 
+# ID-163 PC-2 (G-SOURCE-SELECT): the platform repo/docs checkout root
+# `RepoDocsSource` (163.4) reads from, for a `system_baseline`/`internal_dev`
+# producer run. Producer-scoped, Coolify deploy-time secret — read ONCE at
+# import time, mirroring `producer/agent_loop.py`'s `PRODUCER_MODEL`/
+# `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN`/`PRODUCER_PROVIDER_ORDER` posture
+# (fixed for the life of the process; no live-reconfiguration need) — NOT
+# this module's own per-call `_resolve_bundle_dir`/`_resolve_client_id`/
+# `_resolve_bundle_class` posture (those stay per-call because THIS module
+# must remain import-safe with no `cocoindex` stub, see the "Collection
+# safety" docstring note above; a bare `os.environ.get()` at import time
+# carries no such risk). Unset/empty resolves to `""`, never `None` —
+# deliberately NOT validated here: `run_producer_flow`'s
+# `system_baseline`/`internal_dev` branch below is the SINGLE point that
+# FAILS LOUD when this is required but blank, so an unrelated
+# `client_business`/`showcase`/unset-class run (which never reads this
+# constant) is unaffected by an unset value.
+OKF_SOURCE_REPO_PATH = os.environ.get("OKF_SOURCE_REPO_PATH", "")
+
+# ID-163 PC-2: the resolved bundle classes that route to `RepoDocsSource`
+# (163.4) instead of `LRecordsSource` — DR-079's two non-client-authored
+# Path-2 direct-producer classes. `showcase` stays on `LRecordsSource` (it is
+# NOT a Path-2 direct-producer class) — do not widen without a TECH
+# amendment.
+_REPO_DOCS_BUNDLE_CLASSES = frozenset({"system_baseline", "internal_dev"})
+
 # An embedder takes a concept's text and returns its 1024-d vector — the
 # `flow.embed_content_text` shape. Injected in tests to avoid a real OpenAI
 # call; defaults to `flow.embed_content_text` (lazy) for a live run.
@@ -402,9 +427,18 @@ async def run_producer_flow(
          read enforces (DR-054/DR-079) — checked HERE, before `LRecordsSource`
          is even constructed, since the feeder config is consumed earlier in
          the flow than overlay composition.
-      1. `LRecordsSource(pool, concept_feeder_config=...).list_concepts()` —
-         the concept catalogue, now including any overlay-added type the
-         feeder config declares.
+      1. Source selection (ID-163 PC-2, G-SOURCE-SELECT): when
+         `resolved_bundle_class` is `"system_baseline"` or `"internal_dev"`
+         (DR-079's Path-2 direct-producer classes), construct
+         `RepoDocsSource(OKF_SOURCE_REPO_PATH)` (163.4) over the platform
+         repo/docs checkout — FAILING LOUD if `OKF_SOURCE_REPO_PATH` is
+         unset (no silent fallback). Every OTHER class (`None`,
+         `"client_business"`, `"showcase"`) constructs
+         `LRecordsSource(pool, concept_feeder_config=...)` exactly as
+         before this Subtask — additive and class-gated, so that path
+         stays byte-identical. `.list_concepts()` then enumerates the
+         catalogue (including any overlay-added type the feeder config
+         declares, for the `LRecordsSource` path).
       2. Per concept: `enrich_concept` (Pass-1); `run_web_pass` (Pass-2) when
          a `gated_corpus` is configured. One concept's fault is contained.
       3. `write_bundle(...)` — validator-gate + `declare_file` every concept,
@@ -475,7 +509,28 @@ async def run_producer_flow(
             resolved_bundle_class, filename=CONCEPT_FEEDER_FILENAME
         )
 
-    source = LRecordsSource(pool, concept_feeder_config=concept_feeder_config)
+    # ID-163 PC-2 (G-SOURCE-SELECT): system_baseline/internal_dev runs draft
+    # from the platform repo/docs checkout (163.4's RepoDocsSource) instead
+    # of the client's Postgres source table — additive + class-gated so
+    # every OTHER bundle_class (None, client_business, showcase) stays on
+    # the byte-identical LRecordsSource path below (the PRODUCER_* isolation
+    # discipline).
+    source: Any
+    if resolved_bundle_class in _REPO_DOCS_BUNDLE_CLASSES:
+        if not OKF_SOURCE_REPO_PATH:
+            raise RuntimeError(
+                "OKF_SOURCE_REPO_PATH env var is required for a "
+                f"{resolved_bundle_class!r} producer run (ID-163 PC-2) — no "
+                "silent fallback to LRecordsSource. Set it to the platform "
+                "repo/docs checkout root."
+            )
+        from scripts.cocoindex_pipeline.sources.repo_docs import (  # noqa: PLC0415
+            RepoDocsSource,
+        )
+
+        source = RepoDocsSource(OKF_SOURCE_REPO_PATH)
+    else:
+        source = LRecordsSource(pool, concept_feeder_config=concept_feeder_config)
     concepts = await source.list_concepts()
 
     drafts, reference_drafts, failures, pass2_ran, failed_keys = await _draft_concepts(

@@ -41,6 +41,7 @@ import importlib
 import json
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -122,6 +123,11 @@ def env(monkeypatch: pytest.MonkeyPatch):
         enrich = importlib.import_module("scripts.cocoindex_pipeline.producer.enrich")
         web_pass = importlib.import_module("scripts.cocoindex_pipeline.producer.web_pass")
         l_records = importlib.import_module("scripts.cocoindex_pipeline.sources.l_records")
+        # ID-163 PC-2 (G-SOURCE-SELECT): the RepoDocsSource sibling (163.4) —
+        # imports no cocoindex itself, but pulled in here alongside l_records so
+        # PC-2 tests can monkeypatch its constructor the SAME way `_wire_source`
+        # already does for `LRecordsSource`.
+        repo_docs = importlib.import_module("scripts.cocoindex_pipeline.sources.repo_docs")
         frontmatter = importlib.import_module(
             "scripts.cocoindex_pipeline.producer.frontmatter"
         )
@@ -172,6 +178,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
             enrich=enrich,
             web_pass=web_pass,
             l_records=l_records,
+            repo_docs=repo_docs,
             build_draft=build_draft,
             monkeypatch=monkeypatch,
         )
@@ -422,6 +429,150 @@ class TestBundleClassGate:
 
         ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
         assert ontology["overlay"] is None
+
+
+# ── ID-163 PC-2 (G-SOURCE-SELECT): class-gated Source selection ──────────
+
+
+@contextmanager
+def _source_repo_path_env(env, monkeypatch: "pytest.MonkeyPatch", value: "str | None"):
+    """`flow_def.OKF_SOURCE_REPO_PATH` is read ONCE at import time (ID-163
+    PC-2) — mirrors `agent_loop.PRODUCER_MODEL`'s posture, not this module's
+    OWN per-call `_resolve_bundle_dir`/`_resolve_client_id`/
+    `_resolve_bundle_class` helpers. A plain `monkeypatch.setenv` has no
+    effect on the already-bound module constant, so exercising a specific
+    value needs a scoped `importlib.reload` — this suite's existing
+    precedent for import-time env constants is
+    `test_producer_agent_loop.py::TestProducerModelEnvOverride`. Always
+    restores (delenv + reload) in `finally` so no reload side effect
+    survives past the test; safe to confine to this module because
+    `flow_def.py` itself imports no `cocoindex` at module scope (the
+    module's own "Collection safety" docstring note) — a reload here
+    cannot leak stub state into sibling test files."""
+    if value is None:
+        monkeypatch.delenv("OKF_SOURCE_REPO_PATH", raising=False)
+    else:
+        monkeypatch.setenv("OKF_SOURCE_REPO_PATH", value)
+    try:
+        importlib.reload(env.flow_def)
+        yield env.flow_def
+    finally:
+        monkeypatch.delenv("OKF_SOURCE_REPO_PATH", raising=False)
+        importlib.reload(env.flow_def)
+
+
+class _ExplodingSource:
+    """A Source stand-in that fails the test loudly if it is ever
+    constructed — proves the OTHER branch (or the fail-loud guard) never
+    reaches this one's constructor."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise AssertionError(
+            f"{type(self).__qualname__} must not be constructed for this run "
+            "(ID-163 PC-2 class-gated Source selection)"
+        )
+
+
+class TestSourceSelection:
+    """`run_producer_flow` (`flow_def.py:478` pre-163.5) gates Source
+    construction on the already-resolved bundle class (`_resolve_bundle_class`,
+    OV-10). DR-079's two Path-2 direct-producer classes — `system_baseline`
+    and `internal_dev` — construct `RepoDocsSource(OKF_SOURCE_REPO_PATH)`
+    (163.4) over the platform repo/docs checkout; every OTHER class (`None`,
+    `client_business`, `showcase`) stays on `LRecordsSource(pool, ...)`,
+    byte-identical to pre-163.5 behaviour — the additive, class-gated
+    isolation discipline the `PRODUCER_*` slices already established."""
+
+    @pytest.mark.parametrize("bundle_class", ["system_baseline", "internal_dev"])
+    def test_repo_docs_bundle_class_selects_repo_docs_source(
+        self,
+        env,
+        bundle_dir: Path,
+        monkeypatch: "pytest.MonkeyPatch",
+        tmp_path: Path,
+        bundle_class: str,
+    ) -> None:
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", bundle_class)
+        source_repo = tmp_path / "platform-repo"
+        source_repo.mkdir()
+
+        with _source_repo_path_env(env, monkeypatch, str(source_repo)) as flow_def:
+            captured: "list[Any]" = []
+
+            class _CapturingRepoDocsSource:
+                def __init__(self, root: Any, **kwargs: Any) -> None:
+                    captured.append(root)
+
+                async def list_concepts(self):
+                    return []
+
+            env.monkeypatch.setattr(
+                env.repo_docs, "RepoDocsSource", _CapturingRepoDocsSource
+            )
+            env.monkeypatch.setattr(env.l_records, "LRecordsSource", _ExplodingSource)
+
+            result = asyncio.run(
+                flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+            )
+
+        assert captured == [str(source_repo)]
+        assert result is not None
+
+    @pytest.mark.parametrize("bundle_class", ["system_baseline", "internal_dev"])
+    def test_repo_docs_bundle_class_without_source_repo_path_fails_loud(
+        self,
+        env,
+        bundle_dir: Path,
+        monkeypatch: "pytest.MonkeyPatch",
+        bundle_class: str,
+    ) -> None:
+        """No silent fallback to `LRecordsSource` (the KH quality bar the
+        brief names explicitly) — an unset `OKF_SOURCE_REPO_PATH` for a
+        Path-2 class run raises loudly, BEFORE either Source is constructed
+        or any bundle file is written."""
+        monkeypatch.setenv("OKF_BUNDLE_CLASS", bundle_class)
+
+        with _source_repo_path_env(env, monkeypatch, None) as flow_def:
+            env.monkeypatch.setattr(env.repo_docs, "RepoDocsSource", _ExplodingSource)
+            env.monkeypatch.setattr(env.l_records, "LRecordsSource", _ExplodingSource)
+
+            with pytest.raises(RuntimeError, match="OKF_SOURCE_REPO_PATH"):
+                asyncio.run(
+                    flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+                )
+
+        assert not (bundle_dir / "ontology.json").exists()
+        assert not (bundle_dir / "index.md").exists()
+
+    @pytest.mark.parametrize("bundle_class", ["client_business", "showcase", None])
+    def test_non_repo_docs_bundle_class_selects_l_records_source_unchanged(
+        self,
+        env,
+        bundle_dir: Path,
+        monkeypatch: "pytest.MonkeyPatch",
+        bundle_class: "str | None",
+    ) -> None:
+        """`client_business`, `showcase`, and an unresolved (`None`) bundle
+        class are all OUTSIDE the PC-2 gate — none of them may construct
+        `RepoDocsSource` (the brief's explicit "do not widen" instruction
+        for `showcase`), and the run's observable output is unchanged from
+        pre-163.5 (`OKF_SOURCE_REPO_PATH` is never even consulted)."""
+        if bundle_class is None:
+            monkeypatch.delenv("OKF_BUNDLE_CLASS", raising=False)
+        else:
+            monkeypatch.setenv("OKF_BUNDLE_CLASS", bundle_class)
+        monkeypatch.delenv("OKF_SOURCE_REPO_PATH", raising=False)
+
+        env.monkeypatch.setattr(env.repo_docs, "RepoDocsSource", _ExplodingSource)
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        assert (bundle_dir / "topics/alpha.md").is_file()
+        assert (bundle_dir / "index.md").is_file()
 
 
 # ── ID-132 {132.36} G-CONCEPT-FEEDER end-to-end wiring ───────────────────
