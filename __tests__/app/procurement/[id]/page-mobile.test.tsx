@@ -122,10 +122,23 @@ vi.mock('@/lib/domains/procurement/procurement-helpers', () => ({
     mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/domains/procurement/procurement-workflow', () => ({
-  PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
-  PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
-}));
+// {145.43} landed the real WorkflowStepper into the page tree, which pulls
+// canTransition/getAvailableTransitions/isTerminal from this module — mirror
+// page.test.tsx: keep the real module and override only the two label maps.
+vi.mock(
+  '@/lib/domains/procurement/procurement-workflow',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/domains/procurement/procurement-workflow')
+      >();
+    return {
+      ...actual,
+      PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
+      PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
+    };
+  },
+);
 
 vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
@@ -199,6 +212,22 @@ vi.mock('@/components/procurement/tender-upload', () => ({
 vi.mock('@/components/procurement/tender-metadata-prompt', () => ({
   TenderMetadataPrompt: () => (
     <div data-testid="tender-metadata-prompt">MetadataPrompt</div>
+  ),
+}));
+
+// {145.47} filled these two stubs with real implementations that render a
+// PDF (react-pdf/pdfjs-dist, browser-only — `DOMMatrix` etc. are absent in
+// this jsdom test run). Their own behaviour is covered by
+// item-fill-slot-review.test.tsx / item-citation-overlay.test.tsx; this
+// page composition test only needs their stable mount points.
+vi.mock('@/components/procurement/item-fill-slot-review', () => ({
+  ItemFillSlotReview: ({ formId }: { formId: string }) => (
+    <div data-testid="item-fill-slot-review">{formId}</div>
+  ),
+}));
+vi.mock('@/components/procurement/item-citation-overlay', () => ({
+  ItemCitationOverlay: ({ formId }: { formId: string }) => (
+    <div data-testid="item-citation-overlay">{formId}</div>
   ),
 }));
 

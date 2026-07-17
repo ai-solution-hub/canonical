@@ -472,10 +472,13 @@ jobs:
           PLAYWRIGHT_WEB_SERVER_CMD: "bun run start"
           PW_BLOB_REPORT: "1"
           # {128.8}: fail-fast budgets are now config-driven — playwright.config.ts
-          # reads these. A sick shard bails at 4 failures (~2 min) instead of
-          # burning the budget; the 18-min hard cap sits under the 20-min job
-          # timeout. Smoke/local leave these unset → CI defaults (5 / 12 min).
-          PW_MAX_FAILURES: "4"
+          # reads these. {145.23} S481: raised 4→40 — at 4 every shard of the
+          # S477 diagnostic run aborted at cap and 103 tests never ran, so a
+          # "green" was untrustworthy as the close signal. 40 is effectively
+          # uncapped for this suite; the 18-min global timeout below remains
+          # the real sick-shard backstop. Smoke/local leave these unset →
+          # CI defaults (5 / 12 min).
+          PW_MAX_FAILURES: "40"
           PW_GLOBAL_TIMEOUT_MS: "1080000"
           # {128.10}: Supabase connection points at THIS RUN's ephemeral
           # branch (provision-branch's outputs), not the shared staging

@@ -65,13 +65,17 @@ const INTERNAL_ONLY_TABLES: readonly string[] = [
   // id-138 writer-fence lease (20260704140000) — pipeline-internal advisory
   // lease, never an app read surface (classified at the S450 GO, INV-16).
   'corpus_writer_fence_lease',
-  // ID-145 {145.6} W1c — new LINK table (engagement_groups), no
-  // {145.6}/{145.7} app-code consumer yet and TECH.md §2 M3 calls for "no
-  // anon grants" (stricter than the blanket api.* surface posture every
-  // other view uses). Reachable only via a direct Postgres connection until
-  // whichever {145.x} Subtask needs API-reachable engagement-group reads
-  // (grouping surfaces land in {145.19}) moves it to SURFACE_TABLES.
-  'engagement_groups',
+  // ID-145 {145.6} W1c / {145.35}: `engagement_groups` +
+  // `engagement_group_content` were classified INTERNAL_ONLY here
+  // originally — MOVED to SURFACE_TABLES (scripts/generate-api-views.ts) at
+  // {145.35} fix-Executor (S481 live post-push smoke FAILURE): both app
+  // endpoints reached them via a `.schema('public')` override that 500s
+  // with PostgREST's "Invalid schema: public" (post-ID-115, `public` is
+  // UNEXPOSED at the Data API layer for every caller, not just this app's
+  // client) — the standard `api` view is the correct fix, same as every
+  // other surfaced table. See
+  // `20260716150000_id145_35_api_views_engagement_groups.sql` for the
+  // companion view migration.
   'entity_pair_resolutions',
   'procurement_workspaces',
   'product_guide_workspaces',

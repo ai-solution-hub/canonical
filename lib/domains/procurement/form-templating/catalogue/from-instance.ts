@@ -51,6 +51,7 @@ import {
 } from '@/lib/auth/client';
 import { tryQuery, type Result } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -71,8 +72,11 @@ const EMBEDDING_DIMENSIONS = 1024;
 /**
  * The `record_embeddings.owner_kind` value for this catalogue ({130.24}
  * DR-036 — `record_embeddings_owner_kind_chk` widened to include it).
+ * ID-151: type-annotated against the shared RecordEmbeddingsOwnerKind union
+ * so a typo here would fail tsc.
  */
-const RECORD_EMBEDDINGS_OWNER_KIND = 'form_template_requirement';
+const RECORD_EMBEDDINGS_OWNER_KIND: RecordEmbeddingsOwnerKind =
+  'form_template_requirement';
 
 /**
  * Non-NULL `template_version` sentinel ({52.22} design §2.2). The natural key
@@ -154,21 +158,19 @@ export interface CatalogueWriteResult {
 
 /**
  * Build the classification prompt for a single instance field. Replicates the
- * `Q_A_FORM_PROMPT` style (verbatim-text, strict JSON, no commentary) and
- * extends it with the catalogue-requirement classification fields T10 needs.
+ * `Q_A_FORM_PROMPT` style (verbatim-text, no commentary) and extends it with
+ * the catalogue-requirement classification fields T10 needs.
+ *
+ * ID-154: the response shape itself is enforced structurally by the forced
+ * `classify_field` tool_use call in `classifyField` (`strict: true` +
+ * `additionalProperties: false`) — this prompt only needs to give the model
+ * semantic guidance the JSON Schema can't express (which requirement_type
+ * to pick, how many keywords, guidance style), not an "output format"
+ * section describing the JSON shape.
  */
 function buildClassificationPrompt(field: FormInstanceField): string {
   const types = REQUIREMENT_TYPES.join(', ');
-  return `You are cataloguing a single question from a procurement form, questionnaire, or sales-proposal template into a reusable, global requirement record for an enterprise knowledge base. Read the question and produce a single JSON object classifying it.
-
-OUTPUT FORMAT
-Return ONLY a single JSON object — no markdown fences, no commentary, no preamble. The JSON object MUST have exactly these fields:
-
-  {
-    "requirement_type": <one of: ${types}>,
-    "matching_keywords": [<list of 3-8 short keyword phrases a matcher would use to find knowledge-base content answering this requirement>],
-    "matching_guidance": <one sentence of guidance for a matcher, OR null>
-  }
+  return `You are cataloguing a single question from a procurement form, questionnaire, or sales-proposal template into a reusable, global requirement record for an enterprise knowledge base. Read the question and classify it via the classify_field tool.
 
 FIELD CONSTRAINTS
 - requirement_type: MUST be EXACTLY ONE of: ${types}.
@@ -179,7 +181,7 @@ FIELD CONSTRAINTS
   - "narrative": asks for prose describing an approach.
   - "statement": a short attestation that is neither pure data nor a formal declaration.
   - "reference": asks for a contract/customer/case-study reference.
-- matching_keywords: non-empty list of short phrases (no full sentences).
+- matching_keywords: 3-8 short keyword phrases a matcher would use to find knowledge-base content answering this requirement (no full sentences).
 - matching_guidance: a single sentence, OR null when no special guidance applies.
 
 QUESTION TO CLASSIFY
@@ -215,25 +217,68 @@ export async function readInstanceFields(
 // ── Classify step (Anthropic) ───────────────────────────────────────────────
 
 /**
- * Extract the first JSON object from a model text response. The prompt asks
- * for raw JSON, but defensively strip any accidental markdown fence.
+ * Forced tool_use schema for the classification call (ID-154). Replaces the
+ * prior raw-JSON text-response parsing (`parseClassificationJson`, which had
+ * to defensively strip markdown fences and hunt for `{`/`}` boundaries)
+ * with a schema-conformant structured call — mirrors the
+ * extract-questions.ts `EXTRACT_QUESTIONS_TOOL` reference pattern
+ * (`strict: true` + `additionalProperties: false`, forced via
+ * `tool_choice`). This also covers the batch classification loop in
+ * `scripts/catalogue-from-instance.ts` (which calls `classifyField` once
+ * per instance field) — there is no separate tool definition to update
+ * there, since it calls through this same function.
+ *
+ * `matching_guidance` expresses nullability via `anyOf: [{type:'string'},
+ * {type:'null'}]`, NOT an array-valued `type: ['string','null']` — the
+ * latter is outside Anthropic's supported strict-mode JSON Schema subset
+ * (confirmed against the live structured-outputs docs) and risks a 400 /
+ * undefined behaviour under `strict: true`, which would undermine the very
+ * fix this tool exists to make. `anyOf` IS in the supported subset and
+ * needs no SDK-type cast (unlike extract-questions.ts's pre-existing
+ * `TENDER_METADATA_TOOL`/`EXTRACT_QUESTIONS_TOOL` fields, which use the
+ * array-valued form behind an `as unknown as` cast — a separate,
+ * already-shipped, out-of-scope defect tracked independently, not fixed
+ * here).
  */
-function parseClassificationJson(raw: string): FieldClassification {
-  const trimmed = raw
-    .trim()
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/, '');
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error(
-      `Classification response is not JSON: ${raw.slice(0, 120)}`,
-    );
-  }
-  const parsed = JSON.parse(trimmed.slice(start, end + 1)) as Record<
-    string,
-    unknown
-  >;
+const CLASSIFY_FIELD_TOOL = {
+  name: 'classify_field' as const,
+  description:
+    'Return the catalogue classification for this procurement/form field',
+  strict: true as const,
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      requirement_type: {
+        type: 'string' as const,
+        enum: [...REQUIREMENT_TYPES],
+      },
+      matching_keywords: {
+        type: 'array' as const,
+        items: { type: 'string' as const },
+      },
+      matching_guidance: {
+        anyOf: [{ type: 'string' as const }, { type: 'null' as const }],
+      },
+    },
+    required: [
+      'requirement_type',
+      'matching_keywords',
+      'matching_guidance',
+    ] as string[],
+    additionalProperties: false as const,
+  },
+};
+
+/**
+ * Validate + narrow the `classify_field` tool_use input into a
+ * `FieldClassification`. `strict: true` on `CLASSIFY_FIELD_TOOL` guarantees
+ * the shape at the API level, but this stays defensive against SDK/mocked
+ * drift and enforces the one constraint JSON Schema's supported subset
+ * cannot express — a non-empty `matching_keywords` array (see
+ * `shared/tool-use-concepts.md` "Not supported: Complex array constraints").
+ */
+function parseClassificationInput(input: unknown): FieldClassification {
+  const parsed = (input ?? {}) as Record<string, unknown>;
 
   const requirementType = parsed.requirement_type;
   if (
@@ -271,6 +316,11 @@ function parseClassificationJson(raw: string): FieldClassification {
  * Classify one instance field into a catalogue-requirement classification via
  * Anthropic. The Anthropic client is injected so it can be mocked at the SDK
  * boundary in tests.
+ *
+ * ID-154: forces the `classify_field` tool (strict tool_use) instead of
+ * parsing a raw-JSON text response — guarantees schema-conformant output at
+ * the API level rather than relying on markdown-fence stripping + manual
+ * brace-matching.
  */
 export async function classifyField(
   anthropic: Pick<Anthropic, 'messages'>,
@@ -280,15 +330,18 @@ export async function classifyField(
     model: CLASSIFY_MODEL,
     max_tokens: 1024,
     messages: [{ role: 'user', content: buildClassificationPrompt(field) }],
+    tools: [CLASSIFY_FIELD_TOOL],
+    tool_choice: { type: 'tool', name: 'classify_field' },
   });
 
-  const textBlock = message.content.find(
-    (block): block is Anthropic.Messages.TextBlock => block.type === 'text',
+  const toolBlock = message.content.find(
+    (block): block is Anthropic.Messages.ToolUseBlock =>
+      block.type === 'tool_use' && block.name === 'classify_field',
   );
-  if (!textBlock) {
-    throw new Error('Classification response contained no text block');
+  if (!toolBlock) {
+    throw new Error('Classification response contained no tool_use block');
   }
-  return parseClassificationJson(textBlock.text);
+  return parseClassificationInput(toolBlock.input);
 }
 
 // ── Embed step (OpenAI text-embedding-3-large, dimensions 1024) ─────────────

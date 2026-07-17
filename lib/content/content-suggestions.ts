@@ -23,6 +23,7 @@ import type { Database } from '@/supabase/types/database.types';
 import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 import { createHash } from 'crypto';
 import { sb } from '@/lib/supabase/safe';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -208,7 +209,7 @@ export async function generateContentSuggestions(
       supabase
         .from('record_lifecycle')
         .select('owner_id, freshness')
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .in('owner_id', sdIds),
       'record_lifecycle.forSuggestions',
     );

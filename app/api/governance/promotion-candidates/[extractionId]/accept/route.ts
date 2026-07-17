@@ -27,6 +27,9 @@
 // confirms it per-item. Self-cleaning: after the write the extraction and
 // pair carry IDENTICAL text, so the candidate naturally drops out of the
 // 'awaiting_review' set on the next fetch (no new dismissal column needed).
+//
+// {145.34}: threads the reviewer's `auth.user.id` through as `actor` so
+// acceptAwaitingReviewCandidate can record an append-only disposition row.
 
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
@@ -57,6 +60,7 @@ export const POST = defineRoute(
       const result = await acceptAwaitingReviewCandidate(
         auth.supabase,
         extractionId,
+        auth.user.id,
       );
 
       if (!result.ok) {

@@ -92,9 +92,18 @@ type Role = (typeof ROLES)[number];
  *
  * ID-145 {145.6} W1c renames: form_templates -> form_instances,
  * form_template_fields -> form_instance_fields, form_template_requirements ->
- * form_requirement_templates (BI-1). `engagement_groups`, the new LINK table
- * from the same migration, is DELIBERATELY NOT added here — see
- * scripts/check-api-view-coverage.ts's INTERNAL_ONLY_TABLES entry for it.
+ * form_requirement_templates (BI-1). `engagement_groups` /
+ * `engagement_group_content` were ORIGINALLY excluded here (classified
+ * INTERNAL_ONLY instead) — REVERSED at {145.35} fix-Executor (S481): the
+ * live post-push smoke found both app endpoints reaching them via a
+ * `.schema('public')` override 500ing with PostgREST's "Invalid schema:
+ * public" (post-ID-115, `public` is UNEXPOSED at the Data API layer, not
+ * merely untyped-for). The correct fix is the standard one every other
+ * table here uses — an `api` view — so both now belong in this list; the
+ * companion view migration is
+ * `20260716150000_id145_35_api_views_engagement_groups.sql` (hand-authored,
+ * same reasoning as the `promotion_dispositions` precedent below: the
+ * pinned generator OUTPUT_FILE regen predates both tables' own migrations).
  */
 export const SURFACE_TABLES: readonly string[] = [
   'ai_call_events',
@@ -106,6 +115,8 @@ export const SURFACE_TABLES: readonly string[] = [
   'content_chunks',
   'content_propagation_version',
   'coverage_targets',
+  'engagement_group_content',
+  'engagement_groups',
   'entity_aliases',
   'entity_mentions',
   'entity_relationships',
@@ -134,6 +145,7 @@ export const SURFACE_TABLES: readonly string[] = [
   'notifications',
   'pipeline_runs',
   'processing_queue',
+  'promotion_dispositions',
   'q_a_extractions',
   'q_a_pair_dedup_proposals',
   'q_a_pair_history',

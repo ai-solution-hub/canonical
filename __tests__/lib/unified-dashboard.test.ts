@@ -732,9 +732,8 @@ describe('fetchUnifiedDashboardData', () => {
           form_responses: {
             question_id: 'q-1',
             form_questions: {
-              workspace_id: 'bid-1',
+              form_instance_id: 'bid-1',
               question_text: 'Latest answer',
-              workspaces: { id: 'bid-1', name: 'Procurement' },
             },
           },
         },
@@ -746,9 +745,8 @@ describe('fetchUnifiedDashboardData', () => {
           form_responses: {
             question_id: 'q-1',
             form_questions: {
-              workspace_id: 'bid-1',
+              form_instance_id: 'bid-1',
               question_text: 'Older answer',
-              workspaces: { id: 'bid-1', name: 'Procurement' },
             },
           },
         },
@@ -760,9 +758,8 @@ describe('fetchUnifiedDashboardData', () => {
           form_responses: {
             question_id: 'q-2',
             form_questions: {
-              workspace_id: 'bid-1',
+              form_instance_id: 'bid-1',
               question_text: 'A different response',
-              workspaces: { id: 'bid-1', name: 'Procurement' },
             },
           },
         },
@@ -923,9 +920,8 @@ describe('fetchUnifiedDashboardData', () => {
         form_responses: {
           question_id: `q-${i}`,
           form_questions: {
-            workspace_id: 'bid-1',
+            form_instance_id: 'bid-1',
             question_text: `Question ${i}`,
-            workspaces: { id: 'bid-1', name: 'Procurement' },
           },
         },
       })),

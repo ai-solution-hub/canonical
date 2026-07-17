@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { QuestionNavigator } from '@/components/procurement/question-navigator';
 import { ResponseEditor } from '@/components/procurement/response-editor';
+import { StreamingAnswerPreview } from '@/components/procurement/streaming-answer-preview';
 import { CitationPanel } from '@/components/content/citation-panel';
 import { QualityScore } from '@/components/shared/quality-score';
 import { ResponseActions } from '@/components/procurement/response-actions';
@@ -633,6 +634,18 @@ export default function ProcurementSessionPage({
                   error={stream.error}
                   qualityScore={stream.qualityScore}
                   onCancel={stream.cancel}
+                />
+              )}
+
+              {/* §I4 — the streamed answer renders natively via Streamdown
+                  (streaming caret + clean partial/unterminated markdown),
+                  DR-040 new-surface case. Shown only while a draft is
+                  actively streaming in; the editor below receives the FINAL
+                  text once the stream completes. */}
+              {isStreaming && (
+                <StreamingAnswerPreview
+                  text={stream.text}
+                  isStreaming={isStreaming}
                 />
               )}
 

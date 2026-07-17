@@ -23,7 +23,7 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
     {
       title: 'List User Workspaces',
       description:
-        'List workspaces visible to the authenticated user. Optionally filter by application type (procurement, intelligence, sales_proposal, product_guide, competitor_research, training_onboarding; legacy "bid" is accepted as an alias for procurement). Returns id, name, and type for each non-archived workspace. Used by daily-briefing skill to resolve intelligence workspace before calling get_intelligence_summary. Viewer role or above required.',
+        'List workspaces visible to the authenticated user. Optionally filter by application type (intelligence, sales_proposal, product_guide, competitor_research, training_onboarding). Procurement is no longer a workspace-resolved domain (ID-145 form-first re-architecture, W1e) — filtering by "procurement" or the legacy "bid" alias returns guidance to use list_active_procurement / get_procurement_detail instead of workspace rows. Returns id, name, and type for each non-archived workspace. Used by daily-briefing skill to resolve intelligence workspace before calling get_intelligence_summary. Viewer role or above required.',
       inputSchema: {
         type: z
           .enum([
@@ -37,7 +37,7 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
           ])
           .optional()
           .describe(
-            "Filter to a specific application type. Legacy value 'bid' is accepted as an alias for 'procurement'. Omit to list all types.",
+            'Filter to a specific application type. "procurement" and the legacy "bid" alias no longer resolve to workspace rows (ID-145 W1e) — use list_active_procurement / get_procurement_detail for procurement data instead. Omit to list all types.',
           ),
       },
       annotations: READ_ONLY_ANNOTATIONS,
@@ -62,21 +62,42 @@ export async function registerWorkspaceTools(server: McpServer): Promise<void> {
           };
         }
 
+        // ID-145 {145.39} (DR-038 form-first): procurement is no longer a
+        // workspace-resolved domain post-W1e — the `workspaces` table's
+        // procurement rows were wholesale-dropped (536->28 rows,
+        // 20260712064000_id145_w1e_drop_workspace_stratum.sql), so a
+        // type=procurement|bid query against `application_types.key` would
+        // always silently return zero rows. Per id-71 RESEARCH.md §2.2 this
+        // tool survives as workspace-resolver substrate ("keep-concept,
+        // refine") for the OTHER application types — id-71 does not re-shape
+        // this query onto `form_instances`. Surface the gap explicitly and
+        // redirect callers to the {145.21} form-first tools rather than
+        // synthesising fake workspace rows from form_instances.
+        if (args.type === 'procurement' || args.type === 'bid') {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: 'Procurement is no longer a workspace-resolved domain (ID-145 form-first re-architecture dropped the procurement workspace stratum). Use `list_active_procurement` to list procurement forms, or `get_procurement_detail` for a specific one, instead of `list_user_workspaces`.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
         const supabase = createMcpClient(extra.authInfo);
 
         // Post-T2: discriminator is application_types.key via JOIN, not the
         // dropped workspaces.type col. The enum mirrors the seeded
-        // application_types vocabulary; 'bid' survives only as a legacy alias
-        // (Q-OQR1-02) — the retired 'content'/'kb_section' value was dropped
-        // under ID-71 {71.5}.
+        // application_types vocabulary for the non-procurement domains
+        // (procurement/bid are short-circuited above).
         let query = supabase
           .from('workspaces')
           .select('id, name, application_types!inner(key)')
           .eq('is_archived', false);
 
         if (args.type) {
-          const typeFilter = args.type === 'bid' ? 'procurement' : args.type;
-          query = query.eq('application_types.key', typeFilter);
+          query = query.eq('application_types.key', args.type);
         }
 
         const workspaces = await sb(

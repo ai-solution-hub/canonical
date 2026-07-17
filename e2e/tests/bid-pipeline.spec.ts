@@ -336,13 +336,28 @@ test.describe('Procurement creation form', () => {
     await expect(createWithoutDocButton).toBeDisabled();
     await expect(nextButton).toBeDisabled();
 
-    // Pick a form type — now, with all three required inputs satisfied, both
-    // submit affordances enable.
+    // Pick a form type — selecting a radio only stages the choice locally
+    // (FormTypePicker's `setSelected`, form-type-picker.tsx:165); it does NOT
+    // fire `onConfirm`, so the wizard's `formType` state
+    // (procurement-creation-wizard.tsx:278 `onConfirm={(type) =>
+    // setFormType(type)}`) is still null and both submit affordances remain
+    // disabled. This is a deliberate two-step infer-then-confirm contract
+    // (WCAG-considered — selection and confirmation are separate controls,
+    // ID-130 {130.12}, re-verified {145.23}), not a bug: don't "fix" this by
+    // removing the confirm step below.
     await dialog
       .getByRole('radiogroup', { name: 'Form type' })
       .getByRole('radio')
       .first()
       .click();
+    await expect(createWithoutDocButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
+
+    // Click the separate "Confirm form type" button (form-type-picker.tsx:192-200)
+    // — only now does `onConfirm(selected)` fire, setting the wizard's
+    // `formType` and satisfying the third required input, so both submit
+    // affordances enable.
+    await dialog.getByRole('button', { name: /Confirm form type/ }).click();
     await expect(createWithoutDocButton).toBeEnabled();
     await expect(nextButton).toBeEnabled();
   });

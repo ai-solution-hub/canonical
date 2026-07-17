@@ -29,6 +29,7 @@ pytest.importorskip("pdfplumber", reason="pdfplumber not installed (requirements
 from scripts.cocoindex_pipeline.form_extractors.pdf import (
     PdfFieldDetectionError,
     PdfFieldDetectionResult,
+    _normalise_geometry,
     acroform_field_count,
     detect_pdf_fields,
 )
@@ -61,6 +62,147 @@ def sq_detection(sq_pdf_bytes: bytes) -> PdfFieldDetectionResult:
     return detect_pdf_fields(
         sq_pdf_bytes, "standard-selection-questionnaire-ppn-03-24.pdf"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Geometry normalisation (ID-147 {147.9}, TECH.md §3, DR-064 Option A;
+# PRODUCT §C1/§C4) — pure-function unit tests against known /Rect + page
+# dims, no commonforms detection run needed.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestNormaliseGeometry:
+    def test_zero_rotation_zero_origin_known_rect(self) -> None:
+        """No rotation, MediaBox origin (0, 0) — the baseline case: a
+        known /Rect near the top-left of the page maps to the expected
+        DISPLAYED top-left fractions (same math the pre-existing
+        ftop/fbottom flip already does, just fraction-normalised)."""
+        geometry = _normalise_geometry(
+            50.0,
+            700.0,
+            150.0,
+            750.0,
+            page_width=600.0,
+            page_height=800.0,
+            mediabox_llx=0.0,
+            mediabox_lly=0.0,
+            rotation=0,
+            page_number=3,
+        )
+        assert geometry["left"] == pytest.approx(50 / 600)
+        assert geometry["top"] == pytest.approx(50 / 800)
+        assert geometry["width"] == pytest.approx(100 / 600)
+        assert geometry["height"] == pytest.approx(50 / 800)
+        assert geometry["page"] == 3
+        assert geometry["rotation"] == 0
+
+    def test_rotate_90_non_zero_mediabox_origin(self) -> None:
+        """The load-bearing testStrategy fixture: a /Rotate 90 page with
+        a non-zero MediaBox origin must still yield the correct
+        DISPLAYED top-left box — guards §C4's "never a misaligned box"
+        against both failure modes the un-normalised code was exposed
+        to (rotation AND origin offset)."""
+        geometry = _normalise_geometry(
+            20.0,
+            180.0,
+            40.0,
+            200.0,
+            page_width=100.0,
+            page_height=200.0,
+            mediabox_llx=10.0,
+            mediabox_lly=20.0,
+            rotation=90,
+            page_number=5,
+        )
+        assert geometry["left"] == pytest.approx(0.8)
+        assert geometry["top"] == pytest.approx(0.1)
+        assert geometry["width"] == pytest.approx(0.1)
+        assert geometry["height"] == pytest.approx(0.2)
+        assert geometry["page"] == 5
+        assert geometry["rotation"] == 90
+
+    def test_rotate_180(self) -> None:
+        """A 180° page flips the box to the opposite corner — the same
+        rect as the zero-rotation case above now reads near the
+        bottom-right instead of the top-left."""
+        geometry = _normalise_geometry(
+            50.0,
+            700.0,
+            150.0,
+            750.0,
+            page_width=600.0,
+            page_height=800.0,
+            mediabox_llx=0.0,
+            mediabox_lly=0.0,
+            rotation=180,
+            page_number=0,
+        )
+        assert geometry["left"] == pytest.approx(0.75)
+        assert geometry["top"] == pytest.approx(0.875)
+        assert geometry["width"] == pytest.approx(100 / 600)
+        assert geometry["height"] == pytest.approx(50 / 800)
+        assert geometry["rotation"] == 180
+
+    def test_rotate_270_non_zero_mediabox_origin(self) -> None:
+        """The 270° counterpart of the /Rotate 90 fixture above — same
+        input rect, opposite rotation direction, distinct expected
+        placement (guards against a hard-coded 90-only transform)."""
+        geometry = _normalise_geometry(
+            20.0,
+            180.0,
+            40.0,
+            200.0,
+            page_width=100.0,
+            page_height=200.0,
+            mediabox_llx=10.0,
+            mediabox_lly=20.0,
+            rotation=270,
+            page_number=5,
+        )
+        assert geometry["left"] == pytest.approx(0.1)
+        assert geometry["top"] == pytest.approx(0.7)
+        assert geometry["width"] == pytest.approx(0.1)
+        assert geometry["height"] == pytest.approx(0.2)
+        assert geometry["rotation"] == 270
+
+    def test_unsupported_rotation_raises_value_error(self) -> None:
+        """A non-multiple-of-90 rotation (malformed /Rotate) must never
+        silently produce a box — the caller (detect_pdf_fields) catches
+        this and degrades to geometry=None per §C4."""
+        with pytest.raises(ValueError, match="unsupported page rotation"):
+            _normalise_geometry(
+                0.0,
+                0.0,
+                10.0,
+                10.0,
+                page_width=100.0,
+                page_height=100.0,
+                mediabox_llx=0.0,
+                mediabox_lly=0.0,
+                rotation=45,
+                page_number=0,
+            )
+
+    def test_all_fractions_within_unit_range_when_rect_is_on_page(self) -> None:
+        """A /Rect that lies fully within the page bounds must normalise
+        to fractions within [0, 1] — a sanity bound that would catch a
+        sign error or an axis swap the individual value assertions above
+        might not."""
+        for rotation in (0, 90, 180, 270):
+            geometry = _normalise_geometry(
+                10.0,
+                10.0,
+                20.0,
+                20.0,
+                page_width=100.0,
+                page_height=50.0,
+                mediabox_llx=0.0,
+                mediabox_lly=0.0,
+                rotation=rotation,
+                page_number=0,
+            )
+            for key in ("left", "top", "width", "height"):
+                assert 0.0 <= geometry[key] <= 1.0, (rotation, key, geometry)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -125,6 +267,28 @@ class TestDetectionBaseline:
         field count matches detection — proves the artefact is genuinely
         fillable, not just a passthrough copy of the flat original."""
         assert acroform_field_count(sq_detection.fillable_pdf_bytes) == _MEASURED_FIELD_COUNT
+
+    def test_every_field_has_well_formed_displayed_space_geometry(
+        self, sq_detection: PdfFieldDetectionResult
+    ) -> None:
+        """End-to-end wiring check (ID-147 {147.9}): every detected field
+        on the real SQ PDF carries a geometry dict with the expected
+        shape and in-range fractions — the un-rotated real-world case
+        (this fixture is a standard portrait PDF, rotation 0)."""
+        for field in sq_detection.fields:
+            assert field.geometry is not None
+            assert set(field.geometry) == {
+                "left",
+                "top",
+                "width",
+                "height",
+                "page",
+                "rotation",
+            }
+            assert field.geometry["page"] == field.page_number
+            assert field.geometry["rotation"] in (0, 90, 180, 270)
+            for key in ("left", "top", "width", "height"):
+                assert 0.0 <= field.geometry[key] <= 1.0, (field.field_name, key)
 
 
 # ──────────────────────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ import {
   extractPDFQuestions,
 } from '@/lib/domains/procurement/ai/extract-questions';
 import { callSummaryAI } from '@/lib/ai/summarise';
+import { deriveVisionHighlightLive } from '@/lib/domains/procurement/citation-vision-rasterise';
 
 /** Recursively assert every object node closes additionalProperties. */
 function assertClosed(schema: unknown, path = 'input_schema'): void {
@@ -223,5 +224,36 @@ describe('forced_tool_strict touchpoints', () => {
     const call = mockCreate.mock.calls[0][0];
     assertForcedToolStrict(call);
     assertNoCitationStructuredCombo(call);
+  });
+
+  it('deriveVisionHighlightLive (ID-147 {147.12} B2, live-wired at ID-145 {145.47}) forces a strict, closed tool', async () => {
+    mockCreate.mockResolvedValueOnce({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          name: 'report_citation_bounding_box',
+          input: { found: true, x1: 0, y1: 0, x2: 462, y2: 653.5 },
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+
+    const result = await deriveVisionHighlightLive(
+      { mediaType: 'image/png', base64: 'FAKE_BASE64' },
+      'total contract value',
+      { width: 924, height: 1307 },
+    );
+
+    const call = mockCreate.mock.calls[0][0];
+    assertForcedToolStrict(call);
+    assertNoCitationStructuredCombo(call);
+    // The live call delegates to the pure B2 math (147.12) unchanged —
+    // resolving to a mapped highlight from the mocked tool_use response.
+    expect(result).toEqual({
+      status: 'mapped',
+      method: 'vision',
+      area: { left: 0, top: 0, width: 50, height: 50 },
+    });
   });
 });

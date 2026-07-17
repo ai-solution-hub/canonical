@@ -12,6 +12,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import type {
+  FacetOwnerKind,
+  RecordEmbeddingsOwnerKind,
+} from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -523,7 +527,10 @@ export async function fetchTemplateRequirements(
     const embeddingsResult = await supabase
       .from('record_embeddings')
       .select('owner_id, embedding')
-      .eq('owner_kind', 'form_template_requirement')
+      .eq(
+        'owner_kind',
+        'form_template_requirement' satisfies RecordEmbeddingsOwnerKind,
+      )
       .in(
         'owner_id',
         rows.map((row) => row.id),
@@ -630,7 +637,10 @@ export async function fetchContentForMatching(
   const embeddingsResult = await supabase
     .from('record_embeddings')
     .select('owner_id, embedding')
-    .in('owner_kind', ['q_a_pair', 'reference_item'])
+    .in('owner_kind', [
+      'q_a_pair',
+      'reference_item',
+    ] satisfies RecordEmbeddingsOwnerKind[])
     .in('owner_id', allIds)
     .eq('model', EMBEDDING_MODEL);
 
@@ -658,7 +668,7 @@ export async function fetchContentForMatching(
     const facetResult = await supabase
       .from('record_lifecycle')
       .select('owner_id, domain')
-      .eq('owner_kind', 'q_a_pair')
+      .eq('owner_kind', 'q_a_pair' satisfies FacetOwnerKind)
       .in('owner_id', qaIds);
 
     if (facetResult.error) {

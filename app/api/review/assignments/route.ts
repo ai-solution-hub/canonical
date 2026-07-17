@@ -15,6 +15,7 @@ import {
   ReviewAssignmentUpdateSchema,
   ReviewAssignmentsParamsSchema,
 } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -149,7 +150,7 @@ export const POST = defineRoute(
             head: true,
           },
         )
-        .eq('owner_kind', 'source_document');
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind);
 
       if (filter_domains.length > 0) {
         countQuery = countQuery.in(

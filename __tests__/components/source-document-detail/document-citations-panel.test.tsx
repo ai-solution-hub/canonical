@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import type {
+  CitationSummary,
   CitationsByKind,
   DocumentCitationsResponse,
 } from '@/hooks/source-document-detail/use-source-document-detail';
@@ -179,5 +180,111 @@ describe('DocumentCitationsPanel', () => {
 
     screen.getByRole('button', { name: /try again/i }).click();
     expect(mockRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  describe('§D wiring — bidirectional selection (ID-145 {145.47})', () => {
+    function citationRow(
+      overrides: Partial<CitationSummary> = {},
+    ): CitationSummary {
+      return {
+        id: 'cite-1',
+        cited_kind: 'q_a_pair',
+        citing_kind: 'form_response',
+        citation_type: 'reference',
+        cited_text: 'What is the tender deadline?',
+        cited_q_a_pair_id: 'qa-1',
+        cited_reference_item_id: null,
+        cited_source_document_id: null,
+        cited_concept_path: null,
+        created_at: '2026-03-14T09:00:00.000Z',
+        ...overrides,
+      };
+    }
+
+    it('renders plain, non-interactive rows when onSelectCitation is omitted (backward compatible)', () => {
+      mockUseDocumentCitations.mockReturnValue({
+        data: makeResponse({ q_a_pair: [citationRow()] }),
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      });
+      render(<DocumentCitationsPanel documentId={DOCUMENT_ID} />);
+
+      expect(
+        screen.queryByRole('button', { name: /tender deadline/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders a row as a selectable button and reports the shared id on click', () => {
+      const handleSelect = vi.fn();
+      mockUseDocumentCitations.mockReturnValue({
+        data: makeResponse({ q_a_pair: [citationRow()] }),
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      });
+      render(
+        <DocumentCitationsPanel
+          documentId={DOCUMENT_ID}
+          onSelectCitation={handleSelect}
+        />,
+      );
+
+      const button = screen.getByRole('button', {
+        name: /tender deadline/i,
+      });
+      button.click();
+      expect(handleSelect).toHaveBeenCalledWith('cite-1');
+    });
+
+    it('marks the row aria-pressed when its id matches the shared selectedId', () => {
+      mockUseDocumentCitations.mockReturnValue({
+        data: makeResponse({ q_a_pair: [citationRow()] }),
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      });
+      render(
+        <DocumentCitationsPanel
+          documentId={DOCUMENT_ID}
+          selectedId="cite-1"
+          onSelectCitation={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole('button', { name: /tender deadline/i }),
+      ).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('shows a text+icon "On page" hint only for citations in resolvedCitationIds', () => {
+      mockUseDocumentCitations.mockReturnValue({
+        data: makeResponse({
+          q_a_pair: [
+            citationRow({ id: 'cite-1', cited_text: 'Resolved citation' }),
+            citationRow({ id: 'cite-2', cited_text: 'Unresolved citation' }),
+          ],
+        }),
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      });
+      render(
+        <DocumentCitationsPanel
+          documentId={DOCUMENT_ID}
+          onSelectCitation={vi.fn()}
+          resolvedCitationIds={new Set(['cite-1'])}
+        />,
+      );
+
+      const resolvedRow = screen
+        .getByText('Resolved citation')
+        .closest('button')!;
+      const unresolvedRow = screen
+        .getByText('Unresolved citation')
+        .closest('button')!;
+      expect(resolvedRow).toHaveTextContent('On page');
+      expect(unresolvedRow).not.toHaveTextContent('On page');
+    });
   });
 });

@@ -486,10 +486,10 @@ export function LibraryContent() {
           onBulkDelete={bulk.handleBulkDelete}
           assignDialogOpen={bulk.assignDialogOpen}
           onAssignDialogOpenChange={bulk.setAssignDialogOpen}
-          workspaces={bulk.workspaces}
-          workspacesLoading={bulk.workspacesLoading}
-          selectedWorkspaceId={bulk.selectedWorkspaceId}
-          onSelectedWorkspaceIdChange={bulk.setSelectedWorkspaceId}
+          engagementGroups={bulk.engagementGroups}
+          engagementGroupsLoading={bulk.engagementGroupsLoading}
+          selectedEngagementGroupId={bulk.selectedEngagementGroupId}
+          onSelectedEngagementGroupIdChange={bulk.setSelectedEngagementGroupId}
           onOpenAssignDialog={bulk.handleBulkAssignOpen}
           onConfirmAssign={bulk.handleBulkAssignConfirm}
         />

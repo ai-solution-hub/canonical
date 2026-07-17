@@ -15,6 +15,7 @@ import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { embeddingPreFilter, scoreRelevance } from './relevance-scorer';
 import { generateArticleSummary } from './article-summariser';
 import { generateEmbedding } from '@/lib/ai/embed';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import type {
   CompanyContext,
   FeedProcessingResult,
@@ -133,7 +134,7 @@ async function loadOrGenerateCompanyEmbedding(
     supabase
       .from('record_embeddings')
       .select('embedding')
-      .eq('owner_kind', 'company_profile')
+      .eq('owner_kind', 'company_profile' satisfies RecordEmbeddingsOwnerKind)
       .eq('owner_id', profileId)
       .eq('model', COMPANY_PROFILE_EMBEDDING_MODEL)
       .maybeSingle(),
@@ -172,7 +173,7 @@ async function loadOrGenerateCompanyEmbedding(
   await sb(
     supabase.from('record_embeddings').upsert(
       {
-        owner_kind: 'company_profile',
+        owner_kind: 'company_profile' satisfies RecordEmbeddingsOwnerKind,
         owner_id: profileId,
         model: COMPANY_PROFILE_EMBEDDING_MODEL,
         embedding: JSON.stringify(embedding),

@@ -260,6 +260,42 @@ describe('ReviewActionBodySchema', () => {
     const result = ReviewActionBodySchema.safeParse({ item_id: VALID_UUID });
     expect(result.success).toBe(false);
   });
+
+  // ID-152 (owner ruling Option B): owner_kind discriminator for the
+  // polymorphic {source_document, q_a_pair} existence lookup.
+  it('should accept omitted owner_kind (back-compat default path)', () => {
+    const result = ReviewActionBodySchema.safeParse({
+      item_id: VALID_UUID,
+      action: 'verify',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.owner_kind).toBeUndefined();
+    }
+  });
+
+  it('should accept an explicit owner_kind of source_document or q_a_pair', () => {
+    for (const owner_kind of ['source_document', 'q_a_pair'] as const) {
+      const result = ReviewActionBodySchema.safeParse({
+        item_id: VALID_UUID,
+        action: 'verify',
+        owner_kind,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.owner_kind).toBe(owner_kind);
+      }
+    }
+  });
+
+  it('should reject an invalid owner_kind', () => {
+    const result = ReviewActionBodySchema.safeParse({
+      item_id: VALID_UUID,
+      action: 'verify',
+      owner_kind: 'reference_item',
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('SummaryGenerateBodySchema', () => {

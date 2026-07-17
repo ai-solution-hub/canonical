@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { parseBody } from '@/lib/validation';
 import { EntityMetadataUpdateSchema } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database, Json } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -133,7 +134,7 @@ export const PATCH = defineRoute(
                 const { error: propagateError } = await supabase
                   .from('record_lifecycle')
                   .update(updatePayload)
-                  .eq('owner_kind', 'source_document')
+                  .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
                   .in('source_document_id', contentIds);
 
                 if (propagateError) {

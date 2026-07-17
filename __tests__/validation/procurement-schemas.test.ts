@@ -6,6 +6,9 @@ import {
   QuestionCreateBodySchema,
   QuestionUpdateBodySchema,
   QuestionMatchBodySchema,
+  CreateProcurementFormBodySchema,
+  UpdateProcurementFormTypeBodySchema,
+  PROCUREMENT_FORM_TYPE_KEYS,
 } from '@/lib/validation/schemas';
 
 describe('bid validation schemas', () => {
@@ -329,6 +332,46 @@ describe('bid validation schemas', () => {
         evaluation_weight: null,
       });
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('CreateProcurementFormBodySchema (BI-8 regression guard)', () => {
+    it('accepts each live form_type key', () => {
+      for (const formType of PROCUREMENT_FORM_TYPE_KEYS) {
+        const result = CreateProcurementFormBodySchema.safeParse({
+          form_type: formType,
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it("rejects the retired 'bid' form_type (ID-145 BI-8)", () => {
+      const result = CreateProcurementFormBodySchema.safeParse({
+        form_type: 'bid',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("PROCUREMENT_FORM_TYPE_KEYS no longer admits 'bid'", () => {
+      expect(PROCUREMENT_FORM_TYPE_KEYS).not.toContain('bid');
+    });
+  });
+
+  describe('UpdateProcurementFormTypeBodySchema (BI-8 regression guard)', () => {
+    it('accepts a live form_type key with a form_id', () => {
+      const result = UpdateProcurementFormTypeBodySchema.safeParse({
+        form_id: '550e8400-e29b-41d4-a716-446655440000',
+        form_type: 'itt',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects the retired 'bid' form_type (ID-145 BI-8)", () => {
+      const result = UpdateProcurementFormTypeBodySchema.safeParse({
+        form_id: '550e8400-e29b-41d4-a716-446655440000',
+        form_type: 'bid',
+      });
+      expect(result.success).toBe(false);
     });
   });
 

@@ -421,25 +421,25 @@ describe('formatCitation', () => {
   // blank/undefined field.
   it.each([
     {
-      cited_kind: 'q_a_pair',
+      cited_kind: 'q_a_pair' as const,
       field: 'cited_q_a_pair_id' as const,
       value: 'qap-111',
       label: 'Q&A pair',
     },
     {
-      cited_kind: 'reference_item',
+      cited_kind: 'reference_item' as const,
       field: 'cited_reference_item_id' as const,
       value: 'ref-222',
       label: 'Reference item',
     },
     {
-      cited_kind: 'source_document',
+      cited_kind: 'source_document' as const,
       field: 'cited_source_document_id' as const,
       value: 'sd-333',
       label: 'Source document',
     },
     {
-      cited_kind: 'concept',
+      cited_kind: 'concept' as const,
       field: 'cited_concept_path' as const,
       value: 'concept/path/foo',
       label: 'Concept',

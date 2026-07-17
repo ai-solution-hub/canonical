@@ -31,6 +31,11 @@
  * `GET /api/okf/[bundleId]/file` TanStack Query call and passes
  * `content`/`isLoading`/`isError` down (mirrors the `<ConceptDetail>` /
  * `RelatedRecordsRail` pattern elsewhere in this codebase).
+ *
+ * `code`/`strong` overrides are the shared a11y/test-hostile-default fix
+ * (ID-161, `components/shared/streamdown-components.tsx`) — merged with
+ * this component's own `a` override below rather than replacing it, since
+ * the in-app-navigation-vs-external-anchor logic here is site-specific.
  */
 import { useMemo } from 'react';
 import Link from 'next/link';
@@ -41,6 +46,7 @@ import {
   normaliseInternalMdLinksForStreamdown,
   INTERNAL_LINK_MARKER,
 } from '@/lib/okf/prepare-streamdown-content';
+import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 
 interface FileRenderPaneProps {
   bundleId: string;
@@ -67,6 +73,7 @@ export function FileRenderPane({
 }: FileRenderPaneProps) {
   const markdownComponents = useMemo<Components>(
     () => ({
+      ...sharedStreamdownComponents,
       a: ({ href, children, ...props }) => {
         if (href && href.startsWith(INTERNAL_LINK_MARKER)) {
           const targetPath = href

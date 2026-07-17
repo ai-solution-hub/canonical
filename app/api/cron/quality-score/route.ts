@@ -22,6 +22,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 export const maxDuration = 50;
 
@@ -181,7 +182,7 @@ export async function GET(request: NextRequest) {
           // cadence-compliance modifier in calculateAndRoundQualityScore.
           'source_document_id, freshness, governance_review_status, verified_at, next_review_date, review_cadence_days, source_documents!inner(id, suggested_title, filename, primary_domain, classification_confidence, summary, archived_at)',
         )
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .is('source_documents.archived_at', null)
         .order('source_document_id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -376,7 +377,7 @@ export async function GET(request: NextRequest) {
             governance_review_due: reviewDue,
             governance_reviewer_id: item.reviewerId,
           })
-          .eq('owner_kind', 'source_document')
+          .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
           .eq('source_document_id', item.itemId);
       }
 

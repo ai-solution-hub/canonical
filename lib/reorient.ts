@@ -129,22 +129,27 @@ export async function fetchReorientData(
         .is('read_at', null)
         .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
-      // 4: Procurement response changes by others (team changes)
+      // 4: Procurement response changes by others (team changes). ID-145
+      // {145.48}: re-pointed off the DROPPED form_questions.workspace_id +
+      // workspaces join ({145.6} M3) onto form_instance_id (form_questions'
+      // own column) + a form_instances join for the display title.
       supabase
         .from('form_response_history')
         .select(
-          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, workspaces!inner(name)))',
+          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(form_instance_id, form_instances!inner(name, issuing_organisation)))',
         )
         .gt('created_at', sinceDate)
         .neq('edited_by', userId)
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // 5: User's own bid response edits (recent work)
+      // 5: User's own bid response edits (recent work). ID-145 {145.48}:
+      // form_instance_id is already the row's own procurement identifier —
+      // no workspaces/form_instances join needed for it.
       supabase
         .from('form_response_history')
         .select(
-          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(workspace_id, question_text, workspaces!inner(id, name)))',
+          'id, response_id, edited_by, created_at, form_responses!inner(question_id, form_questions!inner(form_instance_id, question_text))',
         )
         .eq('edited_by', userId)
         .order('created_at', { ascending: false })

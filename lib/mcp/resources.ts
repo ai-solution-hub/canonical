@@ -37,6 +37,7 @@ import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 // Lazy import — dashboard module pulls in bid-queries and other heavy modules
 // that can cause Vercel serverless cold start crashes at module evaluation time.
@@ -131,7 +132,7 @@ export async function registerResources(server: McpServer): Promise<void> {
           supabase
             .from('record_lifecycle')
             .select('freshness')
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', sd.id!)
             .maybeSingle(),
           'mcp.resources.content_item.read.lifecycle',

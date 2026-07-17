@@ -366,7 +366,11 @@ describe('Procurement Drafting Pipeline', () => {
       );
 
       const call = mockCreate.mock.calls[0][0];
-      const systemText = call.system[0].text;
+      // ID-154: regeneration instructions vary per call, so they belong in
+      // the UNCACHED (per-question) system block — never the cached block,
+      // which must stay byte-identical across questions for the prompt
+      // cache to hit.
+      const systemText = call.system[1].text;
       expect(systemText).toContain('ADDITIONAL INSTRUCTIONS FROM REVIEWER');
       expect(systemText).toContain(
         'Add more detail about encryption standards',
@@ -436,8 +440,123 @@ describe('Procurement Drafting Pipeline', () => {
       await draftResponse(testQuestion, testContent, defaultAnalysis);
 
       const call = mockCreate.mock.calls[0][0];
-      const systemText = call.system[0].text;
+      // ID-154: word limit is per-question — lives in the uncached block.
+      const systemText = call.system[1].text;
       expect(systemText).toContain('90-95% of the 500-word limit');
+    });
+
+    // ── ID-154: prompt-cache placement fix ────────────────────────────────
+    //
+    // Regression coverage for the bug: cache_control previously sat on the
+    // whole (per-question-rebuilt) system block, so cache_read stayed ~0
+    // and — because a changed prefix invalidates every breakpoint after it
+    // — busted the 3 downstream search_result breakpoints too. The fix
+    // splits system into a CACHED block (skills + stable role/rules —
+    // carries the sole system cache_control breakpoint) and an UNCACHED
+    // block (per-question word limit/structure/tone/regen instructions).
+
+    it('splits system into a cached (stable) block and an uncached (per-question) block', async () => {
+      mockCreate.mockResolvedValueOnce(mockCitedResponse('Response.', []));
+
+      await draftResponse(
+        testQuestion,
+        testContent,
+        defaultAnalysis,
+        'drafting',
+        'Some regen instructions',
+      );
+
+      const call = mockCreate.mock.calls[0][0];
+      expect(call.system).toHaveLength(2);
+      // Only the cached block carries the breakpoint.
+      expect(call.system[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect(call.system[1]).not.toHaveProperty('cache_control');
+      // Per-question content lives ONLY in the uncached block.
+      expect(call.system[1].text).toContain('90-95% of the 500-word limit');
+      expect(call.system[1].text).toContain(
+        'ADDITIONAL INSTRUCTIONS FROM REVIEWER',
+      );
+      expect(call.system[0].text).not.toContain('90-95% of the 500-word limit');
+      expect(call.system[0].text).not.toContain(
+        'ADDITIONAL INSTRUCTIONS FROM REVIEWER',
+      );
+    });
+
+    it('keeps the cached system block byte-identical across different questions (real cache hits)', async () => {
+      mockCreate
+        .mockResolvedValueOnce(mockCitedResponse('Response 1.', []))
+        .mockResolvedValueOnce(mockCitedResponse('Response 2.', []));
+
+      await draftResponse(testQuestion, testContent, defaultAnalysis);
+      const firstCachedText = mockCreate.mock.calls[0][0].system[0].text;
+
+      const differentAnalysis: QuestionAnalysis = {
+        ...defaultAnalysis,
+        tone: 'conversational',
+        key_points_to_cover: ['Something else entirely'],
+        response_structure: {
+          suggested_headings: ['Different', 'Headings'],
+          word_allocation: [],
+        },
+      };
+      const differentQuestion: DraftableQuestion = {
+        ...testQuestion,
+        word_limit: 250,
+      };
+
+      await draftResponse(
+        differentQuestion,
+        testContent,
+        differentAnalysis,
+        'drafting',
+        'Totally different regen instructions',
+      );
+      const secondCachedText = mockCreate.mock.calls[1][0].system[0].text;
+
+      expect(secondCachedText).toBe(firstCachedText);
+    });
+
+    it('respects the 4 cache_control breakpoint budget (1 system + 3 sources)', async () => {
+      const fiveItems: DraftableContent[] = [
+        ...testContent,
+        {
+          id: 'c-003',
+          title: 'Item 3',
+          content: 'Content 3',
+          content_type: 'article',
+          summary: 'Summary 3',
+        },
+        {
+          id: 'c-004',
+          title: 'Item 4',
+          content: 'Content 4',
+          content_type: 'article',
+          summary: 'Summary 4',
+        },
+        {
+          id: 'c-005',
+          title: 'Item 5',
+          content: 'Content 5',
+          content_type: 'article',
+          summary: 'Summary 5',
+        },
+      ];
+      mockCreate.mockResolvedValueOnce(mockCitedResponse('Response.', []));
+
+      await draftResponse(testQuestion, fiveItems, defaultAnalysis);
+
+      const call = mockCreate.mock.calls[0][0];
+      const systemBreakpoints = call.system.filter(
+        (b: { cache_control?: unknown }) => b.cache_control,
+      ).length;
+      const sourceBreakpoints = call.messages[0].content.filter(
+        (b: { type: string; cache_control?: unknown }) =>
+          b.type === 'search_result' && b.cache_control,
+      ).length;
+
+      expect(systemBreakpoints).toBe(1);
+      expect(sourceBreakpoints).toBe(3);
+      expect(systemBreakpoints + sourceBreakpoints).toBeLessThanOrEqual(4);
     });
   });
 
@@ -651,9 +770,10 @@ describe('Procurement Drafting Pipeline', () => {
         'Focus more on encryption standards',
       );
 
-      // Verify Pass 2 received the instructions
+      // Verify Pass 2 received the instructions (ID-154: in the uncached,
+      // per-question system block — index 1).
       const pass2Call = mockCreate.mock.calls[1][0];
-      expect(pass2Call.system[0].text).toContain(
+      expect(pass2Call.system[1].text).toContain(
         'Focus more on encryption standards',
       );
     });

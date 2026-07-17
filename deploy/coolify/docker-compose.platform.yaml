@@ -238,6 +238,13 @@ services:
   # ----------------------------------------------------------------------------
   bid-worker-platform:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    # DR-059 provisioning note (ID-145 {145.31}): LibreOffice (soffice) for
+    # this worker's .doc/.xls convert-on-upload lane is baked into THIS
+    # shared image by the "Bake git + LibreOffice" post-pack layer in
+    # .github/workflows/onprem-deploy.yml — not a change here or to any
+    # buildpack/Dockerfile. cocoindex-platform above shares the same image
+    # but never calls soffice itself (accepted bloat, G8 folded-worker
+    # decision — see the block comment above this service).
     container_name: ca-bid-worker-platform
     restart: unless-stopped
     # ID-145 {145.13} invocation note (see scripts/bid_worker.py's own

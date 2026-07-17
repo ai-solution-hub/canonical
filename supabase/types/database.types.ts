@@ -536,6 +536,74 @@ export type Database = {
           },
         ]
       }
+      engagement_group_content: {
+        Row: {
+          created_at: string | null
+          engagement_group_id: string | null
+          id: string | null
+          q_a_pair_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          engagement_group_id?: string | null
+          id?: string | null
+          q_a_pair_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          engagement_group_id?: string | null
+          id?: string | null
+          q_a_pair_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_group_content_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_group_content_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_groups: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string | null
+          name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_groups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entity_aliases: {
         Row: {
           alias: string | null
@@ -1293,6 +1361,13 @@ export type Database = {
           workflow_state?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "form_instances_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "form_templates_created_by_fkey"
             columns: ["created_by"]
@@ -2182,6 +2257,41 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      promotion_dispositions: {
+        Row: {
+          action: string | null
+          actor: string | null
+          created_at: string | null
+          extraction_id: string | null
+          id: string | null
+          proposed_snapshot: Json | null
+        }
+        Insert: {
+          action?: string | null
+          actor?: string | null
+          created_at?: string | null
+          extraction_id?: string | null
+          id?: string | null
+          proposed_snapshot?: Json | null
+        }
+        Update: {
+          action?: string | null
+          actor?: string | null
+          created_at?: string | null
+          extraction_id?: string | null
+          id?: string | null
+          proposed_snapshot?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_dispositions_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       q_a_extractions: {
         Row: {
@@ -3354,24 +3464,30 @@ export type Database = {
           action_type: string | null
           id: string | null
           note: string | null
+          owner_kind: string | null
           performed_at: string | null
           performed_by: string | null
+          q_a_pair_id: string | null
           source_document_id: string | null
         }
         Insert: {
           action_type?: string | null
           id?: string | null
           note?: string | null
+          owner_kind?: string | null
           performed_at?: string | null
           performed_by?: string | null
+          q_a_pair_id?: string | null
           source_document_id?: string | null
         }
         Update: {
           action_type?: string | null
           id?: string | null
           note?: string | null
+          owner_kind?: string | null
           performed_at?: string | null
           performed_by?: string | null
+          q_a_pair_id?: string | null
           source_document_id?: string | null
         }
         Relationships: [
@@ -3380,6 +3496,13 @@ export type Database = {
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_history_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
             referencedColumns: ["id"]
           },
           {
@@ -4563,6 +4686,42 @@ export type Database = {
           },
         ]
       }
+      engagement_group_content: {
+        Row: {
+          created_at: string
+          engagement_group_id: string
+          id: string
+          q_a_pair_id: string
+        }
+        Insert: {
+          created_at?: string
+          engagement_group_id: string
+          id?: string
+          q_a_pair_id: string
+        }
+        Update: {
+          created_at?: string
+          engagement_group_id?: string
+          id?: string
+          q_a_pair_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_group_content_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_group_content_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engagement_groups: {
         Row: {
           created_at: string
@@ -4636,6 +4795,7 @@ export type Database = {
           normalisation_version: number | null
           op_id: string | null
           source_document_id: string
+          updated_at: string
         }
         Insert: {
           canonical_name: string
@@ -4650,6 +4810,7 @@ export type Database = {
           normalisation_version?: number | null
           op_id?: string | null
           source_document_id: string
+          updated_at?: string
         }
         Update: {
           canonical_name?: string
@@ -4664,6 +4825,7 @@ export type Database = {
           normalisation_version?: number | null
           op_id?: string | null
           source_document_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -4714,6 +4876,7 @@ export type Database = {
           source_document_id: string | null
           source_entity: string
           target_entity: string
+          updated_at: string
         }
         Insert: {
           confidence?: number | null
@@ -4723,6 +4886,7 @@ export type Database = {
           source_document_id?: string | null
           source_entity: string
           target_entity: string
+          updated_at?: string
         }
         Update: {
           confidence?: number | null
@@ -4732,6 +4896,7 @@ export type Database = {
           source_document_id?: string | null
           source_entity?: string
           target_entity?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -5203,6 +5368,67 @@ export type Database = {
           },
         ]
       }
+      form_attachments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          engagement_group_id: string | null
+          file_size: number | null
+          filename: string
+          form_instance_id: string | null
+          id: string
+          mime_type: string | null
+          role: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          engagement_group_id?: string | null
+          file_size?: number | null
+          filename: string
+          form_instance_id?: string | null
+          id?: string
+          mime_type?: string | null
+          role: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          engagement_group_id?: string | null
+          file_size?: number | null
+          filename?: string
+          form_instance_id?: string | null
+          id?: string
+          mime_type?: string | null
+          role?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_attachments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_attachments_engagement_group_id_fkey"
+            columns: ["engagement_group_id"]
+            isOneToOne: false
+            referencedRelation: "engagement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_attachments_form_instance_id_fkey"
+            columns: ["form_instance_id"]
+            isOneToOne: false
+            referencedRelation: "form_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_instance_fields: {
         Row: {
           col_index: number | null
@@ -5211,6 +5437,7 @@ export type Database = {
           fill_error: string | null
           fill_status: string
           form_instance_id: string
+          geometry: Json | null
           id: string
           is_mandatory: boolean | null
           mapping_confidence: number | null
@@ -5233,6 +5460,7 @@ export type Database = {
           fill_error?: string | null
           fill_status?: string
           form_instance_id: string
+          geometry?: Json | null
           id?: string
           is_mandatory?: boolean | null
           mapping_confidence?: number | null
@@ -5255,6 +5483,7 @@ export type Database = {
           fill_error?: string | null
           fill_status?: string
           form_instance_id?: string
+          geometry?: Json | null
           id?: string
           is_mandatory?: boolean | null
           mapping_confidence?: number | null
@@ -6304,6 +6533,41 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: true
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotion_dispositions: {
+        Row: {
+          action: string
+          actor: string
+          created_at: string
+          extraction_id: string
+          id: string
+          proposed_snapshot: Json
+        }
+        Insert: {
+          action: string
+          actor: string
+          created_at?: string
+          extraction_id: string
+          id?: string
+          proposed_snapshot: Json
+        }
+        Update: {
+          action?: string
+          actor?: string
+          created_at?: string
+          extraction_id?: string
+          id?: string
+          proposed_snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_dispositions_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_extractions"
             referencedColumns: ["id"]
           },
         ]
@@ -7595,25 +7859,31 @@ export type Database = {
           action_type: string
           id: string
           note: string | null
+          owner_kind: string
           performed_at: string
           performed_by: string
-          source_document_id: string
+          q_a_pair_id: string | null
+          source_document_id: string | null
         }
         Insert: {
           action_type: string
           id?: string
           note?: string | null
+          owner_kind?: string
           performed_at?: string
           performed_by: string
-          source_document_id: string
+          q_a_pair_id?: string | null
+          source_document_id?: string | null
         }
         Update: {
           action_type?: string
           id?: string
           note?: string | null
+          owner_kind?: string
           performed_at?: string
           performed_by?: string
-          source_document_id?: string
+          q_a_pair_id?: string | null
+          source_document_id?: string | null
         }
         Relationships: [
           {
@@ -7621,6 +7891,13 @@ export type Database = {
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_history_q_a_pair_id_fkey"
+            columns: ["q_a_pair_id"]
+            isOneToOne: false
+            referencedRelation: "q_a_pairs"
             referencedColumns: ["id"]
           },
           {

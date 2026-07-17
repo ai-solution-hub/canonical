@@ -115,6 +115,19 @@ class PdfDetectedField(BaseModel):
     """PDF-point-space ``(x0, y0, x1, y1)``, origin bottom-left —
     the widget's ``/Rect`` as written by commonforms."""
 
+    geometry: dict[str, float | int] | None = None
+    """DISPLAYED (post-rotation) top-left page-fraction geometry —
+    ``{left, top, width, height, page, rotation}`` (TECH.md §3, DR-064
+    Option A). ``left``/``top``/``width``/``height`` are fractions of
+    the DISPLAYED page (post-rotation) in ``[0, 1]`` — the persisted
+    form is already what the UI consumes (``× 100`` = Extend
+    ``HighlightArea``), no rotation/flip math owed downstream.
+    ``page`` mirrors ``page_number``; ``rotation`` is the page's
+    ``/Rotate`` value in ``{0, 90, 180, 270}`` (audit/cross-check only —
+    the fractions are already rotation-normalised). ``None`` when the
+    page's rotation could not be normalised (see ``_normalise_geometry``)
+    — §C4 degrade, never a misaligned box."""
+
     question_text: str
     """Nearby label text paired via pdfplumber word positions on the
     ORIGINAL page (mandatory per TECH.md §3.2 — never empty on a real
@@ -254,6 +267,105 @@ def _pair_label(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Geometry normalisation (TECH.md §3, DR-064 Option A; PRODUCT §C1/§C4)
+# ──────────────────────────────────────────────────────────────────────────
+
+_VALID_ROTATIONS = (0, 90, 180, 270)
+"""Legal ``/Rotate`` values per PDF Reference Table 3.27 ("must be a
+multiple of 90")."""
+
+
+def _normalise_geometry(
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    *,
+    page_width: float,
+    page_height: float,
+    mediabox_llx: float,
+    mediabox_lly: float,
+    rotation: int,
+    page_number: int,
+) -> dict[str, float | int]:
+    """Normalise a widget's raw ``/Rect`` bbox into DISPLAYED
+    (post-rotation) top-left page-fraction space.
+
+    ``x0, y0, x1, y1`` are the widget's ``/Rect`` as read back from the
+    fillable PDF — PDF points, bottom-left origin, in the page's raw
+    (unrotated) coordinate space (annotation rects are never affected by
+    ``/Rotate`` — TECH.md §3). ``page_width``/``page_height`` are the
+    RAW (unrotated) MediaBox dimensions and ``mediabox_llx``/
+    ``mediabox_lly`` its origin — the DISPLAYED dimensions (swapped for
+    a 90/270 rotation) are derived here, not passed in.
+
+    Three steps: (1) offset by the MediaBox origin so coordinates are
+    page-relative; (2) flip to visual top-left/y-down space (the same
+    ``page_height - y`` flip the detection loop below already does for
+    ``ftop``/``fbottom``, generalised for a non-zero MediaBox origin);
+    (3) apply the page-rotation transform (clockwise, per PDF Reference
+    Table 3.27) to both corners, then divide by the DISPLAYED page
+    dimensions. Cross-validated against ``pdfplumber``'s own
+    ``Page.annots`` rotation handling (``page.py::rotate_point``) for
+    90°/270°, and self-consistent under composition (four successive 90°
+    transforms return the identity).
+
+    Raises:
+        ValueError: ``rotation`` is not one of ``{0, 90, 180, 270}`` —
+            callers degrade to ``geometry=None`` (§C4 — never propagate
+            a misaligned box from an unnormalisable rotation).
+    """
+    if rotation not in _VALID_ROTATIONS:
+        raise ValueError(f"unsupported page rotation: {rotation!r}")
+
+    # 1. Offset by the MediaBox origin -> page-relative raw (unrotated,
+    #    bottom-left) space.
+    rx0, rx1 = x0 - mediabox_llx, x1 - mediabox_llx
+    ry0, ry1 = y0 - mediabox_lly, y1 - mediabox_lly
+
+    # 2. Flip to visual (top-left, y-down) UNROTATED space.
+    v_left, v_right = rx0, rx1
+    v_top, v_bottom = page_height - ry1, page_height - ry0
+
+    # 3. Apply the page-rotation transform to both corners.
+    if rotation == 0:
+        corners = ((v_left, v_top), (v_right, v_bottom))
+        displayed_width, displayed_height = page_width, page_height
+    elif rotation == 90:
+        corners = (
+            (page_height - v_top, v_left),
+            (page_height - v_bottom, v_right),
+        )
+        displayed_width, displayed_height = page_height, page_width
+    elif rotation == 180:
+        corners = (
+            (page_width - v_left, page_height - v_top),
+            (page_width - v_right, page_height - v_bottom),
+        )
+        displayed_width, displayed_height = page_width, page_height
+    else:  # 270
+        corners = (
+            (v_top, page_width - v_left),
+            (v_bottom, page_width - v_right),
+        )
+        displayed_width, displayed_height = page_height, page_width
+
+    xs = (corners[0][0], corners[1][0])
+    ys = (corners[0][1], corners[1][1])
+    left, top = min(xs), min(ys)
+    width, height = max(xs) - left, max(ys) - top
+
+    return {
+        "left": left / displayed_width,
+        "top": top / displayed_height,
+        "width": width / displayed_width,
+        "height": height / displayed_height,
+        "page": page_number,
+        "rotation": rotation,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Detection entry point
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -336,6 +448,17 @@ def detect_pdf_fields(
             )
             words = page_words[page_number] if page_number < len(page_words) else []
 
+            # RAW (unrotated) MediaBox dims + origin + rotation, sourced
+            # directly from pypdf (NOT the pdfplumber-derived page_heights
+            # above, which is already rotation-adjusted — see
+            # _normalise_geometry's docstring). Read once per page.
+            mediabox = page.mediabox
+            raw_page_width = float(mediabox.width)
+            raw_page_height = float(mediabox.height)
+            mediabox_llx = float(mediabox.left)
+            mediabox_lly = float(mediabox.bottom)
+            page_rotation = page.rotation % 360
+
             for annotation in annotations:
                 obj = annotation.get_object()
                 if obj.get("/Subtype") != "/Widget":
@@ -356,6 +479,29 @@ def detect_pdf_fields(
                 fbottom = page_height - y0
                 question_text = _pair_label(x0, ftop, x1, fbottom, words)
 
+                try:
+                    geometry = _normalise_geometry(
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        page_width=raw_page_width,
+                        page_height=raw_page_height,
+                        mediabox_llx=mediabox_llx,
+                        mediabox_lly=mediabox_lly,
+                        rotation=page_rotation,
+                        page_number=page_number,
+                    )
+                except ValueError:
+                    logger.warning(
+                        "%s: page %d has unsupported rotation %r — "
+                        "geometry omitted (§C4 degrade)",
+                        filename,
+                        page_number,
+                        page.rotation,
+                    )
+                    geometry = None
+
                 widget_kind = "TextBox" if acroform_type == "/Tx" else "ChoiceButton"
                 fields.append(
                     PdfDetectedField(
@@ -364,6 +510,7 @@ def detect_pdf_fields(
                         acroform_type=acroform_type,
                         page_number=page_number,
                         bbox=(x0, y0, x1, y1),
+                        geometry=geometry,
                         question_text=question_text,
                         sequence=sequence,
                     )

@@ -31,6 +31,7 @@ import type {
   ExposureResolution,
   WhereAreWeExposedData,
 } from '@/lib/mcp/formatters';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -114,7 +115,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
             supabase
               .from('record_lifecycle')
               .select('source_document_id, freshness')
-              .eq('owner_kind', 'source_document')
+              .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
               .eq('content_owner_id', userId),
             'mcp.dashboard.owned_items.facet',
           );

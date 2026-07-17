@@ -6,6 +6,7 @@ import { validateWebUrl } from '@/lib/intelligence/url-validation';
 import { CONTENT_TYPE_VALUES } from '@/lib/ontology/content-type-registry';
 import { BRANDING } from '@/lib/client-config';
 import { PROCUREMENT_WORKFLOW_STATES } from '@/types/procurement';
+import { FacetOwnerKindSchema } from '@/lib/validation/owner-kind';
 
 // ──────────────────────────────────────────
 // Tag morphology — domain uncountable registration
@@ -209,6 +210,18 @@ export const ReviewActionBodySchema = z.object({
   action: z.enum(VALID_REVIEW_ACTIONS),
   flag_details: z.string().max(500).optional(),
   note: z.string().max(500).optional(),
+  // ID-152 (owner ruling Option B, OQ oq-dad46242b712f156): owner
+  // discriminator for the polymorphic {source_document, q_a_pair} existence
+  // lookup (`lib/governance/review-action-owner.ts` resolveReviewItemOwner).
+  // Optional + back-compat: every existing /review-page caller omits it and
+  // continues to resolve against source_documents first. /library's Bulk
+  // Verify (hooks/use-library-bulk-actions.ts) also omits it today — out of
+  // this Subtask's file-ownership boundary — so the q_a_pairs fallback probe
+  // is what un-404s it; a future explicit 'q_a_pair' caller skips the probe.
+  // ID-151: shared FacetOwnerKindSchema (record_lifecycle +
+  // verification_history's identical 2-value domain), not a locally
+  // hand-rolled z.enum.
+  owner_kind: FacetOwnerKindSchema.optional(),
 });
 
 /** GET /api/review/queue — validates status, limit, cursor only.
@@ -881,9 +894,15 @@ export const ProcurementUpdateBodySchema = z.object({
  * copy (`procurementFormTypeKeys` in `components/procurement/form-type-picker`)
  * for the same compile-time-tuple reason; this server-side copy avoids pulling
  * the 'use client' picker module into API routes.
+ *
+ * No 'bid' entry (ID-145 BI-8, {145.38}): 'Bid' is retired as a first-class
+ * form-type — it no longer appears in `api.form_types`, mirroring the
+ * already-'bid'-free client-side copy in `form-type-picker.tsx`
+ * ({145.27}+{145.28}). A regression test in
+ * `__tests__/validation/procurement-schemas.test.ts` guards against
+ * reintroduction.
  */
 export const PROCUREMENT_FORM_TYPE_KEYS = [
-  'bid',
   'checklist',
   'itt',
   'psq',
@@ -965,6 +984,17 @@ export const ResponseDraftBodySchema = z.object({
 export const ResponseDraftStreamBodySchema = z.object({
   question_id: z.string().uuid(),
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
+});
+
+/**
+ * POST /api/procurement/[id]/responses/manual — ID-145 {145.44} fix dispatch
+ * (BI-40/BI-22). Creates a `form_responses` row directly from a user-typed
+ * answer for a question that has none yet (the zero-candidate manual-answer
+ * affordance's primary act — deterministic, unlike corpus-only promotion).
+ */
+export const ResponseManualCreateBodySchema = z.object({
+  question_id: z.string().uuid(),
+  response_text: z.string().trim().min(1, 'An answer is required').max(100000),
 });
 
 /** POST /api/procurement/[id]/responses/draft-all */
