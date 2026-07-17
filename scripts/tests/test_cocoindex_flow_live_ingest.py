@@ -8,9 +8,9 @@ Every existing cocoindex flow test (``test_cocoindex_flow_write_path.py``,
 ``ingest_file`` DIRECTLY on the test's own asyncio task, or drives a
 ``_faithful_mount_each`` that ``await``s ``fn(...)`` on that SAME task. In both
 shapes the ``contextvars.ContextVar`` bindings ``app_main`` sets via
-``bind_flow_meta`` / ``bind_stage_counter`` / ``bind_workspace_manifest`` are
-INTACT when ``ingest_file`` reads them back — because a coroutine awaited on the
-binding task inherits the caller's contextvar snapshot.
+``bind_flow_meta`` / ``bind_stage_counter`` are INTACT when ``ingest_file``
+reads them back — because a coroutine awaited on the binding task inherits the
+caller's contextvar snapshot.
 
 Production does NOT work that way. cocoindex 1.0.3's engine does not invoke the
 per-item ``ingest_file`` component inline on the binding asyncio task: it
@@ -21,10 +21,13 @@ dispatch boundary. So in production every ``current_*()`` read inside
 
   * ``current_flow_meta()`` → None → ``ingest_file`` raised "invoked without an
     active FLOW_META_CTX binding" → ZERO rows landed in live mode.
-  * ``current_workspace_manifest()`` → None → the Path-B folder→workspace
-    form-write block was silently skipped → form rows never written.
   * ``current_stage_counter()`` → None → ``stage_counts`` stayed 0 even when the
     stages actually ran.
+
+(ID-127.37 retired the folder→workspace manifest fork this file used to also
+regression-guard — the third leg, "``current_workspace_manifest()`` → None →
+the Path-B form-write block silently skipped", no longer applies: there is no
+manifest ContextVar left to read, and the content branch runs unconditionally.)
 
 This file reproduces the engine's dispatch boundary FAITHFULLY without booting
 the real cocoindex Rust/LMDB engine (which would leak process-global App /
@@ -36,11 +39,11 @@ visible on that worker thread+loop, so this harness surfaces the bug the inline
 harnesses hide.
 
 TEST STRATEGY (ID-66.19 testStrategy contract):
-  ``app_main`` over a temp dir (1 .md + .kh-workspace-map.json) lands a row with
-  the CORRECT op_id + non-zero stage_counts + a Path-B form write; the test
-  fails on current main (None op_id / 0 rows / skipped form write — the
-  daemon-thread ContextVar bug) and passes after the Option-A fix (functools
-  .partial explicit args onto ingest_file + local re-bind inside ingest_file).
+  ``app_main`` over a temp dir (1 .md) lands a row with the CORRECT op_id +
+  non-zero stage_counts; the test fails on current main (None op_id / 0 rows —
+  the daemon-thread ContextVar bug) and passes after the Option-A fix
+  (functools.partial explicit args onto ingest_file + local re-bind inside
+  ingest_file).
 
 Async tests follow the repo convention (no pytest-asyncio plugin): drive
 coroutines via ``asyncio.run`` inside sync test functions.
@@ -51,7 +54,6 @@ Reference: docs/reference/task-list.json → ID-66 → Subtask 19.
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from pathlib import Path
 
@@ -162,10 +164,10 @@ class _SdTarget:
     """Duck-types ``_FakeTarget`` (``.table_name`` / ``.rows``) for the
     ``source_documents`` slot, but reads ``.rows`` from the S438 raw-pool
     capture — the content branch no longer flushes the sd row through the
-    engine target's ``declare_row``. This file drives ONLY the content route
-    (no forms / qa_sidecar tests), so ``declare_row`` is a tripwire: if a
-    future test routes a file through ``_ingest_qa_sidecar_branch`` (the one
-    surviving ``sd_target.declare_row`` caller) it must fail loudly here
+    engine target's ``declare_row``. This file drives the SOLE remaining
+    localfs branch (ID-127.37 retired the manifest fork + its qa_sidecar
+    route entirely), so ``declare_row`` is a tripwire: nothing should ever
+    call it here, and any future regression that did must fail loudly
     rather than silently landing on the wrong capture.
     """
 
@@ -384,21 +386,11 @@ def _run_app_main_over_dir(
     monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
-    # ── Spy the ID-80.8 fork's workspace resolution: this .md resolves to a
-    # workspace via the manifest (default route:"content" → the content
-    # branch). The fork's `resolve_route` call is the proof the manifest
-    # reached the worker thread (pre-{80.8} this spied `resolve_workspace`
-    # inside the form-write block; the fork now resolves ONCE, up front).
-    resolve_calls: list[str] = []
-    real_resolve = flow.resolve_route
-
-    def _spy_resolve(manifest, rel_path):
-        resolve_calls.append(rel_path)
-        return real_resolve(manifest, rel_path)
-
-    monkeypatch.setattr(flow, "resolve_route", _spy_resolve)
-    targets.setdefault("_resolve_calls", resolve_calls)  # type: ignore[arg-type]
-
+    # ID-127.37 (DR-038/056/061) retired the folder→workspace manifest fork
+    # entirely — this used to spy `flow.resolve_route` here to prove the
+    # manifest reached the worker thread; there is no more resolver to spy
+    # on (see git history). The content branch now runs unconditionally.
+    #
     # ID-136 {136.5} removed the Path-B form branch (and `extract_form_structure`
     # with it) entirely — the defensive `_fake_form_structure` stub guarding
     # against a route:"content" file reaching the form branch is now
@@ -497,37 +489,25 @@ def _run_app_main_over_dir(
     return captured_op_id["op_id"], captured_stage_counter["counter"]
 
 
-def _write_workspace_manifest(source_dir: Path, prefix: str, workspace_id: uuid.UUID):
-    """Write a .kh-workspace-map.json mapping ``prefix`` → ``workspace_id``."""
-    manifest = {
-        "schema_version": 1,
-        "mappings": [{"path_prefix": prefix, "workspace_id": str(workspace_id)}],
-    }
-    (source_dir / ".kh-workspace-map.json").write_text(json.dumps(manifest))
-
-
 class TestLiveIngestAcrossDaemonThreadBoundary:
-    """``app_main`` lands a correctly-stamped row + non-zero stage_counts + the
-    ID-80.8 fork's workspace resolution when ``ingest_file`` runs on the
-    engine's daemon thread.
+    """``app_main`` lands a correctly-stamped row + non-zero stage_counts when
+    ``ingest_file`` runs on the engine's daemon thread.
 
     This is the regression that bites the ID-66.19 bug: the per-item component
     runs on a SEPARATE thread+loop, so contextvar bindings set by ``app_main``
     do NOT reach ``ingest_file`` unless the run context is threaded explicitly
-    (Option A: functools.partial args + local re-bind)."""
+    (Option A: functools.partial args + local re-bind). ID-127.37 retired the
+    third (workspace-resolution) leg this class used to also prove — see git
+    history — since the folder→workspace manifest fork no longer exists."""
 
-    def test_app_main_live_lands_row_with_op_id_and_fork_resolution(
+    def test_app_main_live_lands_row_with_op_id(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
 
-        # Stage exactly one .md under a manifest-mapped prefix. The on-disk file
-        # name doubles as the relative path the manifest matches (prefix "").
+        # Stage exactly one .md under the source dir.
         source_dir = tmp_path
         (source_dir / "doc-one.md").write_text("# Heading\n\nLive ingest body.")
-        workspace_id = uuid.uuid4()
-        # Empty prefix matches every rel_path so the single .md resolves.
-        _write_workspace_manifest(source_dir, "", workspace_id)
 
         targets = {
             "q_a_extractions": _FakeTarget("q_a_extractions"),
@@ -548,7 +528,6 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
         )
 
         sd = targets["source_documents"]
-        resolve_calls = targets["_resolve_calls"]  # type: ignore[index]
 
         # (a) {127.25} DR-034: content_items is RETIRED — structurally
         # absent, never re-pointed (the table is dropped both envs and no
@@ -567,17 +546,9 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
             "dispatch boundary)"
         )
 
-        # (b) The ID-80.8 fork's workspace resolution RAN on the worker thread
-        # — proven by resolve_route being called with the .md rel_path (only
-        # reachable when the manifest was non-None there). On current main
-        # ingest_file never reaches the fork (it raised earlier).
-        assert "doc-one.md" in resolve_calls, (
-            "the fork's workspace resolution must run (resolve_route called) — "
-            "proves the workspace manifest reached ingest_file across the "
-            "daemon-thread boundary"
-        )
-
-        # (c) NON-ZERO stage_counts — the third leg of the {66.19} testStrategy.
+        # (b) NON-ZERO stage_counts — the second leg of the {66.19} testStrategy
+        # (ID-127.37 retired the manifest-resolution leg that used to sit here
+        # — see git history).
         # ingest_file's _bump("source_walk") / _bump("chunking") run on the
         # worker thread; a non-zero count on the SAME counter instance app_main
         # constructed proves the stage_counter crossed the daemon-thread boundary
@@ -623,7 +594,6 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
 
         source_dir = tmp_path
         (source_dir / "doc-meta.md").write_text("# H\n\nbody")
-        _write_workspace_manifest(source_dir, "", uuid.uuid4())
 
         seen: dict[str, object] = {}
 

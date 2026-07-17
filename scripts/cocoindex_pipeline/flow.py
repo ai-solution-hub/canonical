@@ -144,7 +144,6 @@ from scripts.cocoindex_pipeline.flow_context import (
     bind_retry_counter,
     bind_stage_counter,
     bind_taxonomy_miss_counter,
-    bind_workspace_manifest,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it lazily
 )
 
@@ -154,14 +153,6 @@ from scripts.cocoindex_pipeline.flow_context import (
 # passed-ledger snapshot source `app_main` mounts at {75.11} (D-1/D-2).
 from scripts.cocoindex_pipeline.url_source import FeedUrlSource, UrlItem
 from scripts.cocoindex_pipeline.url_validation import validate_url
-from scripts.cocoindex_pipeline.workspace_resolver import (
-    ManifestLoadError,
-    Resolution,
-    ResolutionFailure,
-    UnmappedPath,
-    load_workspace_manifest,
-    resolve_route,
-)
 
 # ID-53 §P-1 (Inv-1). Stage-5 entity-resolution flow-scope post-pass. Imported
 # at module top (NOT lazily) — stage_5.py imports the flow-side types under
@@ -535,44 +526,6 @@ def _emit_stage_error_log(
     _logger.error(json.dumps(payload))
 
 
-def _emit_workspace_unmapped_warn(
-    *,
-    op_id: uuid.UUID | str,
-    source_document_id: uuid.UUID | str | None,
-    error_message: str,
-) -> None:
-    """Emit ONE benign WARNING-level structured log for an unmapped path.
-
-    bl-219: an unmapped content path (no manifest prefix matches) is
-    OBSERVABILITY-ONLY for localfs file content — the workspace-agnostic
-    canonical layer (content_items / source_documents / chunks / q_a /
-    entity_mentions) already wrote ABOVE the form-resolution block
-    (ID-69 BI-1), and the pipeline invocation does NOT fail. It is therefore
-    NOT a `cocoindex.stage_error`: per Inv-26 that event is the companion to
-    a *failed* invocation, so emitting it for a benign unmapped path is a
-    false-alarm contract smell. The ambiguous case stays a loud stage error
-    (`_emit_stage_error_log`) because it is a genuine manifest mis-wire.
-
-    Contract shape (WARNING level):
-
-      {"event": "workspace_resolution.unmapped", "op_id": "<uuid>",
-       "source_document_id": "<uuid>"|null,
-       "reason": "<truncated to 200 chars, UUIDs redacted>"}
-
-    Reuses `_redact_error_message` for the same PII redaction as the error
-    emitter. Returns None; raises nothing.
-    """
-    payload: dict[str, object | None] = {
-        "event": "workspace_resolution.unmapped",
-        "op_id": str(op_id),
-        "source_document_id": (
-            str(source_document_id) if source_document_id is not None else None
-        ),
-        "reason": _redact_error_message(error_message),
-    }
-    _logger.warning(json.dumps(payload))
-
-
 # ── Inv-23 retry-count substrate (ID-28.13 fix-pack) ─────────────────────────
 
 
@@ -679,9 +632,10 @@ class _FlowItemFailureCounter:
 
     `.increment(branch)` is called from the per-item containment handlers in
     `app_main` — `bound_ingest_file` (`branch` is always `'content'` post-ID-136
-    forms-route retirement, derived via `_item_failure_branch` from the same
-    pure `resolve_route` computation the {80.8} fork uses) and
-    `bound_ingest_url` (`branch` is always `'url'`, {75.11} / BI-19) — each
+    forms-route retirement AND post-ID-127.37 manifest-fork retirement, derived
+    via `_item_failure_branch`, an unconditional attribution now the fork it
+    once mirrored is gone) and `bound_ingest_url` (`branch` is always `'url'`,
+    {75.11} / BI-19) — each
     time an UNEXPECTED exception escapes one item's ingest. `.tally()` is read
     at flow end and emitted via the pipeline-run webhook as `itemFailures`
     (`{'content': m, 'url': k}`).
@@ -702,9 +656,9 @@ class _FlowItemFailureCounter:
         # 'url' joined the branch vocabulary at {75.11} (the URL-source mount)
         # — initialised to 0 so an all-zero tally reports every branch ("walk
         # ran, zero per-item faults" is meaningful per branch, 80.2 §B.4).
-        # ID-136: the 'forms' branch is retired — 'content' covers the
-        # qa_sidecar route too (`_item_failure_branch` always attributes to
-        # 'content').
+        # ID-136 retired the 'forms' branch; ID-127.37 retired the manifest
+        # fork entirely — 'content' is now the only localfs branch
+        # (`_item_failure_branch` always attributes to 'content').
         self._counts: dict[str, int] = {"content": 0, "url": 0}
 
     def increment(self, branch: str) -> None:
@@ -750,13 +704,13 @@ class _FlowMemoHealCounter:
 def _item_failure_branch(manifest: Any, file: Any, source_path: Any) -> str:
     """Attribute a contained per-item fault to the `'content'` branch.
 
-    ID-136 (forms-route retirement): the `'forms'` route no longer exists, so
-    every per-item fault attributes to `'content'` — both the content route
-    and the qa_sidecar route already attributed to `'content'` before this
-    retirement (there was never a distinct `'qa_sidecar'` failure bucket).
-    Retained as a named function (rather than inlined at the call site) so
-    the containment-handler call shape and its "never raises" contract stay
-    documented and unit-testable in isolation.
+    ID-136 (forms-route retirement) first collapsed the `'forms'` route into
+    `'content'`; ID-127.37 (DR-038/056/061) then retired the folder→workspace
+    manifest fork entirely, so `'content'` is now the ONLY localfs branch and
+    every per-item fault attributes to it unconditionally. The `manifest`
+    parameter is a vestige of the pre-retirement call shape — always ignored
+    now — kept so the containment-handler call site + this function's
+    "never raises" contract stay documented and unit-testable in isolation.
 
     NEVER raises: this helper runs inside the per-item containment handler
     (80.2 §B.4), where an escape would abort the batch — the exact
@@ -1234,8 +1188,10 @@ Q_A_EXTRACTIONS_SCHEMA = TableSchema(
         "id": ColumnDef(type="uuid", nullable=False),
         # ID-131 {131.8} M2 (BI-15): re-parented off content_items onto
         # source_documents (rename source_content_item_id -> source_document_id
-        # + ADD FK in id131_extract_reparent). Nullable — the qa_sidecar branch
-        # writes None (no source_documents row minted for a sidecar).
+        # + ADD FK in id131_extract_reparent). Nullable — ID-127.37 retired the
+        # sidecar branch that used to write None here; the column stays
+        # nullable (no DB migration in this Subtask, DR-056 is separate) but
+        # every current writer populates it.
         "source_document_id": ColumnDef(type="uuid", nullable=True),
         "extractor_kind": ColumnDef(type="text", nullable=False),
         "extracted_question_text": ColumnDef(type="text", nullable=False),
@@ -1711,23 +1667,17 @@ _KH_PIPELINE_DOC_NS = uuid.UUID("fbfaf1ff-1ee4-583c-9757-1674465b2ec1")
 _KH_CONCEPT_NS = uuid.UUID("fd4ba596-2223-591b-b25c-1046022aced5")
 
 
-# The workspace manifest filename — lives at the ingest source root, loaded ONCE
-# at flow start (app_main) and ALSO enumerated by walk_dir as an item. It is NOT
-# content: ingest_file skips it ({66.23}/BUG-B, S297) so it never reaches
-# convert_binary_to_markdown (which raises ValueError on a '.json' suffix).
-_WORKSPACE_MANIFEST_FILENAME = ".kh-workspace-map.json"
-
-
 def _to_source_relative(path: Path, source_path: Any) -> str:
     """Return `path` as a POSIX string relative to the ingest source root.
 
     {66.22}/BUG-A (S297): cocoindex's `File.file_path.path` is ABSOLUTE in
     production (`/cocoindex-state/corpus/test/x.md`) despite the 1.0.3
     "relative to source base dir" docstring (observed wrong on the live smoke).
-    The workspace-manifest prefixes (e.g. `test/`) are source-RELATIVE, so the
-    resolver (`resolve_route`) only matches the source-relative form; it is
-    also the stable seed for the deterministic per-document uuid5 PKs (portable
-    across mount points / re-ingests). Returns the plain POSIX path when
+    ID-127.37 retired the folder→workspace manifest premise (DR-038/056/061:
+    workspace is the wrong scope for a per-client single-tenant DB) — this
+    normalisation is now used purely as the stable seed for the deterministic
+    per-document uuid5 PKs (portable across mount points / re-ingests), not
+    for any manifest-prefix matching. Returns the plain POSIX path when
     `source_path` is None (in-task unit-test callers) or when `path` is not
     under `source_path` (already relative, or external). Pure-path computation —
     no `.resolve()` I/O — keeps it deterministic.
@@ -1755,7 +1705,6 @@ async def ingest_file(
     flow_retry_counter: Any = None,
     flow_taxonomy_miss_counter: Any = None,
     flow_memo_heal_counter: Any = None,
-    flow_workspace_manifest: Any = None,
     flow_source_path: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
@@ -1811,16 +1760,15 @@ async def ingest_file(
     `TableTarget.declare_row(row=...)` (Stage 6).
 
     `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the per-flow
-    counters + the workspace manifest) as EXPLICIT keyword args
+    counters + the source path) as EXPLICIT keyword args
     (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
     `flow_taxonomy_miss_counter` / `flow_memo_heal_counter` (ID-127.33) /
-    `flow_workspace_manifest` / `flow_source_path`) bound onto the component
-    via a named closure in `app_main`, NOT via `contextvars`
-    propagation. cocoindex 1.0.3 runs this per-item component on its OWN
-    `_LoopRunner` daemon thread (a separate event loop), which does NOT copy the
-    binder task's `ContextVar` snapshot across the dispatch boundary — so reads
-    of `current_flow_meta()` / `current_stage_counter()` /
-    `current_workspace_manifest()` here would return the ContextVar DEFAULT
+    `flow_source_path`) bound onto the component via a named closure in
+    `app_main`, NOT via `contextvars` propagation. cocoindex 1.0.3 runs this
+    per-item component on its OWN `_LoopRunner` daemon thread (a separate
+    event loop), which does NOT copy the binder task's `ContextVar` snapshot
+    across the dispatch boundary — so reads of `current_flow_meta()` /
+    `current_stage_counter()` here would return the ContextVar DEFAULT
     (`None`) and the flow would land ZERO rows. The closure's captured cells live
     on the function object, so they cross the daemon-thread boundary intact.
     The keyword args DEFAULT to None so the existing in-task unit-test callers
@@ -1834,8 +1782,8 @@ async def ingest_file(
     run on the SAME daemon thread as this body. So once the explicit args
     arrive we RE-BIND those ContextVars LOCALLY around the body (Option A
     moves the BIND POINT from `app_main`'s wrong thread into this correct
-    thread). `stage_counter` / `workspace_manifest` are read directly from
-    the passed args (only this body reads them), so they need no re-bind.
+    thread). `stage_counter` is read directly from the passed args (only this
+    body reads it), so it needs no re-bind.
 
     `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is now
     a real text-embedding-3-large vector(1024) computed from content_text via
@@ -1852,22 +1800,6 @@ async def ingest_file(
     walks (RESEARCH.md §R4). The inner memos are what protect the LLM seams from
     re-running on unchanged bytes.
     """
-    # {66.23}/BUG-B (S297): the workspace manifest lives at the source root and
-    # is loaded once at flow start (app_main), but localfs.walk_dir ALSO
-    # enumerates it as an item. It is NOT content — skip it before any context
-    # resolution or conversion (convert_binary_to_markdown raises ValueError on
-    # a '.json' suffix, which aborted per-item processing on the live smoke).
-    if file.file_path.path.name == _WORKSPACE_MANIFEST_FILENAME:
-        _logger.info(
-            json.dumps(
-                {
-                    "event": "cocoindex.ingest.skip_manifest",
-                    "file": _WORKSPACE_MANIFEST_FILENAME,
-                }
-            )
-        )
-        return
-
     import contextlib
 
     # Canonical single-namespace import post-{67.2} (function-local to preserve
@@ -1939,9 +1871,7 @@ async def ingest_file(
             re_target,
             op_id=op_id,
             stage_counter=stage_counter,
-            flow_workspace_manifest=flow_workspace_manifest,
             flow_source_path=flow_source_path,
-            flow_context_module=flow_context_module,
         )
 
 
@@ -1956,41 +1886,22 @@ async def _ingest_file_body(
     *,
     op_id: "uuid.UUID",
     stage_counter: Any,
-    flow_workspace_manifest: Any,
     flow_source_path: Any,
-    flow_context_module: Any,
 ) -> None:
     """The Stage 2→6 per-item body of `ingest_file` (ID-66.19 split).
 
     Factored out of `ingest_file` so the wrapper owns the ID-66.19 run-context
     resolution + local ContextVar re-bind (which must happen on the daemon
     thread) and this body owns the actual convert → extract → declare-rows work.
-    `op_id` + `stage_counter` are already resolved; `flow_workspace_manifest` is
-    the explicit manifest arg (preferred over the ContextVar read at the fork
-    below).
+    `op_id` + `stage_counter` are already resolved.
 
-    ID-80.8 (80.2 §B.1/§B.3): this body is the DISPATCHER and owns THE FORK.
-    It derives `rel_path`, bumps `source_walk`, resolves the manifest route
-    ONCE (`resolve_route` — a pure function of `rel_path` + manifest, so the
-    same file deterministically takes the same branch every run, 80.2 §B.6),
-    then runs EXACTLY ONE branch:
-
-      - `route == "qa_sidecar"` → `_ingest_qa_sidecar_branch` (sd/qa targets ONLY);
-      - otherwise               → `_ingest_content_branch` (ci/qa/sd/em/cc/er ONLY).
-
-    ID-136 (DR-014): the historical third branch — the corpus forms-write
-    fork and its dedicated form-template branch function — is RETIRED. Forms
-    enter the system via app-side manual upload, never the corpus walk.
-    `RouteKind` no longer admits a forms value, so this dispatcher can never
-    see one.
-
-    Mutual exclusion is structural — one file, one branch, one write-target
-    set. Route defaults to "content" when no manifest is active (no-manifest
-    runs) or when no prefix owns the file (`UnmappedPath` — the bl-219 benign
-    soft-warn semantics, preserved at the fork). `AmbiguousResolution` (and
-    any future `ResolutionFailure` subtype) fails the file LOUDLY at the fork:
-    one `cocoindex.stage_error` and ZERO rows on every target — neither branch
-    runs. OQ-80.2-B: the manifest per-prefix `route` tag IS the fork point.
+    ID-127.37 (DR-038/056/061): the folder→workspace manifest fork (ID-80.8,
+    80.2 §B.1/§B.3) is RETIRED — workspace is the wrong scope for a
+    per-client single-tenant DB (no in-DB scoping predicate), so there is no
+    manifest to resolve, no Q&A-sidecar route to dispatch to, and no
+    ambiguous/unmapped-prefix failure mode. Every file now runs the single
+    content branch (`_ingest_content_branch`) unconditionally — see git
+    history / TECH.md §4.3 for the pre-retirement fork contract.
     """
 
     def _bump(stage: str, times: int = 1) -> None:
@@ -2007,113 +1918,14 @@ async def _ingest_file_body(
     # {66.22}/BUG-A (S297): `file.file_path.path` is ABSOLUTE in production
     # (`/cocoindex-state/corpus/test/x.md`) — the cocoindex 1.0.3 "relative to
     # source base dir" claim is WRONG as deployed (observed on the live smoke).
-    # The workspace-manifest prefixes (`test/`) are source-RELATIVE, so we
-    # normalise to the source-relative POSIX string via `flow_source_path`
-    # (threaded from app_main — the {66.19} explicit-arg pattern). This is the
+    # `_to_source_relative` normalises it via `flow_source_path` (threaded
+    # from app_main — the {66.19} explicit-arg pattern). This is the
     # storage_path AND the seed of the deterministic per-file uuid5 PKs below.
     # Safe to change now: prod has never completed a content write, so no rows
     # are seeded on the old absolute form (no idempotency break).
     rel_path = _to_source_relative(file.file_path.path, flow_source_path)
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
-
-    # ── THE FORK (ID-80.8, 80.2 §B.1/§B.3) — computed ONCE, BEFORE either
-    # write path runs. The manifest-presence gate that previously lived at the
-    # top of the form branch moves UP here: PREFER the explicit
-    # `flow_workspace_manifest` arg (threaded via the named closure in
-    # app_main — survives the daemon-thread dispatch, ID-66.19), FALL BACK to
-    # the ContextVar read for the in-task unit-test callers that bind it via
-    # `bind_workspace_manifest`.
-    manifest = flow_workspace_manifest
-    if manifest is None:
-        manifest = flow_context_module.current_workspace_manifest()
-
-    # Provisional per-document uuid5 (a pure function of rel_path) used ONLY for
-    # error-log CORRELATION on the fork failure paths below — this is BEFORE any
-    # content is read, so no content_hash exists yet and the {138.6} resolver
-    # (content_hash-first) cannot run here. ID-138 {138.10}: this is NOT the
-    # stored identity — the fork-failure paths write ZERO rows, and each branch
-    # resolves its OWN admission-minted identity post-fork (content-hash-first,
-    # rename-tolerant). Keeping the rel_path-seeded id here gives a stable,
-    # deterministic log-correlation handle without minting a source_documents row
-    # for a mere warning.
-    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")
-
-    route = "content"  # default: no manifest active (Path-A-only runs)
-    resolution: Resolution | None = None
-    if manifest is not None:
-        try:
-            resolution = resolve_route(manifest, rel_path)
-            route = resolution.route
-        except UnmappedPath as exc:
-            # bl-219 preserved at the fork: no prefix owns this file — benign
-            # for file content. Soft-warn (WARNING, not a `cocoindex.stage_error`
-            # — Inv-26: that event is the companion to a *failed* invocation)
-            # and route down the content branch.
-            _emit_workspace_unmapped_warn(
-                op_id=op_id,
-                source_document_id=source_document_id,
-                error_message=str(exc),
-            )
-        except ResolutionFailure as exc:
-            # AmbiguousResolution (and any future subtype): a genuine manifest
-            # mis-wire. LOUD `cocoindex.stage_error` + ZERO rows on every
-            # target — neither branch runs. error_class is one of the seven
-            # canonical PIPELINE_ERROR_CLASSES (the webhook route Zod-validates
-            # it); an ambiguous manifest prefix is an input-validation failure,
-            # so `extraction_validation_failed` is the canonical class.
-            _emit_stage_error_log(
-                op_id=op_id,
-                stage="workspace_resolution",
-                error_class="extraction_validation_failed",
-                source_document_id=source_document_id,
-                error_message=str(exc),
-            )
-            return
-
-    if route == "qa_sidecar":
-        # ID-59 {59.26} (TECH-qa-sidecar P1): the frozen `__qa__/` reserved
-        # prefix forks here. `resolution` is always non-None — "qa_sidecar" is
-        # only reachable via a successful `resolve_route` (the defaults above are
-        # "content"). The branch receives ONLY `sd_target` + `qa_target` (NOT
-        # ci/cc/em/er): the type system makes the INV-5 "no content rows"
-        # guarantee STRUCTURAL.
-        assert resolution is not None
-        await _ingest_qa_sidecar_branch(
-            file,
-            rel_path,
-            sd_target,
-            qa_target,
-            op_id=op_id,
-            _bump=_bump,
-            resolution=resolution,
-        )
-        return
-
-    # ── INV-5 defensive belt (TECH-qa-sidecar P1.5 / S297 BUG-B): a path under
-    # the frozen `__qa__/` reserved prefix that resolves to "content" means the
-    # operator forgot the `{path_prefix:"__qa__/", route:"qa_sidecar"}` manifest
-    # mapping — the sidecar is about to be ingested as junk content
-    # (content_items + chunks + entity_mentions for a Q&A sidecar). WARN loudly
-    # so the mis-wire is visible; do NOT mutate the route (the manifest is the
-    # source of truth — silently rerouting would mask the operator error).
-    if rel_path.startswith("__qa__/"):
-        _logger.warning(
-            json.dumps(
-                {
-                    "event": "cocoindex.ingest.qa_sidecar_route_missing",
-                    "rel_path": rel_path,
-                    "resolved_route": route,
-                    "detail": (
-                        "path under the frozen __qa__/ reserved prefix resolved "
-                        "to 'content' — operator likely forgot the "
-                        "{path_prefix:'__qa__/', route:'qa_sidecar'} manifest "
-                        "mapping; it will be ingested as junk content (S297 "
-                        "BUG-B hazard)"
-                    ),
-                }
-            )
-        )
 
     await _ingest_content_branch(
         file,
@@ -2218,8 +2030,14 @@ async def _ingest_content_branch(
     # ID-138 {138.10} (R(id) / DR-024 clause i): identity is no longer DERIVED
     # from the live `rel_path` at walk time (`rel_path` is exactly the attribute
     # clients mutate). It is resolved by `content_hash` FIRST via the {138.6} M2
-    # SQL resolver: same bytes at a NEW path return the STORED id (rename does
-    # NOT re-mint); a genuinely new content_hash mints once. `content_fingerprint`
+    # SQL resolver `public.resolve_or_mint_source_identity`
+    # (supabase/migrations/20260703160100_id138_admission_identity_fn.sql): same
+    # bytes at a NEW path return the STORED id (rename does NOT re-mint); a
+    # genuinely new content_hash mints ONCE, via
+    # `uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{rel_path}")` — the SAME SEED-CONTRACT
+    # formula the SQL side computes (`extensions.uuid_generate_v5(NS, 'sd:' ||
+    # rel_path)`), kept byte-identical across languages (BI-7 citeable-seed
+    # freeze, __tests__/pipeline/seed-contract.test.ts). `content_fingerprint`
     # is an ASYNC METHOD on FileLike returning bytes (cocoindex resources/file.py
     # L172 → connectorkits.fingerprint); await + hex so it is the content_hash
     # the resolver keys on AND the value landed in the `content_hash` column.
@@ -2673,150 +2491,6 @@ async def _ingest_content_branch(
             )
 
 
-async def _ingest_qa_sidecar_branch(
-    file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
-    rel_path: str,
-    sd_target: Any,
-    qa_target: Any,
-    *,
-    op_id: "uuid.UUID",
-    _bump: Any,
-    resolution: Resolution,
-) -> None:
-    """Q&A-sidecar branch — ID-59 {59.26} (TECH-qa-sidecar-canonical P1).
-
-    The second walk branch, reached EXCLUSIVELY via the `_ingest_file_body` fork
-    when the manifest tags a path's prefix `route:"qa_sidecar"` (the frozen
-    `__qa__/` reserved prefix — ID-45 {45.3} freezes it). Extracted from the
-    content branch's Q&A-relevant statements ONLY: it mints the INV-8 linkage
-    anchor (`source_documents`) and the `q_a_extractions` tier, and NOTHING ELSE.
-
-    Touches ONLY `sd_target` + `qa_target` — it has NO ci/cc/em/er target in its
-    signature, making the PRODUCT INV-5 "no content rows" guarantee STRUCTURAL
-    (a `content_items` / `content_chunks` / `entity_mentions` / content-embedding
-    write is impossible here). A re-ingest over a folder with N `__qa__/`
-    sidecars adds ZERO content_items for those N files (INV-5's load-bearing
-    skip).
-
-    INV-5 nuance (TECH P1, resolved against PRODUCT INV-5's imprecise literal):
-    the branch DOES mint exactly ONE `source_documents` row — the INV-8 linkage
-    anchor (`q_a_pairs.source_document_id` points at it). That row is NOT a
-    `content_items` row. INV-5's real guarantee is ZERO content_items /
-    content_chunks / entity_mentions / content embedding.
-
-    INV-6 / COCO.10 two-tier memo (preserved unchanged): the outer file-tier
-    memo is `convert_binary_to_markdown(file)` on the `FileLike` handle (same as
-    the content branch); the inner `extract_qa_form(content_text)` is a
-    content-hash-keyed `@coco.fn(memo=True)` extractor, so a metadata-only touch
-    (mtime/owner change, no byte change) hits memo → the LLM is NOT re-called.
-    `_bump` is the dispatcher's stage-counter closure, threaded through unchanged
-    so the Inv-17 stage-count semantics do not shift.
-
-    `resolution` carries the resolved workspace; it is accepted so the fork's
-    call shape is uniform across every routed branch, even though the
-    workspace-AGNOSTIC sd/qa canonical layer does not consume it.
-    """
-    # ── Stage 2: binary → markdown (per-MIME adapter) ───────────────────────
-    # The sidecar IS markdown, so the conversion is the identity-ish text read.
-    # This is ALSO the outer-tier memo boundary (INV-6): an unchanged-bytes
-    # re-touch skips the @coco.fn body → no re-extract. `_bump` mirrors the
-    # content branch's binary_conversion bump exactly.
-    content_text = await convert_binary_to_markdown(file)
-    _bump("binary_conversion")  # Inv-17: one binary→markdown conversion
-
-    # ── INV-8 linkage anchor identity (ID-138 {138.10}, R(id) / DR-024 i) ────
-    # `content_fingerprint` is an ASYNC METHOD on FileLike returning bytes;
-    # await + hex so it is the content_hash the resolver keys on AND the value
-    # landed in the `content_hash` text column.
-    content_fingerprint = (await file.content_fingerprint()).hex()
-    # Identity is resolved by content_hash FIRST (M2 resolver, {138.6}), NOT
-    # re-derived from `rel_path`: same sidecar bytes at a NEW path resolve to the
-    # STORED id — a rename does not re-mint the anchor (supersedes the old
-    # INV-20 path-derived keying). `q_a_pairs.source_document_id` (M1 / {59.27})
-    # still points here.
-    source_document_id = await _resolve_source_identity(
-        content_hash=content_fingerprint,
-        rel_path=rel_path,
-        filename=file.file_path.path.name,
-        mime_type="text/markdown",  # the sidecar is always markdown (P1)
-        file_size=await file.size(),
-        op_id=op_id,
-    )
-
-    # ── Mint the INV-8 linkage anchor: ONE source_documents row, written via the
-    # off-engine raw-pool `_upsert_source_document` (R(e): the register is
-    # permanent + off the engine's declared targets, so orphan-cleanup cannot
-    # reach it) — mirrors the content branch (S438). storage_path is FROZEN and
-    # logical_path tracks the current path on a rename. `sd_target` is retained
-    # on the signature (mount_each positional contract) but the sidecar sd row no
-    # longer flushes through it. This is NOT a content_items row (INV-5). ───────
-    await _upsert_source_document(
-        source_document_id=source_document_id,
-        storage_path=rel_path,
-        logical_path=rel_path,
-        source_url=None,  # a sidecar file has no source URL (BI-4 analogue)
-        content_hash=content_fingerprint,
-        filename=file.file_path.path.name,
-        mime_type="text/markdown",
-        file_size=await file.size(),
-        op_id=op_id,
-        extraction_method=None,  # the sidecar path resolves no Docling provenance
-    )
-    _bump("postgres_upsert")  # Inv-17: source_documents row upsert
-
-    # ── Inner extraction tier (INV-6): the UNCHANGED `extract_qa_form`. ──────
-    # Content-hash-keyed @coco.fn(memo=True) — a metadata-only touch hits memo
-    # and the LLM is not re-called. Identical extractor the content path calls.
-    # ID-127.33 (S457): via `extract_with_memo_self_heal` (see the content
-    # branch's identical note) — a memo-HIT deserialize failure re-extracts
-    # instead of failing this item.
-    qa_form = await extract_with_memo_self_heal(
-        extract_qa_form, content_text, extractor_name="qa_form", rel_path=rel_path
-    )
-    _bump("llm_extraction")  # Inv-17: one Q&A extraction pass for this sidecar
-
-    # ── q_a_extractions declare loop (`:2196-2228` analogue) with the ONE
-    # critical difference: `source_content_item_id = None`. No content_item is
-    # minted on this branch, so the linkage column (nullable, flow.py:1185) is
-    # explicitly NULL — the INV-5 "no content_items" guarantee made visible at
-    # the write site. PK is still the stable `qa:`-seeded uuid5 (idempotent
-    # across re-walk). ────────────────────────────────────────────────────────
-    qa_pairs = _field(qa_form, "qa_pairs", []) or []
-    for idx, pair in enumerate(qa_pairs):
-        qa_target.declare_row(
-            row={
-                # ID-138 {138.10} P3: re-keyed onto the STORED source_document_id
-                # (registry-keyed), not rel_path — a rename does not re-mint.
-                "id": uuid.uuid5(
-                    _KH_PIPELINE_DOC_NS, f"qa:{source_document_id}:{idx}"
-                ),
-                # INV-5: the q_a_extractions.source_document_id LINKAGE column
-                # stays NULL for a sidecar (the structural "no content rows"
-                # marker); the anchor row exists but the extraction row does not
-                # FK it. ID-131 {131.8} M2: renamed source_content_item_id ->
-                # source_document_id (BI-15).
-                "source_document_id": None,
-                "extractor_kind": "llm_extraction",
-                "extracted_question_text": _field(pair, "question_text", ""),
-                "extracted_answer_text": _field(pair, "answer_text"),
-                "expected_response_kind": _field(pair, "expected_response_kind"),
-                "evaluation_criteria": _field(pair, "evaluation_criteria"),
-                "evidence_requirements": _field(pair, "evidence_requirements", []),
-                "scope_tags": _field(pair, "scope_tags", []),
-                "alternate_question_phrasings": _field(
-                    pair, "question_phrasings", []
-                ),
-                "extraction_metadata": {
-                    "extraction_kind": _field(qa_form, "extraction_kind", "q_a_form"),
-                    "qa_index": idx,
-                    "rel_path": rel_path,
-                },
-                "op_id": op_id,
-            }
-        )
-        _bump("postgres_upsert")  # Inv-17: one q_a_extractions row upsert
-
-
 # ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────
 # Lives beside `ingest_file` per D-6 (a separate flow_url.py would risk a
 # circular import against the schemas/extractors/counters this module owns).
@@ -3225,7 +2899,8 @@ async def _upsert_source_document(
 # OUTSIDE `localfs.walk_dir()` / `FeedUrlSource.items()` entirely, so the
 # source key NEVER enters cocoindex's per-item declared-row bookkeeping (the
 # "memoised walk manifest" §2.5 refers to — the engine's own incremental
-# tracking, distinct from this module's `workspace_manifest` routing object).
+# tracking; ID-127.37 retired this module's separate folder→workspace
+# manifest routing object, so "manifest" now refers only to the engine's).
 # `update_blocking(full_reprocess=True)` delete-then-re-exports and orphan-
 # cleanup act ONLY on rows declared via `TableTarget.declare_row` under a
 # mounted per-item component subpath — a row this function writes was never
@@ -3270,9 +2945,9 @@ async def _upsert_source_document(
 # extractors this function awaits (`extract_classification` et al.) all
 # resolve against the process-global `coco.App` — the caller MUST invoke this
 # function from within that SAME running App's environment (i.e. after
-# `kh_pipeline_lifespan` has provided `DB_CTX`), exactly as `_ingest_content_
-# branch` / `_ingest_qa_sidecar_branch` do today, just without a `mount_each`
-# dispatch. Wiring that caller (id-45) is out of this Subtask's scope.
+# `kh_pipeline_lifespan` has provided `DB_CTX`), exactly as
+# `_ingest_content_branch` does today, just without a `mount_each` dispatch.
+# Wiring that caller (id-45) is out of this Subtask's scope.
 
 
 async def _insert_content_chunk_row(
@@ -3442,11 +3117,12 @@ async def _insert_qa_extraction_row(
     """Raw-pool UPSERT of ONE `q_a_extractions` row ({138.11} P4, off-engine).
 
     Column set mirrors `qa_target.declare_row` (`Q_A_EXTRACTIONS_SCHEMA`).
-    `source_document_id` is populated normally (unlike the `qa_sidecar`
-    branch's deliberate NULL — INV-5's "no content_items row exists" marker):
-    this one-shot path mints no `content_items` row either (§2.5's per-class
-    table omits `content_items` from the R(e) concern entirely), but there is
-    no sidecar-style linkage ambiguity to mark here, so the column is set.
+    `source_document_id` is populated normally (unlike the pre-ID-127.37
+    sidecar branch's deliberate NULL — INV-5's "no content_items row exists"
+    marker, retired alongside the manifest fork): this one-shot path mints no
+    `content_items` row either (§2.5's per-class table omits `content_items`
+    from the R(e) concern entirely), but there is no sidecar-style linkage
+    ambiguity to mark here, so the column is set.
     """
     await conn.execute(
         "INSERT INTO public.q_a_extractions "
@@ -4100,12 +3776,12 @@ async def _ingest_url_body(
 # run; a walk that touched none is a no-op (delta-only, v3 §7.2 —
 # `producer/trigger.py`'s own module docstring justifies the in-server hook
 # point over the pipeline-runs webhook chain). `_upsert_source_document`
-# (the SINGLE shared UPSERT helper both ingest branches call) always writes
+# (the SINGLE shared UPSERT helper every ingest path calls) always writes
 # `op_id=run_op_id` onto every source_documents row it touches — so the
 # `op_id`-scoped SELECT below is the precise, already-available delta signal
 # and requires NO new instrumentation inside `_upsert_source_document` /
-# `ingest_file` / `_ingest_content_branch` / `_ingest_qa_sidecar_branch` /
-# `ingest_once` (all untouched by {132.16}).
+# `ingest_file` / `_ingest_content_branch` / `ingest_once` (all untouched by
+# {132.16}).
 async def _fetch_source_document_deltas(
     pool: Any, op_id: "uuid.UUID"
 ) -> "list[Any]":
@@ -4193,39 +3869,6 @@ async def app_main() -> None:
     # per-extractor tally is threaded into the terminal webhook emit as
     # `memoHeals` — burn observability is the explicit owner guardrail.
     flow_memo_heal_counter = _FlowMemoHealCounter()
-
-    # ── Load the folder→workspace manifest ONCE at flow start (TECH §2.1) ──
-    # The manifest lives at the root of the ingest source folder. A missing /
-    # unparseable / schema-invalid manifest ABORTS the flow with a structured
-    # `manifest_missing` / `manifest_invalid` stage error (content/qa_sidecar
-    # routing must not run without a workspace map). The loaded manifest is
-    # bound at flow scope (around `mount_each` below) so the per-item
-    # `ingest_file` reaches it via `current_workspace_manifest()`.
-    manifest_path = source_path / _WORKSPACE_MANIFEST_FILENAME
-    try:
-        workspace_manifest = load_workspace_manifest(manifest_path)
-    except ManifestLoadError as exc:
-        manifest_stage = (
-            "manifest_missing" if not manifest_path.exists() else "manifest_invalid"
-        )
-        _emit_stage_error_log(
-            op_id=run_op_id,
-            stage=manifest_stage,
-            error_class="extraction_validation_failed",
-            source_document_id=None,
-            error_message=str(exc),
-        )
-        await _emit_pipeline_run_webhook(
-            op_id=run_op_id,
-            status="failed",
-            stage_counts=stage_counts,
-            items_processed=0,
-            items_created=[],
-            extractor_version=extractor_version,
-            error_message=_redact_error_message(str(exc)),
-            error_class="extraction_validation_failed",
-        )
-        raise
 
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
@@ -4352,7 +3995,6 @@ async def app_main() -> None:
         # `async with bind_*` CMs wrapping `mount_each` bound the context on the
         # WRONG thread: inside `ingest_file` every `current_*()` read returned
         # the ContextVar default (None) → `current_flow_meta()` None → 0 rows;
-        # `current_workspace_manifest()` None → the Path-B form-write skipped;
         # `current_stage_counter()` None → stage_counts stuck at 0. This was
         # invisible to the unit suite (every flow test mocks `mount_each`, so
         # `ingest_file` ran inline on the test's own task with ContextVars
@@ -4370,21 +4012,21 @@ async def app_main() -> None:
         #
         # Use a NAMED nested coroutine instead: it has a real `__name__` +
         # `__qualname__` + a clean signature, and its CLOSURE CELLS carry the run
-        # context (op_id / counters / manifest) across the daemon-thread boundary
-        # exactly as the partial's captured args did — so Option A still holds: the
+        # context (op_id / counters) across the daemon-thread boundary exactly
+        # as the partial's captured args did — so Option A still holds: the
         # BIND POINT stays inside the per-item callable (flow_meta / retry_counter /
         # taxonomy_miss_counter are RE-BOUND locally on the worker thread, where
-        # `extraction.py` reads those ContextVars in-task; stage_counter +
-        # workspace_manifest are read directly from the passed args), NOT on this
-        # binder task whose ContextVars the engine does not propagate.
+        # `extraction.py` reads those ContextVars in-task; stage_counter is read
+        # directly from the passed args), NOT on this binder task whose
+        # ContextVars the engine does not propagate.
         # ID-80.9 (80.2 §B.4): per-item containment at the mount_each
         # boundary. An UNEXPECTED escape from one file's branch is contained
         # and attributed (per-branch tally + ingest_item stage error), NOT
         # promoted to a whole-walk failure — Inv-17: one file's fault must
         # not abort the batch or flip flow_status (the bl-224 cascade
-        # inversion). Walk-wide faults (manifest load, Stage-5, mount
-        # errors) still propagate through the flow-scope except below and
-        # correctly land status='failed'.
+        # inversion). Walk-wide faults (Stage-5, mount errors) still
+        # propagate through the flow-scope except below and correctly land
+        # status='failed'.
         async def bound_ingest_file(file, *targets):
             try:
                 return await ingest_file(
@@ -4395,12 +4037,11 @@ async def app_main() -> None:
                     flow_retry_counter=flow_retry_counter,
                     flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
                     flow_memo_heal_counter=flow_memo_heal_counter,
-                    flow_workspace_manifest=workspace_manifest,
                     flow_source_path=source_path,
                 )
             except Exception as exc:  # noqa: BLE001 — per-item containment
                 flow_item_failure_counter.increment(
-                    _item_failure_branch(workspace_manifest, file, source_path)
+                    _item_failure_branch(None, file, source_path)
                 )
                 _emit_stage_error_log(
                     op_id=run_op_id,

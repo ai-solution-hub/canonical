@@ -8,9 +8,15 @@
  *                     INV-17 (N>=3 stable fixpoint, no churn/drift).
  *
  * This is the TypeScript half of the {59.32} golden fixture. The Python half
- * (`scripts/tests/test_qa_sidecar_roundtrip.py`) proves the WALK leg (re-walk
- * mints identical deterministic PKs + INV-20 path stability); THIS file proves
- * the SERIALISATION leg that the round-trip rides on:
+ * (`scripts/tests/test_qa_sidecar_roundtrip.py` — re-walk minting identical
+ * deterministic PKs + INV-20 path stability) was RETIRED by ID-127.37
+ * (DR-038/056/061): the folder→workspace manifest fork + its qa_sidecar
+ * corpus-walk route no longer exist in `scripts/cocoindex_pipeline/flow.py`.
+ * Whether `lib/q-a-pairs/sidecar-path.ts`'s serialisation leg below is still
+ * live for a DIFFERENT (non-corpus-walk) write path, or is itself now
+ * orphaned, is OUT OF SCOPE for ID-127.37 — flagged for separate triage, not
+ * decided here. THIS file proves the SERIALISATION leg that the round-trip
+ * rides on:
  *
  *   edit (carried set) -> serialiseCarriedSet -> bytes ON DISK -> read back ->
  *   parseCarriedSet -> the carried set is BYTE-FOR-FOR identical (INV-16), and

@@ -46,10 +46,11 @@ const POLL_TIMEOUT_MS = 120_000;
 const EFA_XLSX =
   'scripts/tests/fixtures/form-extraction/evaluation-matrix-itt-vol8.xlsx';
 
-// The folder prefix the test manifest maps to a workspace.
-// Mirror __tests__/fixtures/form-extraction/.kh-workspace-map.json — the
-// when-wired staging service mounts that manifest at COCOINDEX_SOURCE_PATH
-// root, so a fixture staged under this prefix resolves to the mapped workspace.
+// An arbitrary staging subfolder for this fixture. ID-127.37 (DR-038/056/061)
+// retired the folder→workspace manifest premise entirely — this prefix no
+// longer resolves through any manifest mapping (workspace is not a scoping
+// concept the pipeline consumes any more); it is kept only as a stable,
+// namespaced staging path so concurrent integration runs do not collide.
 const MAPPED_FOLDER = 'id-52-13-form-extraction';
 
 const RUN = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

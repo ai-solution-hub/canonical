@@ -794,7 +794,7 @@ class TestMountEachArityContract:
         consumer of a document-level embedding exists (DR-036 grep-verified).
 
         ID-66.19 appended KEYWORD-ONLY run-context params (``flow_op_id`` + the
-        four counters + ``flow_workspace_manifest``) after a bare ``*`` so
+        four counters + ``flow_source_path``) after a bare ``*`` so
         ``app_main`` can thread the run context via ``functools.partial`` across
         the cocoindex daemon-thread dispatch boundary (ContextVars do not
         propagate to the engine's ``_LoopRunner`` thread). The keyword-only
@@ -1401,8 +1401,8 @@ class TestSourceDocumentRawPoolFkOrdering:
 
 
 class TestInv19QaDeclareSnapshot:
-    """Inv-19 — Path-A writes are never touched by form routing (80.2 §Testing
-    row 5; ID-80.10).
+    """Inv-19 — the content branch's q_a declare payload is stable (80.2
+    §Testing row 5; ID-80.10).
 
     Snapshot-compares the content branch's FULL ``q_a_extractions``
     ``declare_row`` payload against a frozen golden literal transcribed from
@@ -1413,13 +1413,15 @@ class TestInv19QaDeclareSnapshot:
     drifted ``_KH_PIPELINE_DOC_NS`` (the uuid5 values are hard-coded) — fails
     the snapshot.
 
-    Two modes prove the Inv-19 claim end-to-end through the REAL
-    ``ingest_file`` fork body:
-      (a) no manifest bound (the Path-A-only default — pre-fork behaviour),
-      (b) a mapped ``route:"content"`` manifest (the fork actively resolves
-          and routes the content branch).
-    Both must produce the IDENTICAL golden payload — the form-routing fork
-    must not perturb a single byte of the Path-A q_a declare."""
+    ID-80.8 originally proved this claim in TWO modes — (a) no manifest
+    bound, (b) a mapped ``route:"content"`` manifest actively routing through
+    the fork — because the fork could, in principle, perturb the Path-A
+    write. ID-127.37 (DR-038/056/061) retired the folder→workspace manifest
+    fork entirely: there is no more manifest-bound mode to distinguish, so
+    mode (b) — now identical to (a) by construction — was removed (see git
+    history). Mode (a) alone still proves Inv-19: `ingest_file` unconditionally
+    runs the content branch, and its q_a declare payload is byte-identical to
+    the historical contract."""
 
     _REL_PATH = "acme/inv19-doc.md"
     # Pinned per-run op_id (a literal, not uuid4 — the golden embeds it).
@@ -1485,16 +1487,11 @@ class TestInv19QaDeclareSnapshot:
         flow: object,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
-        *,
-        manifest: object | None = None,
     ) -> dict:
         """Drive the REAL ``ingest_file`` with pinned outside-world seams
         (Docling / Anthropic / OpenAI — process boundaries only) and return
         the recording targets."""
-        from scripts.cocoindex_pipeline.flow_context import (
-            bind_flow_meta,
-            bind_workspace_manifest,
-        )
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
         markdown = "# Inv-19\n\nFrozen body text."
 
@@ -1561,25 +1558,14 @@ class TestInv19QaDeclareSnapshot:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=cls._OP_ID):
-                if manifest is None:
-                    await flow.ingest_file(
-                        fake_file,
-                        targets["qa"],
-                        targets["sd"],
-                        targets["em"],
-                        None,
-                        None,
-                    )
-                else:
-                    async with bind_workspace_manifest(manifest):
-                        await flow.ingest_file(
-                            fake_file,
-                            targets["qa"],
-                            targets["sd"],
-                            targets["em"],
-                            None,
-                            None,
-                        )
+                await flow.ingest_file(
+                    fake_file,
+                    targets["qa"],
+                    targets["sd"],
+                    targets["em"],
+                    None,
+                    None,
+                )
 
         asyncio.run(_exercise())
         return targets
@@ -1587,41 +1573,18 @@ class TestInv19QaDeclareSnapshot:
     def test_qa_declare_payload_matches_pre_refactor_golden_no_manifest(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """(a) Path-A-only default (no manifest bound): the q_a declare
-        payload is EXACTLY the frozen pre-refactor golden — full-dict
-        equality, every key and value."""
+        """The content branch (the only branch — ID-127.37 retired the
+        manifest fork) declares a q_a_extractions payload EXACTLY matching
+        the frozen pre-refactor golden — full-dict equality, every key and
+        value."""
         flow = _flow_module()
-        out = self._drive(flow, tmp_path, monkeypatch, manifest=None)
+        out = self._drive(flow, tmp_path, monkeypatch)
 
         assert out["qa"].rows == self._GOLDEN_QA_ROWS, (
             "the content branch's q_a_extractions declare payload must be "
             "byte-identical to the pre-{80.7}/{80.8} refactor contract "
             "(Inv-19 — 80.2 §Testing row 5)"
         )
-
-    def test_qa_declare_payload_identical_under_content_routed_manifest(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """(b) The fork actively resolves a ``route:"content"`` mapping for
-        this file — and the q_a declare payload is STILL the identical
-        golden. Form routing never touches a Path-A write."""
-        flow = _flow_module()
-        ws = uuid.uuid4()
-        manifest = _make_manifest(flow, "acme/", ws, route="content")
-        out = self._drive(flow, tmp_path, monkeypatch, manifest=manifest)
-
-        assert out["qa"].rows == self._GOLDEN_QA_ROWS, (
-            "routing a content file through the {80.8} fork (mapped "
-            "route:'content' manifest) must leave the q_a_extractions "
-            "declare payload byte-identical to the no-manifest golden "
-            "(Inv-19 — Path-A writes never touched by form routing)"
-        )
-        # ID-136 (forms-route retirement) removed the form_templates /
-        # form_template_fields write targets — the "zero form rows either
-        # way" assertion this class used to make is now structurally
-        # impossible/vacuous and has been removed. The qa/content golden-row
-        # assertion above still proves the Inv-19 intent: the content-routed
-        # manifest yields the identical qa/content declare payload.
 
 
 # ── 28.21 — content_fingerprint is awaited (async method, not attribute) ──────
@@ -1962,14 +1925,14 @@ class TestLifespanProvidesDbCtx:
         asyncio.run(_exercise())
 
 
-# ── {80.8} shared fixtures — WorkspaceManifest + File stand-in ────────────────
+# ── {80.8}-era shared fixture — File stand-in ──────────────────────────────
 # ID-136 (DR-014): the Path-B form-template write-path classes previously
 # anchored here (TestFormWriteSuccessPath, TestFormWriteMemoHitRoundTrip,
 # TestFormWriteGracefulEmptyProvenance, TestFormWriteSkipAndFailurePaths,
-# TestFormWriteIdempotency) were retired — RouteKind now admits only
-# "content"/"qa_sidecar", so route="forms" fails at WorkspaceMapping's
-# model_validate. _FakeFormFile and _make_manifest remain: both are shared
-# with TestInv19QaDeclareSnapshot above.
+# TestFormWriteIdempotency) were retired. ID-127.37 (DR-038/056/061) then
+# retired the folder→workspace manifest fork entirely — the `_make_manifest`
+# fixture that used to live here went with it (see git history). Only
+# `_FakeFormFile` remains, shared with `TestInv19QaDeclareSnapshot` above.
 
 
 class _FakeFormFile:
@@ -2000,30 +1963,6 @@ class _FakeFormFile:
         import hashlib
 
         return hashlib.sha256(self._disk.read_bytes()).digest()
-
-
-def _make_manifest(
-    flow: object, prefix: str, workspace_id: "uuid.UUID", *, route: str = "content"
-):
-    """Build a real WorkspaceManifest mapping ``prefix`` → ``workspace_id``.
-
-    ID-80.8: the per-prefix ``route`` tag is the fork discriminator (the
-    default ``"content"`` keeps every other prefix on Path-A, 80.2 §B.2).
-    ID-136 retires the historical ``"forms"`` route — ``route`` now admits
-    only ``"content"`` / ``"qa_sidecar"`` (ID-59 {59.26})."""
-    from scripts.cocoindex_pipeline.workspace_resolver import (
-        WorkspaceManifest,
-        WorkspaceMapping,
-    )
-
-    return WorkspaceManifest(
-        schema_version=1,
-        mappings=[
-            WorkspaceMapping(
-                path_prefix=prefix, workspace_id=workspace_id, route=route
-            )
-        ],
-    )
 
 
 # ── ID-69 — canonical cross-workspace association ingest invariants ───────────
@@ -2264,11 +2203,12 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         ever. Replaces the pre-{127.25} shape assertion (a content_items row
         existed, had no workspace column, and carried the full write
         payload) with a structural absence proof: INV-5's "no content_items
-        row" guarantee — previously proved only on the qa_sidecar branch
-        (see ``_ingest_qa_sidecar_body``'s docstring: "no ci/cc/em/er target
-        in its signature") — now holds on EVERY branch, because there is no
-        longer a ``ci_target`` parameter anywhere in the ingest call graph
-        for content_items rows to reach.
+        row" guarantee — previously proved only on the pre-ID-127.37 sidecar
+        branch (retired alongside the manifest fork; its docstring read "no
+        ci/cc/em/er target in its signature") — now holds on the SOLE
+        remaining branch, because there is no longer a ``ci_target``
+        parameter anywhere in the ingest call graph for content_items rows
+        to reach.
         """
         flow = _flow_module()
 
@@ -2620,7 +2560,17 @@ class TestStampExtractionBaseWiredIntoIngest:
 
 
 class TestWorkspacePathFixes:
-    """{66.22} source-relative rel_path + {66.23} manifest-skip (S297)."""
+    """{66.22} source-relative rel_path (S297).
+
+    ID-127.37 (DR-038/056/061) retired the folder→workspace manifest fork
+    entirely, including the {66.23}/BUG-B manifest-filename walk-skip guard
+    this class used to also cover (`test_workspace_manifest_file_is_skipped_
+    not_ingested` — removed, see git history: there is no longer a
+    `.kh-workspace-map.json` file with special meaning to skip). The
+    {66.22}/BUG-A source-relative `rel_path` normalisation stays LIVE —
+    `_to_source_relative` still seeds the deterministic per-document uuid5
+    PKs (S297 BUG-A) — so this class keeps proving it, minus the now-retired
+    workspace-resolution assertions."""
 
     def test_to_source_relative_strips_source_root(self) -> None:
         """{66.22}: the helper normalises an ABSOLUTE prod path to source-relative."""
@@ -2645,22 +2595,21 @@ class TestWorkspacePathFixes:
             flow._to_source_relative(Path("test/x.md"), source_root) == "test/x.md"
         )
 
-    def test_ingest_file_rel_path_is_source_relative_and_resolves_workspace(
+    def test_ingest_file_rel_path_is_source_relative(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """{66.22}/BUG-A: an ABSOLUTE file path under the source root resolves a
-        RELATIVE-prefixed manifest, and storage_path lands source-relative.
+        """{66.22}/BUG-A: an ABSOLUTE file path under the source root normalises
+        to a SOURCE-RELATIVE storage_path end-to-end through `ingest_file`.
 
         Pre-fix RED: rel_path = file.file_path.path.as_posix() is the ABSOLUTE
-        prod path, so (1) storage_path is absolute and (2) resolve_workspace
-        raises ResolutionFailure ('test/'-prefix never matches the absolute
-        path) → a workspace_resolution stage error is emitted.
+        prod path, so storage_path lands absolute instead of source-relative
+        (breaking the deterministic uuid5 PK seed's portability across mount
+        points / re-ingests). ID-127.37 retired the workspace-resolution half
+        of this test's original title (the manifest fork it exercised no
+        longer exists) — the source-relative normalisation itself is
+        untouched and still proven here.
         """
         flow = _flow_module()
-        from scripts.cocoindex_pipeline.workspace_resolver import (
-            WorkspaceManifest,
-            WorkspaceMapping,
-        )
 
         markdown = "# Heading\n\nBody text."
 
@@ -2694,26 +2643,12 @@ class TestWorkspacePathFixes:
         # the Path-B form block entirely — the content path below no longer
         # calls it, so there is nothing left to monkeypatch here.
 
-        stage_errors: list[dict] = []
-
-        def _capture_stage_error(**kwargs: object) -> None:
-            stage_errors.append(kwargs)
-
-        monkeypatch.setattr(flow, "_emit_stage_error_log", _capture_stage_error)
-
-        # ABSOLUTE file path under a source root (the prod shape), mapped via a
-        # source-RELATIVE manifest prefix.
+        # ABSOLUTE file path under a source root (the prod shape).
         source_root = tmp_path / "corpus"
         (source_root / "test").mkdir(parents=True)
         src = source_root / "test" / "doc.md"
         src.write_text(markdown)
         fake_file = _FakeFile(src)
-
-        ws = uuid.UUID("b0000000-0000-4000-8000-000000000001")
-        manifest = WorkspaceManifest(
-            schema_version=1,
-            mappings=[WorkspaceMapping(path_prefix="test/", workspace_id=ws)],
-        )
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
@@ -2731,7 +2666,6 @@ class TestWorkspacePathFixes:
                 None,
                 None,
                 flow_op_id=uuid.uuid4(),
-                flow_workspace_manifest=manifest,
                 flow_source_path=source_root,
             )
 
@@ -2743,57 +2677,10 @@ class TestWorkspacePathFixes:
         # BUG-A: storage_path is the SOURCE-RELATIVE POSIX string, NOT the
         # absolute prod path. (Also the seed of the deterministic uuid5 PKs.)
         assert sd_rows[0]["storage_path"] == "test/doc.md", (
-            "storage_path must be source-relative (the manifest prefix matches "
-            "the relative form, not the absolute prod path)"
+            "storage_path must be source-relative to the ingest source root, "
+            "not the absolute prod path"
         )
-        # Content lands independently of workspace resolution (ID-69 BI-1).
         assert len(sd_rows) == 1
-        # resolve_workspace SUCCEEDED — no workspace_resolution stage error.
-        assert [e for e in stage_errors if e.get("stage") == "workspace_resolution"] == [], (
-            "resolve_workspace must succeed against the source-relative rel_path "
-            "(the absolute path would raise ResolutionFailure on the 'test/' prefix)"
-        )
-
-    def test_workspace_manifest_file_is_skipped_not_ingested(
-        self, tmp_path: Path
-    ) -> None:
-        """{66.23}/BUG-B: the manifest file is skipped before conversion.
-
-        Pre-fix RED: with no skip guard, ingest_file calls the REAL
-        convert_binary_to_markdown on a '.json' suffix → ValueError
-        'Unsupported file extension'. The fix short-circuits before conversion.
-        convert_binary_to_markdown is intentionally NOT stubbed here.
-        """
-        flow = _flow_module()
-
-        src = tmp_path / ".kh-workspace-map.json"
-        src.write_text('{"schema_version": 1, "mappings": []}')
-        fake_file = _FakeFile(src)
-
-        qa = _FakeTarget("q_a_extractions")
-        sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
-        cc = _FakeTarget("content_chunks")
-        er = _FakeTarget("entity_relationships")
-
-        async def _exercise() -> None:
-            await flow.ingest_file(
-                fake_file,
-                qa,
-                sd,
-                em,
-                cc,
-                er,
-                None,
-                flow_op_id=uuid.uuid4(),
-            )
-
-        # Must NOT raise (the pre-fix path raises ValueError on the .json suffix).
-        asyncio.run(_exercise())
-
-        # The manifest is not content → no rows declared on any target.
-        assert sd.rows == [] and qa.rows == [] and em.rows == []
-        assert cc.rows == [] and er.rows == []
 
     def test_register_pg_codecs_serialises_jsonb_dict(self) -> None:
         """{66.16}/BUG-D (S297): the pool init hook registers a jsonb codec whose

@@ -1231,38 +1231,15 @@ class _PathOnlyFile:
         self.file_path = _PathOnlyFile._FilePath(Path(rel_path))
 
 
-def _two_route_manifest():
-    """Real WorkspaceManifest with a __qa__/ (qa_sidecar) + content/ route
-    pair (80.2 §B.2).
+def _arbitrary_manifest_arg():
+    """A stand-in for `_item_failure_branch`'s vestigial `manifest` positional.
 
-    ID-136 (forms-route retirement): this fixture's non-content route was
-    `'forms'` pre-retirement; `RouteKind` narrowed to
-    `Literal["content", "qa_sidecar"]`, so it now exercises the qa_sidecar
-    route instead — still a genuine two-distinct-routes manifest. NOTE
-    (TECH.md §1.3, owner S437 caveat): `qa_sidecar` is itself EARMARKED
-    SUPERSEDED under the id-131 OKF record-model (superseded-pending, not
-    yet retired) — this fixture may need to move again when id-131 retires
-    the sidecar route; that is a downstream id-131 concern, out of scope
-    here."""
-    from scripts.cocoindex_pipeline.workspace_resolver import WorkspaceManifest
-
-    return WorkspaceManifest.model_validate(
-        {
-            "schema_version": 1,
-            "mappings": [
-                {
-                    "path_prefix": "__qa__/",
-                    "workspace_id": "33333333-3333-4333-8333-333333333333",
-                    "route": "qa_sidecar",
-                },
-                {
-                    "path_prefix": "content/",
-                    "workspace_id": "44444444-4444-4444-8444-444444444444",
-                    "route": "content",
-                },
-            ],
-        }
-    )
+    ID-127.37 (DR-038/056/061) retired the folder→workspace manifest premise
+    entirely — `workspace_resolver` no longer exists, and `_item_failure_branch`
+    ignores this argument unconditionally (it always returns `'content'`). Any
+    object proves the point; a plain sentinel avoids resurrecting the deleted
+    module just to build a throwaway fixture."""
+    return object()
 
 
 class TestFlowItemFailureCounter:
@@ -1321,14 +1298,14 @@ class TestFlowItemFailureCounter:
 class TestItemFailureBranchDerivation:
     """`_item_failure_branch` — per-item fault attribution.
 
-    ID-136 (forms-route retirement, T3): pre-retirement this derived a
-    forms|content split from `resolve_route(manifest, rel_path)`; the
-    helper now collapses to an UNCONDITIONAL `'content'` return regardless
-    of manifest, file, or source_path — both the content route and the
-    (retained) qa_sidecar route already attributed to `'content'` before
-    this retirement (there was never a distinct `'qa_sidecar'` failure
-    bucket). Retained as a named function so the "never raises" contract
-    stays unit-testable in isolation.
+    ID-136 (forms-route retirement, T3) first collapsed forms|content into an
+    UNCONDITIONAL `'content'` return; ID-127.37 (DR-038/056/061) then retired
+    the folder→workspace manifest premise + the qa_sidecar route entirely, so
+    there is no longer any route vocabulary left for this helper to have
+    derived from — `'content'` is the only localfs branch that exists. The
+    helper still ignores `manifest`, `file`, and `source_path` unconditionally
+    (kept as a named function so the "never raises" contract stays
+    unit-testable in isolation).
 
     The helper MUST NEVER raise: it runs inside the per-item containment
     handler, where an escape would abort the batch (the exact
@@ -1339,7 +1316,7 @@ class TestItemFailureBranchDerivation:
         assert hasattr(flow, "_item_failure_branch")
 
     def test_always_yields_content_regardless_of_manifest_or_path(self):
-        manifest = _two_route_manifest()
+        manifest = _arbitrary_manifest_arg()
         for rel_path in ("content/doc.md", "__qa__/blank.md", "elsewhere/mystery.md"):
             file = _PathOnlyFile(rel_path)
             assert flow._item_failure_branch(manifest, file, None) == "content"
@@ -1347,7 +1324,7 @@ class TestItemFailureBranchDerivation:
     def test_broken_file_object_defaults_to_content_without_raising(self):
         # A malformed item (no file_path) must not raise from inside the
         # containment handler.
-        manifest = _two_route_manifest()
+        manifest = _arbitrary_manifest_arg()
         assert flow._item_failure_branch(manifest, object(), None) == "content"
 
     def test_absolute_path_does_not_raise_and_still_yields_content(self):
@@ -1355,7 +1332,7 @@ class TestItemFailureBranchDerivation:
         # helper no longer inspects the path at all, so the pre-retirement
         # _to_source_relative normalisation is moot — this pins that an
         # absolute path + a source_path arg still does not raise.
-        manifest = _two_route_manifest()
+        manifest = _arbitrary_manifest_arg()
         file = _PathOnlyFile("/cocoindex-state/corpus/content/doc.md")
         source = Path("/cocoindex-state/corpus")
         assert flow._item_failure_branch(manifest, file, source) == "content"

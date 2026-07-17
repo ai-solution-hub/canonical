@@ -200,48 +200,6 @@ def current_stage_counter() -> StageCounterProtocol | None:
     return _stage_counter_var.get()
 
 
-# Workspace-manifest binding (ID-52.12 — Path B folder→workspace resolution).
-#
-# `app_main()` loads the `.kh-workspace-map.json` manifest ONCE at flow start
-# (TECH §2.1) and must make the loaded `WorkspaceManifest` reachable inside the
-# per-item `ingest_file` component, which `mount_each` invokes with only
-# `(file, *targets)` — no manifest parameter. This is the SAME constraint the
-# retry / stage counters solved: route a flow-scope-bound value through
-# `flow_context` so `ingest_file` can read it via `current_workspace_manifest()`
-# without an argument-threading cycle.
-#
-# The bound type is intentionally `object` (not the `WorkspaceManifest` Pydantic
-# model) to avoid a `flow_context → workspace_resolver` import dependency in this
-# low-level module; `ingest_file` passes whatever it reads straight into
-# `resolve_workspace(manifest, rel_path)`, which validates the shape.
-
-
-_workspace_manifest_var: contextvars.ContextVar[object | None] = (
-    contextvars.ContextVar("_kh_flow_workspace_manifest_var", default=None)
-)
-
-
-@asynccontextmanager
-async def bind_workspace_manifest(
-    manifest: object,
-) -> AsyncIterator[object]:
-    """Bind the loaded workspace manifest for the wrapped async block.
-
-    Token-based reset on exit — safe against nesting + exceptions, mirroring
-    `bind_flow_meta` / `bind_stage_counter`.
-    """
-    token = _workspace_manifest_var.set(manifest)
-    try:
-        yield manifest
-    finally:
-        _workspace_manifest_var.reset(token)
-
-
-def current_workspace_manifest() -> object | None:
-    """Return the currently-bound workspace manifest, or None if no binding."""
-    return _workspace_manifest_var.get()
-
-
 # Taxonomy-miss-counter binding (ID-63.8 — Inv-7 out-of-taxonomy soft-warn).
 #
 # `ClassificationExtraction`'s `_surface_out_of_taxonomy_classification`

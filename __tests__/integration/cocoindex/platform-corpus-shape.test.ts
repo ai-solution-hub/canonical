@@ -19,14 +19,16 @@
  * every `bun run test` run.
  *
  * Behaviour-first (`reference/test-philosophy.md`): asserts observable
- * file-tree facts (entry set, magic bytes, manifest JSON shape), not pipeline
- * internals.
+ * file-tree facts (entry set, magic bytes), not pipeline internals.
  *
- * The expected manifest shape is cross-checked (read-only) against TECH §2.1's
- * manifest-shape contract (previously mirrored by the `WorkspaceMapManifest`
- * interface / `buildManifest` in `scripts/seed-synthetic-corpus.ts`, retired
- * ID-145.25 — that script's mint-and-rekey machinery was purpose-obsolete
- * post-{145.6} M3).
+ * ID-127.37 (DR-038/056/061) retired the folder→workspace manifest premise
+ * entirely — `scripts/cocoindex_pipeline/workspace_resolver.py` no longer
+ * exists, and the `.kh-workspace-map.json.example` template this file used
+ * to also shape-guard (schema_version + mappings, previously mirrored by the
+ * `WorkspaceMapManifest` interface / `buildManifest` in
+ * `scripts/seed-synthetic-corpus.ts`, retired ID-145.25) was DELETED from the
+ * vendored corpus alongside it — see git history for the pre-retirement
+ * manifest-shape contract.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join, relative, sep } from 'node:path';
@@ -42,10 +44,10 @@ const CORPUS_ROOT = resolve(
   '../../../scripts/cocoindex_pipeline/fixtures/platform-corpus',
 );
 
-const MANIFEST_TEMPLATE = '.kh-workspace-map.json.example';
-
-// The authoritative tree per TECH §2.1 — exactly these 11 entries, no more.
-// (forms/procurement/ retired under DR-014 — ID-136 forms-route retirement.)
+// The authoritative tree per TECH §2.1 — exactly these 10 entries, no more.
+// (forms/procurement/ retired under DR-014 — ID-136 forms-route retirement;
+// the `.kh-workspace-map.json.example` manifest template retired under
+// ID-127.37 — DR-038/056/061.)
 // The five ID-132.30 G-CORPUS-ENRICH additions are ALL .md, ALL carrying the
 // synthetic- token, and satisfy the L-records grain-mechanics map's filename
 // gates (`scripts/cocoindex_pipeline/sources/l_records.py:94-99`):
@@ -53,7 +55,6 @@ const MANIFEST_TEMPLATE = '.kh-workspace-map.json.example';
 // (company), %compliance% (certification); the product catalogue has no
 // filename gate (product concepts enumerate off `entity_mentions` directly).
 const EXPECTED_ENTRIES = [
-  MANIFEST_TEMPLATE,
   'content/synthetic-methodology.md',
   'content/synthetic-capability-statement.pdf',
   'content/synthetic-sector-intel.docx',
@@ -86,20 +87,9 @@ function walk(dir: string): string[] {
 
 const actualEntries = walk(CORPUS_ROOT).sort();
 
-const manifest = JSON.parse(
-  readFileSync(join(CORPUS_ROOT, MANIFEST_TEMPLATE), 'utf8'),
-) as {
-  schema_version?: unknown;
-  mappings?: Array<{
-    path_prefix?: unknown;
-    workspace_id?: unknown;
-    route?: unknown;
-  }>;
-};
-
 describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.2/§7)', () => {
   describe('tree completeness (§2.1)', () => {
-    it('contains exactly the 11 expected entries — no more, no less', () => {
+    it('contains exactly the 10 expected entries — no more, no less', () => {
       expect(actualEntries).toEqual([...EXPECTED_ENTRIES].sort());
     });
 
@@ -140,14 +130,6 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
     });
   });
 
-  describe('manifest template shape (§2.1)', () => {
-    it('parses as JSON with a schema_version and an empty mappings array (DR-014)', () => {
-      expect(manifest.schema_version).toBe(1);
-      expect(Array.isArray(manifest.mappings)).toBe(true);
-      expect(manifest.mappings).toEqual([]);
-    });
-  });
-
   describe('seam coverage (§2.2)', () => {
     const has = (rel: string) => actualEntries.includes(rel);
 
@@ -179,26 +161,20 @@ describe('Platform seam-coverage corpus — vendored tree shape (TECH §2.1/§2.
       expect(offenders).toEqual([]);
     });
 
-    it('has no forms/ tree and no forms route mapping (DR-014)', () => {
+    it('has no forms/ tree (DR-014)', () => {
       const formsPaths = actualEntries.filter((p) => p.startsWith('forms/'));
       expect(formsPaths, 'no forms/ path should remain in the corpus').toEqual(
         [],
       );
-      expect(
-        manifest.mappings,
-        'manifest.mappings must be empty (no forms route)',
-      ).toEqual([]);
     });
   });
 
   describe('no client IP (§2.2 / BI-3)', () => {
-    it('every walk file is a synthetic-* fixture (manifest template aside)', () => {
-      const offenders = actualEntries
-        .filter((p) => p !== MANIFEST_TEMPLATE)
-        .filter((p) => {
-          const base = p.split('/').pop() ?? p;
-          return !base.startsWith('synthetic-');
-        });
+    it('every walk file is a synthetic-* fixture', () => {
+      const offenders = actualEntries.filter((p) => {
+        const base = p.split('/').pop() ?? p;
+        return !base.startsWith('synthetic-');
+      });
       expect(
         offenders,
         'all content/qa/edge files must use synthetic- tokens (no client IP)',

@@ -743,8 +743,8 @@ async def _pull_sync_materialise(
     Idle-mode guard (belt-and-braces): `_walk_handler` already rejects an
     unset/missing `COCOINDEX_SOURCE_PATH` with a 400 BEFORE `_run_walk` is
     ever spawned, so this branch is not reachable via the HTTP route today —
-    it guards any future/direct caller of this function the same way
-    `_seed_workspace_manifest` guards idle mode.
+    it guards any future/direct caller of this function against the same
+    idle-mode condition.
     """
     source_root = os.environ.get("COCOINDEX_SOURCE_PATH")
     if not source_root:
@@ -1482,68 +1482,6 @@ def start_cocoindex_thread() -> threading.Thread:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Workspace-manifest seed (ID-62.6, ID-83-corrected)
-# ──────────────────────────────────────────────────────────────────────────
-
-
-# Minimal schema-valid manifest: `schema_version` 1 + an empty `mappings` list.
-# Empty `mappings` is degenerate-but-legal (every path then resolves to a
-# `ResolutionFailure`, which is observability-only for file content — bl-219),
-# but it parses cleanly through `load_workspace_manifest`, which is all the seed
-# needs: a present, parseable manifest so the first `/walk` does NOT abort with
-# `ManifestLoadError`. See `workspace_resolver.WorkspaceManifest`.
-_SEED_MANIFEST: dict[str, Any] = {"schema_version": 1, "mappings": []}
-_WORKSPACE_MANIFEST_NAME = ".kh-workspace-map.json"
-
-
-def _seed_workspace_manifest() -> None:
-    """Ensure a schema-valid `.kh-workspace-map.json` exists at the corpus root.
-
-    Rationale (ID-83 / bl-221 — NOT the pre-ID-83 boot-watch framing): boot is
-    lifespan-only and never walks, so this seed is NOT "arm the boot watch" /
-    "seed before `start_cocoindex_thread()`". It exists because the manifest
-    must be present at the corpus root **before the FIRST `POST /walk`** — the
-    walk runs `app_main`, which loads `<COCOINDEX_SOURCE_PATH>/.kh-workspace-map.json`
-    and raises `ManifestLoadError` (→ zero rows) if it is absent
-    (`workspace_resolver.load_workspace_manifest`). Seeding here in `main()`
-    guarantees a parseable manifest exists from the container's first request;
-    the old pre-`start_cocoindex_thread()` ordering constraint is moot (boot
-    never walks).
-
-    Behaviour:
-      - `COCOINDEX_SOURCE_PATH` unset → no-op (idle mode; boot must not fail).
-      - else `os.makedirs(source, exist_ok=True)`, then write the minimal
-        `{"schema_version": 1, "mappings": []}` manifest ONLY if it is absent
-        (an operator-supplied manifest is never clobbered).
-    """
-    source = os.environ.get("COCOINDEX_SOURCE_PATH")
-    if not source:
-        _logger.info(
-            "COCOINDEX_SOURCE_PATH unset — skipping workspace-manifest seed "
-            "(idle mode; the first POST /walk would itself no-op)"
-        )
-        return
-
-    os.makedirs(source, exist_ok=True)
-    manifest_path = Path(source) / _WORKSPACE_MANIFEST_NAME
-    if manifest_path.exists():
-        _logger.info(
-            "workspace manifest already present at %s — not clobbering",
-            manifest_path,
-        )
-        return
-
-    manifest_path.write_text(
-        json.dumps(_SEED_MANIFEST) + "\n", encoding="utf-8"
-    )
-    _logger.info(
-        "seeded minimal workspace manifest at %s (schema_version=1, empty "
-        "mappings) so the first POST /walk does not abort with ManifestLoadError",
-        manifest_path,
-    )
-
-
-# ──────────────────────────────────────────────────────────────────────────
 # Main entry point
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -1563,13 +1501,6 @@ def main() -> None:
     # SIGTERM handler logs arrival for post-mortem correlation; the returned
     # event is unused (aiohttp's web.run_app has its own signal trapping).
     install_signal_handlers()
-
-    # Seed a schema-valid workspace manifest at the corpus root if absent, so
-    # the first POST /walk's app_main does NOT abort with ManifestLoadError
-    # (ID-62.6, ID-83-corrected). Placement here is fine — boot never walks
-    # (ID-83), so the only ordering constraint is "before the first /walk",
-    # which any in-main() placement satisfies.
-    _seed_workspace_manifest()
 
     # Provision the cocoindex environment BEFORE web.run_app() so the asyncpg
     # pool + LMDB engine are entered (lifespan-only, NO walk — bl-221 Shape 1)
