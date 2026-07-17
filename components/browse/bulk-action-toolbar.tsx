@@ -68,15 +68,13 @@ export interface EngagementGroupOption {
  * and Tag stay retired — no valid backing column exists on `q_a_pairs`.
  * Verify (`/api/review/action`) is unaffected by this rebind.
  *
- * ID-135 {135.28} — affordance-honesty role gate. Server-side auth was
- * already correct (Assign / engagement-group-content route =
- * ['admin','editor']; hard-DELETE /api/q-a-pairs/[id] = ['admin']); this
- * hides the two buttons client-side so viewers/editors never see an
- * affordance the server will reject. Delete (irreversible hard-delete) is
- * `canAdmin`-only; Assign is `canEdit` (admin or editor). Verify is
- * deliberately NOT gated — out of {135.28}'s scope. Follows the
- * `guide-content.tsx` `{canEdit && (...)}` hide precedent rather than
- * disable-with-tooltip.
+ * ID-135 {135.28} — Delete and Assign are role-gated to mirror their
+ * server-side authorisation: Delete (irreversible hard-delete) is
+ * admin-only; Assign-to-engagement-group is admin/editor. Viewers see
+ * neither — client-side affordance honesty; the routes enforce it
+ * regardless of what this component renders. Verify is deliberately NOT
+ * gated — out of {135.28}'s scope. Follows the `guide-content.tsx`
+ * `{canEdit && (...)}` hide precedent rather than disable-with-tooltip.
  */
 export interface BulkActionToolbarProps {
   selectedCount: number;
