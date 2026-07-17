@@ -720,6 +720,110 @@ class TestCitationValidationProxy:
 
 
 # ============================================================================
+# G-PARSE-HARDEN ({132.45}, {132.35} Defect B) — terminal-JSON control-char
+# sanitisation + the narrower `_Pass1TerminalJsonError` retry-eligibility
+# subtype.
+# ============================================================================
+
+
+class TestSanitizeJsonControlChars:
+    def test_escapes_a_raw_control_char_found_inside_a_string_value(self) -> None:
+        """The live {132.35} Run-1 defect, reproduced directly: a raw
+        control byte (here `\\x0b`, vertical tab) sitting INSIDE a JSON
+        string value is RFC 8259-illegal and rejected outright by `json.
+        loads` — `_sanitize_json_control_chars` must turn it into a legal
+        `\\u000b` escape so the surrounding JSON becomes parseable."""
+        raw = '{"body": "line one\x0bline two", "n": 1}'
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(raw)
+
+        sanitized = enrich._sanitize_json_control_chars(raw)
+
+        assert json.loads(sanitized) == {"body": "line one\x0bline two", "n": 1}
+
+    def test_uses_the_short_escape_form_for_a_raw_newline_inside_a_string(self) -> None:
+        raw = '{"body": "line one\nline two"}'
+        sanitized = enrich._sanitize_json_control_chars(raw)
+        assert "\\n" in sanitized
+        assert json.loads(sanitized) == {"body": "line one\nline two"}
+
+    def test_leaves_already_valid_json_byte_identical(self) -> None:
+        raw = '{"a": "b\\nc", "d": [1, 2, 3]}'
+        assert enrich._sanitize_json_control_chars(raw) == raw
+
+    def test_leaves_whitespace_outside_strings_untouched(self) -> None:
+        """A raw tab/newline BETWEEN tokens (outside any string) is already
+        legal JSON insignificant whitespace — sanitisation must not touch
+        it, only in-string occurrences are the ones `json.loads` rejects."""
+        raw = '{\n\t"a":\t"b"\n}'
+        sanitized = enrich._sanitize_json_control_chars(raw)
+        assert sanitized == raw
+        assert json.loads(sanitized) == {"a": "b"}
+
+    def test_does_not_toggle_string_state_on_an_escaped_quote(self) -> None:
+        """`\\"` inside a string must not be mistaken for the string's
+        closing quote — a control char AFTER it is still in-string and
+        must still be sanitised."""
+        raw = '{"a": "quote\\" then\x0bcontrol"}'
+        sanitized = enrich._sanitize_json_control_chars(raw)
+        assert json.loads(sanitized) == {"a": 'quote" then\x0bcontrol'}
+
+
+class TestParsePass1ResponseSanitisation:
+    def test_parse_response_recovers_a_terminal_envelope_with_a_raw_control_char_in_body(
+        self,
+    ) -> None:
+        """End-to-end proxy for the {132.35} Defect B live failure: a
+        terminal envelope that is otherwise well-formed JSON EXCEPT for one
+        raw control byte inside the `body` string value must still parse
+        into a valid `_Pass1Envelope` — the concept must NOT hard-fail."""
+        uri = build_source_document_uri(_SD_ID)
+        text = _envelope_json(citations=[uri, "topics/gdpr.md"])
+        corrupted = text.replace(
+            "learning-management product.",
+            "learning-management\x0bproduct.",
+        )
+        assert corrupted != text
+        message = _MockMessage(
+            [TextBlock(type="text", text=corrupted)], stop_reason="end_turn"
+        )
+
+        envelope = enrich._parse_pass1_response(
+            message, seen_anchors={uri}, catalogue_paths={"topics/gdpr.md"}
+        )
+
+        assert envelope.title == "Learning Management System"
+        assert envelope.citations == (uri, "topics/gdpr.md")
+
+    def test_parse_response_raises_the_json_specific_subtype_for_unparseable_terminal_text(
+        self,
+    ) -> None:
+        """A terminal text with no recoverable JSON object anywhere in it
+        raises the NARROW `_Pass1TerminalJsonError` subtype — the one
+        `enrich_concept`'s bounded retry catches."""
+        message = _MockMessage(
+            [TextBlock(type="text", text="not json at all")], stop_reason="end_turn"
+        )
+        with pytest.raises(enrich._Pass1TerminalJsonError):
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
+
+    def test_parse_response_raises_the_plain_draft_error_for_a_well_formed_but_invalid_envelope(
+        self,
+    ) -> None:
+        """A WELL-FORMED envelope that fails a semantic check (here: an
+        empty `citations` array) is a drafting-QUALITY failure, never the
+        JSON-parse subtype — `enrich_concept`'s bounded retry must NOT
+        trigger for this."""
+        message = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[]))],
+            stop_reason="end_turn",
+        )
+        with pytest.raises(enrich.Pass1DraftError) as exc_info:
+            enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
+        assert not isinstance(exc_info.value, enrich._Pass1TerminalJsonError)
+
+
+# ============================================================================
 # BI-18 — memo-hit proxy (url_source.py precedent)
 # ============================================================================
 
@@ -1451,6 +1555,116 @@ class TestEnrichConceptEndToEnd:
 
         draft = asyncio.run(_exercise())
         assert f"[1] [{minted}]({minted})" in draft.body
+
+
+# ============================================================================
+# G-PARSE-HARDEN Leg 1c ({132.45}, {132.35} Defect B) — the bounded
+# ONE-retry of the terminal draft when the terminal text is unparseable
+# even after sanitisation.
+# ============================================================================
+
+
+class TestBoundedTerminalRetry:
+    def test_recovers_when_the_first_terminal_turn_is_unparseable_and_the_retry_is_clean(
+        self,
+    ) -> None:
+        """Sanitisation alone cannot fix every malformed terminal turn (e.g.
+        genuinely truncated/garbled text with no recoverable JSON object at
+        all) — `enrich_concept` retries the terminal draft ONCE, reusing the
+        SAME tool-populated `messages` conversation, and succeeds when the
+        retry comes back clean."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        tool_turn = _read_concept_raw_tool_turn(key)
+        garbled = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text="I attempted to draft this concept but lost my train of thought.",
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        clean = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json())], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, garbled, clean])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+
+        assert draft.frontmatter.title == "Learning Management System"
+        # tool_use turn + garbled terminal attempt + ONE retried terminal
+        # attempt — no tool round-trip repeats.
+        assert client.messages.create.call_count == 3
+
+    def test_gives_up_after_exactly_one_retry_and_fails_the_concept_cleanly(
+        self,
+    ) -> None:
+        """Two consecutive unparseable terminal turns exhaust the bounded
+        retry — `enrich_concept` raises `Pass1DraftError` rather than
+        retrying indefinitely (design brief: "at most ONE bounded
+        retry")."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        tool_turn = _read_concept_raw_tool_turn(key)
+        garbled_1 = _MockMessage(
+            [TextBlock(type="text", text="still no object here")], stop_reason="end_turn"
+        )
+        garbled_2 = _MockMessage(
+            [TextBlock(type="text", text="nope, still nothing")], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, garbled_1, garbled_2])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        with pytest.raises(enrich.Pass1DraftError):
+            asyncio.run(_exercise())
+        # tool_use turn + FIRST garbled attempt + exactly ONE retry attempt —
+        # never a third retry.
+        assert client.messages.create.call_count == 3
+
+    def test_a_well_formed_but_invalid_envelope_is_not_retried(self) -> None:
+        """A drafting-QUALITY failure (well-formed JSON, empty `citations`)
+        must raise immediately, with NO retry — the bounded retry is scoped
+        ONLY to a genuinely unparseable terminal text."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
+        )
+        tool_turn = _read_concept_raw_tool_turn(key)
+        bad_envelope = _MockMessage(
+            [TextBlock(type="text", text=_envelope_json(citations=[]))],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([tool_turn, bad_envelope])
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        with pytest.raises(enrich.Pass1DraftError, match="citations"):
+            asyncio.run(_exercise())
+        # tool_use turn + the one bad-envelope terminal turn — NO retry.
+        assert client.messages.create.call_count == 2
 
 
 # ============================================================================

@@ -530,13 +530,29 @@ class RunSummary:
     moved: "tuple[tuple[str, str], ...]" = ()
     orphaned_anchors: "tuple[str, ...]" = ()
     validator_failures: "tuple[tuple[str, tuple[str, ...]], ...]" = ()
+    failed: "tuple[str, ...]" = ()
+    """G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, {132.35} G-DEPLOY-PROOF Defect
+    B, DR-047): the physical bundle write paths of concepts whose draft
+    failed THIS run (a caught, transient exception upstream — e.g. an
+    unparseable terminal JSON envelope that exhausted enrich.py's own
+    sanitise+retry hardening) but are still present in the source
+    catalogue. `write_bundle` re-declares their EXISTING on-disk content
+    UNCHANGED (never `removed`, never silently dropped) and lists them here
+    purely for `log.md` visibility — silent success is forbidden. Distinct
+    from `validator_failures` (a drafted-but-REJECTED concept) and from
+    `removed` (confirmed absent from the source catalogue's own
+    enumeration)."""
 
     @property
     def is_no_op(self) -> bool:
         """BI-18: True iff this run changed NOTHING relative to the prior
-        run — no adds, content changes, removes, moves, or findings. A
-        no-op run still appends a `log.md` block (BI-11's "one block per
-        run" is unconditional) — the block just reports zero changes."""
+        run — no adds, content changes, removes, moves, findings, or
+        transient drafting failures. A no-op run still appends a `log.md`
+        block (BI-11's "one block per run" is unconditional) — the block
+        just reports zero changes. A run with a transient drafting failure
+        (`failed`) is deliberately NOT a no-op — Defect B's "silent success
+        is forbidden" — even though the physical bundle content it
+        produces may be byte-identical to the prior run's."""
         return not (
             self.added
             or self.changed
@@ -544,6 +560,7 @@ class RunSummary:
             or self.moved
             or self.orphaned_anchors
             or self.validator_failures
+            or self.failed
         )
 
 
@@ -580,6 +597,15 @@ def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
     if summary.moved:
         moved_desc = ", ".join(f"{old} -> {new}" for old, new in summary.moved)
         lines.append(f"* **Run {ts} — Moved ({len(summary.moved)}):** {moved_desc}")
+    if summary.failed:
+        # G-PARSE-HARDEN Leg 2 ({132.45}, Defect B): a transient drafting
+        # failure this run — the concept's last-good bundle version was
+        # kept (never removed); this line exists so a failure is never
+        # silent.
+        lines.append(
+            f"* **Run {ts} — WARNING Failed drafting "
+            f"({len(summary.failed)}):** " + ", ".join(summary.failed)
+        )
     if summary.orphaned_anchors:
         lines.append(
             f"* **Run {ts} — WARNING orphaned anchors "
@@ -912,6 +938,27 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     }
 
 
+def _reaffirm_failed_concepts(bundle_dir: Path, failed_rel_paths: "set[str]") -> None:
+    """G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, {132.35} Defect B): re-declare
+    the EXISTING on-disk content, byte-for-byte unchanged, for every concept
+    whose draft transiently failed THIS run — never a fresh write. This is
+    what actually keeps the concept's last-good bundle version alive: the
+    module docstring's EXECUTOR-VERIFY finding established that the REAL
+    cocoindex engine orphan-deletes any path NOT re-declared this run
+    relative to the prior run's own declared keyset, with NO `DirTarget`
+    required — so a concept simply left undeclared because its draft failed
+    would still be deleted by the engine's own reconciliation on the next
+    actual flow update, regardless of what `RunSummary.removed` reports. A
+    path with no prior on-disk content (its first-ever draft attempt
+    failed) has nothing to reaffirm and is left untouched — `write_bundle`
+    still records it in `RunSummary.failed` for `log.md` visibility."""
+    for rel_path in failed_rel_paths:
+        existing = _read_existing(bundle_dir / rel_path)
+        if existing is None:
+            continue
+        localfs.declare_file(bundle_dir / rel_path, existing, create_parent_dirs=True)
+
+
 def write_bundle(
     bundle_dir: Path,
     drafts: "Sequence[ConceptDraft]",
@@ -920,6 +967,7 @@ def write_bundle(
     theme_config: "Sequence[tuple[str, Sequence[str]]]" = (),
     moved: "Mapping[str, str]" = MappingProxyType({}),
     orphaned_anchors: "Sequence[str]" = (),
+    failed_rel_paths: "Sequence[str]" = (),
     client_ontology_overlay: "Mapping[str, object] | None" = None,
     bundle_class: "BundleClass | None" = None,
     client_id: "str | None" = None,
@@ -952,6 +1000,28 @@ def write_bundle(
     `bundle_dir`'s own on-disk contents — the returned `RunSummary` is the
     caller's (e.g. `{132.12}`'s git-sync writer) hook to persist/consume
     the diff further.
+
+    **`failed_rel_paths` — transient-drafting-failure retention (ID-132
+    {132.45} G-PARSE-HARDEN Leg 2, {132.35} G-DEPLOY-PROOF Defect B,
+    DR-047).** The caller's (`flow_def.py`'s `_draft_concepts`) per-run set
+    of PHYSICAL bundle write paths whose Pass-1/Pass-2 draft failed THIS
+    run (a caught, transient exception) but that are STILL present in the
+    source catalogue — as opposed to a concept genuinely absent from the
+    catalogue (`removed`). Two effects: (a) excluded from the `removed`
+    computation below, so a transient drafting glitch can never look
+    identical to a confirmed source deletion; (b) re-declared via
+    `_reaffirm_failed_concepts` with their EXISTING on-disk content
+    UNCHANGED (never a fresh write) — this is not merely bookkeeping: the
+    module docstring's EXECUTOR-VERIFY finding means the REAL cocoindex
+    engine orphan-deletes any path NOT re-declared THIS run relative to the
+    prior run's declared keyset, regardless of what `RunSummary.removed`
+    reports, so re-declaring the identical bytes is what actually keeps the
+    concept's last-good bundle version alive. A path with no prior on-disk
+    content (its first-ever draft attempt failed) has nothing to reaffirm
+    and is left untouched — it is still recorded in `RunSummary.failed` for
+    `log.md` visibility (silent success is forbidden), but was never in
+    `removed`'s candidate set either way. Defaults to `()` — byte-identical
+    to pre-{132.45} behaviour when unused.
 
     Raises `ValueError` if two drafts in this run resolve to the same
     PHYSICAL write path (`bundle_write_path`) — e.g. a won-bid `case_study`
@@ -1008,6 +1078,7 @@ def write_bundle(
 
     previous_paths = _existing_concept_paths(bundle_dir)
     moved_from = set(moved)
+    failed_set = set(failed_rel_paths)
 
     written: "dict[str, ConceptFrontmatter]" = {}
     added: "list[str]" = []
@@ -1063,7 +1134,17 @@ def write_bundle(
         else:
             unchanged.append(result.rel_path)
 
-    removed = sorted(previous_paths - set(written) - moved_from)
+    # G-PARSE-HARDEN Leg 2 ({132.45}, Defect B): a transiently-failed
+    # concept is excluded from `removed` (never mistaken for a confirmed
+    # source deletion) and has its EXISTING content re-declared unchanged —
+    # never left un-re-declared, which the REAL engine's own orphan-delete
+    # reconciliation would treat identically to a genuine removal (module
+    # docstring's EXECUTOR-VERIFY finding). Only paths NOT already written
+    # this run are reaffirmed — a caller-supplied `failed_rel_paths` entry
+    # that also drafted successfully this run (an inconsistent caller
+    # state) is left as its fresh write, never double-declared.
+    removed = sorted(previous_paths - set(written) - moved_from - failed_set)
+    _reaffirm_failed_concepts(bundle_dir, failed_set - set(written))
 
     summary = RunSummary(
         added=tuple(sorted(added)),
@@ -1073,6 +1154,7 @@ def write_bundle(
         moved=tuple(sorted(moved.items())),
         orphaned_anchors=tuple(orphaned_anchors),
         validator_failures=tuple(failures),
+        failed=tuple(sorted(failed_set)),
     )
 
     themes = build_index_themes(theme_config, written)

@@ -52,7 +52,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from conftest import make_cocoindex_stubs, stubbed_sys_modules  # noqa: E402
-from scripts.cocoindex_pipeline.producer.flow_def import _read_bundle_dir  # noqa: E402
+from scripts.cocoindex_pipeline.producer.flow_def import (  # noqa: E402
+    _draft_concepts,
+    _read_bundle_dir,
+)
 
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 _EMBEDDING = [0.1] * 1024
@@ -665,6 +668,93 @@ class TestContainment:
         assert report.sync_result.staged is True
         assert (repo / "topics/good.md").is_file()
         assert _commit_count(repo) == 0
+
+
+# ── G-PARSE-HARDEN Leg 2 ({132.45}, {132.35} Defect B): `_draft_concepts`'s
+# failed_keys threading + the write_bundle reconcile it feeds ─────────────
+
+
+class TestDraftConceptsFailedKeys:
+    def test_returns_five_tuple_with_the_raw_failed_key_alongside_the_string_failure(
+        self,
+    ) -> None:
+        good_key = SimpleNamespace(rel_path="topics/good.md")
+        bad_key = SimpleNamespace(rel_path="topics/bad.md")
+
+        async def _fake_enrich(key: Any, _source: Any) -> Any:
+            if key is bad_key:
+                raise RuntimeError("boom")
+            return SimpleNamespace(key=key)
+
+        async def _exercise():
+            return await _draft_concepts(
+                [good_key, bad_key],
+                source=object(),
+                enrich_concept=_fake_enrich,
+                gated_corpus=None,
+                run_web_pass=None,
+                http_client=None,
+            )
+
+        drafts, reference_drafts, failures, pass2_ran, failed_keys = asyncio.run(
+            _exercise()
+        )
+
+        assert len(drafts) == 1
+        assert reference_drafts == []
+        assert pass2_ran is False
+        assert failures == [("topics/bad.md", "boom")]
+        assert failed_keys == [bad_key]
+
+
+class TestTransientDraftFailureRetainsLastGoodVersion:
+    """{132.45} G-PARSE-HARDEN Leg 2 ({132.35} Defect B): a concept whose
+    draft transiently fails THIS run must keep its last-good bundle
+    version — never look like a confirmed source deletion, and a publish
+    after such a run must never drop it."""
+
+    def test_flaky_concept_survives_a_run_where_its_draft_fails(
+        self, env, bundle_dir: Path
+    ) -> None:
+        good = env.build_draft("topics/good.md", title="Good")
+        flaky = env.build_draft("topics/flaky.md", title="Flaky")
+        flaky_key = flaky.key
+
+        _wire_source(env, {good.key: good, flaky_key: flaky})
+
+        # Run 1 — both draft cleanly.
+        asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+        assert (bundle_dir / "topics/flaky.md").is_file()
+        flaky_content_run1 = (bundle_dir / "topics/flaky.md").read_text(
+            encoding="utf-8"
+        )
+
+        # Run 2 — flaky's draft raises (e.g. enrich.py's own bounded retry
+        # was exhausted); good still drafts fine.
+        async def _flaky_enrich(key: Any, _source: Any) -> Any:
+            if key is flaky_key:
+                raise RuntimeError(
+                    "enrich_concept: terminal text was not valid JSON"
+                )
+            return good
+
+        env.monkeypatch.setattr(env.enrich, "enrich_concept", _flaky_enrich)
+
+        report2 = asyncio.run(
+            env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+        )
+
+        # Defect B: NOT removed, NOT silently dropped — the last-good file
+        # survives byte-identical.
+        assert "topics/flaky.md" not in report2.summary.removed
+        assert (bundle_dir / "topics/flaky.md").read_text(
+            encoding="utf-8"
+        ) == flaky_content_run1
+        # And visibly recorded as a failure — silent success is forbidden.
+        assert "topics/flaky.md" in report2.summary.failed
+        assert (bundle_dir / "topics/good.md").is_file()
 
 
 # ── Optional Pass-2 web enrichment composes {132.9} run_web_pass ─────────

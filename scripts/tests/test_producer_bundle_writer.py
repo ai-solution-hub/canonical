@@ -519,6 +519,96 @@ def test_write_bundle_removed_concept_detected(tmp_path: Path) -> None:
     assert (tmp_path / "topics/c.md").exists()  # only the ENGINE deletes it, not this call
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# G-PARSE-HARDEN Leg 2 ({132.45}, {132.35} Defect B): a transiently-failed
+# draft must keep its last-good bundle version — never look like a
+# confirmed source deletion.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_write_bundle_transient_draft_failure_keeps_last_good_version_not_removed(
+    tmp_path: Path,
+) -> None:
+    d1 = _draft("topics/a.md", title="A")
+    d2 = _draft("topics/b.md", title="B")
+    d3 = _draft("topics/c.md", title="C")
+    bundle_writer.write_bundle(tmp_path, [d1, d2, d3])
+    original_c = (tmp_path / "topics/c.md").read_text(encoding="utf-8")
+
+    _localfs_stub.declare_file.reset_mock()
+    # c's draft failed THIS run (still present in the source catalogue) —
+    # d3 is simply not offered this time, exactly as a caught upstream
+    # exception would leave it out of `write_bundle`'s `drafts` argument.
+    summary2 = bundle_writer.write_bundle(
+        tmp_path, [d1, d2], failed_rel_paths=("topics/c.md",)
+    )
+
+    # NOT reported as removed — Defect B's headline behaviour.
+    assert summary2.removed == ()
+    assert summary2.failed == ("topics/c.md",)
+    # The last-good content survives on disk, byte-identical.
+    assert (tmp_path / "topics/c.md").read_text(encoding="utf-8") == original_c
+    # And it WAS re-declared this run (kept in the engine's this-run
+    # declared keyset) — never silently skipped, which would leave the
+    # REAL engine's own orphan-delete reconciliation free to remove it
+    # regardless of what RunSummary.removed reports (module docstring's
+    # EXECUTOR-VERIFY finding).
+    called_paths = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
+    assert str(tmp_path / "topics/c.md") in called_paths
+
+
+def test_write_bundle_still_removes_a_concept_genuinely_absent_from_the_source(
+    tmp_path: Path,
+) -> None:
+    """Counterpart proof: `failed_rel_paths` must NOT blanket-suppress
+    `removed` — a concept that is simply gone (no failure reported for it)
+    is still correctly reported as removed."""
+    d1 = _draft("topics/a.md", title="A")
+    d2 = _draft("topics/b.md", title="B")
+    d3 = _draft("topics/c.md", title="C")
+    bundle_writer.write_bundle(tmp_path, [d1, d2, d3])
+
+    summary2 = bundle_writer.write_bundle(tmp_path, [d1, d2], failed_rel_paths=())
+
+    assert summary2.removed == ("topics/c.md",)
+    assert summary2.failed == ()
+
+
+def test_write_bundle_failed_rel_path_with_no_prior_content_has_nothing_to_reaffirm(
+    tmp_path: Path,
+) -> None:
+    """A concept whose FIRST-EVER draft attempt failed has no last-good
+    version to keep — it must not error, must not appear as `removed`
+    (it was never on disk to begin with), but IS still recorded in
+    `failed` for `log.md` visibility (silent success is forbidden)."""
+    d1 = _draft("topics/a.md", title="A")
+
+    summary = bundle_writer.write_bundle(
+        tmp_path, [d1], failed_rel_paths=("topics/never-drafted.md",)
+    )
+
+    assert summary.failed == ("topics/never-drafted.md",)
+    assert summary.removed == ()
+    assert not (tmp_path / "topics/never-drafted.md").exists()
+
+
+def test_run_summary_with_only_a_failed_entry_is_not_a_no_op() -> None:
+    """Defect B design guidance: silent success is forbidden — a run that
+    only has a transient drafting failure (physical bundle content
+    otherwise unchanged) must NOT report as a no-op."""
+    summary = bundle_writer.RunSummary(failed=("topics/c.md",))
+    assert summary.is_no_op is False
+
+
+def test_render_log_entry_emits_a_failed_drafting_warning_line() -> None:
+    summary = bundle_writer.RunSummary(failed=("topics/c.md",))
+    text = bundle_writer.render_log_entry(summary, timestamp="2026-07-17T12:00:00Z")
+    assert (
+        "* **Run 2026-07-17T12:00:00Z — WARNING Failed drafting (1):** topics/c.md"
+        in text
+    )
+
+
 def test_write_bundle_moved_concept_recorded_and_excluded_from_removed(tmp_path: Path) -> None:
     old = _draft("topics/old-name.md", title="Renamed Concept")
     bundle_writer.write_bundle(tmp_path, [old])

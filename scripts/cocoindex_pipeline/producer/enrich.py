@@ -49,6 +49,49 @@ resource_uri builders from the row ids the Source adapter actually returned,
 and recorded into `seen_anchors` at mint time), so a validated citation is
 provably traceable to a real row this run actually read.
 
+**Terminal-JSON parse hardening (ID-132 {132.45} G-PARSE-HARDEN, {132.35}
+G-DEPLOY-PROOF Defect B).** Run-1 of the {132.35} deploy proof failed 1/18
+concepts: `enrich_concept: terminal text was not valid JSON ... Invalid
+control character at line 1 column 545` — GLM-5.2 emitted a raw, unescaped
+control character (e.g. a literal newline/tab byte instead of its 2-char
+`\n`/`\t` escape) inside a JSON string value; the SAME concept re-drafted
+clean on the very next run. `_parse_pass1_response` now layers THREE
+recovery attempts on a `json.loads` failure, cheapest first: (a)
+`_sanitize_json_control_chars` — a deterministic, zero-LLM-spend pass that
+walks the text tracking JSON string-literal boundaries and escapes any raw
+control character (`ord < 0x20`) found INSIDE a string (leaving everything
+outside strings untouched — raw whitespace between tokens is already valid
+JSON); (b) if still unparseable, the existing `_recover_terminal_json_object`
+leading-prose/trailing-commentary recovery (S451 rider), now run against the
+SANITISED text; (c) if BOTH exhaust, `enrich_concept` retries the terminal
+draft ONCE (`_Pass1TerminalJsonError` — a narrow `Pass1DraftError` subtype
+raised ONLY for a still-unparseable terminal text, never for a well-formed-
+but-invalid envelope like an empty `citations` array, so a genuine drafting-
+quality failure is never retried). The retry is cheap: `run_tool_use_loop`
+mutates its `messages` list IN PLACE and never appends the malformed
+terminal turn to it (the loop's own docstring, point 3), so replaying the
+SAME already-tool-populated conversation costs exactly one more
+`messages.create` call, no tool round-trips repeat. A concept that still
+fails after the one retry raises `Pass1DraftError` and is NOT drafted this
+run — Leg 2 of {132.45} (`producer/bundle_writer.py`'s `write_bundle`
+`failed_rel_paths`) is what keeps that concept's last-good bundle version
+from being mistaken for a confirmed source deletion; this module's own
+contract stops at "fail the concept cleanly, never emit a corrupt or
+under-cited draft." Per the {132.45} design brief, deliberately NOT built
+heavier than this — the observed live failure rate is 1/18.
+
+**The retry does not poison the BI-18 memo (verified against the installed
+`cocoindex==1.0.7` source, `_internal/function.py`'s async `__call__`).** A
+memoised call's cache entry is written ONLY by `guard.resolve(fn_ctx, result,
+...)`, called AFTER `result = await self._execute(...)` returns
+successfully; a raised exception (from `_execute`, which is where
+`enrich_concept`'s own body — including this retry — runs) skips straight to
+the `finally: guard.close()` block, which releases the reservation WITHOUT
+ever calling `guard.resolve`. No cache entry is written for a failed call,
+so the next run's invocation is a genuine cache-miss and re-attempts the
+draft fresh — exactly the recovery path the {132.35} Defect B observation
+recorded ("the identical concept re-drafted clean next run").
+
 **Memoisation (BI-18) — FIXED (ID-132 {132.38} G-MEMO-DELTA, MEMO-DELTA.md
 MD-1..MD-11, owner-ratified DR-060, superseding the {132.35} G-DEPLOY-PROOF
 Defect A escalation this docstring previously carried unfixed).**
@@ -152,6 +195,7 @@ boots at test-collection time.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
@@ -189,6 +233,8 @@ from scripts.cocoindex_pipeline.producer.validator import (
 )
 from scripts.cocoindex_pipeline.sources.l_records import ConceptKey, ConceptRaw, Source
 
+_logger = logging.getLogger(__name__)
+
 # The full Pass-1 toolset — PASS1_TOOLS (read_concept_raw, sample_rows) plus
 # the S451-rider-added list_concepts (BI-9 cross-linking). Composed HERE
 # rather than appended to PASS1_TOOLS itself, which a sibling agent_loop.py
@@ -209,6 +255,19 @@ class Pass1DraftError(RuntimeError):
     malformed concept — mirrors `AgentLoopError`'s "escalate, don't paper
     over" posture (`producer/agent_loop.py`).
     """
+
+
+class _Pass1TerminalJsonError(Pass1DraftError):
+    """G-PARSE-HARDEN ({132.45}, {132.35} Defect B): raised specifically
+    when the terminal text could not be parsed into a JSON object AT
+    ALL — `_sanitize_json_control_chars` and the leading-prose/trailing-
+    commentary recovery (`_recover_terminal_json_object`) both exhausted —
+    as opposed to a plain `Pass1DraftError` raised for a WELL-FORMED but
+    semantically invalid envelope (a missing required key, an empty
+    `citations` array, an unresolvable citation). `enrich_concept` catches
+    ONLY this narrow subtype for its bounded ONE-retry (module docstring's
+    "Terminal-JSON parse hardening" section) — a drafting-QUALITY failure
+    is never retried, only a transient parse glitch."""
 
 
 @dataclass(frozen=True)
@@ -523,6 +582,63 @@ def _validate_citation(
     return path
 
 
+_JSON_STRING_SHORT_ESCAPES = {
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+}
+
+
+def _sanitize_json_control_chars(text: str) -> str:
+    """G-PARSE-HARDEN Leg 1a ({132.45}, {132.35} Defect B): escape any RAW
+    (unescaped) control character (`ord < 0x20`) found INSIDE a JSON string
+    literal, leaving everything OUTSIDE string literals byte-identical —
+    deterministic, zero-LLM-spend, tried BEFORE the `_recover_terminal_json_
+    object` prose-recovery fallback (see the module docstring's "Terminal-
+    JSON parse hardening" section for the full layering + the live defect
+    this fixes: a raw control byte inside a GLM-5.2 terminal JSON string
+    value, RFC 8259-illegal, that a strict `json.loads` rejects outright).
+
+    A minimal string-boundary state machine (unescaped `"` toggles in/out of
+    a string; a `\\` inside a string escapes exactly the next character,
+    mirroring JSON's own escape grammar so an already-escaped `\\"` doesn't
+    falsely toggle the boundary) — NOT a full JSON tokenizer, deliberately:
+    it only needs to know "am I inside a string literal right now", which is
+    exactly the information JSON's own string grammar requires to decide
+    whether a raw control byte is legal (never, inside OR outside a string —
+    but OUTSIDE a string a raw `\\t`/`\\n`/`\\r` is legitimate insignificant
+    whitespace between tokens per the JSON spec, so those are left alone
+    there; only in-string occurrences are the ones `json.loads` rejects and
+    this function repairs). A short escape (`\\n`/`\\r`/`\\t`/`\\b`/`\\f`) is
+    used where JSON defines one; any other control byte gets a `\\u00XX`
+    escape."""
+    out: "list[str]" = []
+    in_string = False
+    escaped = False
+    for ch in text:
+        if not in_string:
+            if ch == '"':
+                in_string = True
+            out.append(ch)
+            continue
+        if escaped:
+            out.append(ch)
+            escaped = False
+        elif ch == "\\":
+            out.append(ch)
+            escaped = True
+        elif ch == '"':
+            in_string = False
+            out.append(ch)
+        elif ord(ch) < 0x20:
+            out.append(_JSON_STRING_SHORT_ESCAPES.get(ch, f"\\u{ord(ch):04x}"))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _recover_terminal_json_object(
     text: str,
     *,
@@ -587,9 +703,24 @@ def _parse_pass1_response(
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        payload = _recover_terminal_json_object(
-            text, error_cls=Pass1DraftError, error_prefix="enrich_concept", cause=exc
-        )
+        # Leg 1a: sanitise raw in-string control chars first (zero LLM
+        # spend) — fixes the {132.35} Defect B live defect outright when
+        # that is the ONLY malformation. Leg 1b: if the sanitised text is
+        # STILL unparseable (e.g. a leading-prose preamble, or truncation),
+        # fall through to the existing prose-recovery path, now raising the
+        # narrower `_Pass1TerminalJsonError` so `enrich_concept` can retry
+        # ONLY this failure mode (module docstring's "Terminal-JSON parse
+        # hardening" section).
+        sanitized = _sanitize_json_control_chars(text)
+        try:
+            payload = json.loads(sanitized)
+        except json.JSONDecodeError:
+            payload = _recover_terminal_json_object(
+                sanitized,
+                error_cls=_Pass1TerminalJsonError,
+                error_prefix="enrich_concept",
+                cause=exc,
+            )
     if not isinstance(payload, dict):
         raise Pass1DraftError(
             "enrich_concept: terminal JSON must be an object, got "
@@ -724,20 +855,42 @@ async def enrich_concept(
     ]
 
     client = producer_async_client()
-    response = await run_tool_use_loop(
-        client=client,
-        messages=messages,
-        tools=_PASS1_TOOLS_WITH_CATALOGUE,
-        tool_executors=tool_executors,
-        system=_cached_system(),
-        extractor_name="enrich_concept",
-        max_tokens=max_tokens,
-        model=model,
-    )
 
-    envelope = _parse_pass1_response(
-        response, seen_anchors=seen_anchors, catalogue_paths=catalogue_paths
-    )
+    async def _draft_terminal_envelope() -> _Pass1Envelope:
+        response = await run_tool_use_loop(
+            client=client,
+            messages=messages,
+            tools=_PASS1_TOOLS_WITH_CATALOGUE,
+            tool_executors=tool_executors,
+            system=_cached_system(),
+            extractor_name="enrich_concept",
+            max_tokens=max_tokens,
+            model=model,
+        )
+        return _parse_pass1_response(
+            response, seen_anchors=seen_anchors, catalogue_paths=catalogue_paths
+        )
+
+    try:
+        envelope = await _draft_terminal_envelope()
+    except _Pass1TerminalJsonError:
+        # G-PARSE-HARDEN Leg 1c ({132.45}, {132.35} Defect B): sanitisation
+        # + prose-recovery both exhausted — at most ONE bounded retry of the
+        # terminal draft (module docstring's "Terminal-JSON parse hardening"
+        # section). Cheap: `run_tool_use_loop` grows `messages` IN PLACE and
+        # never appended the malformed terminal turn to it, so this retry
+        # replays the SAME already-tool-populated conversation for one more
+        # `messages.create` call — no tool round-trips repeat. A second
+        # failure (any `Pass1DraftError`) propagates and fails the concept
+        # cleanly as transient (Leg 2, `bundle_writer.write_bundle`
+        # `failed_rel_paths`, keeps its last-good bundle version).
+        _logger.warning(
+            "enrich_concept: terminal JSON unparseable for %s after "
+            "sanitisation — retrying the terminal draft once (G-PARSE-HARDEN)",
+            key.rel_path,
+        )
+        envelope = await _draft_terminal_envelope()
+
     resource = _resource_from_raw(key, raw_cache[key.rel_path])
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,

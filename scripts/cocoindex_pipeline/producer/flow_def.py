@@ -263,14 +263,26 @@ async def _draft_concepts(
     gated_corpus: Any,
     run_web_pass: Any,
     http_client: Any,
-) -> "tuple[list[Any], list[Any], list[tuple[str, str]], bool]":
+) -> "tuple[list[Any], list[Any], list[tuple[str, str]], bool, list[Any]]":
     """Pass-1 (and optional Pass-2) drafting, with per-concept containment —
     one concept's fault must never abort the whole chained run (mirrors
     `flow.bound_ingest_file`'s posture, matching {132.16}'s stand-in). Returns
-    `(drafts, reference_drafts, failures, pass2_ran)`."""
+    `(drafts, reference_drafts, failures, pass2_ran, failed_keys)`.
+
+    `failed_keys` (ID-132 {132.45} G-PARSE-HARDEN Leg 2, {132.35}
+    G-DEPLOY-PROOF Defect B) is the raw `ConceptKey` for each concept whose
+    draft failed this run — a superset-by-shape of `failures` (which keeps
+    the rel_path string + error text for the warning log), kept as the raw
+    key object because `run_producer_flow` needs `bundle_writer.
+    bundle_write_path_for_key` (which requires `.concept_type`/
+    `.workspace_id`, not just a rel_path string) to resolve each failure to
+    its PHYSICAL bundle write path before threading it into `write_bundle`'s
+    `failed_rel_paths` — so a transient failure is never mistaken for a
+    confirmed source deletion (Defect B)."""
     drafts: "list[Any]" = []
     reference_drafts: "list[Any]" = []
     failures: "list[tuple[str, str]]" = []
+    failed_keys: "list[Any]" = []
     pass2_ran = False
     for key in concepts:
         try:
@@ -285,12 +297,13 @@ async def _draft_concepts(
             drafts.append(draft)
         except Exception as exc:  # noqa: BLE001 — per-concept containment
             failures.append((_rel_path_of_key(key), str(exc)))
+            failed_keys.append(key)
             _logger.warning(
                 "producer flow: drafting failed for concept %s — %s",
                 _rel_path_of_key(key),
                 exc,
             )
-    return drafts, reference_drafts, failures, pass2_ran
+    return drafts, reference_drafts, failures, pass2_ran, failed_keys
 
 
 async def _embed_written_concepts(
@@ -433,7 +446,7 @@ async def run_producer_flow(
     source = LRecordsSource(pool)
     concepts = await source.list_concepts()
 
-    drafts, reference_drafts, failures, pass2_ran = await _draft_concepts(
+    drafts, reference_drafts, failures, pass2_ran, failed_keys = await _draft_concepts(
         concepts,
         source,
         enrich_concept=enrich_concept,
@@ -442,11 +455,18 @@ async def run_producer_flow(
         http_client=http_client,
     )
 
+    # G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, Defect B): resolve each failed
+    # concept's PHYSICAL bundle write path (won-bid case_study redirect
+    # included) so write_bundle's reconcile never mistakes a transient
+    # drafting failure for a confirmed source deletion.
+    failed_write_paths = tuple(bundle_write_path_for_key(k) for k in failed_keys)
+
     summary = write_bundle(
         resolved_bundle_dir,
         drafts,
         reference_drafts,
         theme_config=theme_config,
+        failed_rel_paths=failed_write_paths,
         bundle_class=_resolve_bundle_class(),
         client_id=_resolve_client_id(),
         timestamp=timestamp,
