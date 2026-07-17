@@ -17,13 +17,13 @@ import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 // Response types
 // ---------------------------------------------------------------------------
 
-export interface DraftAttribution {
+interface DraftAttribution {
   kind: 'claude' | 'human';
   label: string;
   userId: string | null;
 }
 
-export interface ProcurementDraftInfo {
+interface ProcurementDraftInfo {
   responseId: string;
   procurementId: string;
   procurementName: string | null;

@@ -60,7 +60,7 @@ export interface FlagAnalysisInput {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Cluster of flagged articles sharing a common root cause. */
-export const PatternClusterSchema = z.object({
+const PatternClusterSchema = z.object({
   pattern: z.string().min(1),
   articleCount: z.number().int().nonnegative(),
   articles: z.array(z.string()),
@@ -71,7 +71,7 @@ export const PatternClusterSchema = z.object({
 export type PatternCluster = z.infer<typeof PatternClusterSchema>;
 
 /** A single proposed change to the scoring prompt. */
-export const PromptRecommendationSchema = z.object({
+const PromptRecommendationSchema = z.object({
   type: z.enum(['add', 'remove', 'reword']),
   section: z.string().min(1),
   /** `null` for additions; original text for `remove` / `reword`. */

@@ -352,7 +352,7 @@ export async function classifyField(
  * catalogue is consistent with T10's read shape. The `fetchImpl` parameter is
  * injected for testability; defaults to the global `fetch`.
  */
-export async function generateRequirementEmbedding(
+async function generateRequirementEmbedding(
   text: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<number[]> {

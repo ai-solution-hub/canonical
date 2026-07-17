@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 
-export interface RecentFlag {
+interface RecentFlag {
   id: string;
   flag_type: 'false_positive' | 'false_negative';
   notes: string | null;

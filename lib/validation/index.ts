@@ -130,6 +130,3 @@ export function parseSearchParams<T extends z.ZodType>(
 
   return parseBody(schema, Object.fromEntries(raw));
 }
-
-// Re-export schema utilities for convenient imports
-export { validateEditableField } from './schemas';

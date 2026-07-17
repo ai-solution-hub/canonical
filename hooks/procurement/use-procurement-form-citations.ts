@@ -15,17 +15,10 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 import type {
   ProcurementCitationRow,
-  ProcurementCitationsByKind,
   ProcurementCitationsResponse,
-  ProcurementCitationTargetKind,
 } from '@/app/api/procurement/[id]/citations/route';
 
-export type {
-  ProcurementCitationRow,
-  ProcurementCitationsByKind,
-  ProcurementCitationsResponse,
-  ProcurementCitationTargetKind,
-};
+export type { ProcurementCitationRow, ProcurementCitationsResponse };
 
 /** The §D citation-overlay surface's data source (`ItemCitationOverlay`). */
 export function useProcurementFormCitations(formId: string) {

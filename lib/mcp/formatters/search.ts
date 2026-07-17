@@ -24,7 +24,7 @@ export interface SearchResult {
  * Zod schema for `SearchResult` — mirrors the interface exactly for
  * MCP `outputSchema` runtime validation.
  */
-export const SearchResultSchema = z.object({
+const SearchResultSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   suggested_title: z.string().nullable(),
@@ -164,7 +164,7 @@ export interface ChunkSearchResult {
  * Zod schema for `ChunkSearchResult` — mirrors the interface exactly for
  * MCP `outputSchema` runtime validation.
  */
-export const ChunkSearchResultSchema = z.object({
+const ChunkSearchResultSchema = z.object({
   chunk_id: z.string(),
   source_document_id: z.string(),
   item_title: z.string().nullable(),
@@ -269,7 +269,7 @@ export interface SimilarItemsResult {
  * Zod schema for a `SimilarItem` — mirrors the interface for `find`'s
  * `outputSchema` runtime validation (similar_to branch).
  */
-export const SimilarItemSchema = z.object({
+const SimilarItemSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   suggested_title: z.string().nullable(),
@@ -282,7 +282,7 @@ export const SimilarItemSchema = z.object({
 /**
  * Zod schema for the `find` similar-items structured envelope.
  */
-export const SimilarItemsResponseSchema = z.object({
+const SimilarItemsResponseSchema = z.object({
   source_item: z.object({ id: z.string(), title: z.string() }),
   similar_items: z.array(SimilarItemSchema),
 });

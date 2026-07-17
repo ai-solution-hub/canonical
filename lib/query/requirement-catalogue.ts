@@ -59,10 +59,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type RequirementTemplateRow = Tables<'form_requirement_templates'>;
-export type RequirementTemplateInsert =
-  TablesInsert<'form_requirement_templates'>;
-export type RequirementTemplateUpdate =
-  TablesUpdate<'form_requirement_templates'>;
+type RequirementTemplateInsert = TablesInsert<'form_requirement_templates'>;
+type RequirementTemplateUpdate = TablesUpdate<'form_requirement_templates'>;
 
 /**
  * `form_requirement_templates.requirement_type` CHECK-constrained value set

@@ -48,7 +48,7 @@ import type { JobType } from '@/lib/queue/envelope';
  * §5.4.4 D-8, but was removed by ID-46.11 — that path is superseded by
  * ID-56.12 folder-drop ingest.)
  */
-export const COOPERATIVELY_CANCELLABLE_JOB_TYPES: ReadonlyArray<JobType> = [
+const COOPERATIVELY_CANCELLABLE_JOB_TYPES: ReadonlyArray<JobType> = [
   'batch_reclassify',
 ];
 

@@ -108,7 +108,7 @@ export function estimateQuestionCost(
 // Batch estimation
 // ──────────────────────────────────────────
 
-export interface QuestionBreakdown {
+interface QuestionBreakdown {
   questionId: string;
   questionText: string;
   contentItemCount: number;

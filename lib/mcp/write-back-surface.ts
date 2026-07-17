@@ -56,18 +56,6 @@ export type SanctionedWriteBackDestination =
   (typeof SANCTIONED_WRITE_BACK_DESTINATIONS)[number];
 
 /**
- * The two legs of the local-fs canonical store destination, for documentation
- * and the unit-test assertion that BOTH the edit-back and create-into-store
- * legs map to the single sanctioned `local_fs_canonical_store` kind.
- */
-export const LOCAL_FS_CANONICAL_STORE_LEGS = {
-  /** {59.9} file-first edit-back (`writeBackFileFirst`). */
-  editBack: 'writeBackFileFirst',
-  /** {71.16} M-CREATE create-into-store (propose-into-store create leg). */
-  createIntoStore: 'M-CREATE',
-} as const;
-
-/**
  * The outcome of a write-back surface check. `allowed` is the load-bearing
  * signal; a refused write-back always carries a `reason` and is `allowed:
  * false`. `destination` echoes the requested destination for traceability.

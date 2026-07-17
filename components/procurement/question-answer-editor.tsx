@@ -67,7 +67,7 @@ export interface QuestionAnswerSlotQuestion {
   assigned_to: string | null;
 }
 
-export interface QuestionAnswerSlotResponseRef {
+interface QuestionAnswerSlotResponseRef {
   /**
    * `form_responses.id` — only the id is required as a prop; the live
    * `review_status`/`version` are fetched fresh via

@@ -118,8 +118,3 @@ export function getGlobalRateLimiter(): DomainRateLimiter {
   }
   return globalRateLimiter;
 }
-
-/** Reset the global rate limiter (for testing) */
-export function resetGlobalRateLimiter(): void {
-  globalRateLimiter = null;
-}

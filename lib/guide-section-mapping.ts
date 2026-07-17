@@ -34,7 +34,7 @@ export interface GuideSectionMatchInput {
   contentType?: string;
 }
 
-export type MatchStrength = 'exact' | 'partial' | 'domain_only';
+type MatchStrength = 'exact' | 'partial' | 'domain_only';
 
 export interface GuideSectionMatch {
   /** Guide UUID */

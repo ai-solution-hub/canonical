@@ -90,7 +90,7 @@ export interface RunSweepParams {
   context?: string;
 }
 
-export interface SweepMatchResult {
+interface SweepMatchResult {
   contentItemId: string;
   /** True when this match's item was file-backed (a file leg actually wrote). */
   fileBacked: boolean;

@@ -35,7 +35,7 @@
 import type { Components, ExtraProps } from 'streamdown';
 import type { ComponentProps } from 'react';
 
-export const streamdownCodeComponent: NonNullable<Components['code']> = ({
+const streamdownCodeComponent: NonNullable<Components['code']> = ({
   className,
   children,
   ...rest
@@ -57,7 +57,7 @@ export const streamdownCodeComponent: NonNullable<Components['code']> = ({
   );
 };
 
-export const streamdownStrongComponent: NonNullable<Components['strong']> = ({
+const streamdownStrongComponent: NonNullable<Components['strong']> = ({
   className,
   children,
   ...rest

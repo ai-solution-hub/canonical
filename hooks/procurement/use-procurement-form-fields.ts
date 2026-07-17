@@ -22,7 +22,7 @@ import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 
 /** A matched bid question enrichment, joined onto a field server-side. */
-export interface ProcurementFormFieldMatchedQuestion {
+interface ProcurementFormFieldMatchedQuestion {
   id: string;
   question_text: string;
   status: string;
@@ -58,7 +58,7 @@ export interface ProcurementFormFieldRow {
   matched_question?: ProcurementFormFieldMatchedQuestion | null;
 }
 
-export interface ProcurementFormFieldsSummary {
+interface ProcurementFormFieldsSummary {
   total_fields: number;
   confirmed_fields: number;
   rejected_fields: number;

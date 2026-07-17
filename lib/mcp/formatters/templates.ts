@@ -7,7 +7,7 @@ import { truncate } from './shared';
 // Template coverage
 // ---------------------------------------------------------------------------
 
-export interface TemplateCoverageRequirement {
+interface TemplateCoverageRequirement {
   requirement_id: string;
   section_ref: string;
   section_name: string;
@@ -21,7 +21,7 @@ export interface TemplateCoverageRequirement {
   content_length_met: boolean;
 }
 
-export interface TemplateCoverageSection {
+interface TemplateCoverageSection {
   section_ref: string;
   section_name: string;
   requirements: TemplateCoverageRequirement[];
@@ -91,7 +91,7 @@ export function formatTemplateCoverage(data: TemplateCoverageData): string {
 // Template list
 // ---------------------------------------------------------------------------
 
-export interface TemplateListItem {
+interface TemplateListItem {
   template_name: string;
   template_version: string | null;
   template_type: string;

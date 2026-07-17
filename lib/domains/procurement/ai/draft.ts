@@ -30,7 +30,7 @@ import { AIServiceError } from '@/lib/ai/errors';
 // Types
 // ──────────────────────────────────────────
 
-export interface ResponseStructure {
+interface ResponseStructure {
   suggested_headings: string[];
   word_allocation: Array<{ heading: string; words: number }>;
 }

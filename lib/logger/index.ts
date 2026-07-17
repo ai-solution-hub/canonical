@@ -48,7 +48,7 @@ import {
 import type { LogContext } from './types';
 
 // Re-export public API surface so `@/lib/logger` is the single entry.
-export type { RequestContext, LogContext } from './types';
+export type { RequestContext } from './types';
 export {
   getRequestContext,
   runWithRequestContext,
@@ -79,7 +79,7 @@ function resolveLevel(): string {
  * Pino options shared between the runtime singleton and any test
  * factory that wants to inspect the same configuration.
  */
-export function rootLoggerOptions(): LoggerOptions {
+function rootLoggerOptions(): LoggerOptions {
   return {
     level: resolveLevel(),
     base: { service: 'knowledge-hub' },

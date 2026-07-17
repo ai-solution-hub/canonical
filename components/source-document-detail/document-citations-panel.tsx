@@ -78,14 +78,14 @@ const KIND_META: Record<
  * route), so `CitationsPanelView` is reusable across both citation-read
  * axes without a generic type param.
  */
-export interface CitationRowLike {
+interface CitationRowLike {
   id: string;
   cited_text: string | null;
   citation_type: string;
   created_at: string;
 }
 
-export type CitationsPanelData = Record<CitationTargetKind, CitationRowLike[]>;
+type CitationsPanelData = Record<CitationTargetKind, CitationRowLike[]>;
 
 export interface DocumentCitationsPanelProps {
   documentId: string;

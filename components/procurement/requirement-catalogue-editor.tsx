@@ -144,7 +144,7 @@ interface RequirementTemplateFormPanelProps {
   onClose: () => void;
 }
 
-export function RequirementTemplateFormPanel({
+function RequirementTemplateFormPanel({
   editing,
   onClose,
 }: RequirementTemplateFormPanelProps) {

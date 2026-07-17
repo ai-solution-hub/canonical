@@ -87,7 +87,7 @@ const CORPUS_OBJECT_CONTENT_TYPE = 'text/markdown';
  * the canonical DB mutation stays in the items route where it already lives.
  * It is invoked exactly once, AFTER a successful Storage PUT.
  */
-export type ApplyDbLeg = () => Promise<void>;
+type ApplyDbLeg = () => Promise<void>;
 
 /**
  * True when a Supabase Storage error indicates the `corpus` bucket itself

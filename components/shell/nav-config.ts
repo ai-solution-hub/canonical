@@ -38,7 +38,7 @@ export interface NavEntry {
   reserved?: boolean;
 }
 
-export type NavZoneId = 'applications' | 'knowledge' | 'governance';
+type NavZoneId = 'applications' | 'knowledge' | 'governance';
 
 /**
  * BI-2 exact zone header strings, keyed by zone id — the single place the

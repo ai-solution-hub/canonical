@@ -7,7 +7,7 @@
  */
 
 /** Base shape for any gold standard item */
-export interface GoldStandardBase {
+interface GoldStandardBase {
   content_item_id: string;
   title: string;
   domain: string;

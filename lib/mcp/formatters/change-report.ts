@@ -36,7 +36,7 @@ export interface ChangeReportData {
  * Zod schema for `ChangeReportItem` — mirrors the interface exactly for
  * MCP `outputSchema` runtime validation.
  */
-export const ChangeReportItemSchema = z.object({
+const ChangeReportItemSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   primary_domain: z.string().nullable(),
@@ -44,7 +44,7 @@ export const ChangeReportItemSchema = z.object({
   date: z.string(),
 });
 
-export const ChangeReportBucketSchema = z.object({
+const ChangeReportBucketSchema = z.object({
   count: z.number(),
   items: z.array(ChangeReportItemSchema),
 });

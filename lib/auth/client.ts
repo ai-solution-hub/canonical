@@ -147,7 +147,7 @@ export function authFailureResponse(result: {
 }
 
 /** Standard 401 response for unauthorised requests */
-export function unauthorisedResponse() {
+function unauthorisedResponse() {
   return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 }
 

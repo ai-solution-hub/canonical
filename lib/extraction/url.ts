@@ -11,8 +11,6 @@
  */
 
 import { validateUrl } from './url-validation';
-import { extractFromHtml } from './html';
-import { extractPdfText } from './pdf';
 import { extractOgMetadata } from './og-metadata';
 
 /** @public */
@@ -166,53 +164,5 @@ export function extractHtmlMetadata(html: string): HtmlMetadata {
     ogImage: og.ogImage,
     ogDescription: og.ogDescription,
     ogDate: og.ogDate,
-  };
-}
-
-/**
- * Fetch and extract content from a URL.
- *
- * NOTE ({112.10}): the manual ingest route no longer calls this — it composes
- * `fetchForExtraction` + `cleanViaWorker` (HTML) / `extractPdfText` (PDF)
- * directly. This function is retained (HTML path still via Readability) for any
- * latent caller until {112.13} removes @mozilla/readability and prunes it.
- *
- * @param url - The URL to fetch and extract from
- * @returns Extracted content with metadata
- * @throws On validation failure, fetch errors, or extraction failure
- */
-export async function extractFromUrl(url: string): Promise<ExtractedContent> {
-  const fetched = await fetchForExtraction(url);
-
-  if (fetched.kind === 'pdf') {
-    const pdf = await extractPdfText(fetched.buffer);
-    return {
-      title: '',
-      content: pdf.text,
-      author: '',
-      excerpt: '',
-      ogImage: '',
-      ogDescription: '',
-      ogDate: '',
-      extractionMethod: 'unpdf',
-      pageCount: pdf.pageCount,
-      contentLength: pdf.text.length,
-    };
-  }
-
-  const { html, finalUrl } = fetched;
-  const ogMeta = extractOgMetadata(html);
-  const extracted = await extractFromHtml(html, finalUrl);
-
-  return {
-    title: extracted.title,
-    content: extracted.content,
-    author: extracted.author || ogMeta.ogAuthor,
-    excerpt: extracted.excerpt,
-    ogImage: ogMeta.ogImage,
-    ogDescription: ogMeta.ogDescription,
-    ogDate: ogMeta.ogDate,
-    extractionMethod: 'readability',
-    contentLength: extracted.content.length,
   };
 }

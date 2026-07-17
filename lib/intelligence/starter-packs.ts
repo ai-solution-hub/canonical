@@ -34,7 +34,7 @@ export interface StarterPack {
   feeds: StarterPackFeed[];
 }
 
-export interface StarterPackFeed {
+interface StarterPackFeed {
   name: string;
   url: string;
   /**

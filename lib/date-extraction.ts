@@ -21,7 +21,7 @@ export type DateContextType =
   | 'historical'
   | 'unknown';
 
-export type ConfidenceLevel = 'high' | 'medium' | 'low';
+type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export interface DateExtraction {
   /** ISO 8601 normalised date string (YYYY-MM-DD) */

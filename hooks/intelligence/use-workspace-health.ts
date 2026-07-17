@@ -14,7 +14,6 @@ import type {
 export type {
   PipelineHealthSummary as PipelineHealth,
   SourceHealthEntry,
-  SourceHealthSummary,
 } from '@/lib/intelligence/health';
 
 /** Combined response shape from the workspace health endpoint. */

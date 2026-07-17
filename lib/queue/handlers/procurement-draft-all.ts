@@ -64,7 +64,7 @@ export interface ProcurementDraftAllBody extends Record<string, unknown> {
  * results array (`app/api/procurement/[id]/responses/draft-all/route.ts`,
  * since removed).
  */
-export interface ProcurementDraftAllQuestionResult {
+interface ProcurementDraftAllQuestionResult {
   question_id: string;
   status: 'drafted' | 'skipped' | 'failed';
   quality_score?: number;

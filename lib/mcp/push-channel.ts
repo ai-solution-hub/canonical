@@ -133,7 +133,7 @@ export function renderConsumptionOutput(output: ConsumptionOutput): string {
  * (or a network error) is a non-delivery (returns `false`), never a silent
  * success.
  */
-export const webhookTransport: PushTransport = {
+const webhookTransport: PushTransport = {
   async send(delivery: PushDelivery): Promise<boolean> {
     try {
       const response = await fetch(delivery.url, {

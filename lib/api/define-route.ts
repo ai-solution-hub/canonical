@@ -92,7 +92,7 @@ export type WrappedRoute<Args extends unknown[] = unknown[]> = (
  * In production (and not CI) this is NEVER thrown — the wrapper fails open
  * (logs + returns the original response) per INV-FP.
  */
-export class ResponseSchemaValidationError extends Error {
+class ResponseSchemaValidationError extends Error {
   readonly route: string;
   readonly issues: z.ZodIssue[];
 

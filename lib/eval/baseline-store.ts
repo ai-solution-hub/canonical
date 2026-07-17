@@ -42,7 +42,7 @@ import { sb } from '@/lib/supabase/safe';
  * `min` (absolute floor) + `max_drop` (max tolerated drop) pair the ported
  * `checkRegression` math consumes.
  */
-export interface BaselineThreshold {
+interface BaselineThreshold {
   min?: number;
   max_drop?: number;
 }

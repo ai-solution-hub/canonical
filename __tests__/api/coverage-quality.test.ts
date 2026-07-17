@@ -20,7 +20,6 @@ const {
   mockListAvailableTemplates,
   mockFetchTemplateRequirements,
   mockComputeTemplateCoverage,
-  mockComputeGapSummary,
   mockFetchContentForMatching,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
@@ -30,7 +29,6 @@ const {
   mockListAvailableTemplates: vi.fn(),
   mockFetchTemplateRequirements: vi.fn(),
   mockComputeTemplateCoverage: vi.fn(),
-  mockComputeGapSummary: vi.fn(),
   mockFetchContentForMatching: vi.fn(),
 }));
 
@@ -56,7 +54,6 @@ vi.mock('@/lib/domains/procurement/form-templating/template-coverage', () => ({
   listAvailableTemplates: mockListAvailableTemplates,
   fetchTemplateRequirements: mockFetchTemplateRequirements,
   computeTemplateCoverage: mockComputeTemplateCoverage,
-  computeGapSummary: mockComputeGapSummary,
   fetchContentForMatching: mockFetchContentForMatching,
 }));
 
@@ -167,15 +164,6 @@ beforeEach(() => {
     na_count: 0,
     score: 80,
     sections: [],
-  });
-  mockComputeGapSummary.mockReturnValue({
-    total_gaps: 0,
-    total_partial: 0,
-    templates_assessed: 0,
-    gaps_by_type: {},
-    partial_by_type: {},
-    gaps_by_template: [],
-    top_gaps: [],
   });
   mockFetchContentForMatching.mockResolvedValue([]);
 });

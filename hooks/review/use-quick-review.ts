@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 /** @public */
 export type QuickReviewAction = 'verify' | 'unverify' | 'flag' | 'unflag';
 
-export type OnOptimisticUpdate = (
+type OnOptimisticUpdate = (
   itemId: string,
   updates: Partial<{
     verified_at: string | null;

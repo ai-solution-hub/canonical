@@ -58,7 +58,7 @@ export interface EngagementSiblingForm {
  * already independent reads. {145.42} ADDs `engagement_group_id` (§A3 gate),
  * `attachments` (§A5 role split) and `engagement_siblings` (§A3 rail data).
  */
-export interface ProcurementDetailResponse {
+interface ProcurementDetailResponse {
   id: string;
   name: string;
   description: string | null;

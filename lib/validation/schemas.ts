@@ -1196,7 +1196,7 @@ export const FormOutcomeSchema = z.discriminatedUnion('form_type', [
 export type FormOutcome = z.infer<typeof FormOutcomeSchema>;
 
 /** Known procurement form types (mirror of the `form_outcome_types` CV stages). */
-export const KNOWN_FORM_TYPES = new Set<string>([
+const KNOWN_FORM_TYPES = new Set<string>([
   ...FINAL_AWARD_FORM_TYPES,
   ...SHORTLIST_FORM_TYPES,
 ]);
@@ -2307,33 +2307,6 @@ export const SendToReviewBodySchema = z.object({
     .array(z.string().uuid())
     .min(1, 'At least one item ID required')
     .max(200),
-});
-
-/** POST /api/source-documents/[id]/diff — compute diff */
-export const DiffRequestBodySchema = z.object({
-  new_document_id: z
-    .string()
-    .uuid('new_document_id is required and must be a valid UUID'),
-});
-
-/** PATCH /api/source-documents/[id]/diff — review status updates */
-const VALID_DIFF_REVIEW_STATUSES = [
-  'applied',
-  'dismissed',
-  'pending_review',
-] as const;
-
-export const DiffReviewUpdateBodySchema = z.object({
-  entries: z
-    .array(
-      z.object({
-        id: z.string().uuid(),
-        status: z.enum(VALID_DIFF_REVIEW_STATUSES),
-        note: z.string().max(500).optional(),
-      }),
-    )
-    .min(1, 'entries must be a non-empty array')
-    .max(500),
 });
 
 // ──────────────────────────────────────────
