@@ -9,9 +9,10 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/components/procurement/tender-upload', () => ({
   TenderUpload: () => <div data-testid="tender-upload">TenderUpload</div>,
@@ -41,6 +42,68 @@ vi.mock('@/components/procurement/extend/csv-viewer', () => ({
 vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string) => d,
 }));
+
+// The §F1/§F3 edit-mode components mount through their ssr:false lazy entry
+// point (the `pdf-document-lazy` precedent) — mocked HERE, at that entry
+// point, exactly as the fill-slot/citation tests mock `pdf-document-lazy`.
+// The e-signature stub deliberately consumes the REAL
+// `usePersistSignedDocument` hook so the round-trip test exercises the
+// hardened attachments-route persistence lane rather than re-stubbing it.
+vi.mock('@/components/procurement/document-edit-lazy', async () => {
+  const { usePersistSignedDocument } = await vi.importActual<
+    typeof import('@/components/procurement/extend/use-persist-signed-document')
+  >('@/components/procurement/extend/use-persist-signed-document');
+
+  function DocumentEditorPanelLazy(props: {
+    procurementId: string;
+    kind: string;
+    documentPath: string;
+    fileName?: string;
+    src?: string;
+  }) {
+    return (
+      <div
+        data-testid="mock-document-editor-panel"
+        data-kind={props.kind}
+        data-document-path={props.documentPath}
+        data-src={props.src}
+      />
+    );
+  }
+
+  function ESignatureForkLazy(props: {
+    formId: string;
+    file?: string;
+    fields: unknown[];
+    canSign: boolean;
+    onSigned?: (result: unknown) => void;
+  }) {
+    const { mutateAsync } = usePersistSignedDocument();
+    return (
+      <div
+        data-testid="mock-e-signature-fork"
+        data-form-id={props.formId}
+        data-file={props.file}
+        data-can-sign={String(props.canSign)}
+        data-field-count={props.fields.length}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            void mutateAsync({
+              formId: props.formId,
+              pdfBytes: new Uint8Array([1, 2, 3]),
+            }).then((result) => props.onSigned?.(result));
+          }}
+        >
+          Save signed document (stub)
+        </button>
+      </div>
+    );
+  }
+
+  return { DocumentEditorPanelLazy, ESignatureForkLazy };
+});
 
 import { ItemDocumentsTab } from '@/components/procurement/item-documents-tab';
 import type { FormAttachmentSummary } from '@/lib/domains/procurement/procurement-detail-shape';
@@ -255,5 +318,256 @@ describe('ItemDocumentsTab', () => {
         `/api/procurement/${PROCUREMENT_ID}/tender/download?path=`,
       ),
     );
+  });
+
+  describe('edit mode (§F1/§F3/§F4 — ID-147.19)', () => {
+    const docxAttachment = () =>
+      makeAttachment({
+        id: 'att-docx',
+        filename: 'sq.docx',
+        storage_path: `${PROCUREMENT_ID}/attachments/att-docx-sq.docx`,
+        mime_type:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        role: 'form_source',
+      });
+
+    /** The e-signature stub consumes the real `usePersistSignedDocument`,
+     * so signing-lane renders need a QueryClientProvider. */
+    function renderWithQueryClient(ui: React.ReactElement) {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      return render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+      );
+    }
+
+    it('§F4 shows the edit toggle for an admin/editor on a DOCX document, never for a viewer', async () => {
+      const user = userEvent.setup();
+      const attachment = docxAttachment();
+      const { rerender } = render(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[]}
+          formSourceAttachments={[attachment]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={() => {}}
+        />,
+      );
+
+      await user.click(screen.getByText('sq.docx'));
+      expect(
+        await screen.findByRole('button', { name: 'Edit document' }),
+      ).toBeInTheDocument();
+
+      // Same selection, viewer role: no toggle, read-only viewer unchanged.
+      rerender(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[]}
+          formSourceAttachments={[attachment]}
+          referenceEvidenceAttachments={[]}
+          canEdit={false}
+          onUploadComplete={() => {}}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Edit document' }),
+      ).not.toBeInTheDocument();
+      expect(await screen.findByTestId('mock-docx-viewer')).toBeInTheDocument();
+    });
+
+    it('§F1 entering edit mode mounts DocumentEditorPanel for a DOCX document, and exiting returns to the preview', async () => {
+      const user = userEvent.setup();
+      const attachment = docxAttachment();
+      render(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[]}
+          formSourceAttachments={[attachment]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={() => {}}
+        />,
+      );
+
+      await user.click(screen.getByText('sq.docx'));
+      await user.click(
+        await screen.findByRole('button', { name: 'Edit document' }),
+      );
+
+      const panel = await screen.findByTestId('mock-document-editor-panel');
+      expect(panel).toHaveAttribute('data-kind', 'docx');
+      expect(panel).toHaveAttribute(
+        'data-document-path',
+        attachment.storage_path,
+      );
+      // src resolved through the same §B6 tender/download lane as previews.
+      expect(panel).toHaveAttribute(
+        'data-src',
+        'https://example.com/signed.pdf',
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Back to preview' }));
+      expect(
+        screen.queryByTestId('mock-document-editor-panel'),
+      ).not.toBeInTheDocument();
+      expect(await screen.findByTestId('mock-docx-viewer')).toBeInTheDocument();
+    });
+
+    it('§F1 offers the editor with kind=xlsx for an XLSX document', async () => {
+      const user = userEvent.setup();
+      const xlsx = makeAttachment({
+        id: 'att-xlsx',
+        filename: 'prices.xlsx',
+        storage_path: `${PROCUREMENT_ID}/attachments/att-xlsx-prices.xlsx`,
+        mime_type:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        role: 'form_source',
+      });
+      render(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[]}
+          formSourceAttachments={[xlsx]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={() => {}}
+        />,
+      );
+
+      await user.click(screen.getByText('prices.xlsx'));
+      await user.click(
+        await screen.findByRole('button', { name: 'Edit document' }),
+      );
+      expect(
+        await screen.findByTestId('mock-document-editor-panel'),
+      ).toHaveAttribute('data-kind', 'xlsx');
+    });
+
+    it('§F3 offers the signing lane for a PDF document and mounts the e-signature fork', async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[makeTenderDoc()]}
+          formSourceAttachments={[]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={() => {}}
+        />,
+      );
+
+      await user.click(screen.getByText('tender.pdf'));
+      await user.click(
+        await screen.findByRole('button', { name: 'Sign document' }),
+      );
+
+      const fork = await screen.findByTestId('mock-e-signature-fork');
+      expect(fork).toHaveAttribute('data-form-id', PROCUREMENT_ID);
+      expect(fork).toHaveAttribute('data-can-sign', 'true');
+      expect(fork).toHaveAttribute(
+        'data-file',
+        'https://example.com/signed.pdf',
+      );
+      // No signature-placement data source exists in production yet — the
+      // fork receives an empty field set and renders its own honest empty
+      // state ("no signature fields are configured").
+      expect(fork).toHaveAttribute('data-field-count', '0');
+    });
+
+    it('§F3 persisted-signature round-trip: saves through the attachments route and triggers the document-list refresh', async () => {
+      const user = userEvent.setup();
+      const onUploadComplete = vi.fn();
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/attachments')) {
+          return {
+            ok: true,
+            json: async () => ({
+              id: 'att-signed',
+              form_instance_id: PROCUREMENT_ID,
+              engagement_group_id: null,
+              role: 'form_source',
+              filename: 'signed-document.pdf',
+              storage_path: `${PROCUREMENT_ID}/attachments/att-signed.pdf`,
+              mime_type: 'application/pdf',
+              file_size: 3,
+              created_by: null,
+              created_at: '2026-07-17T00:00:00Z',
+            }),
+          };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            download_url: 'https://example.com/signed.pdf',
+          }),
+          text: async () => '',
+        };
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      renderWithQueryClient(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[makeTenderDoc()]}
+          formSourceAttachments={[]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={onUploadComplete}
+        />,
+      );
+
+      await user.click(screen.getByText('tender.pdf'));
+      await user.click(
+        await screen.findByRole('button', { name: 'Sign document' }),
+      );
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'Save signed document (stub)',
+        }),
+      );
+
+      await waitFor(() => expect(onUploadComplete).toHaveBeenCalledTimes(1));
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/procurement/${PROCUREMENT_ID}/attachments`,
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('offers no edit or sign toggle for a CSV document (outside EditableDocumentKind, not a PDF)', async () => {
+      const user = userEvent.setup();
+      const csv = makeAttachment({
+        id: 'att-csv',
+        filename: 'rates.csv',
+        storage_path: `${PROCUREMENT_ID}/attachments/att-csv-rates.csv`,
+        mime_type: 'text/csv',
+        role: 'form_source',
+      });
+      render(
+        <ItemDocumentsTab
+          procurementId={PROCUREMENT_ID}
+          tenderDocuments={[]}
+          formSourceAttachments={[csv]}
+          referenceEvidenceAttachments={[]}
+          canEdit={true}
+          onUploadComplete={() => {}}
+        />,
+      );
+
+      await user.click(screen.getByText('rates.csv'));
+      expect(await screen.findByTestId('mock-csv-viewer')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Edit document' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Sign document' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

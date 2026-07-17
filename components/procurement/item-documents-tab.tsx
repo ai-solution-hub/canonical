@@ -1,9 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { Download, FileText, Upload } from 'lucide-react';
+import { Download, Eye, FileText, Pencil, PenLine, Upload } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { TenderUpload } from '@/components/procurement/tender-upload';
+import {
+  DocumentEditorPanelLazy,
+  ESignatureForkLazy,
+} from '@/components/procurement/document-edit-lazy';
+import type { EditableDocumentKind } from '@/components/procurement/extend/document-editor-panel';
+import type { SignatureFieldPlacement } from '@/components/procurement/extend/e-signature-fork';
 import {
   DocumentViewerThumbnailSidebar,
   useElementWidth,
@@ -18,6 +25,7 @@ import {
 } from '@/components/procurement/extend/themed-viewers';
 import {
   DocumentViewerState,
+  resolveViewerKind,
   ViewerErrorState,
   ViewerLoadingState,
 } from '@/components/procurement/extend/viewer-states';
@@ -37,6 +45,20 @@ import type { ExtractionResult, TenderDocument } from '@/types/procurement';
  * previews it via the vendored Document-Viewer-Sidebar + File-Thumbnail
  * feeding the matching viewer (§A9, §B) through the {147.18}
  * `DocumentViewerState` state layer.
+ *
+ * ID-147 {147.19} — edit mode (PRODUCT §F1/§F3/§F4): an admin/editor
+ * (the existing `canEdit` prop, derived from `useUserRole()` by the item
+ * page — the {145.50} sibling-panel convention) gets an explicit toggle on
+ * an eligible selected document: DOCX/XLSX enter the {147.13}
+ * `DocumentEditorPanel` (its `EditableDocumentKind` union — CSV stays
+ * read-only), PDF enters the {147.14} `ESignatureFork` signing lane.
+ * Both mount through the same `DocumentViewerState` §B6/§B7 state layer
+ * as previews, via ssr:false lazy entry points
+ * (`document-edit-lazy.tsx`). Persistence stays on the existing hardened
+ * lanes owned by those components (tender re-upload / draft stream /
+ * `usePersistSignedDocument` → attachments route) — never rebuilt here;
+ * a persisted signature triggers `onUploadComplete` so the page refreshes
+ * the document list. Viewers see no toggle at all (§F4).
  */
 
 /** A unified document row — the zero-schema tender documents and the
@@ -92,6 +114,39 @@ function attachmentToEntry(
   };
 }
 
+/** §F1/§F3 — which edit-mode lane (if any) a document is eligible for. */
+type EditLane =
+  | { kind: 'editor'; editorKind: EditableDocumentKind }
+  | { kind: 'signature' };
+
+/**
+ * DOCX/XLSX → the {147.13} editor panel (`EditableDocumentKind` is exactly
+ * `'docx' | 'xlsx'` — CSV has a viewer but no editor, so it stays
+ * read-only); PDF → the {147.14} e-signature lane. Anything else: no edit
+ * affordance.
+ */
+function resolveEditLane(doc: DocumentEntry): EditLane | null {
+  const viewerKind = resolveViewerKind({
+    mimeType: doc.mimeType,
+    fileName: doc.filename,
+  });
+  if (viewerKind === 'docx' || viewerKind === 'xlsx') {
+    return { kind: 'editor', editorKind: viewerKind };
+  }
+  if (viewerKind === 'pdf') {
+    return { kind: 'signature' };
+  }
+  return null;
+}
+
+/**
+ * §F3 "driven from our data": no production source of signature-field
+ * placements exists yet, so the fork receives a stable empty field set and
+ * renders its own honest "no signature fields are configured" state (its
+ * tested contract) rather than a fabricated default placement.
+ */
+const NO_SIGNATURE_FIELDS: SignatureFieldPlacement[] = [];
+
 export interface ItemDocumentsTabProps {
   procurementId: string;
   tenderDocuments: TenderDocument[];
@@ -137,6 +192,17 @@ export function ItemDocumentsTab({
 
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
   const selectedDoc = allDocs.find((d) => d.key === selectedKey) ?? null;
+
+  // §F1/§F3/§F4 — edit mode is per-document (keyed on the selected entry,
+  // so changing selection drops back to preview) and only ever offered to
+  // admin/editor (`canEdit`) on a previewable, lane-eligible document.
+  const [editingKey, setEditingKey] = React.useState<string | null>(null);
+  const editLane =
+    canEdit && selectedDoc && selectedDoc.previewable
+      ? resolveEditLane(selectedDoc)
+      : null;
+  const isEditing =
+    editLane !== null && selectedDoc !== null && selectedDoc.key === editingKey;
 
   const [sidebarRef, sidebarWidth] = useElementWidth<HTMLDivElement>();
   const inlineSidebar = useInlineThumbnailSidebar(sidebarWidth);
@@ -227,10 +293,43 @@ export function ItemDocumentsTab({
             </DocumentViewerThumbnailSidebar>
 
             <div className={cn(inlineSidebar && selectedDoc && 'ml-24')}>
+              {/* §F1/§F3 — explicit edit-mode entry on an eligible document;
+                  never rendered for viewers (§F4). */}
+              {selectedDoc && editLane && (
+                <div className="flex items-center justify-end border-b px-3 py-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-pressed={isEditing}
+                    onClick={() =>
+                      setEditingKey(isEditing ? null : selectedDoc.key)
+                    }
+                  >
+                    {isEditing ? (
+                      <>
+                        <Eye className="size-4" aria-hidden="true" />
+                        Back to preview
+                      </>
+                    ) : editLane.kind === 'editor' ? (
+                      <>
+                        <Pencil className="size-4" aria-hidden="true" />
+                        Edit document
+                      </>
+                    ) : (
+                      <>
+                        <PenLine className="size-4" aria-hidden="true" />
+                        Sign document
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
               {selectedDoc ? (
                 <DocumentPreviewPane
                   procurementId={procurementId}
                   doc={selectedDoc}
+                  editLane={isEditing ? editLane : null}
+                  onSigned={() => onUploadComplete()}
                 />
               ) : (
                 <div className="flex min-h-64 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
@@ -306,13 +405,21 @@ function DocumentGroup({
   );
 }
 
-/** §A9 — resolves the matching viewer (§B1) for the selected document. */
+/**
+ * §A9 — resolves the matching viewer (§B1) for the selected document; with
+ * an active `editLane` (§F1/§F3), mounts the matching edit-mode component
+ * instead, behind the same §B6/§B7 state layer.
+ */
 function DocumentPreviewPane({
   procurementId,
   doc,
+  editLane = null,
+  onSigned,
 }: {
   procurementId: string;
   doc: DocumentEntry;
+  editLane?: EditLane | null;
+  onSigned?: () => void;
 }) {
   const loadSrc = React.useCallback(async () => {
     const res = await fetch(
@@ -340,13 +447,33 @@ function DocumentPreviewPane({
       mimeType={doc.mimeType}
       downloadHref={`/api/procurement/${procurementId}/tender/download?path=${encodeURIComponent(doc.storagePath)}`}
       loadSrc={loadSrc}
-      renderViewer={(src) => (
-        <ResolvedViewer
-          fileName={doc.filename}
-          mimeType={doc.mimeType}
-          src={src}
-        />
-      )}
+      renderViewer={(src) =>
+        editLane ? (
+          editLane.kind === 'editor' ? (
+            <DocumentEditorPanelLazy
+              procurementId={procurementId}
+              kind={editLane.editorKind}
+              documentPath={doc.storagePath}
+              fileName={doc.filename}
+              src={src}
+            />
+          ) : (
+            <ESignatureForkLazy
+              formId={procurementId}
+              file={src}
+              fields={NO_SIGNATURE_FIELDS}
+              canSign
+              onSigned={() => onSigned?.()}
+            />
+          )
+        ) : (
+          <ResolvedViewer
+            fileName={doc.filename}
+            mimeType={doc.mimeType}
+            src={src}
+          />
+        )
+      }
     />
   );
 }
