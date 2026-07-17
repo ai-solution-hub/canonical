@@ -11,9 +11,11 @@ a fork of the file-fixture driver, it is the URL (fixture, assertion) pair):
     `passed = true`, `published_at` set). NO `/stage` byte-staging, NO local
     HTML fixture — `/stage` remains file-fixture-only ({75.11} docstring).
   - **Trigger step** — `POST {worker}/walk` with
-    `Authorization: Bearer ${CRON_SECRET}` (the existing bl-221 route; no new
-    server surface). A 409 (walk already in flight — e.g. the hourly Coolify
-    fallback task) is retried until accepted or deadline.
+    `Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}` (the existing bl-221
+    route; no new server surface. ID-127.18 retired the legacy `CRON_SECRET`
+    dual-accept fallback on `/walk` — `PIPELINE_TRIGGER_SECRET` is now the
+    SOLE bearer this driver sends). A 409 (walk already in flight — e.g. the
+    hourly Coolify fallback task) is retried until accepted or deadline.
   - **Assertion surfaced via exit code (Inv-23)** — poll for the landed
     `source_documents` row (id = uuid5(NS, "sd:" + normalised URL)) to
     confirm the walk produced the landing row. Row-SHAPE assertions are NOT
@@ -53,7 +55,7 @@ Run (from the repo checkout root — PEP 420 namespace import)::
 
     COCOINDEX_URL_VERIFY_URL=https://example.com/ \
     COCOINDEX_WORKER_URL=https://<staging-worker> \
-    CRON_SECRET=<redacted> \
+    PIPELINE_TRIGGER_SECRET=<redacted> \
     NEXT_PUBLIC_SUPABASE_URL=https://<staging-project-ref>.supabase.co \
     SUPABASE_SERVICE_ROLE_KEY=<redacted> \
     python3 -m deploy.onprem.verify.verify_driver
@@ -124,6 +126,11 @@ class DriverConfig:
     supabase_url: str
     service_role_key: str
     worker_url: str
+    # Field name predates ID-127.18 (retired the legacy CRON_SECRET
+    # dual-accept fallback on /walk); kept as `cron_secret` for
+    # test-construction compat with test_verify_driver_url.py — the VALUE it
+    # holds is now sourced from $PIPELINE_TRIGGER_SECRET (see `run()` below),
+    # the sole bearer `/walk` accepts post-retirement.
     cron_secret: str
     timeout: float = 30.0
     sd_poll_deadline: float = 900.0
@@ -525,7 +532,11 @@ def run_with(config: DriverConfig, deps: Deps) -> int:
 _REQUIRED_ENV = (
     ("SUPABASE_SERVICE_ROLE_KEY", "service-role key for the seed + reads"),
     ("COCOINDEX_WORKER_URL", "staging worker base URL (POST /walk target)"),
-    ("CRON_SECRET", "bearer for the bl-221 /walk route"),
+    (
+        "PIPELINE_TRIGGER_SECRET",
+        "bearer for the bl-221 /walk route (ID-127.18: the legacy "
+        "CRON_SECRET dual-accept fallback is retired)",
+    ),
 )
 
 
@@ -595,7 +606,10 @@ def run(argv: list[str] | None = None) -> int:
         supabase_url=str(supabase_url),
         service_role_key=os.environ["SUPABASE_SERVICE_ROLE_KEY"],
         worker_url=os.environ["COCOINDEX_WORKER_URL"],
-        cron_secret=os.environ["CRON_SECRET"],
+        # ID-127.18: PIPELINE_TRIGGER_SECRET is the SOLE bearer /walk
+        # accepts post-retirement — the legacy CRON_SECRET dual-accept
+        # fallback is gone, so reading CRON_SECRET here would 401.
+        cron_secret=os.environ["PIPELINE_TRIGGER_SECRET"],
         timeout=args.timeout,
         sd_poll_deadline=args.sd_poll_deadline,
         second_walk=not args.skip_second_walk,
