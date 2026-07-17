@@ -230,8 +230,14 @@ def audit_ts_test(path: Path, root: Path, findings: list[dict[str, Any]]) -> Non
 
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     text = re.sub(r"//[^\n]*", "", text)
+    # Blank template literals (escape-aware), preserving line count. The two
+    # alternatives are DISJOINT — `\\.` consumes escape pairs, `[^`\\]` never
+    # matches a backslash — so each input position matches exactly one way and
+    # the scan is linear. The previous `(?:\\.|[^`])*` overlapped on
+    # backslashes, giving catastrophic backtracking on long backslash runs
+    # with no closing backtick (CodeQL py/redos, S482).
     text = re.sub(
-        r"`(?:\\.|[^`])*`",
+        r"`(?:\\.|[^`\\])*`",
         lambda match: "\n" * match.group(0).count("\n"),
         text,
         flags=re.DOTALL,
