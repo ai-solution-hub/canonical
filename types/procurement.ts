@@ -80,7 +80,7 @@ export type ConfidencePosture =
   | 'partial_match'
   | 'needs_sme'
   | 'no_content';
-export type QuestionStatus =
+type QuestionStatus =
   | 'pending'
   | 'not_started'
   | 'ai_drafted'
