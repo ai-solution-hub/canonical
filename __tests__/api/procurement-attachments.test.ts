@@ -419,7 +419,9 @@ describe('DELETE /api/procurement/[id]/attachments', () => {
       params: createTestParams({ id: FORM_ID }),
     });
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain('attachmentId');
+    // Central parseSearchParams 400 shape — the offending param is named in
+    // the details field, not the top-level error string.
+    expect(JSON.stringify(await res.json())).toContain('attachmentId');
   });
 
   it('returns 404 when the attachment does not exist', async () => {

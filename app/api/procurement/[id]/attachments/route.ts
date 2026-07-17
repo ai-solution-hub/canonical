@@ -9,6 +9,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { tryQuery } from '@/lib/supabase/safe';
+import { parseSearchParams } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -79,6 +80,15 @@ export const maxDuration = 30;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * DELETE query params — same UUID semantics as the inline `UUID_RE` guards,
+ * routed through the central `parseSearchParams` per the validation-sweep
+ * guard rail (`__tests__/validation/validation-sweep.test.ts`).
+ */
+const DeleteAttachmentParamsSchema = z.object({
+  attachmentId: z.string().regex(UUID_RE, 'attachmentId must be a valid UUID'),
+});
 
 /** Maximum file size: 50 MB (matches `upload/route.ts` / `[id]/tender/route.ts`). */
 const MAX_FILE_SIZE = 52_428_800;
@@ -395,16 +405,12 @@ export const DELETE = defineRoute(
         );
       }
 
-      const attachmentId = request.nextUrl.searchParams.get('attachmentId');
-      if (!attachmentId || !UUID_RE.test(attachmentId)) {
-        return NextResponse.json(
-          {
-            error:
-              'attachmentId query parameter is required and must be a valid UUID',
-          },
-          { status: 400 },
-        );
-      }
+      const parsed = parseSearchParams(
+        DeleteAttachmentParamsSchema,
+        request.nextUrl.searchParams,
+      );
+      if (!parsed.success) return parsed.response;
+      const { attachmentId } = parsed.data;
 
       const attachmentResult = await tryQuery<{
         id: string;
