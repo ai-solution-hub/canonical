@@ -155,6 +155,10 @@ async function createTestBid(opts: {
       mime_type: 'application/pdf',
       workflow_state: status,
       created_by: ADMIN_USER_ID,
+      // Explicit: the column DEFAULT is still the pre-{145.x} 'pipeline',
+      // which VIOLATES the narrowed form_instances_ingest_source_check
+      // ('app_upload'|'minted') — an omitted value fails the insert (bl-496).
+      ingest_source: 'app_upload',
     })
     .select('id')
     .single();

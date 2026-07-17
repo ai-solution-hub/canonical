@@ -178,6 +178,9 @@ async function seedFormInstance(name: string): Promise<string> {
       storage_path: `id57-integration-test/${name}.pdf`,
       file_size: 1024,
       mime_type: 'application/pdf',
+      // Explicit: the column DEFAULT ('pipeline') violates the post-{145.x}
+      // form_instances_ingest_source_check ('app_upload'|'minted') — bl-496.
+      ingest_source: 'app_upload',
     })
     .select('id')
     .single();

@@ -349,26 +349,26 @@ export async function getKnownUUIDs(
     );
   }
 
-  // Get a known bid workspace. Post-T2: discriminator is application_types.key
-  // via JOIN; 'bid' maps to 'procurement'.
-  const { data: bid } = await supabase
-    .from('workspaces')
-    .select('id, application_types!inner(key)')
-    .eq('application_types.key', 'procurement')
-    .eq('is_archived', false)
+  // Get a known bid. Post-ID-145 (form-first re-key, {145.6} W1e): the
+  // procurement item IS the form_instances row — the workspace umbrella is
+  // retired, and get_procurement_detail resolves against form_instances(id).
+  // Prefer a form that actually HAS questions so questionId resolves too.
+  const { data: keyedQuestion } = await supabase
+    .from('form_questions')
+    .select('id, form_instance_id')
+    .not('form_instance_id', 'is', null)
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  // Get a known bid question (if bid exists)
-  let questionId: string | null = null;
-  if (bid) {
-    const { data: question } = await supabase
-      .from('form_questions')
+  let procurementId: string | null = keyedQuestion?.form_instance_id ?? null;
+  const questionId: string | null = keyedQuestion?.id ?? null;
+  if (!procurementId) {
+    const { data: anyForm } = await supabase
+      .from('form_instances')
       .select('id')
-      .eq('workspace_id', bid.id)
       .limit(1)
-      .single();
-    questionId = question?.id ?? null;
+      .maybeSingle();
+    procurementId = anyForm?.id ?? null;
   }
 
   let procurementResponseId: string | null = null;
@@ -385,7 +385,7 @@ export async function getKnownUUIDs(
   return {
     contentItemId: sourceDoc.id,
     qaPairId: qaPair.id,
-    procurementId: bid?.id ?? null,
+    procurementId,
     questionId,
     procurementResponseId,
   };
