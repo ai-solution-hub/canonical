@@ -27,6 +27,7 @@ vi.mock('next/link', () => ({
 const mockFetchOkfBundleList = vi.fn();
 const mockFetchOkfBundleTree = vi.fn();
 const mockFetchOkfBundleFile = vi.fn();
+const mockFetchOkfUnionGraph = vi.fn();
 
 vi.mock('@/lib/query/okf', async () => {
   const actual =
@@ -36,13 +37,41 @@ vi.mock('@/lib/query/okf', async () => {
     fetchOkfBundleList: () => mockFetchOkfBundleList(),
     fetchOkfBundleTree: (...args: unknown[]) => mockFetchOkfBundleTree(...args),
     fetchOkfBundleFile: (...args: unknown[]) => mockFetchOkfBundleFile(...args),
+    fetchOkfUnionGraph: () => mockFetchOkfUnionGraph(),
   };
 });
+
+// {132.49}: <UnionGraphView> (the new "Deployment graph" tab) mounts
+// <ConceptGraph>, which calls real cytoscape() — jsdom has no canvas 2D
+// context, so a minimal fake is needed for any test that opens that tab.
+vi.mock('cytoscape', () => ({
+  default: (opts: { elements: unknown[] }) => ({
+    on: () => {},
+    nodes: () => ({ forEach: () => {}, removeClass: () => {} }),
+    edges: () => ({ forEach: () => {}, removeClass: () => {} }),
+    elements: () => ({
+      forEach: () => {},
+      removeClass: () => {},
+      unselect: () => {},
+    }),
+    getElementById: () => ({ length: 0 }),
+    layout: () => ({ run: () => {} }),
+    fit: () => {},
+    destroy: () => {},
+    __opts: opts,
+  }),
+}));
 
 import { OkfLanding } from '@/components/okf/okf-landing';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFetchOkfUnionGraph.mockResolvedValue({
+    nodes: [],
+    edges: [],
+    bodies: {},
+    types: [],
+  });
 });
 
 describe('OkfLanding', () => {
@@ -152,5 +181,33 @@ describe('OkfLanding', () => {
       expect(screen.getByText('zeta-client.md')).toBeInTheDocument();
     });
     expect(screen.queryByText('alpha-client.md')).not.toBeInTheDocument();
+  });
+
+  it('surfaces the deployment union graph on the "Deployment graph" tab (ID-132 {132.49})', async () => {
+    mockFetchOkfBundleList.mockResolvedValue({
+      bundles: ['alpha-client'],
+      configured: true,
+    });
+
+    const { Wrapper } = createQueryWrapper();
+    const user = userEvent.setup();
+    render(<OkfLanding />, { wrapper: Wrapper });
+
+    await waitFor(() =>
+      expect(screen.getByText('alpha-client')).toBeInTheDocument(),
+    );
+    // Default tab is "Browse bundles" — the pre-{132.49} landing is unchanged.
+    expect(screen.getByTestId('okf-landing')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Deployment graph' }));
+
+    await waitFor(() => {
+      expect(mockFetchOkfUnionGraph).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText(/no concepts have been published yet/i),
+      ).toBeInTheDocument();
+    });
   });
 });

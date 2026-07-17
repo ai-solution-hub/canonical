@@ -515,6 +515,12 @@ export const queryKeys = {
     /** Per-file text read for the explorer render pane (LI-15/LI-17). */
     file: (bundleId: string, path: string) =>
       ['okf', 'file', bundleId, path] as const,
+    // -------------------------------------------------------------------
+    // {132.49} G-CONCEPT-GRAPH-UNION — deployment-level union graph. New
+    // member only — every key above is unchanged.
+    // -------------------------------------------------------------------
+    /** Whole-deployment union concept graph (every configured bundle). */
+    unionGraph: ['okf', 'union-graph'] as const,
   },
 
   // ---------------------------------------------------------------------------

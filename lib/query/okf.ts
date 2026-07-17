@@ -13,7 +13,29 @@
  */
 import { fetchJson } from '@/lib/query/fetchers';
 
-/** One Cytoscape node in the bundle concept graph. */
+/**
+ * Per-bundle-class union-graph styling signal (ID-132 {132.49}
+ * G-CONCEPT-GRAPH-UNION) — `'platform'` for the `canonical-okf-system`
+ * baseline, `'client'` for a client-business bundle, `'unknown'` when the
+ * server couldn't derive a signal. See `lib/okf/bundle-graph.ts` module doc
+ * §2 for the derivation (`ontology.json`'s `overlay` key).
+ */
+export type OkfBundleClassSignal = 'client' | 'platform' | 'unknown';
+
+/** bl-457 `@context` IRI scope for a node's `type` term (DR-082) — see `lib/okf/bundle-graph.ts` module doc §4. */
+export type OkfIriScope = 'base' | 'client' | 'unmapped';
+
+/** Relationship type of a resolved internal `.md` link — see `lib/okf/bundle-graph.ts` module doc §4. */
+export type OkfEdgeRelationship = 'cites' | 'related';
+
+/**
+ * One Cytoscape node in the bundle concept graph. The five `{132.49}`
+ * fields (`bundleId`/`bundleClass`/`confidence`/`opacity`/`iriScope`) are
+ * OPTIONAL here even though the server always populates them from
+ * `lib/okf/bundle-graph.ts` onward — kept optional so older cached
+ * responses/test fixtures that predate this Subtask remain valid without a
+ * forced rewrite; every reader falls back sensibly (module doc above).
+ */
 export interface OkfBundleGraphNode {
   data: {
     id: string;
@@ -23,15 +45,21 @@ export interface OkfBundleGraphNode {
     resource: string;
     tags: string[];
     size: number;
+    bundleId?: string;
+    bundleClass?: OkfBundleClassSignal;
+    confidence?: string | null;
+    opacity?: number;
+    iriScope?: OkfIriScope;
   };
 }
 
-/** One Cytoscape edge (a resolved internal `.md` link) in the bundle concept graph. */
+/** One Cytoscape edge (a resolved internal `.md` link) in the bundle concept graph. `relationship` is optional for the same back-compat reason as `OkfBundleGraphNode`'s `{132.49}` fields. */
 export interface OkfBundleGraphEdge {
   data: {
     id: string;
     source: string;
     target: string;
+    relationship?: OkfEdgeRelationship;
   };
 }
 
@@ -165,4 +193,26 @@ export async function fetchOkfBundleFile(
   return fetchJson<OkfBundleFileResult>(
     `/api/okf/${encodeURIComponent(bundleId)}/file?path=${encodeURIComponent(filePath)}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Deployment-level union graph (ID-132 {132.49} G-CONCEPT-GRAPH-UNION,
+// owner-ratified NATIVE/extend path per {132.39} decision memo §6). A new
+// route (deliberately NOT a widened param on `GET /api/okf/[bundleId]/graph`
+// — a union spans every sibling bundle, orthogonal to a single `bundleId`,
+// and has no per-bundle `nav`/`log`, so a distinct envelope shape earns a
+// distinct route). AUTHED, same pattern as every other `/api/okf/*` route.
+// ---------------------------------------------------------------------------
+
+/** `GET /api/okf/union-graph` response — the deployment-level union of every configured bundle's concept graph. */
+export interface OkfUnionGraphEnvelope {
+  nodes: OkfBundleGraphNode[];
+  edges: OkfBundleGraphEdge[];
+  bodies: Record<string, string>;
+  types: string[];
+}
+
+/** Fetch the whole-deployment union concept graph (every bundle under `OKF_BUNDLE_ROOT`, node/edge ids namespaced by bundleId). */
+export async function fetchOkfUnionGraph(): Promise<OkfUnionGraphEnvelope> {
+  return fetchJson<OkfUnionGraphEnvelope>('/api/okf/union-graph');
 }

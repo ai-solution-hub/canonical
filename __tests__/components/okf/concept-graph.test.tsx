@@ -362,4 +362,85 @@ describe('ConceptGraph', () => {
 
     expect(destroyCalls).toHaveLength(1);
   });
+
+  it('renders the {132.49} union-doctrine legend', () => {
+    render(
+      <ConceptGraph
+        nodes={NODES}
+        edges={EDGES}
+        types={TYPES}
+        selectedConceptId={null}
+        onSelectConcept={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('concept-graph-legend')).toBeInTheDocument();
+    expect(screen.getByText('Client bundle')).toBeInTheDocument();
+    expect(screen.getByText('Platform baseline')).toBeInTheDocument();
+    expect(screen.getByText('Cites')).toBeInTheDocument();
+    expect(screen.getByText('Related')).toBeInTheDocument();
+  });
+
+  it('derives per-node shape (bundleClass) and border colour (iriScope), and per-edge colour (relationship) into the Cytoscape element data', () => {
+    // jsdom never loads app/styles/domain-tokens.css — set the custom
+    // properties directly so resolveIriScopeBorderColor/
+    // resolveEdgeRelationshipColor have something real to resolve (mirrors
+    // lib/okf/concept-type-tokens.test.ts's own pattern).
+    document.documentElement.style.setProperty(
+      '--okf-graph-iri-base-border',
+      'oklch(0.55 0.12 240)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-iri-client-border',
+      'oklch(0.55 0.15 290)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-edge-cites',
+      'oklch(0.55 0.15 195)',
+    );
+
+    const nodesWithUnionFields: OkfBundleGraphNode[] = [
+      {
+        data: {
+          ...NODES[0].data,
+          bundleClass: 'client',
+          iriScope: 'base',
+        },
+      },
+      {
+        data: {
+          ...NODES[1].data,
+          bundleClass: 'platform',
+          iriScope: 'client',
+        },
+      },
+    ];
+    const edgesWithRelationship: OkfBundleGraphEdge[] = [
+      { data: { ...EDGES[0].data, relationship: 'cites' } },
+    ];
+
+    render(
+      <ConceptGraph
+        nodes={nodesWithUnionFields}
+        edges={edgesWithRelationship}
+        types={TYPES}
+        selectedConceptId={null}
+        onSelectConcept={vi.fn()}
+      />,
+    );
+
+    const opts = cytoscapeCalls[0] as {
+      elements: { data: Record<string, unknown> }[];
+    };
+    const orders = opts.elements.find((e) => e.data.id === 'tables/orders');
+    const customers = opts.elements.find(
+      (e) => e.data.id === 'tables/customers',
+    );
+    const edge = opts.elements.find((e) => e.data.id === 'e1');
+
+    expect(orders?.data.shape).toBe('ellipse');
+    expect(customers?.data.shape).toBe('round-rectangle');
+    expect(orders?.data.borderColor).not.toBe(customers?.data.borderColor);
+    expect(edge?.data.edgeColor).toBeTruthy();
+  });
 });

@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   conceptTypeTokenVars,
   resolveConceptTypeColor,
+  bundleClassShape,
+  resolveIriScopeBorderColor,
+  resolveEdgeRelationshipColor,
 } from '@/lib/okf/concept-type-tokens';
 
 describe('conceptTypeTokenVars', () => {
@@ -87,5 +90,80 @@ describe('resolveConceptTypeColor', () => {
       bg: 'oklch(0.93 0.04 57)',
       text: 'oklch(0.35 0.12 57)',
     });
+  });
+});
+
+describe('bundleClassShape', () => {
+  it('maps "client" and "platform" to distinct shapes', () => {
+    expect(bundleClassShape('client')).toBe('ellipse');
+    expect(bundleClassShape('platform')).toBe('round-rectangle');
+  });
+
+  it('falls back to "diamond" for "unknown" or an absent bundleClass', () => {
+    expect(bundleClassShape('unknown')).toBe('diamond');
+    expect(bundleClassShape(undefined)).toBe('diamond');
+  });
+});
+
+describe('resolveIriScopeBorderColor', () => {
+  it('resolves the "base" scope custom property when defined', () => {
+    document.documentElement.style.setProperty(
+      '--okf-graph-iri-base-border',
+      'oklch(0.55 0.12 240)',
+    );
+
+    expect(resolveIriScopeBorderColor('base', 'FALLBACK')).toBe(
+      'oklch(0.55 0.12 240)',
+    );
+  });
+
+  it('resolves the "client" scope custom property when defined', () => {
+    document.documentElement.style.setProperty(
+      '--okf-graph-iri-client-border',
+      'oklch(0.55 0.15 290)',
+    );
+
+    expect(resolveIriScopeBorderColor('client', 'FALLBACK')).toBe(
+      'oklch(0.55 0.15 290)',
+    );
+  });
+
+  it('falls back for "unmapped" or an absent iriScope', () => {
+    expect(resolveIriScopeBorderColor('unmapped', 'FALLBACK')).toBe('FALLBACK');
+    expect(resolveIriScopeBorderColor(undefined, 'FALLBACK')).toBe('FALLBACK');
+  });
+
+  it('falls back when the custom property is not defined', () => {
+    document.documentElement.style.removeProperty(
+      '--okf-graph-iri-base-border',
+    );
+    expect(resolveIriScopeBorderColor('base', 'FALLBACK')).toBe('FALLBACK');
+  });
+});
+
+describe('resolveEdgeRelationshipColor', () => {
+  it('resolves the "cites" custom property when defined', () => {
+    document.documentElement.style.setProperty(
+      '--okf-graph-edge-cites',
+      'oklch(0.55 0.15 195)',
+    );
+
+    expect(resolveEdgeRelationshipColor('cites', 'FALLBACK')).toBe(
+      'oklch(0.55 0.15 195)',
+    );
+  });
+
+  it('falls back for "related" or an absent relationship', () => {
+    expect(resolveEdgeRelationshipColor('related', 'FALLBACK')).toBe(
+      'FALLBACK',
+    );
+    expect(resolveEdgeRelationshipColor(undefined, 'FALLBACK')).toBe(
+      'FALLBACK',
+    );
+  });
+
+  it('falls back when the custom property is not defined', () => {
+    document.documentElement.style.removeProperty('--okf-graph-edge-cites');
+    expect(resolveEdgeRelationshipColor('cites', 'FALLBACK')).toBe('FALLBACK');
   });
 });

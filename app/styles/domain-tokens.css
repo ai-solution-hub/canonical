@@ -291,6 +291,18 @@
   --okf-graph-selected-border: var(--amber-solid);
   --okf-graph-edge: var(--stone-300);
 
+  /* Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) —
+     <ConceptGraph>'s node border colour (bl-457 @context IRI scope: base
+     vocabulary vs client-overlay term, DR-082) and edge line colour
+     (relationship-typed edges: a `# Citations`-trailer link vs any other
+     internal cross-link). Alias the existing `--*-solid` functional-ramp
+     primitives (already theme-adaptive light/dark in app/globals.css) rather
+     than new oklch literals — one definition here resolves correctly in
+     both themes, no separate `.dark` override needed. */
+  --okf-graph-iri-base-border: var(--blue-solid);
+  --okf-graph-iri-client-border: var(--violet-solid);
+  --okf-graph-edge-cites: var(--teal-solid);
+
   /* Relevance score (article review) */
   --relevance-high: oklch(0.93 0.04 var(--hue-relevance-high));
   --relevance-high-text: oklch(0.35 0.12 var(--hue-relevance-high));
@@ -652,6 +664,9 @@
   --color-okf-graph-node-fallback: var(--okf-graph-node-fallback);
   --color-okf-graph-selected-border: var(--okf-graph-selected-border);
   --color-okf-graph-edge: var(--okf-graph-edge);
+  --color-okf-graph-iri-base-border: var(--okf-graph-iri-base-border);
+  --color-okf-graph-iri-client-border: var(--okf-graph-iri-client-border);
+  --color-okf-graph-edge-cites: var(--okf-graph-edge-cites);
 
   --color-relevance-high: var(--relevance-high);
   --color-relevance-high-text: var(--relevance-high-text);

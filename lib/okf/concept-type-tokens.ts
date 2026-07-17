@@ -25,6 +25,11 @@
  * below (`playbook` already existed as a business-facet tag colour and is
  * reused unchanged for its system-type sense). No hard-gate/schema change.
  */
+import type {
+  OkfBundleClassSignal,
+  OkfIriScope,
+  OkfEdgeRelationship,
+} from '@/lib/query/okf';
 
 const KNOWN_TYPES = [
   'topic',
@@ -133,4 +138,83 @@ export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
   const edge = styles.getPropertyValue(GRAPH_CHROME_VARS.edge).trim();
   if (!fallbackNode || !selectedBorder || !edge) return null;
   return { fallbackNode, selectedBorder, edge };
+}
+
+// ---------------------------------------------------------------------------
+// Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) — a
+// per-bundleClass node SHAPE (a structural, non-colour Cytoscape channel —
+// no design token needed, `components/CLAUDE.md`'s "no raw Tailwind
+// colours" rule scopes to COLOUR properties only) plus bl-457 iriScope /
+// edge-relationship COLOUR resolvers, following the exact never-throws /
+// SSR-returns-fallback / computed-style-read pattern established above by
+// `resolveConceptTypeColor`/`resolveGraphChromeColors`. Types imported from
+// the CLIENT-safe `lib/query/okf.ts` wire types, never from the
+// server-only `lib/okf/bundle-graph.ts` (this module runs client-side).
+// ---------------------------------------------------------------------------
+
+/** Cytoscape `shape` value per {132.49} `bundleClass` — a structural (non-colour) legend channel. Never throws; an absent/unrecognised value falls back to `'diamond'` ("unknown"). */
+export function bundleClassShape(
+  bundleClass: OkfBundleClassSignal | undefined,
+): 'ellipse' | 'round-rectangle' | 'diamond' {
+  switch (bundleClass) {
+    case 'client':
+      return 'ellipse';
+    case 'platform':
+      return 'round-rectangle';
+    default:
+      return 'diamond';
+  }
+}
+
+const IRI_SCOPE_BORDER_VARS: Record<'base' | 'client', string> = {
+  base: '--okf-graph-iri-base-border',
+  client: '--okf-graph-iri-client-border',
+};
+
+/**
+ * Resolve a node's bl-457 `iriScope` to a concrete border-colour string.
+ * `'unmapped'`/absent (or SSR / a test environment without
+ * `domain-tokens.css`) falls back to `fallbackColor` — callers pass the
+ * already-resolved `--okf-graph-node-fallback` chrome colour, keeping an
+ * unmapped-scope border visually neutral rather than a hardcoded literal.
+ */
+export function resolveIriScopeBorderColor(
+  iriScope: OkfIriScope | undefined,
+  fallbackColor: string,
+): string {
+  if (
+    (iriScope !== 'base' && iriScope !== 'client') ||
+    typeof window === 'undefined' ||
+    typeof document === 'undefined'
+  ) {
+    return fallbackColor;
+  }
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(IRI_SCOPE_BORDER_VARS[iriScope])
+    .trim();
+  return value || fallbackColor;
+}
+
+/**
+ * Resolve an edge's {132.49} `relationship` to a concrete line-colour
+ * string. `'related'` (the pre-existing default) and any absent/
+ * unrecognised value fall back to `fallbackColor` — callers pass the
+ * already-resolved `--okf-graph-edge` chrome colour; only `'cites'`
+ * resolves to the distinct `--okf-graph-edge-cites` token.
+ */
+export function resolveEdgeRelationshipColor(
+  relationship: OkfEdgeRelationship | undefined,
+  fallbackColor: string,
+): string {
+  if (
+    relationship !== 'cites' ||
+    typeof window === 'undefined' ||
+    typeof document === 'undefined'
+  ) {
+    return fallbackColor;
+  }
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue('--okf-graph-edge-cites')
+    .trim();
+  return value || fallbackColor;
 }
