@@ -45,8 +45,8 @@ test.describe('Procurement session page load', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible();
 
-    // Back to bid link
-    const backLink = page.getByRole('link', { name: /Back to bid/i });
+    // Back to procurement link (session header label post-65ed478d rename)
+    const backLink = page.getByRole('link', { name: /Back to procurement/i });
     await expect(backLink).toBeVisible();
   });
 
@@ -360,14 +360,14 @@ test.describe('Procurement session role gating', () => {
     ).not.toBeVisible();
   });
 
-  test('back to bid link navigates to bid detail', async ({
+  test('back to procurement link navigates to procurement detail', async ({
     authenticatedPage: page,
     workerData,
   }) => {
     await gotoSession(page, workerData.procurementId);
 
-    // Click "Back to bid" link
-    const backLink = page.getByRole('link', { name: /Back to bid/i });
+    // Click "Back to procurement" link (session header label post-65ed478d)
+    const backLink = page.getByRole('link', { name: /Back to procurement/i });
     await expect(backLink).toBeVisible();
     await backLink.click();
 
