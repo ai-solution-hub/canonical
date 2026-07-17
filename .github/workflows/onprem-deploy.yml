@@ -308,9 +308,10 @@ jobs:
           echo "Published ${IMAGE}:${TAG}"
 
       - name:
-          Bake `git` + LibreOffice into the published image (thin post-pack
-          layer — ID-132 {132.35} G-DEPLOY-PROOF Defect C + ID-145 {145.31}
-          DR-059 doc/xls convert-on-upload)
+          Bake `git` + `openssh-client` + LibreOffice into the published image
+          (thin post-pack layer — ID-132 {132.35} G-DEPLOY-PROOF Defect C +
+          ID-145 {145.31} DR-059 doc/xls convert-on-upload + ID-132 {132.48}
+          G-PUBLISH-TRANSPORT DR-055 ssh transport)
         run: |
           set -euo pipefail
           # DEFECT C (ID-132 {132.35} deploy proof, RUN 1): the deployed
@@ -369,6 +370,26 @@ jobs:
           # smoke test: binary present + runs) — this is NOT the deployed-
           # runtime .doc/.xls -> OOXML conversion smoke-test, which remains
           # a separate pre-go-live deploy gate (see the {145.31} journal).
+          #
+          # ID-132 {132.48} G-PUBLISH-TRANSPORT DR-055 ssh transport (this
+          # SAME apt layer is the fix): `producer/publish.py`'s
+          # `push_bundle_repo` (DR-055 post-publish push lane, {132.35} S465
+          # fix wave) shells out to `git push` over `GIT_SSH_COMMAND` against
+          # the `OKF_BUNDLE_DEPLOY_KEY_PATH` repo-scoped SSH deploy key
+          # (owner ruling, {132.48}: SSH deploy-key transport RETAINED, an
+          # HTTPS-token alternative was considered and rejected). Baking
+          # `git` (DEFECT C above) is necessary but not sufficient — `git`
+          # itself shells out to a system `ssh` for an `ssh://`/`git@`
+          # remote, and the google-22 run image ships NO `openssh-client`
+          # either, so `git ls-remote`/`git push` over SSH fails "cannot run
+          # ssh" (same class of gap as DEFECT C, same fix shape: baked here,
+          # not an ephemeral per-container `apt-get install`). No `sshd`/
+          # server-side package is needed — this is an outbound SSH CLIENT
+          # only. `&& ssh -V` is appended to the RUN below so a broken/
+          # missing openssh-client install fails THIS `docker build`
+          # immediately, mirroring the LibreOffice smoke-test precedent
+          # above; `ssh -V` prints to stderr and exits 0 on a working
+          # install, so it composes safely with the `&&` chain.
           docker pull "${IMAGE}:${TAG}"
           ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${IMAGE}:${TAG}")"
           echo "Base image user (restored after the root apt-get layer): '${ORIG_USER:-cnb}'"
@@ -382,12 +403,12 @@ jobs:
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${IMAGE}:${TAG}
           USER root
-          RUN apt-get update && apt-get install -y --no-install-recommends git libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version
+          RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
           USER ${ORIG_USER:-cnb}
           DOCKERFILE
           docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
           docker push "${IMAGE}:${TAG}"
-          echo "Re-published ${IMAGE}:${TAG} with git + LibreOffice (soffice) baked in (same pinned tag)."
+          echo "Re-published ${IMAGE}:${TAG} with git + openssh-client + LibreOffice (soffice) baked in (same pinned tag)."
 
       - name:
           Inv-9 assertion — cocoindex image carries NO Playwright / Chromium
@@ -493,7 +514,7 @@ jobs:
             echo ""
             echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
             echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
-            echo "- **Post-pack layer:** \`git\` + LibreOffice (\`soffice\`) baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C; LibreOffice added {145.31} for DR-059 .doc/.xls convert-on-upload) — the buildpacks build itself is untouched"
+            echo "- **Post-pack layer:** \`git\` + \`openssh-client\` + LibreOffice (\`soffice\`) baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C; LibreOffice added {145.31} for DR-059 .doc/.xls convert-on-upload; \`openssh-client\` added {132.48} for DR-055 SSH deploy-key push transport) — the buildpacks build itself is untouched"
             echo "- **Next:** the \`deploy-cocoindex\` job ({66.11}) bumps Coolify \`COCOINDEX_IMAGE_TAG\` to this tag + triggers a deploy"
           } >> "$GITHUB_STEP_SUMMARY"
 
