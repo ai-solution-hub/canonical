@@ -17,7 +17,7 @@
  *   - Per-question `try/catch` aggregation preserved (continue-with-partial,
  *     per spec D-2 ratified at authored default).
  *   - Procurement-level fatal conditions (404 bid, non-draftable state, 0 questions,
- *     workspaces SELECT error, form_questions SELECT error) throw
+ *     form_instances SELECT error, form_questions SELECT error) throw
  *     `PermanentJobError` so the worker dispatcher classifies them as
  *     permanent-failure (no retry).
  *   - `drafted_response_ids[]` collected as upserts complete so the worker
@@ -46,9 +46,10 @@ import type { Database } from '@/supabase/types/database.types';
  * promoted from URL to body — per spec §3.1.
  */
 export interface ProcurementDraftAllBody extends Record<string, unknown> {
-  /** UUID of the form (workspace) being drafted. Validated against
-   *  `workspaces` JOIN `application_types` where key='procurement' before
-   *  the worker proceeds. */
+  /** UUID of the form being drafted. Validated against `form_instances`
+   *  (existence + draftable workflow_state) before the worker proceeds
+   *  (ID-145 {145.23} re-point — the retired `workspaces` JOIN
+   *  `application_types` gate is gone). */
   form_id: string;
   /** Matches `lib/anthropic.ts` `ModelTier` — controls which model
    *  the drafting Pass 2 runs against. Default: 'drafting'. */

@@ -168,15 +168,15 @@ export async function fetchMatchedContentForDrafting(
  * {@link DraftOutcome} for the two write steps so callers keep their own
  * error-mapping policy.
  *
- * @param supabase    Caller's client (route: RLS user client; handler: service-role).
- * @param question    The question row to draft.
- * @param workspaceId The owning form id (route path-param `id` / handler `form_id`).
- * @param modelTier   Which model the drafting Pass 2 runs against.
+ * @param supabase       Caller's client (route: RLS user client; handler: service-role).
+ * @param question       The question row to draft.
+ * @param formInstanceId The owning form id (route path-param `id` / handler `form_id`).
+ * @param modelTier      Which model the drafting Pass 2 runs against.
  */
 export async function draftSingleQuestion(
   supabase: SupabaseClient<Database>,
   question: DraftableQuestionRow,
-  workspaceId: string,
+  formInstanceId: string,
   modelTier: 'analysis' | 'drafting',
 ): Promise<DraftOutcome> {
   // Fetch matched content for this question.
@@ -264,7 +264,7 @@ export async function draftSingleQuestion(
     .from('form_questions')
     .update({ status: 'ai_drafted' })
     .eq('id', question.id)
-    .eq('form_instance_id', workspaceId);
+    .eq('form_instance_id', formInstanceId);
 
   if (updateError) {
     return {

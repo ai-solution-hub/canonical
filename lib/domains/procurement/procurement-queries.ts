@@ -1,11 +1,13 @@
 /**
- * Shared bid query logic — fetches active bid workspaces with question stats.
+ * Shared procurement query logic — fetches active form instances with
+ * question stats.
  *
  * Used by both lib/dashboard.ts and lib/reorient.ts to avoid duplicating the
  * identical pattern of:
- *   1. Fetch workspaces where type='bid' and is_archived=false
+ *   1. Fetch `form_instances` rows (the item IS the form post-W1, DR-056)
  *   2. Call get_form_question_stats_batch RPC
- *   3. Build a statsMap keyed by workspace ID
+ *   3. Build a statsMap keyed by form id, and adapt the flat columns back
+ *      onto the legacy `ProcurementWorkspaceRow` shape consumers still read
  *
  * Each consumer maps the raw data into its own summary type.
  */
