@@ -4,10 +4,10 @@
  *
  * Reads the LOCAL Supabase Postgres catalog (post-`db reset`) and emits the
  * idempotent migration
- * `supabase/migrations/20260625160000_id130_api_views_regen.sql` (re-timestamped
- * after the ID-130 spine — see OUTPUT_FILE below):
+ * `supabase/migrations/20260717112347_id145_api_views_regen3.sql` (re-timestamped
+ * after the ID-145 W1 chain — see OUTPUT_FILE below):
  *
- *   1. 59 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
+ *   1. 63 × `CREATE VIEW api.<t> WITH (security_invoker = true)` — 1:1 over the
  *      public base tables in the Data API surface, EXPLICIT ordered column lists
  *      (never `SELECT *`), every FK column projected verbatim so PostgREST
  *      relationship inference fires (S1 spike GREEN). Generated columns
@@ -57,28 +57,30 @@ const DB_URL =
 
 const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // Fixed filename — stable across regens so the idempotency diff is meaningful.
-// Re-timestamped to AFTER the {131.19} coordinated-GO DDL (M6 id131_drops,
-// 20260706110000, and the un-quarantined drop_inline_vector_cols, 20260706120000):
-// this whole-surface regen must run LAST — it rebuilds api.record_lifecycle /
-// api.record_embeddings, drops every api.* wrapper/view for a fn/table the GO
-// retires (content_items, content_item_workspaces, content_history, read_marks,
-// the tag/author/toggle_star/reading/filter/workspace/topic/gaps/dedup/quality-
-// flag/activity-feed function families), and picks up the 8 new id138 SECURITY
-// DEFINER wrappers (EXTRA_DEFINER_RPCS) live from the catalog. The earlier
-// 20260625160000_id130_api_views_regen.sql STAYS as the pre-{131.19} snapshot
-// (mirrors the 20260623140000_id115_api_views_and_rpcs.sql precedent from the
-// prior re-timestamp) — this forward migration re-emits the FULL post-{131.19}
-// surface as idempotent DROP/CREATE, so it applies cleanly on a fresh stack and
-// is a no-op rebuild on hosted where surviving objects already exist. Both files
-// fold into the next squash baseline. GENERATED, NOT YET WRITTEN — this Subtask
-// only re-points the constant; the file itself is produced by running this
-// script against a live local Postgres catalog (owner-gated, not run here).
+// Re-timestamped to AFTER the ID-145 W1 rename/reshape chain and its
+// hand-authored api companions (repo head at the {145.23} re-point:
+// 20260716214500_id145_35_api_views_engagement_groups.sql): this whole-surface
+// regen must run LAST — it re-emits every view over the W1c names
+// (form_instances / form_instance_fields / form_requirement_templates), picks
+// up promotion_dispositions ({145.34}), engagement_groups /
+// engagement_group_content ({145.35}) and form_attachments ({147.7} — FIRST
+// api view ever emitted for it, see the SURFACE_TABLES note), and supersedes
+// the hand-authored interim view migrations
+// (20260712063000_id145_w1d_api_regen.sql,
+// 20260716125000_id145_34_api_promotion_dispositions.sql,
+// 20260716214500_id145_35_api_views_engagement_groups.sql) with generator
+// parity. The earlier 20260706150000_id131_api_views_regen2.sql STAYS as the
+// pre-W1 snapshot (mirrors the 20260623140000_id115 → 20260625160000_id130 →
+// 20260706150000 re-timestamp precedent) — an in-place regen at its old stamp
+// would emit views over tables that do not exist at that replay position and
+// break the fresh-stack replay (the e2e ephemeral-branch path). All snapshots
+// fold into the next squash baseline. Stamp is DR-081 time-anchored (UTC at
+// the re-point) and strictly after every repo migration; the remote
+// schema_migrations table is not readable from this lane — the Orchestrator
+// verifies no collision against remote before any push.
 const OUTPUT_FILE = join(
   MIGRATIONS_DIR,
-  // Bumped from 20260706130000 at the S450 GO: 20260706140000 dropped the
-  // legacy 6-param hybrid_search overload after 130000 had mirrored both
-  // overloads into api (PGRST203) — this regen is the post-drop surface.
-  '20260706150000_id131_api_views_regen2.sql',
+  '20260717112347_id145_api_views_regen3.sql',
 );
 
 const ROLES = ['anon', 'authenticated', 'service_role'] as const;
@@ -104,6 +106,16 @@ type Role = (typeof ROLES)[number];
  * `20260716150000_id145_35_api_views_engagement_groups.sql` (hand-authored,
  * same reasoning as the `promotion_dispositions` precedent below: the
  * pinned generator OUTPUT_FILE regen predates both tables' own migrations).
+ *
+ * `form_attachments` added at {145.23} (the regen3 re-point): its base table
+ * (20260716113306_id147_form_attachments.sql) landed after the {145.35} flip
+ * and is reached via the standard api-schema client
+ * (app/api/procurement/[id]/attachments/route.ts + the {145.42} group-A GET
+ * fold), but it never got a hand-authored companion view and was in neither
+ * SURFACE_TABLES nor check-api-view-coverage's INTERNAL_ONLY_TABLES — the
+ * coverage gate failed on it, and the attachment routes 500 on any DB
+ * without the view. The regen3 OUTPUT_FILE is the first migration to emit
+ * api.form_attachments.
  */
 export const SURFACE_TABLES: readonly string[] = [
   'ai_call_events',
@@ -128,6 +140,7 @@ export const SURFACE_TABLES: readonly string[] = [
   'feed_flags',
   'feed_prompts',
   'feed_sources',
+  'form_attachments',
   'form_instance_fields',
   'form_instances',
   'form_outcome_types',
