@@ -393,8 +393,10 @@ test.describe('Procurement detail page', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Buyer
-    await expect(page.getByText('E2E Test Corp')).toBeVisible();
+    // Buyer — rendered TWICE on the detail page (the ItemPageFrame header
+    // identity block AND the workflow panel's stepper metadata strip), so a
+    // bare getByText is a strict-mode violation; assert the first match.
+    await expect(page.getByText('E2E Test Corp').first()).toBeVisible();
 
     // Deadline — formatted in UK date format (DD/MM/YYYY)
     // The deadline is 14 days from fixture seeding time; just verify
@@ -415,8 +417,10 @@ test.describe('Procurement detail page', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // ProcurementWorkflowStepper has role="list" with aria-label="Procurement progress"
-    const stepper = page.getByRole('list', { name: 'Procurement progress' });
+    // WorkflowStepper has role="list" with aria-label="Workflow state progress"
+    // (components/procurement/workflow-stepper.tsx — {145.43} §G stepper; no
+    // spec invariant mandates a different label, id-147 §G is behavioural only)
+    const stepper = page.getByRole('list', { name: 'Workflow state progress' });
     await expect(stepper).toBeVisible();
 
     // Should have step indicators (listitems)
@@ -424,7 +428,7 @@ test.describe('Procurement detail page', () => {
     await expect(steps.first()).toBeVisible();
   });
 
-  test('tab navigation shows Overview, Questions, Responses, Documents', async ({
+  test('tab navigation shows Overview, Questions, Documents', async ({
     authenticatedPage: page,
     workerData,
   }) => {
@@ -438,12 +442,18 @@ test.describe('Procurement detail page', () => {
     const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
     await expect(tabNav).toBeVisible();
 
-    // Tab buttons (role="tab"). The Questions tab has a count badge so its
-    // accessible name is "Questions <count>" — match by regex.
+    // Tab buttons (role="tab"). Questions/Documents carry count badges so
+    // their accessible names are "Questions <count>" etc. — match by regex.
+    // The tab set is Overview / Questions / Documents ({145.42} §A frame):
+    // response work moved wholesale to the Session page
+    // (/procurement/[id]/session) — there is NO "Responses" tab any more.
     await expect(tabNav.getByRole('tab', { name: 'Overview' })).toBeVisible();
     await expect(tabNav.getByRole('tab', { name: /^Questions/ })).toBeVisible();
-    await expect(tabNav.getByRole('tab', { name: 'Responses' })).toBeVisible();
     await expect(tabNav.getByRole('tab', { name: /^Documents/ })).toBeVisible();
+    await expect(tabNav.getByRole('tab')).toHaveCount(3);
+    await expect(
+      tabNav.getByRole('tab', { name: /^Responses/ }),
+    ).not.toBeVisible();
   });
 
   test('overview tab shows progress section', async ({
@@ -485,7 +495,7 @@ test.describe('Procurement detail page', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('back to bids link works', async ({
+  test('back to procurement link works', async ({
     authenticatedPage: page,
     workerData,
   }) => {
@@ -495,8 +505,9 @@ test.describe('Procurement detail page', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // "Back to Bids" link
-    const backLink = page.getByRole('link', { name: 'Back to Bids' });
+    // "Back to Procurement" link (ItemPageFrame backLabel default —
+    // components/procurement/item-page-frame.tsx)
+    const backLink = page.getByRole('link', { name: 'Back to Procurement' });
     await expect(backLink).toBeVisible();
 
     await backLink.click();
@@ -597,9 +608,10 @@ test.describe('Procurement role gating', () => {
 
     await moreButton.click();
 
-    // Dropdown menu item "Delete bid"
+    // Dropdown menu item "Delete procurement" (final label after the
+    // bid→procurement terminology sweep on the detail-page action menu)
     await expect(
-      page.getByRole('menuitem', { name: 'Delete bid' }),
+      page.getByRole('menuitem', { name: 'Delete procurement' }),
     ).toBeVisible();
   });
 });

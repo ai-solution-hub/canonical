@@ -9,17 +9,19 @@
  *   /api/jobs/:job_id/status returns periodic status updates → final
  *   toast 'Drafted N responses' on completion'."
  *
- * USER FLOW:
+ * USER FLOW (re-verified against ID-145 {145.42}/{145.44} — the "Draft
+ * All" button now lives in the Questions tab's ItemQuestionsPanel and
+ * fires the POST directly; the CostEstimateDialog confirm step no longer
+ * exists in this flow — nothing calls setShowCostEstimate(true)):
  *   1. Authenticated as admin (worker fixture seeds bid in 'drafting' state).
- *   2. Navigate to /bid/<procurementId>.
- *   3. Click "Draft All" button → opens CostEstimateDialog.
- *   4. In the dialog, click "Proceed with Drafting" → fires POST
- *      /api/bids/:id/responses/draft-all → 202 + {job_id, ...}.
- *   5. ASSERTION 1: queued toast appears within 1 second reading
+ *   2. Navigate to /procurement/<procurementId> and open the Questions tab.
+ *   3. Click "Draft All" → fires POST
+ *      /api/procurement/:id/responses/draft-all → 202 + {job_id, ...}.
+ *   4. ASSERTION 1: queued toast appears within 1 second reading
  *      "Drafting all responses queued — we'll let you know when it's done."
- *   6. ASSERTION 2: ≥ 2 GET requests to /api/jobs/<jobId>/status are
+ *   5. ASSERTION 2: ≥ 2 GET requests to /api/jobs/<jobId>/status are
  *      observed within a 10-second window (polling at 3s intervals).
- *   7. ASSERTION 3: button is disabled (draftingAll=true) immediately
+ *   6. ASSERTION 3: button is disabled (draftingAll=true) immediately
  *      after click.
  *
  * Hard-expects discipline (per feedback_e2e_no_workarounds +
@@ -43,11 +45,19 @@
 
 import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
+import { advanceBidState } from '../helpers/data-factory';
 
 const STATUS_URL_PATH_RE = /\/api\/jobs\/[0-9a-f-]{36}\/status$/;
 
 test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
   test.beforeEach(async ({ workerData }) => {
+    // The draft-all route 400s ("must be drafting or later") unless the
+    // item's workflow_state is drafting/in_review/ready_for_export. The
+    // worker fixture already advances the bid to 'drafting'; this guard
+    // (a no-op when already at/past drafting) protects against seed drift
+    // so a state regression fails fast at the 202 assertion, not by
+    // starving a wait.
+    await advanceBidState(workerData.procurementId, 'drafting');
     // Defensive: clear any pending/processing/completed form_draft_all
     // jobs for this bid so the dedup pre-check doesn't return a stale
     // dedup-hit (which would skip the 202+queued envelope path).
@@ -115,33 +125,29 @@ test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
       }
     });
 
-    // 1. Navigate to bid detail.
+    // 1. Navigate to bid detail and open the Questions tab — the "Draft
+    //    All" button lives in the ItemQuestionsPanel ({145.44}), not on
+    //    the Overview tab.
     await page.goto(`/procurement/${workerData.procurementId}`);
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 15_000 });
+    await page
+      .getByRole('tablist', { name: 'Procurement sections' })
+      .getByRole('tab', { name: /^Questions/ })
+      .click();
 
     // 2. Locate "Draft All" button.
     const draftAllButton = page.getByRole('button', { name: /^Draft All$/ });
     await expect(draftAllButton).toBeVisible({ timeout: 15_000 });
     await expect(draftAllButton).toBeEnabled();
 
-    // 3. Click "Draft All" — opens CostEstimateDialog.
-    await draftAllButton.click();
-
-    // 4. Locate "Proceed with Drafting" button inside the dialog. The
-    //    dialog fetches /api/bids/:id/responses/estimate first, so wait
-    //    for that to resolve and the button to be enabled.
-    const proceedButton = page.getByRole('button', {
-      name: /Proceed with Drafting/,
-    });
-    await expect(proceedButton).toBeVisible({ timeout: 15_000 });
-    // Wait for the estimate fetch to finish (button moves from disabled
-    // to enabled when estimate.eligible_questions > 0).
-    await expect(proceedButton).toBeEnabled({ timeout: 15_000 });
-
     // Track when click fires so we can measure toast latency.
     const clickedAt = Date.now();
 
-    // 5. Click "Proceed with Drafting" — fires POST draft-all.
-    await proceedButton.click();
+    // 3. Click "Draft All" — fires POST draft-all directly (no
+    //    CostEstimateDialog confirm step in the current flow).
+    await draftAllButton.click();
 
     // ASSERTION 1: queued toast within 1 second.
     // sonner toasts render in a <li> with a description string. Match

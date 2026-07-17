@@ -68,8 +68,10 @@ export const selectors = {
     // strings, not a live lockstep pair).
     procurementCard: '[data-testid^="procurement-card-"]',
     newProcurementButton: 'button:has-text("New Procurement")',
+    // responsesTab removed — the detail page tab set is Overview/Questions/
+    // Documents ({145.42} §A frame); response work lives on the Session page
+    // (/procurement/[id]/session), which has no tabbed "Responses" surface.
     questionsTab: '[data-testid="questions-tab"], button:has-text("Questions")',
-    responsesTab: '[data-testid="responses-tab"], button:has-text("Responses")',
     documentsTab: '[data-testid="documents-tab"], button:has-text("Documents")',
     overviewTab: '[data-testid="overview-tab"], button:has-text("Overview")',
     exportButton: 'button:has-text("Export")',

@@ -40,9 +40,10 @@ test.describe('Procurement export -- menu visibility', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // ProcurementExportMenu trigger has aria-label="Export bid responses"
+    // ProcurementExportMenu trigger has aria-label="Export responses"
+    // (final label after the bid→procurement terminology sweep)
     const exportButton = page.getByRole('button', {
-      name: 'Export bid responses',
+      name: 'Export responses',
     });
     await expect(exportButton).toBeVisible();
 
@@ -69,7 +70,7 @@ test.describe('Procurement export -- menu visibility', () => {
 
       // Export button should be present but disabled
       const exportButton = page.getByRole('button', {
-        name: 'Export bid responses',
+        name: 'Export responses',
       });
       await expect(exportButton).toBeVisible();
       await expect(exportButton).toBeDisabled();
@@ -93,7 +94,7 @@ test.describe('Procurement export -- menu visibility', () => {
 
     // Click the Export button to open the dropdown
     const exportButton = page.getByRole('button', {
-      name: 'Export bid responses',
+      name: 'Export responses',
     });
     await exportButton.click();
 
@@ -135,7 +136,7 @@ test.describe('Procurement export -- download triggers', () => {
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
-        name: 'Export bid responses',
+        name: 'Export responses',
       });
       await exportButton.click();
 
@@ -182,7 +183,7 @@ test.describe('Procurement export -- download triggers', () => {
 
       // Click the Export button
       const exportButton = page.getByRole('button', {
-        name: 'Export bid responses',
+        name: 'Export responses',
       });
       await exportButton.click();
 
@@ -272,7 +273,7 @@ test.describe('Procurement export -- keyboard accessibility', () => {
 
     // Focus the Export button
     const exportButton = page.getByRole('button', {
-      name: 'Export bid responses',
+      name: 'Export responses',
     });
     await exportButton.focus();
 

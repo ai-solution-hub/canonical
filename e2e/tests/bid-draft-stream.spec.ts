@@ -11,11 +11,14 @@
  *     `supabase/types/database.types.ts`). Spec table name is correct
  *     (post-rename).
  *   - The bid session route `/procurement/[id]/session` exists at
- *     `app/bid/[id]/session/page.tsx`.
+ *     `app/procurement/[id]/session/page.tsx`.
  *   - Draft-stream endpoint exists at
- *     `app/api/bids/[id]/responses/draft-stream/route.ts`.
+ *     `app/api/procurement/[id]/responses/draft-stream/route.ts`. It 400s
+ *     ("must be drafting or later") unless the item's workflow_state is
+ *     drafting/in_review/ready_for_export — the beforeEach state guard
+ *     below keeps the worker bid in a draftable state.
  *   - Restore endpoint exists at
- *     `app/api/bids/[id]/responses/[rId]/restore/route.ts` and updates
+ *     `app/api/procurement/[id]/responses/[rId]/restore/route.ts` and updates
  *     `form_responses` (a DB trigger snapshots the previous version into
  *     `form_response_history` with the next version number — confirmed
  *     forward-only revert).
@@ -116,14 +119,15 @@
  * WP2 Phase 1 spec — 8.0.8 bid regenerate + restore
  *
  * VERIFIED AGAINST PRODUCTION (Phase 2 adversarial review):
- *   - Restore route at `app/api/bids/[id]/responses/[rId]/restore/route.ts`
+ *   - Restore route at
+ *     `app/api/procurement/[id]/responses/[rId]/restore/route.ts`
  *     UPDATEs `form_responses` with the historical row's `response_text`
  *     and `response_text_advanced`. The DB trigger then snapshots the
  *     pre-update version into `form_response_history`. This is a
  *     forward-only revert: restoring v1 over v2 produces a v3 row and
  *     preserves v2 in history.
  *   - Regenerate route at
- *     `app/api/bids/[id]/responses/[rId]/regenerate/route.ts` likewise
+ *     `app/api/procurement/[id]/responses/[rId]/regenerate/route.ts` likewise
  *     UPDATEs the row, triggering a snapshot.
  *
  * USER FLOW:
@@ -235,6 +239,7 @@
 
 import { test, expect } from '../fixtures';
 import { createServiceClient } from '../fixtures/supabase';
+import { advanceBidState } from '../helpers/data-factory';
 
 /**
  * Normalise text for cross-source equality comparisons.
@@ -259,11 +264,15 @@ function normaliseText(input: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-const SSE_URL_PATH_RE = /\/api\/bids\/[0-9a-f-]{36}\/responses\/draft-stream$/;
+// Route paths live under /api/procurement (ID-145 {145.21} re-key; the
+// pre-rename /api/bids/* paths no longer exist — a predicate keyed on them
+// never matches and starves waitForResponse to its full timeout).
+const SSE_URL_PATH_RE =
+  /\/api\/procurement\/[0-9a-f-]{36}\/responses\/draft-stream$/;
 const RESTORE_URL_PATH_RE =
-  /\/api\/bids\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/restore$/;
+  /\/api\/procurement\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/restore$/;
 const REGENERATE_URL_PATH_RE =
-  /\/api\/bids\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/regenerate$/;
+  /\/api\/procurement\/[0-9a-f-]{36}\/responses\/[0-9a-f-]{36}\/regenerate$/;
 
 // ---------------------------------------------------------------------------
 // Defensive cleanup helpers (shared between 8.0.7 and 8.0.8)
@@ -293,6 +302,12 @@ async function clearResponsesForQuestion(questionId: string): Promise<void> {
 
 test.describe('Procurement draft-stream happy path (8.0.7)', () => {
   test.beforeEach(async ({ workerData }) => {
+    // State guard: draft-stream 400s ("must be drafting or later") unless
+    // workflow_state is drafting/in_review/ready_for_export. The worker
+    // fixture already advances the bid to 'drafting'; this is a no-op when
+    // already at/past drafting and protects against seed drift so a state
+    // regression fails fast at the 200 assertion instead of starving.
+    await advanceBidState(workerData.procurementId, 'drafting');
     // Defensive: ensure questionIds[0] starts with NO form_responses and NO
     // history rows. The worker fixture seeds responses for questions[0..1];
     // we delete them here so the test exercises the create-from-empty path
@@ -313,9 +328,10 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
     workerData,
   }) => {
     // Pass 1 + Pass 2 (streamed) + Pass 3 against the live Anthropic API
-    // routinely take 60-120s. The default 30s test timeout fires before the
-    // SSE stream returns, masking the assertions. Bump well above the inner
-    // waitForResponse timeout (120s) to give the stream + DB queries headroom.
+    // routinely take 60-120s (route maxDuration = 120). The default 30s
+    // test timeout fires before the SSE stream completes, masking the
+    // assertions. Budget: 60s header wait + up-to-120s streaming body +
+    // DB polls, with headroom.
     test.setTimeout(240000);
     const supabase = createServiceClient();
     const questionId = workerData.questionIds[0];
@@ -346,10 +362,16 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
 
     // 2. Attach response listener BEFORE the Send click. We'll capture the
     //    SSE response so we can read its body (full stream) and inspect
-    //    chunks.
+    //    chunks. The predicate matches on URL only (any status) — a 400
+    //    from the workflow-state gate resolves the wait immediately and
+    //    fails the status assertion below with the response body, rather
+    //    than starving the wait. waitForResponse resolves on HEADERS,
+    //    which the SSE route sends as soon as the stream opens, so 60s is
+    //    a generous bound (the up-to-120s streaming body is awaited
+    //    separately via body()).
     const ssePromise = page.waitForResponse(
       (resp) => SSE_URL_PATH_RE.test(new URL(resp.url()).pathname),
-      { timeout: 180000 },
+      { timeout: 60000 },
     );
 
     // 3. Click Send to actually start the draft stream.
@@ -359,8 +381,15 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
     //    so we then await body() to wait for stream completion.
     const sseResponse = await ssePromise;
 
-    // ASSERTION: SSE handler returned HTTP 200 (NOT 500 mid-stream)
-    expect(sseResponse.status(), 'SSE endpoint must return HTTP 200').toBe(200);
+    // ASSERTION: SSE handler returned HTTP 200 (NOT 500, and NOT the 400
+    // workflow-state refusal). Surface the response body on failure so the
+    // CI log carries the server's reason verbatim.
+    if (sseResponse.status() !== 200) {
+      const errBody = await sseResponse.text().catch(() => '<unreadable>');
+      throw new Error(
+        `draft-stream returned HTTP ${sseResponse.status()}: ${errBody}`,
+      );
+    }
 
     // body() blocks until the SSE stream finishes.
     const bodyBuf = await sseResponse.body();
@@ -484,6 +513,10 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
 
   test.beforeEach(async ({ workerData }) => {
     const supabase = createServiceClient();
+    // State guard — same rationale as 8.0.7: regenerate requires a
+    // draftable workflow_state; no-op when the fixture already advanced
+    // the bid to 'drafting'.
+    await advanceBidState(workerData.procurementId, 'drafting');
     await clearResponsesForQuestion(workerData.questionIds[0]);
     // Seed a v1 row directly. Note: source_content_ids is left as the
     // worker bid's matched_content_ids (or empty) — regenerate route
@@ -511,9 +544,10 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
     authenticatedPage: page,
     workerData,
   }) => {
-    // Regenerate exercises the live Anthropic API (180s inner waitForResponse).
-    // The default 30s test timeout fires long before completion. Bump above
-    // the inner timeout to give the stream + DB queries headroom.
+    // Regenerate exercises the live Anthropic API (120s inner
+    // waitForResponse, matching the route's maxDuration). The default 30s
+    // test timeout fires long before completion. Bump above the inner
+    // timeout to give the regen + restore + DB polls headroom.
     test.setTimeout(300000);
     const supabase = createServiceClient();
     const questionId = workerData.questionIds[0];
@@ -561,18 +595,26 @@ test.describe('Procurement regenerate + restore (8.0.8)', () => {
     const sendButton = page.getByRole('button', { name: /^Send$/ });
     await expect(sendButton).toBeVisible({ timeout: 5000 });
 
+    // Unlike the SSE route, regenerate is a plain JSON POST whose response
+    // only arrives after the full multi-pass LLM work — legitimately up to
+    // the route's maxDuration (120s). Bound the wait at exactly that (down
+    // from the old 180s starvation window): an error status resolves the
+    // predicate immediately (URL+method match, any status), so a genuine
+    // failure still fails fast at the status assertion below.
     const regenPromise = page.waitForResponse(
       (resp) =>
         REGENERATE_URL_PATH_RE.test(new URL(resp.url()).pathname) &&
         resp.request().method() === 'POST',
-      { timeout: 180000 },
+      { timeout: 120000 },
     );
     await sendButton.click();
     const regenResponse = await regenPromise;
-    expect(
-      regenResponse.status(),
-      'Regenerate endpoint must return HTTP 200',
-    ).toBe(200);
+    if (regenResponse.status() !== 200) {
+      const errBody = await regenResponse.text().catch(() => '<unreadable>');
+      throw new Error(
+        `regenerate returned HTTP ${regenResponse.status()}: ${errBody}`,
+      );
+    }
 
     // Wait for DB to reflect v2 — the regenerate POST returned 200, but
     // the client-side mutation return and the DB commit can race.

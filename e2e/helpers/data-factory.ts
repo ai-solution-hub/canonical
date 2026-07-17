@@ -282,8 +282,10 @@ export async function createBidWithQuestions(
  * to reach the target state. The bid state machine requires stepping
  * through each intermediate state.
  *
- * State order: draft → questions_extracted → matching → drafting →
- *   review → ready_for_export → exported → submitted
+ * State order (the linear progression of the canonical 10-state machine,
+ * lib/domains/procurement/procurement-workflow.ts — terminal branches
+ * won/lost/withdrawn are not steppable): draft → questions_extracted →
+ * matching → drafting → in_review → ready_for_export → submitted
  *
  * ID-145 {145.6}/{145.18}: `workflow_state` is a plain scalar column on
  * `form_instances` (the pre-W1 `workspaces.status`/`domain_metadata` JSONB
@@ -295,14 +297,16 @@ export async function advanceBidState(
   procurementId: string,
   targetState: string,
 ): Promise<void> {
+  // Keys mirror PROCUREMENT_WORKFLOW_PROGRESSION — the pre-{145.23} 'review'
+  // and 'exported' entries were never valid machine states (the column is
+  // unchecked text, so they silently wrote app-invalid intermediate states).
   const stateOrder = [
     'draft',
     'questions_extracted',
     'matching',
     'drafting',
-    'review',
+    'in_review',
     'ready_for_export',
-    'exported',
     'submitted',
   ];
 

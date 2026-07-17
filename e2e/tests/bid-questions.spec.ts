@@ -1,66 +1,68 @@
 import { test, expect } from '../fixtures';
 import { isMobileViewport } from '../helpers/responsive';
-import { createServiceClient } from '../fixtures/supabase';
 
 /**
  * Flow: Procurement Questions Tab
  *
- * Tests the Questions tab on the bid detail page (/bid/[id]) covering
- * question list rendering, section grouping, inline expansion, word
- * limits, add question dialog, edit/delete actions, and role gating.
+ * Tests the Questions tab on the procurement detail page
+ * (/procurement/[id]) against the ID-145 {145.44} ItemQuestionsPanel
+ * (components/procurement/item-questions-panel.tsx — BI-40 honest
+ * per-question states). The legacy QuestionList/QuestionRow surface
+ * (collapsible sections, Add Question dialog, per-question Edit/Delete)
+ * was removed as dead code in the {145.23} close-gate sweep, so this
+ * spec asserts the CURRENT IA:
  *
- * Worker-scoped data provides one bid in "drafting" state with
- * 4 questions across 4 sections (Technical, Experience, Social Value,
- * Commercial) and 2 responses (see test-data-fixture.ts).
+ *   - a lowercase count paragraph "N questions" (NOT a heading role);
+ *   - plain <h3> section headers (no collapse affordance);
+ *   - role="listitem" question rows (data-testid="question-row-<id>")
+ *     showing question text, "Word limit: N", and an honest state badge
+ *     (Approved / Drafted / Matched / No match found);
+ *   - "Find answers for N questions" + "Draft All" bulk affordances
+ *     (canEdit only);
+ *   - a manual-answer affordance on zero-match questions (canEdit only).
+ *
+ * Worker-scoped data provides one bid in "drafting" state with 4
+ * questions across 4 sections (Technical, Experience, Social Value,
+ * Commercial) and 2 responses — Q1 approved, Q2 draft; Q3/Q4 have no
+ * response and no match candidates (confidence_posture NULL), so they
+ * render the "No match found" empty state (see test-data-fixture.ts).
  */
+
+/** Navigate to the detail page and open the Questions tab. */
+async function gotoQuestionsTab(
+  page: import('@playwright/test').Page,
+  procurementId: string,
+): Promise<void> {
+  await page.goto(`/procurement/${procurementId}`);
+
+  await expect(
+    page.getByRole('heading', { name: /IT Support Services/ }),
+  ).toBeVisible({ timeout: 10000 });
+
+  const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
+  await tabNav.getByRole('tab', { name: /^Questions/ }).click();
+
+  // The count line is the panel's stable "loaded" signal — a lowercase
+  // <p> "4 questions" (NOT a heading; the pre-{145.44} "4 Questions"
+  // heading no longer exists).
+  await expect(page.getByText('4 questions', { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // 1. Question List Rendering
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement questions list', () => {
-  test('questions tab shows question count and sections', async ({
+  test('questions tab shows count line and section headers', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click the Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    // Question count heading
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Section count
-    await expect(page.getByText(/Across 4 sections/)).toBeVisible();
-  });
-
-  test('questions are grouped by section with section headers', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // All four section headers should be visible
+    // All four section names render as plain <h3> headers (role=heading,
+    // level 3 — display-only grouping, no collapse buttons).
     for (const section of [
       'Technical',
       'Experience',
@@ -68,457 +70,198 @@ test.describe('Procurement questions list', () => {
       'Commercial',
     ]) {
       await expect(
-        page.getByRole('button', { name: new RegExp(section) }),
+        page.getByRole('heading', { name: section, exact: true, level: 3 }),
       ).toBeVisible();
     }
   });
 
-  test('each section shows question count', async ({
+  test('question rows show text and word limit', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
+    // First question row (scoped by its stable data-testid).
+    const firstRow = page.getByTestId(
+      `question-row-${workerData.questionIds[0]}`,
+    );
+    await expect(firstRow).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Each section has "1 question" text (all sections have exactly 1 question)
-    const sectionButtons = page
-      .getByRole('button')
-      .filter({ hasText: /1 question$/ });
-    await expect(sectionButtons).toHaveCount(4);
-  });
-
-  test('question row shows question text and word limit', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    // First question text should be visible
-    await expect(
-      page.getByText(
+      firstRow.getByText(
         'Describe your approach to providing IT support services.',
       ),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Word limit displays as "500w" (not "500")
-    await expect(page.getByText('500w')).toBeVisible();
-  });
-
-  test('question row shows status indicator', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // The seeded data has 4 questions: 2 have responses (Q1 approved, Q2 draft),
-    // and 2 have no responses (Q3, Q4 = "Not Started").
-    // Status indicators are rendered as spans with the status label text.
-    // Assert that "Not Started" appears for questions without responses.
-    const notStartedIndicators = page.getByText('Not Started', { exact: true });
-    await expect(notStartedIndicators.first()).toBeVisible({ timeout: 5000 });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 2. Question Row Expansion
-// ---------------------------------------------------------------------------
-
-test.describe('Procurement question row expansion', () => {
-  test('clicking question row expands inline with full details', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click the first question row (it's a button role)
-    const questionRow = page.getByRole('button', {
-      name: /Describe your approach/,
-    });
-    await expect(questionRow).toBeVisible();
-    await questionRow.click();
-
-    // After expanding, the row should show aria-expanded="true"
-    await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
-
-    // Expanded content should show section name
-    await expect(page.getByText('Section: Technical')).toBeVisible();
-
-    // Expanded content should show word limit (as number, not "500w")
-    await expect(page.getByText('Word limit: 500')).toBeVisible();
-  });
-
-  test('expanded question shows edit and delete buttons for admin', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click to expand first question
-    const questionRow = page.getByRole('button', {
-      name: /Describe your approach/,
-    });
-    await questionRow.click();
-
-    // Edit and Delete buttons should be visible
-    await expect(page.getByRole('button', { name: /Edit/ })).toBeVisible();
-
-    await expect(page.getByRole('button', { name: /Delete/ })).toBeVisible();
-  });
-
-  test('clicking expanded question row collapses it', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Expand
-    const questionRow = page.getByRole('button', {
-      name: /Describe your approach/,
-    });
-    await questionRow.click();
-    await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
-
-    // Collapse
-    await questionRow.click();
-    await expect(questionRow).toHaveAttribute('aria-expanded', 'false');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. Add Question Dialog
-// ---------------------------------------------------------------------------
-
-test.describe('Procurement add question dialog', () => {
-  test('Add Question button opens dialog with form fields', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Click "Add Question" button (the trigger button outside the dialog)
-    await page.getByRole('button', { name: 'Add Question' }).click();
-
-    // Dialog should appear
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-
-    await expect(
-      dialog.getByRole('heading', { name: 'Add Question' }),
     ).toBeVisible();
 
-    // Form fields
-    await expect(dialog.getByLabel('Section Name')).toBeVisible();
-    await expect(dialog.getByLabel(/Question Text/)).toBeVisible();
-    await expect(dialog.getByLabel('Word Limit')).toBeVisible();
-
-    // Submit and cancel buttons
-    await expect(
-      dialog.getByRole('button', { name: 'Add Question' }),
-    ).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    // Word limit renders inline as "Word limit: 500" (the pre-{145.44}
+    // compact "500w" chip no longer exists).
+    await expect(firstRow.getByText('Word limit: 500')).toBeVisible();
   });
 
-  test('add question creates a new question and refreshes list', async ({
+  test('question rows show honest per-question state badges', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
+    const rowFor = (index: number) =>
+      page.getByTestId(`question-row-${workerData.questionIds[index]}`);
+
+    // Q1 has an approved response → "Approved".
     await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
+      rowFor(0).getByText('Approved', { exact: true }),
+    ).toBeVisible();
 
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
+    // Q2 has a draft response → "Drafted". (exact: true keeps this from
+    // colliding with the page-header "Drafting" workflow badge or the
+    // Overview "questions drafted" copy.)
+    await expect(rowFor(1).getByText('Drafted', { exact: true })).toBeVisible();
 
+    // Q3/Q4 have no response and no match candidate → "No match found"
+    // (the pre-{145.44} "Not Started" label no longer exists).
     await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    const uniqueText = `E2E test question ${Date.now()}`;
-
-    try {
-      // Click "Add Question" button (the trigger button outside the dialog)
-      await page.getByRole('button', { name: 'Add Question' }).click();
-
-      const dialog = page.getByRole('dialog');
-      await expect(dialog).toBeVisible();
-
-      // Fill in the form
-      const sectionInput = dialog.getByLabel('Section Name');
-      await expect(sectionInput).toBeVisible();
-      await sectionInput.fill('E2E Test Section');
-
-      const questionInput = dialog.getByLabel(/Question Text/);
-      await expect(questionInput).toBeVisible();
-      await questionInput.fill(uniqueText);
-
-      const wordLimitInput = dialog.getByLabel('Word Limit');
-      await expect(wordLimitInput).toBeVisible();
-      await wordLimitInput.fill('250');
-
-      // Submit
-      await dialog.getByRole('button', { name: 'Add Question' }).click();
-
-      // Dialog should close
-      await expect(dialog).not.toBeVisible({ timeout: 10000 });
-
-      // Question count should update to 5
-      await expect(
-        page.getByRole('heading', { name: '5 Questions' }),
-      ).toBeVisible({ timeout: 10000 });
-
-      // New question should appear in the list
-      await expect(page.getByText(uniqueText)).toBeVisible();
-    } finally {
-      // Clean up the created question via API
-      const supabase = createServiceClient();
-      await supabase
-        .from('form_questions')
-        .delete()
-        .eq('form_instance_id', workerData.procurementId)
-        .like('question_text', `%${uniqueText}%`);
-    }
+      rowFor(2).getByText('No match found', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      rowFor(3).getByText('No match found', { exact: true }),
+    ).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 4. Section Collapse/Expand
+// 2. Manual-Answer Affordance (zero-match questions only, BI-40)
 // ---------------------------------------------------------------------------
 
-test.describe('Procurement question sections', () => {
-  test('section header can be collapsed and expanded', async ({
+test.describe('Procurement manual-answer affordance', () => {
+  test('zero-match questions offer a direct-answer affordance; answered ones do not', async ({
     authenticatedPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
+    const rowFor = (index: number) =>
+      page.getByTestId(`question-row-${workerData.questionIds[index]}`);
+
+    // Q3 (empty state) shows the affordance for an editor/admin.
     await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
+      rowFor(2).getByRole('button', { name: 'Answer this question directly' }),
+    ).toBeVisible();
 
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
+    // Q1 (approved) must NOT show it — the affordance is a narrow
+    // fallback for questions the corpus cannot answer at all.
     await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Find the Technical section header button
-    const sectionHeader = page
-      .getByRole('button', { name: /Technical/ })
-      .filter({ hasText: /1 question/ });
-    await expect(sectionHeader).toBeVisible();
-
-    // Initially expanded (aria-expanded="true")
-    await expect(sectionHeader).toHaveAttribute('aria-expanded', 'true');
-
-    // Click to collapse
-    await sectionHeader.click();
-    await expect(sectionHeader).toHaveAttribute('aria-expanded', 'false');
-
-    // The question within Technical section should be hidden
-    await expect(
-      page.getByText(
-        'Describe your approach to providing IT support services.',
-      ),
+      rowFor(0).getByRole('button', { name: 'Answer this question directly' }),
     ).not.toBeVisible();
+  });
 
-    // Click to expand again
-    await sectionHeader.click();
-    await expect(sectionHeader).toHaveAttribute('aria-expanded', 'true');
+  test('affordance expands to a manual-answer form and cancel collapses it', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await gotoQuestionsTab(page, workerData.procurementId);
 
-    // Question should be visible again
+    const emptyRow = page.getByTestId(
+      `question-row-${workerData.questionIds[2]}`,
+    );
+    await emptyRow
+      .getByRole('button', { name: 'Answer this question directly' })
+      .click();
+
+    // Expanded form: labelled textarea + optional KB-promotion checkbox +
+    // Save answer / Cancel. (Cancel path only — no writes from this test.)
     await expect(
-      page.getByText(
-        'Describe your approach to providing IT support services.',
+      emptyRow.getByLabel(
+        /^Manual answer for: How will you deliver social value/,
       ),
+    ).toBeVisible();
+    await expect(
+      emptyRow.getByText('Also add this answer to your knowledge base'),
+    ).toBeVisible();
+    await expect(
+      emptyRow.getByRole('button', { name: 'Save answer' }),
+    ).toBeVisible();
+
+    await emptyRow.getByRole('button', { name: 'Cancel' }).click();
+
+    // Collapses back to the affordance button.
+    await expect(
+      emptyRow.getByRole('button', { name: 'Answer this question directly' }),
+    ).toBeVisible();
+    await expect(
+      emptyRow.getByRole('button', { name: 'Save answer' }),
+    ).not.toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Bulk Actions (Find answers / Draft All)
+// ---------------------------------------------------------------------------
+
+test.describe('Procurement questions bulk actions', () => {
+  test('Find answers and Draft All are visible for admin', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await gotoQuestionsTab(page, workerData.procurementId);
+
+    // All 4 seeded questions have confidence_posture NULL (unmatched), so
+    // the match affordance renders with the unmatched count in its label.
+    await expect(
+      page.getByRole('button', { name: /^Find answers for \d+ questions?$/ }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole('button', { name: /^Draft All$/ }),
     ).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 5. Role Gating
+// 4. Role Gating
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement questions role gating', () => {
-  test('viewer cannot see Add Question button', async ({
+  test('viewer sees questions but no write affordances', async ({
     viewerPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    // Wait for questions to load
+    // Questions render for viewers…
     await expect(
       page.getByText(
         'Describe your approach to providing IT support services.',
       ),
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible();
 
-    // Add Question button should NOT be visible for viewers
+    // …but every write affordance is hidden (canEdit gating).
     await expect(
-      page.getByRole('button', { name: 'Add Question' }),
+      page.getByRole('button', { name: /^Draft All$/ }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^Find answers for/ }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Answer this question directly' }),
     ).not.toBeVisible();
   });
 
-  test('viewer cannot see edit or delete buttons on expanded question', async ({
-    viewerPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByText(
-        'Describe your approach to providing IT support services.',
-      ),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Expand a question
-    const questionRow = page.getByRole('button', {
-      name: /Describe your approach/,
-    });
-    await questionRow.click();
-    await expect(questionRow).toHaveAttribute('aria-expanded', 'true');
-
-    // Edit and Delete buttons should NOT be visible for viewers
-    // Use the expanded section area to scope our search
-    await expect(
-      page.getByRole('button', { name: /^Edit$/ }),
-    ).not.toBeVisible();
-
-    await expect(
-      page.getByRole('button', { name: /^Delete$/ }),
-    ).not.toBeVisible();
-  });
-
-  test('editor can access Questions tab and see Add Question button', async ({
+  test('editor can access Questions tab and see Draft All', async ({
     editorPage: page,
     workerData,
   }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
+    await gotoQuestionsTab(page, workerData.procurementId);
 
     await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    // Questions should load
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Editor should see Add Question button
-    await expect(
-      page.getByRole('button', { name: 'Add Question' }),
+      page.getByRole('button', { name: /^Draft All$/ }),
     ).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 6. Tab Badge and Bulk Actions
+// 5. Tab Badge
 // ---------------------------------------------------------------------------
 
-test.describe('Procurement questions tab badge and bulk actions', () => {
+test.describe('Procurement questions tab badge', () => {
   test('Questions tab shows count badge with 4', async ({
     authenticatedPage: page,
     workerData,
@@ -529,45 +272,19 @@ test.describe('Procurement questions tab badge and bulk actions', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // The Questions tab should show a count badge
-    // Tab structure: <button role="tab">Questions <span>4</span></button>
+    // The Questions tab carries a count badge span with the count "4"
+    // (tab accessible name is therefore "Questions 4").
     const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    const questionsTab = tabNav.getByRole('tab', { name: 'Questions' });
+    const questionsTab = tabNav.getByRole('tab', { name: /^Questions/ });
     await expect(questionsTab).toBeVisible();
-
-    // The tab contains a badge span with the count "4"
     await expect(
       questionsTab.locator('span').filter({ hasText: '4' }),
-    ).toBeVisible();
-  });
-
-  test('bulk action buttons are visible when questions have no matches', async ({
-    authenticatedPage: page,
-    workerData,
-  }) => {
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // All 4 seeded questions are unmatched, so "Find answers" bulk action should be visible
-    await expect(
-      page.getByRole('button', { name: /Find answers/i }),
     ).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 7. Mobile
+// 6. Mobile
 // ---------------------------------------------------------------------------
 
 test.describe('Procurement questions mobile', () => {
@@ -581,20 +298,7 @@ test.describe('Procurement questions mobile', () => {
       return;
     }
 
-    await page.goto(`/procurement/${workerData.procurementId}`);
-
-    await expect(
-      page.getByRole('heading', { name: /IT Support Services/ }),
-    ).toBeVisible({ timeout: 10000 });
-
-    // Navigate to Questions tab
-    const tabNav = page.getByRole('tablist', { name: 'Procurement sections' });
-    await tabNav.getByRole('tab', { name: 'Questions' }).click();
-
-    // Questions should load
-    await expect(
-      page.getByRole('heading', { name: '4 Questions' }),
-    ).toBeVisible({ timeout: 10000 });
+    await gotoQuestionsTab(page, workerData.procurementId);
 
     // Verify no horizontal overflow: document scrollWidth should equal clientWidth
     const hasOverflow = await page.evaluate(() => {
