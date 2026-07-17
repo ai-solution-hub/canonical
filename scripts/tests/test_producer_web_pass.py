@@ -82,6 +82,7 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     derive_concept_confidence,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    build_git_blob_citation,
     build_source_document_uri,
     reference_item_uri_from_source_url,
 )
@@ -615,6 +616,42 @@ class TestValidatePass2Citations:
                 [], previous_entries=set(), seen_anchors=set(), catalogue_paths=set()
             )
 
+    # ── PC-5 (ID-163 TECH, DR-086): git-blob/doc-page additive branch ──
+
+    def test_a_new_git_blob_anchor_in_seen_anchors_is_accepted(self) -> None:
+        anchor = build_git_blob_citation(
+            "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
+        )
+        validated = web_pass._validate_pass2_citations(
+            [anchor],
+            previous_entries=set(),
+            seen_anchors={anchor},
+            catalogue_paths=set(),
+        )
+        assert validated == (anchor,)
+
+    def test_a_new_git_blob_anchor_not_in_seen_anchors_is_rejected(self) -> None:
+        anchor = build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
+        with pytest.raises(web_pass.Pass2EnrichError, match="never minted"):
+            web_pass._validate_pass2_citations(
+                [anchor], previous_entries=set(), seen_anchors=set(), catalogue_paths=set()
+            )
+
+    def test_a_private_docs_site_url_is_rejected_even_if_present_in_seen_anchors(
+        self,
+    ) -> None:
+        """S3/DR-086 hard rule: does not match the public blob scheme, so
+        it falls through to the concept cross-link branch and fails the
+        BI-9 catalogue check — never accepted as a citation."""
+        private_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+        with pytest.raises(web_pass.Pass2EnrichError, match="BI-9"):
+            web_pass._validate_pass2_citations(
+                [private_url],
+                previous_entries=set(),
+                seen_anchors={private_url},
+                catalogue_paths=set(),
+            )
+
 
 # ============================================================================
 # references/<slug>.md reference-concept parsing (DR-025)
@@ -659,6 +696,21 @@ class TestParseReferenceConcept:
         with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
             web_pass._parse_reference_concept(
                 self._raw(citations=[sd_anchor]), seen_gated_anchors={sd_anchor}
+            )
+
+    def test_a_git_blob_anchor_is_also_rejected_dr025_scope_unchanged(self) -> None:
+        """PC-5 scope note (ID-163 TECH, DR-086): the git-blob/doc-page
+        scheme generalises `_validate_citation`/`_validate_pass2_citation`
+        only. `_validate_reference_concept_citations` stays
+        `canonical://reference_items`-only — a reference concept exists
+        specifically to carry GATED-FETCH provenance, a different concern
+        from a repo git-blob citation — so a well-formed, even
+        actually-minted-equivalent git-blob anchor is still rejected here,
+        the same as any other non-`reference_items` anchor."""
+        anchor = build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
+        with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
+            web_pass._parse_reference_concept(
+                self._raw(citations=[anchor]), seen_gated_anchors={anchor}
             )
 
     def test_a_citation_never_minted_this_run_is_rejected(self) -> None:

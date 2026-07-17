@@ -25,7 +25,14 @@ that must pass before that handoff:
     enrich.py:_build_tool_executors`) or `seen_gated_anchors` (minted by
     `fetch_url` — this module's own ledger). A citation already present in
     the concept's PRIOR (Pass-1) `# Citations` is trusted without
-    re-proving provenance — it already passed this gate once.
+    re-proving provenance — it already passed this gate once. **PC-5**
+    (id-163 TECH, DR-086) adds a THIRD, additive anchor scheme for the
+    `system_baseline` bundle class — a git-pinned public `canonical`-repo
+    blob URL, minted per artefact by `sources/repo_docs.py:RepoDocsSource.
+    read_concept` — `_validate_pass2_citation` accepts it under the same
+    membership rule; `_validate_reference_concept_citations` (DR-025,
+    below) is UNCHANGED — a reference concept carries gated-fetch
+    provenance only.
   - **The augmentation guard, ENFORCEMENT half** (S451 rider fold-in 2,
     BI-17/BI-22/DR-016; reference precedent `bundle_tools.py:110-155`,
     "augment, not replace"). `producer/validator.py:detect_citation_shrink`
@@ -141,6 +148,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
+    is_git_blob_citation,
     reference_item_uri_from_source_url,
 )
 from scripts.cocoindex_pipeline.producer.validator import (
@@ -484,9 +492,11 @@ def _validate_pass2_citation(
     """A NEW (not previously-cited) entry must resolve through a
     `producer/resource_uri.py` builder FORM, AND be provably traceable to
     a tool result THIS RUN actually produced (BI-17) — mirrors
-    `producer/enrich.py:_validate_citation`'s two-form contract, extended
+    `producer/enrich.py:_validate_citation`'s form contract, extended
     with the Pass-2 `seen_anchors` union (record anchors + gated-fetch
-    anchors)."""
+    anchors). PC-5 (id-163 TECH, DR-086) adds the SAME additive git-blob/
+    doc-page branch `_validate_citation` carries, for the `system_baseline`
+    bundle class — never the `canonical://`/cross-link forms."""
     if not isinstance(entry, str) or not entry.strip():
         raise Pass2EnrichError(
             f"run_web_pass: citation entries must be non-empty strings, got {entry!r}"
@@ -512,6 +522,16 @@ def _validate_pass2_citation(
                 "run — a NEW record or gated-reference anchor must be "
                 "copied from an actual tool result, not invented (BI-17 "
                 "provenance)"
+            )
+        return entry
+    if is_git_blob_citation(entry):
+        if entry not in seen_anchors:
+            raise Pass2EnrichError(
+                f"run_web_pass: citation {entry!r} was never minted into a "
+                "read_concept_raw/sample_rows tool result this run — a "
+                "git-blob anchor must be copied from an actual tool "
+                "result, not invented (BI-17 provenance, PC-5 git-blob "
+                "scheme)"
             )
         return entry
     try:

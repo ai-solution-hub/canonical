@@ -49,6 +49,16 @@ resource_uri builders from the row ids the Source adapter actually returned,
 and recorded into `seen_anchors` at mint time), so a validated citation is
 provably traceable to a real row this run actually read.
 
+**PC-5 (ID-163 TECH, DR-086) — the git-blob/doc-page scheme, additive.**
+`_validate_citation` accepts a SECOND anchor form for the `system_baseline`
+bundle class: a git-pinned PUBLIC `canonical`-repo blob URL
+(`resource_uri.py:is_git_blob_citation`), minted per backing artefact by
+`sources/repo_docs.py:RepoDocsSource.read_concept` into ITS OWN
+`seen_anchors` set (the L-records `canonical://` form has no DB row to
+anchor a system concept to, so this is a different scheme, not a bypass —
+same provenance rule: membership, not format, is what validates). The
+`canonical://` branch above is untouched by this addition.
+
 **Terminal-JSON parse hardening (ID-132 {132.45} G-PARSE-HARDEN, {132.35}
 G-DEPLOY-PROOF Defect B).** Run-1 of the {132.35} deploy proof failed 1/18
 concepts: `enrich_concept: terminal text was not valid JSON ... Invalid
@@ -226,6 +236,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
+    is_git_blob_citation,
 )
 from scripts.cocoindex_pipeline.producer.validator import (
     is_valid_concept_resource_uri,
@@ -533,12 +544,20 @@ def _validate_citation(
     surfaced to the model — not merely well-formed. Raises `Pass1DraftError`
     otherwise.
 
-    Two forms, two provenance checks:
+    Three forms, three provenance checks (the third, PC-5, is an ADDITIVE
+    branch for the `system_baseline` bundle class — id-163 TECH, DR-086 —
+    leaving the first two byte-identical):
       - a BI-6/BI-8 record-anchor `canonical://` uri must ALSO be a member
         of `seen_anchors` — the anchors `_annotate_raw_with_anchors` actually
         minted into a `read_concept_raw` tool result this run. A well-formed
         but never-issued `canonical://source_documents/<random-uuid>` FAILS
         here even though it passes the format check.
+      - a PC-5 git-blob/doc-page citation (`resource_uri.py:
+        is_git_blob_citation`, S3/DR-086 — a public `canonical`-repo blob
+        URL, never the private docs-site) must ALSO be a member of
+        `seen_anchors` — the anchors `RepoDocsSource.read_concept`
+        (`sources/repo_docs.py`) actually minted this run. Same provenance
+        rule as the record-anchor form, new scheme.
       - a BI-9 concept cross-link path must ALSO be a member of
         `catalogue_paths` — the concept catalogue `list_concepts` offers
         this run. A well-formed but non-existent concept path FAILS here.
@@ -567,6 +586,15 @@ def _validate_citation(
                 "read_concept_raw tool result this run — a record anchor "
                 "must be copied from an actual tool result, not invented "
                 "(BI-17 provenance)"
+            )
+        return entry
+    if is_git_blob_citation(entry):
+        if entry not in seen_anchors:
+            raise Pass1DraftError(
+                f"enrich_concept: citation {entry!r} was never minted into a "
+                "read_concept_raw tool result this run — a git-blob anchor "
+                "must be copied from an actual tool result, not invented "
+                "(BI-17 provenance, PC-5 git-blob scheme)"
             )
         return entry
     try:

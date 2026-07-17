@@ -276,3 +276,83 @@ def contains_record_pointer(text: str) -> bool:
     if not text:
         return False
     return _SCHEME in text or bool(_EMBEDDED_UUID_RE.search(text))
+
+
+# ── PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation scheme ─────
+#
+# The `system_baseline` bundle's concepts have no DB row, so they cannot
+# cite a `canonical://` anchor — but the BI-17 provenance DISCIPLINE ("every
+# citation is real, minted from a backing artefact this run actually read")
+# carries over unchanged, generalised to a second, additive anchor scheme:
+# a git-pinned PUBLIC blob URL (DR-086 — the `canonical` repo IS public and
+# is the citation base directly; no mirror, no private-docs-site
+# indirection — a private URL is never a citation, S3 hard rule).
+# `sources/repo_docs.py:RepoDocsSource.read_concept` is the sole mint site
+# for this scheme (one anchor per backing artefact READ) — the exact
+# analogue of `_mint`'s per-row `canonical://` mint above.
+# `producer/enrich.py:_validate_citation` / `producer/web_pass.py:
+# _validate_pass2_citation` accept it as an ADDITIVE branch keyed on
+# `is_git_blob_citation`, alongside (never replacing) the `canonical://`
+# branch — `producer/web_pass.py:_validate_reference_concept_citations`
+# (DR-025) is deliberately UNCHANGED: a reference concept exists
+# specifically to carry gated-fetch `reference_items` provenance, a
+# different concern from a repo git-blob citation.
+
+PUBLIC_CANONICAL_BLOB_BASE = "https://github.com/ai-solution-hub/canonical/blob"
+"""S3/DR-086: the ONLY public host a `system_baseline` citation may be
+pinned to. The private docs-site — and every bundle repo, platform-owned or
+client-owned, all of which are private per DR-086 — is NEVER a mint source.
+`is_git_blob_citation` recognises ONLY this prefix, so a private URL simply
+does not match: rejected by construction, not by an explicit denylist."""
+
+
+def build_git_blob_citation(
+    git_blob_sha: str,
+    path: str,
+    *,
+    line_start: "int | None" = None,
+    line_end: "int | None" = None,
+) -> str:
+    """PC-5: the git-pinned public blob citation for one backing artefact —
+    `<PUBLIC_CANONICAL_BLOB_BASE>/<git_blob_sha>/<path>` for the E2
+    doc-page grain (a whole file, no line range), or with a trailing
+    `#L<line_start>-L<line_end>` fragment for the E1 code-symbol grain (a
+    matched span within the file). `line_start`/`line_end` must both be set
+    or both omitted — a partial range is a caller bug, not a valid citation
+    shape.
+
+    `git_blob_sha` is the SAME per-artefact change signal
+    `RepoConceptKey.git_blob_sha` already carries (S4, file-grained) — this
+    function does not compute a new hash, only formats the existing one
+    into the citation URL (no per-span synthetic hash; an owner ruling on
+    finer S4 granularity is queued separately, out of this Subtask's
+    scope).
+    """
+    if not git_blob_sha:
+        raise ValueError(
+            "build_git_blob_citation: git_blob_sha must be non-empty — an "
+            "artefact absent at HEAD (empty git_blob_sha) cannot be pinned "
+            "to a resolvable public blob URL and must not be cited (PC-5)"
+        )
+    if not path:
+        raise ValueError("build_git_blob_citation: path must be non-empty (PC-5)")
+    base = f"{PUBLIC_CANONICAL_BLOB_BASE}/{git_blob_sha}/{path}"
+    if line_start is None and line_end is None:
+        return base
+    if line_start is None or line_end is None:
+        raise ValueError(
+            "build_git_blob_citation: line_start and line_end must both be "
+            f"set or both omitted; got line_start={line_start!r}, "
+            f"line_end={line_end!r}"
+        )
+    return f"{base}#L{line_start}-L{line_end}"
+
+
+def is_git_blob_citation(value: str) -> bool:
+    """True iff `value` is a PC-5 git-blob/doc-page citation pinned to the
+    PUBLIC canonical repo (S3/DR-086) — the `system_baseline` bundle's
+    citation-anchor scheme, additive alongside `is_canonical_resource_uri`'s
+    `canonical://` BI-6 scheme. Any other host — including the PRIVATE
+    docs-site or any bundle repo — is rejected by construction: it simply
+    does not start with `PUBLIC_CANONICAL_BLOB_BASE`."""
+    return isinstance(value, str) and value.startswith(f"{PUBLIC_CANONICAL_BLOB_BASE}/")

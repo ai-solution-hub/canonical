@@ -58,6 +58,22 @@ A path absent at `HEAD` (an uncommitted fixture file, or the very first
 producer run before any commit exists) resolves to `""` rather than
 raising — mirrors `git_sync.py`'s `_read_head` treating "path absent" as
 expected, not exceptional.
+
+**PC-5 — citation provenance, generalised (ID-163 TECH, DR-086).** The
+BI-17 discipline L-records enforces via `enrich.py`'s `_mint`/`seen_anchors`
+per-row `canonical://` pattern applies here too, on a DIFFERENT anchor
+scheme: a system concept has no DB row, so it cites a git-pinned PUBLIC
+blob URL instead (DR-086 — the `canonical` repo is public and is the
+citation base directly). `read_concept` is the sole mint site: every call
+mints the artefact's `resource_uri.py:build_git_blob_citation` anchor into
+`self.seen_anchors` and returns it on `RepoConceptRaw.resource` — an
+artefact this run did not read cannot be cited. `producer/enrich.py:
+_validate_citation` / `producer/web_pass.py:_validate_pass2_citation`
+accept this scheme as an ADDITIVE branch (keyed on `resource_uri.py:
+is_git_blob_citation`), leaving the `canonical://` L-records path
+byte-identical. Reuses `git_blob_sha` (S4, above) as the citation's pin —
+no new hash, no per-span synthetic hash (checker FYI: a stricter S4
+granularity ruling is queued separately, out of this Subtask's scope).
 """
 
 from __future__ import annotations
@@ -68,6 +84,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol, runtime_checkable
 
+from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
 
 # ── PC-4 (ID-163 TECH, DR-079): the `system_baseline` bundle-class base
@@ -151,6 +168,15 @@ class RepoConceptRaw:
     cocoindex memo key (mirrors `ConceptRaw`)."""
 
     text: str = ""
+
+    resource: str = ""
+    """PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation anchor
+    `read_concept` minted for this artefact (`producer/resource_uri.py:
+    build_git_blob_citation`) — the system-bundle analogue of L-records'
+    per-row `resource` field (`enrich.py:_with_resource`). Empty when the
+    artefact's `git_blob_sha` is empty (absent at HEAD — an uncommitted
+    fixture, or a repo with no commits yet): an unpinned artefact cannot
+    resolve a public URL and must not be citable."""
 
 
 @runtime_checkable
@@ -276,6 +302,37 @@ def _read_source_ref(root: Path, source_ref: str) -> str:
     return "".join(lines[lstart - 1 : lend])
 
 
+def _mint_git_blob_citation(key: RepoConceptKey, seen_anchors: "set[str]") -> str:
+    """PC-5 (ID-163 TECH, DR-086): mint `key`'s backing artefact into a
+    git-blob/doc-page citation anchor (`producer/resource_uri.py:
+    build_git_blob_citation`) and record it into `seen_anchors` — the
+    exact analogue of `enrich.py`'s `_mint`/`seen_anchors` per-row
+    `canonical://` pattern, generalised to the system-bundle's public
+    blob-URL scheme. Parses `key.source_ref` via the SAME
+    `_SOURCE_REF_RANGE_RE` `_read_source_ref` uses, so the citation's line
+    range always matches exactly what was actually read.
+
+    `key.git_blob_sha` empty (an artefact absent at HEAD — an uncommitted
+    fixture, or a repo with no commits yet) mints NOTHING and returns
+    `""`: an unpinned artefact cannot resolve a public URL and must not be
+    citable — mirrors `_git_blob_sha`'s own "path absent" posture (expected,
+    not exceptional), just non-citable here rather than raising."""
+    if not key.git_blob_sha:
+        return ""
+    match = _SOURCE_REF_RANGE_RE.match(key.source_ref)
+    if match is None:
+        anchor = build_git_blob_citation(key.git_blob_sha, key.source_ref)
+    else:
+        anchor = build_git_blob_citation(
+            key.git_blob_sha,
+            match.group("path"),
+            line_start=int(match.group("start")),
+            line_end=int(match.group("end")),
+        )
+    seen_anchors.add(anchor)
+    return anchor
+
+
 class RepoDocsSource:
     """cocoindex Source adapter over the repo/docs checkout backing the
     canonical-okf-system baseline bundle (ID-163 {163.4} PC-1). Structural
@@ -299,6 +356,15 @@ class RepoDocsSource:
     ) -> None:
         self._root = Path(root)
         self._navigation_docs_dir = Path(navigation_docs_dir)
+        self.seen_anchors: "set[str]" = set()
+        """PC-5 (ID-163 TECH, DR-086): the per-run provenance ledger
+        `read_concept` mints into — one git-blob/doc-page anchor per
+        backing artefact actually READ this run, the exact analogue of
+        L-records' per-row `canonical://` `seen_anchors` set
+        (`enrich.py:_mint`). A future caller (a later Subtask's tool-
+        executor wiring) plumbs this into `_validate_citation`'s
+        `seen_anchors` argument; this Subtask's scope is the mint +
+        validate PAIR, not that wiring."""
 
     # ── list_concepts (abstract, base.py) ───────────────────────────────
 
@@ -359,8 +425,13 @@ class RepoDocsSource:
 
     async def read_concept(self, key: RepoConceptKey) -> RepoConceptRaw:
         """The concept's backing text: the matched call span for a `tool`
-        concept (E1), the whole page for a `navigation` concept (E2)."""
-        return RepoConceptRaw(text=_read_source_ref(self._root, key.source_ref))
+        concept (E1), the whole page for a `navigation` concept (E2).
+        Also mints (PC-5) the artefact's git-blob citation anchor into
+        `self.seen_anchors` and returns it as `RepoConceptRaw.resource` —
+        an artefact this run did not read cannot be cited."""
+        text = _read_source_ref(self._root, key.source_ref)
+        resource = _mint_git_blob_citation(key, self.seen_anchors)
+        return RepoConceptRaw(text=text, resource=resource)
 
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 

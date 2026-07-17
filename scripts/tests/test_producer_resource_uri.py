@@ -271,3 +271,73 @@ def test_parse_citation_entry_bare_form_has_no_label():
     label, target = ru.parse_citation_entry("topics/gdpr.md")
     assert label is None
     assert target == "topics/gdpr.md"
+
+
+# ──────────────────────────────────────────
+# PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation scheme —
+# the system_baseline bundle's additive anchor form alongside canonical://.
+# ──────────────────────────────────────────
+
+
+def test_public_canonical_blob_base_is_the_dr086_ratified_public_repo():
+    assert ru.PUBLIC_CANONICAL_BLOB_BASE == "https://github.com/ai-solution-hub/canonical/blob"
+
+
+def test_build_git_blob_citation_whole_file_form_has_no_line_range():
+    anchor = ru.build_git_blob_citation("deadbeef", "docs/navigation/getting-started.md")
+    assert anchor == f"{ru.PUBLIC_CANONICAL_BLOB_BASE}/deadbeef/docs/navigation/getting-started.md"
+    assert "#L" not in anchor
+
+
+def test_build_git_blob_citation_line_range_form_appends_the_l_fragment():
+    anchor = ru.build_git_blob_citation(
+        "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
+    )
+    assert (
+        anchor
+        == f"{ru.PUBLIC_CANONICAL_BLOB_BASE}/deadbeef/lib/mcp/tools/content.ts#L4-L9"
+    )
+
+
+def test_build_git_blob_citation_rejects_empty_sha():
+    with pytest.raises(ValueError, match="git_blob_sha"):
+        ru.build_git_blob_citation("", "x.md")
+
+
+def test_build_git_blob_citation_rejects_empty_path():
+    with pytest.raises(ValueError, match="path"):
+        ru.build_git_blob_citation("deadbeef", "")
+
+
+def test_build_git_blob_citation_rejects_a_partial_line_range():
+    with pytest.raises(ValueError, match="line_start"):
+        ru.build_git_blob_citation("deadbeef", "x.ts", line_start=4, line_end=None)
+    with pytest.raises(ValueError, match="line_end"):
+        ru.build_git_blob_citation("deadbeef", "x.ts", line_start=None, line_end=9)
+
+
+def test_is_git_blob_citation_true_for_a_public_canonical_blob_url():
+    anchor = ru.build_git_blob_citation("deadbeef", "docs/navigation/x.md")
+    assert ru.is_git_blob_citation(anchor)
+
+
+def test_is_git_blob_citation_false_for_a_canonical_scheme_uri():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    assert not ru.is_git_blob_citation(uri)
+
+
+def test_is_git_blob_citation_false_for_a_private_docs_site_url():
+    """S3/DR-086 hard rule: the private docs-site is never a mint source —
+    proven here by construction, not an explicit denylist: a private-host
+    URL simply does not match the public blob-base prefix."""
+    assert not ru.is_git_blob_citation(
+        "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+    )
+
+
+def test_is_git_blob_citation_false_for_a_bare_concept_cross_link_path():
+    assert not ru.is_git_blob_citation("topics/gdpr.md")
+
+
+def test_is_git_blob_citation_false_for_non_string():
+    assert not ru.is_git_blob_citation(None)  # type: ignore[arg-type]

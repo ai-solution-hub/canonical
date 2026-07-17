@@ -29,6 +29,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
 from scripts.cocoindex_pipeline.sources.repo_docs import (
     RepoConceptKey,
@@ -399,3 +400,95 @@ class TestReadConceptSampleRowsFind:
         _seed_two_pillars(FakeRepo(tmp_path))
         source = RepoDocsSource(tmp_path)
         assert _run(source.find("")) == []
+
+
+# ── PC-5 (ID-163 TECH, DR-086): git-blob citation mint on read_concept ──
+
+
+class TestPC5GitBlobCitationMint:
+    """`read_concept` mints, per backing artefact READ, a git-blob citation
+    anchor into `self.seen_anchors` — the exact analogue of L-records'
+    per-row `canonical://` mint (`enrich.py:_mint`), generalised to the
+    system-bundle's public blob-URL scheme (S3/DR-086)."""
+
+    def test_e1_read_concept_mints_the_line_range_citation(self, tmp_path: Path) -> None:
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        get_key = next(k for k in keys if k.rel_path == "tool/get.md")
+        raw = _run(source.read_concept(get_key))
+        _file_part, _, range_part = get_key.source_ref.partition("#L")
+        lstart, lend = (int(v) for v in range_part.split("-L"))
+        expected = build_git_blob_citation(
+            get_key.git_blob_sha, _TOOL_FILE, line_start=lstart, line_end=lend
+        )
+        assert raw.resource == expected
+        assert expected in source.seen_anchors
+
+    def test_e2_read_concept_mints_the_whole_page_citation_with_no_line_range(
+        self, tmp_path: Path
+    ) -> None:
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        nav_key = next(k for k in keys if k.concept_type == "navigation")
+        raw = _run(source.read_concept(nav_key))
+        expected = build_git_blob_citation(nav_key.git_blob_sha, _NAV_FILE)
+        assert raw.resource == expected
+        assert "#L" not in raw.resource
+        assert expected in source.seen_anchors
+
+    def test_mint_base_is_the_public_canonical_repo(self, tmp_path: Path) -> None:
+        """S3/DR-086 hard rule, proven by construction: every minted
+        anchor resolves on the PUBLIC canonical repo, never a private
+        host."""
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        for key in keys:
+            raw = _run(source.read_concept(key))
+            assert raw.resource.startswith(
+                "https://github.com/ai-solution-hub/canonical/blob/"
+            )
+
+    def test_seen_anchors_accumulates_one_distinct_anchor_per_concept_read(
+        self, tmp_path: Path
+    ) -> None:
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        assert len(keys) == 3
+        for key in keys:
+            _run(source.read_concept(key))
+        assert len(source.seen_anchors) == 3
+
+    def test_a_path_absent_at_head_mints_nothing_unread_artefact_uncitable(
+        self, tmp_path: Path
+    ) -> None:
+        """Mirrors the S4 `git_blob_sha == ""` posture (path absent at
+        HEAD is expected, not exceptional) — but an unpinned artefact
+        cannot resolve a public URL, so `read_concept` mints NOTHING
+        rather than emitting a malformed citation."""
+        repo = FakeRepo(tmp_path)
+        repo.write(_TOOL_FILE, "defineTool(server, 'get', {}, async () => ({}));\n")
+        # Deliberately no repo.commit() -- no HEAD blob exists yet.
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        get_key = next(k for k in keys if k.rel_path == "tool/get.md")
+        assert get_key.git_blob_sha == ""
+        raw = _run(source.read_concept(get_key))
+        assert raw.resource == ""
+        assert source.seen_anchors == set()
+
+    def test_sample_rows_also_mints_since_it_reads_via_read_concept(
+        self, tmp_path: Path
+    ) -> None:
+        """`sample_rows` delegates to `read_concept` internally — a
+        backing artefact sampled this run is just as "read" as one
+        fully read, so it mints too (no separate, unminted read path)."""
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        keys = _run(source.list_concepts())
+        get_key = next(k for k in keys if k.rel_path == "tool/get.md")
+        _run(source.sample_rows(get_key, 2))
+        assert len(source.seen_anchors) == 1

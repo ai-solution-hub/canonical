@@ -92,6 +92,7 @@ from scripts.cocoindex_pipeline.producer.prompts import (  # noqa: E402
     PASS1_INSTRUCTION_PROMPT,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    build_git_blob_citation,
     build_q_a_pairs_query_uri,
     build_reference_item_uri,
     build_source_document_uri,
@@ -449,6 +450,70 @@ class TestCitationValidationProxy:
     def test_validate_citation_rejects_empty_string(self) -> None:
         with pytest.raises(enrich.Pass1DraftError):
             enrich._validate_citation("", seen_anchors=set(), catalogue_paths=set())
+
+
+class TestPC5GitBlobCitationValidation:
+    """PC-5 (ID-163 TECH, DR-086): `_validate_citation`'s additive
+    git-blob/doc-page branch — the `system_baseline` bundle's citation
+    scheme, generalising the SAME `seen_anchors` membership discipline
+    (not format alone) to a public `canonical`-repo blob URL. The
+    `canonical://` branch (`TestCitationValidationProxy` above) is
+    untouched by this addition."""
+
+    def test_accepts_a_git_blob_anchor_that_was_minted(self) -> None:
+        anchor = build_git_blob_citation(
+            "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
+        )
+        assert (
+            enrich._validate_citation(anchor, seen_anchors={anchor}, catalogue_paths=set())
+            == anchor
+        )
+
+    def test_accepts_a_git_blob_doc_page_anchor_with_no_line_range(self) -> None:
+        anchor = build_git_blob_citation("deadbeef", "docs/navigation/getting-started.md")
+        assert (
+            enrich._validate_citation(anchor, seen_anchors={anchor}, catalogue_paths=set())
+            == anchor
+        )
+
+    def test_rejects_a_well_formed_but_never_minted_git_blob_anchor(self) -> None:
+        """Provenance, not format alone — mirrors the canonical:// case:
+        a well-formed public blob URL nobody actually minted this run
+        still fails."""
+        fabricated = build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            enrich._validate_citation(fabricated, seen_anchors=set(), catalogue_paths=set())
+
+    def test_rejects_a_private_docs_site_url_even_if_present_in_seen_anchors(self) -> None:
+        """S3/DR-086 hard rule: a private-host URL is never a valid
+        citation — it does not match the public git-blob scheme
+        (`is_git_blob_citation` returns False for it), so it falls
+        through to the concept cross-link branch and fails the catalogue
+        check, even were it (erroneously) present in `seen_anchors`."""
+        private_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+        with pytest.raises(enrich.Pass1DraftError, match="catalogue"):
+            enrich._validate_citation(
+                private_url, seen_anchors={private_url}, catalogue_paths=set()
+            )
+
+    def test_git_blob_form_normalises_a_link_wrapped_anchor_to_its_target(self) -> None:
+        anchor = build_git_blob_citation("deadbeef", "docs/navigation/getting-started.md")
+        assert (
+            enrich._validate_citation(
+                f"[1] [{anchor}]({anchor})", seen_anchors={anchor}, catalogue_paths=set()
+            )
+            == anchor
+        )
+
+    def test_existing_canonical_scheme_path_is_unaffected_by_the_new_branch(self) -> None:
+        """Regression pin (the risk `PLAN.md` names explicitly): a
+        `canonical://` citation still validates exactly as before, never
+        mistaken for a git-blob anchor."""
+        uri = build_source_document_uri(_SD_ID)
+        assert not enrich.is_git_blob_citation(uri)
+        assert (
+            enrich._validate_citation(uri, seen_anchors={uri}, catalogue_paths=set()) == uri
+        )
 
     def test_parse_response_rejects_empty_citations_array(self) -> None:
         message = _MockMessage(
