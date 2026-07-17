@@ -34,7 +34,7 @@ export default function ProcurementSessionError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/procurement">Back to Bids</Link>
+          <Link href="/procurement">Back to Procurement</Link>
         </Button>
       </div>
     </div>

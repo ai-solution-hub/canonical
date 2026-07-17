@@ -15,8 +15,8 @@ export default function ProcurementError({
       reset={reset}
       logMessage="Procurement error"
       icon={Briefcase}
-      heading="Couldn't load this bid"
-      body="The bid data may be temporarily unavailable. Please try again."
+      heading="Couldn't load this procurement"
+      body="The procurement data may be temporarily unavailable. Please try again."
       showHome={true}
     />
   );

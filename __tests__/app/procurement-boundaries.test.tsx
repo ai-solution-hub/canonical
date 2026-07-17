@@ -61,7 +61,9 @@ describe('Procurement Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<ProcurementError error={error} reset={reset} />);
-    expect(screen.getByText(/couldn.*t load this bid/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn.*t load this procurement/i),
+    ).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {
@@ -106,13 +108,15 @@ describe('Procurement Loading Skeleton', () => {
     render(<ProcurementLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading bids',
+      'Loading procurement items',
     );
   });
 
   it('contains screen-reader text', () => {
     render(<ProcurementLoading />);
-    expect(screen.getByText('Loading bids...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading procurement items...'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -152,10 +156,9 @@ describe('Procurement Detail Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<ProcurementDetailError error={error} reset={reset} />);
-    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
-      'href',
-      '/procurement',
-    );
+    expect(
+      screen.getByRole('link', { name: /back to procurement/i }),
+    ).toHaveAttribute('href', '/procurement');
   });
 
   it('calls logger.error with the error via useEffect', () => {
@@ -178,13 +181,15 @@ describe('Procurement Detail Loading Skeleton', () => {
     render(<ProcurementDetailLoading />);
     expect(screen.getByRole('status')).toHaveAttribute(
       'aria-label',
-      'Loading bid details',
+      'Loading procurement details',
     );
   });
 
   it('contains screen-reader text', () => {
     render(<ProcurementDetailLoading />);
-    expect(screen.getByText('Loading bid details...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading procurement details...'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -226,10 +231,9 @@ describe('Procurement Session Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<ProcurementSessionError error={error} reset={reset} />);
-    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
-      'href',
-      '/procurement',
-    );
+    expect(
+      screen.getByRole('link', { name: /back to procurement/i }),
+    ).toHaveAttribute('href', '/procurement');
   });
 
   it('calls logger.error with the error via useEffect', () => {
@@ -300,10 +304,9 @@ describe('Template Completion Error Boundary', () => {
 
   it('has a navigation link to /bid', () => {
     render(<TemplateCompletionError error={error} reset={reset} />);
-    expect(screen.getByRole('link', { name: /back to bids/i })).toHaveAttribute(
-      'href',
-      '/procurement',
-    );
+    expect(
+      screen.getByRole('link', { name: /back to procurement/i }),
+    ).toHaveAttribute('href', '/procurement');
   });
 
   it('calls logger.error with the error via useEffect', () => {

@@ -720,10 +720,10 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
     });
   });
 
-  // ---- Admin-only Delete bid ----
+  // ---- Admin-only Delete procurement ----
 
-  describe('MobileActionMenu Delete bid (admin only)', () => {
-    it('shows Delete bid for admin users', async () => {
+  describe('MobileActionMenu Delete procurement (admin only)', () => {
+    it('shows Delete procurement for admin users', async () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
@@ -741,10 +741,12 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      expect(within(dropdown).getByText('Delete bid')).toBeInTheDocument();
+      expect(
+        within(dropdown).getByText('Delete procurement'),
+      ).toBeInTheDocument();
     });
 
-    it('does not show Delete bid for editor users', async () => {
+    it('does not show Delete procurement for editor users', async () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'editor';
       mockUseFormActions.mockReturnValue(
@@ -762,11 +764,11 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
       expect(
-        within(dropdown).queryByText('Delete bid'),
+        within(dropdown).queryByText('Delete procurement'),
       ).not.toBeInTheDocument();
     });
 
-    it('Delete bid has destructive styling', async () => {
+    it('Delete procurement has destructive styling', async () => {
       const user = userEvent.setup();
       mockUseUserRole.role = 'admin';
       mockUseUserRole.canEdit = true;
@@ -786,14 +788,16 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       const dropdown = getDropdownContent();
       const deleteItem =
         within(dropdown)
-          .getByText('Delete bid')
+          .getByText('Delete procurement')
           .closest('[data-slot="dropdown-menu-item"]') ??
-        within(dropdown).getByText('Delete bid').closest('[role="menuitem"]');
+        within(dropdown)
+          .getByText('Delete procurement')
+          .closest('[role="menuitem"]');
       expect(deleteItem).not.toBeNull();
       expect(deleteItem!.className).toContain('text-destructive');
     });
 
-    it('deletes the bid when Delete bid is clicked', async () => {
+    it('deletes the bid when Delete procurement is clicked', async () => {
       const user = userEvent.setup();
       const mockHandleDelete = vi.fn();
       mockUseUserRole.role = 'admin';
@@ -813,7 +817,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       });
       await user.click(actionsButton);
       const dropdown = getDropdownContent();
-      await user.click(within(dropdown).getByText('Delete bid'));
+      await user.click(within(dropdown).getByText('Delete procurement'));
       expect(mockHandleDelete).toHaveBeenCalled();
     });
 
@@ -833,7 +837,7 @@ describe('ProcurementDetailPage — Mobile Actions', () => {
       );
       const { mobileDiv } = findActionDivs(container);
       expect(mobileDiv).not.toBeNull();
-      // Admin always has "Delete bid" so MobileActionMenu renders
+      // Admin always has "Delete procurement" so MobileActionMenu renders
       expect(
         within(mobileDiv!).getByRole('button', { name: /Actions/ }),
       ).toBeInTheDocument();

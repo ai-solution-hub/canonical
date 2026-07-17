@@ -83,28 +83,28 @@ describe('ProcurementExportMenu', () => {
   it('renders the export trigger button', () => {
     renderMenu();
     expect(
-      screen.getByRole('button', { name: 'Export bid responses' }),
+      screen.getByRole('button', { name: 'Export responses' }),
     ).toBeInTheDocument();
   });
 
   it('displays "Export" text on the trigger button', () => {
     renderMenu();
     expect(
-      screen.getByRole('button', { name: 'Export bid responses' }),
+      screen.getByRole('button', { name: 'Export responses' }),
     ).toHaveTextContent('Export');
   });
 
   it('disables the trigger button when hasQuestions is false', () => {
     renderMenu({ hasQuestions: false });
     expect(
-      screen.getByRole('button', { name: 'Export bid responses' }),
+      screen.getByRole('button', { name: 'Export responses' }),
     ).toBeDisabled();
   });
 
   it('enables the trigger button when hasQuestions is true', () => {
     renderMenu({ hasQuestions: true });
     expect(
-      screen.getByRole('button', { name: 'Export bid responses' }),
+      screen.getByRole('button', { name: 'Export responses' }),
     ).not.toBeDisabled();
   });
 
@@ -113,9 +113,7 @@ describe('ProcurementExportMenu', () => {
   it('shows export options when dropdown is opened', async () => {
     const user = userEvent.setup();
     renderMenu();
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     expect(screen.getByText('Word (.docx)')).toBeInTheDocument();
     expect(screen.getByText('Excel (.xlsx)')).toBeInTheDocument();
     expect(screen.getByText('Print / Save as PDF')).toBeInTheDocument();
@@ -142,9 +140,7 @@ describe('ProcurementExportMenu', () => {
       procurementId: 'bid-42',
       procurementName: 'Council Services Procurement',
     });
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -183,9 +179,7 @@ describe('ProcurementExportMenu', () => {
       procurementId: 'bid-42',
       procurementName: 'Test Procurement',
     });
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Excel (.xlsx)'));
 
     await waitFor(() => {
@@ -235,9 +229,7 @@ describe('ProcurementExportMenu', () => {
     });
 
     renderMenu({ procurementName: 'Council Services (2026)' });
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -263,9 +255,7 @@ describe('ProcurementExportMenu', () => {
     });
 
     renderMenu();
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -282,9 +272,7 @@ describe('ProcurementExportMenu', () => {
     });
 
     renderMenu();
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -299,9 +287,7 @@ describe('ProcurementExportMenu', () => {
     );
 
     renderMenu();
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Word (.docx)'));
 
     await waitFor(() => {
@@ -321,9 +307,7 @@ describe('ProcurementExportMenu', () => {
     });
 
     renderMenu();
-    await user.click(
-      screen.getByRole('button', { name: 'Export bid responses' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Export responses' }));
     await user.click(screen.getByText('Print / Save as PDF'));
 
     expect(mockPrint).toHaveBeenCalled();

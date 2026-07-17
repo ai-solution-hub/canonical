@@ -74,7 +74,7 @@ export function ItemWorkflowPanel({
       {!canEdit && (
         <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="size-3" aria-hidden="true" />
-          View only — you don&apos;t have permission to change this bid&apos;s
+          View only — you don&apos;t have permission to change this item&apos;s
           workflow state.
         </p>
       )}

@@ -402,7 +402,7 @@ export default function ProcurementSessionPage({
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            <span>Back to bid</span>
+            <span>Back to procurement</span>
           </Link>
           <h1 className="text-lg font-semibold text-foreground truncate">
             {procurementName}

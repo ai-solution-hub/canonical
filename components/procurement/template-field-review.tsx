@@ -663,7 +663,7 @@ export function TemplateFieldReview({
                           handleManualMap(field.id, e.target.value);
                       }}
                       autoFocus
-                      aria-label={`Select a bid question to map to field ${field.sequence + 1}`}
+                      aria-label={`Select a question to map to field ${field.sequence + 1}`}
                     >
                       <option value="">Select a question...</option>
                       {procurementQuestions.map((q) => (

@@ -34,7 +34,7 @@ export default function ProcurementDetailError({
           Try again
         </Button>
         <Button asChild variant="ghost">
-          <Link href="/procurement">Back to Bids</Link>
+          <Link href="/procurement">Back to Procurement</Link>
         </Button>
       </div>
     </div>

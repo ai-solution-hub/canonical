@@ -186,7 +186,7 @@ export function QuestionReview({
             {informationalCount}{' '}
             {informationalCount === 1 ? 'question is' : 'questions are'}{' '}
             categorised as informational (administrative). These are marked with
-            a warning icon and may not require a bid response.
+            a warning icon and may not require a response.
           </p>
         </div>
       )}

@@ -287,7 +287,7 @@ export default function ProcurementDetailPage({
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="mr-2 size-4" aria-hidden="true" />
-                      Delete bid
+                      Delete procurement
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -490,7 +490,7 @@ export default function ProcurementDetailPage({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete bid</AlertDialogTitle>
+            <AlertDialogTitle>Delete procurement</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete &ldquo;{bid?.name}&rdquo;? This
               cannot be undone.
@@ -647,7 +647,7 @@ function MobileActionMenu({
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 size-4" aria-hidden="true" />
-              Delete bid
+              Delete procurement
             </DropdownMenuItem>
           </>
         )}
@@ -849,7 +849,7 @@ function NextActionCard({
         return {
           title: 'Start answering questions',
           description:
-            'Open the drafting session to work through your bid responses using the knowledge base.',
+            'Open the drafting session to work through your responses using the knowledge base.',
           action: {
             type: 'link',
             href: `/procurement/${procurementId}/session`,
@@ -874,7 +874,7 @@ function NextActionCard({
         return {
           title: 'Record the outcome when you hear back',
           description:
-            'Once you receive a decision, record whether the bid was won or lost to track your success rate.',
+            'Once you receive a decision, record whether the procurement was won or lost to track your success rate.',
           action: {
             type: 'button',
             onClick: onShowOutcomeDialog,
@@ -889,7 +889,7 @@ function NextActionCard({
         return {
           title: 'Review responses for your knowledge base',
           description:
-            'Identify strong responses worth adding to your knowledge base for future bids.',
+            'Identify strong responses worth adding to your knowledge base for future procurements.',
           action: {
             type: 'button',
             onClick: onShowKBReview,

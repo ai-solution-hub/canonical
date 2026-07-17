@@ -65,7 +65,7 @@ export function TenderMetadataPrompt({
       });
 
       if (res.ok) {
-        toast.success('Tender metadata applied to bid');
+        toast.success('Tender metadata applied to procurement');
         setDismissed(true);
         onUpdated?.();
       } else {

@@ -36,7 +36,7 @@ export function ProcurementExportMenu({
           size="sm"
           className="gap-1.5"
           disabled={!hasQuestions || isExporting}
-          aria-label="Export bid responses"
+          aria-label="Export responses"
           data-no-print
         >
           {isExporting ? (

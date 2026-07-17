@@ -357,7 +357,7 @@ describe('TenderMetadataPrompt', () => {
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
-        'Tender metadata applied to bid',
+        'Tender metadata applied to procurement',
       );
     });
     expect(

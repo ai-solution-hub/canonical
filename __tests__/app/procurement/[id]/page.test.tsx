@@ -540,7 +540,7 @@ describe('ProcurementDetailPage', () => {
     renderWithQuery(<ProcurementDetailPage params={mockParams} />);
     const moreButton = screen.getByRole('button', { name: 'More actions' });
     await user.click(moreButton);
-    expect(screen.getByText('Delete bid')).toBeInTheDocument();
+    expect(screen.getByText('Delete procurement')).toBeInTheDocument();
   });
 
   it('does not show delete menu for editor role', () => {

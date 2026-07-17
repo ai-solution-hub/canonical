@@ -2,10 +2,10 @@ export default function ProcurementLoading() {
   return (
     <div
       role="status"
-      aria-label="Loading bids"
+      aria-label="Loading procurement items"
       className="mx-auto max-w-7xl px-4 py-8 sm:px-6"
     >
-      <span className="sr-only">Loading bids...</span>
+      <span className="sr-only">Loading procurement items...</span>
 
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
