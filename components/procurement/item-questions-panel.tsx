@@ -7,6 +7,7 @@ import {
   FileQuestion,
   HelpCircle,
   Loader2,
+  Pencil,
   PenLine,
   RefreshCw,
   Search,
@@ -18,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ConfidenceBadge } from '@/components/shared/confidence-badge';
+import { QuestionAnswerEditor } from '@/components/procurement/question-answer-editor';
 import { cn } from '@/lib/utils';
 import type { ProcurementQuestion } from '@/types/procurement';
 
@@ -39,6 +41,13 @@ import type { ProcurementQuestion } from '@/types/procurement';
  * cataloguing. This is deliberately NOT primary drafting/authoring UI (that
  * stays with the secondary drafting stack, {145.45}) — it is a narrow
  * fallback for questions the corpus cannot currently answer at all.
+ *
+ * ID-147 {147.19} — each question row additionally mounts the {147.17}
+ * `QuestionAnswerEditor` (PRODUCT §H2, TECH §7) behind a per-row
+ * admin/editor-gated "Edit slot" toggle (§H3 — viewers get no affordance
+ * at all). The editor owns its own persistence lane (TanStack mutations
+ * over the existing gated questions/responses PATCH routes) — nothing is
+ * rebuilt here.
  */
 export interface ItemQuestionsPanelProps {
   procurementId: string;
@@ -350,6 +359,10 @@ function QuestionStateRow({
   onAnswered?: () => void;
 }) {
   const state = deriveQuestionState(question);
+  // §H2/§H3 ({147.19}) — per-row entry point for the {147.17} slot editor;
+  // discoverable but quiet (ghost toggle in the row's control cluster),
+  // and never rendered at all for reviewer/viewer.
+  const [slotEditorOpen, setSlotEditorOpen] = useState(false);
 
   return (
     <div
@@ -374,6 +387,18 @@ function QuestionStateRow({
             <ConfidenceBadge posture={question.confidence_posture} compact />
           )}
           <QuestionStateBadge state={state} />
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="gap-1"
+              aria-expanded={slotEditorOpen}
+              onClick={() => setSlotEditorOpen((open) => !open)}
+            >
+              <Pencil className="size-3" aria-hidden="true" />
+              Edit slot
+            </Button>
+          )}
         </div>
       </div>
 
@@ -383,6 +408,17 @@ function QuestionStateRow({
           procurementId={procurementId}
           onAnswered={onAnswered}
         />
+      )}
+
+      {canEdit && slotEditorOpen && (
+        <div className="mt-2 pl-9">
+          <QuestionAnswerEditor
+            procurementId={procurementId}
+            question={question}
+            response={question.response ? { id: question.response.id } : null}
+            canEdit={canEdit}
+          />
+        </div>
       )}
     </div>
   );

@@ -14,6 +14,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const { mockToast } = vi.hoisted(() => ({
   mockToast: { success: vi.fn(), error: vi.fn() },
@@ -579,6 +581,129 @@ describe('ItemQuestionsPanel', () => {
       screen.getByLabelText(`Manual answer for: ${empty.question_text}`),
     ).toHaveValue('An answer that fails to save.');
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  // ---- Question/answer-slot editor mount (§H2/§H3 — ID-147.19) ----
+
+  describe('question/answer-slot editor (§H2/§H3 — ID-147.19)', () => {
+    /** The REAL {147.17} editor mounts in these tests (its TanStack hooks
+     * need a QueryClientProvider); its persistence lane is exercised
+     * against the stubbed fetch, never re-stubbed. */
+    function renderWithQueryClient(ui: ReactElement) {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      return render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+      );
+    }
+
+    it('§H3 shows the per-question edit affordance for admin/editor, never for a viewer', () => {
+      const question = makeQuestion();
+      const { rerender } = render(
+        <ItemQuestionsPanel
+          procurementId="form-1"
+          questions={[question]}
+          canEdit={true}
+          totalQuestions={1}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Edit slot' }),
+      ).toBeInTheDocument();
+
+      rerender(
+        <ItemQuestionsPanel
+          procurementId="form-1"
+          questions={[question]}
+          canEdit={false}
+          totalQuestions={1}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Edit slot' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('§H2 expanding the affordance mounts the slot editor; collapsing removes it', async () => {
+      const user = userEvent.setup();
+      const question = makeQuestion({ word_limit: 250 });
+      renderWithQueryClient(
+        <ItemQuestionsPanel
+          procurementId="form-1"
+          questions={[question]}
+          canEdit={true}
+          totalQuestions={1}
+        />,
+      );
+
+      const toggle = screen.getByRole('button', { name: 'Edit slot' });
+      await user.click(toggle);
+
+      // The editor's own read-only surface — slot metadata labels + the
+      // unanswered review-status state (this question has no response row).
+      const row = within(screen.getByTestId(`question-row-${question.id}`));
+      expect(row.getByText('Evaluation weight')).toBeInTheDocument();
+      expect(row.getByText('Not yet answered')).toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+      await user.click(toggle);
+      expect(row.queryByText('Evaluation weight')).not.toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('§H2 round-trip: saving edited slot fields PATCHes the existing questions route', async () => {
+      const user = userEvent.setup();
+      const question = makeQuestion({
+        question_text: 'Original question text',
+        word_limit: 100,
+      });
+      mockFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/questions/')) {
+          return jsonResponse({ id: question.id }, true, 200);
+        }
+        return jsonResponse({}, true, 200);
+      });
+
+      renderWithQueryClient(
+        <ItemQuestionsPanel
+          procurementId="form-1"
+          questions={[question]}
+          canEdit={true}
+          totalQuestions={1}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Edit slot' }));
+      const row = within(screen.getByTestId(`question-row-${question.id}`));
+      await user.click(row.getByRole('button', { name: 'Edit' }));
+
+      const textField = row.getByLabelText('Question text');
+      await user.clear(textField);
+      await user.type(textField, 'Amended question text');
+      await user.click(row.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() =>
+        expect(mockToast.success).toHaveBeenCalledWith(
+          'Question/answer slot updated',
+        ),
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        `/api/procurement/form-1/questions/${question.id}`,
+        expect.objectContaining({ method: 'PATCH' }),
+      );
+      const patchCall = mockFetch.mock.calls.find(([input]) =>
+        String(input).includes('/questions/'),
+      );
+      expect(JSON.parse(patchCall?.[1]?.body as string)).toMatchObject({
+        question_text: 'Amended question text',
+        word_limit: 100,
+      });
+    });
   });
 
   // ---- Section grouping ----
