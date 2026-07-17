@@ -85,7 +85,10 @@ describe('ConceptDetail', () => {
     });
 
     const link = screen.getByRole('link', { name: 'orphan' });
-    expect(link).toHaveAttribute('href', '../tables/orphan.md');
+    // Streamdown's rehype-harden pass requires internal links to be resolved
+    // up front, so the anchor shows the bundle-root-relative resolved path
+    // (marker stripped), not the raw author-written relative form.
+    expect(link).toHaveAttribute('href', '/tables/orphan.md');
   });
 
   it('renders the "Cited by" backlinks section and navigates on click', () => {

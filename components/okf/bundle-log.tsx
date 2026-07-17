@@ -9,11 +9,26 @@
  * renders `entries` as-given.
  * Read-only: no edit/accept/reject affordance here (that is ID-135's remit,
  * out of `{132.14}` scope per the addendum's cross-cutting takeaways).
+ *
+ * Bodies render via **Streamdown** (DR-040 / bl-427 sweep — GFM bundled
+ * natively). The `a` override keeps any log-entry link a plain external
+ * anchor so Streamdown's link-safety-modal default never activates — and
+ * never introduces a `<button>`, preserving the read-only contract above.
  */
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import type { Components } from 'streamdown';
+import { Streamdown } from 'streamdown';
+import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 import { cn } from '@/lib/utils';
 import type { OkfBundleLogEntry } from '@/lib/query/okf';
+
+const logComponents: Components = {
+  ...sharedStreamdownComponents,
+  a: ({ href, children, ...props }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+      {children}
+    </a>
+  ),
+};
 
 interface BundleLogProps {
   entries: OkfBundleLogEntry[];
@@ -48,7 +63,7 @@ export function BundleLog({ entries, className }: BundleLogProps) {
             </h3>
           )}
           <div className="prose prose-sm mt-1 max-w-none text-sm text-foreground prose-p:my-1 prose-li:my-0.5">
-            <Markdown remarkPlugins={[remarkGfm]}>{entry.body}</Markdown>
+            <Streamdown components={logComponents}>{entry.body}</Streamdown>
           </div>
         </article>
       ))}
