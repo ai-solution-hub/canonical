@@ -40,7 +40,6 @@ function makeQuestion(
   const id = overrides.id ?? `q-${nextId++}`;
   return {
     id,
-    workspace_id: 'form-1',
     section_name: null,
     section_sequence: 0,
     question_sequence: 0,
@@ -48,7 +47,6 @@ function makeQuestion(
     word_limit: null,
     evaluation_weight: null,
     confidence_posture: null,
-    matched_record_ids: null,
     status: 'pending',
     has_variants: false,
     assigned_to: null,

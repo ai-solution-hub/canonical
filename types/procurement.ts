@@ -96,7 +96,6 @@ type ResponseReviewStatus =
 
 export interface ProcurementQuestion {
   id: string;
-  workspace_id: string;
   section_name: string | null;
   section_sequence: number;
   question_sequence: number;
@@ -104,7 +103,6 @@ export interface ProcurementQuestion {
   word_limit: number | null;
   evaluation_weight: number | null;
   confidence_posture: ConfidencePosture | null;
-  matched_record_ids: string[] | null;
   status: QuestionStatus;
   has_variants: boolean;
   assigned_to: string | null;

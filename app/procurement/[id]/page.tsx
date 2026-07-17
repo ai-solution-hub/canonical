@@ -757,12 +757,6 @@ function OverviewTab({
                 <dd className="mt-1 text-foreground">{bid.description}</dd>
               </div>
             )}
-            {metadata?.notes && (
-              <div>
-                <dt className="text-muted-foreground">Notes</dt>
-                <dd className="mt-1 text-foreground">{metadata.notes}</dd>
-              </div>
-            )}
           </dl>
         ) : (
           <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
