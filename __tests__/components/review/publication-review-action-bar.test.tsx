@@ -55,16 +55,19 @@ describe('PublicationReviewActionBar', () => {
     expect(
       screen.getByRole('button', { name: /return this item to draft/i }),
     ).toBeInTheDocument();
-    // "Open in editor" is rendered as a Link via Button asChild — it is a
-    // link, not a button (so middle-click works per AC (i)).
-    const editorLink = screen.getByRole('link', {
-      name: /open this item in the editor/i,
+    // "View" is rendered as a Link via Button asChild — it is a link, not
+    // a button (so middle-click works per AC (i)).
+    const viewLink = screen.getByRole('link', {
+      name: /view this item/i,
     });
-    expect(editorLink).toBeInTheDocument();
+    expect(viewLink).toBeInTheDocument();
     // ID-135.26: itemId is a source_documents id (this queue is entirely
     // source_documents-backed) — re-pointed off the deleted `/item/[id]`
     // ({131.17}) onto /documents/[id].
-    expect(editorLink).toHaveAttribute('href', `/documents/${ITEM_ID}`);
+    expect(viewLink).toHaveAttribute('href', `/documents/${ITEM_ID}`);
+    // {135.30}: source_documents are read-only per id-135 BI-1/BI-31 — the
+    // affordance must not claim edit capability.
+    expect(screen.queryByText(/open in editor/i)).not.toBeInTheDocument();
   });
 
   it('Approve & publish triggers POST /api/review/publication-bulk-action with action="approve" (AC g, ID-131 B3-ext re-point)', async () => {
@@ -204,12 +207,12 @@ describe('PublicationReviewActionBar', () => {
     expect(mockFetch).not.toHaveBeenCalled();
 
     // Even when an unrelated focused element receives Enter, the action
-    // bar should not intercept. We focus the editor link (a non-button
+    // bar should not intercept. We focus the view link (a non-button
     // anchor) to verify there's no global Enter handler.
-    const editorLink = screen.getByRole('link', {
-      name: /open this item in the editor/i,
+    const viewLink = screen.getByRole('link', {
+      name: /view this item/i,
     });
-    editorLink.focus();
+    viewLink.focus();
     await user.keyboard('{Enter}');
     // The link's own activation may navigate (handled by jsdom as no-op);
     // we only assert no PATCH was triggered by the action bar.

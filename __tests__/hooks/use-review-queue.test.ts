@@ -901,7 +901,7 @@ describe('useReviewQueue', () => {
       expect(mockSessionReturn.setShowFlagInput).not.toHaveBeenCalled();
     });
 
-    it('handleEdit opens the /documents/[id] source_document surface in a new tab (ID-135.26)', () => {
+    it('handleEdit opens the read-only /documents/[id] source_document surface in a new tab (ID-135.26; view-only per {135.30}/BI-1/BI-31)', () => {
       const items = [makeQueueItem({ id: 'edit1' })];
       setupLoadedState(items);
 

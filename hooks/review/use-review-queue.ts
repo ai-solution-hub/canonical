@@ -67,6 +67,8 @@ export interface UseReviewQueueReturn {
   handleSkip: () => void;
   handleBack: () => void;
   handleExit: () => void;
+  /** Opens the read-only /documents/[id] view (id-135 BI-1/BI-31) in a new
+   *  tab. Named `handleEdit` for downstream compatibility — see impl. */
   handleEdit: () => void;
   handleFiltersChange: (newFilters: ReviewFiltersType) => void;
   handleTogglePanel: () => void;
@@ -181,6 +183,15 @@ export function useReviewQueue(
     // queue (app/api/review/queue/route.ts) is entirely source_documents-
     // backed post-{131.19}. Re-homed to /documents/[id] (the live
     // read-only detail surface); content_items/`/item/[id]` no longer exist.
+    // {135.30}: this opens a VIEW-only surface — id-135 BI-1/BI-31 ratify
+    // source_documents as read-only, no edit affordance exists or is
+    // implied. The `handleEdit` identifier (and the `onEdit` shortcut wire
+    // below) is kept as-is: it is a public `UseReviewQueueReturn` property
+    // consumed by app/review/review-content.tsx (out of this Subtask's file
+    // ownership) — renaming it would require touching that file. Only
+    // user-visible copy/icon + this comment change here; the keyboard-
+    // shortcut hint text lives in use-review-shortcuts.ts /
+    // review-action-bar.tsx (also out of ownership — flagged for follow-up).
     window.open(`/documents/${nav.currentItem.id}`, '_blank');
   }, [nav.currentItem]);
 

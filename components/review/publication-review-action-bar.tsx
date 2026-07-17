@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Send, Undo2, Pencil } from 'lucide-react';
+import { Send, Undo2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,13 +23,16 @@ import { queryKeys } from '@/lib/query/query-keys';
  *     `{ ids: [itemId], action: 'approve' }` (single-item call)
  *   - Return to draft     → POST /api/review/publication-bulk-action body
  *     `{ ids: [itemId], action: 'return_to_draft' }`
- *   - Open in editor      → <Link href="/documents/[id]"> (NOT router.push,
+ *   - View                → <Link href="/documents/[id]"> (NOT router.push,
  *     so middle-click / cmd-click open in a new tab as users expect, per
  *     spec §7 + AC (i)). ID-135.26: re-pointed off the deleted `/item/[id]`
  *     ({131.17}) — itemId is a source_documents id, and /documents/[id] is
- *     the live (read-only) detail surface for that grain. Whether a genuine
- *     editing surface should exist for in-review source_documents is an
- *     open product question, flagged separately — not decided here.
+ *     the live, read-only detail surface for that grain. {135.30}: relabelled
+ *     from "Open in editor"/Pencil to "View"/Eye — id-135 PRODUCT spec BI-1
+ *     / BI-31 ratify source_documents as read-only with no edit/write/delete
+ *     affordance; there is no open question here, an editing surface is
+ *     foreclosed by the ratified spec (a decision-register question, not a
+ *     UI copy choice).
  *
  * ID-131 endgame B3-ext (S447): re-pointed off the doomed
  * `PATCH /api/items/[id]` route onto the same
@@ -190,14 +193,14 @@ export function PublicationReviewActionBar({
             ID-135.26: itemId is a source_documents id (this queue is
             entirely source_documents-backed post-{131.19} — see
             app/api/review/queue/route.ts's in_review branch). Re-homed to
-            /documents/[id] (the live source_document detail surface);
-            content_items/`/item/[id]` no longer exist. */}
-        <Link
-          href={`/documents/${itemId}`}
-          aria-label="Open this item in the editor"
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-          Open in editor
+            /documents/[id] (the live, read-only source_document detail
+            surface); content_items/`/item/[id]` no longer exist. {135.30}:
+            "View" label + Eye icon — id-135 BI-1/BI-31 ratify
+            source_documents as read-only, so this link never implies edit
+            capability. */}
+        <Link href={`/documents/${itemId}`} aria-label="View this item">
+          <Eye className="size-4" aria-hidden="true" />
+          View
         </Link>
       </Button>
     </div>
