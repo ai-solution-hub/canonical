@@ -244,6 +244,25 @@ async function fetchClassifications(
   return map;
 }
 
+/**
+ * Fail loud when a cached-mode run resolves zero gold ids against
+ * source_documents. Without this, an all-missing fixture silently scores
+ * against an empty `evaluated` set and reports a generic accuracy failure —
+ * misdiagnosing a stale fixture (pre-id-131 UUIDs) as a classifier
+ * regression (bl-497).
+ */
+export function checkGoldResolution(
+  itemIds: string[],
+  missingCount: number,
+): void {
+  if (itemIds.length > 0 && missingCount === itemIds.length) {
+    console.error(
+      `0 of ${itemIds.length} gold ids resolved against source_documents — fixture is stale (pre-id-131 UUIDs); re-seed required (bl-497)`,
+    );
+    process.exit(1);
+  }
+}
+
 // ── Cost Estimation (Live Mode) ─────────────────────────────────────
 
 /**
@@ -813,6 +832,7 @@ async function main() {
         `Warning: ${missing.length} gold standard items not found in database (skipped — use --live for live_only fixtures)`,
       );
     }
+    checkGoldResolution(itemIds, missing.length);
   }
 
   // Score each item

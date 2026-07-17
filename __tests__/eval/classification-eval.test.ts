@@ -19,13 +19,22 @@
  *   EVAL_CLASSIFICATION=1 bun run test classification-eval
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from 'vitest';
 import { readFileSync } from 'fs';
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 import {
   parseArgs,
   estimateItemCost,
   estimateLiveCost,
+  checkGoldResolution,
   type GoldItem,
 } from '../../scripts/eval-classification';
 
@@ -247,6 +256,54 @@ describe('Classification Eval — Unit Tests', () => {
         expect(typeof item.title).toBe('string');
         expect(item.title.length).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe('checkGoldResolution (bl-497 fail-loud guardrail)', () => {
+    /** Sentinel thrown in place of process.exit so the call site short-circuits. */
+    class ProcessExit extends Error {
+      constructor(public code: number) {
+        super(`process.exit(${code})`);
+      }
+    }
+
+    let exitSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      exitSpy = vi.spyOn(process, 'exit').mockImplementation(((
+        code?: number,
+      ) => {
+        throw new ProcessExit(code ?? 0);
+      }) as never);
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('exits non-zero with a re-seed message when 0 of N gold ids resolve', () => {
+      const itemIds = ['a', 'b', 'c'];
+      expect(() => checkGoldResolution(itemIds, itemIds.length)).toThrow(
+        ProcessExit,
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('re-seed required (bl-497)'),
+      );
+    });
+
+    it('is a no-op when at least one gold id resolves', () => {
+      expect(() => checkGoldResolution(['a', 'b'], 1)).not.toThrow();
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op for an empty gold standard (nothing to resolve)', () => {
+      expect(() => checkGoldResolution([], 0)).not.toThrow();
+      expect(exitSpy).not.toHaveBeenCalled();
     });
   });
 });
