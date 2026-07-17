@@ -4,4 +4,8 @@
 -- fails fail-loud on NOT NULL rather than silently on the CHECK.
 -- DR-081: authored-not-applied this session; stamp is PROVISIONAL — re-verify
 -- against the remote schema_migrations max and re-stamp at owner-gated apply time.
+-- Owner-override option (S485 OQ oq-36e2e5d284e223f4): the ratified shape is
+-- DROP DEFAULT (fail-loud). At the owner-gated apply batch the owner may instead
+-- choose SET DEFAULT 'app_upload' (conservative provenance-unknown fallback) if
+-- preferred over a fail-loud NOT NULL violation.
 ALTER TABLE "public"."form_instances" ALTER COLUMN "ingest_source" DROP DEFAULT;
