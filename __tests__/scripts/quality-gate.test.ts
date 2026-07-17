@@ -21,6 +21,8 @@ import {
   renderJson,
   loadJson,
   excludeArtefacts,
+  GENERIC_CHECKS,
+  AUDIT_CHECKS,
   type CheckResult,
   type CheckFn,
   type ProfilesConfig,
@@ -65,13 +67,10 @@ describe('parseCli', () => {
 
   it('collects multiple --exclude-check flags', () => {
     const a = parseCli([
-      '--exclude-check=suspected_duplicate_backlog',
-      '--exclude-check=history_v1_present',
+      '--exclude-check=summary_coverage',
+      '--exclude-check=chunk_coverage',
     ]);
-    expect(a.excludeChecks).toEqual([
-      'suspected_duplicate_backlog',
-      'history_v1_present',
-    ]);
+    expect(a.excludeChecks).toEqual(['summary_coverage', 'chunk_coverage']);
   });
 
   it('accepts --output=-', () => {
@@ -109,7 +108,7 @@ const TEST_PROFILES: ProfilesConfig = {
       description: 're-ingest',
       check_severities: {
         corpus_counts: 'must-pass',
-        history_v1_present: 'should-pass',
+        summary_coverage: 'should-pass',
       },
     },
     batch: {
@@ -145,7 +144,7 @@ describe('severityFor', () => {
   it('returns check_severities entry when defined', () => {
     const def = TEST_PROFILES.profiles['re-ingest'];
     expect(severityFor(def, 'corpus_counts')).toBe('must-pass');
-    expect(severityFor(def, 'history_v1_present')).toBe('should-pass');
+    expect(severityFor(def, 'summary_coverage')).toBe('should-pass');
   });
 
   it('returns audit_content_checks entry when defined', () => {
@@ -505,12 +504,12 @@ const SAMPLE_ENVELOPE: GateEnvelope = {
       duration_ms: 200,
     },
     {
-      name: 'suspected_duplicate_backlog',
+      name: 'entity_mention_coverage',
       severity: 'should-pass',
       status: 'warn',
-      threshold: '≤10',
-      observed: 'count=12',
-      diagnostic: 'Backlog above 10',
+      threshold: 'per-type ratios',
+      observed: 'article=80.0%/≥90.0%',
+      diagnostic: 'article ratio below threshold',
       duration_ms: 100,
     },
   ],
@@ -537,7 +536,7 @@ describe('renderMarkdown', () => {
   it('lists warning checks separately', () => {
     const md = renderMarkdown(SAMPLE_ENVELOPE, 're-ingest');
     expect(md).toContain('## Warnings');
-    expect(md).toContain('`suspected_duplicate_backlog`');
+    expect(md).toContain('`entity_mention_coverage`');
   });
 
   it('lists passed checks last', () => {
@@ -574,11 +573,13 @@ describe('renderJson', () => {
 });
 
 // ---------------------------------------------------------------------------
-// excludeArtefacts (OPS-21)
+// excludeArtefacts (OPS-21, re-pointed bl-495)
 // ---------------------------------------------------------------------------
 
 describe('excludeArtefacts', () => {
-  it('chains two .not() calls for [E2E% and [SUPERSEDE% title prefixes', () => {
+  it('chains two .not() calls for [E2E% and [SUPERSEDE% prefixes on filename by default', () => {
+    // Post-id-131 the E2E fixtures stamp the artefact prefix into
+    // source_documents.filename (content_items.title dropped with the table).
     const calls: Array<{ col: string; op: string; val: string }> = [];
     const mockQuery = {
       not(col: string, op: string, val: string) {
@@ -589,8 +590,27 @@ describe('excludeArtefacts', () => {
     const result = excludeArtefacts(mockQuery);
     expect(result).toBe(mockQuery);
     expect(calls).toHaveLength(2);
-    expect(calls[0]).toEqual({ col: 'title', op: 'like', val: '[E2E%' });
-    expect(calls[1]).toEqual({ col: 'title', op: 'like', val: '[SUPERSEDE%' });
+    expect(calls[0]).toEqual({ col: 'filename', op: 'like', val: '[E2E%' });
+    expect(calls[1]).toEqual({
+      col: 'filename',
+      op: 'like',
+      val: '[SUPERSEDE%',
+    });
+  });
+
+  it('accepts a column override for tables marked on another column', () => {
+    // q_a_pairs artefacts carry the prefix in question_text.
+    const calls: Array<{ col: string; op: string; val: string }> = [];
+    const mockQuery = {
+      not(col: string, op: string, val: string) {
+        calls.push({ col, op, val });
+        return mockQuery;
+      },
+    };
+    excludeArtefacts(mockQuery, 'question_text');
+    expect(calls).toHaveLength(2);
+    expect(calls[0].col).toBe('question_text');
+    expect(calls[1].col).toBe('question_text');
   });
 
   it('is idempotent — calling twice adds 4 .not() calls total', () => {
@@ -603,5 +623,43 @@ describe('excludeArtefacts', () => {
     };
     excludeArtefacts(excludeArtefacts(mockQuery));
     expect(calls).toHaveLength(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Check registries — bl-495 id-131 retirement
+// ---------------------------------------------------------------------------
+
+describe('check registries (post-id-131, bl-495)', () => {
+  it('generic registry lists the 9 surviving checks and none of the retired ones', () => {
+    const names = GENERIC_CHECKS.map((c) => c.name);
+    expect(names).toEqual([
+      'corpus_counts',
+      'embedding_coverage',
+      'chunk_coverage',
+      'entity_mention_coverage',
+      'entity_relationship_coverage',
+      'classified_domains_not_empty',
+      'guide_domain_filter_resolves',
+      'classified_but_no_confidence',
+      'summary_coverage',
+    ]);
+    // Retired with the id-131 content_items drop — no successor tables.
+    expect(names).not.toContain('dedup_status_reconciled');
+    expect(names).not.toContain('suspected_duplicate_backlog');
+    expect(names).not.toContain('history_v1_present');
+  });
+
+  it('audit registry lists the 5 surviving checks and neither retired dedup check', () => {
+    const names = AUDIT_CHECKS.map((c) => c.name);
+    expect(names).toEqual([
+      'audit_per_file_qa_count',
+      'audit_classification_confidence',
+      'audit_required_entities',
+      'audit_required_relationships',
+      'audit_chunk_count_per_doc',
+    ]);
+    expect(names).not.toContain('audit_cross_doc_dedup_ratio');
+    expect(names).not.toContain('audit_unresolved_dedup_24h');
   });
 });

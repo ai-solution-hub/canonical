@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-// ID-131.19 (M6, S450 GO tail): scripts/embedding-smoke-test.ts RETIRED —
-// its subject (content_items.embedding, title, content columns) was dropped
-// wholesale (content_items table + the inline vector columns). Re-pointed
-// onto compare-quality.ts's identical pure implementation (see
-// __tests__/scripts/compare-quality.test.ts's "cosineSimilarity" describe).
-import { cosineSimilarity } from '@/scripts/compare-quality';
+// bl-495: scripts/compare-quality.ts (this suite's previous subject after the
+// ID-131.19 embedding-smoke-test retirement) was deleted with its Plan-D
+// snapshot companion — re-pointed onto the LIVE production implementation in
+// template-coverage.ts. Contract difference from the deleted script: length
+// mismatch and null/empty inputs return 0 (defensive), they do not throw.
+import { cosineSimilarity } from '@/lib/domains/procurement/form-templating/template-coverage';
 
 describe('cosineSimilarity', () => {
   it('returns 1.0 for identical vectors', () => {
@@ -30,10 +30,14 @@ describe('cosineSimilarity', () => {
     expect(cosineSimilarity([1, 2, 3], [0, 0, 0])).toBe(0);
   });
 
-  it('throws on length mismatch', () => {
-    expect(() => cosineSimilarity([1, 2], [1, 2, 3])).toThrow(
-      /length mismatch/i,
-    );
+  it('returns 0 on length mismatch (defensive contract)', () => {
+    expect(cosineSimilarity([1, 2], [1, 2, 3])).toBe(0);
+  });
+
+  it('returns 0 for null or empty inputs (defensive contract)', () => {
+    expect(cosineSimilarity(null, [1, 2, 3])).toBe(0);
+    expect(cosineSimilarity([1, 2, 3], null)).toBe(0);
+    expect(cosineSimilarity([], [])).toBe(0);
   });
 
   it('handles 1024-dim vectors without overflow', () => {

@@ -5,31 +5,67 @@
   "file_groups": {
     "faqs": {
       "description": "FAQs (DRAFT + final combined)",
-      "filename_matchers": { "contains_all": ["FAQs"] },
-      "qa_count": { "min": 54, "max": 74, "observed": 64 },
+      "filename_matchers": {
+        "contains_all": ["FAQs"]
+      },
+      "qa_count": {
+        "min": 54,
+        "max": 74,
+        "observed": 64
+      },
       "chunks_per_item_estimate": [1.0, 1.0],
-      "chunk_count": { "min": 54, "max": 74 }
+      "chunk_count": {
+        "min": 54,
+        "max": 74
+      }
     },
     "security_compliance": {
       "description": "Security & Compliance (DRAFT + final combined)",
-      "filename_matchers": { "contains_all": ["Security", "Compliance"] },
-      "qa_count": { "min": 105, "max": 142, "observed": 123 },
+      "filename_matchers": {
+        "contains_all": ["Security", "Compliance"]
+      },
+      "qa_count": {
+        "min": 105,
+        "max": 142,
+        "observed": 123
+      },
       "chunks_per_item_estimate": [1.0, 1.3],
-      "chunk_count": { "min": 105, "max": 185 }
+      "chunk_count": {
+        "min": 105,
+        "max": 185
+      }
     },
     "implementation_support": {
       "description": "Implementation & Support (DRAFT + final combined)",
-      "filename_matchers": { "contains_all": ["Implementation", "Support"] },
-      "qa_count": { "min": 25, "max": 35, "observed": 30 },
+      "filename_matchers": {
+        "contains_all": ["Implementation", "Support"]
+      },
+      "qa_count": {
+        "min": 25,
+        "max": 35,
+        "observed": 30
+      },
       "chunks_per_item_estimate": [1.0, 1.0],
-      "chunk_count": { "min": 25, "max": 35 }
+      "chunk_count": {
+        "min": 25,
+        "max": 35
+      }
     },
     "functionality": {
       "description": "Functionality (final only — no DRAFT; source filename has 'Funtionality' typo)",
-      "filename_matchers": { "contains_all": ["Funtionality"] },
-      "qa_count": { "min": 4, "max": 8, "observed": 5 },
+      "filename_matchers": {
+        "contains_all": ["Funtionality"]
+      },
+      "qa_count": {
+        "min": 4,
+        "max": 8,
+        "observed": 5
+      },
       "chunks_per_item_estimate": [1.0, 1.0],
-      "chunk_count": { "min": 4, "max": 8 }
+      "chunk_count": {
+        "min": 4,
+        "max": 8
+      }
     }
   },
   "classification_confidence_threshold": 0.7,
@@ -77,13 +113,23 @@
     }
   ],
   "should_pass_entities": [
-    { "accept_any_of": ["iso 14001"], "entity_type": "certification" },
-    { "accept_any_of": ["public sector"], "entity_type": "sector" },
-    { "accept_any_of": ["education"], "entity_type": "sector" },
-    { "accept_any_of": ["healthcare"], "entity_type": "sector" }
+    {
+      "accept_any_of": ["iso 14001"],
+      "entity_type": "certification"
+    },
+    {
+      "accept_any_of": ["public sector"],
+      "entity_type": "sector"
+    },
+    {
+      "accept_any_of": ["education"],
+      "entity_type": "sector"
+    },
+    {
+      "accept_any_of": ["healthcare"],
+      "entity_type": "sector"
+    }
   ],
   "required_relationship_types": ["complies_with", "delivers_to", "holds"],
-  "should_pass_relationship_types": ["uses", "references", "evidences"],
-  "cross_doc_dedup_ratio_range": { "min": 0.0, "max": 0.25 },
-  "unresolved_dedup_age_hours": 24
+  "should_pass_relationship_types": ["uses", "references", "evidences"]
 }

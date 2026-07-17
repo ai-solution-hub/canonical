@@ -461,16 +461,22 @@ async function runToolCallChecks(
     }
   }
 
-  // Clean up items created by write tool tests
+  // Clean up items created by write tool tests. Post-id-131 (bl-495):
+  // create_content_item writes source_documents (+ record_lifecycle /
+  // content_chunks via FK CASCADE); record_embeddings has no FK back, so it
+  // is deleted explicitly. The old content_history/content_items deletes hit
+  // DROPPED tables and were silently swallowed by the catch — leaking every
+  // eval-created row into the target environment.
   if (createdItemIds.length > 0) {
     const { supabase } = await getAuthToken();
     for (const id of createdItemIds) {
       try {
         await supabase
-          .from('content_history')
+          .from('record_embeddings')
           .delete()
-          .eq('content_item_id', id);
-        await supabase.from('content_items').delete().eq('id', id);
+          .eq('owner_kind', 'source_document')
+          .eq('owner_id', id);
+        await supabase.from('source_documents').delete().eq('id', id);
       } catch {
         // Best effort cleanup
       }
