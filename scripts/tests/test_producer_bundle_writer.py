@@ -1297,6 +1297,61 @@ def test_write_bundle_explicit_client_ontology_overlay_kwarg_bypasses_the_class_
     assert ontology["overlay"]["entity_types"] == ["widget"]
 
 
+# ── ID-163 {163.7} PC-6 — DR-054 overlay-rejection regression anchor ─────
+# The OV-10 guard exercised here is NOT net-new (already covered generically
+# by `test_write_bundle_hard_rejects_overlay_for_each_non_client_business_class`
+# above, which loops `bundle_class` over all three non-client-business
+# classes including `system_baseline`). These two tests exist as a
+# standalone, PC-6-traceable pair — pinned to `write_bundle`'s inline OV-10
+# class-gate at `bundle_writer.py:1250` (`if overlay is not None and
+# bundle_class != _CLIENT_BUSINESS_BUNDLE_CLASS: raise
+# OntologyOverlayClassError(...)`) — so a future regression specifically on
+# the `system_baseline` class is caught even if the broader parametrized
+# test above is ever narrowed or removed.
+
+
+def test_system_baseline_bundle_class_hard_rejects_a_present_overlay(
+    tmp_path: Path,
+) -> None:
+    """PC-6 (TECH id-163, DR-054): a discovered, schema-valid
+    `ontology-overlay.json` in a `system_baseline` bundle must RAISE
+    `OntologyOverlayClassError` before any `declare_file` call — nothing is
+    published this run (OV-5's all-or-nothing fail-loud posture). Proves
+    DR-054's 'only client_business may author an overlay' invariant holds
+    for the system class."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    with pytest.raises(bundle_writer.OntologyOverlayClassError):
+        bundle_writer.write_bundle(tmp_path, [draft], bundle_class="system_baseline")
+
+    assert not (tmp_path / "topics/alpha.md").exists()
+    assert not (tmp_path / "ontology.json").exists()
+    assert not (tmp_path / "log.md").exists()
+
+
+def test_client_business_bundle_class_still_composes_a_present_overlay_control(
+    tmp_path: Path,
+) -> None:
+    """PC-6 (TECH id-163) control for the test above: the SAME
+    `ontology-overlay.json` file, under `bundle_class="client_business"`,
+    composes normally instead of raising — proving the `system_baseline`
+    rejection is a class-discriminator, not an unconditional block on the
+    overlay file's mere presence."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
+
+    assert summary.added == ("topics/alpha.md",)
+    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert ontology["overlay"]["entity_types"] == ["widget"]
+
+
 # ── ID-132 {132.36} G-CONCEPT-FEEDER — `concept-feeder.json` reader +
 # class-gate ─────────────────────────────────────────────────────────────
 
