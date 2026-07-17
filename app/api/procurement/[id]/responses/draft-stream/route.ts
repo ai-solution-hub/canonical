@@ -162,14 +162,22 @@ export const POST = defineRoute(
         } catch (contentError) {
           // S151 WP4 (C3): never stream a draft built on empty source content
           // when a DB error masked the matched content. Surface as a 500
-          // before the SSE stream opens so the client can retry.
+          // before the SSE stream opens so the client can retry. The raw
+          // error stays server-side (logger + Sentry via safeErrorMessage) —
+          // the client gets the generic message + a stable code only, never
+          // the caught error's message/stack (CodeQL js/stack-trace-exposure,
+          // S482), matching the sibling routes' error-body shape.
+          logger.error(
+            { err: contentError },
+            'Failed to fetch matched content for drafting',
+          );
           return new Response(
             JSON.stringify({
-              error: 'Failed to fetch matched content',
-              details:
-                contentError instanceof Error
-                  ? contentError.message
-                  : String(contentError),
+              error: safeErrorMessage(
+                contentError,
+                'Failed to fetch matched content',
+              ),
+              code: 'MATCHED_CONTENT_FETCH_FAILED',
             }),
             { status: 500, headers: { 'Content-Type': 'application/json' } },
           );
