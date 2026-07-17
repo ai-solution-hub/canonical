@@ -82,10 +82,10 @@ describe('useReviewShortcuts', () => {
   });
 
   // ----------------------------------------------------------
-  // e — Edit
+  // e — View
   // ----------------------------------------------------------
 
-  it('opens the editor when "e" is pressed', () => {
+  it('opens the view page when "e" is pressed', () => {
     renderHook(() => useReviewShortcuts(handlers));
     fireEvent.keyDown(document, { key: 'e' });
     expect(handlers.onEdit).toHaveBeenCalledOnce();

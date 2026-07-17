@@ -3,7 +3,7 @@
  *
  * Tests the ReviewActionBar component — the sticky toolbar for the review page.
  * Covers all action buttons (verify, flag, skip, back, exit), disabled/loading
- * state, and optional edit/help buttons.
+ * state, and optional view/help buttons.
  */
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -140,24 +140,29 @@ describe('ReviewActionBar', () => {
 
   // ── Optional buttons ──
 
-  it('renders edit button when onEdit is provided', () => {
+  it('renders view button when onEdit is provided', () => {
     render(<ReviewActionBar {...makeProps({ onEdit: vi.fn() })} />);
-    expect(screen.getByRole('button', { name: /Edit/i })).toBeInTheDocument();
-  });
-
-  it('does not render edit button when onEdit is not provided', () => {
-    render(<ReviewActionBar {...makeProps()} />);
+    expect(screen.getByRole('button', { name: /^View/i })).toBeInTheDocument();
+    // source_documents are read-only per id-135 BI-1/BI-31 — the affordance
+    // must not claim edit capability.
     expect(
-      screen.queryByRole('button', { name: /Edit/i }),
+      screen.queryByRole('button', { name: /^Edit/i }),
     ).not.toBeInTheDocument();
   });
 
-  it('opens the editor when the edit button is clicked', async () => {
+  it('does not render view button when onEdit is not provided', () => {
+    render(<ReviewActionBar {...makeProps()} />);
+    expect(
+      screen.queryByRole('button', { name: /^View/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the view page when the view button is clicked', async () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();
     render(<ReviewActionBar {...makeProps({ onEdit })} />);
 
-    await user.click(screen.getByRole('button', { name: /Edit/i }));
+    await user.click(screen.getByRole('button', { name: /^View/i }));
     expect(onEdit).toHaveBeenCalledOnce();
   });
 

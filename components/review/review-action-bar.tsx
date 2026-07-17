@@ -5,9 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Eye,
   Flag,
   HelpCircle,
-  Pencil,
   Send,
   X,
 } from 'lucide-react';
@@ -238,10 +238,10 @@ export function ReviewActionBar({
               'min-h-[44px] gap-1.5 transition-colors',
               flashAction === 'edit' && flashClass,
             )}
-            aria-label="Edit in new tab (keyboard shortcut: E)"
+            aria-label="View in new tab (keyboard shortcut: E)"
           >
-            <Pencil className="size-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Edit</span>
+            <Eye className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">View</span>
             <kbd
               aria-hidden="true"
               className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline"

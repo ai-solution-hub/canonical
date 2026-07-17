@@ -8,6 +8,8 @@ interface UseReviewShortcutsOptions {
   onSkip: () => void;
   onBack: () => void;
   onExit: () => void;
+  /** Opens the read-only /documents/[id] view (id-135 BI-1/BI-31) in a new
+   *  tab. Named `onEdit` for downstream compatibility — see impl. */
   onEdit: () => void;
   onTogglePanel?: () => void;
   enabled: boolean;
@@ -22,7 +24,7 @@ interface UseReviewShortcutsOptions {
  *  ArrowRight  Skip to next item
  *  ArrowLeft   Go back to previous item
  *  Escape      Exit review (navigate to /browse)
- *  e           Open current item in new tab for editing
+ *  e           Open current item in new tab (read-only view)
  *  ?           Toggle keyboard shortcuts help overlay
  *
  * All shortcuts are suppressed when the target is an INPUT, TEXTAREA,
@@ -119,7 +121,7 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
         return;
       }
 
-      // e -- Edit (open in new tab)
+      // e -- View (open in new tab, read-only)
       if (
         e.key === 'e' &&
         !e.metaKey &&
