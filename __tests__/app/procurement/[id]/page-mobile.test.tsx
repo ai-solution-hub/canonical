@@ -27,7 +27,6 @@ const {
   mockFormatDateUK,
   mockGetDeadlineProximity,
   mockBidStateLabels,
-  mockBidStateShortLabels,
   mockToast,
   mockNotFound,
 } = vi.hoisted(() => ({
@@ -135,7 +134,6 @@ vi.mock(
     return {
       ...actual,
       PROCUREMENT_WORKFLOW_LABELS: mockBidStateLabels,
-      PROCUREMENT_WORKFLOW_SHORT_LABELS: mockBidStateShortLabels,
     };
   },
 );

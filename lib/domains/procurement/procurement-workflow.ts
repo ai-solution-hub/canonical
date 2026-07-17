@@ -20,23 +20,6 @@ export const PROCUREMENT_WORKFLOW_LABELS: Record<
   withdrawn: 'Withdrawn',
 };
 
-/** Abbreviated labels for mobile stepper display */
-export const PROCUREMENT_WORKFLOW_SHORT_LABELS: Record<
-  ProcurementWorkflowState,
-  string
-> = {
-  draft: 'Draft',
-  questions_extracted: 'Extract',
-  matching: 'Match',
-  drafting: 'Draft',
-  in_review: 'Review',
-  ready_for_export: 'Export',
-  submitted: 'Submit',
-  won: 'Won',
-  lost: 'Lost',
-  withdrawn: 'Withdrawn',
-};
-
 // Semantic token prefixes for bid state colours (map to --color-form-* CSS tokens)
 export const PROCUREMENT_WORKFLOW_COLOURS: Record<
   ProcurementWorkflowState,

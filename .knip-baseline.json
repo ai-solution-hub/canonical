@@ -1,12 +1,12 @@
 {
-  "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts — CI fails when any current count exceeds its baseline. Raise or ratchet in a dedicated commit with the attribution in the COMMIT MESSAGE; per-raise archaeology was trimmed from this file S483 (owner request) and lives in this file's git history. Update procedure: docs/runbooks/ci.md §6.",
+  "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts \u2014 CI fails when any current count exceeds its baseline. Raise or ratchet in a dedicated commit with the attribution in the COMMIT MESSAGE; per-raise archaeology was trimmed from this file S483 (owner request) and lives in this file's git history. Update procedure: docs/runbooks/ci.md \u00a76.",
   "capturedAt": "2026-07-17",
   "capturedFromCommit": "{145.23} close-gate knip sweep: RATCHET exports 96->69, types 61->29, unlisted 6->0, binaries 1->0, files 1->0 (de-export in-file-only symbols, remove evidence-verified dead exports incl. the session-ratified generateDocumentDiffReviewPrompt + Classification/SummarisationGoldItem, declare @tiptap/core + tinyglobby + @typescript-eslint/parser + pdfjs-dist, ignoreBinaries python3). Residual counts are the deliberately-deferred surface: ledger domain, OKF, components/procurement/extend/ + components/ui vendored baseline, and the M37/decision-pending schema exports.",
   "counts": {
     "dependencies": 0,
     "devDependencies": 0,
     "exports": 69,
-    "types": 29,
+    "types": 26,
     "unlisted": 0,
     "binaries": 0,
     "duplicates": 0,
