@@ -197,9 +197,9 @@ vi.mock('@/components/shared/confidence-badge', () => ({
   ),
 }));
 
-vi.mock('@/components/procurement/question-list', () => ({
-  QuestionList: () => <div data-testid="question-list">QuestionList</div>,
-}));
+// (The legacy question-list mock is gone — QuestionList was superseded by
+// ItemQuestionsPanel at {145.44} and deleted in the {145.23} close-gate
+// sweep; the page under test no longer imports it.)
 
 vi.mock('@/components/procurement/question-review', () => ({
   QuestionReview: () => <div data-testid="question-review">QuestionReview</div>,

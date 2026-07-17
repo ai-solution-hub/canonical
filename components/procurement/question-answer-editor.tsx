@@ -37,8 +37,8 @@ import {
 // feature only).
 //
 // Writes are admin/editor-gated (§H3, BI-47) via the `canEdit` prop, which
-// the caller derives from `useUserRole()` (matching the sibling
-// `question-row.tsx` convention) — reviewer/viewer callers pass
+// the caller derives from `useUserRole()` (the standing convention across
+// the procurement item-page components) — reviewer/viewer callers pass
 // `canEdit={false}` and see every field read-only, with no edit/save
 // controls rendered at all. Server-side, the underlying REST routes this
 // component calls already enforce the same gate independently via
@@ -323,7 +323,7 @@ export function QuestionAnswerEditor({
 
       {/* Admin/editor-gated write controls (§H3, BI-47) — reviewer/viewer
           (canEdit=false) sees every field above read-only with no controls
-          rendered at all, matching the sibling question-row.tsx convention. */}
+          rendered at all, per the standing canEdit convention. */}
       {canEdit && (
         <div className="flex gap-2">
           {!editing ? (

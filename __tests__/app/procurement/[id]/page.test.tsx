@@ -614,9 +614,10 @@ describe('ProcurementDetailPage', () => {
   // ---- Questions tab ----
 
   // ID-145 {145.42}: the bulk-action buttons (Find answers / Draft All) and
-  // QuestionList moved into `ItemQuestionsPanel` (a minimal placeholder
-  // scaffolded here — {145.44} fills the real honest per-question states +
-  // bulk actions). page.tsx's own responsibility is mounting it correctly.
+  // the question list moved into `ItemQuestionsPanel` ({145.44} filled the
+  // real honest per-question states + bulk actions; the superseded legacy
+  // QuestionList component was deleted in the {145.23} close-gate sweep).
+  // page.tsx's own responsibility is mounting it correctly.
   it('mounts ItemQuestionsPanel on the questions tab with the question count ({145.44} fills the real bulk actions)', () => {
     mockUseFormActions.mockReturnValue(
       makeDefaultHookReturn({

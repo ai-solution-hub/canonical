@@ -132,8 +132,9 @@ function QuestionStateBadge({ state }: { state: QuestionRenderState }) {
 }
 
 // ---------------------------------------------------------------------------
-// Section grouping (display only — no collapse/edit affordances here; those
-// remain QuestionList/QuestionRow's turf, not consumed by this panel)
+// Section grouping (display only — deliberately no collapse/edit affordances
+// here; the legacy QuestionList/QuestionRow components that owned those were
+// removed as dead code in the {145.23} close-gate sweep)
 // ---------------------------------------------------------------------------
 
 interface GroupedSection {
