@@ -79,13 +79,24 @@ describe('parseConceptFrontmatter', () => {
     ]);
   });
 
-  it('rejects a concept whose type is outside the concept-type set', () => {
-    const badType = WELL_FORMED_FRONTMATTER.replace(
+  it('accepts a concept type outside the base concept-type set (ID-132 {132.36} G-CONCEPT-FEEDER parity: this reader-side contract does not gate type membership — the Python producer validator only gates it against a per-run EffectiveOntology, base ∪ client overlay, that this static schema cannot replicate; see module docstring)', () => {
+    const overlayType = WELL_FORMED_FRONTMATTER.replace(
       'type: topic',
-      'type: not-a-real-type',
+      'type: partner',
     );
 
-    expect(() => parseConceptFrontmatter(conceptMarkdown(badType))).toThrow();
+    const parsed = parseConceptFrontmatter(conceptMarkdown(overlayType));
+
+    expect(parsed.type).toBe('partner');
+  });
+
+  it('still rejects an empty type (BI-12 required-key shape, unaffected by the {132.36} relaxation)', () => {
+    const emptyType = WELL_FORMED_FRONTMATTER.replace(
+      'type: topic',
+      'type: ""',
+    );
+
+    expect(() => parseConceptFrontmatter(conceptMarkdown(emptyType))).toThrow();
   });
 
   it('rejects a concept missing a required key (description)', () => {

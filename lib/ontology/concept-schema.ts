@@ -27,6 +27,24 @@
  * parallel as {133.8}). It is encoded as a single exported const array so a
  * future ratification changes exactly one place.
  *
+ * **{132.36} G-CONCEPT-FEEDER `type` parity note.** `ConceptFrontmatterSchema
+ * .type` does NOT gate against `CONCEPT_TYPE_VALUES` — it accepts any
+ * non-empty string. This mirrors the Python pipeline's own evolution:
+ * `producer/validator.py`'s BI-4 closed-set check now runs ONLY against a
+ * per-run `EffectiveOntology` (base ∪ client `ontology-overlay.json`,
+ * OV-8) that this static, run-context-free schema has no way to
+ * replicate — and the OKF landing render this schema exists to serve
+ * (`lib/okf/bundle-graph.ts`, `lib/okf/concept-type-tokens.ts`) already
+ * treats `type` as an open string, falling back to a default badge colour
+ * for anything outside `CONCEPT_TYPE_VALUES` rather than throwing. A HARD
+ * ZodError on an overlay-added type here would therefore be a REGRESSION
+ * relative to that already-generic render path. `CONCEPT_TYPE_VALUES`
+ * stays exported as the ratified BASE-5 vocabulary for documentary/UI
+ * purposes (e.g. a future type-legend); it is simply no longer the
+ * `type` field's parse-time gate. Closed-set LEGALITY for a given bundle
+ * remains a producer-write-time concern (BI-13), never this reader-side
+ * contract's job.
+ *
  * ID-132 owns the `canonical://` URI scheme and the producer call site
  * that writes concept files onto disk. This module owns only the
  * frontmatter contract — no caller is wired here.
@@ -109,7 +127,11 @@ function isValidConceptResourceUri(value: string): boolean {
 }
 
 export const ConceptFrontmatterSchema = z.object({
-  type: z.enum(CONCEPT_TYPE_VALUES),
+  // {132.36} G-CONCEPT-FEEDER: a non-empty string, NOT `z.enum(
+  // CONCEPT_TYPE_VALUES)` — see the module docstring's "type parity note"
+  // for the full rationale (mirrors the Python validator's own OV-8 move
+  // away from a static closed-set check).
+  type: z.string().min(1),
   title: z.string().min(1),
   description: z.string().min(1),
   timestamp: z.string().min(1),
