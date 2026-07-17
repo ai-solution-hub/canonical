@@ -46,6 +46,7 @@ import { sb, tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 export const maxDuration = 30;
 
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
         .select(
           'source_document_id, next_review_date, review_cadence_days, content_owner_id, governance_review_status, source_documents!inner(id, filename, suggested_title, primary_domain, publication_status, archived_at)',
         )
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .lt('next_review_date', todayDateString)
         .is('source_documents.archived_at', null)
         // S216 §5.2 Phase 5 / §6.4 — exclude archived items from cadence
@@ -210,7 +211,7 @@ export async function GET(request: NextRequest) {
               governance_review_status: 'review_overdue',
               governance_review_due: flaggedAt,
             })
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', item.id),
           'review_cadence.update',
         );

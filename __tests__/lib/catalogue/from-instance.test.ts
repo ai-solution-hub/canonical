@@ -80,6 +80,7 @@ function makeField(
     reference_urls: null,
     row_index: null,
     table_index: null,
+    geometry: null,
     updated_at: null,
     ...overrides,
   };
@@ -109,12 +110,24 @@ function makeCandidate(
   });
 }
 
-/** Mock Anthropic that returns a single text block with the given payload. */
-function makeAnthropic(textPayload: string): Pick<Anthropic, 'messages'> {
+/**
+ * Mock Anthropic that returns a single `tool_use` block for the
+ * `classify_field` tool with the given (already-structured) input. ID-154:
+ * `classifyField` forces this tool via `tool_choice` instead of parsing raw
+ * text, so the mock response shape is a tool_use block, not text.
+ */
+function makeAnthropic(input: unknown): Pick<Anthropic, 'messages'> {
   return {
     messages: {
       create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: textPayload, citations: null }],
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_test',
+            name: 'classify_field',
+            input,
+          },
+        ],
       }),
     },
   } as unknown as Pick<Anthropic, 'messages'>;
@@ -722,15 +735,13 @@ describe('confirmAndWriteCatalogue — record_embeddings dual-write ({130.24} DR
 
 // ── Classify step (Anthropic SDK boundary) ──────────────────────────────────
 
-describe('classifyField — Anthropic classification', () => {
+describe('classifyField — Anthropic classification (ID-154: strict tool_use)', () => {
   it('parses a valid classification from the model response', async () => {
-    const anthropic = makeAnthropic(
-      JSON.stringify({
-        requirement_type: 'declaration',
-        matching_keywords: ['bribery', 'fraud', 'mandatory exclusion'],
-        matching_guidance: 'Yes/no declaration.',
-      }),
-    );
+    const anthropic = makeAnthropic({
+      requirement_type: 'declaration',
+      matching_keywords: ['bribery', 'fraud', 'mandatory exclusion'],
+      matching_guidance: 'Yes/no declaration.',
+    });
 
     const classification = await classifyField(anthropic, makeField());
 
@@ -740,25 +751,60 @@ describe('classifyField — Anthropic classification', () => {
     expect(classification.matching_guidance).toBe('Yes/no declaration.');
   });
 
-  it('tolerates a markdown-fenced JSON response', async () => {
-    const anthropic = makeAnthropic(
-      '```json\n{"requirement_type":"data","matching_keywords":["VAT number"],"matching_guidance":null}\n```',
-    );
+  it('forces a strict classify_field tool call instead of raw-JSON text parsing', async () => {
+    const anthropic = makeAnthropic({
+      requirement_type: 'data',
+      matching_keywords: ['VAT number'],
+      matching_guidance: null,
+    });
 
-    const classification = await classifyField(anthropic, makeField());
+    await classifyField(anthropic, makeField());
 
-    expect(classification.requirement_type).toBe('data');
-    expect(classification.matching_guidance).toBeNull();
+    const createMock = anthropic.messages.create as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const call = createMock.mock.calls[0][0];
+    expect(call.tools).toHaveLength(1);
+    expect(call.tools[0].name).toBe('classify_field');
+    expect(call.tools[0].strict).toBe(true);
+    expect(call.tool_choice).toEqual({
+      type: 'tool',
+      name: 'classify_field',
+    });
+  });
+
+  it('expresses matching_guidance nullability via anyOf, not an array-valued type (strict-mode-supported subset)', async () => {
+    const anthropic = makeAnthropic({
+      requirement_type: 'data',
+      matching_keywords: ['VAT number'],
+      matching_guidance: null,
+    });
+
+    await classifyField(anthropic, makeField());
+
+    const createMock = anthropic.messages.create as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const call = createMock.mock.calls[0][0];
+    const guidanceSchema = call.tools[0].input_schema.properties
+      .matching_guidance as Record<string, unknown>;
+
+    // Array-valued `type` is NOT in Anthropic's supported strict-mode JSON
+    // Schema subset — asserting its absence guards against regressing back
+    // to the (undefined-behaviour-under-strict-mode) shape.
+    expect(guidanceSchema).not.toHaveProperty('type');
+    expect(guidanceSchema.anyOf).toEqual([
+      { type: 'string' },
+      { type: 'null' },
+    ]);
   });
 
   it('rejects a response with an out-of-set requirement_type', async () => {
-    const anthropic = makeAnthropic(
-      JSON.stringify({
-        requirement_type: 'info_only',
-        matching_keywords: ['x'],
-        matching_guidance: null,
-      }),
-    );
+    const anthropic = makeAnthropic({
+      requirement_type: 'info_only',
+      matching_keywords: ['x'],
+      matching_guidance: null,
+    });
 
     await expect(classifyField(anthropic, makeField())).rejects.toThrow(
       /invalid requirement_type/,
@@ -766,16 +812,28 @@ describe('classifyField — Anthropic classification', () => {
   });
 
   it('rejects a response with no matching keywords', async () => {
-    const anthropic = makeAnthropic(
-      JSON.stringify({
-        requirement_type: 'data',
-        matching_keywords: [],
-        matching_guidance: null,
-      }),
-    );
+    const anthropic = makeAnthropic({
+      requirement_type: 'data',
+      matching_keywords: [],
+      matching_guidance: null,
+    });
 
     await expect(classifyField(anthropic, makeField())).rejects.toThrow(
       /empty matching_keywords/,
+    );
+  });
+
+  it('throws when the response contains no classify_field tool_use block', async () => {
+    const anthropic: Pick<Anthropic, 'messages'> = {
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'I will not classify this.' }],
+        }),
+      },
+    } as unknown as Pick<Anthropic, 'messages'>;
+
+    await expect(classifyField(anthropic, makeField())).rejects.toThrow(
+      /no tool_use/i,
     );
   });
 });

@@ -3,9 +3,10 @@ import {
   deriveProcessingStatus,
   deriveProcurementMetadata,
   deriveProcurementStatus,
-  getPrimaryForm,
-  getProcurementForms,
-  getProcurementRollup,
+  deriveEngagementGroupId,
+  deriveFormSourceAttachments,
+  deriveReferenceEvidenceAttachments,
+  deriveEngagementSiblings,
 } from '@/lib/domains/procurement/procurement-detail-shape';
 
 // ID-145 {145.18} — REBUILD for the form-first re-architecture (BI-1..5,
@@ -13,59 +14,10 @@ import {
 // lifecycle fact is read directly off the flat GET response, and the
 // processing/workflow axes are two independent signals that never collapse.
 //
-// The `getPrimaryForm` / `getProcurementForms` / `getProcurementRollup`
-// LEGACY getters below are untouched — `procurement-forms-card.tsx` (outside
-// this Subtask's file ownership; its removal is {145.19}'s) still imports
-// them, so their pre-{145.18} nested-shape contract is preserved verbatim.
-
-const FORM_A = {
-  id: 'form-a',
-  form_type: 'psq',
-  name: 'PSQ',
-  workflow_state: 'submitted',
-  outcome: null,
-  outcome_notes: null,
-  deadline: '2026-07-01T00:00:00.000Z',
-  submission_date: '2026-06-20T00:00:00.000Z',
-  issuing_organisation: 'Acme Council',
-  outcome_recorded_at: null,
-  outcome_recorded_by: null,
-  created_at: '2026-06-01T00:00:00.000Z',
-  updated_at: '2026-06-20T00:00:00.000Z',
-};
-
-const FORM_B = {
-  ...FORM_A,
-  id: 'form-b',
-  form_type: 'itt',
-  workflow_state: 'won',
-  outcome: 'won',
-  deadline: '2026-08-01T00:00:00.000Z',
-  created_at: '2026-06-10T00:00:00.000Z',
-};
-
-/** Pre-{145.18} nested workspace-umbrella shape — LEGACY getters only. */
-const LEGACY_NESTED_SHAPE = {
-  id: 'ws-1',
-  name: 'Acme tender',
-  description: null,
-  forms: [FORM_A, FORM_B],
-  rollup: {
-    nearest_deadline: '2026-07-01T00:00:00.000Z',
-    overall_outcome: 'won',
-    counts_toward_win_rate: true,
-    rollup_updated_at: '2026-06-21T00:00:00.000Z',
-  },
-  tender_documents: [
-    {
-      path: 'ws-1/doc.pdf',
-      filename: 'doc.pdf',
-      size: 1,
-      mime_type: 'x',
-      uploaded_at: 'x',
-    },
-  ],
-};
+// ID-145 {145.42} orphan sweep: the pre-{145.18} LEGACY nested-shape getters
+// (`getPrimaryForm`/`getProcurementForms`/`getProcurementRollup`) and their
+// fixtures are RETIRED here — their only consumer, `procurement-forms-card.tsx`,
+// was deleted in {145.41}.
 
 /** Post-W1 flat form_instances response — the {145.18} derivations' input. */
 const FLAT_ITEM = {
@@ -96,40 +48,6 @@ const FLAT_ITEM = {
 };
 
 describe('procurement-detail-shape', () => {
-  describe('LEGACY nested-shape getters (pre-{145.18}, forms-card only)', () => {
-    describe('getPrimaryForm', () => {
-      it('returns the first (earliest-created) form', () => {
-        expect(getPrimaryForm(LEGACY_NESTED_SHAPE)?.id).toBe('form-a');
-      });
-      it('returns null for an umbrella with no forms', () => {
-        expect(getPrimaryForm({ id: 'x', name: 'y', forms: [] })).toBeNull();
-      });
-      it('returns null for nullish input', () => {
-        expect(getPrimaryForm(null)).toBeNull();
-        expect(getPrimaryForm(undefined)).toBeNull();
-      });
-    });
-
-    describe('getProcurementForms / getProcurementRollup', () => {
-      it('returns the forms array and the roll-up', () => {
-        expect(getProcurementForms(LEGACY_NESTED_SHAPE)).toHaveLength(2);
-        expect(getProcurementRollup(LEGACY_NESTED_SHAPE)?.overall_outcome).toBe(
-          'won',
-        );
-      });
-      it('returns empty array / null for nullish input', () => {
-        expect(getProcurementForms(null)).toEqual([]);
-        expect(getProcurementRollup(null)).toBeNull();
-      });
-      it('returns empty array / null for the flat {145.18} response (no forms/rollup keys)', () => {
-        // Graceful degrade: the LEGACY getters never throw against the new
-        // flat shape, they just correctly report "nothing nested here".
-        expect(getProcurementForms(FLAT_ITEM)).toEqual([]);
-        expect(getProcurementRollup(FLAT_ITEM)).toBeNull();
-      });
-    });
-  });
-
   describe('deriveProcessingStatus (BI-1 — document-processing axis)', () => {
     it('reads processing_status directly off the flat form_instances response', () => {
       expect(deriveProcessingStatus(FLAT_ITEM)).toBe('analysed');
@@ -243,6 +161,82 @@ describe('procurement-detail-shape', () => {
 
     it('returns null for nullish input', () => {
       expect(deriveProcurementMetadata(null)).toBeNull();
+    });
+  });
+
+  describe('deriveEngagementGroupId (§A3 rail gate)', () => {
+    it('reads engagement_group_id directly off the flat response', () => {
+      expect(
+        deriveEngagementGroupId({ ...FLAT_ITEM, engagement_group_id: 'eg-1' }),
+      ).toBe('eg-1');
+    });
+    it('returns null when unset', () => {
+      expect(deriveEngagementGroupId(FLAT_ITEM)).toBeNull();
+    });
+    it('returns null for nullish input', () => {
+      expect(deriveEngagementGroupId(null)).toBeNull();
+    });
+  });
+
+  describe('deriveFormSourceAttachments / deriveReferenceEvidenceAttachments (§A5 role split)', () => {
+    const FORM_SOURCE = {
+      id: 'att-1',
+      filename: 'signed.pdf',
+      storage_path: 'form-1/attachments/att-1-signed.pdf',
+      mime_type: 'application/pdf',
+      file_size: 100,
+      role: 'form_source' as const,
+      form_instance_id: 'form-1',
+      engagement_group_id: null,
+      created_at: '2026-06-01T00:00:00.000Z',
+    };
+    const REFERENCE_EVIDENCE = {
+      ...FORM_SOURCE,
+      id: 'att-2',
+      filename: 'cv.pdf',
+      role: 'reference_evidence' as const,
+    };
+
+    it('returns the two role groups from the folded attachments response', () => {
+      const item = {
+        ...FLAT_ITEM,
+        attachments: {
+          form_source: [FORM_SOURCE],
+          reference_evidence: [REFERENCE_EVIDENCE],
+        },
+      };
+      expect(deriveFormSourceAttachments(item)).toEqual([FORM_SOURCE]);
+      expect(deriveReferenceEvidenceAttachments(item)).toEqual([
+        REFERENCE_EVIDENCE,
+      ]);
+    });
+
+    it('returns empty arrays when attachments is absent (§A8 collapse input)', () => {
+      expect(deriveFormSourceAttachments(FLAT_ITEM)).toEqual([]);
+      expect(deriveReferenceEvidenceAttachments(FLAT_ITEM)).toEqual([]);
+    });
+  });
+
+  describe('deriveEngagementSiblings (§A3/§A4 read-only lineage)', () => {
+    it('returns the sibling list from the folded response', () => {
+      const siblings = [
+        {
+          id: 'form-2',
+          name: 'ITT',
+          form_type: 'itt',
+          workflow_state: 'drafting',
+          reference_number: null,
+        },
+      ];
+      expect(
+        deriveEngagementSiblings({
+          ...FLAT_ITEM,
+          engagement_siblings: siblings,
+        }),
+      ).toEqual(siblings);
+    });
+    it('returns an empty array when ungrouped', () => {
+      expect(deriveEngagementSiblings(FLAT_ITEM)).toEqual([]);
     });
   });
 });

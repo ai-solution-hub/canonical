@@ -24,6 +24,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 import { logger } from '@/lib/logger';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 
 export const maxDuration = 30;
 
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest) {
       .select(
         'source_document_id, previous_freshness, freshness, lifecycle_type, content_owner_id, governance_review_status, verified_at, source_documents!inner(id, filename, suggested_title, primary_domain, updated_at)',
       )
-      .eq('owner_kind', 'source_document')
+      .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
     // Note: PostgREST cannot compare two columns directly, so we filter
@@ -555,7 +556,7 @@ export async function GET(request: NextRequest) {
               governance_review_due: reviewDue,
               governance_reviewer_id: item.reviewerId,
             })
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', item.itemId);
         }
 
@@ -706,7 +707,7 @@ async function checkDateExpiryReminders(
       .select(
         'source_document_id, expiry_date, content_owner_id, source_documents!inner(id, filename, suggested_title, primary_domain, archived_at)',
       )
-      .eq('owner_kind', 'source_document')
+      .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .not('expiry_date', 'is', null)
       .lte('expiry_date', thirtyDaysFromNow.toISOString())
       .is('source_documents.archived_at', null);

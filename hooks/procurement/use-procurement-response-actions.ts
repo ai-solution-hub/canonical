@@ -21,8 +21,6 @@ interface UseFormResponseActionsParams {
   editorContent: string;
   setEditorContent: (content: string) => void;
   lastServerContentRef: React.MutableRefObject<string>;
-  streamTextRef: React.MutableRefObject<string>;
-  lastEditorUpdateRef: React.MutableRefObject<number>;
   stream: ReturnType<typeof useDraftStream>;
   editorInstanceRef: React.RefObject<Editor | null>;
   invalidateProcurementData: () => Promise<void>;
@@ -58,8 +56,6 @@ export function useFormResponseActions({
   editorContent,
   setEditorContent,
   lastServerContentRef,
-  streamTextRef,
-  lastEditorUpdateRef,
   stream,
   editorInstanceRef,
   invalidateProcurementData,
@@ -168,10 +164,10 @@ export function useFormResponseActions({
       }
 
       if (action === 'regenerate' && !response?.id) {
-        // New draft via SSE streaming — not a mutation
+        // New draft via SSE streaming — not a mutation. The in-flight text
+        // renders via `StreamingAnswerPreview` (§I4); the editor is cleared
+        // here and receives only the final text once the stream ends.
         setEditorContent('');
-        streamTextRef.current = '';
-        lastEditorUpdateRef.current = 0;
         void stream.startDraft(currentQuestion.id);
         return;
       }
@@ -220,8 +216,6 @@ export function useFormResponseActions({
       responseMutateAsync,
       setEditorContent,
       lastServerContentRef,
-      streamTextRef,
-      lastEditorUpdateRef,
     ],
   );
 

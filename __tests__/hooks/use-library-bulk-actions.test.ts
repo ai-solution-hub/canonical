@@ -254,18 +254,45 @@ describe('useLibraryBulkActions', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Bulk assign-to-workspace (ID-135 {135.22} S449 addendum rehome — the
-  // post-M6 grain is q_a_pairs.source_workspace_id, a single nullable FK, so
-  // this PATCHes app/api/q-a-pairs/[id]/workspace rather than a many-to-many
-  // junction route)
+  // Double-toast regression guard (ID-145 {145.35}): when EVERY operation in
+  // the batch fails, only the runner's own error toast should fire — no
+  // "Verified/Deleted 0 items" success toast alongside it.
   // -------------------------------------------------------------------------
 
-  it('handleBulkAssignOpen fetches /api/workspaces and opens the assign dialog', async () => {
+  it('does not show a bogus success toast when every verify operation fails', async () => {
+    mockFetch.mockResolvedValue({ ok: false });
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    act(() => {
+      result.current.toggleSelect('a1');
+    });
+
+    await act(async () => {
+      await result.current.handleBulkVerify();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith('1 item failed during verifying');
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Bulk assign-to-engagement-group (ID-145 {145.35} — BI-33 owner ruling,
+  // S479: remodelled off the retired PATCH /api/q-a-pairs/[id]/workspace
+  // route, which q_a_pairs.source_workspace_id being dropped system-wide
+  // permanently 410s. Rebinds onto the group-side batch endpoint, POST
+  // /api/engagement-groups/[id]/content — ONE call carrying every selected
+  // id, not a per-id loop.)
+  // -------------------------------------------------------------------------
+
+  it('handleBulkAssignOpen fetches /api/engagement-groups and opens the assign dialog', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => [
-        { id: 'ws-1', name: 'Procurement', type: 'kb_section' },
-        { id: 'ws-2', name: 'Sales', type: 'kb_section' },
+        { id: 'eg-1', name: 'Alpha Tender' },
+        { id: 'eg-2', name: 'Beta ITT' },
       ],
     });
     const { result } = renderHook(
@@ -277,16 +304,16 @@ describe('useLibraryBulkActions', () => {
       await result.current.handleBulkAssignOpen();
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/workspaces');
+    expect(mockFetch).toHaveBeenCalledWith('/api/engagement-groups');
     expect(result.current.assignDialogOpen).toBe(true);
-    expect(result.current.workspaces).toEqual([
-      { id: 'ws-1', name: 'Procurement', type: 'kb_section' },
-      { id: 'ws-2', name: 'Sales', type: 'kb_section' },
+    expect(result.current.engagementGroups).toEqual([
+      { id: 'eg-1', name: 'Alpha Tender' },
+      { id: 'eg-2', name: 'Beta ITT' },
     ]);
-    expect(result.current.workspacesLoading).toBe(false);
+    expect(result.current.engagementGroupsLoading).toBe(false);
   });
 
-  it('handleBulkAssignConfirm PATCHes app/api/q-a-pairs/:id/workspace for each selected item', async () => {
+  it('handleBulkAssignConfirm POSTs the whole selected batch to /api/engagement-groups/:id/content in ONE call', async () => {
     mockFetch.mockResolvedValue({ ok: true });
     const { result } = renderHook(
       () => useLibraryBulkActions(defaultParams()),
@@ -297,25 +324,35 @@ describe('useLibraryBulkActions', () => {
       result.current.toggleSelect('a1');
     });
     act(() => {
-      result.current.setSelectedWorkspaceId('ws-1');
+      result.current.toggleSelect('a2');
+    });
+    act(() => {
+      result.current.setSelectedEngagementGroupId('eg-1');
     });
 
     await act(async () => {
       await result.current.handleBulkAssignConfirm();
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/q-a-pairs/a1/workspace', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_workspace_id: 'ws-1' }),
-    });
+    // Group-side batch grain: exactly ONE POST carrying every selected id —
+    // not one call per item (the old per-id PATCH loop).
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/engagement-groups/eg-1/content',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q_a_pair_ids: ['a1', 'a2'] }),
+      },
+    );
     expect(result.current.assignDialogOpen).toBe(false);
     expect(toast.success).toHaveBeenCalledWith(
-      'Assigned 1 item to a workspace',
+      'Assigned 2 items to an engagement group',
     );
+    expect(result.current.selectedIds.size).toBe(0);
   });
 
-  it('handleBulkAssignConfirm rejects with no workspace selected', async () => {
+  it('handleBulkAssignConfirm rejects with no engagement group selected', async () => {
     const { result } = renderHook(
       () => useLibraryBulkActions(defaultParams()),
       hookWrapper(),
@@ -329,8 +366,30 @@ describe('useLibraryBulkActions', () => {
       await result.current.handleBulkAssignConfirm();
     });
 
-    expect(toast.error).toHaveBeenCalledWith('Select a workspace');
+    expect(toast.error).toHaveBeenCalledWith('Select an engagement group');
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not show a bogus success toast when the batch assign call fails outright (double-toast regression)', async () => {
+    mockFetch.mockResolvedValue({ ok: false });
+    const { result } = renderHook(
+      () => useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
+    );
+
+    act(() => {
+      result.current.toggleSelect('a1');
+    });
+    act(() => {
+      result.current.setSelectedEngagementGroupId('eg-1');
+    });
+
+    await act(async () => {
+      await result.current.handleBulkAssignConfirm();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith('1 item failed during assigning');
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

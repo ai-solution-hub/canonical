@@ -156,6 +156,7 @@ describe('POST /api/governance/promotion-candidates/:id/edit', () => {
         mockSupabase,
         EXTRACTION_ID,
         VALID_EDIT,
+        'u1',
       );
       const body = await res.json();
       expect(body.disposition).toBe('edited');
@@ -177,6 +178,7 @@ describe('POST /api/governance/promotion-candidates/:id/edit', () => {
         mockSupabase,
         EXTRACTION_ID,
         withPhrasings,
+        'u1',
       );
     });
   });

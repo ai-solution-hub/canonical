@@ -10,6 +10,7 @@ import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { FreshnessCalculateBodySchema } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -58,7 +59,7 @@ export const POST = withRequestContext(
           .select(
             'source_document_id, lifecycle_type, expiry_date, source_documents!inner(id, updated_at)',
           )
-          .eq('owner_kind', 'source_document')
+          .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
           .in('source_document_id', item_ids);
 
         if (fetchError) {
@@ -103,7 +104,7 @@ export const POST = withRequestContext(
               freshness,
               freshness_checked_at: now,
             })
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', itemId);
 
           if (updateError) {

@@ -1013,8 +1013,11 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-1',
               form_questions: {
-                workspace_id: 'bid-1',
-                workspaces: { name: 'NHS Digital Procurement' },
+                form_instance_id: 'bid-1',
+                form_instances: {
+                  name: 'NHS Digital Procurement',
+                  issuing_organisation: null,
+                },
               },
             },
           },
@@ -1060,8 +1063,11 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-1',
               form_questions: {
-                workspace_id: 'bid-1',
-                workspaces: { name: 'Old Procurement' },
+                form_instance_id: 'bid-1',
+                form_instances: {
+                  name: 'Old Procurement',
+                  issuing_organisation: null,
+                },
               },
             },
           },
@@ -1073,8 +1079,11 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-2',
               form_questions: {
-                workspace_id: 'bid-1',
-                workspaces: { name: 'Recent Procurement' },
+                form_instance_id: 'bid-1',
+                form_instances: {
+                  name: 'Recent Procurement',
+                  issuing_organisation: null,
+                },
               },
             },
           },
@@ -1112,9 +1121,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-2',
               form_questions: {
-                workspace_id: 'bid-2',
+                form_instance_id: 'bid-2',
                 question_text: 'Describe your security approach',
-                workspaces: { id: 'bid-2', name: 'Security Procurement' },
               },
             },
           },
@@ -1153,9 +1161,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-3',
               form_questions: {
-                workspace_id: 'bid-3',
+                form_instance_id: 'bid-3',
                 question_text: longQuestion,
-                workspaces: { id: 'bid-3', name: 'Long Q Procurement' },
               },
             },
           },
@@ -1192,9 +1199,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-1',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q1',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1206,9 +1212,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-2',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q2',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1220,9 +1225,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-3',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q3',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1234,9 +1238,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-4',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q4',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1248,9 +1251,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-5',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q5',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1262,9 +1264,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-6',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Q6',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1300,9 +1301,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-1',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Latest response',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1314,9 +1314,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-1',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'Older response',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },
@@ -1328,9 +1327,8 @@ describe('fetchReorientData', () => {
             form_responses: {
               question_id: 'q-2',
               form_questions: {
-                workspace_id: 'b-1',
+                form_instance_id: 'b-1',
                 question_text: 'A different response',
-                workspaces: { id: 'b-1', name: 'Procurement' },
               },
             },
           },

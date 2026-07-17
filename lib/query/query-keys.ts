@@ -175,6 +175,15 @@ export const queryKeys = {
       ['source-documents', 'citations', documentId] as const,
     derivedPairs: (documentId: string) =>
       ['source-documents', 'derived-pairs', documentId] as const,
+    /**
+     * Signed binary URL + mime_type read (ID-145 {145.47}, TECH §3/§4,
+     * PRODUCT §D1 — `ItemCitationOverlay` resolves the cited document's own
+     * PDF/DOCX/XLSX file to decide PDF-only spatial overlay vs text-anchored,
+     * §D4). Wraps the existing `GET /api/source-documents/[id]/binary-url`
+     * route (id-117 {117.6}) — appended here, not a new endpoint.
+     */
+    binaryUrl: (documentId: string) =>
+      ['source-documents', 'binary-url', documentId] as const,
   },
 
   // Workspaces
@@ -396,6 +405,51 @@ export const queryKeys = {
       all: ['procurement', 'form-types'] as const,
       list: ['procurement', 'form-types', 'list'] as const,
     },
+    /**
+     * Labelled reference/evidence attachment store (ID-147 {147.7}/{147.8},
+     * TECH §2 / PRODUCT §A6). The READ side is folded into
+     * `procurement.detail(id)` (group-A GET — landed {145.42}, TECH §6): the
+     * item-page frame invalidates `procurement.detail(id)` after an
+     * attach/detach, it never fetches these keys directly today. They exist
+     * so the POST/DELETE mutations in `[id]/attachments/route.ts` have a
+     * stable handle to invalidate, and for any future dedicated
+     * attachments-only fetch. `byForm` keys a form-scoped attach;
+     * `byEngagement` keys an engagement-scoped attach (§A6 "form OR
+     * engagement level").
+     */
+    attachments: {
+      all: ['procurement', 'attachments'] as const,
+      byForm: (formId: string) =>
+        ['procurement', 'attachments', 'form', formId] as const,
+      byEngagement: (engagementGroupId: string) =>
+        [
+          'procurement',
+          'attachments',
+          'engagement',
+          engagementGroupId,
+        ] as const,
+    },
+    /**
+     * §C fill-slot review read (ID-145 {145.47}, TECH §3/§4, PRODUCT
+     * §C1-C4). The existing `GET /api/procurement/[id]/fields` route
+     * ({145.19}) returns the form's document info (storage_path/mime_type),
+     * its `fields` (now including the `geometry` jsonb, ID-147 {147.9}/
+     * {147.10}), and the mapping/fill `summary` in one payload — this key
+     * covers that whole read. Appended here (not inserted mid-group) per the
+     * parallel-wave append-only convention for this file.
+     */
+    fields: (formId: string) => ['procurement', 'fields', formId] as const,
+    /**
+     * §D citation-overlay read (ID-145 {145.47} Checker F1 fix, TECH §3/§4,
+     * PRODUCT §D1-D5). `GET /api/procurement/[id]/citations` — the form's
+     * OWN citing-side citations (form_questions -> form_responses ->
+     * citations, `citing_kind='form_response'`), NOT the
+     * `sourceDocuments.citations(id)` axis (`cited_source_document_id`,
+     * which a form's own drafted-response citations never populate).
+     * Appended here per the parallel-wave append-only convention.
+     */
+    citations: (formId: string) =>
+      ['procurement', 'citations', formId] as const,
   },
 
   // Background queue jobs — `processing_queue` polling (S224 §5.4.1).

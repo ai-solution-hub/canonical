@@ -7,6 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -97,7 +98,7 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
       .select(
         'source_document_id, verified_at, governance_review_status, source_documents!inner(id, filename, suggested_title, primary_domain)',
       )
-      .eq('owner_kind', 'source_document')
+      .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .or(
         'governance_review_status.is.null,governance_review_status.neq.draft',
       );

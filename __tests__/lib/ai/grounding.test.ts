@@ -87,6 +87,7 @@ describe('lib/ai grounding-shape contract (B-INV-35)', () => {
       'match.assessConfidence',
       'vision.analyseVision',
       'change-reports.generateChangeReport',
+      'citation-vision-rasterise.deriveVisionHighlightLive',
     ];
     for (const id of expected) {
       expect(

@@ -222,11 +222,6 @@ export function useStreamCoordination({
   // back a normalised version of the HTML we just set. (S152B WP14 #17.)
   const lastSyncedServerTextRef = useRef<string | null>(null);
 
-  // Streaming throttle refs
-  const streamTextRef = useRef<string>('');
-  const rafRef = useRef<number | null>(null);
-  const lastEditorUpdateRef = useRef<number>(0);
-
   // ── Editor content sync from response query data ──
   // Server-text-keyed sync with normalised-HTML user-edit detection. Fixes
   // S152A WP2 audit bugs #17 (sync guard equality check) and #18 (editor
@@ -237,7 +232,10 @@ export function useStreamCoordination({
   // blocking every subsequent sync.
   const expectedResponseId = currentQuestion?.response?.id ?? null;
   useEffect(() => {
-    if (isStreaming) return; // Streaming updates handled by throttle effect
+    // While streaming, the in-flight text renders via `StreamingAnswerPreview`
+    // (§I4) — the editor is left alone until the final 'done'-phase flush
+    // below, so this sync effect must not fight that.
+    if (isStreaming) return;
 
     // No response loaded
     if (!response) {
@@ -304,51 +302,19 @@ export function useStreamCoordination({
     editorContent,
     setEditorContent,
     lastServerContentRef,
-    streamTextRef,
-    lastEditorUpdateRef,
     stream,
     editorInstanceRef,
     invalidateProcurementData,
     invalidateResponse,
   });
 
-  // ── Throttled editor update during streaming (~60ms intervals) ──
-  useEffect(() => {
-    if (stream.phase !== 'drafting') return;
-    if (stream.text === streamTextRef.current) return;
-
-    streamTextRef.current = stream.text;
-
-    const now = Date.now();
-    const elapsed = now - lastEditorUpdateRef.current;
-
-    // If enough time has passed, update immediately.
-    // This effect subscribes to the streaming response external system and
-    // writes its current text into editor state — a legitimate subscription.
-    if (elapsed >= 60) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- throttled sync of streamed text into editor state (external-system subscription)
-      setEditorContent(stream.text);
-      lastEditorUpdateRef.current = now;
-      return;
-    }
-
-    // Otherwise schedule an update
-    if (rafRef.current !== null) return; // Already scheduled
-    rafRef.current = window.requestAnimationFrame(() => {
-      setEditorContent(streamTextRef.current);
-      lastEditorUpdateRef.current = Date.now();
-      rafRef.current = null;
-    });
-  }, [stream.phase, stream.text]);
-
-  // Clean up RAF on unmount
-  useEffect(() => {
-    return () => {
-      if (rafRef.current !== null) {
-        window.cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, []);
+  // §I4 (ID-145 {145.19}) — the in-flight streamed text no longer feeds the
+  // Tiptap editor via a throttled `setEditorContent` tick; `stream.text` is
+  // already reactive state from `useDraftStream`, and the live preview
+  // (`StreamingAnswerPreview`) renders it directly through Streamdown, which
+  // needs no throttling of its own (no expensive editor re-parse to guard
+  // against). The editor receives only the FINAL text via the 'done'-phase
+  // flush below.
 
   // ── Stream completion — final sync + cache invalidation ──
   useEffect(() => {

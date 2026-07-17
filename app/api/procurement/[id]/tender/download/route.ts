@@ -13,6 +13,21 @@ export const maxDuration = 30;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * ID-145 {145.19} folded-in gap (journalled S479, DR-068 §A6): an
+ * engagement-scoped `form_attachments` row ({147.7/147.8}) stores its
+ * `storage_path` as `engagement/<engagement_group_id>/<uuid>-<filename>`,
+ * outside this form's own `${procurementId}/` prefix, so it always 403'd
+ * here — the Documents tab listed it but could never preview it. Matches
+ * the leading `engagement/<groupId>/` segment so the caller (the route
+ * handler below) can verify it against the REQUESTING form's own
+ * `engagement_group_id` — a parent-child predicate, not a blanket
+ * `engagement/*` allow (this must not let an ungrouped form, or a form in a
+ * DIFFERENT engagement group, read another group's attachment by guessing
+ * its path).
+ */
+const ENGAGEMENT_PATH_RE = /^engagement\/([^/]+)\//;
+
 export const GET = defineRoute(
   z.unknown(),
   async (
@@ -40,21 +55,14 @@ export const GET = defineRoute(
       if (!parsed.success) return parsed.response;
       const storagePath = parsed.data.path;
 
-      // Validate path belongs to this bid (prevent path traversal)
-      if (!storagePath.startsWith(`${procurementId}/`)) {
-        return NextResponse.json(
-          { error: 'Invalid document path for this bid' },
-          { status: 403 },
-        );
-      }
-
-      // Verify bid exists.
+      // Verify bid exists — fetch `engagement_group_id` too, needed below to
+      // validate an engagement-scoped path (ID-145 {145.19} folded-in gap).
       // ID-145 {145.23} round-2 runtime grep sweep (mandatory extra #2, DR-056):
       // workspaces/procurement_workspaces are wholesale-deleted for
       // procurement (W1e, {145.6}) — [id] IS the form_instances PK now.
       const { data: bid, error: procurementError } = await supabase
         .from('form_instances')
-        .select('id')
+        .select('id, engagement_group_id')
         .eq('id', procurementId)
         .single();
 
@@ -62,6 +70,29 @@ export const GET = defineRoute(
         return NextResponse.json(
           { error: 'Procurement not found' },
           { status: 404 },
+        );
+      }
+
+      // Validate the path belongs to this form's OWN storage prefix, or —
+      // ID-145 {145.19} folded-in gap (DR-068 §A6) — to the engagement group
+      // THIS form itself belongs to (prevents path traversal AND cross-group
+      // access; an ungrouped form or a form in a different group cannot read
+      // another group's attachment by guessing its path).
+      const engagementGroupId =
+        typeof bid.engagement_group_id === 'string'
+          ? bid.engagement_group_id
+          : null;
+      const engagementMatch = storagePath.match(ENGAGEMENT_PATH_RE);
+      const isOwnFormPath = storagePath.startsWith(`${procurementId}/`);
+      const isOwnEngagementPath =
+        engagementMatch !== null &&
+        engagementGroupId !== null &&
+        engagementMatch[1] === engagementGroupId;
+
+      if (!isOwnFormPath && !isOwnEngagementPath) {
+        return NextResponse.json(
+          { error: 'Invalid document path for this bid' },
+          { status: 403 },
         );
       }
 

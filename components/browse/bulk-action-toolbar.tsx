@@ -41,10 +41,9 @@ import {
 // Props
 // ---------------------------------------------------------------------------
 
-export interface WorkspaceOption {
+export interface EngagementGroupOption {
   id: string;
   name: string;
-  type: string | null;
 }
 
 /**
@@ -52,16 +51,22 @@ export interface WorkspaceOption {
  * deleted `/api/items/*` tree (ID-131 {131.17} removed the `content_items`
  * model) and had no live 1:1 replacement on the current `q_a_pairs` model.
  *
- * ID-135 {135.25} restores Assign-to-workspace and Delete, wiring the
- * {135.22}-shipped `useLibraryBulkActions` handlers (PATCH
- * `/api/q-a-pairs/[id]/workspace` + admin-only DELETE `/api/q-a-pairs/[id]`).
- * Both actions are gated behind a confirm dialog — Assign needs a workspace
- * picked first (a `Dialog`, since it collects input), Delete is a plain
- * yes/no confirm (an `AlertDialog`). Reclassify and Tag stay retired — no
- * valid backing column exists on `q_a_pairs`. Verify (`/api/review/action`)
- * is unaffected by this rebind; Bulk VERIFY currently 404s against
- * `q_a_pairs` (bl-446, open owner question on the audit-trail design) —
- * that is OUT of scope here.
+ * ID-135 {135.25} restored Assign-to-workspace and Delete, wiring the
+ * {135.22}-shipped `useLibraryBulkActions` handlers.
+ *
+ * ID-145 {145.35} (BI-33 owner ruling, S479) — Assign-to-workspace is
+ * REMODELLED onto engagement groups: `q_a_pairs.source_workspace_id` was
+ * dropped system-wide with no replacement (W1c, {145.23}), retiring
+ * `PATCH /api/q-a-pairs/[id]/workspace` (410). The affordance now assigns
+ * the selected batch to ONE engagement group via the additive
+ * `engagement_group_content` link table
+ * (POST `/api/engagement-groups/[id]/content`) — a LINK, never a re-point of
+ * provenance. UI copy moves from workspace to engagement vocabulary
+ * throughout. Both actions stay gated behind a confirm dialog — Assign
+ * needs an engagement group picked first (a `Dialog`, since it collects
+ * input), Delete is a plain yes/no confirm (an `AlertDialog`). Reclassify
+ * and Tag stay retired — no valid backing column exists on `q_a_pairs`.
+ * Verify (`/api/review/action`) is unaffected by this rebind.
  */
 export interface BulkActionToolbarProps {
   selectedCount: number;
@@ -75,13 +80,15 @@ export interface BulkActionToolbarProps {
   // Delete (ID-135 {135.25} — admin-only hard DELETE against q_a_pairs)
   onBulkDelete: () => void;
 
-  // Assign to workspace (ID-135 {135.25} — PATCH q_a_pairs.source_workspace_id)
+  // Assign to engagement group (ID-145 {145.35} — POST
+  // /api/engagement-groups/[id]/content, replacing the retired PATCH
+  // q_a_pairs.source_workspace_id route)
   assignDialogOpen: boolean;
   onAssignDialogOpenChange: (open: boolean) => void;
-  workspaces: WorkspaceOption[];
-  workspacesLoading: boolean;
-  selectedWorkspaceId: string;
-  onSelectedWorkspaceIdChange: (id: string) => void;
+  engagementGroups: EngagementGroupOption[];
+  engagementGroupsLoading: boolean;
+  selectedEngagementGroupId: string;
+  onSelectedEngagementGroupIdChange: (id: string) => void;
   onOpenAssignDialog: () => void;
   onConfirmAssign: () => void;
 }
@@ -100,10 +107,10 @@ export function BulkActionToolbar({
   onBulkDelete,
   assignDialogOpen,
   onAssignDialogOpenChange,
-  workspaces,
-  workspacesLoading,
-  selectedWorkspaceId,
-  onSelectedWorkspaceIdChange,
+  engagementGroups,
+  engagementGroupsLoading,
+  selectedEngagementGroupId,
+  onSelectedEngagementGroupIdChange,
   onOpenAssignDialog,
   onConfirmAssign,
 }: BulkActionToolbarProps) {
@@ -151,7 +158,7 @@ export function BulkActionToolbar({
               disabled={bulkOperating}
             >
               <FolderInput className="size-3.5" />
-              Assign to workspace
+              Assign to engagement group
             </Button>
 
             <Button
@@ -202,38 +209,41 @@ export function BulkActionToolbar({
         )}
       </div>
 
-      {/* Assign-to-workspace dialog (collects a workspace choice, so a Dialog
-          rather than a yes/no AlertDialog) */}
+      {/* Assign-to-engagement-group dialog (collects a group choice, so a
+          Dialog rather than a yes/no AlertDialog) */}
       <Dialog open={assignDialogOpen} onOpenChange={onAssignDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
               Assign {selectedCount} {selectedCount === 1 ? 'item' : 'items'} to
-              a workspace
+              an engagement group
             </DialogTitle>
             <DialogDescription>
-              Choose a workspace for the selected Q&amp;A pairs.
+              Choose an engagement group for the selected library items.
             </DialogDescription>
           </DialogHeader>
 
           <Select
-            value={selectedWorkspaceId || undefined}
-            onValueChange={onSelectedWorkspaceIdChange}
-            disabled={workspacesLoading}
+            value={selectedEngagementGroupId || undefined}
+            onValueChange={onSelectedEngagementGroupIdChange}
+            disabled={engagementGroupsLoading}
           >
-            <SelectTrigger className="w-full" aria-label="Select workspace">
+            <SelectTrigger
+              className="w-full"
+              aria-label="Select engagement group"
+            >
               <SelectValue
                 placeholder={
-                  workspacesLoading
-                    ? 'Loading workspaces...'
-                    : 'Select a workspace'
+                  engagementGroupsLoading
+                    ? 'Loading engagement groups...'
+                    : 'Select an engagement group'
                 }
               />
             </SelectTrigger>
             <SelectContent>
-              {workspaces.map((ws) => (
-                <SelectItem key={ws.id} value={ws.id}>
-                  {ws.name}
+              {engagementGroups.map((group) => (
+                <SelectItem key={group.id} value={group.id}>
+                  {group.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -245,7 +255,7 @@ export function BulkActionToolbar({
             </DialogClose>
             <Button
               onClick={onConfirmAssign}
-              disabled={!selectedWorkspaceId || workspacesLoading}
+              disabled={!selectedEngagementGroupId || engagementGroupsLoading}
             >
               Assign
             </Button>

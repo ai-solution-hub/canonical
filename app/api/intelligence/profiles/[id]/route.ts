@@ -9,6 +9,7 @@ import {
   CompanyProfileSchema,
   CompanyProfileUpdateSchema,
 } from '@/lib/validation/schemas';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -96,7 +97,7 @@ export const PATCH = defineRoute(
         .from('record_embeddings')
         .upsert(
           {
-            owner_kind: 'company_profile',
+            owner_kind: 'company_profile' satisfies RecordEmbeddingsOwnerKind,
             owner_id: id,
             model: COMPANY_PROFILE_EMBEDDING_MODEL,
             embedding: null,

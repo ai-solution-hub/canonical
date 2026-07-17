@@ -1,0 +1,204 @@
+{
+  "core": {
+    "baseline": {
+      "headings": [
+        {
+          "tag": "H2",
+          "text": "Data Security"
+        },
+        {
+          "tag": "H2",
+          "text": "Cloud Infrastructure"
+        }
+      ],
+      "links": [
+        {
+          "text": "link to our site",
+          "href": "https://example.com/security"
+        }
+      ],
+      "lists": [
+        [
+          "First item",
+          "Second item",
+          "Third item"
+        ]
+      ],
+      "bold": [
+        "bold"
+      ],
+      "boldTags": [
+        "STRONG"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Feature",
+            "Status"
+          ],
+          "rows": [
+            [
+              "Encryption",
+              "Enabled"
+            ],
+            [
+              "Access control",
+              "Enabled"
+            ]
+          ]
+        }
+      ],
+      "blockquotes": [
+        "A blockquote about data handling."
+      ],
+      "code": [
+        "const configValue = 1;"
+      ],
+      "codeHighlighted": false
+    },
+    "migrated": {
+      "headings": [
+        {
+          "tag": "H2",
+          "text": "Data Security"
+        },
+        {
+          "tag": "H2",
+          "text": "Cloud Infrastructure"
+        }
+      ],
+      "links": [
+        {
+          "text": "link to our site",
+          "href": "https://example.com/security"
+        }
+      ],
+      "lists": [
+        [
+          "First item",
+          "Second item",
+          "Third item"
+        ]
+      ],
+      "bold": [
+        "bold"
+      ],
+      "boldTags": [
+        "STRONG"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Feature",
+            "Status"
+          ],
+          "rows": [
+            [
+              "Encryption",
+              "Enabled"
+            ],
+            [
+              "Access control",
+              "Enabled"
+            ]
+          ]
+        }
+      ],
+      "blockquotes": [
+        "A blockquote about data handling."
+      ],
+      "code": [
+        "const configValue = 1;"
+      ],
+      "codeHighlighted": false
+    }
+  },
+  "reviewStyle": {
+    "baseline": {
+      "headings": [],
+      "links": [],
+      "lists": [
+        [
+          "Formatting",
+          "Terminology",
+          "Completeness"
+        ]
+      ],
+      "bold": [],
+      "boldTags": [],
+      "tables": [],
+      "blockquotes": [
+        "Reviewer note: minor formatting issues remain outstanding."
+      ],
+      "code": [
+        "{ \"status\": \"approved\" }"
+      ],
+      "codeHighlighted": false
+    },
+    "migrated": {
+      "headings": [],
+      "links": [],
+      "lists": [
+        [
+          "Formatting",
+          "Terminology",
+          "Completeness"
+        ]
+      ],
+      "bold": [],
+      "boldTags": [],
+      "tables": [],
+      "blockquotes": [
+        "Reviewer note: minor formatting issues remain outstanding."
+      ],
+      "code": [
+        "{ \"status\": \"approved\" }"
+      ],
+      "codeHighlighted": false
+    }
+  },
+  "qaPairStyle": {
+    "migrated": {
+      "headings": [
+        {
+          "tag": "H2",
+          "text": "Answer Summary"
+        }
+      ],
+      "links": [
+        {
+          "text": "related guidance",
+          "href": "/related-guidance.md"
+        },
+        {
+          "text": "official register",
+          "href": "https://example.com/register"
+        }
+      ],
+      "lists": [],
+      "bold": [],
+      "boldTags": [],
+      "tables": [
+        {
+          "headers": [
+            "Criterion",
+            "Result"
+          ],
+          "rows": [
+            [
+              "Coverage",
+              "Met"
+            ],
+            [
+              "Confidence",
+              "High"
+            ]
+          ]
+        }
+      ],
+      "blockquotes": [],
+      "code": [],
+      "codeHighlighted": false
+    }
+  }
+}

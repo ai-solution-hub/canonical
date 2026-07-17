@@ -12,6 +12,10 @@
 // stops disagreeing with it. Self-cleaning: the candidate naturally drops
 // out of the 'awaiting_review' set on the next fetch (see
 // lib/q-a-pairs/promotion-candidate-review.ts's module header).
+//
+// {145.34}: threads the reviewer's `auth.user.id` through as `actor` so
+// rejectAwaitingReviewCandidate can record an append-only disposition row
+// (or suppress a re-fired identical rejected proposal — Gap 2).
 
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
@@ -42,6 +46,7 @@ export const POST = defineRoute(
       const result = await rejectAwaitingReviewCandidate(
         auth.supabase,
         extractionId,
+        auth.user.id,
       );
 
       if (!result.ok) {

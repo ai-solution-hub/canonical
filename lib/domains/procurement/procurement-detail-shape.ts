@@ -6,7 +6,9 @@ import type {
 
 /**
  * ID-130 {130.13} legacy adapter, REBUILT for ID-145 {145.18} (BI-1..5,
- * 13..19) — the form-first re-architecture.
+ * 13..19) — the form-first re-architecture. Extended for ID-145 {145.42}
+ * (TECH §6 group-A GET ADD; PRODUCT §A5/§A6) with the `form_attachments`
+ * read-fold + engagement sibling-rail read.
  *
  * Post-W1 (TECH.md §2 M3), `form_instances` IS the procurement item: there is
  * no more workspace umbrella wrapping many child forms, and no more
@@ -18,39 +20,34 @@ import type {
  * `deriveProcurementStatus` (the 10-state procurement workflow, BI-18). No
  * fact is read from a workspace `domain_metadata` blob.
  *
- * LEGACY (pre-{145.18}) exports below — `getPrimaryForm`, `getProcurementForms`,
- * `getProcurementRollup`, `ProcurementFormSummary`, `ProcurementRollup` — are
- * kept UNCHANGED. `procurement-forms-card.tsx` (the BI-4 forms-sub-collection
- * card) still imports them; that card's removal is {145.19}'s file-ownership
- * boundary, not this Subtask's (`app/procurement/[id]/page.tsx` — mine — no
- * longer renders it, per BI-4 "no forms-sub-collection surface"). These
- * legacy helpers are dead on the item page itself and safe to delete once
- * {145.19} lands.
+ * {145.42} orphan sweep: the pre-{145.18} LEGACY nested-shape getters
+ * (`getPrimaryForm`, `getProcurementForms`, `getProcurementRollup`,
+ * `ProcurementFormSummary`, `ProcurementRollup`) are RETIRED — their only
+ * consumer, `procurement-forms-card.tsx`, was deleted in {145.41} (BI-4, "no
+ * forms-sub-collection surface"). knip-confirmed zero remaining consumers
+ * (test-only refs retired alongside, `__tests__/lib/procurement-detail-shape.test.ts`).
  */
 
-/** A child form row as returned by GET (`FORM_LIST_COLUMNS` in the route). LEGACY — {145.19} to remove alongside the forms-card. */
-export interface ProcurementFormSummary {
+/** A labelled reference/evidence (or signed form-source) attachment (§A5/§A6, {147.7} `form_attachments`). */
+export interface FormAttachmentSummary {
   id: string;
-  form_type: string | null;
-  name: string | null;
-  workflow_state: string;
-  outcome: string | null;
-  outcome_notes: string | null;
-  deadline: string | null;
-  submission_date: string | null;
-  issuing_organisation: string | null;
-  outcome_recorded_at: string | null;
-  outcome_recorded_by: string | null;
+  filename: string;
+  storage_path: string;
+  mime_type: string | null;
+  file_size: number | null;
+  role: 'form_source' | 'reference_evidence';
+  form_instance_id: string | null;
+  engagement_group_id: string | null;
   created_at: string;
-  updated_at: string;
 }
 
-/** The materialised workspace roll-up (`procurement_workspaces`), B-7/AD-2. LEGACY — the table itself is dropped by W1e; {145.19} to remove alongside the forms-card. */
-export interface ProcurementRollup {
-  nearest_deadline: string | null;
-  overall_outcome: string | null;
-  counts_toward_win_rate: boolean | null;
-  rollup_updated_at: string | null;
+/** A sibling form in the same engagement group (§A3/§A4 — read-only lineage, no roll-up). */
+export interface EngagementSiblingForm {
+  id: string;
+  name: string | null;
+  form_type: string | null;
+  workflow_state: string | null;
+  reference_number: string | null;
 }
 
 /**
@@ -58,10 +55,8 @@ export interface ProcurementRollup {
  * the item is a flat `form_instances` row — `form_type`, `processing_status`,
  * `workflow_state`, `deadline`, ... sit at the top level, alongside the
  * enrichments (`tender_documents`, `question_stats`, `warnings`) that were
- * already independent reads. `forms` / `rollup` / `status` / `domain_metadata`
- * are the pre-{145.18} legacy nested shape, kept optional so the retained
- * legacy getters above keep compiling — the {145.18} derivations below never
- * read them.
+ * already independent reads. {145.42} ADDs `engagement_group_id` (§A3 gate),
+ * `attachments` (§A5 role split) and `engagement_siblings` (§A3 rail data).
  */
 export interface ProcurementDetailResponse {
   id: string;
@@ -85,13 +80,16 @@ export interface ProcurementDetailResponse {
   question_stats?: unknown;
   warnings?: string[];
 
-  // LEGACY (pre-{145.18}) — retained ONLY for the still-live forms-card getters.
-  forms?: ProcurementFormSummary[];
-  rollup?: ProcurementRollup | null;
-  /** @deprecated pre-{130.11} umbrella status. */
-  status?: ProcurementWorkflowState | null;
-  /** @deprecated pre-{130.11} engagement metadata. NEVER read by the {145.18} derivations. */
-  domain_metadata?: ProcurementMetadata | null;
+  // ID-145 {145.42} additions (TECH §6 group-A GET ADD).
+  /** Set only when the form belongs to an engagement group (§A3 gate). */
+  engagement_group_id?: string | null;
+  /** §A5 role split — folded `form_attachments` read. */
+  attachments?: {
+    form_source: FormAttachmentSummary[];
+    reference_evidence: FormAttachmentSummary[];
+  };
+  /** §A3/§A4 read-only sibling lineage — empty unless `engagement_group_id` is set. */
+  engagement_siblings?: EngagementSiblingForm[];
 }
 
 /**
@@ -110,36 +108,8 @@ function asString(value: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// LEGACY (pre-{145.18}) — forms-card only. Untouched by the {145.18} rebuild.
-// ---------------------------------------------------------------------------
-
-/**
- * The primary (v1) form of an umbrella: the earliest-created child form. The
- * GET route already orders `forms` by `created_at ASC`, so the first element is
- * the primary form. Returns `null` when the umbrella has no forms yet.
- */
-export function getPrimaryForm(data: unknown): ProcurementFormSummary | null {
-  const forms = asDetail(data)?.forms;
-  if (Array.isArray(forms) && forms.length > 0) {
-    return forms[0] as ProcurementFormSummary;
-  }
-  return null;
-}
-
-/** The child forms of the umbrella (empty array when none). */
-export function getProcurementForms(data: unknown): ProcurementFormSummary[] {
-  const forms = asDetail(data)?.forms;
-  return Array.isArray(forms) ? (forms as ProcurementFormSummary[]) : [];
-}
-
-/** The materialised roll-up, or `null` when absent. */
-export function getProcurementRollup(data: unknown): ProcurementRollup | null {
-  return (asDetail(data)?.rollup as ProcurementRollup | undefined) ?? null;
-}
-
-// ---------------------------------------------------------------------------
 // ID-145 {145.18} — form-first derivations (BI-1, BI-13..18). Source every
-// fact directly off the flat GET response; never via `getPrimaryForm`, never
+// fact directly off the flat GET response; never via a nested container, never
 // via `domain_metadata`.
 // ---------------------------------------------------------------------------
 
@@ -213,4 +183,38 @@ export function deriveProcurementMetadata(
     outcome_recorded_at: asString(detail.outcome_recorded_at) ?? undefined,
     outcome_recorded_by: asString(detail.outcome_recorded_by) ?? undefined,
   };
+}
+
+/** §A3 gate — the engagement rail (and only the rail) shows iff this is set. */
+export function deriveEngagementGroupId(data: unknown): string | null {
+  const detail = asDetail(data);
+  if (!detail) return null;
+  return asString(detail.engagement_group_id);
+}
+
+/** §A5 FORM SOURCE group: zero-schema tender documents + any `role=form_source` attachment. */
+export function deriveFormSourceAttachments(
+  data: unknown,
+): FormAttachmentSummary[] {
+  const detail = asDetail(data);
+  const rows = detail?.attachments?.form_source;
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** §A5 REFERENCE / EVIDENCE group. Empty array => §A8 progressive-disclosure collapse. */
+export function deriveReferenceEvidenceAttachments(
+  data: unknown,
+): FormAttachmentSummary[] {
+  const detail = asDetail(data);
+  const rows = detail?.attachments?.reference_evidence;
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** §A3/§A4 read-only sibling lineage. */
+export function deriveEngagementSiblings(
+  data: unknown,
+): EngagementSiblingForm[] {
+  const detail = asDetail(data);
+  const rows = detail?.engagement_siblings;
+  return Array.isArray(rows) ? rows : [];
 }

@@ -106,7 +106,11 @@ describe('POST /api/governance/promotion-candidates/:id/reject', () => {
       const body = await res.json();
       expect(res.status).toBe(200);
       expect(body.disposition).toBe('rejected');
-      expect(mockReject).toHaveBeenCalledWith(mockSupabase, EXTRACTION_ID);
+      expect(mockReject).toHaveBeenCalledWith(
+        mockSupabase,
+        EXTRACTION_ID,
+        'u1',
+      );
     });
   });
 

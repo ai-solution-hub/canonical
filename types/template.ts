@@ -5,7 +5,10 @@ import type {
   FillStatus,
 } from '@/lib/validation/template-schemas';
 
-export interface Template {
+// ID-145 {145.42} orphan sweep: nothing imports `Template` directly
+// (knip-confirmed) — only `TemplateWithDetail` below extends it. Kept
+// module-private rather than deleted since it still backs that live type.
+interface Template {
   id: string;
   workspace_id: string;
   name: string;

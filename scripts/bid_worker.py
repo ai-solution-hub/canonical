@@ -159,39 +159,51 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
             "storage_path": None,
         }
 
-    form_result = (
-        supabase.from_("form_instances")
-        .select("id, storage_path, mime_type")
-        .eq("id", form_id)
-        .single()
-        .execute()
-    )
-    form = form_result.data
-    ext = _MIME_TO_EXT.get(form["mime_type"])
-    if ext is None:
-        raise ValueError(
-            f"fill_template_job: unrecognised form_instances.mime_type "
-            f"{form['mime_type']!r} for form {form_id}"
+    # ID-145 {145.33}: setup phase (form lookup, mime resolution, completion
+    # lookup, base-template download) is wrapped in its OWN try/except so a
+    # lookup/IO failure here also lands on fill_failed — an engine/IO-class
+    # error per BI-22, same as the writer-phase except below — instead of
+    # propagating uncaught and leaving the form stuck at 'filling' forever
+    # (only processing_queue.error_message would have reflected it).
+    try:
+        form_result = (
+            supabase.from_("form_instances")
+            .select("id, storage_path, mime_type")
+            .eq("id", form_id)
+            .single()
+            .execute()
         )
+        form = form_result.data
+        ext = _MIME_TO_EXT.get(form["mime_type"])
+        if ext is None:
+            raise ValueError(
+                f"fill_template_job: unrecognised form_instances.mime_type "
+                f"{form['mime_type']!r} for form {form_id}"
+            )
 
-    latest_completion = (
-        supabase.from_("template_completions")
-        .select("storage_path")
-        .eq("form_instance_id", form_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if latest_completion.data:
-        base_storage_path = latest_completion.data[0]["storage_path"]
-    elif ext == "pdf":
-        base_storage_path = f"{form_id}/fillable.pdf"
-    else:
-        base_storage_path = form["storage_path"]
+        latest_completion = (
+            supabase.from_("template_completions")
+            .select("storage_path")
+            .eq("form_instance_id", form_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if latest_completion.data:
+            base_storage_path = latest_completion.data[0]["storage_path"]
+        elif ext == "pdf":
+            base_storage_path = f"{form_id}/fillable.pdf"
+        else:
+            base_storage_path = form["storage_path"]
 
-    base_bytes = supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).download(
-        base_storage_path
-    )
+        base_bytes = supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).download(
+            base_storage_path
+        )
+    except Exception:
+        supabase.from_("form_instances").update({
+            "processing_status": "fill_failed",
+        }).eq("id", form_id).execute()
+        raise
 
     with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp_in:
         tmp_in.write(base_bytes)
@@ -489,7 +501,15 @@ def _write_form_instance_fields(supabase: Client, form_id: str, fields: list) ->
     """Insert Plane-2 ExtractedField rows into form_instance_fields (coords
     + fill_status='pending' per BI-20). ``fields`` is a list of this
     package's ``ExtractedField`` Pydantic rows (docx/xlsx readers, or the
-    PDF adapter's shape-adapted rows — same type either way)."""
+    PDF adapter's shape-adapted rows — same type either way).
+
+    ID-147 {147.10} (TECH §3, DR-064 Option A; PRODUCT §C1/§C4): forwards
+    ``f.geometry`` — {147.9}'s DISPLAYED (post-rotation) page-fraction dict
+    for PDF-sourced fields — onto the row's ``geometry`` jsonb column
+    (20260716130000_id147_form_instance_fields_geometry.sql, nullable).
+    ``None`` for docx/xlsx fields (the readers never set it) and for any
+    PDF field whose rotation could not be normalised; persisted as SQL
+    NULL, never a fabricated box (§C4 degrade)."""
     if not fields:
         return 0
     rows = [
@@ -508,6 +528,7 @@ def _write_form_instance_fields(supabase: Client, form_id: str, fields: list) ->
             "sequence": f.sequence,
             "is_mandatory": f.is_mandatory,
             "reference_urls": f.reference_urls,
+            "geometry": f.geometry,
         }
         for f in fields
     ]
@@ -547,47 +568,59 @@ def analyse_form_job(supabase: Client, payload: dict) -> dict:
     auth_context = payload.get("auth_context") or {}
     enqueued_by = auth_context.get("user_id")
 
-    form_result = (
-        supabase.from_("form_instances")
-        .select("id, storage_path, mime_type")
-        .eq("id", form_id)
-        .single()
-        .execute()
-    )
-    form = form_result.data
-    ext = _MIME_TO_EXT.get(form["mime_type"])
-    if ext is None:
-        raise ValueError(
-            f"analyse_form: unrecognised form_instances.mime_type "
-            f"{form['mime_type']!r} for form {form_id}"
+    # ID-145 {145.33}: setup phase (form lookup, mime resolution, source
+    # download, container sniff + legacy convert) is wrapped in its OWN
+    # try/except so a lookup/IO failure here also lands on analysis_failed —
+    # an engine/IO-class error per BI-22, same shape as the fill lane's
+    # equivalent setup-phase guard above — instead of propagating uncaught
+    # and leaving the form stuck at 'analysing' forever.
+    try:
+        form_result = (
+            supabase.from_("form_instances")
+            .select("id, storage_path, mime_type")
+            .eq("id", form_id)
+            .single()
+            .execute()
         )
-
-    raw_bytes = supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).download(
-        form["storage_path"]
-    )
-    container = _sniff_container(raw_bytes)
-
-    if ext == "pdf":
-        if container != "pdf":
+        form = form_result.data
+        ext = _MIME_TO_EXT.get(form["mime_type"])
+        if ext is None:
             raise ValueError(
-                f"analyse_form: mime_type says pdf but storage bytes are "
-                f"not a PDF (sniffed={container!r}) for form {form_id}"
+                f"analyse_form: unrecognised form_instances.mime_type "
+                f"{form['mime_type']!r} for form {form_id}"
             )
-    elif container == "ole2":
-        # Legacy .doc/.xls wearing the target docx/xlsx mime_type (DR-059) —
-        # convert, then overwrite storage with the real OOXML bytes so the
-        # artefact is genuinely OOXML from here on.
-        raw_bytes = _convert_legacy_office_to_ooxml(raw_bytes, ext)
-        supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).upload(
-            form["storage_path"],
-            raw_bytes,
-            {"content-type": form["mime_type"], "upsert": "true"},
+
+        raw_bytes = supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).download(
+            form["storage_path"]
         )
-    elif container != "zip":
-        raise ValueError(
-            f"analyse_form: unexpected container {container!r} for "
-            f"mime_type={form['mime_type']!r}, form {form_id}"
-        )
+        container = _sniff_container(raw_bytes)
+
+        if ext == "pdf":
+            if container != "pdf":
+                raise ValueError(
+                    f"analyse_form: mime_type says pdf but storage bytes are "
+                    f"not a PDF (sniffed={container!r}) for form {form_id}"
+                )
+        elif container == "ole2":
+            # Legacy .doc/.xls wearing the target docx/xlsx mime_type
+            # (DR-059) — convert, then overwrite storage with the real
+            # OOXML bytes so the artefact is genuinely OOXML from here on.
+            raw_bytes = _convert_legacy_office_to_ooxml(raw_bytes, ext)
+            supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).upload(
+                form["storage_path"],
+                raw_bytes,
+                {"content-type": form["mime_type"], "upsert": "true"},
+            )
+        elif container != "zip":
+            raise ValueError(
+                f"analyse_form: unexpected container {container!r} for "
+                f"mime_type={form['mime_type']!r}, form {form_id}"
+            )
+    except Exception:
+        supabase.from_("form_instances").update(
+            {"processing_status": "analysis_failed"}
+        ).eq("id", form_id).execute()
+        raise
 
     filename = f"document.{ext}"
 
@@ -622,9 +655,14 @@ def analyse_form_job(supabase: Client, payload: dict) -> dict:
 
     if fillable_pdf_bytes is not None:
         # {145.15} (fill step) consumes this artefact's own AcroForm /Rect
-        # entries as the fill-time geometry (form_instance_fields has no
-        # bbox/page columns — the GEOMETRY-PERSISTENCE decision documented
-        # on orchestrator._pdf_result_to_extracted_form).
+        # entries as the fill-time geometry — the GEOMETRY-PERSISTENCE
+        # decision documented on orchestrator._pdf_result_to_extracted_form.
+        # ID-147 {147.10} adds a `geometry` jsonb column to
+        # form_instance_fields, but that column carries the DISPLAYED
+        # page-fraction summary for the read-side spatial overlay (§C1/§C4),
+        # NOT fill-time precision — the fill step still reads this stored
+        # fillable-PDF artefact's own /Rect entries directly rather than
+        # reconstructing them from the DB row.
         supabase.storage.from_(TENDER_DOCUMENTS_BUCKET).upload(
             f"{form_id}/fillable.pdf",
             fillable_pdf_bytes,

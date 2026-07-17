@@ -14,6 +14,7 @@ import {
   ProcurementResponseSchema,
   ResponseUpdateBodySchema,
 } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import type {
   ProcurementResponseMetadata,
@@ -130,7 +131,7 @@ export const GET = defineRoute(
             supabase
               .from('record_lifecycle')
               .select('owner_id, domain')
-              .eq('owner_kind', 'q_a_pair')
+              .eq('owner_kind', 'q_a_pair' satisfies FacetOwnerKind)
               .in('owner_id', qaIds),
             'bids.response.detail.sourceContent.facet',
           );

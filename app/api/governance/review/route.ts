@@ -17,6 +17,7 @@ import {
   GovernanceReviewBodySchema,
   GovernanceReviewParamsSchema,
 } from '@/lib/validation/schemas';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -72,7 +73,7 @@ export const GET = defineRoute(
         const { count, error } = await supabase
           .from('record_lifecycle')
           .select('*', { count: 'exact', head: true })
-          .eq('owner_kind', 'source_document')
+          .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
           .eq('governance_review_status', 'pending');
 
         if (error) {
@@ -88,7 +89,7 @@ export const GET = defineRoute(
         .select(
           'source_document_id, governance_review_status, governance_review_due, governance_reviewer_id, source_documents!inner(id, filename, suggested_title, primary_domain, updated_by, updated_at)',
         )
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .eq('governance_review_status', 'pending')
         .order('governance_review_due', { ascending: true, nullsFirst: false })
         .range(offset, offset + limit - 1);
@@ -160,7 +161,7 @@ export const POST = defineRoute(
         .select(
           'source_document_id, governance_review_status, next_review_date, review_cadence_days, verified_at',
         )
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .eq('source_document_id', item_id)
         .single();
 
@@ -228,7 +229,7 @@ export const POST = defineRoute(
       const { data: updated, error: updateError } = await supabase
         .from('record_lifecycle')
         .update(updateData)
-        .eq('owner_kind', 'source_document')
+        .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .eq('source_document_id', item_id)
         .select('source_document_id')
         .single();
@@ -254,7 +255,7 @@ export const POST = defineRoute(
           supabase
             .from('record_lifecycle')
             .select('content_owner_id, source_documents!inner(updated_by)')
-            .eq('owner_kind', 'source_document')
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
             .eq('source_document_id', item_id)
             .maybeSingle(),
           'governance.review.item_detail',

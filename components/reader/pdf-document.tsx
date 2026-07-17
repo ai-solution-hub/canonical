@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Document, Page } from 'react-pdf';
 import {
   ChevronLeft,
@@ -26,7 +27,7 @@ const MAX_SCALE = 3.0;
 const SCALE_STEP = 0.25;
 const DEFAULT_SCALE = 1.0;
 
-interface PdfDocumentProps {
+export interface PdfDocumentProps {
   /** External URL (existing items) */
   sourceUrl?: string | null;
   /** Supabase Storage path (uploaded items) */
@@ -42,6 +43,41 @@ interface PdfDocumentProps {
   contentPaddingClassName?: string;
   /** Tailwind horizontal padding class for the toolbar row. */
   toolbarPaddingClassName?: string;
+  /**
+   * Controlled current page (ID-145 {145.47}, TECH §3/§4 — §C/§D spatial
+   * overlay linkage). When provided, an external host (a slot-list or
+   * citations panel) drives page navigation itself — selecting a slot/
+   * citation re-renders this prop, which is how `SpatialOverlay`'s (147-H)
+   * `goToPage`-shaped contract is satisfied here. Omitted (uncontrolled):
+   * internal state only, preserving existing behaviour for callers that
+   * don't need external control (e.g. `BinarySide`).
+   */
+  currentPage?: number;
+  /**
+   * Reports every page-navigation intent (toolbar buttons, page-number
+   * input, arrow keys). In controlled mode (`currentPage` set) this is the
+   * ONLY way the displayed page changes — the host owns the state and must
+   * feed the new value back in via `currentPage`; in uncontrolled mode it is
+   * purely informational (internal state already changed).
+   */
+  onPageChange?: (page: number) => void;
+  /**
+   * Render additional content inside the currently-displayed page's
+   * positioned wrapper — react-pdf's `<Page>` renders `children` inside a
+   * `position: relative` element sized to the rendered page, so an
+   * `absolute inset-0` overlay here lines up with the page regardless of
+   * scroll/zoom. Used to layer `SpatialOverlay` (147-H) boxes over the page
+   * (§C1/§D1).
+   */
+  renderPageOverlay?: (page: number) => ReactNode;
+  /**
+   * Fires once react-pdf finishes rendering the current page's TextLayer DOM
+   * (real, selectable `<span>` text nodes, `.react-pdf__Page__textContent`)
+   * — the root Element B1 citation derivation (`deriveTextLayerHighlight`,
+   * lib/domains/procurement/citation-highlight-derivation.ts) resolves a
+   * cited span's `Range`/`getClientRects()` against (§D2 exact path).
+   */
+  onTextLayerRenderSuccess?: (page: number, textLayerRoot: Element) => void;
 }
 
 /**
@@ -57,17 +93,30 @@ export function PdfDocument({
   keyboardNavEnabled = true,
   contentPaddingClassName = 'p-6',
   toolbarPaddingClassName = 'px-3',
+  currentPage: controlledPage,
+  onPageChange,
+  renderPageOverlay,
+  onTextLayerRenderSuccess,
 }: PdfDocumentProps) {
   // Initialise pdfUrl from sourceUrl prop (avoids setState-in-effect lint warning).
   // When filePath is provided instead, it starts null and gets resolved below.
   const [pdfUrl, setPdfUrl] = useState<string | null>(sourceUrl ?? null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [internalPage, setInternalPage] = useState(1);
+  const isControlled = controlledPage !== undefined;
+  const currentPage = isControlled ? controlledPage : internalPage;
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [pageInputValue, setPageInputValue] = useState('1');
   const [hasError, setHasError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pageContainerRef = useRef<HTMLDivElement>(null);
   const pageWidthRef = useRef<number | null>(null);
+
+  // Keep the page-number input in sync with the effective current page,
+  // whether it changed via internal state or an external `currentPage` prop.
+  useEffect(() => {
+    setPageInputValue(String(currentPage));
+  }, [currentPage]);
 
   // Resolve signed URL for Supabase Storage files
   useEffect(() => {
@@ -105,10 +154,12 @@ export function PdfDocument({
   const goToPage = useCallback(
     (page: number) => {
       const clamped = Math.max(1, Math.min(page, numPages ?? 1));
-      setCurrentPage(clamped);
-      setPageInputValue(String(clamped));
+      if (!isControlled) {
+        setInternalPage(clamped);
+      }
+      onPageChange?.(clamped);
     },
-    [numPages],
+    [numPages, isControlled, onPageChange],
   );
 
   const handlePageInputChange = useCallback(
@@ -344,13 +395,24 @@ export function PdfDocument({
             }
           >
             <Page
+              inputRef={pageContainerRef}
               pageNumber={currentPage}
               scale={scale}
               onLoadSuccess={onPageLoadSuccess}
+              onRenderTextLayerSuccess={() => {
+                const textLayerRoot = pageContainerRef.current?.querySelector(
+                  '.react-pdf__Page__textContent',
+                );
+                if (textLayerRoot) {
+                  onTextLayerRenderSuccess?.(currentPage, textLayerRoot);
+                }
+              }}
               loading={<Skeleton className="h-[600px] w-[450px] rounded" />}
               renderTextLayer={true}
               renderAnnotationLayer={true}
-            />
+            >
+              {renderPageOverlay?.(currentPage)}
+            </Page>
           </Document>
         </div>
       </div>

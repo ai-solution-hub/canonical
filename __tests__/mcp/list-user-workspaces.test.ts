@@ -273,15 +273,17 @@ describe('list_user_workspaces MCP tool', () => {
     );
   });
 
-  it('returns the procurement workspace for a live application-type key', async () => {
-    // ID-71 {71.5}: the Zod enum mirrors the seeded application_types
-    // vocabulary, so a live key passes through to the query unchanged. The
-    // filter-aware mock returns only rows whose application_types.key matches
-    // the queried key, so the procurement workspace is returned ONLY if the key
-    // actually reached the query (the intelligence row must be filtered out).
+  it("explicitly surfaces the gap for type='procurement' instead of silently returning empty", async () => {
+    // ID-145 {145.39} (DR-038 form-first): post-W1e the `workspaces` table
+    // holds zero procurement rows (536->28 rows dropped), so a
+    // type=procurement query against application_types.key would always
+    // silently return an empty list. Per the Curator/owner ruling (id-71
+    // RESEARCH.md §2.2 does not re-shape this tool onto form_instances), the
+    // handler now short-circuits with explicit guidance instead of querying.
+    // Seed a row that WOULD match if the query ran, so this test fails if the
+    // short-circuit is ever removed and the (broken) query path is restored.
     seedFilterableWorkspaces([
       WORKSPACE_FIXTURES.bid, // application_types.key === 'procurement'
-      WORKSPACE_FIXTURES.intelligence,
     ]);
 
     const tool = getWorkspaceTool();
@@ -290,30 +292,20 @@ describe('list_user_workspaces MCP tool', () => {
       MOCK_EXTRA,
     )) as {
       content: Array<{ type: string; text: string }>;
-      structuredContent: {
-        workspaces: Array<{ id: string; name: string; type: string }>;
-      };
+      isError?: boolean;
     };
 
-    expect(result.structuredContent.workspaces).toEqual([
-      {
-        id: WORKSPACE_FIXTURES.bid.id,
-        name: WORKSPACE_FIXTURES.bid.name,
-        type: 'procurement',
-      },
-    ]);
-    expect(result.content[0].text).toContain(WORKSPACE_FIXTURES.bid.name);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('list_active_procurement');
+    expect(result.content[0].text).toContain('get_procurement_detail');
+    // The supabase query must never have been reached for this branch.
+    expect(mocks.createMcpClient).not.toHaveBeenCalled();
   });
 
-  it("remaps legacy 'bid' filter to 'procurement'", async () => {
-    // ID-71 {71.5}: S248 removed the remap assuming the enum excluded 'bid',
-    // but the enum was never updated — type:'bid' hit application_types.key
-    // verbatim and silently returned zero rows. 'bid' is now an explicit legacy
-    // alias remapped to 'procurement' (Q-OQR1-02). The dataset holds only a
-    // procurement-keyed workspace, so the filter-aware mock returns it ONLY if
-    // the handler remapped 'bid' -> 'procurement' before querying. Without the
-    // remap the query filters on key='bid', matches nothing, and the caller
-    // sees an empty list — the exact S248 regression this test guards.
+  it("explicitly surfaces the gap for the legacy type='bid' alias too", async () => {
+    // Same short-circuit as the 'procurement' case above — 'bid' is the
+    // legacy alias and must hit the identical explicit-unsupported path
+    // rather than being remapped into a (broken) form_instances-less query.
     seedFilterableWorkspaces([
       WORKSPACE_FIXTURES.bid, // application_types.key === 'procurement'
     ]);
@@ -321,19 +313,13 @@ describe('list_user_workspaces MCP tool', () => {
     const tool = getWorkspaceTool();
     const result = (await tool.handler({ type: 'bid' }, MOCK_EXTRA)) as {
       content: Array<{ type: string; text: string }>;
-      structuredContent: {
-        workspaces: Array<{ id: string; name: string; type: string }>;
-      };
+      isError?: boolean;
     };
 
-    expect(result.structuredContent.workspaces).toEqual([
-      {
-        id: WORKSPACE_FIXTURES.bid.id,
-        name: WORKSPACE_FIXTURES.bid.name,
-        type: 'procurement',
-      },
-    ]);
-    expect(result.content[0].text).toContain(WORKSPACE_FIXTURES.bid.name);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('list_active_procurement');
+    expect(result.content[0].text).toContain('get_procurement_detail');
+    expect(mocks.createMcpClient).not.toHaveBeenCalled();
   });
 
   it('input schema enum covers the live application_types vocabulary', () => {

@@ -222,17 +222,18 @@ interface Pass2Result {
   model: string;
 }
 
-export async function draftResponse(
-  question: DraftableQuestion,
-  matchedContent: DraftableContent[],
-  analysis: QuestionAnalysis,
-  modelTier: ModelTier = 'drafting',
-  regenerationInstructions?: string,
-): Promise<Pass2Result> {
-  const anthropic = getAnthropicClient();
-  const model = getModelForTier(modelTier);
+interface DraftingSkills {
+  procurementWritingSkill: string;
+  ukProcurementSkill: string;
+}
 
-  // Load skills for context
+/**
+ * Load the shared skills used by both the non-streaming and streaming Pass-2
+ * drafting calls. Extracted so the skill-loading fallback (skill file
+ * missing -> proceed with empty string) isn't duplicated between
+ * `draftResponse` and `draftResponseStreaming`.
+ */
+async function loadDraftingSkills(): Promise<DraftingSkills> {
   let procurementWritingSkill = '';
   let ukProcurementSkill = '';
   try {
@@ -245,10 +246,86 @@ export async function draftResponse(
   } catch {
     // Skill not available — proceed without it
   }
+  return { procurementWritingSkill, ukProcurementSkill };
+}
+
+/**
+ * Build the CACHED system block — loaded skills + role framing + the
+ * invariant drafting rules. Content is STABLE across every question for a
+ * given drafting run (it depends only on which skill files loaded, not on
+ * the question/analysis/regeneration args), so this is the ONLY block that
+ * carries `cache_control` (ID-154).
+ *
+ * Prior bug: `cache_control` sat on a single system block that ALSO held
+ * the per-question word limit/structure/tone (rebuilt every call), so the
+ * cached prefix changed on every request — `cache_read_input_tokens`
+ * stayed ~0, and because a changed prefix invalidates every breakpoint
+ * after it in render order (tools -> system -> messages), the 3
+ * downstream `search_result` cache_control breakpoints never hit either.
+ * Splitting the stable and volatile content into separate blocks — with
+ * `cache_control` on the stable one only — lets the cache actually hit
+ * across different questions in the same drafting run, and restores the
+ * source-block breakpoints' ability to build on a stable prefix.
+ */
+function buildCachedSystemText(skills: DraftingSkills): string {
+  const { procurementWritingSkill, ukProcurementSkill } = skills;
+  return `${procurementWritingSkill ? `${procurementWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
+
+RULES:
+- Write in UK English throughout
+- Be specific and factual, citing the provided KB content
+- NEVER fabricate information not in the KB content
+- If the KB content does not cover a point, say "Our documentation on [topic] is being updated" rather than guessing
+- Use the company's own language and terminology from the KB content
+- Every factual claim MUST be supported by the provided KB content`;
+}
+
+/**
+ * Build the UNCACHED system block — word limit, structure, key points,
+ * tone, and any regeneration instructions. This content varies per
+ * question (and per regeneration request), so it carries NO
+ * `cache_control` — caching a block that changes on every call would never
+ * hit and would waste a breakpoint from the 4-per-request budget (ID-154).
+ */
+function buildUncachedSystemText(
+  question: DraftableQuestion,
+  analysis: QuestionAnalysis,
+  regenerationInstructions?: string,
+): string {
+  const wordLimitInstruction = question.word_limit
+    ? `Aim for 90-95% of the ${question.word_limit}-word limit`
+    : 'No specific limit, but be concise and thorough';
+  const headings = analysis.response_structure.suggested_headings.join(' > ');
+  const keyPoints = analysis.key_points_to_cover.join(', ');
+
+  let text = `FOR THIS RESPONSE:
+- Word limit: ${wordLimitInstruction}
+- Structure: ${headings}
+- Key points to cover: ${keyPoints}
+- Tone: ${analysis.tone}`;
+
+  if (regenerationInstructions) {
+    text += `\n\nADDITIONAL INSTRUCTIONS FROM REVIEWER:\n${regenerationInstructions}`;
+  }
+  return text;
+}
+
+export async function draftResponse(
+  question: DraftableQuestion,
+  matchedContent: DraftableContent[],
+  analysis: QuestionAnalysis,
+  modelTier: ModelTier = 'drafting',
+  regenerationInstructions?: string,
+): Promise<Pass2Result> {
+  const anthropic = getAnthropicClient();
+  const model = getModelForTier(modelTier);
+
+  const skills = await loadDraftingSkills();
 
   // Build search result blocks from KB entries with citations enabled.
-  // Claude API allows max 4 cache_control blocks total. We use 1 for the system
-  // prompt, so only the last 3 source blocks get cache_control.
+  // Claude API allows max 4 cache_control blocks total. We use 1 for the
+  // cached system block (see buildCachedSystemText), so only the last 3
+  // source blocks get cache_control.
   const MAX_CACHED_SOURCES = 3;
   const uncachedBlocks = matchedContent
     .slice(0, Math.max(0, matchedContent.length - MAX_CACHED_SOURCES))
@@ -271,39 +348,22 @@ export async function draftResponse(
     }));
   const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
-  const wordLimitInstruction = question.word_limit
-    ? `Aim for 90-95% of the ${question.word_limit}-word limit`
-    : 'No specific limit, but be concise and thorough';
-
-  const headings = analysis.response_structure.suggested_headings.join(' > ');
-  const keyPoints = analysis.key_points_to_cover.join(', ');
-
-  let systemText = `${procurementWritingSkill ? `${procurementWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
-
-RULES:
-- Write in UK English throughout
-- Be specific and factual, citing the provided KB content
-- Word limit: ${wordLimitInstruction}
-- Structure: ${headings}
-- Key points to cover: ${keyPoints}
-- Tone: ${analysis.tone}
-- NEVER fabricate information not in the KB content
-- If the KB content does not cover a point, say "Our documentation on [topic] is being updated" rather than guessing
-- Use the company's own language and terminology from the KB content
-- Every factual claim MUST be supported by the provided KB content`;
-
-  if (regenerationInstructions) {
-    systemText += `\n\nADDITIONAL INSTRUCTIONS FROM REVIEWER:\n${regenerationInstructions}`;
-  }
-
   const response = await anthropic.messages.create({
     model,
     max_tokens: 4096,
     system: [
       {
         type: 'text',
-        text: systemText,
+        text: buildCachedSystemText(skills),
         cache_control: { type: 'ephemeral' },
+      },
+      {
+        type: 'text',
+        text: buildUncachedSystemText(
+          question,
+          analysis,
+          regenerationInstructions,
+        ),
       },
     ],
     messages: [
@@ -365,22 +425,11 @@ export async function draftResponseStreaming(
   const anthropic = getAnthropicClient();
   const model = getModelForTier(modelTier);
 
-  // Load skills for context
-  let procurementWritingSkill = '';
-  let ukProcurementSkill = '';
-  try {
-    procurementWritingSkill = await loadSkill('procurement-writing');
-  } catch {
-    // Skill not available — proceed without it
-  }
-  try {
-    ukProcurementSkill = await loadSkill('uk-procurement');
-  } catch {
-    // Skill not available — proceed without it
-  }
+  const skills = await loadDraftingSkills();
 
-  // Claude API allows max 4 cache_control blocks total. We use 1 for the system
-  // prompt, so only the last 3 source blocks get cache_control.
+  // Claude API allows max 4 cache_control blocks total. We use 1 for the
+  // cached system block (see buildCachedSystemText), so only the last 3
+  // source blocks get cache_control.
   const STREAM_MAX_CACHED = 3;
   const uncachedBlocks = matchedContent
     .slice(0, Math.max(0, matchedContent.length - STREAM_MAX_CACHED))
@@ -403,39 +452,22 @@ export async function draftResponseStreaming(
     }));
   const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
-  const wordLimitInstruction = question.word_limit
-    ? `Aim for 90-95% of the ${question.word_limit}-word limit`
-    : 'No specific limit, but be concise and thorough';
-
-  const headings = analysis.response_structure.suggested_headings.join(' > ');
-  const keyPoints = analysis.key_points_to_cover.join(', ');
-
-  let systemText = `${procurementWritingSkill ? `${procurementWritingSkill}\n\n` : ''}${ukProcurementSkill ? `${ukProcurementSkill}\n\n` : ''}You are a professional UK bid writer for a technology company.
-
-RULES:
-- Write in UK English throughout
-- Be specific and factual, citing the provided KB content
-- Word limit: ${wordLimitInstruction}
-- Structure: ${headings}
-- Key points to cover: ${keyPoints}
-- Tone: ${analysis.tone}
-- NEVER fabricate information not in the KB content
-- If the KB content does not cover a point, say "Our documentation on [topic] is being updated" rather than guessing
-- Use the company's own language and terminology from the KB content
-- Every factual claim MUST be supported by the provided KB content`;
-
-  if (regenerationInstructions) {
-    systemText += `\n\nADDITIONAL INSTRUCTIONS FROM REVIEWER:\n${regenerationInstructions}`;
-  }
-
   const messageStream = anthropic.messages.stream({
     model,
     max_tokens: 4096,
     system: [
       {
         type: 'text',
-        text: systemText,
+        text: buildCachedSystemText(skills),
         cache_control: { type: 'ephemeral' },
+      },
+      {
+        type: 'text',
+        text: buildUncachedSystemText(
+          question,
+          analysis,
+          regenerationInstructions,
+        ),
       },
     ],
     messages: [

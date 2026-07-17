@@ -22,6 +22,7 @@ import type {
   ProcurementDashboardData,
 } from '@/lib/mcp/formatters';
 import type { ActiveProcurementSummary } from '@/lib/dashboard';
+import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -98,7 +99,7 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           supabase
             .from('record_lifecycle')
             .select('source_document_id, freshness')
-            .eq('owner_kind', 'source_document'),
+            .eq('owner_kind', 'source_document' satisfies FacetOwnerKind),
           'mcp.tools.apps.coverage.freshness',
         );
         const freshnessBySourceDocId = new Map<string, string | null>();

@@ -35,13 +35,13 @@ function defaultProps(
     onBulkDelete: vi.fn(),
     assignDialogOpen: false,
     onAssignDialogOpenChange: vi.fn(),
-    workspaces: [
-      { id: 'ws-1', name: 'Procurement', type: 'kb_section' },
-      { id: 'ws-2', name: 'Sales', type: 'kb_section' },
+    engagementGroups: [
+      { id: 'eg-1', name: 'Alpha Tender' },
+      { id: 'eg-2', name: 'Beta ITT' },
     ],
-    workspacesLoading: false,
-    selectedWorkspaceId: '',
-    onSelectedWorkspaceIdChange: vi.fn(),
+    engagementGroupsLoading: false,
+    selectedEngagementGroupId: '',
+    onSelectedEngagementGroupIdChange: vi.fn(),
     onOpenAssignDialog: vi.fn(),
     onConfirmAssign: vi.fn(),
     ...overrides,
@@ -116,79 +116,87 @@ describe('BulkActionToolbar', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Assign-to-workspace (ID-135 {135.25})
+  // Assign-to-engagement-group (ID-135 {135.25}; remodelled onto engagement
+  // groups by ID-145 {145.35}, BI-33 owner ruling S479)
   // -------------------------------------------------------------------------
 
-  it('shows the Assign to workspace button', () => {
+  it('shows the Assign to engagement group button', () => {
     render(<BulkActionToolbar {...defaultProps()} />);
     expect(
-      screen.getByRole('button', { name: /assign to workspace/i }),
+      screen.getByRole('button', { name: /assign to engagement group/i }),
     ).toBeInTheDocument();
   });
 
-  it('clicking Assign to workspace calls onOpenAssignDialog', async () => {
+  it('clicking Assign to engagement group calls onOpenAssignDialog', async () => {
     const user = userEvent.setup();
     const props = defaultProps();
     render(<BulkActionToolbar {...props} />);
     await user.click(
-      screen.getByRole('button', { name: /assign to workspace/i }),
+      screen.getByRole('button', { name: /assign to engagement group/i }),
     );
     expect(props.onOpenAssignDialog).toHaveBeenCalledOnce();
   });
 
-  it('disables Assign to workspace while bulkOperating', () => {
+  it('disables Assign to engagement group while bulkOperating', () => {
     render(<BulkActionToolbar {...defaultProps({ bulkOperating: true })} />);
     expect(
-      screen.getByRole('button', { name: /assign to workspace/i }),
+      screen.getByRole('button', { name: /assign to engagement group/i }),
     ).toBeDisabled();
   });
 
-  it('assign dialog lists workspace options when open', async () => {
+  it('assign dialog lists engagement group options when open', async () => {
     const user = userEvent.setup();
     render(<BulkActionToolbar {...defaultProps({ assignDialogOpen: true })} />);
 
     expect(
-      screen.getByText('Assign 3 items to a workspace'),
+      screen.getByText('Assign 3 items to an engagement group'),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText('Select workspace'));
+    await user.click(screen.getByLabelText('Select engagement group'));
     expect(
-      await screen.findByRole('option', { name: 'Procurement' }),
+      await screen.findByRole('option', { name: 'Alpha Tender' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Sales' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: 'Beta ITT' }),
+    ).toBeInTheDocument();
 
     // Close the listbox before the test ends — leaving a Radix Select
     // popup open across test-cleanup unmount recurses infinitely in
     // jsdom's FocusScope teardown (radix-ui/jsdom interaction, not a
     // component bug).
-    await user.click(screen.getByRole('option', { name: 'Procurement' }));
+    await user.click(screen.getByRole('option', { name: 'Alpha Tender' }));
   });
 
-  it('selecting a workspace calls onSelectedWorkspaceIdChange', async () => {
+  it('selecting an engagement group calls onSelectedEngagementGroupIdChange', async () => {
     const user = userEvent.setup();
     const props = defaultProps({ assignDialogOpen: true });
     render(<BulkActionToolbar {...props} />);
 
-    await user.click(screen.getByLabelText('Select workspace'));
-    await user.click(await screen.findByRole('option', { name: 'Sales' }));
+    await user.click(screen.getByLabelText('Select engagement group'));
+    await user.click(await screen.findByRole('option', { name: 'Beta ITT' }));
 
-    expect(props.onSelectedWorkspaceIdChange).toHaveBeenCalledWith('ws-2');
+    expect(props.onSelectedEngagementGroupIdChange).toHaveBeenCalledWith(
+      'eg-2',
+    );
   });
 
-  it('Assign confirm button is disabled until a workspace is selected', () => {
+  it('Assign confirm button is disabled until an engagement group is selected', () => {
     render(
       <BulkActionToolbar
-        {...defaultProps({ assignDialogOpen: true, selectedWorkspaceId: '' })}
+        {...defaultProps({
+          assignDialogOpen: true,
+          selectedEngagementGroupId: '',
+        })}
       />,
     );
     expect(screen.getByRole('button', { name: 'Assign' })).toBeDisabled();
   });
 
-  it('clicking Assign invokes onConfirmAssign once a workspace is selected', async () => {
+  it('clicking Assign invokes onConfirmAssign once an engagement group is selected', async () => {
     const user = userEvent.setup();
     const props = defaultProps({
       assignDialogOpen: true,
-      selectedWorkspaceId: 'ws-1',
+      selectedEngagementGroupId: 'eg-1',
     });
     render(<BulkActionToolbar {...props} />);
 
