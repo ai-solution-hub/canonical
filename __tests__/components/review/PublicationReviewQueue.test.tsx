@@ -208,7 +208,7 @@ describe('PublicationReviewQueue', () => {
       screen.getByRole('button', { name: /return this item to draft/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /open this item in the editor/i }),
+      screen.getByRole('link', { name: /view this item/i }),
     ).toBeInTheDocument();
   });
 
