@@ -1,8 +1,0 @@
-{
-  "description": "suspected_duplicate backlog ceilings per profile (check 3.9 suspected_duplicate_backlog). 'warn_if_over' fires a warning; 'must_pass_if_count_equals' requires equality (onboarding only). From spec §3.9.",
-  "profiles": {
-    "re-ingest": { "warn_if_over": 10 },
-    "batch": { "warn_if_over": 5 },
-    "onboarding": { "must_pass_if_count_equals": 0 }
-  }
-}

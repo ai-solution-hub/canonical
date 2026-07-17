@@ -9,6 +9,13 @@
  * pass/fail per a configurable profile. Does NOT trigger ingestion, write
  * rows, or block writes.
  *
+ * bl-495: re-pointed onto the post-id-131 schema. `content_items` dropped
+ * wholesale — parent-row checks now read `source_documents` (classification
+ * cols live there), Q&A-record checks read `q_a_pairs`, non-draft filters
+ * join `record_lifecycle` (owner_kind='source_document'), and embedding
+ * coverage reads `record_embeddings`. The dedup-family and content_history
+ * checks were RETIRED (no successor tables) — see the check registries.
+ *
  * Specs:
  *   - Generic gate: docs/specs/post-ingest-quality-gate-spec.md
  *   - Audit-content companion: docs/specs/audit-content-quality-gate-spec.md
@@ -86,16 +93,6 @@ export interface RelationshipCoverageExpected {
   profile_thresholds: Record<string, Record<string, number>>;
 }
 
-export interface DedupExpected {
-  profiles: Record<
-    string,
-    {
-      warn_if_over?: number;
-      must_pass_if_count_equals?: number;
-    }
-  >;
-}
-
 export interface AuditContentFileGroup {
   description: string;
   filename_matchers: { contains_all: string[] };
@@ -122,8 +119,6 @@ export interface AuditContentExpected {
   }>;
   required_relationship_types: string[];
   should_pass_relationship_types: string[];
-  cross_doc_dedup_ratio_range: { min: number; max: number };
-  unresolved_dedup_age_hours: number;
 }
 
 export interface GateContext {
@@ -133,7 +128,6 @@ export interface GateContext {
   corpus: CorpusExpected;
   entityCov: EntityCoverageExpected;
   relCov: RelationshipCoverageExpected;
-  dedup: DedupExpected;
   auditContent?: AuditContentExpected;
   workspaceId: string;
   runId: string;
@@ -258,7 +252,7 @@ Env:
 Examples:
   bun run scripts/quality-gate.ts --threshold=re-ingest
   bun run scripts/quality-gate.ts --profile=audit-content --format=json
-  bun run scripts/quality-gate.ts --exclude-check=suspected_duplicate_backlog
+  bun run scripts/quality-gate.ts --exclude-check=summary_coverage
 `;
 
 // ---------------------------------------------------------------------------
@@ -293,10 +287,6 @@ export function loadRelationshipCoverageExpected(): RelationshipCoverageExpected
   return loadJson<RelationshipCoverageExpected>(
     'relationship-coverage-expected.json',
   );
-}
-
-export function loadDedupExpected(): DedupExpected {
-  return loadJson<DedupExpected>('dedup-expected.json');
 }
 
 export function loadAuditContentExpected(): AuditContentExpected {
@@ -501,38 +491,99 @@ async function fetchAllInBatches<T = Record<string, unknown>>(
   return out;
 }
 
-/** Exclude test/artefact rows from generic content_items queries (OPS-21).
- *  E2E and SUPERSEDE items use title prefixes '[E2E' and '[SUPERSEDE' to
+/** Exclude test/artefact rows from generic queries (OPS-21).
+ *  E2E and SUPERSEDE items use the prefixes '[E2E' and '[SUPERSEDE' to
  *  identify themselves. These inflate corpus counts and cause false-positive
- *  quality-gate failures. Applied to every generic check; NOT applied to
- *  audit-content checks (which scope via source_file / user_tags already). */
+ *  quality-gate failures. Post-id-131 (bl-495) the marker lands on
+ *  `source_documents.filename` (see e2e/fixtures/test-data-fixture.ts) —
+ *  default column 'filename'; q_a_pairs artefacts carry it in
+ *  'question_text'. Applied to every generic check; NOT applied to
+ *  audit-content checks (which scope via filename file-groups already). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic constraint over Supabase query builders whose .not() signature varies by table; any[] keeps the helper table-agnostic.
 export function excludeArtefacts<Q extends { not: (...args: any[]) => Q }>(
   q: Q,
+  column = 'filename',
 ): Q {
-  return q.not('title', 'like', '[E2E%').not('title', 'like', '[SUPERSEDE%');
+  return q.not(column, 'like', '[E2E%').not(column, 'like', '[SUPERSEDE%');
 }
 
+/** bl-495: `governance_review_status` is no longer a parent-row column — it
+ *  lives on the `record_lifecycle` facet (owner_kind + owner_id polymorphic
+ *  key; join precedent: migration
+ *  20260706103000_id131_attention_counts_rewrite.sql). PostgREST cannot
+ *  filter a parent select through that polymorphic join, so the gate fetches
+ *  the (small) set of DRAFT source_document ids once and excludes them
+ *  client-side. Semantics match the old `.or('governance_review_status.is.
+ *  null,governance_review_status.neq.draft')` filter: a document with no
+ *  lifecycle row, or a NULL/non-draft status, counts as non-draft. */
+async function fetchDraftDocIds(sb: SupabaseClient): Promise<Set<string>> {
+  const rows = await fetchAll<{ owner_id: string }>(
+    sb,
+    'record_lifecycle',
+    (q) =>
+      q
+        .select('owner_id')
+        .eq('owner_kind', 'source_document')
+        .eq('governance_review_status', 'draft'),
+  );
+  return new Set(rows.map((r) => r.owner_id));
+}
+
+/** Fetch non-draft, artefact-excluded source_documents rows (the parent-row
+ *  successor of the old published content_items scope). `select` must
+ *  include `id` — draft exclusion happens client-side via the
+ *  record_lifecycle draft-id set. */
+async function fetchNonDraftDocs<T extends { id: string }>(
+  sb: SupabaseClient,
+  select: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase PostgrestFilterBuilder is not generically expressible here.
+  refine?: (q: any) => any,
+): Promise<T[]> {
+  const [rows, draftIds] = await Promise.all([
+    fetchAll<T>(sb, 'source_documents', (q) => {
+      const base = excludeArtefacts(q.select(select));
+      return refine ? refine(base) : base;
+    }),
+    fetchDraftDocIds(sb),
+  ]);
+  return rows.filter((r) => !draftIds.has(r.id));
+}
+
+/** Human-readable label for a source_documents row in diagnostics — the old
+ *  content_items.title has no direct successor (BI-11); suggested_title is
+ *  the classifier's title, filename the upload's. */
+function docLabel(r: {
+  suggested_title?: string | null;
+  filename?: string | null;
+}): string {
+  return (r.suggested_title ?? r.filename ?? '(untitled)').slice(0, 60);
+}
+
+/** bl-495: per-type non-draft corpus counts. Typed Q&A records moved off the
+ *  parent table into `q_a_pairs` (id-131) — the 'q_a_pair' bucket counts that
+ *  table directly (its drafts are publication_status='draft' on the row);
+ *  every other content_type is counted from `source_documents`. */
 async function countNonDraftByType(
   sb: SupabaseClient,
 ): Promise<Record<string, number>> {
-  const rows = await fetchAll<{ content_type: string }>(
-    sb,
-    'content_items',
-    (q) =>
-      excludeArtefacts(
-        q
-          .select('content_type, governance_review_status')
-          .or(
-            'governance_review_status.is.null,governance_review_status.neq.draft',
-          ),
-      ),
-  );
+  const docs = await fetchNonDraftDocs<{
+    id: string;
+    content_type: string | null;
+  }>(sb, 'id, content_type');
   const counts: Record<string, number> = {};
-  for (const row of rows) {
-    const t = row.content_type;
+  for (const row of docs) {
+    const t = row.content_type ?? '(null)';
     counts[t] = (counts[t] ?? 0) + 1;
   }
+  const qaRows = await fetchAll<{ id: string }>(sb, 'q_a_pairs', (q) =>
+    excludeArtefacts(
+      q
+        .select('id, publication_status, question_text')
+        .or('publication_status.is.null,publication_status.neq.draft'),
+      'question_text',
+    ),
+  );
+  counts['q_a_pair'] = qaRows.length;
   return counts;
 }
 
@@ -583,43 +634,34 @@ export async function corpus_counts(ctx: GateContext): Promise<CheckResult> {
   }
 }
 
-/** 3.2 embedding_coverage — 0 published items without embedding. */
+/** 3.2 embedding_coverage — 0 published documents without an embedding.
+ *  bl-495: the inline `content_items.embedding` vector column was dropped
+ *  (id-131) — embeddings live in `record_embeddings` keyed by
+ *  (owner_kind, owner_id). Coverage = every non-draft source_document has
+ *  ≥1 record_embeddings row with owner_kind='source_document'. */
 export async function embedding_coverage(
   ctx: GateContext,
 ): Promise<CheckResult> {
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'embedding_coverage');
   try {
-    // Verification finding L-1: use exact count for observed (not row-length
-    // capped at .limit(20)) so the operator sees the full scale of the gap,
-    // then fetch a small sample separately for the diagnostic list.
-    const { count, error: countErr } = await excludeArtefacts(
-      ctx.sb
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .is('embedding', null)
-        .or(
-          'governance_review_status.is.null,governance_review_status.neq.draft',
-        ),
+    const docs = await fetchNonDraftDocs<{
+      id: string;
+      suggested_title: string | null;
+      filename: string | null;
+    }>(ctx.sb, 'id, suggested_title, filename');
+    const embeddedRows = await fetchAll<{ owner_id: string }>(
+      ctx.sb,
+      'record_embeddings',
+      (q) => q.select('owner_id').eq('owner_kind', 'source_document'),
     );
-    if (countErr) throw countErr;
-    const missing = count ?? 0;
-    let affected = '';
-    if (missing > 0) {
-      const { data, error } = await excludeArtefacts(
-        ctx.sb
-          .from('content_items')
-          .select('id, title')
-          .is('embedding', null)
-          .or(
-            'governance_review_status.is.null,governance_review_status.neq.draft',
-          ),
-      ).limit(5);
-      if (error) throw error;
-      affected = (data ?? [])
-        .map((r) => `${r.id}: ${(r.title as string).slice(0, 60)}`)
-        .join('; ');
-    }
+    const embedded = new Set(embeddedRows.map((r) => r.owner_id));
+    const missingDocs = docs.filter((r) => !embedded.has(r.id));
+    const missing = missingDocs.length;
+    const affected = missingDocs
+      .slice(0, 5)
+      .map((r) => `${r.id}: ${docLabel(r)}`)
+      .join('; ');
     return {
       name: 'embedding_coverage',
       severity,
@@ -628,7 +670,7 @@ export async function embedding_coverage(
       observed: `missing=${missing}`,
       diagnostic:
         missing > 0
-          ? `Published items without embedding (sample): ${affected}`
+          ? `Published documents without a record_embeddings row (sample): ${affected}`
           : '',
       duration_ms: now() - t0,
     };
@@ -637,36 +679,32 @@ export async function embedding_coverage(
   }
 }
 
-/** 3.3 chunk_coverage — every published item has ≥1 content_chunks row. */
+/** 3.3 chunk_coverage — every published document has ≥1 content_chunks row.
+ *  bl-495: content_chunks was already re-parented onto
+ *  `source_documents.id` via `source_document_id` (id-131) — only the parent
+ *  query moves. */
 export async function chunk_coverage(ctx: GateContext): Promise<CheckResult> {
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'chunk_coverage');
   try {
-    const items = await fetchAll<{
+    const items = await fetchNonDraftDocs<{
       id: string;
-      title: string;
-      content_type: string;
-    }>(ctx.sb, 'content_items', (q) =>
-      excludeArtefacts(
-        q
-          .select('id, title, content_type')
-          .or(
-            'governance_review_status.is.null,governance_review_status.neq.draft',
-          ),
-      ),
-    );
+      suggested_title: string | null;
+      filename: string | null;
+      content_type: string | null;
+    }>(ctx.sb, 'id, suggested_title, filename, content_type');
     if (items.length === 0) {
       return {
         name: 'chunk_coverage',
         severity,
         status: 'pass',
         threshold: '0 rows missing chunks',
-        observed: 'no published items',
+        observed: 'no published documents',
         diagnostic: '',
         duration_ms: now() - t0,
       };
     }
-    const ids = items.map((r) => r.id as string);
+    const ids = items.map((r) => r.id);
     const chunkRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'content_chunks',
@@ -676,21 +714,18 @@ export async function chunk_coverage(ctx: GateContext): Promise<CheckResult> {
     );
     const chunkSet = new Set<string>();
     for (const row of chunkRows) chunkSet.add(row.source_document_id);
-    const missing = items.filter((r) => !chunkSet.has(r.id as string));
+    const missing = items.filter((r) => !chunkSet.has(r.id));
     const sample = missing
       .slice(0, 10)
-      .map(
-        (r) =>
-          `${r.id}: ${(r.title as string).slice(0, 40)} [${r.content_type}]`,
-      )
+      .map((r) => `${r.id}: ${docLabel(r)} [${r.content_type ?? '?'}]`)
       .join('; ');
     return {
       name: 'chunk_coverage',
       severity,
       status: missing.length ? 'fail' : 'pass',
-      threshold: '0 published items missing chunks',
+      threshold: '0 published documents missing chunks',
       observed: `missing=${missing.length} of ${items.length}`,
-      diagnostic: missing.length ? `Items without chunks: ${sample}` : '',
+      diagnostic: missing.length ? `Documents without chunks: ${sample}` : '',
       duration_ms: now() - t0,
     };
   } catch (err) {
@@ -713,21 +748,12 @@ export async function entity_mention_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
-    const items = await fetchAll<{ id: string; content_type: string }>(
-      ctx.sb,
-      'content_items',
-      (q) =>
-        excludeArtefacts(
-          q
-            .select('id, content_type')
-            .or(
-              'governance_review_status.is.null,governance_review_status.neq.draft',
-            )
-            .not('classified_at', 'is', null),
-        ),
-    );
+    const items = await fetchNonDraftDocs<{
+      id: string;
+      content_type: string | null;
+    }>(ctx.sb, 'id, content_type', (q) => q.not('classified_at', 'is', null));
 
-    const ids = items.map((r) => r.id as string);
+    const ids = items.map((r) => r.id);
     const mentionRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'entity_mentions',
@@ -740,10 +766,10 @@ export async function entity_mention_coverage(
 
     const byType: Record<string, { total: number; withM: number }> = {};
     for (const r of items) {
-      const t = r.content_type as string;
+      const t = r.content_type ?? '(null)';
       byType[t] ??= { total: 0, withM: 0 };
       byType[t].total += 1;
-      if (withMentions.has(r.id as string)) byType[t].withM += 1;
+      if (withMentions.has(r.id)) byType[t].withM += 1;
     }
     const failures: string[] = [];
     const lines: string[] = [];
@@ -787,21 +813,12 @@ export async function entity_relationship_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
-    const items = await fetchAll<{ id: string; content_type: string }>(
-      ctx.sb,
-      'content_items',
-      (q) =>
-        excludeArtefacts(
-          q
-            .select('id, content_type')
-            .or(
-              'governance_review_status.is.null,governance_review_status.neq.draft',
-            )
-            .not('classified_at', 'is', null),
-        ),
-    );
+    const items = await fetchNonDraftDocs<{
+      id: string;
+      content_type: string | null;
+    }>(ctx.sb, 'id, content_type', (q) => q.not('classified_at', 'is', null));
 
-    const ids = items.map((r) => r.id as string);
+    const ids = items.map((r) => r.id);
     const relRows = await fetchAllInBatches<{ source_document_id: string }>(
       ctx.sb,
       'entity_relationships',
@@ -814,10 +831,10 @@ export async function entity_relationship_coverage(
 
     const byType: Record<string, { total: number; withR: number }> = {};
     for (const r of items) {
-      const t = r.content_type as string;
+      const t = r.content_type ?? '(null)';
       byType[t] ??= { total: 0, withR: 0 };
       byType[t].total += 1;
-      if (withRels.has(r.id as string)) byType[t].withR += 1;
+      if (withRels.has(r.id)) byType[t].withR += 1;
     }
 
     const failures: string[] = [];
@@ -860,9 +877,9 @@ export async function classified_domains_not_empty(
   try {
     const { data, error } = await excludeArtefacts(
       ctx.sb
-        .from('content_items')
+        .from('source_documents')
         .select(
-          'id, title, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
+          'id, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
         )
         .gt('classification_confidence', 0)
         .or(
@@ -923,21 +940,20 @@ export async function guide_domain_filter_resolves(
         duration_ms: now() - t0,
       };
     }
+    // bl-495: draft exclusion needs the record_lifecycle set — fetch it once,
+    // then count the non-draft documents per guide domain client-side.
+    const draftIds = await fetchDraftDocIds(ctx.sb);
     const failures: string[] = [];
     for (const g of guideRows) {
       const domain = g.domain_filter as string;
-      const { count, error: cerr } = await excludeArtefacts(
-        ctx.sb
-          .from('content_items')
-          .select('id', { count: 'exact', head: true })
-          .eq('primary_domain', domain)
-          .or(
-            'governance_review_status.is.null,governance_review_status.neq.draft',
-          ),
+      const rows = await fetchAll<{ id: string }>(
+        ctx.sb,
+        'source_documents',
+        (q) => excludeArtefacts(q.select('id').eq('primary_domain', domain)),
       );
-      if (cerr) throw cerr;
-      if ((count ?? 0) === 0) {
-        failures.push(`${g.slug}: domain_filter='${domain}' → 0 items`);
+      const count = rows.filter((r) => !draftIds.has(r.id)).length;
+      if (count === 0) {
+        failures.push(`${g.slug}: domain_filter='${domain}' → 0 documents`);
       }
     }
     return {
@@ -954,160 +970,6 @@ export async function guide_domain_filter_resolves(
   }
 }
 
-/** 3.8 dedup_status_reconciled — 0 stale confirmed_duplicate rows >7d. */
-export async function dedup_status_reconciled(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'dedup_status_reconciled');
-  try {
-    const threshold = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const { data, error } = await excludeArtefacts(
-      ctx.sb
-        .from('content_items')
-        .select('id, title, content_type, created_at, updated_at, metadata')
-        .eq('dedup_status', 'confirmed_duplicate')
-        .lt('updated_at', threshold),
-    ).limit(50);
-    if (error) throw error;
-    const rows = data ?? [];
-    const sample = rows
-      .slice(0, 10)
-      .map((r) => {
-        const age = Math.floor(
-          (Date.now() - new Date(r.updated_at as string).getTime()) /
-            (24 * 60 * 60 * 1000),
-        );
-        const dupOf = (r.metadata as Record<string, unknown> | null)?.[
-          'suspected_duplicate_of'
-        ];
-        return `${r.id} age=${age}d dup_of=${dupOf ?? '?'}`;
-      })
-      .join('; ');
-    return {
-      name: 'dedup_status_reconciled',
-      severity,
-      status: rows.length ? 'fail' : 'pass',
-      threshold: '0 confirmed_duplicate rows older than 7 days',
-      observed: `stale=${rows.length}`,
-      diagnostic: rows.length
-        ? `Stale confirmed_duplicate rows: ${sample} — see admin dedup review UI`
-        : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('dedup_status_reconciled', severity, err);
-  }
-}
-
-/** 3.9 suspected_duplicate_backlog — informational pulse on dedup flags. */
-export async function suspected_duplicate_backlog(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'suspected_duplicate_backlog');
-  try {
-    const { count, error } = await excludeArtefacts(
-      ctx.sb
-        .from('content_items')
-        .select('id', { count: 'exact', head: true })
-        .eq('dedup_status', 'suspected_duplicate'),
-    );
-    if (error) throw error;
-    const n = count ?? 0;
-    const profile = ctx.dedup.profiles[ctx.profileName];
-    if (!profile) {
-      return {
-        name: 'suspected_duplicate_backlog',
-        severity,
-        status: 'warn',
-        threshold: 'no threshold configured',
-        observed: `count=${n}`,
-        diagnostic: `No dedup threshold for profile '${ctx.profileName}'`,
-        duration_ms: now() - t0,
-      };
-    }
-    if (typeof profile.must_pass_if_count_equals === 'number') {
-      const tgt = profile.must_pass_if_count_equals;
-      return {
-        name: 'suspected_duplicate_backlog',
-        severity,
-        status: n === tgt ? 'pass' : 'fail',
-        threshold: `count == ${tgt}`,
-        observed: `count=${n}`,
-        diagnostic: n === tgt ? '' : `count=${n} expected=${tgt}`,
-        duration_ms: now() - t0,
-      };
-    }
-    const ceiling = profile.warn_if_over ?? Infinity;
-    return {
-      name: 'suspected_duplicate_backlog',
-      severity,
-      status: n > ceiling ? 'warn' : 'pass',
-      threshold: `≤ ${ceiling}`,
-      observed: `count=${n}`,
-      diagnostic:
-        n > ceiling
-          ? `Backlog above ${ceiling} — review admin dedup surface`
-          : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('suspected_duplicate_backlog', severity, err);
-  }
-}
-
-/** 3.10 history_v1_present — every published item has content_history v1. */
-export async function history_v1_present(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'history_v1_present');
-  try {
-    const items = await fetchAll<{ id: string; title: string }>(
-      ctx.sb,
-      'content_items',
-      (q) =>
-        excludeArtefacts(
-          q
-            .select('id, title')
-            .or(
-              'governance_review_status.is.null,governance_review_status.neq.draft',
-            ),
-        ),
-    );
-
-    const ids = items.map((r) => r.id as string);
-    const historyRows = await fetchAllInBatches<{ content_item_id: string }>(
-      ctx.sb,
-      'content_history',
-      ids,
-      'content_item_id',
-      (q) => q.select('content_item_id').eq('version', 1),
-    );
-    const hasV1 = new Set<string>();
-    for (const row of historyRows) hasV1.add(row.content_item_id);
-    const missing = items.filter((r) => !hasV1.has(r.id as string));
-    const sample = missing
-      .slice(0, 20)
-      .map((r) => `${r.id}: ${(r.title as string).slice(0, 40)}`)
-      .join('; ');
-    return {
-      name: 'history_v1_present',
-      severity,
-      status: missing.length ? 'fail' : 'pass',
-      threshold: '0 published items without content_history v=1',
-      observed: `missing=${missing.length} of ${items.length}`,
-      diagnostic: missing.length ? `Items without v1 history: ${sample}` : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('history_v1_present', severity, err);
-  }
-}
-
 /** 3.11 classified_but_no_confidence — partial-write detection. */
 export async function classified_but_no_confidence(
   ctx: GateContext,
@@ -1115,24 +977,17 @@ export async function classified_but_no_confidence(
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'classified_but_no_confidence');
   try {
-    const { data, error } = await excludeArtefacts(
-      ctx.sb
-        .from('content_items')
-        .select('id, title, content_type, classified_at, updated_at')
-        .not('classified_at', 'is', null)
-        .is('classification_confidence', null)
-        .or(
-          'governance_review_status.is.null,governance_review_status.neq.draft',
-        ),
-    ).limit(50);
-    if (error) throw error;
-    const rows = data ?? [];
+    const rows = await fetchNonDraftDocs<{
+      id: string;
+      suggested_title: string | null;
+      filename: string | null;
+      classified_at: string | null;
+    }>(ctx.sb, 'id, suggested_title, filename, classified_at', (q) =>
+      q.not('classified_at', 'is', null).is('classification_confidence', null),
+    );
     const sample = rows
       .slice(0, 10)
-      .map(
-        (r) =>
-          `${r.id}: ${(r.title as string).slice(0, 40)} @ ${r.classified_at}`,
-      )
+      .map((r) => `${r.id}: ${docLabel(r)} @ ${r.classified_at}`)
       .join('; ');
     return {
       name: 'classified_but_no_confidence',
@@ -1151,29 +1006,22 @@ export async function classified_but_no_confidence(
   }
 }
 
-/** 3.12 summary_coverage — classified items should have summary. */
+/** 3.12 summary_coverage — classified documents should have summary. */
 export async function summary_coverage(ctx: GateContext): Promise<CheckResult> {
   const t0 = now();
   const severity = severityFor(ctx.profileDef, 'summary_coverage');
   try {
-    const { data, error } = await excludeArtefacts(
-      ctx.sb
-        .from('content_items')
-        .select('id, title, content_type, classified_at')
-        .not('classified_at', 'is', null)
-        .is('summary', null)
-        .or(
-          'governance_review_status.is.null,governance_review_status.neq.draft',
-        ),
-    ).limit(50);
-    if (error) throw error;
-    const rows = data ?? [];
+    const rows = await fetchNonDraftDocs<{
+      id: string;
+      suggested_title: string | null;
+      filename: string | null;
+      content_type: string | null;
+    }>(ctx.sb, 'id, suggested_title, filename, content_type', (q) =>
+      q.not('classified_at', 'is', null).is('summary', null),
+    );
     const sample = rows
       .slice(0, 10)
-      .map(
-        (r) =>
-          `${r.id}: ${(r.title as string).slice(0, 40)} [${r.content_type}]`,
-      )
+      .map((r) => `${r.id}: ${docLabel(r)} [${r.content_type ?? '?'}]`)
       .join('; ');
     const ceiling = ctx.profileName === 'batch' ? 10 : 0;
     return {
@@ -1214,50 +1062,59 @@ export function matchFileGroup(
   return null;
 }
 
+/** bl-495: the audit corpus is now the set of `source_documents` whose
+ *  filename matches a configured file_group (spec §2.1 — the client's .docx
+ *  bid library; the old content_items rows were per-Q&A-pair, the successor
+ *  parent rows are per-document). The old content_type='q_a_pair' +
+ *  source_file gate collapses to a filename match: post-id-131 the docx
+ *  filename lives on `source_documents.filename` and Q&A pairs are child
+ *  `q_a_pairs` rows, not parent rows.
+ *
+ *  NOTE (spec §2.2): the Stage 2 markdown leg — items tagged
+ *  'client-new-markdown-2026' via `user_tags` — has NO successor:
+ *  `user_tags` was dropped with content_items (BI-11) and no replacement
+ *  tagging surface exists. That leg of the audit scope is retired with it;
+ *  the audit corpus is file-group-scoped only. */
 async function loadAuditCorpusItems(
   sb: SupabaseClient,
   auditContent: AuditContentExpected,
-): Promise<
-  Array<{
-    id: string;
-    title: string;
-    content_type: string;
-    source_file: string | null;
-    classification_confidence: number | null;
-    dedup_status: string | null;
-    updated_at: string;
-    user_tags: string[] | null;
-  }>
-> {
-  // Spec §2.1+§2.2 scope: q_a_pair rows whose source_file matches one of the
-  // configured file_groups (not any q_a_pair with a source_file — that would
-  // include other clients' imports) PLUS Stage 2 markdown items tagged
-  // 'client-new-markdown-2026'. Verification finding M-1: tighten the
-  // isClientDocx gate to use matchFileGroup so cross-client corpus leakage
-  // cannot dilute audit-content metrics.
-  const rows = await fetchAll(sb, 'content_items', (q) =>
-    q.select(
-      'id, title, content_type, source_file, classification_confidence, dedup_status, updated_at, user_tags',
-    ),
+): Promise<Array<{ id: string; filename: string }>> {
+  const rows = await fetchAll<{ id: string; filename: string }>(
+    sb,
+    'source_documents',
+    (q) => q.select('id, filename'),
   );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Heterogeneous projected row shape (dynamic select string); narrowed per-field inside the filter.
-  return (rows as any[]).filter((r) => {
-    const isClientDocx =
-      (r.content_type as string) === 'q_a_pair' &&
-      typeof r.source_file === 'string' &&
-      matchFileGroup(r.source_file, auditContent.file_groups) !== null;
-    const isStage2 =
-      Array.isArray(r.user_tags) &&
-      (r.user_tags as string[]).includes('client-new-markdown-2026');
-    return isClientDocx || isStage2;
-  });
+  return rows.filter(
+    (r) =>
+      typeof r.filename === 'string' &&
+      matchFileGroup(r.filename, auditContent.file_groups) !== null,
+  );
+}
+
+/** Map audit-scope source_documents ids to their file group. */
+async function loadAuditGroupDocIds(
+  sb: SupabaseClient,
+  auditContent: AuditContentExpected,
+): Promise<Record<string, string[]>> {
+  const docs = await loadAuditCorpusItems(sb, auditContent);
+  const groupToIds: Record<string, string[]> = {};
+  for (const d of docs) {
+    const group = matchFileGroup(d.filename, auditContent.file_groups);
+    if (!group) continue;
+    (groupToIds[group] ??= []).push(d.id);
+  }
+  return groupToIds;
 }
 
 // ---------------------------------------------------------------------------
 // Audit-content checks (7) — spec §3
 // ---------------------------------------------------------------------------
 
-/** 3.1 audit_per_file_qa_count */
+/** 3.1 audit_per_file_qa_count — Q&A pairs extracted per source file group.
+ *  bl-495: a Q&A pair is now a `q_a_pairs` row hanging off its parent
+ *  source_document (id-131) — count child rows per file-group of parent
+ *  documents, which is what this check always measured (extraction yield per
+ *  docx), not parent-row counts. */
 export async function audit_per_file_qa_count(
   ctx: GateContext,
 ): Promise<CheckResult> {
@@ -1271,20 +1128,17 @@ export async function audit_per_file_qa_count(
         'audit-content config missing',
       );
     }
-    const rows = await fetchAll<{
-      id: string;
-      source_file: string;
-      content_type: string;
-    }>(ctx.sb, 'content_items', (q) =>
-      q
-        .select('id, source_file, content_type')
-        .eq('content_type', 'q_a_pair')
-        .not('source_file', 'is', null),
-    );
+    const groupToIds = await loadAuditGroupDocIds(ctx.sb, ctx.auditContent);
     const counts: Record<string, number> = {};
-    for (const r of rows) {
-      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
-      if (group) counts[group] = (counts[group] ?? 0) + 1;
+    for (const [group, ids] of Object.entries(groupToIds)) {
+      const qaRows = await fetchAllInBatches<{ id: string }>(
+        ctx.sb,
+        'q_a_pairs',
+        ids,
+        'source_document_id',
+        (q) => q.select('id'),
+      );
+      counts[group] = qaRows.length;
     }
     const failures: string[] = [];
     const lines: string[] = [];
@@ -1331,20 +1185,23 @@ export async function audit_classification_confidence(
         'audit-content config missing',
       );
     }
+    // bl-495: classification lives on the parent `source_documents` row
+    // (id-131 — Q&A pairs are no longer individually classified rows), so
+    // the hi-confidence ratio is now measured per DOCUMENT in each file
+    // group rather than per Q&A pair. Intent unchanged: the audit corpus
+    // must be classified with high confidence — granularity is coarser
+    // because that is where classification actually happens now.
     const rows = await fetchAll<{
       id: string;
-      source_file: string;
+      filename: string;
       classification_confidence: number | null;
-      content_type: string;
-    }>(ctx.sb, 'content_items', (q) =>
-      q
-        .select('id, source_file, classification_confidence, content_type')
-        .eq('content_type', 'q_a_pair')
-        .not('source_file', 'is', null),
+    }>(ctx.sb, 'source_documents', (q) =>
+      q.select('id, filename, classification_confidence'),
     );
     const byGroup: Record<string, { hi: number; total: number }> = {};
     for (const r of rows) {
-      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
+      if (typeof r.filename !== 'string') continue;
+      const group = matchFileGroup(r.filename, ctx.auditContent.file_groups);
       if (!group) continue;
       byGroup[group] ??= { hi: 0, total: 0 };
       byGroup[group].total += 1;
@@ -1552,22 +1409,10 @@ export async function audit_chunk_count_per_doc(
         'audit-content config missing',
       );
     }
-    const itemsRows = await fetchAll<{
-      id: string;
-      source_file: string;
-      content_type: string;
-    }>(ctx.sb, 'content_items', (q) =>
-      q
-        .select('id, source_file, content_type')
-        .eq('content_type', 'q_a_pair')
-        .not('source_file', 'is', null),
-    );
-    const groupToIds: Record<string, string[]> = {};
-    for (const r of itemsRows) {
-      const group = matchFileGroup(r.source_file, ctx.auditContent.file_groups);
-      if (!group) continue;
-      (groupToIds[group] ??= []).push(r.id);
-    }
+    // bl-495: content_chunks already hang off source_documents
+    // (source_document_id, id-131 re-parent) — group the audit-scope parent
+    // documents by filename and count their chunks.
+    const groupToIds = await loadAuditGroupDocIds(ctx.sb, ctx.auditContent);
     const failures: string[] = [];
     const lines: string[] = [];
     for (const [group, def] of Object.entries(ctx.auditContent.file_groups)) {
@@ -1612,113 +1457,13 @@ export async function audit_chunk_count_per_doc(
   }
 }
 
-/** 3.6 audit_cross_doc_dedup_ratio */
-export async function audit_cross_doc_dedup_ratio(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'audit_cross_doc_dedup_ratio');
-  try {
-    if (!ctx.auditContent) {
-      return makeSkip(
-        'audit_cross_doc_dedup_ratio',
-        severity,
-        'audit-content config missing',
-      );
-    }
-    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
-    const total = corpusItems.length;
-    if (total === 0) {
-      return {
-        name: 'audit_cross_doc_dedup_ratio',
-        severity,
-        status: 'warn',
-        threshold: 'within [0, 0.25]',
-        observed: 'corpus empty — no items matched audit scope',
-        diagnostic:
-          'Audit corpus contains 0 items — verify source_file / user_tags wiring',
-        duration_ms: now() - t0,
-      };
-    }
-    const flagged = corpusItems.filter(
-      (r) => r.dedup_status === 'suspected_duplicate',
-    ).length;
-    const ratio = flagged / total;
-    const { min, max } = ctx.auditContent.cross_doc_dedup_ratio_range;
-    const ok = ratio >= min && ratio <= max;
-    // Verification finding M-2: return 'fail' on violation like every other
-    // check; overallVerdict() + renderer demote SHOULD-PASS fails to warn
-    // via severity, so the report semantics are unchanged but tooling that
-    // queries `status === 'fail'` now sees this violation (was silently
-    // hidden as 'warn' before).
-    return {
-      name: 'audit_cross_doc_dedup_ratio',
-      severity,
-      status: ok ? 'pass' : 'fail',
-      threshold: `ratio ∈ [${min}, ${max}]`,
-      observed: `ratio=${fmtRatio(ratio)} (${flagged}/${total})`,
-      diagnostic: ok
-        ? ''
-        : ratio > max
-          ? `Above ceiling — audit content-hash normaliser for over-aggression`
-          : `Below floor — likely all overlaps caught at title-norm dedup`,
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('audit_cross_doc_dedup_ratio', severity, err);
-  }
-}
-
-/** 3.7 audit_unresolved_dedup_24h */
-export async function audit_unresolved_dedup_24h(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'audit_unresolved_dedup_24h');
-  try {
-    if (!ctx.auditContent) {
-      return makeSkip(
-        'audit_unresolved_dedup_24h',
-        severity,
-        'audit-content config missing',
-      );
-    }
-    const cutoff = new Date(
-      Date.now() - ctx.auditContent.unresolved_dedup_age_hours * 60 * 60 * 1000,
-    ).toISOString();
-    const corpusItems = await loadAuditCorpusItems(ctx.sb, ctx.auditContent);
-    const stale = corpusItems.filter(
-      (r) =>
-        r.dedup_status === 'suspected_duplicate' &&
-        new Date(r.updated_at).getTime() < new Date(cutoff).getTime(),
-    );
-    const sample = stale
-      .slice(0, 10)
-      .map((r) => `${r.id}: ${r.title.slice(0, 40)}`)
-      .join('; ');
-    // Verification finding M-2: return 'fail' on violation; SHOULD-PASS
-    // severity demotes to warn via overallVerdict — see sibling comment on
-    // audit_cross_doc_dedup_ratio.
-    return {
-      name: 'audit_unresolved_dedup_24h',
-      severity,
-      status: stale.length ? 'fail' : 'pass',
-      threshold: '0 corpus items in suspected_duplicate state > 24h old',
-      observed: `stale=${stale.length}`,
-      diagnostic: stale.length
-        ? `Unresolved corpus dedup > 24h: ${sample}`
-        : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('audit_unresolved_dedup_24h', severity, err);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
+// bl-495 (id-131 drop): dedup_status_reconciled, suspected_duplicate_backlog
+// and history_v1_present RETIRED — the dedup family and content_history were
+// dropped with content_items and have no successor (12 generic checks → 9).
 export const GENERIC_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'corpus_counts', fn: corpus_counts },
   { name: 'embedding_coverage', fn: embedding_coverage },
@@ -1727,13 +1472,12 @@ export const GENERIC_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'entity_relationship_coverage', fn: entity_relationship_coverage },
   { name: 'classified_domains_not_empty', fn: classified_domains_not_empty },
   { name: 'guide_domain_filter_resolves', fn: guide_domain_filter_resolves },
-  { name: 'dedup_status_reconciled', fn: dedup_status_reconciled },
-  { name: 'suspected_duplicate_backlog', fn: suspected_duplicate_backlog },
-  { name: 'history_v1_present', fn: history_v1_present },
   { name: 'classified_but_no_confidence', fn: classified_but_no_confidence },
   { name: 'summary_coverage', fn: summary_coverage },
 ];
 
+// bl-495 (id-131 drop): audit_cross_doc_dedup_ratio + audit_unresolved_dedup_24h
+// RETIRED — dedup family dropped, no successor (7 audit checks → 5).
 export const AUDIT_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'audit_per_file_qa_count', fn: audit_per_file_qa_count },
   {
@@ -1743,8 +1487,6 @@ export const AUDIT_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'audit_required_entities', fn: audit_required_entities },
   { name: 'audit_required_relationships', fn: audit_required_relationships },
   { name: 'audit_chunk_count_per_doc', fn: audit_chunk_count_per_doc },
-  { name: 'audit_cross_doc_dedup_ratio', fn: audit_cross_doc_dedup_ratio },
-  { name: 'audit_unresolved_dedup_24h', fn: audit_unresolved_dedup_24h },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1919,7 +1661,6 @@ export async function runGate(
   const corpus = loadCorpusExpected();
   const entityCov = loadEntityCoverageExpected();
   const relCov = loadRelationshipCoverageExpected();
-  const dedup = loadDedupExpected();
 
   if (args.threshold && args.profile) {
     throw new Error(
@@ -1959,7 +1700,6 @@ export async function runGate(
     corpus,
     entityCov,
     relCov,
-    dedup,
     auditContent,
     workspaceId,
     runId,

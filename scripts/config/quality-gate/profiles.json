@@ -11,9 +11,6 @@
         "entity_relationship_coverage": "should-pass",
         "classified_domains_not_empty": "must-pass",
         "guide_domain_filter_resolves": "must-pass",
-        "dedup_status_reconciled": "should-pass",
-        "suspected_duplicate_backlog": "should-pass",
-        "history_v1_present": "should-pass",
         "classified_but_no_confidence": "should-pass",
         "summary_coverage": "should-pass"
       }
@@ -28,9 +25,6 @@
         "entity_relationship_coverage": "should-pass",
         "classified_domains_not_empty": "must-pass",
         "guide_domain_filter_resolves": "should-pass",
-        "dedup_status_reconciled": "should-pass",
-        "suspected_duplicate_backlog": "should-pass",
-        "history_v1_present": "should-pass",
         "classified_but_no_confidence": "should-pass",
         "summary_coverage": "should-pass"
       }
@@ -45,9 +39,6 @@
         "entity_relationship_coverage": "should-pass",
         "classified_domains_not_empty": "must-pass",
         "guide_domain_filter_resolves": "must-pass",
-        "dedup_status_reconciled": "must-pass",
-        "suspected_duplicate_backlog": "must-pass",
-        "history_v1_present": "should-pass",
         "classified_but_no_confidence": "should-pass",
         "summary_coverage": "should-pass"
       }
@@ -60,9 +51,7 @@
         "audit_classification_confidence": "must-pass",
         "audit_required_entities": "must-pass",
         "audit_required_relationships": "must-pass",
-        "audit_chunk_count_per_doc": "should-pass",
-        "audit_cross_doc_dedup_ratio": "should-pass",
-        "audit_unresolved_dedup_24h": "should-pass"
+        "audit_chunk_count_per_doc": "should-pass"
       }
     }
   }
