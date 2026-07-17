@@ -7,6 +7,12 @@
  * (wiring the {135.22}-shipped `useLibraryBulkActions` handlers) behind
  * confirm dialogs — Assign needs a workspace picked first (Dialog), Delete
  * is a plain yes/no confirm (AlertDialog).
+ *
+ * ID-135 {135.28} adds an affordance-honesty role gate on top: Delete
+ * (irreversible hard-DELETE) renders only for `canAdmin`, Assign renders
+ * only for `canEdit`. Verify stays ungated (out of {135.28} scope). Server
+ * auth is unchanged — this is client-side affordance hiding only, following
+ * the `guide-content.tsx` `{canEdit && (...)}` precedent.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -33,6 +39,10 @@ function defaultProps(
     onBulkVerify: vi.fn(),
     onClearSelection: vi.fn(),
     onBulkDelete: vi.fn(),
+    // Default to admin (both role-gated buttons visible) so the existing
+    // Assign/Delete tests below are unaffected by the {135.28} role gate.
+    canEdit: true,
+    canAdmin: true,
     assignDialogOpen: false,
     onAssignDialogOpenChange: vi.fn(),
     engagementGroups: [
@@ -255,5 +265,63 @@ describe('BulkActionToolbar', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(props.onBulkDelete).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Role gating (ID-135 {135.28}) — Delete is admin-only (irreversible hard
+  // DELETE), Assign is editor+ (canEdit). Verify stays ungated regardless.
+  // -------------------------------------------------------------------------
+
+  describe('role gating', () => {
+    it('viewer (canEdit=false, canAdmin=false): hides Assign and Delete, keeps Verify', () => {
+      render(
+        <BulkActionToolbar
+          {...defaultProps({ canEdit: false, canAdmin: false })}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: /assign to engagement group/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /^delete$/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /verify/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('editor (canEdit=true, canAdmin=false): shows Assign, hides Delete', () => {
+      render(
+        <BulkActionToolbar
+          {...defaultProps({ canEdit: true, canAdmin: false })}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: /assign to engagement group/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /^delete$/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /verify/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('admin (canEdit=true, canAdmin=true): shows both Assign and Delete', () => {
+      render(
+        <BulkActionToolbar
+          {...defaultProps({ canEdit: true, canAdmin: true })}
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: /assign to engagement group/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /^delete$/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /verify/i }),
+      ).toBeInTheDocument();
+    });
   });
 });

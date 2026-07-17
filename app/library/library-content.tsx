@@ -122,7 +122,7 @@ export function LibraryContent() {
     setGroupBy,
   } = useLibraryFilters();
   const { domains } = useTaxonomy();
-  const { canEdit } = useUserRole();
+  const { canEdit, canAdmin } = useUserRole();
 
   // Data fetching via TanStack Query
   const { items, isLoading, sourceFiles } = useLibraryData(filters);
@@ -483,6 +483,8 @@ export function LibraryContent() {
           bulkProgress={bulk.bulkProgress}
           onBulkVerify={bulk.handleBulkVerify}
           onClearSelection={bulk.clearSelection}
+          canEdit={canEdit}
+          canAdmin={canAdmin}
           onBulkDelete={bulk.handleBulkDelete}
           assignDialogOpen={bulk.assignDialogOpen}
           onAssignDialogOpenChange={bulk.setAssignDialogOpen}

@@ -67,6 +67,16 @@ export interface EngagementGroupOption {
  * input), Delete is a plain yes/no confirm (an `AlertDialog`). Reclassify
  * and Tag stay retired — no valid backing column exists on `q_a_pairs`.
  * Verify (`/api/review/action`) is unaffected by this rebind.
+ *
+ * ID-135 {135.28} — affordance-honesty role gate. Server-side auth was
+ * already correct (Assign / engagement-group-content route =
+ * ['admin','editor']; hard-DELETE /api/q-a-pairs/[id] = ['admin']); this
+ * hides the two buttons client-side so viewers/editors never see an
+ * affordance the server will reject. Delete (irreversible hard-delete) is
+ * `canAdmin`-only; Assign is `canEdit` (admin or editor). Verify is
+ * deliberately NOT gated — out of {135.28}'s scope. Follows the
+ * `guide-content.tsx` `{canEdit && (...)}` hide precedent rather than
+ * disable-with-tooltip.
  */
 export interface BulkActionToolbarProps {
   selectedCount: number;
@@ -76,6 +86,10 @@ export interface BulkActionToolbarProps {
   bulkProgress: { current: number; total: number; label: string };
   onBulkVerify: () => void;
   onClearSelection: () => void;
+
+  // Role gate (ID-135 {135.28}) — see class doc comment above
+  canEdit: boolean;
+  canAdmin: boolean;
 
   // Delete (ID-135 {135.25} — admin-only hard DELETE against q_a_pairs)
   onBulkDelete: () => void;
@@ -104,6 +118,8 @@ export function BulkActionToolbar({
   bulkProgress,
   onBulkVerify,
   onClearSelection,
+  canEdit,
+  canAdmin,
   onBulkDelete,
   assignDialogOpen,
   onAssignDialogOpenChange,
@@ -150,27 +166,31 @@ export function BulkActionToolbar({
               Verify
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              onClick={onOpenAssignDialog}
-              disabled={bulkOperating}
-            >
-              <FolderInput className="size-3.5" />
-              Assign to engagement group
-            </Button>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={onOpenAssignDialog}
+                disabled={bulkOperating}
+              >
+                <FolderInput className="size-3.5" />
+                Assign to engagement group
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-              disabled={bulkOperating}
-            >
-              <Trash2 className="size-3.5" />
-              Delete
-            </Button>
+            {canAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={bulkOperating}
+              >
+                <Trash2 className="size-3.5" />
+                Delete
+              </Button>
+            )}
           </div>
 
           <Button

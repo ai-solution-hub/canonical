@@ -68,6 +68,7 @@ const {
     role: 'editor' as string | null,
     loading: false,
     canEdit: true,
+    canAdmin: false,
   },
   mockLibraryData: {
     items: [] as unknown[],
@@ -152,11 +153,15 @@ vi.mock('@/components/browse/bulk-action-toolbar', () => ({
     onBulkDelete,
     onOpenAssignDialog,
     onConfirmAssign,
+    canEdit,
+    canAdmin,
   }: {
     selectedCount: number;
     onBulkDelete: () => void;
     onOpenAssignDialog: () => void;
     onConfirmAssign: () => void;
+    canEdit: boolean;
+    canAdmin: boolean;
   }) =>
     selectedCount > 0 ? (
       <div data-testid="bulk-toolbar">
@@ -164,6 +169,8 @@ vi.mock('@/components/browse/bulk-action-toolbar', () => ({
         <button onClick={onBulkDelete}>stub-delete</button>
         <button onClick={onOpenAssignDialog}>stub-open-assign</button>
         <button onClick={onConfirmAssign}>stub-confirm-assign</button>
+        <span data-testid="bulk-toolbar-can-edit">{String(canEdit)}</span>
+        <span data-testid="bulk-toolbar-can-admin">{String(canAdmin)}</span>
       </div>
     ) : null,
 }));
@@ -278,6 +285,7 @@ describe('LibraryContent', () => {
     mockLibraryData.sourceFiles = [];
     mockUserRole.role = 'editor';
     mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = false;
   });
 
   afterEach(() => {
@@ -478,6 +486,47 @@ describe('LibraryContent', () => {
     await user.click(await screen.findByText('stub-confirm-assign'));
 
     expect(mockBulk.handleBulkAssignConfirm).toHaveBeenCalledOnce();
+  });
+
+  // -------------------------------------------------------------------------
+  // ID-135 {135.28}: wires useUserRole()'s canEdit/canAdmin into
+  // BulkActionToolbar's role-gate props
+  // -------------------------------------------------------------------------
+
+  it('passes canEdit and canAdmin from useUserRole into BulkActionToolbar (editor)', async () => {
+    const items = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = items;
+    mockBulk.selectedIds = new Set(['qa-1']);
+    mockUserRole.role = 'editor';
+    mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = false;
+
+    renderLibraryContent();
+
+    expect(
+      await screen.findByTestId('bulk-toolbar-can-edit'),
+    ).toHaveTextContent('true');
+    expect(screen.getByTestId('bulk-toolbar-can-admin')).toHaveTextContent(
+      'false',
+    );
+  });
+
+  it('passes canEdit and canAdmin from useUserRole into BulkActionToolbar (admin)', async () => {
+    const items = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = items;
+    mockBulk.selectedIds = new Set(['qa-1']);
+    mockUserRole.role = 'admin';
+    mockUserRole.canEdit = true;
+    mockUserRole.canAdmin = true;
+
+    renderLibraryContent();
+
+    expect(
+      await screen.findByTestId('bulk-toolbar-can-edit'),
+    ).toHaveTextContent('true');
+    expect(screen.getByTestId('bulk-toolbar-can-admin')).toHaveTextContent(
+      'true',
+    );
   });
 
   it('clear all filters button resets filters', async () => {
