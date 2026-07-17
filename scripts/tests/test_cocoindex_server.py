@@ -3313,3 +3313,152 @@ class TestForcedProducerReportWiring:
         source = inspect.getsource(server_mod._build_forced_producer_report)
         assert "coco.App(" in source
         assert "forced_app.update_blocking()" in source
+
+
+class TestForcedProducerAppSingleton:
+    """{132.46} G-FORCED-APP-SINGLETON (DEFECT C fix, curator-triaged from
+    {132.35} G-DEPLOY-PROOF): the SECOND `POST /producer-run` per container
+    lifetime used to fail `Invalid Request: App name already registered:
+    kh_pipeline_producer_forced` because `_build_forced_producer_report`
+    constructed a FRESH `coco.App(...)` on every call. `coco.App(...)`
+    registers its name into cocoindex's process-global App registry AT
+    CONSTRUCTION TIME (empirically verified against the installed engine,
+    cocoindex 1.0.7: a second construction with an already-used name raises
+    `ValueError: An app named '<name>' is already registered in this
+    environment.`), so a second construction with the SAME name always
+    errors. These tests fake `coco.App` (never boot the real cocoindex Rust
+    engine — mirrors this file's established `_FakeApp` conventions, e.g.
+    `TestPullSyncFenceHold`) to prove `_build_forced_producer_report` now
+    constructs the App exactly ONCE and reuses the SAME object across
+    sequential calls, without needing the real engine or a real
+    `OKF_BUNDLE_DIR` checkout to boot."""
+
+    def test_two_sequential_calls_construct_the_app_exactly_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # Force `flow` (and its module-level `KH_PIPELINE_APP =
+        # coco.App(AppConfig(name="kh_pipeline"), ...)`) to be imported/built
+        # via the REAL coco.App BEFORE we monkeypatch coco.App below — a cold
+        # first import inside `_build_forced_producer_report` would otherwise
+        # be captured by the fake too, double-counting constructions.
+        from scripts.cocoindex_pipeline import flow  # noqa: F401
+
+        server_mod.reset_forced_producer_app_cache()
+
+        construct_calls: list[tuple[object, object]] = []
+
+        class _FakeForcedApp:
+            def __init__(self, config: object, main_fn: object) -> None:
+                construct_calls.append((config, main_fn))
+
+            def update_blocking(self) -> str:
+                return "ran"
+
+        monkeypatch.setattr(server_mod.coco, "App", _FakeForcedApp)
+
+        report1 = server_mod._build_forced_producer_report("req-1")
+        report2 = server_mod._build_forced_producer_report("req-2")
+
+        assert report1 == "ran"
+        assert report2 == "ran"
+        assert len(construct_calls) == 1, (
+            "coco.App(...) must be constructed exactly ONCE across two "
+            "forced-run invocations — a second construction with the same "
+            "App name is what {132.35} DEFECT C's 'already registered' "
+            "failure reproduced"
+        )
+
+    def test_two_sequential_calls_reuse_the_identical_app_object(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # See test_two_sequential_calls_construct_the_app_exactly_once for
+        # why `flow` must be imported before coco.App is faked below.
+        from scripts.cocoindex_pipeline import flow  # noqa: F401
+
+        server_mod.reset_forced_producer_app_cache()
+
+        class _FakeForcedApp:
+            def __init__(self, config: object, main_fn: object) -> None:
+                pass
+
+            def update_blocking(self) -> "_FakeForcedApp":
+                return self
+
+        monkeypatch.setattr(server_mod.coco, "App", _FakeForcedApp)
+
+        app_via_call_1 = server_mod._build_forced_producer_report("req-1")
+        app_via_call_2 = server_mod._build_forced_producer_report("req-2")
+
+        assert app_via_call_1 is app_via_call_2, (
+            "both calls must return through the SAME memoised App instance"
+        )
+        assert server_mod._FORCED_PRODUCER_APP is app_via_call_1
+
+    def test_app_name_stays_constant_and_appconfig_constructed_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The App name MUST stay constant across calls — it derives the
+        persistent LMDB memo namespace (BI-18 cross-restart memo-hit proof).
+        A per-request-unique name was the REJECTED alternative (S485 retro:
+        would orphan the memo store every call)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # See test_two_sequential_calls_construct_the_app_exactly_once for
+        # why `flow` must be imported before coco.App is faked below.
+        from scripts.cocoindex_pipeline import flow  # noqa: F401
+
+        server_mod.reset_forced_producer_app_cache()
+
+        seen_configs: list[object] = []
+
+        class _FakeForcedApp:
+            def __init__(self, config: object, main_fn: object) -> None:
+                seen_configs.append(config)
+
+            def update_blocking(self) -> None:
+                return None
+
+        monkeypatch.setattr(server_mod.coco, "App", _FakeForcedApp)
+
+        server_mod._build_forced_producer_report("req-1")
+        server_mod._build_forced_producer_report("req-2")
+
+        assert len(seen_configs) == 1
+        assert seen_configs[0].name == server_mod._PRODUCER_FORCED_RUN_APP_NAME
+        assert (
+            server_mod._PRODUCER_FORCED_RUN_APP_NAME
+            == "kh_pipeline_producer_forced"
+        )
+
+    def test_reset_forced_producer_app_cache_clears_the_singleton(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test-only clean-slate helper (mirrors `reset_producer_run_state()`
+        / `reset_walk_state()`) — asserted directly so the singleton cache
+        cannot silently leak across test modules that share this process."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        # See test_two_sequential_calls_construct_the_app_exactly_once for
+        # why `flow` must be imported before coco.App is faked below.
+        from scripts.cocoindex_pipeline import flow  # noqa: F401
+
+        server_mod.reset_forced_producer_app_cache()
+
+        class _FakeForcedApp:
+            def __init__(self, config: object, main_fn: object) -> None:
+                pass
+
+            def update_blocking(self) -> None:
+                return None
+
+        monkeypatch.setattr(server_mod.coco, "App", _FakeForcedApp)
+
+        server_mod._build_forced_producer_report("req-1")
+        assert server_mod._FORCED_PRODUCER_APP is not None
+
+        server_mod.reset_forced_producer_app_cache()
+        assert server_mod._FORCED_PRODUCER_APP is None

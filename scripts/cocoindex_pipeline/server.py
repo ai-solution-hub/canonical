@@ -1079,6 +1079,38 @@ async def _walk_handler(request: web.Request) -> web.Response:
 
 _PRODUCER_FORCED_RUN_APP_NAME = "kh_pipeline_producer_forced"
 
+# {132.46} G-FORCED-APP-SINGLETON — DEFECT C fix (curator-triaged from
+# {132.35} G-DEPLOY-PROOF). `coco.App(AppConfig(name=...))` registers the App
+# name into cocoindex's process-global App registry AT CONSTRUCTION TIME
+# (empirically verified against the installed engine, cocoindex 1.0.7: a
+# second `coco.App(...)` construction with an already-used name raises
+# `ValueError: An app named '<name>' is already registered in this
+# environment.` — mirrors `KH_PIPELINE_APP`'s own registration in flow.py,
+# see `_reset_cocoindex_app_registry()` above, which pops the SAME kind of
+# registry entry for test isolation). Building a fresh App on every
+# `_build_forced_producer_report` call therefore made every SECOND `POST
+# /producer-run` per container lifetime fail outright — the interim operator
+# workaround was `docker restart` between forced runs. The App name MUST stay
+# CONSTANT regardless of the fix (it derives the persistent LMDB memo
+# namespace — BI-18 cross-restart memo-hit proof), so a per-request-unique
+# name was REJECTED (S485 retro; would orphan the memo store every call) —
+# the only valid fix is a process-lifetime singleton, memoised here and
+# guarded by `_FORCED_PRODUCER_APP_LOCK` so two overlapping first calls can
+# never race the build. Retires the `docker restart`-between-forced-runs
+# workaround.
+_FORCED_PRODUCER_APP: Any = None
+_FORCED_PRODUCER_APP_LOCK = threading.Lock()
+
+
+def reset_forced_producer_app_cache() -> None:
+    """Drop the memoised forced-run App — test-only clean-slate helper
+    (mirrors `reset_producer_run_state()` / `reset_walk_state()`). Production
+    code never calls this: the whole point of the singleton is that it
+    survives for the container's lifetime."""
+    global _FORCED_PRODUCER_APP
+    with _FORCED_PRODUCER_APP_LOCK:
+        _FORCED_PRODUCER_APP = None
+
 
 def _build_forced_producer_report(request_id: str) -> Any:
     """Builds the pool/re_target/repo_path context inside a dedicated
@@ -1090,43 +1122,65 @@ def _build_forced_producer_report(request_id: str) -> Any:
     "discrete `producer` command" surface the trigger module's own docstring
     names as the manual-invocation contract.
 
+    The forced-run App itself is a MEMOISED SINGLETON (`_FORCED_PRODUCER_APP`,
+    {132.46} G-FORCED-APP-SINGLETON): `coco.App(...)` is constructed ONCE per
+    process lifetime — every subsequent call reuses the SAME App object and
+    only re-invokes `update_blocking()` on it, never re-registers the name.
+
     A dedicated, easily-monkeypatched seam (mirrors `_build_pull_sync_pool`)
     so `_run_producer_forced`'s auth/single-flight/thread-dispatch logic is
     testable without booting the real cocoindex Rust engine — see
     `test_cocoindex_server.py`'s `TestProducerRun*` classes (which patch
-    THIS function directly) and that same file's `TestForcedProducerReportWiring`
+    THIS function directly), that same file's `TestForcedProducerReportWiring`
     class (source-inspection coverage of this function's own body, mirroring
     `test_flow_producer_chain.py`'s established pattern for `app_main` — the
-    real engine cannot boot in unit tests either way).
+    real engine cannot boot in unit tests either way), and
+    `TestForcedProducerAppSingleton` (fakes `coco.App` to prove the singleton
+    memoises across two sequential calls).
     """
+    global _FORCED_PRODUCER_APP
+
     from scripts.cocoindex_pipeline import flow
     from scripts.cocoindex_pipeline.producer.trigger import run_producer_now
 
-    async def _forced_producer_main_fn() -> Any:
-        pool = coco.use_context(flow.DB_CTX)
-        re_target = await flow.mount_table_target(
-            flow.DB_CTX,
-            "record_embeddings",
-            flow.RECORD_EMBEDDINGS_SCHEMA,
-            managed_by=flow.ManagedBy.USER,
-        )
-        repo_path = os.environ.get("OKF_BUNDLE_DIR") or None
-        return await run_producer_now(
-            deltas=(),
-            pool=pool,
-            re_target=re_target,
-            repo_path=repo_path,
-        )
+    with _FORCED_PRODUCER_APP_LOCK:
+        forced_app = _FORCED_PRODUCER_APP
+        if forced_app is None:
 
-    forced_app = coco.App(
-        coco.AppConfig(name=_PRODUCER_FORCED_RUN_APP_NAME),
-        _forced_producer_main_fn,
-    )
-    _logger.info(
-        "/producer-run (requestId=%s) entering forced-run App %r",
-        request_id,
-        _PRODUCER_FORCED_RUN_APP_NAME,
-    )
+            async def _forced_producer_main_fn() -> Any:
+                pool = coco.use_context(flow.DB_CTX)
+                re_target = await flow.mount_table_target(
+                    flow.DB_CTX,
+                    "record_embeddings",
+                    flow.RECORD_EMBEDDINGS_SCHEMA,
+                    managed_by=flow.ManagedBy.USER,
+                )
+                repo_path = os.environ.get("OKF_BUNDLE_DIR") or None
+                return await run_producer_now(
+                    deltas=(),
+                    pool=pool,
+                    re_target=re_target,
+                    repo_path=repo_path,
+                )
+
+            forced_app = coco.App(
+                coco.AppConfig(name=_PRODUCER_FORCED_RUN_APP_NAME),
+                _forced_producer_main_fn,
+            )
+            _FORCED_PRODUCER_APP = forced_app
+            _logger.info(
+                "/producer-run (requestId=%s) constructed forced-run App %r "
+                "(singleton — first call this process)",
+                request_id,
+                _PRODUCER_FORCED_RUN_APP_NAME,
+            )
+        else:
+            _logger.info(
+                "/producer-run (requestId=%s) reusing cached forced-run App %r",
+                request_id,
+                _PRODUCER_FORCED_RUN_APP_NAME,
+            )
+
     return forced_app.update_blocking()
 
 
