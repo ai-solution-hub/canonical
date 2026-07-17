@@ -1,19 +1,13 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
- * Segment-local loading.tsx for `/documents/[id]` (ID-135 {135.29} spike).
- *
- * Follows the sibling `/documents/[id]/diff/loading.tsx` shape/skeleton
- * convention (same `[id]` segment, `Skeleton` component). Shape loosely
- * mirrors `SourceDocumentDetailClient`'s five composed sections (header +
- * provenance + version chain + citations + derived pairs/related records)
- * so the streamed skeleton reads as this page's own shell, not a generic
- * placeholder.
- *
- * Purpose: give this route its own Suspense boundary instead of inheriting
- * the root `app/loading.tsx` one — the candidate fix tested by the
- * {135.29} spike for the {135.27} transient duplicate-provenance-section
- * DOM race (see that subtask's journal for the instrumented verdict).
+ * Segment-local loading skeleton for `/documents/[id]` — mirrors the
+ * sibling `/documents/[id]/diff/loading.tsx` `Skeleton`-component shape
+ * and approximates this page's five composed sections (provenance,
+ * version chain, citations, derived pairs, related records) so the
+ * streamed fallback reads as this page's own shell rather than a generic
+ * placeholder. Gives the route its own Suspense boundary instead of
+ * inheriting the root `app/loading.tsx` one.
  */
 export default function SourceDocumentDetailLoading() {
   return (
