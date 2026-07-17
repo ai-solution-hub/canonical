@@ -4,7 +4,7 @@ import { test, expect } from '../fixtures';
  * Flow: SI Prompt Refinement — Review and Refine page
  *
  * Exercises the prompt refinement flow wired up in S158 WP1:
- *   - `RefinementPanel` as the primary interface on the admin-only prompts page
+ *   - `RefinementPanel` as the primary interface on the admin-only filter-rules page
  *   - Advanced disclosure that reveals the legacy PromptEditor
  *   - Happy path: analyse → preview → apply changes → flag count drops
  *
@@ -24,12 +24,12 @@ import { test, expect } from '../fixtures';
 // ---------------------------------------------------------------------------
 
 test.describe('Prompt refinement page navigation', () => {
-  test('admin loads the prompts page with refinement panel + version sidebar', async ({
+  test('admin loads the filter-rules page with refinement panel + version sidebar', async ({
     authenticatedPage: page,
     workerData,
   }) => {
     await page.goto(
-      `/intelligence/${workerData.intelligenceWorkspaceId}/prompts`,
+      `/intelligence/${workerData.intelligenceWorkspaceId}/filter-rules`,
     );
 
     await page.waitForLoadState('networkidle', { timeout: 15000 });
@@ -60,7 +60,7 @@ test.describe('Prompt refinement page navigation', () => {
     workerData,
   }) => {
     await page.goto(
-      `/intelligence/${workerData.intelligenceWorkspaceId}/prompts`,
+      `/intelligence/${workerData.intelligenceWorkspaceId}/filter-rules`,
     );
     await page.waitForLoadState('networkidle', { timeout: 15000 });
 
@@ -83,12 +83,12 @@ test.describe('Prompt refinement page navigation', () => {
     await expect(advancedToggle).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('editor role is denied access to the prompts page', async ({
+  test('editor role is denied access to the filter-rules page', async ({
     editorPage,
     workerData,
   }) => {
     await editorPage.goto(
-      `/intelligence/${workerData.intelligenceWorkspaceId}/prompts`,
+      `/intelligence/${workerData.intelligenceWorkspaceId}/filter-rules`,
     );
     await editorPage.waitForLoadState('networkidle', { timeout: 15000 });
 
@@ -352,8 +352,8 @@ test.describe('Prompt refinement happy path (mocked API)', () => {
       },
     );
 
-    // Navigate to the prompts page.
-    await page.goto(`/intelligence/${workspaceId}/prompts`);
+    // Navigate to the filter-rules page.
+    await page.goto(`/intelligence/${workspaceId}/filter-rules`);
     await page.waitForLoadState('networkidle', { timeout: 15000 });
 
     // Wait for the refinement panel header — the page is ready.
