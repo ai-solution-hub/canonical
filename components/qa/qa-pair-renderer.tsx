@@ -26,7 +26,7 @@ interface QAPairRendererProps {
  * Renders a Q&A pair with markdown support for answer sections.
  *
  * Each non-empty section is rendered through `ContentRenderer` (which uses
- * react-markdown + remark-gfm for markdown content, or paragraph splitting
+ * Streamdown (DR-040) for markdown content, or paragraph splitting
  * for plain text). Plain-text answers render identically to the pre-Phase-3
  * `<p className="whitespace-pre-line">` display.
  *

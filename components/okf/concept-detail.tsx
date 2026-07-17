@@ -5,21 +5,30 @@
  * G-VIEWER, TS port of `viz.js`'s `showDetail` / `rewriteInternalLinks`).
  *
  * Renders the type chip, title, id, frontmatter `<dl>` (description /
- * resource / tags), the `react-markdown`-rendered body, and the "Cited by"
+ * resource / tags), the **Streamdown**-rendered body (DR-040 / bl-427 sweep
+ * — GFM is bundled natively, so no `remarkPlugins`), and the "Cited by"
  * backlinks list. Internal `.md` links in the body focus another node
- * in-app (`onNavigate`) instead of navigating away; a `resource:` pointer
+ * in-app (`onNavigate`) instead of navigating away — pre-resolved via
+ * `normaliseInternalMdLinksForStreamdown` so they survive Streamdown's
+ * bundled `rehype-harden` pass (see that module's doc comment), then
+ * matched against `knownConceptIds` by the `a` override (the same
+ * marker-recognition pattern as `<FileRenderPane>`, with a concept id
+ * rather than a tree path as the navigation target). A `resource:` pointer
  * renders as a chip that lazily resolves via `useResource` (secondary lane,
  * TECH-ADDENDUM-reference-agents.md Part 2 §Reframe B) — gated behind a
  * click, never fetched as part of the graph load.
  */
 import { useMemo, useState } from 'react';
-import Markdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Streamdown, type Components } from 'streamdown';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { conceptTypeTokenVars } from '@/lib/okf/concept-type-tokens';
 import { parseCanonicalResourceUri } from '@/lib/okf/parse-canonical-uri';
-import { resolveInternalMdLink } from '@/lib/okf/resolve-internal-link';
+import {
+  normaliseInternalMdLinksForStreamdown,
+  INTERNAL_LINK_MARKER,
+} from '@/lib/okf/prepare-streamdown-content';
+import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 import { useResource } from '@/hooks/okf/use-resource';
 import type { OkfBundleGraphNode } from '@/lib/query/okf';
 
@@ -99,30 +108,58 @@ export function ConceptDetail({
 }: ConceptDetailProps) {
   const markdownComponents = useMemo<Components>(
     () => ({
+      ...sharedStreamdownComponents,
       a: ({ href, children, ...props }) => {
-        if (!node || !href) {
-          return <a {...props}>{children}</a>;
+        const isMarked = Boolean(href?.startsWith(INTERNAL_LINK_MARKER));
+        if (href && isMarked) {
+          const markedTarget = href
+            .slice(INTERNAL_LINK_MARKER.length)
+            .split('#')[0];
+          const targetId = markedTarget.endsWith('.md')
+            ? markedTarget.slice(0, -3)
+            : markedTarget;
+          if (knownConceptIds.has(targetId)) {
+            return (
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2"
+                onClick={() => onNavigate(targetId)}
+              >
+                {children}
+              </button>
+            );
+          }
         }
-        const targetId = resolveInternalMdLink(node.data.id, href);
-        if (targetId && knownConceptIds.has(targetId)) {
-          return (
-            <button
-              type="button"
-              className="text-primary underline underline-offset-2"
-              onClick={() => onNavigate(targetId)}
-            >
-              {children}
-            </button>
-          );
-        }
+        // A resolved-but-unknown concept id (a link to a concept absent from
+        // this bundle) falls back to a plain anchor — marker stripped back to
+        // the bundle-root-relative path rather than leaking the internal
+        // prefix (matches the reference's fallback-to-external behaviour).
+        const resolvedHref =
+          href && isMarked
+            ? `/${href.slice(INTERNAL_LINK_MARKER.length)}`
+            : href;
         return (
-          <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+          <a
+            href={resolvedHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          >
             {children}
           </a>
         );
       },
     }),
-    [node, knownConceptIds, onNavigate],
+    [knownConceptIds, onNavigate],
+  );
+
+  // Pre-resolve internal `.md` links against this concept's bundle-root
+  //-relative id (its "current path") so `rehype-harden` passes them through
+  // — see `normaliseInternalMdLinksForStreamdown`'s doc comment.
+  const preparedBody = useMemo(
+    () =>
+      node ? normaliseInternalMdLinksForStreamdown(body, node.data.id) : body,
+    [body, node],
   );
 
   if (!node) {
@@ -188,9 +225,7 @@ export function ConceptDetail({
       <hr className="mb-4 border-border" />
 
       <div className="prose prose-sm max-w-none text-sm text-foreground">
-        <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {body}
-        </Markdown>
+        <Streamdown components={markdownComponents}>{preparedBody}</Streamdown>
       </div>
 
       {backlinks.length > 0 && (

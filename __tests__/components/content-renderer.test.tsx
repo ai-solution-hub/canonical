@@ -10,11 +10,11 @@
  * stored rendered-output snapshot the migration Subtask requires
  * (`content-renderer-streamdown-parity.snapshot`) — it renders a
  * representative markdown corpus through BOTH the incumbent react-markdown
- * path (a bare `<Markdown remarkPlugins={[remarkGfm]}>` harness, since that
- * package remains installed for `components/okf/bundle-log.tsx` and
- * `components/okf/concept-detail.tsx`, ID-132's still-incumbent sites — see
- * that Subtask's `details` for why those two are deliberately NOT migrated
- * here) and the migrated `<ContentRenderer>` (Streamdown) path, and asserts
+ * path (a bare `<Markdown remarkPlugins={[remarkGfm]}>` harness — the
+ * package survives as a devDependency solely for this baseline; the last
+ * runtime sites, `components/okf/bundle-log.tsx` and
+ * `components/okf/concept-detail.tsx`, migrated under the bl-427 sweep)
+ * and the migrated `<ContentRenderer>` (Streamdown) path, and asserts
  * the extracted structural content (headings/links/lists/bold/GFM
  * tables/blockquotes/code) is unchanged — proving §I2 "no visible
  * regression". Heading-id injection and target=_blank/rel=noopener external

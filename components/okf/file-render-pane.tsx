@@ -5,9 +5,9 @@
  * {132.32} G-LANDING-IMPL, OKF-LANDING.md LI-5/LI-6/LI-16/LI-18).
  *
  * Renders the currently-selected file's markdown via **Streamdown**
- * (DR-040 / OQ-LAND-4) — the ratified renderer for new markdown surfaces,
- * deliberately NOT `react-markdown` (the incumbent renderer `<ConceptDetail>`
- * still uses, LI-13 unchanged). When the selected file is `index.md`, its
+ * (DR-040 / OQ-LAND-4) — the ratified renderer for all markdown surfaces
+ * (`<ConceptDetail>` migrated too under the bl-427 sweep; the incumbent
+ * `react-markdown` is gone). When the selected file is `index.md`, its
  * `##`/`###` themes → `* [title](path.md) — description` concept bullets
  * render as ordinary Markdown headings/list items, so the progressive-
  * disclosure structure (LI-6) reads as a legible table of contents without

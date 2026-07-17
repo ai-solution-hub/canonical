@@ -4,8 +4,9 @@
  * `rewriteInternalLinks`).
  *
  * The reference's static-HTML build resolves links server-side at generation
- * time; our runtime React surface renders the RAW markdown body client-side
- * via `react-markdown`, so a body's `[text](../foo.md)` link is still
+ * time; our runtime React surfaces render the markdown body client-side via
+ * Streamdown (pre-resolved through `prepare-streamdown-content.ts`, this
+ * module's sole consumer), so a body's `[text](../foo.md)` link is still
  * relative-to-the-source-file, exactly as `lib/okf/bundle-graph.ts`'s
  * `extractLinks` resolves it server-side. This is the same resolution logic
  * re-expressed as a pure string utility (no `node:path`) so it runs in a
