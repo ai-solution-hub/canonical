@@ -1242,6 +1242,26 @@ def write_bundle(
     rather than silently compose. Raises `OntologyOverlayClassError` before
     any `declare_file` call this run would otherwise make, exactly
     mirroring OV-5's all-or-nothing fail-loud posture.
+
+    **Per-class effective ontology (PC-4, ID-163 {163.17} G-CLASS-EFFECTIVE-
+    ONTOLOGY).** The gate above guarantees that by the time `overlay` is
+    non-`None` here, either `bundle_class == "client_business"` (the file-
+    discovered path) or `client_ontology_overlay` was supplied explicitly
+    (a caller-supplied escape hatch that composes regardless of class — see
+    that kwarg's own docstring paragraph above). Either way a present
+    `overlay` always composes via `EffectiveOntology.compose`. When
+    `overlay` is `None`, the effective ontology is resolved from
+    `bundle_class` itself: `client_business`/unset stay `base_only()`
+    (byte-identical to pre-{163.17} behaviour — every pre-163 call site
+    unconditionally composed against the business set); `showcase`/
+    `system_baseline` resolve via `EffectiveOntology.base_for_class`
+    (showcase's own registry entry is the same business set, kept
+    authoritative rather than assumed); `internal_dev` has no ratified BI-4
+    type set yet, so `base_for_class` raises `ValueError` (bl-478) HERE —
+    fail-loud at gate entry, before any `declare_file` call this run would
+    otherwise make, replacing the pre-{163.17} behaviour of silently
+    gating every concept against the business set and failing late inside
+    the BI-13 `declare_concept` loop instead.
     """
     if client_ontology_overlay is not None:
         overlay = client_ontology_overlay
@@ -1256,7 +1276,10 @@ def write_bundle(
                 "(DR-054/DR-079, OV-10). Aborting rather than silently "
                 "composing."
             )
-    effective_ontology = EffectiveOntology.compose(overlay)
+    if overlay is not None or bundle_class is None or bundle_class == _CLIENT_BUSINESS_BUNDLE_CLASS:
+        effective_ontology = EffectiveOntology.compose(overlay)
+    else:
+        effective_ontology = EffectiveOntology.base_for_class(bundle_class)
 
     previous_paths = _existing_concept_paths(bundle_dir)
     moved_from = set(moved)

@@ -492,6 +492,16 @@ class TestSourceSelection:
         tmp_path: Path,
         bundle_class: str,
     ) -> None:
+        """`internal_dev` (ID-163 {163.17} G-CLASS-EFFECTIVE-ONTOLOGY,
+        PC-4/bl-478): Source selection (this test's actual subject) still
+        completes normally — `RepoDocsSource` is constructed over
+        `source_repo` exactly like `system_baseline` — but the run as a
+        whole now fails loud INSIDE `write_bundle`'s effective-ontology gate
+        (before any `declare_file` call) because `internal_dev` has no
+        ratified BI-4 type set yet. Pre-{163.17} this run completed
+        successfully (a latent bug: `internal_dev` silently gated against
+        the business set); the `ValueError` is the intended, spec-mandated
+        outcome now, not a regression."""
         monkeypatch.setenv("OKF_BUNDLE_CLASS", bundle_class)
         source_repo = tmp_path / "platform-repo"
         source_repo.mkdir()
@@ -510,6 +520,14 @@ class TestSourceSelection:
                 env.repo_docs, "RepoDocsSource", _CapturingRepoDocsSource
             )
             env.monkeypatch.setattr(env.l_records, "LRecordsSource", _ExplodingSource)
+
+            if bundle_class == "internal_dev":
+                with pytest.raises(ValueError, match="internal_dev"):
+                    asyncio.run(
+                        flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+                    )
+                assert captured == [str(source_repo)]
+                return
 
             result = asyncio.run(
                 flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)

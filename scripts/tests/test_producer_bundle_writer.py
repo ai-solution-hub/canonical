@@ -1303,7 +1303,7 @@ def test_write_bundle_explicit_client_ontology_overlay_kwarg_bypasses_the_class_
 # above, which loops `bundle_class` over all three non-client-business
 # classes including `system_baseline`). These two tests exist as a
 # standalone, PC-6-traceable pair — pinned to `write_bundle`'s inline OV-10
-# class-gate at `bundle_writer.py:1250` (`if overlay is not None and
+# class-gate in `bundle_writer.py` (`if overlay is not None and
 # bundle_class != _CLIENT_BUSINESS_BUNDLE_CLASS: raise
 # OntologyOverlayClassError(...)`) — so a future regression specifically on
 # the `system_baseline` class is caught even if the broader parametrized
@@ -1350,6 +1350,137 @@ def test_client_business_bundle_class_still_composes_a_present_overlay_control(
     assert summary.added == ("topics/alpha.md",)
     ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
     assert ontology["overlay"]["entity_types"] == ["widget"]
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Per-class effective ontology (ID-163 {163.17} G-CLASS-EFFECTIVE-ONTOLOGY,
+# PC-4/DR-054) — `write_bundle` threads `bundle_class` into the effective-
+# ontology computation instead of unconditionally delegating to
+# `base_only()` (the `client_business` set). See `check-163-5`'s deep trace:
+# pre-{163.17}, a `system_baseline` run fails BI-13 LATE (after drafting
+# cost) for every RepoDocsSource concept, and `internal_dev` never reaches
+# its `base_for_class` `ValueError` (bl-478) at all.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("system_type", ["schema", "tool", "api", "navigation", "playbook"])
+def test_write_bundle_system_baseline_accepts_the_five_system_types(
+    tmp_path: Path, system_type: str
+) -> None:
+    """PC-4: a `system_baseline` run's effective ontology is
+    `base_for_class("system_baseline")` — each of the five ratified system
+    types is `declare_file`-written, not rejected by the BI-4 gate."""
+    draft = _draft("topics/alpha.md", title="Alpha", type=system_type)
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="system_baseline")
+
+    assert summary.added == ("topics/alpha.md",)
+    assert summary.validator_failures == ()
+    assert (tmp_path / "topics/alpha.md").exists()
+
+
+def test_write_bundle_system_baseline_rejects_a_business_type(tmp_path: Path) -> None:
+    """PC-4 control: a business-only type (`topic`, outside the five-type
+    `system_baseline` set) is rejected by the BI-13/BI-4 gate under
+    `bundle_class="system_baseline"` — this is the exact check-163-5
+    consequence (RepoDocsSource concepts failing BI-13) that {163.17} does
+    NOT change; only the CORRECT set is now gated against for this class.
+    Nothing is written for the rejected concept."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="topic")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="system_baseline")
+
+    assert summary.added == ()
+    assert len(summary.validator_failures) == 1
+    rel_path, errors = summary.validator_failures[0]
+    assert rel_path == "topics/alpha.md"
+    assert any("topic" in error for error in errors)
+    assert not (tmp_path / "topics/alpha.md").exists()
+
+
+def test_write_bundle_client_business_and_unset_bundle_class_stay_byte_identical(
+    tmp_path: Path,
+) -> None:
+    """testStrategy: the `client_business`/`None` paths are untouched by
+    {163.17} — both still gate against the business set via `base_only()`
+    (`client_business` via `EffectiveOntology.compose(overlay)`, which
+    delegates to `base_only()` when `overlay=None`; `None`/unset via the
+    same `base_only()` path). A business type (`topic`) is accepted under
+    both; a system-only type (`schema`, valid ONLY for `system_baseline`)
+    is rejected under both — proving neither path silently widened."""
+    business_dir = tmp_path / "business"
+    unset_dir = tmp_path / "unset"
+    business_dir.mkdir()
+    unset_dir.mkdir()
+
+    business_summary = bundle_writer.write_bundle(
+        business_dir, [_draft("topics/alpha.md", title="Alpha", type="topic")],
+        bundle_class="client_business",
+    )
+    unset_summary = bundle_writer.write_bundle(
+        unset_dir, [_draft("topics/alpha.md", title="Alpha", type="topic")]
+    )
+
+    assert business_summary.added == unset_summary.added == ("topics/alpha.md",)
+    assert business_summary.validator_failures == unset_summary.validator_failures == ()
+
+    system_only_rejected = bundle_writer.write_bundle(
+        tmp_path / "business-reject",
+        [_draft("topics/beta.md", title="Beta", type="schema")],
+        bundle_class="client_business",
+    )
+    unset_rejected = bundle_writer.write_bundle(
+        tmp_path / "unset-reject", [_draft("topics/beta.md", title="Beta", type="schema")]
+    )
+    assert system_only_rejected.added == unset_rejected.added == ()
+    assert len(system_only_rejected.validator_failures) == len(unset_rejected.validator_failures) == 1
+
+
+def test_write_bundle_showcase_effective_ontology_is_provably_the_business_set(
+    tmp_path: Path,
+) -> None:
+    """Design caution: `showcase` now routes through
+    `base_for_class("showcase")` rather than `base_only()` — assert the
+    resulting concept-type set is PROVABLY identical to the
+    `client_business` set (both accept a business type, both reject a
+    system-only type) rather than assuming the {163.3}-level frozenset
+    equivalence carries through `write_bundle`'s own per-class dispatch."""
+    business_type_summary = bundle_writer.write_bundle(
+        tmp_path / "showcase-business-type",
+        [_draft("topics/alpha.md", title="Alpha", type="topic")],
+        bundle_class="showcase",
+    )
+    assert business_type_summary.added == ("topics/alpha.md",)
+    assert business_type_summary.validator_failures == ()
+
+    system_type_summary = bundle_writer.write_bundle(
+        tmp_path / "showcase-system-type",
+        [_draft("topics/beta.md", title="Beta", type="schema")],
+        bundle_class="showcase",
+    )
+    assert system_type_summary.added == ()
+    assert len(system_type_summary.validator_failures) == 1
+
+
+def test_write_bundle_internal_dev_fails_loud_at_gate_entry_with_value_error(
+    tmp_path: Path,
+) -> None:
+    """PC-4/bl-478: `internal_dev` has no ratified BI-4 type set yet —
+    `write_bundle` must fail LOUD and EARLY (a `ValueError` at effective-
+    ontology computation, before any `declare_file` call this run would
+    otherwise make) rather than the pre-{163.17} behaviour of silently
+    gating against the business set and failing LATE inside the BI-13
+    `declare_concept` loop for every drafted concept. Mirrors the OV-5/
+    OV-10 all-or-nothing fail-loud posture already proven above."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="topic")
+
+    with pytest.raises(ValueError, match="internal_dev"):
+        bundle_writer.write_bundle(tmp_path, [draft], bundle_class="internal_dev")
+
+    _localfs_stub.declare_file.assert_not_called()
+    assert not (tmp_path / "topics/alpha.md").exists()
+    assert not (tmp_path / "ontology.json").exists()
+    assert not (tmp_path / "log.md").exists()
 
 
 # ── ID-132 {132.36} G-CONCEPT-FEEDER — `concept-feeder.json` reader +
