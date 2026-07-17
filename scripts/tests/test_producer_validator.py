@@ -601,6 +601,85 @@ def test_validate_concept_raises_without_overlay_and_passes_with_it():
 
 
 # ──────────────────────────────────────────
+# PC-4 (ID-163 TECH, DR-079) — per-bundle-class BASE concept-type set.
+# `base_for_class` scopes the BI-4 concept_types dimension to the run's
+# bundle class; entity_types/relationship_types stay the shared base sets
+# (TECH id-163 only class-scopes concept_types, not the other two
+# dimensions — no per-class entity/relationship registry exists).
+# ──────────────────────────────────────────
+
+
+def test_base_for_class_client_business_matches_the_pre_163_business_set():
+    eo = v.EffectiveOntology.base_for_class("client_business")
+    assert eo.concept_types == v.ALLOWED_CONCEPT_TYPES
+
+
+def test_base_for_class_showcase_matches_the_client_business_set():
+    # DR-079: showcase shares the existing business type set with
+    # client_business (brief: "client_business/showcase -> existing
+    # business set").
+    business = v.EffectiveOntology.base_for_class("client_business")
+    showcase = v.EffectiveOntology.base_for_class("showcase")
+    assert showcase.concept_types == business.concept_types
+
+
+@pytest.mark.parametrize(
+    "system_type", ["schema", "tool", "api", "navigation", "playbook"]
+)
+def test_base_for_class_system_baseline_accepts_the_five_system_types(system_type):
+    eo = v.EffectiveOntology.base_for_class("system_baseline")
+    errors = v.check_type_membership(system_type, effective_ontology=eo)
+    assert errors == []
+
+
+def test_base_for_class_system_baseline_is_exactly_the_five_system_types():
+    eo = v.EffectiveOntology.base_for_class("system_baseline")
+    assert eo.concept_types == frozenset(
+        {"schema", "tool", "api", "navigation", "playbook"}
+    )
+
+
+def test_base_for_class_system_baseline_rejects_a_business_type():
+    eo = v.EffectiveOntology.base_for_class("system_baseline")
+    errors = v.check_type_membership("company", effective_ontology=eo)
+    assert errors
+
+
+def test_base_for_class_client_business_rejects_a_system_type():
+    eo = v.EffectiveOntology.base_for_class("client_business")
+    errors = v.check_type_membership("schema", effective_ontology=eo)
+    assert errors
+
+
+def test_base_for_class_internal_dev_is_deferred():
+    # bl-478: internal_dev has no ratified BI-4 type set yet —
+    # base_for_class must fail loud, not silently return an empty or
+    # permissive set.
+    with pytest.raises(ValueError, match="internal_dev"):
+        v.EffectiveOntology.base_for_class("internal_dev")
+
+
+def test_base_only_still_delegates_to_client_business_unchanged():
+    # PC-4: base_only()'s existing (pre-163) call sites —
+    # check_type_membership and lint_entity_relation_mentions — must
+    # observe IDENTICAL behaviour post-change.
+    assert v.EffectiveOntology.base_only() == v.EffectiveOntology.base_for_class(
+        "client_business"
+    )
+
+
+def test_base_for_class_shares_entity_and_relationship_dimensions_across_classes():
+    system = v.EffectiveOntology.base_for_class("system_baseline")
+    business = v.EffectiveOntology.base_for_class("client_business")
+    assert system.entity_types == business.entity_types == v.ALLOWED_ENTITY_TYPES
+    assert (
+        system.relationship_types
+        == business.relationship_types
+        == v.ALLOWED_RELATIONSHIP_TYPES
+    )
+
+
+# ──────────────────────────────────────────
 # bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
 # extension (FRONTMATTER-WAVE.md §"Shared frontmatter contract extension").
 # ──────────────────────────────────────────

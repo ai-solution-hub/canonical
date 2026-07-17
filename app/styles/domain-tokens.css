@@ -45,6 +45,13 @@
   --hue-okf-concept-metric: 100;
   --hue-okf-concept-dataset: 280;
   --hue-okf-concept-playbook: 330;
+  /* PC-4 (ID-163 TECH, DR-079) system_baseline concept-type hues —
+     additive, spaced between the business hues above (`playbook` is
+     shared, unchanged). */
+  --hue-okf-concept-schema: 57;
+  --hue-okf-concept-tool: 130;
+  --hue-okf-concept-api: 195;
+  --hue-okf-concept-navigation: 305;
 
   /* Knowledge Hub domain colours — badge backgrounds (light) */
   --domain-security-bg: oklch(0.93 0.04 var(--hue-domain-security));
@@ -257,6 +264,20 @@
   --okf-concept-dataset-text: oklch(0.35 0.12 var(--hue-okf-concept-dataset));
   --okf-concept-playbook-bg: oklch(0.93 0.04 var(--hue-okf-concept-playbook));
   --okf-concept-playbook-text: oklch(0.35 0.12 var(--hue-okf-concept-playbook));
+  /* PC-4 (ID-163 TECH, DR-079) system_baseline concept-type badge colours
+     (light) — additive alongside the business types above. */
+  --okf-concept-schema-bg: oklch(0.93 0.04 var(--hue-okf-concept-schema));
+  --okf-concept-schema-text: oklch(0.35 0.12 var(--hue-okf-concept-schema));
+  --okf-concept-tool-bg: oklch(0.93 0.04 var(--hue-okf-concept-tool));
+  --okf-concept-tool-text: oklch(0.35 0.12 var(--hue-okf-concept-tool));
+  --okf-concept-api-bg: oklch(0.93 0.04 var(--hue-okf-concept-api));
+  --okf-concept-api-text: oklch(0.35 0.12 var(--hue-okf-concept-api));
+  --okf-concept-navigation-bg: oklch(
+    0.93 0.04 var(--hue-okf-concept-navigation)
+  );
+  --okf-concept-navigation-text: oklch(
+    0.35 0.12 var(--hue-okf-concept-navigation)
+  );
   /* Fallback for an unmapped/"Unknown" concept type. */
   --okf-concept-default-bg: var(--stone-100);
   --okf-concept-default-text: var(--stone-500);
@@ -410,6 +431,20 @@
   --okf-concept-dataset-text: oklch(0.8 0.1 var(--hue-okf-concept-dataset));
   --okf-concept-playbook-bg: oklch(0.25 0.06 var(--hue-okf-concept-playbook));
   --okf-concept-playbook-text: oklch(0.8 0.1 var(--hue-okf-concept-playbook));
+  /* PC-4 (ID-163 TECH, DR-079) system_baseline concept-type badge colours
+     (dark) — additive alongside the business types above. */
+  --okf-concept-schema-bg: oklch(0.25 0.06 var(--hue-okf-concept-schema));
+  --okf-concept-schema-text: oklch(0.8 0.1 var(--hue-okf-concept-schema));
+  --okf-concept-tool-bg: oklch(0.25 0.06 var(--hue-okf-concept-tool));
+  --okf-concept-tool-text: oklch(0.8 0.1 var(--hue-okf-concept-tool));
+  --okf-concept-api-bg: oklch(0.25 0.06 var(--hue-okf-concept-api));
+  --okf-concept-api-text: oklch(0.8 0.1 var(--hue-okf-concept-api));
+  --okf-concept-navigation-bg: oklch(
+    0.25 0.06 var(--hue-okf-concept-navigation)
+  );
+  --okf-concept-navigation-text: oklch(
+    0.8 0.1 var(--hue-okf-concept-navigation)
+  );
   --okf-concept-default-bg: var(--stone-800);
   --okf-concept-default-text: var(--stone-400);
 
@@ -603,6 +638,14 @@
   --color-okf-concept-dataset-text: var(--okf-concept-dataset-text);
   --color-okf-concept-playbook-bg: var(--okf-concept-playbook-bg);
   --color-okf-concept-playbook-text: var(--okf-concept-playbook-text);
+  --color-okf-concept-schema-bg: var(--okf-concept-schema-bg);
+  --color-okf-concept-schema-text: var(--okf-concept-schema-text);
+  --color-okf-concept-tool-bg: var(--okf-concept-tool-bg);
+  --color-okf-concept-tool-text: var(--okf-concept-tool-text);
+  --color-okf-concept-api-bg: var(--okf-concept-api-bg);
+  --color-okf-concept-api-text: var(--okf-concept-api-text);
+  --color-okf-concept-navigation-bg: var(--okf-concept-navigation-bg);
+  --color-okf-concept-navigation-text: var(--okf-concept-navigation-text);
   --color-okf-concept-default-bg: var(--okf-concept-default-bg);
   --color-okf-concept-default-text: var(--okf-concept-default-text);
 

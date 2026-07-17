@@ -93,6 +93,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
@@ -215,6 +216,36 @@ ALLOWED_RELATIONSHIP_TYPES = frozenset(
 )
 
 # ──────────────────────────────────────────
+# PC-4 (ID-163 TECH, DR-054/DR-079): the run's bundle CLASS scopes the BI-4
+# concept-type dimension. `BundleClass` is DUPLICATED (not imported) from
+# `bundle_writer.py:745` — deliberately, by design: `bundle_writer.py`
+# already imports FROM this module at its own module scope (`EffectiveOntology`,
+# `ALLOWED_CONCEPT_TYPES`, `check_concept`, …), so importing `BundleClass`
+# the other way round would be a circular import. This mirrors the SAME
+# established cross-module duplication precedent already in this file (see
+# `_CONFIDENCE_VALUES` below — "duplicated (not imported) ... by design").
+# Keep the two Literal definitions in sync by hand; they are not enforced
+# structurally equal.
+# ──────────────────────────────────────────
+
+BundleClass = Literal["client_business", "system_baseline", "showcase", "internal_dev"]
+
+# DR-079 ratified FOUR bundle classes, each with its own type set. Only
+# THREE are populated here: `client_business`/`showcase` share the existing
+# ratified business set (`ALLOWED_CONCEPT_TYPES`); `system_baseline` gets
+# its own closed platform-knowledge set. `internal_dev` (bl-478) is
+# deliberately OMITTED — it has no ratified BI-4 type set yet, and
+# `base_for_class` fails loud on it rather than silently returning an
+# empty/permissive set (see `base_for_class` docstring).
+_CLASS_CONCEPT_TYPES: "dict[BundleClass, frozenset[str]]" = {
+    "client_business": ALLOWED_CONCEPT_TYPES,
+    "showcase": ALLOWED_CONCEPT_TYPES,
+    "system_baseline": frozenset(
+        {"schema", "tool", "api", "navigation", "playbook"}
+    ),
+}
+
+# ──────────────────────────────────────────
 # OV-7/OV-8 (ID-132 {132.34} G-OVERLAY-CV, DR-054): the run's EFFECTIVE
 # ontology — base ∪ client-overlay per dimension. Threaded through
 # `check_concept`/`validate_concept` -> `check_type_membership`/
@@ -239,15 +270,38 @@ class EffectiveOntology:
     relationship_types: "frozenset[str]"
 
     @classmethod
-    def base_only(cls) -> "EffectiveOntology":
-        """The default effective ontology when no overlay is composed —
-        gating against this is identical to gating against the bare base
-        frozensets directly (pre-overlay behaviour, unchanged)."""
+    def base_for_class(cls, bundle_class: "BundleClass") -> "EffectiveOntology":
+        """PC-4 (ID-163 TECH, DR-079): the bundle-CLASS-scoped BASE
+        effective ontology — `concept_types` is keyed off
+        `_CLASS_CONCEPT_TYPES[bundle_class]`; `entity_types`/
+        `relationship_types` stay the shared base frozensets (TECH id-163
+        only class-scopes the concept-type dimension — no per-class
+        entity/relationship registry exists). Raises `ValueError` for a
+        class with no ratified type set yet (`internal_dev`, deferred
+        bl-478) rather than silently returning an empty or permissive set."""
+        try:
+            concept_types = _CLASS_CONCEPT_TYPES[bundle_class]
+        except KeyError as exc:
+            raise ValueError(
+                f"no ratified BI-4 concept-type set for bundle_class "
+                f"{bundle_class!r} yet (internal_dev is deferred — bl-478)"
+            ) from exc
         return cls(
-            concept_types=ALLOWED_CONCEPT_TYPES,
+            concept_types=concept_types,
             entity_types=ALLOWED_ENTITY_TYPES,
             relationship_types=ALLOWED_RELATIONSHIP_TYPES,
         )
+
+    @classmethod
+    def base_only(cls) -> "EffectiveOntology":
+        """The default effective ontology when no overlay is composed —
+        gating against this is identical to gating against the bare base
+        frozensets directly (pre-overlay behaviour, unchanged). PC-4 (ID-163
+        TECH): delegates to `base_for_class('client_business')` so every
+        pre-163 `base_only()` call site (`check_type_membership`,
+        `lint_entity_relation_mentions`) is behaviourally unchanged —
+        client_business is the validator's original, sole pre-163 gate."""
+        return cls.base_for_class("client_business")
 
     @classmethod
     def compose(cls, overlay: "Mapping[str, object] | None") -> "EffectiveOntology":

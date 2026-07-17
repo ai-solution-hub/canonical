@@ -33,6 +33,23 @@ describe('conceptTypeTokenVars', () => {
       text: '--okf-concept-default-text',
     });
   });
+
+  // PC-4 (ID-163 TECH, DR-079) TS-parity note: system_baseline concept
+  // types (schema/tool/api/navigation — playbook already existed) get their
+  // own Warm Meridian semantic-token mappings, additive alongside the
+  // pre-163 business types. This is a render-only mapping addition — the
+  // TS frontmatter contract (`lib/ontology/concept-schema.ts`) never
+  // hard-gated `type` against a closed set (see that module's "type parity
+  // note" docstring), so no schema/validation change is needed here.
+  it.each(['schema', 'tool', 'api', 'navigation'])(
+    'maps the system_baseline concept type %s to its semantic token pair',
+    (systemType) => {
+      expect(conceptTypeTokenVars(systemType)).toEqual({
+        bg: `--okf-concept-${systemType}-bg`,
+        text: `--okf-concept-${systemType}-text`,
+      });
+    },
+  );
 });
 
 describe('resolveConceptTypeColor', () => {
@@ -54,5 +71,21 @@ describe('resolveConceptTypeColor', () => {
 
   it('returns null when the custom properties are not defined', () => {
     expect(resolveConceptTypeColor('playbook')).toBeNull();
+  });
+
+  it('resolves a system_baseline concept type (PC-4) the same way as a business type', () => {
+    document.documentElement.style.setProperty(
+      '--okf-concept-schema-bg',
+      'oklch(0.93 0.04 57)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-concept-schema-text',
+      'oklch(0.35 0.12 57)',
+    );
+
+    expect(resolveConceptTypeColor('schema')).toEqual({
+      bg: 'oklch(0.93 0.04 57)',
+      text: 'oklch(0.35 0.12 57)',
+    });
   });
 });

@@ -11,6 +11,19 @@
  * this module never throws on an unrecognised type, since the producer's
  * frontmatter `type` field is not (yet) enforced against a shared CV at the
  * viewer boundary.
+ *
+ * **PC-4 (ID-163 TECH, DR-079) TS-parity note.** The producer validator's
+ * BI-4 concept-type gate is now bundle-CLASS-scoped
+ * (`scripts/cocoindex_pipeline/producer/validator.py`'s
+ * `EffectiveOntology.base_for_class`) — a `system_baseline` bundle's
+ * concept types are `{schema, tool, api, navigation, playbook}`, distinct
+ * from the `client_business`/`showcase` business set above. This module's
+ * `type` render was ALREADY generic (see `lib/ontology/concept-schema.ts`'s
+ * "type parity note" — `ConceptFrontmatterSchema.type` never hard-gated
+ * against a closed set), so full parity here is additive-only: `schema`/
+ * `tool`/`api`/`navigation` get their own Warm Meridian token mappings
+ * below (`playbook` already existed as a business-facet tag colour and is
+ * reused unchanged for its system-type sense). No hard-gate/schema change.
  */
 
 const KNOWN_TYPES = [
@@ -22,6 +35,12 @@ const KNOWN_TYPES = [
   'metric',
   'dataset',
   'playbook',
+  // PC-4 (ID-163) system_baseline concept types — additive, business types
+  // above are untouched.
+  'schema',
+  'tool',
+  'api',
+  'navigation',
 ] as const;
 
 export type OkfConceptType = (typeof KNOWN_TYPES)[number];
