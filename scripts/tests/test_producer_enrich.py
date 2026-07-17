@@ -726,47 +726,72 @@ class TestCitationValidationProxy:
 # ============================================================================
 
 
-class TestSanitizeJsonControlChars:
+class TestSanitiseJsonControlChars:
     def test_escapes_a_raw_control_char_found_inside_a_string_value(self) -> None:
         """The live {132.35} Run-1 defect, reproduced directly: a raw
         control byte (here `\\x0b`, vertical tab) sitting INSIDE a JSON
         string value is RFC 8259-illegal and rejected outright by `json.
-        loads` — `_sanitize_json_control_chars` must turn it into a legal
+        loads` — `_sanitise_json_control_chars` must turn it into a legal
         `\\u000b` escape so the surrounding JSON becomes parseable."""
         raw = '{"body": "line one\x0bline two", "n": 1}'
         with pytest.raises(json.JSONDecodeError):
             json.loads(raw)
 
-        sanitized = enrich._sanitize_json_control_chars(raw)
+        sanitised = enrich._sanitise_json_control_chars(raw)
 
-        assert json.loads(sanitized) == {"body": "line one\x0bline two", "n": 1}
+        assert json.loads(sanitised) == {"body": "line one\x0bline two", "n": 1}
 
     def test_uses_the_short_escape_form_for_a_raw_newline_inside_a_string(self) -> None:
         raw = '{"body": "line one\nline two"}'
-        sanitized = enrich._sanitize_json_control_chars(raw)
-        assert "\\n" in sanitized
-        assert json.loads(sanitized) == {"body": "line one\nline two"}
+        sanitised = enrich._sanitise_json_control_chars(raw)
+        assert "\\n" in sanitised
+        assert json.loads(sanitised) == {"body": "line one\nline two"}
 
     def test_leaves_already_valid_json_byte_identical(self) -> None:
         raw = '{"a": "b\\nc", "d": [1, 2, 3]}'
-        assert enrich._sanitize_json_control_chars(raw) == raw
+        assert enrich._sanitise_json_control_chars(raw) == raw
 
     def test_leaves_whitespace_outside_strings_untouched(self) -> None:
         """A raw tab/newline BETWEEN tokens (outside any string) is already
         legal JSON insignificant whitespace — sanitisation must not touch
         it, only in-string occurrences are the ones `json.loads` rejects."""
         raw = '{\n\t"a":\t"b"\n}'
-        sanitized = enrich._sanitize_json_control_chars(raw)
-        assert sanitized == raw
-        assert json.loads(sanitized) == {"a": "b"}
+        sanitised = enrich._sanitise_json_control_chars(raw)
+        assert sanitised == raw
+        assert json.loads(sanitised) == {"a": "b"}
 
     def test_does_not_toggle_string_state_on_an_escaped_quote(self) -> None:
         """`\\"` inside a string must not be mistaken for the string's
         closing quote — a control char AFTER it is still in-string and
         must still be sanitised."""
         raw = '{"a": "quote\\" then\x0bcontrol"}'
-        sanitized = enrich._sanitize_json_control_chars(raw)
-        assert json.loads(sanitized) == {"a": 'quote" then\x0bcontrol'}
+        sanitised = enrich._sanitise_json_control_chars(raw)
+        assert json.loads(sanitised) == {"a": 'quote" then\x0bcontrol'}
+
+    def test_escapes_a_raw_control_char_found_inside_a_json_key(self) -> None:
+        """The state machine is key/value agnostic — a JSON object KEY is a
+        string literal exactly like a value (both are `"`-delimited spans),
+        so a raw control byte inside a KEY must be escaped too, not only
+        inside a value string."""
+        raw = '{"ti\x0btle": "Learning Management System"}'
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(raw)
+
+        sanitised = enrich._sanitise_json_control_chars(raw)
+
+        assert json.loads(sanitised) == {"ti\x0btle": "Learning Management System"}
+
+    def test_leaves_an_existing_unicode_escape_sequence_untouched(self) -> None:
+        """A `\\uXXXX` escape the model already emitted correctly must pass
+        through byte-identical — the sanitiser only escapes RAW control
+        bytes; it must never re-interpret, double-escape, or otherwise
+        mangle an escape sequence already present in the text."""
+        raw = '{"a": "caf\\u00e9"}'
+
+        sanitised = enrich._sanitise_json_control_chars(raw)
+
+        assert sanitised == raw
+        assert json.loads(sanitised) == {"a": "café"}
 
 
 class TestParsePass1ResponseSanitisation:

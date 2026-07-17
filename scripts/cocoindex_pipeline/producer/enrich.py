@@ -57,7 +57,7 @@ control character (e.g. a literal newline/tab byte instead of its 2-char
 `\n`/`\t` escape) inside a JSON string value; the SAME concept re-drafted
 clean on the very next run. `_parse_pass1_response` now layers THREE
 recovery attempts on a `json.loads` failure, cheapest first: (a)
-`_sanitize_json_control_chars` — a deterministic, zero-LLM-spend pass that
+`_sanitise_json_control_chars` — a deterministic, zero-LLM-spend pass that
 walks the text tracking JSON string-literal boundaries and escapes any raw
 control character (`ord < 0x20`) found INSIDE a string (leaving everything
 outside strings untouched — raw whitespace between tokens is already valid
@@ -260,7 +260,7 @@ class Pass1DraftError(RuntimeError):
 class _Pass1TerminalJsonError(Pass1DraftError):
     """G-PARSE-HARDEN ({132.45}, {132.35} Defect B): raised specifically
     when the terminal text could not be parsed into a JSON object AT
-    ALL — `_sanitize_json_control_chars` and the leading-prose/trailing-
+    ALL — `_sanitise_json_control_chars` and the leading-prose/trailing-
     commentary recovery (`_recover_terminal_json_object`) both exhausted —
     as opposed to a plain `Pass1DraftError` raised for a WELL-FORMED but
     semantically invalid envelope (a missing required key, an empty
@@ -591,7 +591,7 @@ _JSON_STRING_SHORT_ESCAPES = {
 }
 
 
-def _sanitize_json_control_chars(text: str) -> str:
+def _sanitise_json_control_chars(text: str) -> str:
     """G-PARSE-HARDEN Leg 1a ({132.45}, {132.35} Defect B): escape any RAW
     (unescaped) control character (`ord < 0x20`) found INSIDE a JSON string
     literal, leaving everything OUTSIDE string literals byte-identical —
@@ -711,12 +711,12 @@ def _parse_pass1_response(
         # narrower `_Pass1TerminalJsonError` so `enrich_concept` can retry
         # ONLY this failure mode (module docstring's "Terminal-JSON parse
         # hardening" section).
-        sanitized = _sanitize_json_control_chars(text)
+        sanitised = _sanitise_json_control_chars(text)
         try:
-            payload = json.loads(sanitized)
+            payload = json.loads(sanitised)
         except json.JSONDecodeError:
             payload = _recover_terminal_json_object(
-                sanitized,
+                sanitised,
                 error_cls=_Pass1TerminalJsonError,
                 error_prefix="enrich_concept",
                 cause=exc,
