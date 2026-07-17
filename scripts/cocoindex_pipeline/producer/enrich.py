@@ -111,6 +111,14 @@ identically to a `PRODUCER_MODEL`/`ANTHROPIC_MODEL` edit: the SAME manual
 `version=` bump + bundle `log.md` note applies, never an auto `deps=`
 invalidation. No `version=` bump lands in THIS commit either.
 
+**`PRODUCER_PROVIDER_ORDER` (ID-132 {132.35} slice D, `producer/agent_loop.
+py:run_tool_use_loop`, DR-079) falls under the SAME contract too.** A
+deploy-time value change — which OpenRouter provider slugs serve the
+producer's requests — is drafting-config identically to `PRODUCER_MODEL`/
+`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN`: the SAME manual `version=` bump
++ bundle `log.md` note applies, never an auto `deps=` invalidation. No
+`version=` bump lands in THIS commit either.
+
 **`version=1` (S481, this bump — the lever exercised for the first time).**
 `{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
 (`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config

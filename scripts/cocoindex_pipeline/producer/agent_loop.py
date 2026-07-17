@@ -67,6 +67,41 @@ drafting-config exactly like a `PRODUCER_MODEL`/`ANTHROPIC_MODEL` edit — see
 section for the manual `version=` bump contract this falls under too. No
 `version=` bump lands in this commit.
 
+**`PRODUCER_PROVIDER_ORDER` (ID-132 {132.35} slice D, DR-079 — OpenRouter
+provider routing for the GLM-5.2 Run-1 BI-18 deploy-proof).** Run-1 failed
+18/18 on staging: OpenRouter's Anthropic-skin `/v1/messages` endpoint
+silently defaults `requested_providers=['anthropic']` when a request
+carries no explicit provider directive, and `anthropic` doesn't serve
+`z-ai/glm-5.2` — a 404 "No allowed providers are available for the
+selected model" (`base_url`/`auth_token` routing itself was confirmed
+working; zero Anthropic spend on that run). `PRODUCER_PROVIDER_ORDER` is a
+NEW, producer-package-scoped, comma-separated list of OpenRouter provider
+slugs (e.g. `z-ai`), read ONCE at import — same posture as `PRODUCER_MODEL`/
+`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` above. When set/non-empty,
+`run_tool_use_loop`'s `client.messages.create(...)` call — the SINGLE
+producer `messages.create` call site (grep-confirmed: both Pass-1
+`enrich_concept` and Pass-2 `run_web_pass` route through this loop, neither
+has a call site of its own) — carries an `extra_body={'provider': {'order':
+[<slugs>], 'allow_fallbacks': True}}` kwarg. Probe-proven directly against
+OpenRouter on staging (raw HTTP, 200 with a correct Anthropic-shaped GLM
+reply) and empirically verified against the installed `anthropic==0.79.0`
+SDK: `Messages.create`'s `extra_body` param flows through
+`make_request_options` into `RequestOptions['extra_json']`, which
+`_base_client.py`'s request builder merges directly into the outgoing JSON
+POST body (`_merge_mappings(json_data, options.extra_json)`) — a genuine
+top-level `provider` key reaches OpenRouter, not a client-only no-op.
+Unset/empty `PRODUCER_PROVIDER_ORDER` means the `extra_body` kwarg is
+OMITTED ENTIRELY (never passed as `extra_body=None`) — the request stays
+byte-identical to today, same both-unset posture as slices B/C.
+`allow_fallbacks: True` is FIXED (probe-proven), not exposed as a config
+knob — see `_provider_routing_extra_body`'s own docstring. **DR-060**: a
+deploy-time `PRODUCER_PROVIDER_ORDER` value change is drafting-config
+exactly like `PRODUCER_MODEL`/`PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` —
+see `producer/enrich.py`'s module docstring "Config-surface invalidation"
+section for the manual `version=` bump contract this falls under too. No
+`version=` bump lands in this commit (`version=1` remains unconsumed by any
+deployed run).
+
 Scope (per the {132.5} brief): the GENERIC loop + the Pass-1 tool SCHEMAS
 only (`READ_CONCEPT_RAW_TOOL`, `SAMPLE_ROWS_TOOL` — the Source-adapter
 tools). Tool executors are taken as INJECTABLE callables (`ToolExecutor`) —
@@ -132,6 +167,19 @@ PRODUCER_MODEL = os.environ.get("PRODUCER_MODEL") or ANTHROPIC_MODEL
 # explicitly-empty Coolify secret behaves exactly like an unset one).
 PRODUCER_BASE_URL = os.environ.get("PRODUCER_BASE_URL") or ""
 PRODUCER_AUTH_TOKEN = os.environ.get("PRODUCER_AUTH_TOKEN") or ""
+
+# Producer-scoped OpenRouter provider-order override (ID-132 {132.35} slice
+# D, DR-079) — see the module docstring's "PRODUCER_PROVIDER_ORDER" section
+# above. Read ONCE at import time; comma-separated OpenRouter provider
+# slugs (e.g. "z-ai"), each entry stripped of surrounding whitespace and
+# empty entries dropped — an unset/empty var (or a whitespace-only/
+# comma-only value) resolves to an empty tuple, meaning "no provider
+# routing" (byte-identical to today's request).
+PRODUCER_PROVIDER_ORDER: tuple[str, ...] = tuple(
+    slug.strip()
+    for slug in (os.environ.get("PRODUCER_PROVIDER_ORDER") or "").split(",")
+    if slug.strip()
+)
 
 
 def producer_async_client() -> anthropic.AsyncAnthropic:
@@ -343,6 +391,29 @@ def _tool_result_is_error(result: Any) -> bool:
     return isinstance(result, Mapping) and "error" in result
 
 
+def _provider_routing_extra_body() -> dict[str, Any] | None:
+    """Build the `extra_body` payload `run_tool_use_loop` passes to
+    `client.messages.create` for OpenRouter provider routing (ID-132
+    {132.35} slice D, DR-079) — `None` when `PRODUCER_PROVIDER_ORDER` is
+    unset/empty, so the caller OMITS the `extra_body` kwarg entirely rather
+    than passing `extra_body=None` (see the module docstring's
+    "PRODUCER_PROVIDER_ORDER" section for the probe-proof + SDK-passthrough
+    verification).
+
+    `allow_fallbacks: True` is FIXED, not derived from any env var — the
+    staging probe proved `{"order": [...], "allow_fallbacks": true}` works;
+    `False` was never probed and is not exposed as a config knob here.
+    """
+    if not PRODUCER_PROVIDER_ORDER:
+        return None
+    return {
+        "provider": {
+            "order": list(PRODUCER_PROVIDER_ORDER),
+            "allow_fallbacks": True,
+        }
+    }
+
+
 async def run_tool_use_loop(
     *,
     client: anthropic.AsyncAnthropic,
@@ -368,6 +439,10 @@ async def run_tool_use_loop(
       1. `_anthropic_retry(lambda: client.messages.create(...))` — reuses
          extraction.py's tenacity retry wrapper (503 / rate-limit /
          connection errors retry; auth/bad-request propagate immediately).
+         When `PRODUCER_PROVIDER_ORDER` is set, this call also carries an
+         `extra_body={'provider': {...}}` kwarg (ID-132 {132.35} slice D,
+         DR-079 OpenRouter provider routing) — omitted entirely when unset
+         (see `_provider_routing_extra_body`).
       2. `_guard_not_truncated(resp, extractor_name, max_tokens)` — reuses
          extraction.py's `max_tokens`-ceiling guard.
       3. If `resp.stop_reason != "tool_use"`, RETURN `resp` immediately —
@@ -391,15 +466,19 @@ async def run_tool_use_loop(
     on its `tool_result` block (S451 rider).
     """
     while True:
+        create_kwargs: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": {"type": "auto"},
+        }
+        extra_body = _provider_routing_extra_body()
+        if extra_body is not None:
+            create_kwargs["extra_body"] = extra_body
         resp = await _anthropic_retry(
-            lambda: client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=messages,
-                tools=tools,
-                tool_choice={"type": "auto"},
-            )
+            lambda: client.messages.create(**create_kwargs)
         )
         _guard_not_truncated(resp, extractor_name, max_tokens)
         if resp.stop_reason != "tool_use":

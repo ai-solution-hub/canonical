@@ -693,3 +693,235 @@ class TestProducerAsyncClientFactory:
         assert "PRODUCER_BASE_URL" not in extraction_source
         assert "PRODUCER_AUTH_TOKEN" not in extraction_source
         assert "producer_async_client" not in extraction_source
+
+
+# ============================================================================
+# PRODUCER_PROVIDER_ORDER — env override + extra_body wiring (ID-132
+# {132.35} slice D, DR-079). Run-1 of the GLM-5.2 BI-18 deploy-proof failed
+# 18/18 on staging: OpenRouter's Anthropic-skin `/v1/messages` silently
+# defaults `requested_providers=['anthropic']` when the request carries no
+# explicit provider directive, and `anthropic` doesn't serve `z-ai/glm-5.2`
+# (404 "No allowed providers are available"). Probe-proven fix: an
+# `extra_body={'provider': {'order': [...], 'allow_fallbacks': True}}`
+# kwarg on `client.messages.create`.
+# ============================================================================
+
+
+class TestProducerProviderOrderEnvOverride:
+    """`agent_loop.PRODUCER_PROVIDER_ORDER` is a producer-scoped,
+    comma-separated env var parsed into a tuple of stripped, non-empty
+    OpenRouter provider slugs, read ONCE at import time. Reload-based, same
+    confined posture as `TestProducerModelEnvOverride`/
+    `TestProducerAsyncClientFactory` above (this module imports no
+    `cocoindex`, so a reload here is safe and confined)."""
+
+    def test_env_unset_resolves_to_empty_tuple(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("PRODUCER_PROVIDER_ORDER", raising=False)
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_PROVIDER_ORDER == ()
+        finally:
+            importlib.reload(_agent_loop_module)
+
+    def test_env_empty_string_also_resolves_to_empty_tuple(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An explicitly-empty var (e.g. an unset Coolify secret rendered as
+        `""`) must fall back exactly like an absent one — mirrors
+        `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN`'s `or ""` posture."""
+        monkeypatch.setenv("PRODUCER_PROVIDER_ORDER", "")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_PROVIDER_ORDER == ()
+        finally:
+            monkeypatch.delenv("PRODUCER_PROVIDER_ORDER", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_whitespace_and_commas_only_also_resolves_to_empty_tuple(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Belt-and-braces: a value that is only whitespace/commas (e.g.
+        ' , , ') must not produce phantom empty-string slugs."""
+        monkeypatch.setenv("PRODUCER_PROVIDER_ORDER", " , , ")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_PROVIDER_ORDER == ()
+        finally:
+            monkeypatch.delenv("PRODUCER_PROVIDER_ORDER", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_single_slug_parses_to_one_element_tuple(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRODUCER_PROVIDER_ORDER", "z-ai")
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_PROVIDER_ORDER == ("z-ai",)
+        finally:
+            monkeypatch.delenv("PRODUCER_PROVIDER_ORDER", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_multi_slug_csv_parses_stripped_and_in_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(
+            "PRODUCER_PROVIDER_ORDER", " z-ai , together , fireworks "
+        )
+        try:
+            importlib.reload(_agent_loop_module)
+            assert _agent_loop_module.PRODUCER_PROVIDER_ORDER == (
+                "z-ai",
+                "together",
+                "fireworks",
+            )
+        finally:
+            monkeypatch.delenv("PRODUCER_PROVIDER_ORDER", raising=False)
+            importlib.reload(_agent_loop_module)
+
+    def test_extraction_lane_is_untouched_by_the_producer_provider_order(
+        self,
+    ) -> None:
+        """DO-NOT (brief): extraction.py stays free of the new producer-
+        scoped var — mirrors the equivalent grep-guards for slices B/C."""
+        extraction_source = (
+            _REPO_ROOT / "scripts" / "cocoindex_pipeline" / "extraction.py"
+        ).read_text()
+        assert "PRODUCER_PROVIDER_ORDER" not in extraction_source
+
+
+class TestProviderRoutingExtraBodyWiring:
+    """`run_tool_use_loop`'s `client.messages.create` call — the SINGLE
+    producer `messages.create` call site (both Pass-1 `enrich_concept` and
+    Pass-2 `run_web_pass` route through this loop) — carries
+    `extra_body={'provider': {...}}` when `PRODUCER_PROVIDER_ORDER` is set,
+    and OMITS the `extra_body` kwarg ENTIRELY (never `extra_body=None`) when
+    unset, per the brief's byte-identical-when-unset requirement.
+
+    `monkeypatch.setattr` on the module constant directly (not env+reload)
+    — simpler and auto-restoring, and equivalent because
+    `_provider_routing_extra_body`/`run_tool_use_loop` read the module
+    global by name at call time."""
+
+    def test_unset_provider_order_omits_extra_body_kwarg_entirely(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_agent_loop_module, "PRODUCER_PROVIDER_ORDER", ())
+        final = _MockMessage(
+            [TextBlock(type="text", text="the concept body")],
+            stop_reason="end_turn",
+        )
+        client = _mock_client([final])
+        messages = _seed_messages()
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        assert client.messages.create.call_args_list  # sanity: at least 1
+        for call in client.messages.create.call_args_list:
+            assert "extra_body" not in call.kwargs
+
+    def test_set_provider_order_passes_extra_body_on_every_create_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Both turns of a 2-turn loop (Pass-1 tool_use + the terminal turn)
+        carry the same provider-routing payload — proves it's threaded on
+        every iteration, not just the first `messages.create` call."""
+        monkeypatch.setattr(
+            _agent_loop_module, "PRODUCER_PROVIDER_ORDER", ("z-ai",)
+        )
+        tool_use_block = ToolUseBlock(
+            type="tool_use",
+            id="toolu_1",
+            name="read_concept_raw",
+            input={"ref": "products/lms.md"},
+        )
+        tool_turn = _MockMessage([tool_use_block], stop_reason="tool_use")
+        final = _MockMessage(
+            [TextBlock(type="text", text="body")], stop_reason="end_turn"
+        )
+        client = _mock_client([tool_turn, final])
+        messages = _seed_messages()
+
+        async def _read_concept_raw(_tool_input: Any) -> dict[str, Any]:
+            return {"rows": ["doc-1"]}
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={"read_concept_raw": _read_concept_raw},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        assert len(client.messages.create.call_args_list) == 2
+        for call in client.messages.create.call_args_list:
+            assert call.kwargs["extra_body"] == {
+                "provider": {"order": ["z-ai"], "allow_fallbacks": True}
+            }
+
+    def test_multi_slug_order_preserved_in_extra_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            _agent_loop_module,
+            "PRODUCER_PROVIDER_ORDER",
+            ("z-ai", "together"),
+        )
+        final = _MockMessage(
+            [TextBlock(type="text", text="body")], stop_reason="end_turn"
+        )
+        client = _mock_client([final])
+        messages = _seed_messages()
+
+        async def _exercise() -> Any:
+            return await run_tool_use_loop(
+                client=client,
+                messages=messages,
+                tools=PASS1_TOOLS,
+                tool_executors={},
+                system=[{"type": "text", "text": "system prompt"}],
+                extractor_name="enrich_concept",
+                max_tokens=4096,
+            )
+
+        asyncio.run(_exercise())
+
+        call = client.messages.create.call_args_list[0]
+        assert call.kwargs["extra_body"]["provider"]["order"] == [
+            "z-ai",
+            "together",
+        ]
+        assert (
+            call.kwargs["extra_body"]["provider"]["allow_fallbacks"] is True
+        )
+
+    def test_provider_routing_extra_body_helper_direct(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Direct unit proof of the helper itself, isolated from the loop."""
+        monkeypatch.setattr(_agent_loop_module, "PRODUCER_PROVIDER_ORDER", ())
+        assert _agent_loop_module._provider_routing_extra_body() is None
+
+        monkeypatch.setattr(
+            _agent_loop_module, "PRODUCER_PROVIDER_ORDER", ("z-ai",)
+        )
+        assert _agent_loop_module._provider_routing_extra_body() == {
+            "provider": {"order": ["z-ai"], "allow_fallbacks": True}
+        }
