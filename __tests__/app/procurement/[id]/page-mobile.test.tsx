@@ -167,9 +167,6 @@ vi.mock('@/components/procurement/procurement-workflow-indicator', () => ({
   ProcurementWorkflowBadge: ({ state }: { state: string }) => (
     <span data-testid="bid-state-badge">{state}</span>
   ),
-  ProcurementWorkflowStepper: ({ state }: { state: string }) => (
-    <div data-testid="bid-state-stepper">{state}</div>
-  ),
 }));
 
 vi.mock('@/components/procurement/procurement-export-menu', () => ({

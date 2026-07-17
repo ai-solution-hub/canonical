@@ -1,12 +1,18 @@
 'use client';
 
-import { Check, Circle, Clock, Ban } from 'lucide-react';
+/**
+ * Workflow-state BADGE for procurement list/detail surfaces.
+ *
+ * The read-only `ProcurementWorkflowStepper` that used to live alongside the
+ * badge was superseded by the interactive 10-state `WorkflowStepper`
+ * (`components/procurement/workflow-stepper.tsx`, ID-147 {147.15}, wired via
+ * `item-workflow-panel.tsx`) and removed in the S482 orphan sweep — it had
+ * zero importers.
+ */
+
 import { cn } from '@/lib/utils';
 import {
   PROCUREMENT_WORKFLOW_LABELS,
-  PROCUREMENT_WORKFLOW_SHORT_LABELS,
-  PROCUREMENT_WORKFLOW_PROGRESSION,
-  isTerminal,
   type ProcurementWorkflowState,
 } from '@/lib/domains/procurement/procurement-workflow';
 
@@ -107,133 +113,5 @@ export function ProcurementWorkflowBadge({
       />
       {label}
     </span>
-  );
-}
-
-/**
- * Horizontal stepper showing bid progress through lifecycle states.
- */
-export function ProcurementWorkflowStepper({
-  state,
-  className,
-}: ProcurementWorkflowIndicatorProps) {
-  const currentIndex = PROCUREMENT_WORKFLOW_PROGRESSION.indexOf(state);
-  const terminal = isTerminal(state);
-
-  return (
-    <div
-      className={cn('flex items-center gap-1', className)}
-      role="list"
-      aria-label="Procurement progress"
-    >
-      {PROCUREMENT_WORKFLOW_PROGRESSION.map((step, index) => {
-        const isCompleted = !terminal && currentIndex > index;
-        const isCurrent = step === state;
-        const isFuture = !terminal && currentIndex < index;
-
-        return (
-          <div key={step} className="flex items-center" role="listitem">
-            {index > 0 && (
-              <div
-                className={cn(
-                  'mx-0.5 h-0.5 w-3 sm:w-6',
-                  isCompleted ? 'bg-primary' : 'bg-muted',
-                )}
-                aria-hidden="true"
-              />
-            )}
-            <div className="flex flex-col items-center gap-0.5">
-              <div
-                className={cn(
-                  'flex size-5 items-center justify-center rounded-full border text-xs',
-                  isCompleted &&
-                    'border-primary bg-primary text-primary-foreground',
-                  isCurrent &&
-                    'border-primary bg-primary/10 text-primary ring-2 ring-primary/30',
-                  isFuture &&
-                    'border-muted-foreground/30 text-muted-foreground/50',
-                  terminal &&
-                    !isCurrent &&
-                    'border-muted-foreground/30 text-muted-foreground/50',
-                )}
-                aria-current={isCurrent ? 'step' : undefined}
-              >
-                {isCompleted ? (
-                  <Check className="size-3" aria-hidden="true" />
-                ) : isCurrent ? (
-                  <Circle className="size-2 fill-current" aria-hidden="true" />
-                ) : null}
-              </div>
-              {/* Abbreviated label on mobile */}
-              <span
-                className={cn(
-                  'block text-[9px] leading-tight sm:hidden',
-                  isCurrent
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground',
-                )}
-                aria-hidden="true"
-              >
-                {PROCUREMENT_WORKFLOW_SHORT_LABELS[step]}
-              </span>
-              {/* Full label on desktop */}
-              <span
-                className={cn(
-                  'hidden text-[11px] leading-tight sm:block',
-                  isCurrent
-                    ? 'font-medium text-foreground'
-                    : 'text-muted-foreground',
-                )}
-              >
-                {PROCUREMENT_WORKFLOW_LABELS[step]}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Terminal state indicator */}
-      {terminal && (
-        <div className="flex items-center" role="listitem">
-          <div
-            className="mx-0.5 h-0.5 w-3 sm:w-6 bg-muted"
-            aria-hidden="true"
-          />
-          <div className="flex flex-col items-center gap-0.5">
-            <div
-              className={cn(
-                'flex size-5 items-center justify-center rounded-full border',
-                state === 'won' &&
-                  'border-form-won-border bg-form-won-bg text-form-won',
-                state === 'lost' &&
-                  'border-form-lost-border bg-form-lost-bg text-form-lost',
-                state === 'withdrawn' &&
-                  'border-form-withdrawn-border bg-form-withdrawn-bg text-form-withdrawn',
-              )}
-              aria-current="step"
-            >
-              {state === 'won' ? (
-                <Check className="size-3" aria-hidden="true" />
-              ) : state === 'lost' ? (
-                <Ban className="size-3" aria-hidden="true" />
-              ) : (
-                <Clock className="size-3" aria-hidden="true" />
-              )}
-            </div>
-            {/* Abbreviated label on mobile */}
-            <span
-              className="block text-[9px] font-medium leading-tight sm:hidden"
-              aria-hidden="true"
-            >
-              {PROCUREMENT_WORKFLOW_SHORT_LABELS[state]}
-            </span>
-            {/* Full label on desktop */}
-            <span className="hidden text-[11px] font-medium leading-tight sm:block">
-              {PROCUREMENT_WORKFLOW_LABELS[state]}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
