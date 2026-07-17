@@ -265,7 +265,7 @@ export default function PerItemTab() {
               <CardContent>
                 {data.drafting.recentDrafts.length === 0 ? (
                   <p className="text-xs italic text-muted-foreground/60">
-                    No bid responses cite this item.
+                    No procurement responses cite this item.
                   </p>
                 ) : (
                   <div className="space-y-3">

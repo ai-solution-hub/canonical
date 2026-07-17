@@ -175,14 +175,14 @@ export function ContentPerformanceSection() {
         </h2>
         <p className="text-sm text-muted-foreground">
           No bid performance data yet. Win rate analytics will appear here once
-          content is cited in bid responses and outcomes are recorded.
+          content is cited in procurement responses and outcomes are recorded.
         </p>
         <div className="mt-3">
           <p className="text-xs font-medium text-muted-foreground">
             How it works:
           </p>
           <ol className="mt-1 list-inside list-decimal space-y-0.5 text-xs text-muted-foreground">
-            <li>Draft bid responses using KB content</li>
+            <li>Draft procurement responses using KB content</li>
             <li>Record bid outcomes (won/lost) on the bid detail page</li>
             <li>Performance metrics accumulate automatically</li>
           </ol>

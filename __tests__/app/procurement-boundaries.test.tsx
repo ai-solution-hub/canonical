@@ -137,7 +137,9 @@ describe('Procurement Detail Error Boundary', () => {
 
   it('renders the heading text', () => {
     render(<ProcurementDetailError error={error} reset={reset} />);
-    expect(screen.getByText(/couldn.*t load bid details/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/couldn.*t load procurement details/i),
+    ).toBeInTheDocument();
   });
 
   it('renders a contextual icon with aria-hidden', () => {

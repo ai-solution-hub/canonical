@@ -286,7 +286,7 @@ describe('PerItemTab', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/no bid responses cite this item/i),
+        screen.getByText(/no procurement responses cite this item/i),
       ).toBeInTheDocument();
     });
   });

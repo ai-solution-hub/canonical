@@ -217,7 +217,7 @@ describe('ContentPerformanceSection', () => {
       ).toBeInTheDocument();
       expect(screen.getByText('How it works:')).toBeInTheDocument();
       expect(
-        screen.getByText(/Draft bid responses using KB content/),
+        screen.getByText(/Draft procurement responses using KB content/),
       ).toBeInTheDocument();
     });
   });

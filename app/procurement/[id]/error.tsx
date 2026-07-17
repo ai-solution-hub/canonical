@@ -24,10 +24,10 @@ export default function ProcurementDetailError({
         aria-hidden="true"
       />
       <h2 className="mb-2 text-lg font-semibold text-foreground">
-        Couldn&apos;t load bid details
+        Couldn&apos;t load procurement details
       </h2>
       <p className="mb-6 text-sm text-muted-foreground">
-        This bid may have been deleted or you may not have access.
+        This procurement may have been deleted or you may not have access.
       </p>
       <div className="flex gap-3">
         <Button onClick={reset} variant="outline">

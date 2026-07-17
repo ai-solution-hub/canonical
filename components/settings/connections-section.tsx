@@ -46,7 +46,7 @@ const CAPABILITIES = [
   { icon: LayoutDashboard, text: 'Get a dashboard summary' },
   { icon: Target, text: 'Check active procurement status and deadlines' },
   { icon: Compass, text: 'Get a personal reorientation briefing' },
-  { icon: FileText, text: 'Draft bid responses using KB content' },
+  { icon: FileText, text: 'Draft procurement responses using KB content' },
   { icon: BarChart3, text: 'View quality and freshness reports' },
 ];
 
@@ -303,8 +303,8 @@ export function ConnectionsSection() {
                       <p className="text-sm text-muted-foreground">
                         Download the {BRANDING.productName} plugin for Claude
                         Code or Cowork. Adds slash commands for searching your
-                        knowledge base, checking bid status, and drafting
-                        responses.
+                        knowledge base, checking procurement status, and
+                        drafting responses.
                       </p>
                       <div className="flex flex-col gap-3">
                         <Button variant="outline" className="w-fit" asChild>
@@ -488,7 +488,7 @@ export function ConnectionsSection() {
 
                       <p className="text-xs text-muted-foreground">
                         Optionally, download the plugin above for slash commands
-                        and bid-writing skills. Place the extracted plugin
+                        and response-drafting skills. Place the extracted plugin
                         folder in{' '}
                         <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
                           ~/.claude/plugins/marketplaces/local/plugins/knowledge-hub/
