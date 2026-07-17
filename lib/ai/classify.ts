@@ -1064,7 +1064,11 @@ export async function validateEntities(
                     type: 'string',
                     enum: ['confirmed', 'removed', 'retyped'],
                   },
-                  original_type: { type: ['string', 'null'] },
+                  // Nullable under strict:true — value-or-null is anyOf, not
+                  // an array-valued `type` (bl-471).
+                  original_type: {
+                    anyOf: [{ type: 'string' }, { type: 'null' }],
+                  },
                   reason: { type: 'string' },
                 },
                 required: [
@@ -1469,8 +1473,14 @@ export async function classifyContent(
           properties: {
             primary_domain: { type: 'string' },
             primary_subtopic: { type: 'string' },
-            secondary_domain: { type: ['string', 'null'] },
-            secondary_subtopic: { type: ['string', 'null'] },
+            // Nullable under strict:true — value-or-null is anyOf, not an
+            // array-valued `type` (bl-471).
+            secondary_domain: {
+              anyOf: [{ type: 'string' }, { type: 'null' }],
+            },
+            secondary_subtopic: {
+              anyOf: [{ type: 'string' }, { type: 'null' }],
+            },
             ai_keywords: { type: 'array', items: { type: 'string' } },
             summary: { type: 'string' },
             suggested_title: { type: 'string' },
@@ -1585,7 +1595,9 @@ export async function classifyContent(
                       'Classification: expiry (when something becomes invalid), effective (when something started), historical (background context), unknown',
                   },
                   related_entity: {
-                    type: ['string', 'null'],
+                    // Nullable under strict:true — anyOf, not an array-valued
+                    // `type` (bl-471).
+                    anyOf: [{ type: 'string' }, { type: 'null' }],
                     description:
                       'The canonical name of the entity this date relates to (e.g. "ISO 27001" for an ISO 27001 certification expiry date, "GDPR" for a GDPR effective date). Use the same canonical_name form as in the entities array. Null if the date is not related to a specific extracted entity.',
                   },

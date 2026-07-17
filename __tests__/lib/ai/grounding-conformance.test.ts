@@ -30,6 +30,7 @@ vi.mock('@/lib/anthropic', () => ({
 import {
   generateSearchQueries,
   extractTenderMetadata,
+  extractPDFQuestions,
 } from '@/lib/domains/procurement/ai/extract-questions';
 import { callSummaryAI } from '@/lib/ai/summarise';
 
@@ -53,6 +54,32 @@ function assertClosed(schema: unknown, path = 'input_schema'): void {
     assertClosed(node.items, `${path}.items`);
 }
 
+/**
+ * Recursively assert no schema node uses an array-valued `type` — outside
+ * Anthropic's supported strict-mode subset (bl-471; fix pattern 0682d507).
+ * Nullability must be expressed via `anyOf: [{type:'x'}, {type:'null'}]`.
+ */
+function assertStrictSubset(schema: unknown, path = 'input_schema'): void {
+  if (!schema || typeof schema !== 'object') return;
+  const node = schema as Record<string, unknown>;
+  expect(
+    Array.isArray(node.type),
+    `${path} uses an array-valued \`type\` — not in the strict-mode subset; use anyOf`,
+  ).toBe(false);
+  const props = node.properties as Record<string, unknown> | undefined;
+  if (props) {
+    for (const [k, child] of Object.entries(props)) {
+      assertStrictSubset(child, `${path}.properties.${k}`);
+    }
+  }
+  if (node.items) assertStrictSubset(node.items, `${path}.items`);
+  if (Array.isArray(node.anyOf)) {
+    node.anyOf.forEach((member, i) =>
+      assertStrictSubset(member, `${path}.anyOf[${i}]`),
+    );
+  }
+}
+
 /** Assert a captured request honours the forced_tool_strict contract. */
 function assertForcedToolStrict(call: Record<string, unknown>): void {
   expect(
@@ -72,6 +99,7 @@ function assertForcedToolStrict(call: Record<string, unknown>): void {
       true,
     );
     assertClosed(tool.input_schema, `${String(tool.name)}.input_schema`);
+    assertStrictSubset(tool.input_schema, `${String(tool.name)}.input_schema`);
   }
 }
 
@@ -142,6 +170,26 @@ describe('forced_tool_strict touchpoints', () => {
     });
 
     await extractTenderMetadata('<p>Tender doc</p>', 'html');
+
+    const call = mockCreate.mock.calls[0][0];
+    assertForcedToolStrict(call);
+    assertNoCitationStructuredCombo(call);
+  });
+
+  it('extractPDFQuestions forces a strict, closed tool', async () => {
+    mockCreate.mockResolvedValueOnce({
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          name: 'extract_questions',
+          input: { sections: [] },
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+
+    await extractPDFQuestions(Buffer.from('%PDF-1.4').toString('base64'));
 
     const call = mockCreate.mock.calls[0][0];
     assertForcedToolStrict(call);

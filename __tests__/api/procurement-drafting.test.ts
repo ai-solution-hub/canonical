@@ -2539,6 +2539,46 @@ describe('POST /api/bids/:id/tender', () => {
     expect(body.error).toContain('does not match');
   });
 
+  it('accepts an XLSX tender document', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Procurement exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const xlsxType =
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    // XLSX shares the ZIP container signature with DOCX
+    const file = makeMockFile(DOCX_MAGIC, 'test.xlsx', xlsxType);
+    const req = createTenderRequest(file);
+
+    const res = await tenderPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.mime_type).toBe(xlsxType);
+    expect(body.filename).toBe('test.xlsx');
+  });
+
+  it('returns 415 for an XLSX upload whose bytes are not a ZIP container', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const xlsxType =
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const file = makeMockFile(PDF_MAGIC, 'test.xlsx', xlsxType);
+    const req = createTenderRequest(file);
+
+    const res = await tenderPost(req, { params });
+    expect(res.status).toBe(415);
+  });
+
   it('returns 400 when docx is encrypted', async () => {
     configureRole(mockSupabase, 'editor');
 

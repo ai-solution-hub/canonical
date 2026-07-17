@@ -80,7 +80,7 @@ const MOCK_SOURCE = {
   polling_interval_minutes: 30,
   is_active: true,
   last_polled_at: null,
-  last_status: null,
+  last_polled_status: null,
   consecutive_failures: 0,
   etag: null,
   last_modified: null,

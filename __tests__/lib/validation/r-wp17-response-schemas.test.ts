@@ -537,7 +537,7 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         polling_interval_minutes: 60,
         is_active: true,
         last_polled_at: null,
-        last_status: null,
+        last_polled_status: null,
         consecutive_failures: 0,
         etag: null,
         last_modified: null,
@@ -553,7 +553,7 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         polling_interval_minutes: 'sixty',
         is_active: true,
         last_polled_at: null,
-        last_status: null,
+        last_polled_status: null,
         consecutive_failures: 0,
         etag: null,
         last_modified: null,
@@ -572,7 +572,7 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         polling_interval_minutes: 60,
         is_active: true,
         last_polled_at: null,
-        last_status: null,
+        last_polled_status: null,
         consecutive_failures: 0,
         etag: null,
         last_modified: null,
@@ -588,7 +588,7 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         polling_interval_minutes: 60,
         is_active: true,
         last_polled_at: null,
-        last_status: null,
+        last_polled_status: null,
         consecutive_failures: 0,
         etag: null,
         last_modified: null,
@@ -902,5 +902,58 @@ describe('PipelineRunRowSchema status <-> DB constraint parity (bl-224)', () => 
       status: 'queued',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+// ── bl-474: intelligence response schemas vs the live DB wire shape ─────────
+
+describe('FeedSourceSchema matches the feed_sources wire shape (bl-474)', () => {
+  const dbRow = {
+    id: 's1',
+    workspace_id: 'w1',
+    name: 'feed',
+    url: 'https://example.com/rss',
+    polling_interval_minutes: 60,
+    is_active: true,
+    last_polled_at: null,
+    last_polled_status: null,
+    consecutive_failures: 0,
+    etag: null,
+    last_modified: null,
+    created_by: null,
+    created_at: '2026-05-01',
+    updated_at: '2026-05-01',
+  };
+
+  it('accepts a row carrying the real last_polled_status column', () => {
+    expect(schemas.FeedSourceSchema.safeParse(dbRow).success).toBe(true);
+  });
+
+  it('rejects the phantom last_status shape (column does not exist in feed_sources)', () => {
+    const { last_polled_status: _dropped, ...phantom } = dbRow;
+    const result = schemas.FeedSourceSchema.safeParse({
+      ...phantom,
+      last_status: null,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('IntelligenceWorkspaceSchema tolerates nullable DB columns (bl-474)', () => {
+  it('accepts a row with null is_archived/created_at/updated_at', () => {
+    const result = schemas.IntelligenceWorkspaceSchema.safeParse({
+      id: 'w1',
+      name: 'Sector intel',
+      description: null,
+      application_type_id: 'app1',
+      company_profile_id: null,
+      guide_id: null,
+      relevance_threshold: null,
+      domain_metadata: null,
+      is_archived: null,
+      created_at: null,
+      updated_at: null,
+    });
+    expect(result.success).toBe(true);
   });
 });
