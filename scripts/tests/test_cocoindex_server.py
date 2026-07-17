@@ -12,8 +12,10 @@ bl-221 (boot-decouple — boot enters the lifespan, never walks):
     background daemon thread, and NO walking `update_blocking(...)` runs at
     boot (mock + assert thread spawn + inverted boot guard, bl-221 G1).
   - POST /walk runs the on-demand `update_blocking(live=False)` corpus walk
-    behind a CRON_SECRET bearer + single-flight lock (TestWalkRoute), and
-    (as of {127.17} / S436 D1) the SAME `/extract` rate-limit guard
+    behind a PIPELINE_TRIGGER_SECRET bearer + single-flight lock
+    (TestWalkRoute; the legacy CRON_SECRET dual-accept fallback was retired
+    per ID-127.18 PLAN §6 step 6 / S457 owner ratification), and (as of
+    {127.17} / S436 D1) the SAME `/extract` rate-limit guard
     (TestWalkRateLimit).
 
 Test philosophy: every test asserts real behaviour. The HTTP `/health`
@@ -1188,16 +1190,19 @@ class TestClientMaxSize:
 # ──────────────────────────────────────────────────────────────────────────
 
 
+# ID-127.18: `_WALK_PIPELINE_TRIGGER_SECRET` is the sole working credential
+# post-retirement (PLAN §6 step 6 / S457 owner ratification) — used as the
+# default bearer throughout this file's /walk + /producer-run tests.
+# `_WALK_CRON_SECRET` is retained ONLY as the value proving the legacy
+# shared secret is REJECTED now that the dual-accept fallback is gone.
 _WALK_CRON_SECRET = "test-cron-secret-bl221"
-# ID-127.18 (S436 D1) — dedicated pipeline-trigger secret, dual-accepted
-# alongside the legacy `_WALK_CRON_SECRET` during the rotation window.
 _WALK_PIPELINE_TRIGGER_SECRET = "test-pipeline-trigger-secret-id127-18"
 
 
 async def _exercise_walk(
     aiohttp_app: web.Application,
     *,
-    bearer: str | None = _WALK_CRON_SECRET,
+    bearer: str | None = _WALK_PIPELINE_TRIGGER_SECRET,
     body: dict | None = None,
     raw_body: bytes | None = None,
     content_type: str = "application/json",
@@ -1368,12 +1373,15 @@ class TestWalkRouteTable:
 
 
 class TestWalkAuth:
-    """bl-221 — /walk is bearer-gated on CRON_SECRET (401 on missing/wrong).
+    """bl-221 — /walk is bearer-gated on PIPELINE_TRIGGER_SECRET (401 on
+    missing/wrong).
 
-    ID-127.18 (S436 D1): the gate now DUAL-ACCEPTS either the dedicated
-    `PIPELINE_TRIGGER_SECRET` or the legacy shared `CRON_SECRET` during the
-    rotation window, so the sidecar keeps authenticating before every
-    pipeline Coolify app + Vercel deployment has the new secret set.
+    ID-127.18: S436 D1 introduced a rotation-safe dual-accept window
+    (PIPELINE_TRIGGER_SECRET OR the legacy shared CRON_SECRET); PLAN §6
+    step 6 + the S457 owner ratification RETIRED that fallback —
+    PIPELINE_TRIGGER_SECRET is now the SOLE accepted bearer. A bearer
+    matching the legacy CRON_SECRET no longer authenticates (see the
+    RETIRED FALLBACK tests below).
     """
 
     def test_walk_401_when_no_bearer(
@@ -1387,7 +1395,7 @@ class TestWalkAuth:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
         flow = _patched_walk_app()
         with patch.object(
@@ -1413,7 +1421,7 @@ class TestWalkAuth:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
         flow = _patched_walk_app()
         with patch.object(
@@ -1426,15 +1434,14 @@ class TestWalkAuth:
         mock_update.assert_not_called()
         assert not server_mod.walk_in_progress()
 
-    def test_walk_503_when_cron_secret_unset(
+    def test_walk_503_when_pipeline_trigger_secret_unset(
         self,
         aiohttp_app: web.Application,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Fail closed: if BOTH PIPELINE_TRIGGER_SECRET and CRON_SECRET are
-        unset the route returns 503, never allowing an unauthenticated
-        walk."""
+        """Fail closed: if PIPELINE_TRIGGER_SECRET is unset the route
+        returns 503, never allowing an unauthenticated walk."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_walk_state()
@@ -1447,15 +1454,14 @@ class TestWalkAuth:
         assert status == 503
         assert not server_mod.walk_in_progress()
 
-    def test_walk_202_with_dedicated_pipeline_trigger_secret_when_cron_secret_unset(
+    def test_walk_202_with_pipeline_trigger_secret(
         self,
         aiohttp_app: web.Application,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """ID-127.18: post-rollout state — a bearer matching the dedicated
-        PIPELINE_TRIGGER_SECRET authenticates even with the legacy
-        CRON_SECRET unset."""
+        """A bearer matching the dedicated PIPELINE_TRIGGER_SECRET
+        authenticates."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_walk_state()
@@ -1475,15 +1481,16 @@ class TestWalkAuth:
         assert body["status"] == "accepted"
         _wait_for_lock_release(server_mod)
 
-    def test_walk_dual_accept_legacy_cron_secret_when_pipeline_trigger_secret_also_set(
+    def test_walk_401_when_bearer_is_the_legacy_cron_secret(
         self,
         aiohttp_app: web.Application,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """ID-127.18: rotation window — a bearer matching the LEGACY shared
-        CRON_SECRET still authenticates even once PIPELINE_TRIGGER_SECRET is
-        also set (dual-accept, not a hard cutover)."""
+        """RETIRED FALLBACK (ID-127.18 PLAN §6 step 6 / S457): a bearer
+        matching the LEGACY shared CRON_SECRET no longer authenticates,
+        even when PIPELINE_TRIGGER_SECRET is ALSO set — the dual-accept
+        window is over, not merely deprioritised."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_walk_state()
@@ -1495,13 +1502,37 @@ class TestWalkAuth:
         flow = _patched_walk_app()
         with patch.object(
             flow.KH_PIPELINE_APP, "update_blocking", return_value=None
-        ):
-            status, body = asyncio.run(
+        ) as mock_update:
+            status, _ = asyncio.run(
                 _exercise_walk(aiohttp_app, bearer=_WALK_CRON_SECRET)
             )
-        assert status == 202
-        assert body["status"] == "accepted"
-        _wait_for_lock_release(server_mod)
+        assert status == 401
+        mock_update.assert_not_called()
+        assert not server_mod.walk_in_progress()
+
+    def test_walk_503_when_only_the_legacy_cron_secret_is_set(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """RETIRED FALLBACK: CRON_SECRET being set does NOT help — with
+        PIPELINE_TRIGGER_SECRET unset the route fails closed (503) exactly
+        as if no secret at all were configured (mirrors the pre-ID-127.18
+        contract, just keyed to the new dedicated secret)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_state()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.delenv("PIPELINE_TRIGGER_SECRET", raising=False)
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, _ = asyncio.run(
+            _exercise_walk(aiohttp_app, bearer=_WALK_CRON_SECRET)
+        )
+        assert status == 503
+        assert not server_mod.walk_in_progress()
 
     def test_walk_401_when_bearer_matches_neither_secret(
         self,
@@ -1509,8 +1540,9 @@ class TestWalkAuth:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """ID-127.18: both secrets set, but the bearer matches neither →
-        401 (never a silent accept of an arbitrary bearer)."""
+        """PIPELINE_TRIGGER_SECRET set (and, harmlessly, the retired
+        CRON_SECRET also set), but the bearer matches neither → 401 (never
+        a silent accept of an arbitrary bearer)."""
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_walk_state()
@@ -1543,7 +1575,7 @@ class TestWalkIdleSource:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_walk_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.delenv("COCOINDEX_SOURCE_PATH", raising=False)
         flow = _patched_walk_app()
         with patch.object(
@@ -1565,7 +1597,7 @@ class TestWalkIdleSource:
 
         server_mod.reset_walk_state()
         missing = tmp_path / "does-not-exist"
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(missing))
         flow = _patched_walk_app()
         with patch.object(
@@ -1594,7 +1626,7 @@ class TestWalkHappyPath:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
 
         walk_ran = threading.Event()
@@ -1639,7 +1671,7 @@ class TestWalkHappyPath:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
 
         walk_ran = threading.Event()
@@ -1698,7 +1730,7 @@ class TestWalkNonJsonBody:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
 
         walk_ran = threading.Event()
@@ -1780,7 +1812,7 @@ class TestWalkSingleFlight:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
 
         release = threading.Event()
@@ -1828,7 +1860,7 @@ class TestWalkSingleFlight:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
 
         walk_attempted = threading.Event()
@@ -1890,7 +1922,7 @@ class TestWalkRateLimit:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
         # A budget of 1 makes the burst deterministic without 120 real calls.
         monkeypatch.setattr(server_mod, "_RATE_LIMIT_MAX_REQUESTS", 1)
@@ -1915,7 +1947,7 @@ class TestWalkRateLimit:
         # lock or spawn a second walk thread.
         assert not server_mod.walk_in_progress()
 
-    def test_walk_503_when_cron_secret_unset_even_if_rate_limited(
+    def test_walk_503_when_pipeline_trigger_secret_unset_even_if_rate_limited(
         self,
         aiohttp_app: web.Application,
         tmp_path: Path,
@@ -1929,6 +1961,7 @@ class TestWalkRateLimit:
         server_mod.reset_walk_state()
         corpus = tmp_path / "corpus"
         corpus.mkdir()
+        monkeypatch.delenv("PIPELINE_TRIGGER_SECRET", raising=False)
         monkeypatch.delenv("CRON_SECRET", raising=False)
         monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
         # Exhaust the rate-limit budget up front.
@@ -2938,7 +2971,7 @@ class TestPullSyncEndToEnd:
 async def _exercise_producer_run(
     aiohttp_app: web.Application,
     *,
-    bearer: str | None = _WALK_CRON_SECRET,
+    bearer: str | None = _WALK_PIPELINE_TRIGGER_SECRET,
 ) -> tuple[int, dict]:
     """Invoke the /producer-run handler in-process — mirrors `_exercise_walk`
     (no TCP socket, no request body needed)."""
@@ -2993,8 +3026,15 @@ class TestProducerRunRouteTable:
 
 
 class TestProducerRunAuth:
-    """Identical dual-accept bearer gate to /walk (PIPELINE_TRIGGER_SECRET OR
-    the legacy CRON_SECRET; 503 if both unset; 401 on missing/wrong bearer)."""
+    """Bearer gate to /producer-run — PIPELINE_TRIGGER_SECRET only; 503 if
+    unset; 401 on missing/wrong/legacy bearer.
+
+    ID-127.18: this gate was ALWAYS PIPELINE_TRIGGER_SECRET-only (it was
+    added later, via {132.35} commit 10aafd04, after S436 D1's original
+    dual-accept design but wired verbatim against the /walk pattern of the
+    time) — so its retirement here is really the general PLAN §6 step 6 /
+    S457 retirement applied to this gate too, in lockstep with /walk.
+    """
 
     def test_producer_run_401_when_no_bearer(
         self,
@@ -3004,7 +3044,7 @@ class TestProducerRunAuth:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
 
         status, body = asyncio.run(
             _exercise_producer_run(aiohttp_app, bearer=None)
@@ -3021,7 +3061,7 @@ class TestProducerRunAuth:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
 
         status, body = asyncio.run(
             _exercise_producer_run(aiohttp_app, bearer="wrong-secret")
@@ -3030,7 +3070,7 @@ class TestProducerRunAuth:
         assert status == 401
         assert not server_mod.producer_run_in_progress()
 
-    def test_producer_run_503_when_both_secrets_unset(
+    def test_producer_run_503_when_pipeline_trigger_secret_unset(
         self,
         aiohttp_app: web.Application,
         monkeypatch: pytest.MonkeyPatch,
@@ -3073,6 +3113,48 @@ class TestProducerRunAuth:
         assert status == 202
         _wait_for_producer_run_lock_release(server_mod)
 
+    def test_producer_run_401_when_bearer_is_the_legacy_cron_secret(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """RETIRED FALLBACK: a bearer matching the legacy shared CRON_SECRET
+        no longer authenticates, even when PIPELINE_TRIGGER_SECRET is ALSO
+        set (mirrors /walk's retirement test)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+
+        status, _ = asyncio.run(
+            _exercise_producer_run(aiohttp_app, bearer=_WALK_CRON_SECRET)
+        )
+
+        assert status == 401
+        assert not server_mod.producer_run_in_progress()
+
+    def test_producer_run_503_when_only_the_legacy_cron_secret_is_set(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """RETIRED FALLBACK: CRON_SECRET being set does NOT help — with
+        PIPELINE_TRIGGER_SECRET unset the route fails closed (503) exactly
+        as if no secret at all were configured."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_producer_run_state()
+        monkeypatch.delenv("PIPELINE_TRIGGER_SECRET", raising=False)
+        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+
+        status, _ = asyncio.run(
+            _exercise_producer_run(aiohttp_app, bearer=_WALK_CRON_SECRET)
+        )
+
+        assert status == 503
+        assert not server_mod.producer_run_in_progress()
+
 
 class TestProducerRunIdleBundle:
     """Mirrors /walk's Inv-5 idle-source loud-reject: a forced run with no
@@ -3086,7 +3168,7 @@ class TestProducerRunIdleBundle:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.delenv("OKF_BUNDLE_DIR", raising=False)
 
         status, body = asyncio.run(_exercise_producer_run(aiohttp_app))
@@ -3104,7 +3186,7 @@ class TestProducerRunIdleBundle:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path / "does-not-exist"))
 
         status, body = asyncio.run(_exercise_producer_run(aiohttp_app))
@@ -3127,7 +3209,7 @@ class TestProducerRunHappyPath:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
 
         run_ran = threading.Event()
@@ -3171,7 +3253,7 @@ class TestProducerRunHappyPath:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
 
         def _failing_build(request_id: str) -> None:
@@ -3201,7 +3283,7 @@ class TestProducerRunSingleFlight:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
 
         release_worker = threading.Event()
@@ -3241,7 +3323,7 @@ class TestProducerRunRateLimit:
         from scripts.cocoindex_pipeline import server as server_mod
 
         server_mod.reset_producer_run_state()
-        monkeypatch.setenv("CRON_SECRET", _WALK_CRON_SECRET)
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
         monkeypatch.setenv("OKF_BUNDLE_DIR", str(tmp_path))
         monkeypatch.setattr(server_mod, "_RATE_LIMIT_MAX_REQUESTS", 1)
         monkeypatch.setattr(

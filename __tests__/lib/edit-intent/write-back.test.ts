@@ -412,7 +412,7 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
     it('fires a POST to {COCOINDEX_WORKER_URL}/walk on the happy path when configured', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
-      process.env.CRON_SECRET = 'test-cron-secret';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
       const fetchMock = vi
         .fn()
         .mockResolvedValue({ ok: true, status: 202 } as Response);
@@ -438,15 +438,15 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
         'https://worker.example.test/walk',
         expect.objectContaining({
           method: 'POST',
-          headers: { Authorization: 'Bearer test-cron-secret' },
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
         }),
       );
     });
 
-    it('ID-127.18 (S436 D1): prefers the dedicated PIPELINE_TRIGGER_SECRET bearer over the legacy CRON_SECRET when both are set', async () => {
+    it('ID-127.18 RETIRED FALLBACK: ignores the legacy CRON_SECRET even when it is also set', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
       process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-trigger-secret';
-      process.env.CRON_SECRET = 'test-cron-secret';
+      process.env.CRON_SECRET = 'legacy-shared-secret';
       const fetchMock = vi
         .fn()
         .mockResolvedValue({ ok: true, status: 202 } as Response);
@@ -478,10 +478,10 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       delete process.env.PIPELINE_TRIGGER_SECRET;
     });
 
-    it('ID-127.18: DUAL-ACCEPT — falls back to the legacy CRON_SECRET bearer when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', async () => {
+    it('ID-127.18 RETIRED FALLBACK: skips the nudge when only the legacy CRON_SECRET is set (PIPELINE_TRIGGER_SECRET unset)', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
       delete process.env.PIPELINE_TRIGGER_SECRET;
-      process.env.CRON_SECRET = 'test-cron-secret';
+      process.env.CRON_SECRET = 'legacy-shared-secret';
       const fetchMock = vi
         .fn()
         .mockResolvedValue({ ok: true, status: 202 } as Response);
@@ -502,16 +502,14 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       await Promise.resolve();
       await Promise.resolve();
 
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://worker.example.test/walk',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { Authorization: 'Bearer test-cron-secret' },
-        }),
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ objectKey: REL_PATH }),
+        expect.stringContaining('PIPELINE_TRIGGER_SECRET unset'),
       );
     });
 
-    it('ID-127.18: skips the nudge with a structured log naming both env vars when BOTH PIPELINE_TRIGGER_SECRET and CRON_SECRET are unset', async () => {
+    it('ID-127.18: skips the nudge with a structured log when PIPELINE_TRIGGER_SECRET is unset', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
       delete process.env.PIPELINE_TRIGGER_SECRET;
       delete process.env.CRON_SECRET;
@@ -538,13 +536,13 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
       expect(fetchMock).not.toHaveBeenCalled();
       expect(loggerMocks.warn).toHaveBeenCalledWith(
         expect.objectContaining({ objectKey: REL_PATH }),
-        expect.stringContaining('PIPELINE_TRIGGER_SECRET/CRON_SECRET unset'),
+        expect.stringContaining('PIPELINE_TRIGGER_SECRET unset'),
       );
     });
 
     it('does NOT nudge on the DB-failure/restore path (a reverted edit must not trigger a walk)', async () => {
       process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
-      process.env.CRON_SECRET = 'test-cron-secret';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
       const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 202 });
       global.fetch = fetchMock as unknown as typeof fetch;
 

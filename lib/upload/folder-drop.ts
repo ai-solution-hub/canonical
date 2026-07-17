@@ -235,9 +235,9 @@ const REWALK_NUDGE_TIMEOUT_MS = 5_000;
  * documents for `lib/intelligence/pipeline.ts`'s `nudgeCocoindexWalk`).
  * Non-fatal: a skipped or failed nudge is a DELAY, never a loss — the
  * standing scheduled walk (and, once {138.14} pull-sync exists) bounds the
- * latency. Dual-accept env-var gate (ID-127.18, S436 D1): prefers the
- * dedicated `PIPELINE_TRIGGER_SECRET`, falling back to the legacy shared
- * `CRON_SECRET` during the rotation window.
+ * latency. Env-var gate (ID-127.18): `PIPELINE_TRIGGER_SECRET` is the SOLE
+ * bearer this nudge sends — the legacy `CRON_SECRET` dual-accept fallback
+ * was retired per PLAN §6 step 6 / S457 owner ratification.
  */
 function nudgeCorpusRewalk(objectKey: string): void {
   const workerUrl = process.env.COCOINDEX_WORKER_URL;
@@ -248,18 +248,15 @@ function nudgeCorpusRewalk(objectKey: string): void {
     );
     return;
   }
-  // ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
-  // the env rollout has set it; fall back to the legacy shared CRON_SECRET
-  // so the nudge keeps firing before every pipeline Coolify app + Vercel
-  // deployment has the new secret. server.py's /walk auth dual-accepts
-  // both during the transition, so either value authenticates (mirrors
-  // lib/intelligence/pipeline.ts's nudgeCocoindexWalk verbatim).
-  const pipelineTriggerSecret =
-    process.env.PIPELINE_TRIGGER_SECRET || process.env.CRON_SECRET;
+  // ID-127.18 (S436 D1 introduced; PLAN §6 step 6 + S457 owner ratification
+  // RETIRED the legacy CRON_SECRET fallback): PIPELINE_TRIGGER_SECRET is now
+  // the SOLE bearer the nudge sends (mirrors lib/intelligence/pipeline.ts's
+  // nudgeCocoindexWalk verbatim).
+  const pipelineTriggerSecret = process.env.PIPELINE_TRIGGER_SECRET;
   if (!pipelineTriggerSecret) {
     logger.warn(
       { objectKey },
-      '[folder-drop] PIPELINE_TRIGGER_SECRET/CRON_SECRET unset — skipping re-walk nudge; the upload will be picked up by the next scheduled walk (once pull-sync exists).',
+      '[folder-drop] PIPELINE_TRIGGER_SECRET unset — skipping re-walk nudge; the upload will be picked up by the next scheduled walk (once pull-sync exists).',
     );
     return;
   }

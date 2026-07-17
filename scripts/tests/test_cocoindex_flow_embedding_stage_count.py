@@ -653,7 +653,7 @@ class TestWebhookPayloadCarriesEmbeddingCount:
     ) -> None:
         flow = _flow_module()
         monkeypatch.setenv("PIPELINE_RUN_WEBHOOK_URL", "https://example.test/x")
-        monkeypatch.setenv("CRON_SECRET", "test-secret")
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", "test-secret")
 
         # Pin THIS file's aiohttp stub locally + restore on exit so we don't
         # strand the sibling webhook test's _StubSession capture (ID-49.7).

@@ -891,12 +891,13 @@ async def _emit_pipeline_run_webhook(
     route is the ONLY path used to land `pipeline_runs` rows (Inv-18
     discipline guard).
 
-    Auth: `Authorization: Bearer <secret>` (ID-127.18, S436 D1 dual-accept):
-    prefers the dedicated `PIPELINE_TRIGGER_SECRET`, falling back to the
-    legacy shared `CRON_SECRET` during the rotation window — mirrors
-    `nudgeCocoindexWalk` (`lib/intelligence/pipeline.ts`) and the TS
-    `nudgeCorpusRewalk` sends (`write-back.ts` / `folder-drop.ts`). The
-    receiving Vercel route dual-accepts both via `verifyPipelineTriggerAuth`
+    Auth: `Authorization: Bearer <secret>` (ID-127.18: S436 D1 introduced a
+    dual-accept rotation window; PLAN §6 step 6 / S457 owner ratification
+    RETIRED it) — the dedicated `PIPELINE_TRIGGER_SECRET` is now the SOLE
+    outbound bearer, mirroring `nudgeCocoindexWalk`
+    (`lib/intelligence/pipeline.ts`) and the TS `nudgeCorpusRewalk` sends
+    (`write-back.ts` / `folder-drop.ts`). The receiving Vercel route is
+    likewise `PIPELINE_TRIGGER_SECRET`-only via `verifyPipelineTriggerAuth`
     (`lib/cron-auth.ts`). Secret mounted via Cloud Run Secret Manager.
 
     Best-effort: missing env vars or HTTP errors are logged but DO NOT
@@ -909,23 +910,18 @@ async def _emit_pipeline_run_webhook(
 
     Env vars (set by Cloud Run Service manifest):
       PIPELINE_RUN_WEBHOOK_URL — full URL of the Vercel route.
-      PIPELINE_TRIGGER_SECRET  — dedicated bearer secret (preferred).
-      CRON_SECRET               — legacy shared bearer secret (fallback).
+      PIPELINE_TRIGGER_SECRET  — dedicated bearer secret (sole accepted value).
     """
     url = os.environ.get("PIPELINE_RUN_WEBHOOK_URL")
-    # ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
-    # the env rollout has set it; fall back to the legacy shared CRON_SECRET
-    # so the webhook keeps firing before every pipeline Coolify app + Vercel
-    # deployment has the new secret.
-    secret = os.environ.get("PIPELINE_TRIGGER_SECRET") or os.environ.get(
-        "CRON_SECRET"
-    )
+    # ID-127.18 (S436 D1 introduced; PLAN §6 step 6 + S457 owner ratification
+    # RETIRED the legacy CRON_SECRET fallback): PIPELINE_TRIGGER_SECRET is
+    # now the SOLE bearer this webhook sends.
+    secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
     if not url or not secret:
         _logger.warning(
-            "PIPELINE_RUN_WEBHOOK_URL or PIPELINE_TRIGGER_SECRET/CRON_SECRET "
-            "not set — skipping pipeline-run webhook emission (op_id=%s "
-            "status=%s). Per-row structured logs via _emit_upsert_log() are "
-            "unaffected.",
+            "PIPELINE_RUN_WEBHOOK_URL or PIPELINE_TRIGGER_SECRET not set — "
+            "skipping pipeline-run webhook emission (op_id=%s status=%s). "
+            "Per-row structured logs via _emit_upsert_log() are unaffected.",
             op_id,
             status,
         )

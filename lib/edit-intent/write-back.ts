@@ -146,12 +146,13 @@ const REWALK_NUDGE_TIMEOUT_MS = 5_000;
  * `nudgeCocoindexWalk` (`lib/intelligence/pipeline.ts:539`, ID-75 WP-E D-3)
  * verbatim in shape — reimplemented locally rather than imported/exported
  * from `pipeline.ts`, which sits outside this Subtask's file-ownership
- * boundary. Same env-var gate (`COCOINDEX_WORKER_URL` + dual-accept
- * `PIPELINE_TRIGGER_SECRET`/`CRON_SECRET`, ID-127.18 S436 D1), same
- * non-fatal fire-and-forget contract: a skipped or failed nudge is a DELAY,
- * never a loss — the standing scheduled walk (and, once {138.14} lands,
- * pull-sync) bounds the latency. NEVER called on the compensating-restore
- * path (a reverted edit must not nudge a walk of stale-again content).
+ * boundary. Same env-var gate (`COCOINDEX_WORKER_URL` + `PIPELINE_TRIGGER_SECRET`,
+ * ID-127.18 — the legacy CRON_SECRET fallback retired per PLAN §6 step 6 /
+ * S457 owner ratification), same non-fatal fire-and-forget contract: a
+ * skipped or failed nudge is a DELAY, never a loss — the standing scheduled
+ * walk (and, once {138.14} lands, pull-sync) bounds the latency. NEVER
+ * called on the compensating-restore path (a reverted edit must not nudge a
+ * walk of stale-again content).
  */
 function nudgeCorpusRewalk(objectKey: string): void {
   const workerUrl = process.env.COCOINDEX_WORKER_URL;
@@ -162,18 +163,15 @@ function nudgeCorpusRewalk(objectKey: string): void {
     );
     return;
   }
-  // ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
-  // the env rollout has set it; fall back to the legacy shared CRON_SECRET
-  // so the nudge keeps firing before every pipeline Coolify app + Vercel
-  // deployment has the new secret. server.py's /walk auth dual-accepts
-  // both during the transition, so either value authenticates (mirrors
-  // lib/intelligence/pipeline.ts's nudgeCocoindexWalk verbatim).
-  const pipelineTriggerSecret =
-    process.env.PIPELINE_TRIGGER_SECRET || process.env.CRON_SECRET;
+  // ID-127.18 (S436 D1 introduced; PLAN §6 step 6 + S457 owner ratification
+  // RETIRED the legacy CRON_SECRET fallback): PIPELINE_TRIGGER_SECRET is now
+  // the SOLE bearer the nudge sends (mirrors lib/intelligence/pipeline.ts's
+  // nudgeCocoindexWalk verbatim).
+  const pipelineTriggerSecret = process.env.PIPELINE_TRIGGER_SECRET;
   if (!pipelineTriggerSecret) {
     logger.warn(
       { objectKey },
-      '[write-back] PIPELINE_TRIGGER_SECRET/CRON_SECRET unset — skipping re-walk nudge; the edit will be picked up by the next scheduled walk.',
+      '[write-back] PIPELINE_TRIGGER_SECRET unset — skipping re-walk nudge; the edit will be picked up by the next scheduled walk.',
     );
     return;
   }

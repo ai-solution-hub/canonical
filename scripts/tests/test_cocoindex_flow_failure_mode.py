@@ -712,7 +712,7 @@ class TestFailedRunWebhookEmitsClassifiedErrorClass:
     def _emit_with(self, error_class: str) -> dict | None:
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(
@@ -866,7 +866,7 @@ class TestRetryCountWebhookEmission:
     def _emit(self, **overrides):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         kwargs = {
             "op_id": uuid.uuid4(),
@@ -1025,7 +1025,7 @@ class TestTransient503RetryScenario:
 
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(
@@ -1161,7 +1161,7 @@ class TestErrorDetailWebhookEmission:
     def _emit(self, **overrides):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         kwargs = {
             "op_id": uuid.uuid4(),
@@ -1385,7 +1385,7 @@ class TestItemFailuresWebhookEmission:
     def _emit(self, **overrides):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         kwargs = {
             "op_id": uuid.uuid4(),

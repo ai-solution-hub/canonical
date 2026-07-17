@@ -672,7 +672,7 @@ class TestRetryBumpFiresInsideAppMainBindingScope:
                 retry_count=flow_retry_counter.get(),
             )
 
-        env = {"PIPELINE_RUN_WEBHOOK_URL": url, "CRON_SECRET": secret}
+        env = {"PIPELINE_RUN_WEBHOOK_URL": url, "PIPELINE_TRIGGER_SECRET": secret}
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(_exercise())
 
@@ -731,7 +731,7 @@ class TestNoRetryHappyPathPreserved:
                 retry_count=flow_retry_counter.get(),
             )
 
-        env = {"PIPELINE_RUN_WEBHOOK_URL": url, "CRON_SECRET": secret}
+        env = {"PIPELINE_RUN_WEBHOOK_URL": url, "PIPELINE_TRIGGER_SECRET": secret}
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(_exercise())
 

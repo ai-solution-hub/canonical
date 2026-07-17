@@ -85,8 +85,9 @@ describe('verifyCronAuth', () => {
 });
 
 describe('verifyPipelineTriggerAuth', () => {
-  // ID-127.18 (S436 D1) — dedicated pipeline-trigger secret with a
-  // rotation-safe dual-accept window against the legacy shared CRON_SECRET.
+  // ID-127.18 (S436 D1 introduced; PLAN §6 step 6 + S457 owner ratification
+  // RETIRED the legacy CRON_SECRET dual-accept fallback) — PIPELINE_TRIGGER_SECRET
+  // is now the SOLE secret this boundary accepts.
   const originalEnv = process.env;
 
   beforeEach(() => {
@@ -110,7 +111,7 @@ describe('verifyPipelineTriggerAuth', () => {
     expect(verifyPipelineTriggerAuth(request)).toBe(true);
   });
 
-  it('DUAL-ACCEPT: returns true when header matches the legacy shared CRON_SECRET', () => {
+  it('RETIRED FALLBACK: rejects a bearer matching the legacy shared CRON_SECRET even when it is set', () => {
     process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
     process.env.CRON_SECRET = 'legacy-shared-secret';
     const request = new Request(
@@ -119,10 +120,10 @@ describe('verifyPipelineTriggerAuth', () => {
         headers: { authorization: 'Bearer legacy-shared-secret' },
       },
     );
-    expect(verifyPipelineTriggerAuth(request)).toBe(true);
+    expect(verifyPipelineTriggerAuth(request)).toBe(false);
   });
 
-  it('DUAL-ACCEPT: accepts the legacy CRON_SECRET even when PIPELINE_TRIGGER_SECRET is unset (pre-rollout)', () => {
+  it('RETIRED FALLBACK: fails closed when only the legacy CRON_SECRET is set (PIPELINE_TRIGGER_SECRET unset)', () => {
     delete process.env.PIPELINE_TRIGGER_SECRET;
     process.env.CRON_SECRET = 'legacy-shared-secret';
     const request = new Request(
@@ -131,12 +132,14 @@ describe('verifyPipelineTriggerAuth', () => {
         headers: { authorization: 'Bearer legacy-shared-secret' },
       },
     );
-    expect(verifyPipelineTriggerAuth(request)).toBe(true);
+    expect(verifyPipelineTriggerAuth(request)).toBe(false);
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      'PIPELINE_TRIGGER_SECRET environment variable not set',
+    );
   });
 
-  it('rejects a bearer that matches neither secret', () => {
+  it('rejects a bearer that does not match PIPELINE_TRIGGER_SECRET', () => {
     process.env.PIPELINE_TRIGGER_SECRET = 'new-pipeline-secret';
-    process.env.CRON_SECRET = 'legacy-shared-secret';
     const request = new Request(
       'http://localhost/api/internal/pipeline-runs/record',
       {
@@ -146,7 +149,7 @@ describe('verifyPipelineTriggerAuth', () => {
     expect(verifyPipelineTriggerAuth(request)).toBe(false);
   });
 
-  it('fails closed (returns false) when BOTH secrets are unset', () => {
+  it('fails closed (returns false) when PIPELINE_TRIGGER_SECRET is unset', () => {
     delete process.env.PIPELINE_TRIGGER_SECRET;
     delete process.env.CRON_SECRET;
     const request = new Request(
@@ -157,7 +160,7 @@ describe('verifyPipelineTriggerAuth', () => {
     );
     expect(verifyPipelineTriggerAuth(request)).toBe(false);
     expect(loggerMocks.error).toHaveBeenCalledWith(
-      'PIPELINE_TRIGGER_SECRET and CRON_SECRET environment variables both unset',
+      'PIPELINE_TRIGGER_SECRET environment variable not set',
     );
   });
 

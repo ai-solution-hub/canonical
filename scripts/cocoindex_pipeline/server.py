@@ -902,14 +902,13 @@ async def _walk_handler(request: web.Request) -> web.Response:
     set" as the walk signal. Boot no longer walks (ID-83.1); this route is the
     only path that runs a corpus pass.
 
-    Auth (bl-221; ID-127.18 / S436 D1 dual-accept): `Authorization: Bearer
-    <secret>`, accepting EITHER the dedicated `PIPELINE_TRIGGER_SECRET` OR
-    the legacy shared `CRON_SECRET` — a rotation-safe window so this route
-    keeps authenticating before every pipeline Coolify app + Vercel
-    deployment has the new secret set. `CRON_SECRET` is also read outbound
-    by `flow._emit_pipeline_run_webhook`; here BOTH env vars are the inbound
-    gate. A missing/wrong bearer → 401. If NEITHER secret is set in the
-    environment the route fails closed (503) rather than allowing an
+    Auth (bl-221; ID-127.18 — the S436 D1 dual-accept rotation window was
+    RETIRED per PLAN §6 step 6 / S457 owner ratification): `Authorization:
+    Bearer <secret>`, matched against the dedicated `PIPELINE_TRIGGER_SECRET`
+    ONLY. The legacy shared `CRON_SECRET` no longer authenticates here (door
+    3 — Vercel-cron `/api/cron/*` — still legitimately uses it, unrelated to
+    this boundary). A missing/wrong bearer → 401. If `PIPELINE_TRIGGER_SECRET`
+    is unset the route fails closed (503) rather than allowing an
     unauthenticated walk.
 
     Rate limit (S436 D1 hardening — {127.17}): reuses the SAME minimal
@@ -943,29 +942,22 @@ async def _walk_handler(request: web.Request) -> web.Response:
     webhook). Does NOT touch `worker_is_healthy()` — a /walk request cannot
     flip /health to 503.
     """
-    # (1) Auth — bearer must match the dedicated PIPELINE_TRIGGER_SECRET OR
-    #     the legacy shared CRON_SECRET (ID-127.18 dual-accept rotation
-    #     window). Fail closed if BOTH are unset (never allow an
-    #     unauthenticated walk).
+    # (1) Auth — bearer must match the dedicated PIPELINE_TRIGGER_SECRET
+    #     (ID-127.18 — the legacy CRON_SECRET dual-accept fallback was
+    #     retired per PLAN §6 step 6 / S457 owner ratification). Fail closed
+    #     if unset (never allow an unauthenticated walk).
     pipeline_trigger_secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
-    cron_secret = os.environ.get("CRON_SECRET")
-    if not pipeline_trigger_secret and not cron_secret:
+    if not pipeline_trigger_secret:
         return web.json_response(
             {
                 "error": (
-                    "PIPELINE_TRIGGER_SECRET and CRON_SECRET are both unset "
-                    "— /walk auth unavailable"
+                    "PIPELINE_TRIGGER_SECRET is unset — /walk auth unavailable"
                 )
             },
             status=503,
         )
     auth_header = request.headers.get("Authorization", "")
-    accepted_bearers = {
-        f"Bearer {secret}"
-        for secret in (pipeline_trigger_secret, cron_secret)
-        if secret
-    }
-    if auth_header not in accepted_bearers:
+    if auth_header != f"Bearer {pipeline_trigger_secret}":
         return web.json_response(
             {"error": "missing or invalid bearer token"}, status=401
         )
@@ -1160,9 +1152,10 @@ def _run_producer_forced(request_id: str) -> None:
 async def _producer_run_handler(request: web.Request) -> web.Response:  # noqa: ARG001 — request unused (no body contract yet)
     """POST /producer-run — the DR-055 manual forced-run surface (F2).
 
-    Auth: identical dual-accept bearer gate to `/walk` (`PIPELINE_TRIGGER_
-    SECRET` OR the legacy `CRON_SECRET`) — fails closed (503) if neither
-    secret is configured, 401 on a missing/wrong bearer.
+    Auth: identical bearer gate to `/walk` (`PIPELINE_TRIGGER_SECRET` ONLY —
+    the legacy `CRON_SECRET` dual-accept fallback was retired per ID-127.18
+    PLAN §6 step 6 / S457 owner ratification) — fails closed (503) if the
+    secret is unconfigured, 401 on a missing/wrong bearer.
 
     Rate limit: reuses the SAME shared `/walk` + `/extract` fixed-window
     guard (`_rate_limit_allows`) — a flood backstop layered on the bearer
@@ -1182,27 +1175,22 @@ async def _producer_run_handler(request: web.Request) -> web.Response:  # noqa: 
     immediately (the run happens async; completion is observed via the
     server log — this route has no webhook of its own).
     """
-    # (1) Auth — SAME dual-accept bearer gate as /walk (ID-127.18 dual-accept
-    #     rotation window). Fail closed if BOTH are unset.
+    # (1) Auth — SAME bearer gate as /walk (ID-127.18 — the legacy
+    #     CRON_SECRET dual-accept fallback was retired per PLAN §6 step 6 /
+    #     S457 owner ratification). Fail closed if unset.
     pipeline_trigger_secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
-    cron_secret = os.environ.get("CRON_SECRET")
-    if not pipeline_trigger_secret and not cron_secret:
+    if not pipeline_trigger_secret:
         return web.json_response(
             {
                 "error": (
-                    "PIPELINE_TRIGGER_SECRET and CRON_SECRET are both unset "
-                    "— /producer-run auth unavailable"
+                    "PIPELINE_TRIGGER_SECRET is unset — /producer-run auth "
+                    "unavailable"
                 )
             },
             status=503,
         )
     auth_header = request.headers.get("Authorization", "")
-    accepted_bearers = {
-        f"Bearer {secret}"
-        for secret in (pipeline_trigger_secret, cron_secret)
-        if secret
-    }
-    if auth_header not in accepted_bearers:
+    if auth_header != f"Bearer {pipeline_trigger_secret}":
         return web.json_response(
             {"error": "missing or invalid bearer token"}, status=401
         )

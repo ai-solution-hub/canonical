@@ -2,8 +2,10 @@
 
 Verifies the `_emit_pipeline_run_webhook()` helper:
 
-  - skips emission when PIPELINE_RUN_WEBHOOK_URL or CRON_SECRET is unset
-    (best-effort discipline; pipeline must keep running);
+  - skips emission when PIPELINE_RUN_WEBHOOK_URL or PIPELINE_TRIGGER_SECRET
+    is unset (best-effort discipline; pipeline must keep running) — the
+    legacy CRON_SECRET dual-accept fallback was retired per ID-127.18
+    PLAN §6 step 6 / S457 owner ratification;
   - posts to PIPELINE_RUN_WEBHOOK_URL with the Authorization Bearer header;
   - serialises op_id via str() (UUID v4 → string);
   - flattens stage_counts into the payload as the `stageCounts` key (the
@@ -228,7 +230,9 @@ class TestEmitPipelineRunWebhookConfiguration:
 
     def test_skips_when_url_missing(self, caplog):
         """No WEBHOOK_URL → log warning, do not POST."""
-        with patch.dict(os.environ, {"CRON_SECRET": "secret"}, clear=True):
+        with patch.dict(
+            os.environ, {"PIPELINE_TRIGGER_SECRET": "secret"}, clear=True
+        ):
             with caplog.at_level(
                 logging.WARNING, logger="scripts.cocoindex_pipeline.flow"
             ):
@@ -250,7 +254,7 @@ class TestEmitPipelineRunWebhookConfiguration:
         )
 
     def test_skips_when_secret_missing(self, caplog):
-        """No CRON_SECRET → log warning, do not POST."""
+        """No PIPELINE_TRIGGER_SECRET → log warning, do not POST."""
         with patch.dict(
             os.environ,
             {"PIPELINE_RUN_WEBHOOK_URL": "https://example.com/webhook"},
@@ -279,7 +283,7 @@ class TestEmitPipelineRunWebhookPayload:
     """Payload contract: URL, headers, JSON body match TECH.md §P-7."""
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
-    SECRET = "test-cron-secret"
+    SECRET = "test-pipeline-trigger-secret"
 
     def setup_method(self):
         _StubSession.reset()
@@ -287,7 +291,7 @@ class TestEmitPipelineRunWebhookPayload:
     def _emit(self, **kwargs):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         defaults = {
             "op_id": uuid.UUID("11111111-1111-4111-8111-111111111111"),
@@ -409,13 +413,15 @@ class TestEmitPipelineRunWebhookPayload:
         assert decoded["opId"] == str(op_id)
 
 
-class TestEmitPipelineRunWebhookSecretDualAccept:
-    """ID-127.18 (S436 D1): outbound bearer prefers the dedicated
-    PIPELINE_TRIGGER_SECRET, falling back to the legacy shared CRON_SECRET —
-    mirrors `nudgeCocoindexWalk` (lib/intelligence/pipeline.ts) and the
+class TestEmitPipelineRunWebhookSecretRetirement:
+    """ID-127.18: S436 D1 introduced an outbound bearer that preferred the
+    dedicated PIPELINE_TRIGGER_SECRET, falling back to the legacy shared
+    CRON_SECRET — PLAN §6 step 6 / S457 owner ratification RETIRED that
+    fallback. PIPELINE_TRIGGER_SECRET is now the SOLE outbound bearer,
+    mirroring `nudgeCocoindexWalk` (lib/intelligence/pipeline.ts) and the
     TS `nudgeCorpusRewalk` sends (write-back.ts / folder-drop.ts). The
-    receiving Vercel route (`/api/internal/pipeline-runs/record`) already
-    dual-accepts both via `verifyPipelineTriggerAuth`.
+    receiving Vercel route (`/api/internal/pipeline-runs/record`) is
+    likewise PIPELINE_TRIGGER_SECRET-only via `verifyPipelineTriggerAuth`.
     """
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
@@ -435,7 +441,20 @@ class TestEmitPipelineRunWebhookSecretDualAccept:
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(flow._emit_pipeline_run_webhook(**defaults))
 
-    def test_prefers_dedicated_pipeline_trigger_secret_over_legacy_cron_secret(
+    def test_uses_dedicated_pipeline_trigger_secret(self):
+        self._emit(
+            {
+                "PIPELINE_RUN_WEBHOOK_URL": self.URL,
+                "PIPELINE_TRIGGER_SECRET": "new-pipeline-trigger-secret",
+            }
+        )
+        headers = _StubSession.last_headers or {}
+        assert (
+            headers.get("Authorization")
+            == "Bearer new-pipeline-trigger-secret"
+        )
+
+    def test_retired_fallback_ignores_legacy_cron_secret_even_when_also_set(
         self,
     ):
         self._emit(
@@ -451,7 +470,7 @@ class TestEmitPipelineRunWebhookSecretDualAccept:
             == "Bearer new-pipeline-trigger-secret"
         )
 
-    def test_dual_accept_falls_back_to_legacy_cron_secret_when_pipeline_trigger_secret_unset(
+    def test_retired_fallback_skips_when_only_legacy_cron_secret_is_set(
         self,
     ):
         self._emit(
@@ -460,33 +479,31 @@ class TestEmitPipelineRunWebhookSecretDualAccept:
                 "CRON_SECRET": "legacy-cron-secret",
             }
         )
-        headers = _StubSession.last_headers or {}
-        assert headers.get("Authorization") == "Bearer legacy-cron-secret"
+        assert _StubSession.last_url is None, (
+            "CRON_SECRET alone must NOT authenticate — the fallback is retired"
+        )
 
-    def test_skips_with_warning_naming_both_vars_when_both_unset(
-        self, caplog
-    ):
+    def test_skips_with_warning_naming_the_var_when_unset(self, caplog):
         with caplog.at_level(
             logging.WARNING, logger="scripts.cocoindex_pipeline.flow"
         ):
             self._emit({"PIPELINE_RUN_WEBHOOK_URL": self.URL})
-        assert _StubSession.last_url is None, "must NOT POST when both secrets unset"
+        assert _StubSession.last_url is None, "must NOT POST when secret unset"
         warning_records = [
             r for r in caplog.records if r.levelno == logging.WARNING
         ]
         assert len(warning_records) >= 1
         assert any(
             "PIPELINE_TRIGGER_SECRET" in r.getMessage()
-            and "CRON_SECRET" in r.getMessage()
             for r in warning_records
-        ), "warning must name BOTH env vars so an operator knows which to set"
+        ), "warning must name PIPELINE_TRIGGER_SECRET so an operator knows what to set"
 
 
 class TestEmitPipelineRunWebhookErrorHandling:
     """4xx/5xx responses + transport exceptions must NOT raise."""
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
-    SECRET = "test-cron-secret"
+    SECRET = "test-pipeline-trigger-secret"
 
     def setup_method(self):
         _StubSession.reset()
@@ -494,7 +511,7 @@ class TestEmitPipelineRunWebhookErrorHandling:
     def _emit_with_env(self):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         with patch.dict(os.environ, env, clear=True):
             asyncio.run(
@@ -553,7 +570,7 @@ class TestEmitPipelineRunWebhookItemFailures:
     """
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
-    SECRET = "test-cron-secret"
+    SECRET = "test-pipeline-trigger-secret"
 
     def setup_method(self):
         _StubSession.reset()
@@ -561,7 +578,7 @@ class TestEmitPipelineRunWebhookItemFailures:
     def _emit(self, **kwargs):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         defaults = {
             "op_id": uuid.UUID("11111111-1111-4111-8111-111111111111"),
@@ -621,7 +638,7 @@ class TestEmitPipelineRunWebhookMemoHeals:
     """
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
-    SECRET = "test-cron-secret"
+    SECRET = "test-pipeline-trigger-secret"
 
     def setup_method(self):
         _StubSession.reset()
@@ -629,7 +646,7 @@ class TestEmitPipelineRunWebhookMemoHeals:
     def _emit(self, **kwargs):
         env = {
             "PIPELINE_RUN_WEBHOOK_URL": self.URL,
-            "CRON_SECRET": self.SECRET,
+            "PIPELINE_TRIGGER_SECRET": self.SECRET,
         }
         defaults = {
             "op_id": uuid.UUID("11111111-1111-4111-8111-111111111111"),

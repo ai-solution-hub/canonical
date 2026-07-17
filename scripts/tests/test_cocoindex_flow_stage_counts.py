@@ -352,7 +352,7 @@ class TestRollupWebhookReceivesStageCountsAndItemsCreated:
 
     def test_webhook_payload_includes_stage_counts(self, monkeypatch):
         monkeypatch.setenv("PIPELINE_RUN_WEBHOOK_URL", "https://example.test/x")
-        monkeypatch.setenv("CRON_SECRET", "test-secret")
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", "test-secret")
 
         stage_counts = flow._empty_stage_counts()
         stage_counts["llm_extraction"] = 7
@@ -379,7 +379,7 @@ class TestRollupWebhookReceivesStageCountsAndItemsCreated:
 
     def test_webhook_payload_includes_items_created(self, monkeypatch):
         monkeypatch.setenv("PIPELINE_RUN_WEBHOOK_URL", "https://example.test/x")
-        monkeypatch.setenv("CRON_SECRET", "test-secret")
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", "test-secret")
 
         items_created = [str(uuid.uuid4()) for _ in range(3)]
 

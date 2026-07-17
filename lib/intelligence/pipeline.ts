@@ -547,17 +547,15 @@ function nudgeCocoindexWalk(articlesPassed: number): void {
     return;
   }
 
-  // ID-127.18 (S436 D1): prefer the dedicated PIPELINE_TRIGGER_SECRET once
-  // the env rollout has set it; fall back to the legacy shared CRON_SECRET
-  // so the nudge keeps firing before every pipeline Coolify app + Vercel
-  // deployment has the new secret. server.py's /walk auth dual-accepts
-  // both during the transition, so either value authenticates.
-  const pipelineTriggerSecret =
-    process.env.PIPELINE_TRIGGER_SECRET || process.env.CRON_SECRET;
+  // ID-127.18 (S436 D1 introduced; PLAN §6 step 6 + S457 owner ratification
+  // RETIRED the legacy CRON_SECRET fallback): PIPELINE_TRIGGER_SECRET is now
+  // the SOLE bearer the nudge sends. server.py's /walk auth is likewise
+  // PIPELINE_TRIGGER_SECRET-only post-retirement.
+  const pipelineTriggerSecret = process.env.PIPELINE_TRIGGER_SECRET;
   if (!pipelineTriggerSecret) {
     logger.warn(
       { articlesPassed },
-      '[Pipeline] PIPELINE_TRIGGER_SECRET/CRON_SECRET unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
+      '[Pipeline] PIPELINE_TRIGGER_SECRET unset — skipping walk nudge; passed articles will be picked up by the next scheduled walk',
     );
     return;
   }
