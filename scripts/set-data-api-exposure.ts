@@ -17,9 +17,13 @@
  * by the canonical migration set, so run `supabase db push` FIRST (deploy step
  * 3b) — narrowing exposure to `api` before its objects exist would 404 every
  * read. `public` stays in db_extra_search_path so the security_invoker views
- * resolve their base tables. config.toml `[api] schemas=["api"]` already covers
- * Supabase preview BRANCHES; this script covers standalone managed projects,
- * where config.toml is not applied on db push.
+ * resolve their base tables. config.toml `[api] schemas=["api"]` covers local
+ * dev and GIT-INTEGRATION preview branches only — a Management-API-created
+ * branch does NOT inherit it and is born with the Supabase DEFAULT
+ * `db_schema: "public,graphql_public"` ({128.10} iteration-6 empirical
+ * finding), so it needs this script run against it (the `mirror-postgrest`
+ * leg of scripts/e2e-ephemeral-branch.ts). This script also covers standalone
+ * managed projects, where config.toml is not applied on db push.
  *
  * SAFETY:
  *   - DRY-RUN BY DEFAULT. Pass --apply to write. Without it, prints the planned
