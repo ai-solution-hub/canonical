@@ -223,15 +223,17 @@ async function fetchClassifications(
   supabase: SupabaseAny,
   itemIds: string[],
 ): Promise<Map<string, DbRow>> {
+  // Post-id-131: classification columns live on source_documents (the
+  // content_items parent row was dropped — bl-495).
   const { data, error } = await supabase
-    .from('content_items')
+    .from('source_documents')
     .select(
       'id, primary_domain, primary_subtopic, secondary_domain, classification_confidence, ai_keywords',
     )
     .in('id', itemIds);
 
   if (error) {
-    console.error('Failed to fetch content items:', error.message);
+    console.error('Failed to fetch source documents:', error.message);
     process.exit(1);
   }
 
