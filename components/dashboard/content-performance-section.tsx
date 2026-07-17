@@ -57,7 +57,7 @@ function getWinRateBarClass(winRate: number): string {
   return 'bg-freshness-stale';
 }
 
-/** Returns the text colour class for the given win rate, or muted if no decided bids */
+/** Returns the text colour class for the given win rate, or muted if no decided outcomes */
 function getWinRateTextClass(
   winRate: number,
   hasDecidedOutcomes: boolean,
@@ -76,7 +76,7 @@ function getWinRateTextClass(
 /**
  * Content Performance dashboard section — aggregate win-rate analytics.
  *
- * Shows overall metrics (win rate, citations, bids, items) and per-domain
+ * Shows overall metrics (win rate, citations, procurements, items) and per-domain
  * breakdown with win-rate bars. Handles cold-start with an explainer.
  *
  * Fetches data client-side to avoid blocking the server-rendered dashboard.
@@ -174,8 +174,9 @@ export function ContentPerformanceSection() {
           Content Performance
         </h2>
         <p className="text-sm text-muted-foreground">
-          No bid performance data yet. Win rate analytics will appear here once
-          content is cited in procurement responses and outcomes are recorded.
+          No procurement performance data yet. Win rate analytics will appear
+          here once content is cited in procurement responses and outcomes are
+          recorded.
         </p>
         <div className="mt-3">
           <p className="text-xs font-medium text-muted-foreground">
@@ -183,7 +184,7 @@ export function ContentPerformanceSection() {
           </p>
           <ol className="mt-1 list-inside list-decimal space-y-0.5 text-xs text-muted-foreground">
             <li>Draft procurement responses using KB content</li>
-            <li>Record bid outcomes (won/lost) on the bid detail page</li>
+            <li>Record procurement outcomes (won/lost) on the item page</li>
             <li>Performance metrics accumulate automatically</li>
           </ol>
         </div>
@@ -247,7 +248,7 @@ export function ContentPerformanceSection() {
             <p className="text-2xl font-bold text-foreground">
               {overall.unique_procurements}
             </p>
-            <p className="text-xs text-muted-foreground">Bids</p>
+            <p className="text-xs text-muted-foreground">Procurements</p>
           </div>
           <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
@@ -322,7 +323,8 @@ export function ContentPerformanceSection() {
       {overall.pending_citations > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
           {overall.pending_citations} citation
-          {overall.pending_citations !== 1 ? 's' : ''} in bids awaiting outcome
+          {overall.pending_citations !== 1 ? 's' : ''} in procurements awaiting
+          outcome
         </p>
       )}
     </section>

@@ -130,11 +130,11 @@ describe('ContentPerformanceSection', () => {
     await waitFor(() => {
       expect(screen.getByText('63%')).toBeInTheDocument();
       expect(screen.getByText('24')).toBeInTheDocument();
-      expect(screen.getByText('8')).toBeInTheDocument(); // unique bids
+      expect(screen.getByText('8')).toBeInTheDocument(); // unique procurements
       expect(screen.getByText('16')).toBeInTheDocument(); // unique items
       expect(screen.getByText('Win Rate')).toBeInTheDocument();
       expect(screen.getByText('Citations')).toBeInTheDocument();
-      expect(screen.getByText('Bids')).toBeInTheDocument();
+      expect(screen.getByText('Procurements')).toBeInTheDocument();
       expect(screen.getByText('Items')).toBeInTheDocument();
     });
   });
@@ -169,7 +169,7 @@ describe('ContentPerformanceSection', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('8 citations in bids awaiting outcome'),
+        screen.getByText('8 citations in procurements awaiting outcome'),
       ).toBeInTheDocument();
     });
   });
@@ -189,7 +189,7 @@ describe('ContentPerformanceSection', () => {
     });
 
     expect(
-      screen.queryByText(/citations in bids awaiting outcome/),
+      screen.queryByText(/citations in procurements awaiting outcome/),
     ).not.toBeInTheDocument();
   });
 
@@ -213,7 +213,7 @@ describe('ContentPerformanceSection', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/No bid performance data yet/),
+        screen.getByText(/No procurement performance data yet/),
       ).toBeInTheDocument();
       expect(screen.getByText('How it works:')).toBeInTheDocument();
       expect(
