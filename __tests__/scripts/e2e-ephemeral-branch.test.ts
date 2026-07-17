@@ -1098,24 +1098,33 @@ describe('waitForBranchReady', () => {
 });
 
 describe('writeEnvVar / maskAndWriteEnvVar — $GITHUB_ENV emission ({128.10} ITERATION-5 FIX)', () => {
-  // GITHUB_ENV is read directly from process.env inside writeEnvVar (mirrors
-  // writeOutput's own GITHUB_OUTPUT read) — save/restore around each test so
-  // this file's mutation never leaks into other tests/files.
-  const withGithubEnv = (value: string | undefined, run: () => void) => {
-    const prev = process.env.GITHUB_ENV;
-    if (value === undefined) delete process.env.GITHUB_ENV;
-    else process.env.GITHUB_ENV = value;
+  // GITHUB_ENV / GITHUB_ACTIONS are read directly from process.env inside
+  // writeEnvVar / emitAddMask (mirrors writeOutput's own GITHUB_OUTPUT read)
+  // — save/restore around each test so this file's mutation never leaks into
+  // other tests/files.
+  const withEnv = (
+    vars: Record<string, string | undefined>,
+    run: () => void,
+  ) => {
+    const prev: Record<string, string | undefined> = {};
+    for (const [name, value] of Object.entries(vars)) {
+      prev[name] = process.env[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
     try {
       run();
     } finally {
-      if (prev === undefined) delete process.env.GITHUB_ENV;
-      else process.env.GITHUB_ENV = prev;
+      for (const [name, value] of Object.entries(prev)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
     }
   };
 
   it('appends a delimited NAME=VALUE block to the file at $GITHUB_ENV', () => {
     const appendCalls: Array<{ path: string; content: string }> = [];
-    withGithubEnv('/fake/github-env-path', () => {
+    withEnv({ GITHUB_ENV: '/fake/github-env-path' }, () => {
       writeEnvVar('SOME_VAR', 'some-value', {
         appendToFile: (path, content) => appendCalls.push({ path, content }),
         log: silent,
@@ -1129,7 +1138,7 @@ describe('writeEnvVar / maskAndWriteEnvVar — $GITHUB_ENV emission ({128.10} IT
 
   it('falls back to logging when $GITHUB_ENV is unset, rather than throwing (local-run safety net)', () => {
     const logs: string[] = [];
-    withGithubEnv(undefined, () => {
+    withEnv({ GITHUB_ENV: undefined }, () => {
       writeEnvVar('SOME_VAR', 'some-value', { log: (m) => logs.push(m) });
     });
     expect(logs).toEqual([
@@ -1137,15 +1146,50 @@ describe('writeEnvVar / maskAndWriteEnvVar — $GITHUB_ENV emission ({128.10} IT
     ]);
   });
 
-  it('prints the ::add-mask:: directive BEFORE the value is appended to the env file — never the reverse', () => {
+  it('under Actions, prints the ::add-mask:: directive BEFORE the value is appended to the env file — never the reverse', () => {
     const order: string[] = [];
-    withGithubEnv('/fake/github-env-path', () => {
+    withEnv(
+      { GITHUB_ENV: '/fake/github-env-path', GITHUB_ACTIONS: 'true' },
+      () => {
+        maskAndWriteEnvVar('SECRET_VAR', 'top-secret', {
+          log: (m) => order.push(`log:${m}`),
+          appendToFile: () => order.push('append'),
+        });
+      },
+    );
+    expect(order).toEqual(['log:::add-mask::top-secret', 'append']);
+  });
+
+  it('outside Actions, never emits the secret in any log line — no ::add-mask:: (no processor to consume it) and a redacted local fallback (CodeQL js/clear-text-logging, S482)', () => {
+    const logs: string[] = [];
+    withEnv({ GITHUB_ENV: undefined, GITHUB_ACTIONS: undefined }, () => {
       maskAndWriteEnvVar('SECRET_VAR', 'top-secret', {
-        log: (m) => order.push(`log:${m}`),
-        appendToFile: () => order.push('append'),
+        log: (m) => logs.push(m),
+        appendToFile: () => {
+          throw new Error('must not append without $GITHUB_ENV');
+        },
       });
     });
-    expect(order).toEqual(['log:::add-mask::top-secret', 'append']);
+    expect(logs.some((l) => l.includes('top-secret'))).toBe(false);
+    expect(logs).toEqual([
+      '[e2e-ephemeral-branch] (no GITHUB_ENV set) SECRET_VAR=<redacted 10 chars>',
+    ]);
+  });
+
+  it('outside Actions with $GITHUB_ENV set (file present, no log processor), the value reaches the env file but never a log line', () => {
+    const order: string[] = [];
+    withEnv(
+      { GITHUB_ENV: '/fake/github-env-path', GITHUB_ACTIONS: undefined },
+      () => {
+        maskAndWriteEnvVar('SECRET_VAR', 'top-secret', {
+          log: (m) => order.push(`log:${m}`),
+          appendToFile: (_path, content) => order.push(`append:${content}`),
+        });
+      },
+    );
+    expect(order.filter((l) => l.startsWith('log:'))).toHaveLength(0);
+    expect(order.filter((l) => l.startsWith('append:'))).toHaveLength(1);
+    expect(order[0]).toContain('top-secret'); // the file write itself, not a log
   });
 });
 
@@ -1163,7 +1207,9 @@ describe('emitBranchServiceRoleKeyToEnv — {128.10} ITERATION-5 FIX: consuming 
     const order: string[] = [];
     let result: { publishableKey: string; serviceRoleKey: string } | undefined;
     const prevEnv = process.env.GITHUB_ENV;
+    const prevActions = process.env.GITHUB_ACTIONS;
     process.env.GITHUB_ENV = '/fake/github-env-path';
+    process.env.GITHUB_ACTIONS = 'true'; // mask directive is Actions-gated
     try {
       result = await emitBranchServiceRoleKeyToEnv({
         branchProjectRef: 'branchref',
@@ -1175,6 +1221,8 @@ describe('emitBranchServiceRoleKeyToEnv — {128.10} ITERATION-5 FIX: consuming 
     } finally {
       if (prevEnv === undefined) delete process.env.GITHUB_ENV;
       else process.env.GITHUB_ENV = prevEnv;
+      if (prevActions === undefined) delete process.env.GITHUB_ACTIONS;
+      else process.env.GITHUB_ACTIONS = prevActions;
     }
     expect(result).toEqual({
       publishableKey: 'pub-1',

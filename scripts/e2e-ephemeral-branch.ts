@@ -212,7 +212,10 @@
  * Secret-shaped CLI outputs (service-role-key via `keys`/`keys-env`, and
  * `migrate`'s in-process DB password) are emitted via GitHub Actions
  * `::add-mask::` BEFORE being written to `$GITHUB_OUTPUT` / `$GITHUB_ENV` or
- * used — never echoed in plain log lines.
+ * used — never echoed in plain log lines. Outside Actions the directive is
+ * suppressed (no log processor exists to consume it — emitting it would be
+ * the leak) and local fallback paths print redacted placeholders only (see
+ * `emitAddMask` / `maskAndWriteOutput` / `maskAndWriteEnvVar`).
  */
 
 import { appendFileSync, readdirSync } from 'node:fs';
@@ -1060,10 +1063,50 @@ function requireEnv(name: string): string {
 }
 
 /**
- * Write a GitHub Actions step output. Secret-shaped values MUST be masked
- * BEFORE this is called (`::add-mask::`) — this function does not mask on
- * your behalf, since non-secret outputs (branch ref/url) should stay legible
- * in the log for debugging.
+ * Emit the GitHub Actions `::add-mask::` log-processing directive for a
+ * secret value — the sanctioned Actions mechanism for redacting every later
+ * echo of the value. Masking is a directive to the runner's log processor,
+ * not a value transform, so it inherently requires the raw value on stdout
+ * exactly once; this helper is the SINGLE place in this file where that
+ * happens. Guarded to Actions runs: outside Actions (`GITHUB_ACTIONS`
+ * unset) there is no log processor to consume the directive, so printing it
+ * would ITSELF be the clear-text leak it exists to prevent (CodeQL
+ * js/clear-text-logging, S482) — local runs are a no-op here, and the
+ * mask-and-write helpers below print a redacted placeholder instead of the
+ * value on their local fallback paths.
+ */
+function emitAddMask(
+  value: string,
+  log: (message: string) => void = console.log,
+): void {
+  if (process.env.GITHUB_ACTIONS !== 'true') return;
+  log(`::add-mask::${value}`);
+}
+
+/** Redacted stand-in for a secret value in a human-facing log line —
+ * derived only from the value's length, never its content. */
+function redactedSecret(value: string): string {
+  return `<redacted ${value.length} chars>`;
+}
+
+/** Append one `NAME<<delimiter … delimiter` block to a GitHub Actions state
+ * file (`$GITHUB_OUTPUT` / `$GITHUB_ENV`). */
+function appendGithubFileVar(
+  file: string,
+  delimiterPrefix: string,
+  name: string,
+  value: string,
+  append: (path: string, content: string) => void = appendFileSync,
+): void {
+  const delimiter = `${delimiterPrefix}_${Math.random().toString(36).slice(2)}`;
+  append(file, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
+}
+
+/**
+ * Write a NON-SECRET GitHub Actions step output (branch id/ref/name/url —
+ * these should stay legible in the log for debugging). Secret-shaped values
+ * MUST go through `maskAndWriteOutput` instead: its local fallback never
+ * prints the raw value.
  */
 function writeOutput(name: string, value: string): void {
   const outFile = process.env.GITHUB_OUTPUT;
@@ -1073,16 +1116,27 @@ function writeOutput(name: string, value: string): void {
     );
     return;
   }
-  const delimiter = `ghadelim_${Math.random().toString(36).slice(2)}`;
-  appendFileSync(outFile, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
+  appendGithubFileVar(outFile, 'ghadelim', name, value);
 }
 
+/**
+ * Write a SECRET-shaped step output: the `::add-mask::` directive is emitted
+ * BEFORE the value is written anywhere else, so later accidental echoes
+ * redact correctly. Deliberately does NOT delegate to `writeOutput` — its
+ * no-`$GITHUB_OUTPUT` fallback prints `name=value` in clear text, which must
+ * never happen for a secret; the local fallback here prints a redacted
+ * placeholder only (CodeQL js/clear-text-logging, S482).
+ */
 function maskAndWriteOutput(name: string, value: string): void {
-  // GitHub Actions masking is a log-processing directive, not a value
-  // transform — printing it BEFORE the value ever reaches a log line is
-  // what makes later accidental echoes redact correctly.
-  console.log(`::add-mask::${value}`);
-  writeOutput(name, value);
+  emitAddMask(value);
+  const outFile = process.env.GITHUB_OUTPUT;
+  if (!outFile) {
+    console.log(
+      `[e2e-ephemeral-branch] (no GITHUB_OUTPUT set) ${name}=${redactedSecret(value)}`,
+    );
+    return;
+  }
+  appendGithubFileVar(outFile, 'ghadelim', name, value);
 }
 
 export interface WriteEnvVarOptions {
@@ -1102,8 +1156,9 @@ export interface WriteEnvVarOptions {
  * `needs.*.outputs`, `$GITHUB_ENV` never crosses a job boundary, so GitHub's
  * per-job masking of secret-shaped values can never be silently dropped by
  * it — see the file-header ITERATION-5 FIX note for the bug this sidesteps.
- * Secret-shaped values MUST be masked BEFORE this is called
- * (`maskAndWriteEnvVar` below) — mirrors `writeOutput`'s own contract.
+ * NON-SECRET values only — secret-shaped values MUST go through
+ * `maskAndWriteEnvVar` below instead (mask-first, redacted local fallback) —
+ * mirrors `writeOutput`'s own contract.
  */
 export function writeEnvVar(
   name: string,
@@ -1117,14 +1172,17 @@ export function writeEnvVar(
     log(`[e2e-ephemeral-branch] (no GITHUB_ENV set) ${name}=${value}`);
     return;
   }
-  const delimiter = `ghaenvdelim_${Math.random().toString(36).slice(2)}`;
-  append(envFile, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
+  appendGithubFileVar(envFile, 'ghaenvdelim', name, value, append);
 }
 
 /**
  * Same masking discipline as `maskAndWriteOutput`: the `::add-mask::`
- * directive is printed (via `log`) BEFORE the value is written anywhere
- * else, so any later accidental echo of it is redacted correctly.
+ * directive is emitted (via `log`, under Actions only — see `emitAddMask`)
+ * BEFORE the value is written anywhere else, so any later accidental echo of
+ * it is redacted correctly. Deliberately does NOT delegate to `writeEnvVar` —
+ * its no-`$GITHUB_ENV` fallback prints `name=value` in clear text, which must
+ * never happen for a secret; the local fallback here prints a redacted
+ * placeholder only (CodeQL js/clear-text-logging, S482).
  */
 export function maskAndWriteEnvVar(
   name: string,
@@ -1132,8 +1190,16 @@ export function maskAndWriteEnvVar(
   opts: WriteEnvVarOptions = {},
 ): void {
   const log = opts.log ?? console.log;
-  log(`::add-mask::${value}`);
-  writeEnvVar(name, value, opts);
+  const append = opts.appendToFile ?? appendFileSync;
+  emitAddMask(value, log);
+  const envFile = process.env.GITHUB_ENV;
+  if (!envFile) {
+    log(
+      `[e2e-ephemeral-branch] (no GITHUB_ENV set) ${name}=${redactedSecret(value)}`,
+    );
+    return;
+  }
+  appendGithubFileVar(envFile, 'ghaenvdelim', name, value, append);
 }
 
 export interface EmitServiceRoleKeyOptions {
@@ -1271,8 +1337,10 @@ async function runMigrate(): Promise<void> {
   const branchRef = requireArg('branch-ref');
   const dbCreds = await fetchBranchDbCreds(branchId, { token });
   // Mask the password THE INSTANT it's in hand — before any further log
-  // line (including this process's own) can echo it in plain text.
-  console.log(`::add-mask::${dbCreds.password}`);
+  // line (including this process's own) can echo it in plain text. Outside
+  // Actions this is a no-op (see emitAddMask) and the password is never
+  // printed at all — it only ever reaches psql via PGPASSWORD.
+  emitAddMask(dbCreds.password);
   // Runners have no IPv6 (see file-header ROOT CAUSE + FIX) — connect via
   // the Supavisor session pooler's API-provided host/port/user, not the
   // direct (IPv6-only) host/port/user fetchBranchDbCreds itself returned.
