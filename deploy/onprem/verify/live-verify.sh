@@ -46,8 +46,8 @@
 #   - A host env file (default /root/.kh-live-verify.env, NEVER committed) providing:
 #       NEXT_PUBLIC_SUPABASE_URL=…       # live Supabase project URL
 #       SUPABASE_SERVICE_ROLE_KEY=…      # live service-role key
-#   - CRON_SECRET lives in the cocoindex CONTAINER env (compose) — this script
-#     never needs it host-side (all /walk POSTs run via docker exec).
+#   - PIPELINE_TRIGGER_SECRET lives in the cocoindex CONTAINER env (compose) —
+#     this script never needs it host-side (all /walk POSTs run via docker exec).
 #
 # USAGE:
 #   KH_REPO_DIR=/opt/knowledge-hub deploy/onprem/verify/live-verify.sh
@@ -120,7 +120,8 @@ log "cocoindex container: ${COCOINDEX_CONTAINER}"
 # ──────────────────────────────────────────────────────────────────────────
 # In-container HTTP helpers (the image ships NO curl — python3 + urllib is the
 # dependency-free form, per docs/runbooks/onprem-b1-deploy.md §B2).
-# CRON_SECRET resolves INSIDE the container env; it never touches the host.
+# PIPELINE_TRIGGER_SECRET resolves INSIDE the container env; it never touches
+# the host.
 # ──────────────────────────────────────────────────────────────────────────
 
 container_health() {
@@ -140,7 +141,7 @@ import json, os, sys, urllib.request, urllib.error
 req = urllib.request.Request(
     'http://127.0.0.1:${COCOINDEX_INTERNAL_PORT}/walk',
     method='POST',
-    headers={'Authorization': 'Bearer ' + os.environ['CRON_SECRET']},
+    headers={'Authorization': 'Bearer ' + os.environ['PIPELINE_TRIGGER_SECRET']},
 )
 try:
     with urllib.request.urlopen(req, timeout=30) as r:

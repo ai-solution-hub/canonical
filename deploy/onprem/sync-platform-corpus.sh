@@ -107,7 +107,7 @@ print_hop_b() {
     "docker cp \"${DEST}/.\" \"${COCOINDEX_CONTAINER}:${COCOINDEX_CORPUS_DIR}\"" \
     '# Then point the engine at it and trigger one supervised walk:' \
     "#   Coolify env: COCOINDEX_SOURCE_PATH=${COCOINDEX_CORPUS_DIR}" \
-    "#   POST /walk (CRON_SECRET bearer) — watch 'docker logs -f ${COCOINDEX_CONTAINER}';" \
+    "#   POST /walk (PIPELINE_TRIGGER_SECRET bearer) — watch 'docker logs -f ${COCOINDEX_CONTAINER}';" \
     "#   kill-switch is 'docker stop ${COCOINDEX_CONTAINER}' (GREENFIELD runbook step 7b)."
 }
 

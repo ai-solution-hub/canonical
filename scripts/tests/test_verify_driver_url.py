@@ -447,7 +447,7 @@ class TestRunExitCodes:
             "SUPABASE_URL",
             "SUPABASE_SERVICE_ROLE_KEY",
             "COCOINDEX_WORKER_URL",
-            "CRON_SECRET",
+            "PIPELINE_TRIGGER_SECRET",
         ):
             monkeypatch.delenv(var, raising=False)
         assert vd.run([]) == 2
