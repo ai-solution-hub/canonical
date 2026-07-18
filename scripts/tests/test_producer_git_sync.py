@@ -41,6 +41,9 @@ from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: E402
     reapply_overrides,
     sync_bundle,
 )
+from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    build_git_blob_citation,
+)
 
 
 def _git(repo_path: Path, *args: str) -> str:
@@ -545,6 +548,250 @@ class TestFullOverrideCycle:
         assert "description: Human-approved description" in folded["topic-a.md"]
         # ...and the producer's fresh body still lands.
         assert "Producer synthesis, expanded again." in folded["topic-a.md"]
+
+
+# ── ID-163 {163.9} PC-8 interim gate (DR-016) — reuse for system concepts ──
+#
+# The Path-2 target gate is born-evaluable HC-5 ({163.11}); until that
+# round-trip is wired, a `system_baseline` concept's human sign-off is
+# captured via this SAME {132.12} mechanism, unmodified — "GLM-assisted
+# authoring, then RepoDocsSource makes it regenerable" (doctrine S2) must
+# not clobber the sign-off. Settled design slice: the shipped grain is
+# already NAMED SECTIONS (frontmatter key / body preamble / heading
+# section), never a whole-body capture — see
+# `test_the_named_section_grain_...` below — so PC-8 reuses it AS-IS, zero
+# additional plumbing. `git_sync.py` never reads `type:`/`resource:`
+# scheme, only frontmatter/body structure, so it is bundle-class-agnostic
+# by construction; these tests prove that agnosticism against a realistic
+# `system_baseline`-shaped doc rather than asserting it from the source.
+# These tests exercise only the default (committing) `sync_bundle` path —
+# the bl-513 staged-in-place interaction (`stage_only=True` output misread
+# as a human edit when bundle-dir == repo-path) is {163.14}'s job, not
+# covered or affected here.
+
+
+def _system_okf_doc(
+    *,
+    title: str,
+    description: str,
+    body: str,
+    git_blob_sha: str = "deadbeef",
+    path: str = "docs/navigation/getting-started.md",
+) -> str:
+    """A realistic `system_baseline` concept doc (PC-4 concept types —
+    `schema`/`tool`/`api`/`navigation`/`playbook`) citing the PC-5 git-blob
+    scheme (`build_git_blob_citation`, DR-086) rather than a
+    `canonical://source_documents/<uuid>` anchor — the shape a
+    `RepoDocsSource`-drafted concept actually carries."""
+    anchor = build_git_blob_citation(git_blob_sha, path)
+    lines = [
+        "---",
+        "type: tool",
+        f"title: {title}",
+        f"description: {description}",
+        "timestamp: 2026-07-17T00:00:00Z",
+        f"resource: {anchor}",
+        "tags: [system, mcp]",
+        "---",
+        body,
+        "",
+        "# Citations",
+        f"- {anchor}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+class TestSystemConceptOverrideCapture:
+    """PC-8 interim gate: `capture_overrides`/`reapply_overrides`/
+    `sync_bundle` are reused UNMODIFIED for `system_baseline` concepts —
+    the same functions `TestOverrideCapture`/`TestFullOverrideCycle`
+    exercise above against `client_business`-shaped docs."""
+
+    def test_a_human_correction_to_a_system_concept_is_captured_as_an_override(
+        self, repo: Path
+    ) -> None:
+        v1 = _system_okf_doc(
+            title="list_concepts tool",
+            description="Producer-drafted synopsis.",
+            body="Producer synthesis of the tool contract.",
+        )
+        sync_bundle(repo, {"tools/list-concepts.md": v1, LOG_FILENAME: ""})
+
+        # A human signs off with a correction (the PC-8 interim gate).
+        human = _system_okf_doc(
+            title="list_concepts tool",
+            description="Human-approved synopsis.",
+            body="Producer synthesis of the tool contract.",
+        )
+        (repo / "tools/list-concepts.md").write_text(human, encoding="utf-8")
+
+        result = sync_bundle(
+            repo,
+            {
+                "tools/list-concepts.md": _system_okf_doc(
+                    title="list_concepts tool",
+                    description="Producer synopsis regenerated.",
+                    body="Producer synthesis, expanded after a RepoDocsSource redraft.",
+                ),
+                LOG_FILENAME: "",
+            },
+        )
+
+        captured = {(o.concept_path, o.field): o.value for o in result.captured_overrides}
+        assert ("tools/list-concepts.md", "frontmatter:description") in captured
+        assert (
+            captured[("tools/list-concepts.md", "frontmatter:description")]
+            == "Human-approved synopsis."
+        )
+
+    def test_the_captured_sign_off_survives_a_further_regeneration_redraft(
+        self, repo: Path
+    ) -> None:
+        """The headline PC-8 loop: GLM-assisted authoring -> RepoDocsSource
+        makes the concept regenerable (doctrine S2) — but the human's
+        sign-off, once captured, is RE-APPLIED onto every fresh draft,
+        never clobbered by the next regeneration."""
+        v1 = _system_okf_doc(
+            title="list_concepts tool",
+            description="Producer-drafted synopsis.",
+            body="Producer synthesis of the tool contract.",
+        )
+        sync_bundle(repo, {"tools/list-concepts.md": v1, LOG_FILENAME: ""})
+
+        human = _system_okf_doc(
+            title="list_concepts tool",
+            description="Human-approved synopsis.",
+            body="Producer synthesis of the tool contract.",
+        )
+        (repo / "tools/list-concepts.md").write_text(human, encoding="utf-8")
+
+        run2 = sync_bundle(
+            repo,
+            {
+                "tools/list-concepts.md": _system_okf_doc(
+                    title="list_concepts tool",
+                    description="Producer synopsis regenerated.",
+                    body="Producer synthesis, expanded.",
+                ),
+                LOG_FILENAME: "",
+            },
+        )
+        approved = [
+            o for o in run2.captured_overrides if o.concept_path == "tools/list-concepts.md"
+        ]
+
+        # A THIRD, further regeneration redraft (e.g. a later RepoDocsSource
+        # pass over an updated platform source doc).
+        v3_fresh = _system_okf_doc(
+            title="list_concepts tool",
+            description="Producer synopsis regenerated again.",
+            body="Producer synthesis, regenerated a second time.",
+        )
+        folded = reapply_overrides({"tools/list-concepts.md": v3_fresh}, approved)
+
+        # The sign-off survives the further redraft...
+        assert "description: Human-approved synopsis." in folded["tools/list-concepts.md"]
+        # ...while the producer's fresh body still lands (body was never
+        # part of this particular override — only the corrected field is).
+        assert (
+            "Producer synthesis, regenerated a second time."
+            in folded["tools/list-concepts.md"]
+        )
+
+    def test_an_uncorrected_system_concept_redrafts_normally_with_no_override(
+        self, repo: Path
+    ) -> None:
+        """No human ever touched this concept — a plain regeneration lands
+        the fresh draft untouched: no override captured, no conflict
+        flagged. The interim gate only intervenes where a human actually
+        signed off."""
+        v1 = _system_okf_doc(
+            title="search_concepts tool",
+            description="Producer synopsis.",
+            body="Producer synthesis.",
+        )
+        sync_bundle(repo, {"tools/search-concepts.md": v1, LOG_FILENAME: ""})
+
+        v2 = _system_okf_doc(
+            title="search_concepts tool",
+            description="Producer synopsis, regenerated.",
+            body="Producer synthesis, regenerated.",
+        )
+        result = sync_bundle(repo, {"tools/search-concepts.md": v2, LOG_FILENAME: ""})
+
+        assert result.human_edit_conflicts == ()
+        assert not any(
+            o.concept_path == "tools/search-concepts.md" for o in result.captured_overrides
+        )
+        assert (repo / "tools/search-concepts.md").read_text(encoding="utf-8") == v2
+
+    def test_the_named_section_grain_captures_a_rewritten_system_body_section_narrowly(
+        self,
+    ) -> None:
+        """Settles PC-8's design slice on evidence: the shipped {132.12}
+        grain is NAMED SECTIONS (frontmatter key / body preamble / heading
+        section), never a whole-body clobber — a human editing only the
+        `description` frontmatter field captures ONLY that field; the
+        (unchanged) body preamble is never re-captured alongside it."""
+        baseline = _system_okf_doc(
+            title="T", description="Producer description", body="Producer body."
+        )
+        edited = _system_okf_doc(
+            title="T", description="Human-corrected description", body="Producer body."
+        )
+
+        overrides = capture_overrides("tools/x.md", baseline=baseline, edited=edited)
+
+        assert {o.field for o in overrides} == {"frontmatter:description"}
+
+    def test_mixing_a_system_and_client_business_concept_in_one_run_has_no_cross_talk(
+        self, repo: Path
+    ) -> None:
+        """PC-8 reuse must not regress the `client_business` path: a
+        `system_baseline` concept's captured override never bleeds into an
+        unrelated `client_business` concept synced in the SAME run, and
+        vice versa — `git_sync.py` reconciles strictly per `concept_path`."""
+        system_v1 = _system_okf_doc(
+            title="T", description="Producer description", body="B"
+        )
+        client_v1 = _okf_doc(
+            title="Ingest",
+            description="Producer description",
+            body="B",
+            citations=("canonical://source_documents/aaa",),
+        )
+        sync_bundle(
+            repo, {"tools/x.md": system_v1, "topic-a.md": client_v1, LOG_FILENAME: ""}
+        )
+
+        # Only the system concept receives a human sign-off.
+        (repo / "tools/x.md").write_text(
+            _system_okf_doc(
+                title="T", description="Human-corrected description", body="B"
+            ),
+            encoding="utf-8",
+        )
+
+        result = sync_bundle(
+            repo,
+            {
+                "tools/x.md": _system_okf_doc(
+                    title="T", description="Producer description v2", body="B"
+                ),
+                "topic-a.md": client_v1,  # unchanged — no client edit, no client override
+                LOG_FILENAME: "",
+            },
+        )
+
+        system_overrides = [
+            o for o in result.captured_overrides if o.concept_path == "tools/x.md"
+        ]
+        client_overrides = [
+            o for o in result.captured_overrides if o.concept_path == "topic-a.md"
+        ]
+        assert system_overrides and system_overrides[0].value == "Human-corrected description"
+        assert client_overrides == []
+        assert "topic-a.md" in result.unchanged
 
 
 class TestStagingLanding:
