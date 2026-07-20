@@ -86,7 +86,8 @@ if ! echo "$STAGED" | xargs bun prettier --write --log-level=warn; then
   exit 1
 fi
 
-# Re-add the formatted files so the commit captures the rewrites.
-echo "$STAGED" | xargs git add
+# Re-add the formatted files so the commit captures the rewrites. -f: a staged
+# file under a gitignored path (already tracked) must re-add without aborting.
+echo "$STAGED" | xargs git add -f
 
 exit 0
