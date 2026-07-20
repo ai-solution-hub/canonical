@@ -1,10 +1,7 @@
 ---
 name: ast-dataflow-rename-sweep
 description: "Run a 3-query rename-sweep battery after a gitnexus_rename to find string-literal and import sites that the gitnexus ast_search fallback may have missed. Use when completing a multi-file TypeScript symbol rename, after gitnexus_rename has been applied, or when auditing rename completeness. Examples: 'verify the rename is complete', 'check for missed string-literal sites after renaming generateDigest', 'sweep for leftover references after a symbol rename'"
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
+allowed-tools: Bash, Read, Edit
 ---
 
 # Rename-sweep verifier (ast-dataflow)

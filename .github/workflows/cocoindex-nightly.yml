@@ -184,6 +184,7 @@ jobs:
         ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      PIPELINE_TRIGGER_SECRET: ${{secrets.PIPELINE_TRIGGER_SECRET}}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -294,6 +295,7 @@ jobs:
             -e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" \
             -e "OPENAI_API_KEY=${OPENAI_API_KEY}" \
             -e "CRON_SECRET=${CRON_SECRET}" \
+            -e "PIPELINE_TRIGGER_SECRET=${PIPELINE_TRIGGER_SECRET}" \
             -v "${COCOINDEX_HOST_STATE_PATH}:/cocoindex-state" \
             "${COCOINDEX_IMAGE_TAG}"
 

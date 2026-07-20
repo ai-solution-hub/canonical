@@ -1,10 +1,7 @@
 ---
 name: ast-dataflow
 description: "Catalogue and entry point for the ast-dataflow skill family. Use when you need type-checker-resolved symbol analysis across the KH codebase: finding callers, tracing column reads/writes, auditing dead exports, inspecting string-literal sites, resolving re-export chains, or profiling type evolution. Examples: 'find all callers of sb()', 'which files read bid_questions.project_id', 'are there dead exports in lib/bid', 'verify this rename is complete', 'pin the wrong-argument bug in classifyContent'"
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
+allowed-tools: Bash, Read, Edit
 ---
 
 # ast-dataflow — Skill catalogue

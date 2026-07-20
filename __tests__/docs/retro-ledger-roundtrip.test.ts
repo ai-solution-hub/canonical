@@ -1,7 +1,7 @@
 /**
  * retro-ledger-roundtrip.test.ts — CI regression guard (ID-48.3).
  *
- * Parses the live `docs/reference/product-retros.json` through
+ * Parses the live `docs/ledgers/product-retros.json` through
  * `parseRetrosWithWarnings()` on every CI run. Catches structural drift,
  * invalid field values, and id-uniqueness violations before they reach main.
  *
@@ -9,7 +9,7 @@
  * Supabase fixtures, no chain-method asserts. Per `docs/reference/test-philosophy.md`.
  *
  * Asserts (beyond `RetrosSchema.safeParse()` success):
- *   1. Root document carries the literal `document_name` "Knowledge Hub Retros".
+ *   1. Root document carries the literal `document_name` "Canonical Retros".
  *   2. retros[] is non-empty (S264 migrated as the inaugural record).
  *   3. Every record id is unique (refine surface from RetrosSchema).
  *   4. Each record carries the structured-provenance triple + the 6 category arrays.
@@ -20,7 +20,7 @@
  * Failure recovery:
  *   - Run `RetrosSchema.safeParse(JSON.parse(fs.readFileSync(RETROS_PATH)))` in
  *     a REPL to get the full Zod error path.
- *   - Fix the offending field in `docs/reference/product-retros.json`.
+ *   - Fix the offending field in `docs/ledgers/product-retros.json`.
  */
 
 import { readFileSync } from 'node:fs';
@@ -49,7 +49,7 @@ describe('product-retros.json schema roundtrip (RetrosSchema)', () => {
         )
         .join('\n');
       expect.fail(
-        `RetrosSchema.parse() failed for docs/reference/product-retros.json.\n` +
+        `RetrosSchema.parse() failed for docs/ledgers/product-retros.json.\n` +
           `Fix the offending fields and re-run.\n\n` +
           `Zod issues (${result.error.issues.length}):\n${issues}`,
       );
@@ -62,7 +62,7 @@ describe('product-retros.json schema roundtrip (RetrosSchema)', () => {
     const raw = readFileSync(RETROS_PATH, 'utf-8');
     const { value, warnings } = parseRetrosWithWarnings(JSON.parse(raw));
 
-    expect(value.document_name).toBe('Knowledge Hub Retros');
+    expect(value.document_name).toBe('Canonical Retros');
     // No char budgets registered for the retro surface yet — warnings always empty.
     expect(warnings).toEqual([]);
   });
@@ -71,7 +71,7 @@ describe('product-retros.json schema roundtrip (RetrosSchema)', () => {
     const raw = readFileSync(RETROS_PATH, 'utf-8');
     const result = RetrosSchema.parse(JSON.parse(raw));
 
-    expect(result.document_name).toBe('Knowledge Hub Retros');
+    expect(result.document_name).toBe('Canonical Retros');
     expect(typeof result.document_purpose).toBe('string');
     expect(result.document_purpose.length).toBeGreaterThan(0);
     expect(Array.isArray(result.related_documents)).toBe(true);
@@ -176,7 +176,7 @@ describe('RetroRecordSchema — S271 §13.4 soft-delete field defaults', () => {
 
   const minimalRecord = {
     id: 'S999',
-    session_id: 'kh-test-S999',
+    session_id: 'ca-test-S999',
     date: '2026-01-01',
     track: 'test',
     session_refs: [],

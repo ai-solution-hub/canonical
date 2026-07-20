@@ -1,10 +1,7 @@
 ---
 name: ast-dataflow-call-chain-pin
 description: "Use gitnexus_context to identify the execution flow context of a suspect function, then use ast-dataflow callers to enumerate ALL call sites (including indirect callers gitnexus does not index) and inspect argument values at each site. Use when debugging a wrong-argument-value bug: wrong UUID shape, wrong string key, missing required field, wrong typed client. Examples: 'find which caller passes a non-UUID userId to classifyContent', 'pin the call site passing an untyped Supabase client', 'which caller passes the wrong string key to registerMock'"
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
+allowed-tools: Bash, Read, Edit
 ---
 
 # Call-chain pin (ast-dataflow Pattern 5)

@@ -53,21 +53,17 @@ or the fallback in §2 on MCP refusal) **before presenting**:
   ("we already decided…", "last time…"), or settled state.
 
 This closes the loop where an agent presents a stale conclusion and the human
-owner has to point at memory to correct it (the S462 control case — an
-embedded grounding block kept stale framings out of findings; this
-generalises that fix to every decision point, not just dispatch briefs).
+owner has to point at memory to correct it.
 
-**Cheap guard (DR-070):** before relying on any cited `id-N` / `DR-NNN` /
-`{N.M}` in a conclusion, verify its LIVE status — done-task journals are a
-don't-re-flag signal ONLY, never current truth (DR-002):
+**Cheap guard:** before relying on any cited `id-N` / `DR-NNN` /
+`{N.M}` in a conclusion:
 
 ```bash
 bun scripts/ledger-cli.ts get task <id> status
 ```
 
 This is cheap (one CLI call) and catches the "reopen a closed task as if it
-were live" class of error (root cause of DR-070 itself: S469 treated a
-39/39-closed task as an active extension point).
+were live" class of error.
 
 Skip recall for pure greenfield work with no memory relevance (renaming a
 variable, fixing a typo) — recall is decision-driven, not reflexive on every
@@ -77,11 +73,7 @@ turn.
 
 On a mempalace MCP `-32002` / integrity-check refusal — or any MCP recall
 error — **do not proceed recall-blind**. Fall through to a lock-free,
-read-only sqlite FTS read against the palace directly. This is the proven
-pattern from `start-session` §2a; this skill is its canonical home so other
-call sites (workflow-orchestration decision points, executor/checker/curator
-grounding blocks) reference one place instead of re-deriving or duplicating
-the SQL.
+read-only sqlite FTS read against the palace directly.
 
 ```bash
 sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
@@ -93,10 +85,7 @@ sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
 Constraints on this read (non-negotiable):
 
 - **Lock-free only** — `mode=ro&immutable=1`, WAL sqlite read. NEVER open a
-  chromadb writer and NEVER route through a mempalace CLI write in this path
-  (DR-009: MemPalace is single-writer; DR-003: recall uses lock-free
-  read-only WAL sqlite, not a live MCP query — the daily HNSW drift is an
-  upstream chromadb thread-safety bug under concurrent writers).
+  chromadb writer and NEVER route through a mempalace CLI write in this path.
 - **No `wing` filter** — `mempalace_search` with a `wing` filter errors
   (upstream mempalace issue #1665, HNSW↔sqlite drift after bulk add/delete).
   Search without it and filter results client-side, whether via the MCP tool
@@ -106,25 +95,15 @@ Constraints on this read (non-negotiable):
   wildcard.
 
 **Fail open, always.** If the palace errors, is corrupt, or is unreachable:
-tell the user memory is degraded and proceed — never block on recall. This
-mirrors the `start-session` §2a precedent exactly; do not invent a stricter
-(blocking) behaviour here.
+tell the user memory is degraded and proceed — never block on recall.
 
 ## 3. Where this fits in a dispatch brief
 
 The Orchestrator's grounding block (`.claude/agents/references/shared-discipline.md`
 §Grounding block, verbatim lines in
 `.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
-§Grounding-block convention lines) is the compact form of §1 + the DR-002/DR-070
+§Grounding-block convention lines) is the compact form of §1 + DR-070
 guard, embedded in every Planner/Executor/Checker/Curator brief. This skill is
 the fuller protocol those compact lines point back to — read it when the
 grounding block's one-liners aren't enough context, or when you hit an MCP
 recall failure and need the fallback recipe in §2.
-
-## Known upstream gap
-
-The `-32002` lock-free FTS fallthrough in §2 is a workaround living in this
-repo, not in the mempalace plugin itself. See the ID-149.4 create-backlog
-ledger_intent (task-executor report) proposing an upstream PR to absorb it
-natively into the plugin `mempalace-recall` skill — until that lands, this
-skill is the fallback's canonical home.

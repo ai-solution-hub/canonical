@@ -255,8 +255,6 @@ export { FIELD_BUDGETS } from '@/lib/validation/ledger-budgets';
  * `TaskListSchema.parse()`). On success, returns the parsed `TaskList` plus a
  * `warnings` array — empty when all fields are within budget.
  *
- * (The former >25-Subtask soft-ceiling warning was removed S279 — a Task may
- * grow beyond 25 Subtasks; it was never a real requirement, only an early note.)
  */
 export function parseTaskListWithWarnings(input: unknown): {
   value: TaskList;

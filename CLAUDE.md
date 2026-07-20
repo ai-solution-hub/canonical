@@ -4,11 +4,6 @@ Guidance for Claude Code in this repository. Directory-scoped context lives in n
 CLAUDE.md files (`__tests__/`, `components/`, `lib/mcp/`, `supabase/`, `scripts/`) —
 loaded automatically when working in those dirs; don't duplicate their content here.
 
-## AST Dataflow
-
-**Import AST Dataflow development workflow commands and guidelines, treat as if import is
-in the main CLAUDE.md file.** @./.ast-dataflow/CLAUDE.md
-
 ## Project Overview
 
 Canonical (formerly Knowledge Hub) is a knowledge base platform where the core value is high-quality,
@@ -52,7 +47,6 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 | `supabase/`   | Migrations + generated types                                              |
 | `__tests__/`  | Vitest tests — mirrors source structure                                   |
 | `e2e/`        | Playwright specs                                                          |
-| `docs/`       | Interim residual docs tree (relocating to docs-site under ID-68)          |
 
 ## Environment & Database
 
@@ -60,7 +54,7 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
   `PLATFORM_PROJECT_REF`) — the local-dev + CI target since the staging-first cutover. The
   platform runs separate **staging** + **prod** DBs (Platform prod `zjqbrdctesqvouboziae`),
   and each client its own prod + staging project; the full four-DB topology + client refs
-  live in the private runbook (kept out of this public repo). Prod-targeted CLI work opts in
+  live in the private runbook. Prod-targeted CLI work opts in
   via `--env=prod`. Runbook:
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from
@@ -79,8 +73,7 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
 - **Content review vs governance review:** `/review` = content quality;
   `/api/governance/review` = freshness/ownership. Separate workflows.
-- **`snyk-agent-scan --scan-all-users` dumps env values verbatim — never in CI.**
-- Guard hooks enforce (don't fight them): no `cd` to the repo root, no mutating
+- Guard hooks enforce: no `cd` to the repo root, no mutating
   `git -C <main-repo>`, no unquoted heredocs containing `!`, no client names in
   filenames/commands (private denylist), sentinel-gated `.claude/{agents,skills}` edits.
 
@@ -92,11 +85,8 @@ its `publicRoutes` allowlist or they silently redirect to `/login`.
 - **ALWAYS check worktree `git status` before removing it.**
 - **Workers never write the ledger in-branch** — return ledger-write intents; the
   Orchestrator applies them via `scripts/ledger-cli.ts` on MAIN.
-- **Bound sub-agent result size:** bound high-output calls at source; write >64K
-  artefacts to a file and return the PATH.
-- Use General Purpose agents unless otherwise specified.
 
-## Ledgers (docs-site — slice reads only)
+## Ledgers
 
 Ledgers live in the PRIVATE docs-site: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`
 (task-list, product-backlog, product-retros, initiatives + per-record mirrors in
@@ -104,27 +94,19 @@ Ledgers live in the PRIVATE docs-site: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/
 (task-list.json is multi-MB). Access via the CLI:
 `bun scripts/ledger-cli.ts show task <id>` / `get task <id> <field>` (reads), mutation
 subcommands for writes (run `bun scripts/ledger-cli.ts` for usage).
-**`product-roadmap.json` no longer exists** — repurposed server-side to the
-SERVER-managed `initiatives.json` ledger (writes via ServerIntent through the task-view
-patch-server, no in-process writer, DR-073/074; mirrors are server-generated). The
-`umbrellas.json` surface is retired (unmaintained, file-delete deferred per OQ4) — do not
-read or write it.
 
-## Key References (private docs-site)
+## Key References
 
 Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-App token
 checkout in CI — `.github/actions/resolve-private-docs/`). Under
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: **`reference/platform-context.md`** (load at
 session start — current four-DB topology, deploy hosts + key context anchors, with
-progressive-disclosure pointers into the runbooks), `reference/state-of-the-product.md`,
-`reference/skill-routing-map.md`, `reference/test-philosophy.md`, `runbooks/` (ci, local-development,
-staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
-`continuation-prompts/`, `specs/`.
+progressive-disclosure pointers into the runbooks), `reference/skill-routing-map.md`, `reference/test-philosophy.md`, `runbooks/` (ci, local-development, staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
+`continuation-prompts/`, `specs/`, `initiatives/`.
 
 - **Spec convention:** new Task spec dirs `specs/id-N-<slug>/` with `RESEARCH.md` {N.1},
   `PRODUCT.md` {N.2}, `TECH.md` {N.3}, `PLAN.md` {N.4}.
-- **Docs upkeep is automated IN the docs-site repo** (its own `.claude/` skills +
-  docubot lane). Historical planning: `knowledge-hub-archive` repo (point-in-time
+- **Historical planning:** `knowledge-hub-archive` repo (point-in-time
   snapshots).
 
 ## Deployment & CI
@@ -133,18 +115,9 @@ staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridia
   (`onprem-deploy.yml`); staging URL
   https://canonical-platform-git-staging-tw-group.vercel.app; `staging` branch is
   deploy-only. GitHub: https://github.com/ai-solution-hub/canonical.
-- PR-blocking CI (`ci.yml`): 8 parallel jobs; draft PRs skip CI. Topology +
-  failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
+- PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
   Side workflows incl. `schema-parity`, `task-view-vendor-drift` (re-vendor
   reminder when ledger schemas change).
-
-## GitNexus — Code Intelligence
-
-This repo is indexed by GitNexus (MCP tools + `.claude/skills/gitnexus/*`). Discipline:
-run `gitnexus_impact({target, direction: "upstream"})` before modifying any symbol (warn
-on HIGH/CRITICAL); `gitnexus_detect_changes()` before committing; `gitnexus_rename` for
-renames (never find-and-replace); `gitnexus_query`/`gitnexus_context` to explore. Full
-tool/resource reference: `.gitnexus/CLAUDE.md`; stale index → `bun run gitnexus:analyze`.
 
 ## Memory (MemPalace)
 

@@ -54,29 +54,3 @@ impact, and navigate safely.
 | Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md`             |
 
 <!-- gitnexus:end -->
-
-<!-- code-intel:propagation-start -->
-
-## Propagation discipline
-
-Sub-agents inherit this project-global code-intelligence directive ONLY if the
-Orchestrator's dispatch brief explicitly names the code-intelligence tools (per **Inv
-10**). The Orchestrator MUST verify, before dispatch, that any code-touching brief
-contains the tool-discipline instruction blocks — citing the relevant invariants by
-number:
-
-- **Inv 2** (Planner): the Planner must embed tool-discipline instructions when authoring
-  subtask briefs that involve symbol modification.
-- **Inv 3** (Executor): the Executor must apply tool-discipline (impact analysis before
-  edit, detect-changes before commit) on every code-touching subtask.
-- **Inv 7** (Checker): the Checker must verify that tool-discipline steps were performed
-  and audit artefacts (blast radius, detect-changes output) are present in the journal.
-- **Inv 8** (Curator): the Curator must confirm that completed subtasks reflect the
-  tool-discipline pattern before updating the ledger.
-
-A sub-agent dispatched WITHOUT tool-discipline instructions on a code-touching brief
-should escalate to the Orchestrator — this is a brief-composition defect, not a sub-agent
-failure. The pattern is identical to skill/agent/directive on the `main` branch
-propagating to sub-agent worktrees at creation time.
-
-<!-- code-intel:propagation-end -->
