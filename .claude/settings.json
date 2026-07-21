@@ -11,8 +11,6 @@
       "Bash(/opt/homebrew/bin/supabase *)",
       "Bash(python3 -m pytest *)",
       "Bash(python3 -m playwright *)",
-      "Bash(cmux *)",
-      "Bash(/Applications/cmux.app/Contents/Resources/bin/cmux *)",
       "Write(.claude/skills/**)",
       "Bash(mkdir -p .claude/skills/*)",
       "Bash(mkdir -p ~/.claude/.sentinels)",
@@ -29,18 +27,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(jq -r '.tool_input.command' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|[[:space:]]|;|&&|\\|\\|)cd[[:space:]]+/Users/liamj/Documents/development/canonical(/|[[:space:]]|$|;)'; then FIX=$(printf '%s' \"$CMD\" | sed -E 's#^[[:space:]]*cd[[:space:]]+/Users/liamj/Documents/development/canonical/?[[:space:]]*(&&|;)[[:space:]]*##'); if [ -n \"$FIX\" ] && [ \"$FIX\" != \"$CMD\" ]; then echo \"BLOCKED: bash command contains cd to the canonical repo (wrong-branch commit-leak guard). Re-run EXACTLY this corrected command (cd prefix stripped): $FIX\" >&2; else echo 'BLOCKED: bash command contains cd to the canonical repo. This causes commits to leak to the wrong branch. Drop the cd prefix; use relative paths from your CWD (sibling repos like knowledge-hub-docs-site are NOT blocked).' >&2; fi; exit 2; fi"
-          },
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/rtk-readonly-gate.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/git-c-abs-path-subcommand-guard.sh\""
-          },
-          {
-            "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/bash-heredoc-preflight.sh\""
           },
           {
@@ -52,10 +38,6 @@
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "INPUT=$(cat); FP=$(echo \"$INPUT\" | jq -r '.tool_input.file_path' 2>/dev/null); CWD=$(echo \"$INPUT\" | jq -r '.cwd' 2>/dev/null); if echo \"$FP\" | grep -qE '^/Users/liamj/Documents/development/canonical(/|$)'; then case \"$FP\" in \"$CWD\"/*|\"$CWD\"|/Users/liamj/Documents/development/canonical/.claude/cmux-events/*) exit 0;; esac; echo \"BLOCKED: Write/Edit/MultiEdit to absolute canonical path '$FP' from CWD '$CWD'. Sub-agents must write only within their worktree (use relative paths or the worktree-absolute prefix). Tier 2.2 hook (ID-19.3) — prevents cross-tree leak when CWD-correct agent emits wrong absolute path.\" >&2; exit 2; fi"
-          },
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/sentinel-gated-agents-skills-edit-guard.sh\""
@@ -94,7 +76,6 @@
   },
   "sandbox": {
     "network": {
-      "allowUnixSockets": ["/tmp/cmux.sock", "/private/tmp/cmux.sock", "~/.local/state/cmux/cmux-501.sock"],
       "allowedDomains": [
         "github.com",
         "*.github.com",
@@ -109,7 +90,6 @@
     "excludedCommands": ["launchctl", "lavish-axi"],
     "filesystem": {
       "allowWrite": [
-        "~/Documents/development/canonical/.claude/cmux-events",
         "~/Documents/development/canonical/.git",
         "~/Documents/development/knowledge-hub-docs-site/**",
         "~/Documents/development/knowledge-hub-docs-site/.claude",
