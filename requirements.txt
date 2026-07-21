@@ -115,10 +115,10 @@ tenacity==9.1.4
 # (flow.py::_truncate_embedding_input) — `text-embedding-3-large` has a HARD
 # 8192-token OpenAI input ceiling, so the document/chunk text is bounded to
 # `cl100k_base` token budget before `.embed()` or a 400 aborts the whole ingest.
-# Transitive via litellm (which declares `tiktoken>=0.7.0` and uses the same
+# Transitive via litellm (which declares `tiktoken>=0.13.0` and uses the same
 # encoding for token accounting); pinned explicitly as a first-class dependency
 # because the guard treats it as one (mirrors the aiohttp/asyncpg/httpx pins).
-tiktoken>=0.7.0
+tiktoken>=0.13.0
 # sqlglot: SQL parser backing tools/ast_dataflow_py column-reads/column-writes
 # (cross-language column lineage — Python-side raw-SQL statements over the same
 # tables the TS ast-dataflow tool covers). OPTIONAL at runtime: the tool
