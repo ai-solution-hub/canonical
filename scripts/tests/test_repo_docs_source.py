@@ -35,6 +35,7 @@ from scripts.cocoindex_pipeline.sources.repo_docs import (
     RepoConceptKey,
     RepoDocsSource,
     Source,
+    _git_blob_sha,
 )
 
 
@@ -153,6 +154,22 @@ class TestRepoConceptKeyShape:
             git_blob_sha="sha1",
         )
         b = dataclasses.replace(a, git_blob_sha="sha2")
+        assert a != b
+        assert hash(a) != hash(b)
+
+    def test_span_content_hash_participates_in_equality_the_e1_memo_lever(self) -> None:
+        """{163.18}/S488: the per-span E1 lever. A bumped `span_content_hash`
+        on an otherwise-identical key is a DIFFERENT frozen instance — the
+        same unconditional `_canonicalize_dataclass` fingerprinting that
+        makes `git_blob_sha` a lever makes this one, so a single-tool span
+        edit is a memo-MISS for exactly that concept."""
+        a = RepoConceptKey(
+            rel_path="tool/get.md",
+            concept_type="tool",
+            source_ref="x#L1-L2",
+            span_content_hash="span1",
+        )
+        b = dataclasses.replace(a, span_content_hash="span2")
         assert a != b
         assert hash(a) != hash(b)
 
@@ -278,13 +295,42 @@ class TestKA3TwoExtractorPrototype:
         keys = _run(source.list_concepts())
         tool_keys = [k for k in keys if k.concept_type == "tool"]
         assert len({k.source_ref for k in tool_keys}) == 2  # distinct line ranges
-        assert len({k.git_blob_sha for k in tool_keys}) == 1  # same backing file
+        # {163.18}/S488: per-span memo lever — two tools in ONE file have
+        # DISTINCT span hashes (not a shared file blob sha), and E1 keys
+        # deliberately carry no file sha at all.
+        assert len({k.span_content_hash for k in tool_keys}) == 2
+        assert {k.git_blob_sha for k in tool_keys} == {""}
 
 
-# ── S4 — the git_blob_sha change signal (BI-18 delta lever analogue) ────
+# ── S4 — the memo change signal, grain-split per {163.18}/S488 ──────────
+#
+# E1 (tool) keys on a per-span `span_content_hash` (git_blob_sha stays "");
+# E2 (navigation) keys on the file-grained `git_blob_sha`.
 
 
-class TestS4GitBlobShaChangeSignal:
+# The `_seed_two_pillars` tool file with ONE line changed in-place (the
+# 'get' tool's title) — a single-tool edit that does NOT add/remove lines,
+# so the sibling 'create_content_item' span keeps its exact line range.
+_TOOL_FILE_GET_EDITED = (
+    "import { defineTool } from './shared';\n"
+    "export async function registerContentTools(server) {\n"
+    "  defineTool(\n"
+    "    server,\n"
+    "    'get',\n"
+    "    { title: 'Get Content (touched)', description: 'Retrieve (parens ok)' },\n"
+    "    async () => ({}),\n"
+    "  );\n"
+    "  defineTool(\n"
+    "    server,\n"
+    "    'create_content_item',\n"
+    "    { title: 'Create' },\n"
+    "    async () => ({}),\n"
+    "  );\n"
+    "}\n"
+)
+
+
+class TestS4MemoChangeSignalGrainSplit:
     def test_unchanged_backing_artefact_produces_an_identical_key_memo_hit(
         self, tmp_path: Path
     ) -> None:
@@ -293,24 +339,66 @@ class TestS4GitBlobShaChangeSignal:
         first = {k.rel_path: k for k in _run(source.list_concepts())}
         second = {k.rel_path: k for k in _run(source.list_concepts())}
         assert first == second  # byte-identical keys -> cocoindex memo-HIT
-        assert first["tool/get.md"].git_blob_sha
-        assert first["tool/get.md"].git_blob_sha == second["tool/get.md"].git_blob_sha
+        # E1 keys on the per-span hash; E2 on the file blob sha.
+        assert first["tool/get.md"].span_content_hash
+        assert first["tool/get.md"].git_blob_sha == ""
+        assert first["navigation/getting-started.md"].git_blob_sha
 
-    def test_a_touched_backing_artefact_changes_its_sha_and_key_memo_miss(
+    def test_editing_one_tool_span_changes_only_that_concepts_key_memo_miss(
         self, tmp_path: Path
     ) -> None:
+        """The {163.18} headline: a single-tool edit redrafts EXACTLY that
+        one concept. Editing the 'get' span (in-place, no line shift) is a
+        memo-MISS for 'get' alone — its file-sibling 'create_content_item'
+        and the navigation page are byte-identical memo-HITs."""
         repo = _seed_two_pillars(FakeRepo(tmp_path))
         source = RepoDocsSource(tmp_path)
         before = {k.rel_path: k for k in _run(source.list_concepts())}
 
-        repo.write(
-            _TOOL_FILE,
+        repo.write(_TOOL_FILE, _TOOL_FILE_GET_EDITED).commit("edit only the get span")
+        after = {k.rel_path: k for k in _run(source.list_concepts())}
+
+        # The edited span: changed hash AND changed key (memo-MISS).
+        assert (
+            before["tool/get.md"].span_content_hash
+            != after["tool/get.md"].span_content_hash
+        )
+        assert before["tool/get.md"] != after["tool/get.md"]
+        # The file-SIBLING tool: untouched span -> identical key (memo-HIT),
+        # despite sharing the same backing .ts file. This is the property the
+        # file-grained git_blob_sha interim ({163.4}) could not provide.
+        assert (
+            before["tool/create_content_item.md"]
+            == after["tool/create_content_item.md"]
+        )
+        # The navigation page: untouched -> identical key.
+        assert (
+            before["navigation/getting-started.md"]
+            == after["navigation/getting-started.md"]
+        )
+
+    def test_an_unrelated_line_edit_leaves_all_span_keys_unchanged(
+        self, tmp_path: Path
+    ) -> None:
+        """An edit OUTSIDE every `defineTool` span (a trailing line appended
+        below both tools, so no span's line range shifts) changes the file's
+        git blob sha but touches no span's backing text — so every E1 key is
+        an unchanged memo-HIT. Proves E1 memo tracks the SPAN, not the file."""
+        repo = _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        before = {
+            k.rel_path: k
+            for k in _run(source.list_concepts())
+            if k.concept_type == "tool"
+        }
+
+        original = (
             "import { defineTool } from './shared';\n"
             "export async function registerContentTools(server) {\n"
             "  defineTool(\n"
             "    server,\n"
             "    'get',\n"
-            "    { title: 'Get Content (touched)' },\n"
+            "    { title: 'Get Content', description: 'Retrieve (parens ok)' },\n"
             "    async () => ({}),\n"
             "  );\n"
             "  defineTool(\n"
@@ -319,25 +407,51 @@ class TestS4GitBlobShaChangeSignal:
             "    { title: 'Create' },\n"
             "    async () => ({}),\n"
             "  );\n"
-            "}\n",
-        ).commit("touch the tool pillar's backing file")
+            "}\n"
+        )
+        repo.write(_TOOL_FILE, original + "// unrelated trailing line\n").commit(
+            "unrelated edit below every span"
+        )
+        after = {
+            k.rel_path: k
+            for k in _run(source.list_concepts())
+            if k.concept_type == "tool"
+        }
+
+        assert before == after  # no span key changed
+        assert {k.span_content_hash for k in after.values()} == {
+            k.span_content_hash for k in before.values()
+        }
+
+    def test_a_touched_navigation_page_changes_its_git_blob_sha_memo_miss(
+        self, tmp_path: Path
+    ) -> None:
+        """E2's file-grained lever is unchanged ({163.18} touched only E1):
+        editing the whole-page nav concept is a memo-MISS via git_blob_sha,
+        while the untouched tool spans stay identical memo-HITs."""
+        repo = _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+        before = {k.rel_path: k for k in _run(source.list_concepts())}
+
+        repo.write(_NAV_FILE, "# Getting started\n\nEdited navigation copy.\n").commit(
+            "edit the navigation page"
+        )
         after = {k.rel_path: k for k in _run(source.list_concepts())}
 
-        assert before["tool/get.md"].git_blob_sha != after["tool/get.md"].git_blob_sha
-        assert before["tool/get.md"] != after["tool/get.md"]
-        # The untouched navigation pillar's sha is unaffected (file-scoped
-        # git blob identity, not a run-wide invalidation).
-        assert (
-            before["navigation/getting-started.md"].git_blob_sha
-            == after["navigation/getting-started.md"].git_blob_sha
-        )
+        nav = "navigation/getting-started.md"
+        assert before[nav].git_blob_sha != after[nav].git_blob_sha
+        assert before[nav] != after[nav]
+        assert before["tool/get.md"] == after["tool/get.md"]
+        assert before["tool/create_content_item.md"] == after["tool/create_content_item.md"]
 
-    def test_a_path_absent_at_head_resolves_to_an_empty_sha_not_a_raise(
+    def test_a_path_absent_at_head_does_not_raise_e1_hashes_span_without_git(
         self, tmp_path: Path
     ) -> None:
         """Mirrors `git_sync.py`'s `_read_head` posture: "path absent" is
         expected, not exceptional -- an uncommitted fixture file must not
-        blow up `list_concepts()`."""
+        blow up `list_concepts()`. E1's span hash needs no git at all, so an
+        uncommitted tool still enumerates with a real `span_content_hash`
+        (and git_blob_sha "" — E1 never carries the file sha)."""
         repo = FakeRepo(tmp_path)
         repo.write(_TOOL_FILE, "defineTool(server, 'get', {}, async () => ({}));\n")
         # Deliberately no repo.commit() -- the file exists on disk but has
@@ -346,6 +460,7 @@ class TestS4GitBlobShaChangeSignal:
         keys = _run(source.list_concepts())
         get_key = next(k for k in keys if k.rel_path == "tool/get.md")
         assert get_key.git_blob_sha == ""
+        assert get_key.span_content_hash  # span hash computed without git
 
 
 # ── read_concept / sample_rows / find (concrete Source-protocol methods) ─
@@ -419,8 +534,14 @@ class TestPC5GitBlobCitationMint:
         raw = _run(source.read_concept(get_key))
         _file_part, _, range_part = get_key.source_ref.partition("#L")
         lstart, lend = (int(v) for v in range_part.split("-L"))
+        # {163.18}: the E1 key carries NO file sha (span-scoped memo) — the
+        # citation pin stays the REAL, file-blob-based git sha, resolved at
+        # mint time. Prove the minted anchor is exactly that file blob sha.
+        assert get_key.git_blob_sha == ""
+        file_blob_sha = _git_blob_sha(tmp_path, _TOOL_FILE)
+        assert file_blob_sha  # a real committed blob sha
         expected = build_git_blob_citation(
-            get_key.git_blob_sha, _TOOL_FILE, line_start=lstart, line_end=lend
+            file_blob_sha, _TOOL_FILE, line_start=lstart, line_end=lend
         )
         assert raw.resource == expected
         assert expected in source.seen_anchors

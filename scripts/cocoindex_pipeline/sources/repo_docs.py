@@ -44,20 +44,32 @@ authoring beyond the prototype" once KA3 holds on this minimal slice; a
 future Subtask adds the remaining per-pillar LOCATOR resolvers (never a
 third concept model) once KA3 is signed off.
 
-**S4 — the `git_blob_sha` change signal (BI-18 delta lever analogue).**
-`list_concepts()` computes, per concept, `git rev-parse HEAD:<file path>`
-(subprocess) — the SAME `git_sync.py:264` `_run_git` subprocess posture
-(no new git library; `dulwich`/`pygit2` are not in `requirements.txt`).
-This is FILE-grained (a git blob SHA is a whole-file digest, not a
-line-range digest) — two `tool` concepts backed by the same `.ts` file
-share one `git_blob_sha` and invalidate TOGETHER on any edit to that file,
-even one that only touches the OTHER tool's registration. This is expected
-E1 granularity, not a bug: the alternative (a synthetic per-span hash) is
-NOT "reusing the `git_sync.py` posture" and is out of this Subtask's scope.
-A path absent at `HEAD` (an uncommitted fixture file, or the very first
-producer run before any commit exists) resolves to `""` rather than
-raising — mirrors `git_sync.py`'s `_read_head` treating "path absent" as
-expected, not exceptional.
+**S4 — the memo change signal (BI-18 delta lever analogue), grain-split
+per {163.18}/G-SPAN-HASH (owner-ratified S488).** Each grain carries a
+DIFFERENT memo lever, so a concept redrafts iff ITS OWN backing content
+changes:
+
+- **E2 (markdown-page grain)** keeps `git_blob_sha` — `git rev-parse
+  HEAD:<file path>` (subprocess, the SAME `git_sync.py:264` `_run_git`
+  posture; no new git library — `dulwich`/`pygit2` are not in
+  `requirements.txt`). A page IS a whole file, so this file-grained blob
+  digest is ALREADY per-concept for E2. A path absent at `HEAD` (an
+  uncommitted fixture, or the first producer run before any commit)
+  resolves to `""` rather than raising — mirrors `git_sync.py`'s
+  `_read_head` treating "path absent" as expected, not exceptional.
+- **E1 (code-symbol grain)** keeps `git_blob_sha == ""` and carries a
+  per-span `span_content_hash` instead (sha256 of the matched
+  `defineTool(...)` span's backing text). A git blob SHA is a whole-FILE
+  digest, so two `tool` concepts backed by the same `.ts` file would
+  invalidate TOGETHER on any edit to that file (even one touching only the
+  OTHER tool). {163.18} honours TECH S4's literal "redrafts exactly that
+  one concept" by keying E1 memo on the SPAN, not the file: editing one
+  `defineTool` span changes only that concept's key; its file-siblings and
+  an unrelated-line edit leave every span key untouched. The file-level
+  `git_blob_sha` is deliberately kept OFF E1 keys because every
+  `RepoConceptKey` field fingerprints unconditionally ({132.36}: no
+  `field(compare=False)` exemption) — storing it would re-leak the
+  file-grained invalidation the span hash exists to avoid.
 
 **PC-5 — citation provenance, generalised (ID-163 TECH, DR-086).** The
 BI-17 discipline L-records enforces via `enrich.py`'s `_mint`/`seen_anchors`
@@ -71,13 +83,18 @@ artefact this run did not read cannot be cited. `producer/enrich.py:
 _validate_citation` / `producer/web_pass.py:_validate_pass2_citation`
 accept this scheme as an ADDITIVE branch (keyed on `resource_uri.py:
 is_git_blob_citation`), leaving the `canonical://` L-records path
-byte-identical. Reuses `git_blob_sha` (S4, above) as the citation's pin —
-no new hash, no per-span synthetic hash (checker FYI: a stricter S4
-granularity ruling is queued separately, out of this Subtask's scope).
+byte-identical. The citation pin stays the REAL, file-blob-based
+`git rev-parse HEAD:<file>` sha for BOTH grains — {163.18} moved only the
+E1 MEMO lever to a per-span hash, never the citation. For E2 the pin is
+`key.git_blob_sha` (already on the key). For E1, whose key carries no file
+sha (S4, above), `read_concept` resolves the file blob sha fresh at the
+sole mint site — so `build_git_blob_citation` is unchanged and every
+citation still pins a real public git blob.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 from dataclasses import dataclass
@@ -128,18 +145,43 @@ class RepoConceptKey:
     whole page IS the concept)."""
 
     git_blob_sha: str = ""
-    """**MEMO-FINGERPRINT-ONLY** (S4, the `ConceptKey.content_version`
-    analogue). `list_concepts()`'s two enumeration methods compute this
-    per concept via `git rev-parse HEAD:<source_ref's file path>` — a
-    byte-identical backing artefact produces an unchanged
-    `RepoConceptKey` (cocoindex memo-**HIT**, skip redraft); an edited one
-    produces a changed key (memo-**MISS**, redraft). Kept LAST in field
-    order (mirrors `ConceptKey.content_version`) so every positional
-    `RepoConceptKey(...)` construction stays valid with its `""` default.
+    """**E2 MEMO LEVER + citation pin** (S4, the `ConceptKey.content_version`
+    analogue). The E2 (markdown-page grain) whole-file change signal:
+    `_list_navigation_concepts` computes it per page via `git rev-parse
+    HEAD:<source_ref's file path>` — a byte-identical page produces an
+    unchanged `RepoConceptKey` (cocoindex memo-**HIT**); an edited one a
+    changed key (memo-**MISS**). A page IS a whole file, so this file-grained
+    digest is already per-concept for E2.
+
+    **E1 (code-symbol grain) keeps this `""`** ({163.18}/S488): a git blob
+    SHA is a whole-FILE digest, so on an E1 key it would re-invalidate every
+    `defineTool` concept in a file on ANY edit to that file, breaking the
+    per-span isolation `span_content_hash` provides. E1 memo therefore keys
+    on `span_content_hash`, and E1's citation resolves the real file blob sha
+    fresh at `read_concept` (mint) time rather than storing it here.
+
     Participates in `__eq__`/`__hash__` like every other field — that
     participation IS the delta lever, not an oversight (cocoindex's own
     `_canonicalize_dataclass` fingerprints every field unconditionally, so
-    no `field(compare=False)` would even suppress it)."""
+    no `field(compare=False)` would even suppress it). That unconditional
+    fingerprinting is EXACTLY why E1 must keep this empty rather than store a
+    file-level sha it cannot exempt."""
+
+    span_content_hash: str = ""
+    """**E1 MEMO LEVER** ({163.18}/G-SPAN-HASH, owner-ratified S488). The
+    per-span change signal for the E1 (code-symbol grain) `tool` concept:
+    `_list_tool_concepts` sets it to `sha256(<matched defineTool span
+    text>)` — the SAME line-range text `read_concept` drafts from — so a
+    single-tool edit changes ONLY that concept's key (memo-**MISS**), while
+    its file-siblings and any unrelated-line edit leave every span key
+    unchanged (memo-**HIT**). Honours TECH S4's literal "redrafts exactly
+    that one concept", superseding the file-grained interim from {163.4}.
+
+    Empty (`""`) for E2 concepts, whose memo lever is the file-grained
+    `git_blob_sha` (a whole page is already one concept). Kept LAST in field
+    order so every positional `RepoConceptKey(...)` construction stays valid
+    with its `""` default. Participates in `__eq__`/`__hash__` like every
+    other field — that participation IS the E1 delta lever."""
 
     def __post_init__(self) -> None:
         if not self.rel_path:
@@ -248,6 +290,18 @@ def _match_closing_paren(text: str, open_idx: int) -> int:
     raise ValueError(f"unbalanced parentheses scanning from index {open_idx}")
 
 
+def _span_content_hash(span_text: str) -> str:
+    """The E1 per-span memo lever ({163.18}/G-SPAN-HASH, S488): a synthetic
+    `sha256` digest of one `defineTool(...)` span's backing text — the SAME
+    line-range text `read_concept` returns for that concept, so the memo key
+    changes iff the drafted content changes. This is a per-SPAN signal, not
+    the file-grained `git_blob_sha` (S4): it lets a single-tool edit redraft
+    exactly that one concept, leaving its file-siblings' keys untouched.
+    Encodes as UTF-8 (the same encoding `read_text`/`_read_source_ref` use),
+    so a byte-identical span always hashes identically."""
+    return hashlib.sha256(span_text.encode("utf-8")).hexdigest()
+
+
 # ── E2 (navigation pillar) — one concept per `*.md` doc page. ───────────
 
 _SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
@@ -302,7 +356,9 @@ def _read_source_ref(root: Path, source_ref: str) -> str:
     return "".join(lines[lstart - 1 : lend])
 
 
-def _mint_git_blob_citation(key: RepoConceptKey, seen_anchors: "set[str]") -> str:
+def _mint_git_blob_citation(
+    root: Path, key: RepoConceptKey, seen_anchors: "set[str]"
+) -> str:
     """PC-5 (ID-163 TECH, DR-086): mint `key`'s backing artefact into a
     git-blob/doc-page citation anchor (`producer/resource_uri.py:
     build_git_blob_citation`) and record it into `seen_anchors` — the
@@ -312,19 +368,33 @@ def _mint_git_blob_citation(key: RepoConceptKey, seen_anchors: "set[str]") -> st
     `_SOURCE_REF_RANGE_RE` `_read_source_ref` uses, so the citation's line
     range always matches exactly what was actually read.
 
-    `key.git_blob_sha` empty (an artefact absent at HEAD — an uncommitted
-    fixture, or a repo with no commits yet) mints NOTHING and returns
-    `""`: an unpinned artefact cannot resolve a public URL and must not be
+    The pin is the REAL, file-blob-based `git rev-parse HEAD:<file>` sha for
+    BOTH grains — {163.18} moved only the E1 MEMO lever to a per-span hash,
+    never the citation. For an E2 whole-file ref the pin is `key.git_blob_sha`
+    (already the E2 memo lever, list-time pinned). For an E1 span ref — whose
+    key deliberately carries no file sha (S4, to keep file-grained
+    invalidation out of the per-span memo key) — the file blob sha is
+    resolved FRESH here; `read_concept` is the sole mint site, so this one
+    extra `_git_blob_sha` call keeps provenance honest without re-leaking the
+    file signal into the E1 key.
+
+    An empty resolved sha (an artefact absent at HEAD — an uncommitted
+    fixture, or a repo with no commits yet) mints NOTHING and returns `""`:
+    an unpinned artefact cannot resolve a public URL and must not be
     citable — mirrors `_git_blob_sha`'s own "path absent" posture (expected,
     not exceptional), just non-citable here rather than raising."""
-    if not key.git_blob_sha:
-        return ""
     match = _SOURCE_REF_RANGE_RE.match(key.source_ref)
     if match is None:
-        anchor = build_git_blob_citation(key.git_blob_sha, key.source_ref)
+        blob_sha = key.git_blob_sha
+        if not blob_sha:
+            return ""
+        anchor = build_git_blob_citation(blob_sha, key.source_ref)
     else:
+        blob_sha = _git_blob_sha(root, match.group("path"))
+        if not blob_sha:
+            return ""
         anchor = build_git_blob_citation(
-            key.git_blob_sha,
+            blob_sha,
             match.group("path"),
             line_start=int(match.group("start")),
             line_end=int(match.group("end")),
@@ -386,19 +456,28 @@ class RepoDocsSource:
         for file_path in sorted(tools_dir.glob("*.ts")):
             text = file_path.read_text(encoding="utf-8")
             rel_file = (_TOOLS_DIR / file_path.name).as_posix()
-            blob_sha = _git_blob_sha(self._root, rel_file)
+            # E1 keeps git_blob_sha="" ({163.18}/S488): a file-grained blob
+            # digest would re-invalidate every tool in this file on any edit
+            # (every RepoConceptKey field fingerprints unconditionally,
+            # {132.36}). The per-span `span_content_hash` is the E1 memo
+            # lever instead; the citation's real file blob sha is resolved
+            # fresh at read_concept (mint) time.
+            file_lines = text.splitlines(keepends=True)
             for match in _DEFINE_TOOL_CALL_RE.finditer(text):
                 name = match.group("name")
                 open_idx = match.start() + len("defineTool")
                 close_idx = _match_closing_paren(text, open_idx)
                 lstart = text.count("\n", 0, match.start()) + 1
                 lend = text.count("\n", 0, close_idx) + 1
+                # The SAME line-range text `_read_source_ref` returns for this
+                # concept, so the memo lever tracks exactly the drafted span.
+                span_text = "".join(file_lines[lstart - 1 : lend])
                 keys.append(
                     RepoConceptKey(
                         rel_path=f"tool/{name}.md",
                         concept_type="tool",
                         source_ref=f"{rel_file}#L{lstart}-L{lend}",
-                        git_blob_sha=blob_sha,
+                        span_content_hash=_span_content_hash(span_text),
                     )
                 )
         return keys
@@ -430,7 +509,7 @@ class RepoDocsSource:
         `self.seen_anchors` and returns it as `RepoConceptRaw.resource` —
         an artefact this run did not read cannot be cited."""
         text = _read_source_ref(self._root, key.source_ref)
-        resource = _mint_git_blob_citation(key, self.seen_anchors)
+        resource = _mint_git_blob_citation(self._root, key, self.seen_anchors)
         return RepoConceptRaw(text=text, resource=resource)
 
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
