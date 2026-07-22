@@ -25,7 +25,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-10.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-6 step 1+3, §3.
  *   - scripts/cocoindex_pipeline/stage_5.py:_preload_entity_aliases.
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

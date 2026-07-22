@@ -44,7 +44,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-10, §3.
  *   - scripts/cocoindex_pipeline/flow.py:162-168 (_PIPELINE_ERROR_CLASSES),
  *     :188 (_classify_stage_exception).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

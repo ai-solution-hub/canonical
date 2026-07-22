@@ -14,7 +14,7 @@
  * `strict: true` are not scanned — do NOT widen this guard to them without
  * migrating those sites first.
  *
- * Per docs/reference/test-philosophy.md — pure file-read + regex, no fixtures.
+ * Per docs/reference/testing/test-philosophy.md — pure file-read + regex, no fixtures.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

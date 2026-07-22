@@ -24,7 +24,7 @@ live worker — the {62.7}/{62.9} test precedent):
 
 Test philosophy: every test asserts real behaviour — the injected HTTP
 callables exercise the same branching a live run drives, minus the network
-(docs/reference/test-philosophy.md).
+(docs/reference/testing/test-philosophy.md).
 """
 
 from __future__ import annotations

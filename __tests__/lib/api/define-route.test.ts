@@ -21,7 +21,7 @@
  *
  * These tests assert the wire-level behaviour of the wrapper (status, headers,
  * body, throw-vs-return), never the wrapper's internal structure — per
- * docs/reference/test-philosophy.md (test real behaviour, not implementation).
+ * docs/reference/testing/test-philosophy.md (test real behaviour, not implementation).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

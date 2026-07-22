@@ -36,7 +36,7 @@
  *     fixture-staging helper this module composes with).
  *   - scripts/cocoindex_pipeline/stage_5.py / entity_embedder.py /
  *     pair_resolver.py (the resolution stack the failure injection targets).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { expect } from 'vitest';

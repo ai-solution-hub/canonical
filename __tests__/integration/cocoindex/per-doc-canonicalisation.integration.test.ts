@@ -30,7 +30,7 @@
  * References:
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-4, Inv-15, Inv-16.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-2, §P-3, §3.
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

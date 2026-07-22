@@ -54,7 +54,7 @@
  *   - app/api/entities/merge/route.ts (the production caller of the RPC).
  *   - __tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts
  *     (env-gating + service-client + seed/cleanup idiom this test follows).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, describe, expect, it } from 'vitest';

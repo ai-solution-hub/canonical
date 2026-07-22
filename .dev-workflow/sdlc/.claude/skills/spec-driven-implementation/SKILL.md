@@ -203,7 +203,7 @@ Prefer tests and artifacts that validate the product behavior directly:
 - screenshots, recordings, or staging walkthroughs
   (https://knowledge-hub-git-staging-tw-group.vercel.app) when useful for UI-heavy work
 
-See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` before writing
+See `docs/reference/testing/test-philosophy.md` before writing
 or remediating tests.
 
 ## Best Practices

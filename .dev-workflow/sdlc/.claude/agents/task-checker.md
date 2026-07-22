@@ -121,7 +121,7 @@ Your dispatch brief specifies which variant to run:
 - **`test-quality`** — deep test-discipline gating for Subtasks whose primary deliverable
   is tests, OR whose behaviour change shipped with new tests. A focused, single-axis-led
   pass that audits the test suite against the
-  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` (six audit
+  `docs/reference/testing/test-philosophy.md` (six audit
   criteria, three antipatterns, mock discipline) — behaviour-not-implementation,
   `bun run test`, shared `createMockSupabaseClient()`. Can set the subtask group's
   subtasks to `done` on PASS.
@@ -470,13 +470,13 @@ against the Canonical-canonical test philosophy, because the test suite IS the d
 slice first; the test diff last).
 
 > **Canonical authority —
-> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md`.** This document
+> `docs/reference/testing/test-philosophy.md`.** This document
 > is the source of truth for every test-discipline decision in Canonical. Read it in full
 > before auditing. It defines **six audit criteria** (§1), **three observed antipatterns**
 > (§2), and **mock discipline** (§5). The Addy Osmani `test-engineer` persona framing
 > (test value over implementation-coupling, behaviour-over-mock, the "Prove-It" failing
 > test for bugs) is a useful lens, but it is generic and not Canonical-aware. **Where
-> Addy's generic `testing-patterns` (`.claude/agents/references/testing-patterns.md`)
+> Addy's generic `testing-patterns` (`docs/reference/testing/testing-patterns.md`)
 > conflicts with `test-philosophy.md`, `test-philosophy.md` WINS** — it is
 > Canonical-canonical (Vitest + Supabase-mock + UK-English aware). Cite the specific
 > `test-philosophy.md` section in every finding's `description`.

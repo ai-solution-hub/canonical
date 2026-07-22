@@ -49,7 +49,7 @@
  *   - docs/specs/id-56-content-model-invariants/PRODUCT.md C-54, C-22.
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-1, Inv-3, Inv-5, Inv-7.
  *   - __tests__/integration/cocoindex/cross-document-dedup.integration.test.ts (harness sibling).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

@@ -27,7 +27,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-11.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-6 step 7, §3.
  *   - scripts/cocoindex_pipeline/flow.py:915 (per-row embedding counter pattern).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

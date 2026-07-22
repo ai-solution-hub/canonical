@@ -22,7 +22,7 @@
  *   - docs/specs/id-56-content-model-invariants/PRODUCT.md C-10..C-13, C-21,
  *     C-31.
  *   - docs/specs/cocoindex-flow-scaffolding/TECH.md §2.7 (memo cascade).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

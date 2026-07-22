@@ -15,7 +15,7 @@ No live API calls anywhere in this file — `client.messages.create` is
 mocked at the boundary (mirrors `test_cocoindex_extractor_retry.py`'s
 `AsyncAnthropic` mocking pattern for the same two reuse anchors).
 
-Test philosophy: docs/reference/test-philosophy.md — assertions are on the
+Test philosophy: docs/reference/testing/test-philosophy.md — assertions are on the
 resulting `Message`, the mutated `messages` conversation list, and the
 `tool_result` shape (state), not on internal call sequences beyond the SDK
 call-count needed to prove retry/loop iteration actually happened.

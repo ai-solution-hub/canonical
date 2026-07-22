@@ -22,7 +22,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-18.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-12.
  *   - requirements.txt (the pin source-of-truth).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation —
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation —
  *     this verifies faiss is genuinely importable, not a mocked stub).
  */
 

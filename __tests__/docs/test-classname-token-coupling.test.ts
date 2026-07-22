@@ -18,7 +18,7 @@
  * weaken the guard to make it pass; only narrow a regex for a genuine
  * false-positive, with an inline comment explaining why.
  *
- * Per docs/reference/test-philosophy.md — pure file-read + regex, no fixtures.
+ * Per docs/reference/testing/test-philosophy.md — pure file-read + regex, no fixtures.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

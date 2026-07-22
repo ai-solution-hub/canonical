@@ -24,7 +24,7 @@
  *
  * References:
  *   - docs/specs/id-52-form-extraction/PRODUCT.md Inv-19.
- *   - docs/reference/test-philosophy.md (real-behaviour, not implementation).
+ *   - docs/reference/testing/test-philosophy.md (real-behaviour, not implementation).
  */
 
 import { describe, expect, it } from 'vitest';

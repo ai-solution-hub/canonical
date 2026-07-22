@@ -20,7 +20,7 @@
  * `calls` is deliberately EXCLUDED: `calls X with <payload>` is a legitimate
  * contract assertion, too nuanced for a hard guard.
  *
- * Per docs/reference/test-philosophy.md — pure file-read + regex, no fixtures.
+ * Per docs/reference/testing/test-philosophy.md — pure file-read + regex, no fixtures.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

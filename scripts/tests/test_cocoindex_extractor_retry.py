@@ -24,7 +24,7 @@ Backoff timings are kept short in tests via a `_FAST_RETRY_OVERRIDE`
 patch path on the decorator: tests assert the COUNT semantic (3 retries
 → 4 total attempts) without waiting the full 1-2-4-8-16 s ladder.
 
-Test philosophy reference: docs/reference/test-philosophy.md — every
+Test philosophy reference: docs/reference/testing/test-philosophy.md — every
 test asserts real behaviour (exception classes, counter values,
 SDK-call counts), no mock-only stubs.
 

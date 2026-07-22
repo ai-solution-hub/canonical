@@ -19,7 +19,7 @@
  * favour of `record_embeddings(owner_kind='form_template_requirement')`,
  * mirroring the company_profile EMB-STORE precedent. Anthropic is mocked at
  * the SDK boundary; Supabase via the shared `createMockSupabaseClient()`
- * helper, per `docs/reference/test-philosophy.md`
+ * helper, per `docs/reference/testing/test-philosophy.md`
  * (behaviour-not-implementation).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';

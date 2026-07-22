@@ -4,7 +4,7 @@ DR-057, BI-20).
 These tests exercise the actual SQ PDF fixture (the `Procurement Policy
 Note: Standard Selection Questionnaire (PPN 03/24)` blank form, 57
 pages) through the REAL ``commonforms``/``pypdf``/``pdfplumber`` stack —
-no mocks, per ``docs/reference/test-philosophy.md``. Live detection is
+no mocks, per ``docs/reference/testing/test-philosophy.md``. Live detection is
 slow (seconds, plus a one-time HuggingFace model download) so the
 detection call is memoised behind a module-scoped fixture.
 

@@ -72,7 +72,7 @@
  *   - supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql STEP 1
  *     (workspace_id DROP + form_instances_select `USING (true)` policy).
  *   - __tests__/integration/helpers/auth-session.ts (role-scoped sign-in).
- *   - docs/reference/test-philosophy.md (real-behaviour, not implementation).
+ *   - docs/reference/testing/test-philosophy.md (real-behaviour, not implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

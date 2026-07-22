@@ -120,7 +120,7 @@ Prefer:
 - `bun lint`, `bun run format:check`, and `bun run knip` before merge for deterministic
   quality gates
 
-See `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` for the testing
+See `docs/reference/testing/test-philosophy.md` for the testing
 audit criteria and antipatterns to avoid.
 
 ## Best Practices

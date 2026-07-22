@@ -58,7 +58,7 @@ Non-negotiable on every change; the Checker FAILs violations.
 - **`bun run test`**, never `bun test` — the latter runs Bun's built-in runner, not
   Vitest.
 - **Test philosophy** — tests verify real behaviour, never implementation. Read
-  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` before writing or
+  `docs/reference/testing/test-philosophy.md` before writing or
   remediating tests.
 - **Stable empty defaults** — module-level `const EMPTY_X: T[] = [];` + `useMemo` for hook
   returns that may be empty; inline `?? []` creates new references and breaks downstream

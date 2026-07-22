@@ -28,7 +28,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-9.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-11, §3.
  *   - app/api/entities/merge/route.ts:48-52 (merge_entities RPC — canonical UPDATE).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

@@ -1,7 +1,7 @@
 # Testing — directory context
 
 Philosophy (read before writing or remediating tests):
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/test-philosophy.md` — six audit
+`docs/reference/testing/test-philosophy.md` — six audit
 criteria, three observed antipatterns, mock discipline.
 
 - **Framework:** Vitest (`bun run test`); coverage `bun run test:coverage`; structure

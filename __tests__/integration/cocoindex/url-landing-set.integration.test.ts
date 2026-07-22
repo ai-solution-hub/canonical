@@ -48,7 +48,7 @@
  *   - the ID-75 URL-cocoindex spec, TECH.md §5 (landing-set contract).
  *   - docs/specs/id-62-fixture-staging-infra/TECH.md Inv-21/22/23/27.
  *   - scripts/cocoindex_pipeline/flow.py (_KH_PIPELINE_DOC_NS + uuid5 mint).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { createHash } from 'node:crypto';

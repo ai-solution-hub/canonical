@@ -25,7 +25,7 @@
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-3, §P-5, §3.
  *   - scripts/cocoindex_pipeline/entity_context.py (the Python port).
  *   - lib/ai/classify.ts:1611 extractEntityContext (the TS source-of-truth).
- *   - docs/reference/test-philosophy.md (behaviour-not-implementation).
+ *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

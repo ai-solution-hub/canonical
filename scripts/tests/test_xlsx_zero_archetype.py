@@ -48,7 +48,7 @@ References:
   - scripts/cocoindex_pipeline/form_extractors/xlsx.py
     (``NO_ARCHETYPE_REASON``; ``extract`` emits the structured log and
      returns ``ExtractedForm(fields=[])``).
-  - docs/reference/test-philosophy.md (real-behaviour: builds a real
+  - docs/reference/testing/test-philosophy.md (real-behaviour: builds a real
     workbook with openpyxl, runs the real extractor — no mocks).
 """
 

@@ -31,7 +31,7 @@ survives here is the "content lands content rows, no manifest required"
 baseline, which is now the WHOLE story: there is no more fork to route.
 
 Reference: docs/specs/ID-80-forms-path-b/80.2-forms-content-separation.md
-§B.1/§B.3/§B.6; docs/reference/test-philosophy.md §1/§5.3; ID-136 TECH.md §4.3.
+§B.1/§B.3/§B.6; docs/reference/testing/test-philosophy.md §1/§5.3; ID-136 TECH.md §4.3.
 """
 
 from __future__ import annotations

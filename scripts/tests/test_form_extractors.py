@@ -2,7 +2,7 @@
 generalised under DR-058 (ID-145.10).
 
 NO mocks of python-docx / openpyxl internals, per
-``docs/reference/test-philosophy.md``.
+``docs/reference/testing/test-philosophy.md``.
 
 PDF SCOPE NOTE (ID-145.10 Checker ruling, post-{145.11} landing): the
 recovered id-52 ``pdf.py`` (pdfplumber AcroForm/table-walker) has been
@@ -142,7 +142,7 @@ class TestSharedModels:
 # ══════════════════════════════════════════════════════════════════════════
 # XLSX reader — {52.10} acceptance tests against the EFA fixture.
 #
-# Real-behaviour tests (per ``docs/reference/test-philosophy.md``): the
+# Real-behaviour tests (per ``docs/reference/testing/test-philosophy.md``): the
 # extractor reads the actual EFA fixture, NO mocks of openpyxl internals.
 # The fixture lives under ``scripts/tests/fixtures/form-extraction`` as a
 # symlink to ``docs/testing/test-data/templates/itt-services-efa/...``.

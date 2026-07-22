@@ -31,7 +31,7 @@ length-1024 vector so the smoke needs no OPENAI_API_KEY (embedding correctness i
 covered by the Stage-4 tests; this smoke proves chunk shaping + row payloads).
 
 Reference: docs/specs/id-56-content-model-invariants/PRODUCT.md C-10..C-13, C-21,
-C-30, C-31; docs/reference/test-philosophy.md (behaviour-not-implementation).
+C-30, C-31; docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
 """
 
 from __future__ import annotations
