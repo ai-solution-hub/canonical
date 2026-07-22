@@ -38,11 +38,18 @@ and edge cases they must handle — without prescribing how the surface is imple
 underneath.
 
 Implementation details, validation, and test planning live in a companion `TECH.md`,
-produced by the `write-tech-spec` skill. Writing the product spec is usually the second
-step of a four-step process: once `PRODUCT.md` is agreed on, invoke `write-tech-spec` to
-produce `TECH.md` for the same feature (or let the user know that's the expected next
-step). The product spec should be written so the tech spec can be written directly from
-it.
+produced by the `write-tech-spec` skill. There is no dedicated planner agent in this
+workflow: the Coordinator (when delegating) or the Developer specialist (when
+self-implementing) invokes this skill directly when a task warrants a durable spec. Once
+`PRODUCT.md` is agreed on, invoke `write-tech-spec` to produce `TECH.md` for the same
+feature (or let the user know that's the expected next step). The product spec should be
+written so the tech spec can be written directly from it.
+
+**{N.4} PLAN and Intent decomposition:** in the Intent workflow, the plan/decomposition
+surface is the Intent workspace spec-note — the Coordinator decomposes the work into task
+notes there and delegates from it. A checked-in `PLAN.md` ({N.4}) is written only when a
+durable, in-repo plan artifact is warranted; the specs here remain the checked-in
+artifacts that feed that decomposition.
 
 Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`,
 where:
@@ -62,8 +69,11 @@ as direct children — no engineer-named subdirectories.
 
 Gather only the context you need: directory id (task-list ID, or kebab feature name),
 feature summary, target users, key behaviors, edge cases, and how the feature will be
-validated. Use `AskUserQuestion` for missing context rather than guessing. RESEARCH.md has
-the latest information but is the floor, not the ceiling.
+validated. Use `AskUserQuestion` for missing context rather than guessing. The task's
+{N.1} `RESEARCH.md` (same spec dir, produced by the `research` skill) feeds this spec —
+read it first when it exists; it has the latest information but is the floor, not the
+ceiling. When no `RESEARCH.md` exists (smaller tasks), self-direct the equivalent research
+before drafting rather than guessing.
 
 ### Canonical platform design system
 

@@ -35,17 +35,28 @@ rename to add `ID-N-` once the Task is created.
 Use this skill when the implementation spans multiple modules, has meaningful
 architectural tradeoffs, or when reviewers will benefit from seeing the plan before or
 alongside the code. For pure UI changes or straightforward fixes, a tech spec is often
-unnecessary.
+unnecessary. There is no dedicated planner agent in this workflow: the Coordinator (when
+delegating) or the Developer specialist (when self-implementing) invokes this skill
+directly when a task warrants a durable tech spec.
 
 Prefer to have a `PRODUCT.md` first so the technical plan is anchored to agreed behavior.
 If the implementation is still too uncertain, build an e2e prototype first and then write
 the tech spec from what was learned.
 
+**{N.4} PLAN and Intent decomposition:** in the Intent workflow, the plan/decomposition
+surface is the Intent workspace spec-note — the Coordinator decomposes the work into task
+notes there and delegates from it. A checked-in `PLAN.md` ({N.4}) is written only when a
+durable, in-repo plan artifact is warranted; `TECH.md` remains the checked-in
+implementation plan that feeds that decomposition.
+
 ## Research before writing
 
-Before drafting, read the RESEARCH.md file (if any), product spec (if any), inspect the
-relevant code, and identify the main files, types, data flow, and ownership boundaries. Do
-not guess about current architecture when the code can be inspected directly.
+Before drafting, read the task's {N.1} `RESEARCH.md` (same spec dir, produced by the
+`research` skill — it feeds this spec; read it first when it exists), the product spec (if
+any), inspect the relevant code, and identify the main files, types, data flow, and
+ownership boundaries. When no `RESEARCH.md` exists (smaller tasks), self-direct the
+equivalent research via the steps below. Do not guess about current architecture when the
+code can be inspected directly.
 
 <!-- code-intel:planner-citation-start -->
 
