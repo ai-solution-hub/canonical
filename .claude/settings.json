@@ -89,17 +89,7 @@
     "enableWeakerNetworkIsolation": true,
     "excludedCommands": ["launchctl", "lavish-axi"],
     "filesystem": {
-      "allowWrite": [
-        "~/Documents/development/canonical/.git",
-        "~/Documents/development/knowledge-hub-docs-site/**",
-        "~/Documents/development/knowledge-hub-docs-site/.claude",
-        ".claude/**",
-        "lib/mcp/plugin-bundle.ts",
-        "supabase/types/database.types.ts",
-        "~/.claude/.sentinels",
-        "~/.gitnexus"
-      ],
-      "allowRead": ["supabase/types/database.types.ts", "lib/mcp/plugin-bundle.ts"]
+      "disabled": true
     }
   }
 }

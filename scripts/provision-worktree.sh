@@ -23,6 +23,15 @@ set -euo pipefail
 #                     node_modules/.gitnexus/...). Default: the main worktree,
 #                     resolved from <worktree-path> via `git worktree list`.
 #
+# Intent (by Augment) setup-script mode: Intent executes workspace setup
+# scripts with NO positional arguments — context arrives only via env vars
+# ($WORKTREE_PATH, $MAIN_CHECKOUT, $BRANCH_NAME, $SOURCE_BRANCH). When $1/$2
+# are absent we fall back to $WORKTREE_PATH/$MAIN_CHECKOUT, so this script can
+# be wired as an Intent setup script directly. Keep Intent's stored script a
+# thin one-liner — `bash "$MAIN_CHECKOUT/scripts/provision-worktree.sh"` — so
+# the logic lives here and never drifts (a pasted copy of an older body is
+# exactly what broke provisioning for the attached-review workspace).
+#
 # Behaviour (idempotent; each item is non-fatal):
 #   - symlinkDirectories: absolute symlink per listed dir that exists in the
 #     source and is not already a real dir in the worktree. (.gitnexus is
@@ -43,9 +52,18 @@ set -euo pipefail
 # Exits 0 even when individual seeds are skipped; non-zero only on bad arguments
 # or a target that is not a git worktree.
 
-USAGE="Usage: provision-worktree.sh <worktree-path> [<source-root>]"
-WORKTREE_ARG="${1:?$USAGE}"
-SOURCE_ARG="${2:-}"
+USAGE="Usage: provision-worktree.sh <worktree-path> [<source-root>]
+(argless mode: falls back to Intent's \$WORKTREE_PATH / \$MAIN_CHECKOUT env vars)"
+# Positional args win; otherwise fall back to the env vars Intent's setup-script
+# runner provides (it never passes argv). NB: capture $WORKTREE_PATH before the
+# internal variable of the same name overwrites it below.
+WORKTREE_ARG="${1:-${WORKTREE_PATH:-}}"
+SOURCE_ARG="${2:-${MAIN_CHECKOUT:-}}"
+if [ -z "$WORKTREE_ARG" ]; then
+  echo "Error: no worktree path given (arg 1 or \$WORKTREE_PATH)." >&2
+  echo "$USAGE" >&2
+  exit 1
+fi
 
 if [ ! -d "$WORKTREE_ARG" ]; then
   echo "Error: worktree path '$WORKTREE_ARG' does not exist." >&2
@@ -60,6 +78,10 @@ fi
 
 # Resolve the source root (the tree we mirror FROM).
 if [ -n "$SOURCE_ARG" ]; then
+  if [ ! -d "$SOURCE_ARG" ]; then
+    echo "Error: source root '$SOURCE_ARG' does not exist." >&2
+    exit 1
+  fi
   SOURCE_ROOT="$(cd "$SOURCE_ARG" && pwd -P)"
 else
   # The main worktree is always the first entry in `git worktree list`.

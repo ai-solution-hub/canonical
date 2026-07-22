@@ -46,6 +46,9 @@ venv/
 *.swp
 *.swo
 
+# Intent (by Augment) machine-local repo config (scripts + workspace setupScript)
+.intent/
+
 # OS
 .DS_Store
 Thumbs.db
