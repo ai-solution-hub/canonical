@@ -39,10 +39,6 @@ Confirm before drafting (ask Liam if unsure):
    (or `bypass` if none exists). Durable fixes belong in `.claude/settings.json`
    (`sandbox.excludedCommands`, `sandbox.filesystem.allowWrite`,
    `sandbox.network.allowedDomains`, `sandbox.enableWeakerNetworkIsolation`).
-7. Did this session change workflow **tooling, data shapes, or process** (a ledger-cli
-   flag/command, a ledger schema field, a hook, a skill added/retired)? If so, run
-   `propagate-workflow-change` over the dev-lifecycle skills + agents before teardown, so the
-   next session's agents don't read stale instructions.
 
 ---
 

@@ -1,13 +1,13 @@
 ---
 name: start-session
 description:
-  Bootstraps a Canonical (Formerly Knowledge Hub) session: cleans git worktrees, loads context, presents the session plan from the continuation prompt, then chains to `workflow-orchestration` for the canonical SDLC flow (ID-N Task / ID-N.M Subtask lifecycle, dispatch, gating, merge cadence). Use at the start of every new session.
+  Bootstraps a Canonical (Formerly Knowledge Hub) session: cleans git worktrees, loads context, and presents the session plan from the continuation prompt. Use at the start of every new session.
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
 # start-session
 
-Ensures a clean working environment, loads critical context, presents the session plan, then hands off to `workflow-orchestration` for SDLC execution.
+Ensures a clean working environment, loads critical context, and presents the session plan.
 
 ---
 
@@ -141,15 +141,9 @@ ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-
 >
 > **Objectives:** {summarise from continuation prompt}
 >
-> **Execution strategy:** {cmux terminal sessions, parallel subagents (conditional), dependencies}
+> **Execution strategy:** {parallel subagents (conditional), dependencies}
 
 5. Proceed with outlined plan - if any adjustments are required, user will notify you.
-
----
-
-## Step 4: Chain to workflow-orchestration
-
-Once the session plan is presented, invoke the `workflow-orchestration` skill via the Skill tool, to begin session orchestration.
 
 ---
 

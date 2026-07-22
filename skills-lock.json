@@ -13,12 +13,6 @@
       "skillPath": "skills/browser-testing-with-devtools/SKILL.md",
       "computedHash": "d0c075ca4c9ffa50f7ddcd7cac140a2c809aba1be98d284b285539ebd4045be6"
     },
-    "code-simplification": {
-      "source": "addyosmani/agent-skills",
-      "sourceType": "github",
-      "skillPath": "skills/code-simplification/SKILL.md",
-      "computedHash": "7973e746e8e2ea5004d520da970c15a106824b8d6be1bcff48908aec021f3677"
-    },
     "codeql": {
       "source": "github/awesome-copilot",
       "sourceType": "github",

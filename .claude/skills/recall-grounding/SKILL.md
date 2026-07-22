@@ -8,8 +8,8 @@ description: >-
   in response to a direct user question. On a mempalace MCP `-32002` /
   integrity-check refusal (or any MCP recall error), fall through to the
   lock-free `mode=ro&immutable=1` sqlite FTS read instead of proceeding
-  recall-blind. Use whenever composing a Planner/Executor/Checker/Curator
-  grounding block, whenever about to state a conclusion that cites prior work
+  recall-blind. Use whenever composing a sub-agent dispatch brief's grounding
+  context, whenever about to state a conclusion that cites prior work
   or decisions, or whenever `mempalace_search`/`mempalace_kg_query` errors.
   Cross-references the plugin `mempalace-recall` skill, which owns the generic
   palace-search mechanics (`mempalace_search`/`mempalace_kg_query` how-to) —
@@ -97,13 +97,10 @@ Constraints on this read (non-negotiable):
 **Fail open, always.** If the palace errors, is corrupt, or is unreachable:
 tell the user memory is degraded and proceed — never block on recall.
 
-## 3. Where this fits in a dispatch brief
+## 3. Where this fits in agent briefs
 
-The Orchestrator's grounding block (`.claude/agents/references/shared-discipline.md`
-§Grounding block, verbatim lines in
-`.claude/skills/workflow-orchestration/references/dispatch-primitives.md`
-§Grounding-block convention lines) is the compact form of §1 + DR-070
-guard, embedded in every Planner/Executor/Checker/Curator brief. This skill is
-the fuller protocol those compact lines point back to — read it when the
-grounding block's one-liners aren't enough context, or when you hit an MCP
-recall failure and need the fallback recipe in §2.
+Root `AGENTS.md` § Ledger protocol carries the compact form of §1 — verify live
+status before citing a task, subtask, or decision-record state. This skill is
+the fuller protocol behind that rule — read it when the one-liner isn't enough
+context, or when you hit an MCP recall failure and need the fallback recipe
+in §2.

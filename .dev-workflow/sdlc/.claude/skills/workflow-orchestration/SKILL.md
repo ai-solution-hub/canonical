@@ -45,7 +45,7 @@ SESSION
 │   ├── Subtask {N.4} PLAN.md                  (Planner via planning-and-task-breakdown; conditional)
 │   │                                          ── ratification gate ──
 │   ├── Subtask {N.5+} implementation          (Executor → Checker per subtask group)
-│   ├── code-simplification pass               (Executor, end-of-task)
+│   ├── /simplify pass                         (Executor, end-of-task)
 │   ├── quality-review pass                    (Checker, end-of-task)
 │   └── Task close                             (Orchestrator gates → done)
 │
@@ -65,7 +65,7 @@ SESSION
   [references/lifecycle-detail.md](references/lifecycle-detail.md) §Spec-authoring phase.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch
   disjoint file sets; sequential when they share files / schema / produced inputs.
-- **Closing** — Executor `code-simplification` pass, then Checker `quality-review` pass,
+- **Closing** — Executor `/simplify` pass, then Checker `quality-review` pass,
   then Orchestrator gates Task → `done` only after Curator triage complete and
   initiative/backlog implications recorded.
 
@@ -235,7 +235,7 @@ The Orchestrator does not declare a subtask group `done` without:
 The Orchestrator does not declare a Task `done` without:
 
 - All Subtasks `done`.
-- `code-simplification` Executor pass complete.
+- `/simplify` Executor pass complete.
 - `quality-review` Checker pass complete (verdict PASS or PASS_WITH_NOTES with all notes
   resolved).
 - Curator triage complete on every out-of-scope finding surfaced during the Task.

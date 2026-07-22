@@ -76,8 +76,8 @@ the brief references. Executors do **not** read the whole PRODUCT.md or TECH.md.
 
 After every implementation subtask is `done`:
 
-1. **`code-simplification` pass** — Executor (end-of-task) runs the `code-simplification`
-   skill over the Task's commit set.
+1. **`/simplify` pass** — Executor (end-of-task) runs the harness-native `/simplify`
+   command over the Task's commit set.
 2. **`quality-review` pass** — Checker (end-of-task) runs the `quality-review` variant:
    invokes `security-and-hardening` / `performance-optimization` / `type-design-analyzer`
    based on Task kind and findings.

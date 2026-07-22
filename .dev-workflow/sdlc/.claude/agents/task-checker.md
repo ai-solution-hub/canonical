@@ -1,7 +1,7 @@
 ---
 name: task-checker
 description: |
-  Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Three variants in one agent body — 'standard' for per-subtask gating (post-executor commit, spec compliance + Canonical Platform conventions), 'quality-review' for end-of-task gating (after code-simplification pass, broader quality including security/performance/type-design), and 'test-quality' for test-primary or behaviour-change-with-tests Subtasks (deep test-philosophy.md audit — behaviour-not-implementation, bun run test, shared Supabase mock). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Examples:
+  Use this agent when a task-executor (or wave of executors) has committed implementation work and spec compliance, code quality, and test quality need verification before the orchestrator merges. Three variants in one agent body — 'standard' for per-subtask gating (post-executor commit, spec compliance + Canonical Platform conventions), 'quality-review' for end-of-task gating (after the /simplify pass, broader quality including security/performance/type-design), and 'test-quality' for test-primary or behaviour-change-with-tests Subtasks (deep test-philosophy.md audit — behaviour-not-implementation, bun run test, shared Supabase mock). The checker is read-only — it never edits files. Dispatch brief must specify which variant to run and the subtask ID (ID-N.M). Examples:
 
   <example>
   Context: A task-executor has just committed ID-7.3 on a worktree-agent branch and the orchestrator needs to gate the subtask before continuing the wave.
@@ -13,11 +13,11 @@ description: |
   </example>
 
   <example>
-  Context: All subtasks of ID-12 are committed, the code-simplification Executor pass is complete, and the orchestrator needs a broader quality pass over the full task before close.
+  Context: All subtasks of ID-12 are committed, the /simplify Executor pass is complete, and the orchestrator needs a broader quality pass over the full task before close.
   user: "ID-12 simplification pass landed. Run end-of-task review before I close the task."
   assistant: "I'll dispatch the task-checker agent with variant=quality-review against ID-12 — it will iterate the full commit set, invoke security-and-hardening / performance-optimization / type-design-analyzer based on findings and task kind, and return the JSON verdict."
   <commentary>
-  End-of-task quality review after the code-simplification pass and before Task close — the quality-review variant has broader axes (type-design, security, performance) beyond the standard Canonical conventions pass.
+  End-of-task quality review after the /simplify pass and before Task close — the quality-review variant has broader axes (type-design, security, performance) beyond the standard Canonical conventions pass.
   </commentary>
   </example>
 
@@ -114,7 +114,7 @@ Your dispatch brief specifies which variant to run:
 - **`standard`** — per-subtask gating. Runs after every task-executor commit for a subtask
   group. Audits spec compliance + Canonical conventions against the subtask's
   `testStrategy` and spec slice. Can set the subtask group's subtasks to `done` on PASS.
-- **`quality-review`** — end-of-task gating. Runs after the code-simplification Executor
+- **`quality-review`** — end-of-task gating. Runs after the `/simplify` Executor
   pass, before task close. Broader pass over the full task's commit set. Invokes
   `security-and-hardening` / `performance-optimization` / `type-design-analyzer` based on
   findings and task kind.
@@ -387,7 +387,7 @@ to locate the re-runnable deterministic slice.
 
 ## Quality-review variant
 
-**When dispatched:** after the code-simplification Executor pass, before task close. One
+**When dispatched:** after the `/simplify` Executor pass, before task close. One
 per task (ID-N).
 
 **Purpose:** broader quality pass over the full task's commit set. Goes beyond Canonical
