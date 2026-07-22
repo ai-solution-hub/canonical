@@ -108,7 +108,8 @@ progressive-disclosure pointers into the runbooks), `reference/skill-routing-map
   `test-philosophy.md` (behaviour-first testing doctrine) + `testing-patterns.md`.
 
 - **Spec convention:** new Task spec dirs `specs/id-N-<slug>/` with `RESEARCH.md` {N.1},
-  `PRODUCT.md` {N.2}, `TECH.md` {N.3}, `PLAN.md` {N.4}.
+  `PRODUCT.md` {N.2}, `TECH.md` {N.3}. The {N.4} PLAN.md artefact is retired (DR-089) —
+  the plan/decomposition surface is the Intent workspace spec-note.
 - **Historical planning:** `knowledge-hub-archive` repo (point-in-time
   snapshots).
 
