@@ -14,7 +14,17 @@
       "Write(.claude/skills/**)",
       "Bash(mkdir -p .claude/skills/*)",
       "Bash(mkdir -p ~/.claude/.sentinels)",
-      "Bash(touch ~/.claude/.sentinels/*)"
+      "Bash(touch ~/.claude/.sentinels/*)",
+      "Bash(bun scripts/ledger-cli.ts)",
+      "Bash(bun scripts/ledger-cli.ts show *)",
+      "Bash(bun scripts/ledger-cli.ts get *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site status *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site log *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site diff *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site add *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site commit *)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site push)",
+      "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site push *)"
     ],
     "additionalDirectories": ["~/Documents/development/knowledge-hub-docs-site/**"],
     "deny": ["Read(supabase/types/database.types.ts)", "Read(lib/mcp/plugin-bundle.ts)"],
