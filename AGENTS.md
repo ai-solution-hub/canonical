@@ -18,10 +18,9 @@ before reporting.
 - **The right tests, not just green tests.** Tests verify real behaviour through the
   public surface (HTTP route, exported function, rendered component, MCP tool), never
   implementation detail. Verification means confirming the correct tests exist for the
-  change and align with
-  `docs/reference/testing/test-philosophy.md` — not merely
-  that a suite was run. Run Vitest with `bun run test`; plain `bun test` invokes Bun's
-  own runner, not Vitest.
+  change and align with the behaviour-first doctrine in `docs/reference/testing/`
+  (`test-philosophy.md` + `testing-patterns.md`) — not merely that a suite was run. Run
+  Vitest with `bun run test`; plain `bun test` invokes Bun's own runner, not Vitest.
 - **Implementation must be wired in.** A change is not complete until it is reachable in
   the running product: components mounted, routes registered, functions called, flags
   read. "The spec didn't explicitly require mounting" is not a defence — unreachable
@@ -32,6 +31,10 @@ before reporting.
   spec-vs-reality mismatch — would force an awkward workaround, STOP and escalate to the
   Coordinator with evidence (file:line, observed vs expected behaviour). The outcome is
   scope renegotiation or spec amendment, never a silently worked-around architecture.
+- **Gate on substance, not ceremony.** These points are the whole verification gate —
+  there is no review process to satisfy on top (no severity-label taxonomies, sign-off
+  rounds, or checklist rituals). A verdict is a judgement on the axes above backed by
+  evidence (file:line, observed vs expected), not a completed form.
 - **No silent Supabase failures.** Use `sb()` (fail-fast) or `tryQuery()`
   (Result-returning) from `@/lib/supabase/safe`; composite responses via
   `warningsEnvelope()`. Never raw `.from().select()` with an unchecked `error` — ESLint

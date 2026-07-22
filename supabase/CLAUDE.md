@@ -11,7 +11,12 @@
 - **`supabase db push` prompts interactively** — never run it in a background shell
   (it hangs); run foreground and answer the prompt.
 - **Function search_path:** all new PL/pgSQL functions MUST include
-  `SET search_path = public, extensions`.
+  `SET search_path = public, extensions` — this holds for the `api`-schema
+  INVOKER wrappers/entrypoints too (ID-115). Do **not** add `api`: it is the
+  Data-API *exposed* schema (`config.toml schemas = ["api"]`), which is
+  orthogonal to name resolution. Function bodies reference `public.*` base
+  tables + sibling fns, so `public, extensions` is the complete resolution path.
+  Exposure is the boundary; search_path is the plumbing.
 - **Embeddings:** `vector(1024)` (text-embedding-3-large); serialise with
   `JSON.stringify(embedding)` for RPC vector params, not a raw array. Canonical
   constants: `lib/validation/schemas.ts`.

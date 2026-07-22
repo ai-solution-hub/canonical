@@ -143,4 +143,3 @@ audit criteria and antipatterns to avoid.
 - `planning-and-task-breakdown`
 - `incremental-implementation`
 - `test-driven-development`
-- `code-review-and-quality`
