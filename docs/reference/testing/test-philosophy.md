@@ -4,17 +4,17 @@ title: "Canonical — Test Philosophy"
 
 # Canonical — Test Philosophy
 
-<!-- Last verified: 10/05/2026 (kh-prod-readiness-S40 W2 — initial extraction from product-roadmap §8 narrative + consolidated-findings.md §3 antipatterns + remediation-plan.md cross-references; six audit criteria authored by Liam 06/05/2026; Phase 1 audit lineage post-S38 W3 + W4 fan-out summarised in §9). -->
+<!-- Last verified: 22/07/2026 (S491 W4 docs sweep — guard-test list refreshed (2 deleted guards removed, validation-sweep path corrected), audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
 
 **Status:** Active reference.
 
-This document is the canonical reference for writing, reviewing, and remediating tests in the Canonical platform. It is the source of truth for test-discipline decisions; the test-audit programme (`docs/audits/kh-production-readiness-phase-1/` + `.planning/.research/s37-test-audit/`) executes against the criteria captured here.
+This document is the canonical reference for writing, reviewing, and remediating tests in the Canonical platform. It is the source of truth for test-discipline decisions; the test-audit programme (audit artefacts now archived in the `knowledge-hub-archive` repo) executed against the criteria captured here.
 
 > **Cross-links:**
-> - `CLAUDE.md` Testing section — quick rules + pointer back here.
-> - `.planning/.research/s37-test-audit/consolidated-findings.md` — observed antipatterns + remediation classification.
-> - `.planning/.research/s37-test-audit/remediation-plan.md` — wave plan for fixing existing-test gaps (W-RA…W-RH).
-> - `docs/audits/kh-production-readiness-phase-1/0-9-synthesis-impact.md` — wave-level disposition under Phase 0.9 architecture proposal.
+> - `CLAUDE.md` Key References — points here (`docs/reference/testing/`).
+> - `consolidated-findings.md` — observed antipatterns + remediation classification (`knowledge-hub-archive` repo).
+> - `remediation-plan.md` — wave plan for fixing existing-test gaps (W-RA…W-RH) (`knowledge-hub-archive` repo).
+> - `0-9-synthesis-impact.md` — wave-level disposition under Phase 0.9 architecture proposal (docs-site).
 
 ---
 
@@ -75,7 +75,7 @@ The audit identified 25 mislocated test files. The rule:
 | `components/**/*.tsx` | `__tests__/components/**` | Component rendering + interaction tests. |
 | `lib/<domain>/<file>.ts` | `__tests__/lib/<domain>/**` | Pure library tests; exercise the export. |
 | `lib/validation/*.ts` | `__tests__/lib/validation/**` | Schema-validation tests; deserve their own slice for the validation-sweep guard. |
-| `__tests__/integration/**` | (same — integration tier) | Real-Anthropic + real-Supabase tests; must hit the live persistent staging branch (`rbwqewalexrzgxtvcqrh`), never mocks. |
+| `__tests__/integration/**` | (same — integration tier) | Real-Anthropic + real-Supabase tests; must hit the live Platform staging DB (`rbwqewalexrzgxtvcqrh`), never mocks. |
 | `e2e/tests/**` | (same — E2E tier) | Playwright end-to-end specs against staging deployment. |
 
 A test file's location should be derivable from its production-code import. If a test under `__tests__/api/` exclusively imports from `lib/`, it is mislocated.
@@ -103,7 +103,7 @@ A test file's location should be derivable from its production-code import. If a
 
 ### 5.1 Default to real where the cost is acceptable
 
-- **Database:** integration tests hit the persistent staging branch; unit tests use `createMockSupabaseClient()` from `__tests__/helpers/mock-supabase.ts`. Never mock the database in integration tests — prior incident: mocked tests passed but a prod migration failed.
+- **Database:** integration tests hit the Platform staging DB; unit tests use `createMockSupabaseClient()` from `__tests__/helpers/mock-supabase.ts`. Never mock the database in integration tests — prior incident: mocked tests passed but a prod migration failed.
 - **AI calls:** integration tests use real Anthropic (with the project Anthropic API key); unit tests inject a mock client at the boundary. Token costs of integration runs are budgeted.
 - **Time:** use `vi.spyOn(Date, 'now')` with a fixed timestamp (`new Date('2026-01-15T12:00:00Z').getTime()`) — never construct `Date` directly. The constructor is not stubbed by `vi.spyOn(Date, 'now')`; tests using `new Date()` see real time and flake at midnight boundaries.
 
@@ -142,7 +142,7 @@ Mock at the seam where the SUT meets the outside world (HTTP, DB, Anthropic SDK)
 
 ### 7.3 TanStack Query
 
-- Component tests using a hook that depends on a query must wrap the component in a `QueryClientProvider`. Use `createQueryWrapper().Wrapper` from `__tests__/helpers/query-wrapper.ts` (`feedback_searchbar_query_provider`).
+- Component tests using a hook that depends on a query must wrap the component in a `QueryClientProvider`. Use `createQueryWrapper().Wrapper` from `__tests__/helpers/query-wrapper.tsx` (`feedback_searchbar_query_provider`).
 
 ---
 
@@ -151,9 +151,9 @@ Mock at the seam where the SUT meets the outside world (HTTP, DB, Anthropic SDK)
 Guard tests fail the build when structural drift is introduced. They protect the test discipline itself. The current guard-test surface includes:
 
 - `__tests__/mcp/mcp-fixture-sync.test.ts` — MCP tool/resource/prompt registrations match the inventory file.
-- `__tests__/migrations/no-app-guc-rls-policy.test.ts` — RLS policies must not depend on `app.*` GUC set by service-role helpers.
-- `__tests__/api/pipeline-parity.test.ts` — Python and TS pipeline writes match shape.
-- `__tests__/lib/validation/validation-sweep.test.ts` — every API route reading `searchParams` or body must use `parseBody` / `parseSearchParams` from `@/lib/validation`, never inline `.safeParse()`.
+- `__tests__/validation/validation-sweep.test.ts` — every API route reading `searchParams` or body must use `parseBody` / `parseSearchParams` from `@/lib/validation`, never inline `.safeParse()`.
+
+(Former guards `no-app-guc-rls-policy.test.ts` and `pipeline-parity.test.ts` were deliberately retired — the first with the migration squash, the second with the obsolete `kb_pipeline` removal.)
 
 When adding a new tool / fixture / lifecycle helper, update the guard test in the same commit.
 

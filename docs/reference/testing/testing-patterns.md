@@ -1,7 +1,8 @@
 # Testing Patterns Reference
 
-Quick reference for common testing patterns across the stack. Use alongside the
-`test-driven-development` skill.
+Quick reference for common testing patterns across the stack. Use alongside
+`test-philosophy.md` (the canonical test-discipline reference). Runner is Vitest
+(`bun run test`) — examples use the `vi.*` API.
 
 ## Table of Contents
 
@@ -87,7 +88,7 @@ await expect(asyncFn()).rejects.toThrow(Error);
 ### Mock Functions
 
 ```typescript
-const mockFn = jest.fn();
+const mockFn = vi.fn();
 mockFn.mockReturnValue(42);
 mockFn.mockResolvedValue({ data: 'test' });
 mockFn.mockImplementation((x) => x * 2);
@@ -101,14 +102,14 @@ expect(mockFn).toHaveBeenCalledTimes(3);
 
 ```typescript
 // Mock an entire module
-jest.mock('./database', () => ({
-  query: jest.fn().mockResolvedValue([{ id: 1, title: 'Test' }]),
+vi.mock('./database', () => ({
+  query: vi.fn().mockResolvedValue([{ id: 1, title: 'Test' }]),
 }));
 
 // Mock specific exports
-jest.mock('./utils', () => ({
-  ...jest.requireActual('./utils'),
-  generateId: jest.fn().mockReturnValue('test-id'),
+vi.mock('./utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./utils')>()),
+  generateId: vi.fn().mockReturnValue('test-id'),
 }));
 ```
 
@@ -130,7 +131,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 describe('TaskForm', () => {
   it('submits the form with entered data', async () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     render(<TaskForm onSubmit={onSubmit} />);
 
     // Find elements by accessible role/label (not test IDs)
@@ -146,7 +147,7 @@ describe('TaskForm', () => {
   });
 
   it('shows validation error for empty title', async () => {
-    render(<TaskForm onSubmit={jest.fn()} />);
+    render(<TaskForm onSubmit={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: /create/i }));
 

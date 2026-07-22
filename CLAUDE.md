@@ -101,7 +101,7 @@ Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-Ap
 checkout in CI — `.github/actions/resolve-private-docs/`). Under
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: **`reference/platform-context.md`** (load at
 session start — current four-DB topology, deploy hosts + key context anchors, with
-progressive-disclosure pointers into the runbooks), `reference/skill-routing-map.md`, `runbooks/` (ci, local-development, staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
+progressive-disclosure pointers into the runbooks), `runbooks/` (ci, local-development, staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),
 `continuation-prompts/`, `specs/`, `initiatives/`.
 
 - **Test standards (co-located in-repo):** `docs/reference/testing/` —
