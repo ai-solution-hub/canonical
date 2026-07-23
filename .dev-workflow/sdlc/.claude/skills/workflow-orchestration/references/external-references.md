@@ -46,7 +46,6 @@ modules, side skills the Orchestrator invokes, Curator-side skills, and project 
 ## Project rules
 
 - `CLAUDE.md`.
-- `docs/reference/testing/test-philosophy.md` — six audit
-  criteria the Checker applies.
+- `docs/reference/testing/test-philosophy.md` — six audit criteria the Checker applies.
 - `${KH_PRIVATE_DOCS_DIR}/src/content/docs/design/warm-meridian-implementation-spec.md` —
   design tokens the Checker enforces.

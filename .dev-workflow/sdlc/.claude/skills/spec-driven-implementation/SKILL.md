@@ -203,8 +203,7 @@ Prefer tests and artifacts that validate the product behavior directly:
 - screenshots, recordings, or staging walkthroughs
   (https://knowledge-hub-git-staging-tw-group.vercel.app) when useful for UI-heavy work
 
-See `docs/reference/testing/test-philosophy.md` before writing
-or remediating tests.
+See `docs/reference/testing/test-philosophy.md` before writing or remediating tests.
 
 ## Best Practices
 

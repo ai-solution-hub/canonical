@@ -120,8 +120,8 @@ Prefer:
 - `bun lint`, `bun run format:check`, and `bun run knip` before merge for deterministic
   quality gates
 
-See `docs/reference/testing/test-philosophy.md` for the testing
-audit criteria and antipatterns to avoid.
+See `docs/reference/testing/test-philosophy.md` for the testing audit criteria and
+antipatterns to avoid.
 
 ## Best Practices
 

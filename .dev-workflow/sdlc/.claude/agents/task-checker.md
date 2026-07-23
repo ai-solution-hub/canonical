@@ -114,17 +114,16 @@ Your dispatch brief specifies which variant to run:
 - **`standard`** — per-subtask gating. Runs after every task-executor commit for a subtask
   group. Audits spec compliance + Canonical conventions against the subtask's
   `testStrategy` and spec slice. Can set the subtask group's subtasks to `done` on PASS.
-- **`quality-review`** — end-of-task gating. Runs after the `/simplify` Executor
-  pass, before task close. Broader pass over the full task's commit set. Invokes
+- **`quality-review`** — end-of-task gating. Runs after the `/simplify` Executor pass,
+  before task close. Broader pass over the full task's commit set. Invokes
   `security-and-hardening` / `performance-optimization` / `type-design-analyzer` based on
   findings and task kind.
 - **`test-quality`** — deep test-discipline gating for Subtasks whose primary deliverable
   is tests, OR whose behaviour change shipped with new tests. A focused, single-axis-led
-  pass that audits the test suite against the
-  `docs/reference/testing/test-philosophy.md` (six audit
-  criteria, three antipatterns, mock discipline) — behaviour-not-implementation,
-  `bun run test`, shared `createMockSupabaseClient()`. Can set the subtask group's
-  subtasks to `done` on PASS.
+  pass that audits the test suite against the `docs/reference/testing/test-philosophy.md`
+  (six audit criteria, three antipatterns, mock discipline) —
+  behaviour-not-implementation, `bun run test`, shared `createMockSupabaseClient()`. Can
+  set the subtask group's subtasks to `done` on PASS.
 
 All three variants produce JSON-shaped output per `kh-sdlc-workflow.md` §6.1.
 
@@ -387,8 +386,8 @@ to locate the re-runnable deterministic slice.
 
 ## Quality-review variant
 
-**When dispatched:** after the `/simplify` Executor pass, before task close. One
-per task (ID-N).
+**When dispatched:** after the `/simplify` Executor pass, before task close. One per task
+(ID-N).
 
 **Purpose:** broader quality pass over the full task's commit set. Goes beyond Canonical
 conventions to security, performance, and type-design concerns.
@@ -469,9 +468,8 @@ against the Canonical-canonical test philosophy, because the test suite IS the d
 (or the behaviour change's only proof). Reading order per Operating principles above (spec
 slice first; the test diff last).
 
-> **Canonical authority —
-> `docs/reference/testing/test-philosophy.md`.** This document
-> is the source of truth for every test-discipline decision in Canonical. Read it in full
+> **Canonical authority — `docs/reference/testing/test-philosophy.md`.** This document is
+> the source of truth for every test-discipline decision in Canonical. Read it in full
 > before auditing. It defines **six audit criteria** (§1), **three observed antipatterns**
 > (§2), and **mock discipline** (§5). The Addy Osmani `test-engineer` persona framing
 > (test value over implementation-coupling, behaviour-over-mock, the "Prove-It" failing

@@ -65,8 +65,8 @@ SESSION
   [references/lifecycle-detail.md](references/lifecycle-detail.md) §Spec-authoring phase.
 - **Implementation ({N.2-5+})** — one Executor per subtask. Parallel when groups touch
   disjoint file sets; sequential when they share files / schema / produced inputs.
-- **Closing** — Executor `/simplify` pass, then Checker `quality-review` pass,
-  then Orchestrator gates Task → `done` only after Curator triage complete and
+- **Closing** — Executor `/simplify` pass, then Checker `quality-review` pass, then
+  Orchestrator gates Task → `done` only after Curator triage complete and
   initiative/backlog implications recorded.
 
 Inspect recently-active task records via the ledger CLI — **never Read the ledger JSON
