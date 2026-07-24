@@ -16,11 +16,6 @@
 # Environment
 .env.local
 
-# Session-driver-cmux
-.claude/cmux-events/
-.claude/cmux-briefs/
-.claude/scheduled_tasks.lock
-
 # Agent browser state
 .agent-browser/
 
@@ -51,9 +46,12 @@ tsconfig.tsbuildinfo
 mempalace.yaml
 entities.json
 
-# NB: .cache is symlinked via settings.json worktree.symlinkDirectories (no
-# tracked files inside), so it is intentionally NOT copied here — a copy would
-# write through the symlink into the parent cache.
+# ID-95 PI-15: client-provenance entity_aliases snapshot is point-of-use generated (deploy), never committed
+scripts/tests/fixtures/entity_aliases_snapshot.json
+
+# ID-95 PI-18 {95.13}
+# DSNs
+scripts/.propagation-catalog.json
 
 # Local session ephemera (Lavish review artifacts, user scratch dir)
 .lavish/

@@ -59,6 +59,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Worktree isolation:** `isolation: "worktree"` for parallel Agent dispatch; cherry-pick (not merge) parallel branches; agents start stale — first action`git fetch origin {branch} && git reset --hard origin/{branch}`.
 - **ALWAYS check worktree **`git status`** before removing it.**
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
+- **Intent (ACP) sessions:** permission prompts never surface in Intent — a user-level PreToolUse hook (`~/.claude/hooks/intent-acp-autoallow.sh`) auto-allows tool calls when cwd is under `~/intent/workspaces/`. Claude Code's force-ask files (`.claude/settings*.json`, `.claude/hooks/`, `.claude/skills/`, `.claude/agents/`) can NOT be auto-allowed by hooks — a Write/Edit to them inside Intent stalls until Intent's ~30-min watchdog kills the turn. Do those edits from a terminal session instead.
 
 ## Ledgers
 

@@ -26,19 +26,13 @@ venv/
 !.claude/plugins/
 !.claude/settings.json
 
-# Session-driver-cmux runtime state (per-worker event streams + worktrees).
-# Both are blanket-ignored by .claude/* above; listing explicitly to document
-# intent and so newcomers don't try to track them.
-.claude/cmux-events/
-.claude/cmux-briefs/
-.claude/scheduled_tasks.lock
+# Claude Worktrees
 .claude/worktrees/
 
 # Worktree symlinkDirectories artefacts
 /node_modules
 /.venv
 /.bin
-/.cache
 
 # IDE
 .idea/
@@ -127,8 +121,6 @@ entities.json
 # CocoIndex Code (ccc)
 /.cocoindex_code/
 
-# Ledger-mirror regen cache (scripts/regen-mirrors.sh — task-view clones)
-.cache/
 lib/branding/client-branding-map.generated.ts
 .type-drift-report.md
 
@@ -166,5 +158,7 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# MemTrace Code Intelligence
 .memdb/
 .memtrace/
