@@ -62,12 +62,12 @@
     ],
     "PostToolUse": [
       {
-      "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command":"npx prettier --write $CLAUDE_FILE_PATHS 2>/dev/null || true"
-            }
+            "command": "npx prettier --write $CLAUDE_FILE_PATHS 2>/dev/null || true"
+          }
         ]
       }
     ],
