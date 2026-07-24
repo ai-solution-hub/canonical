@@ -10,8 +10,8 @@ description:
   Decision uses the binary in-scope-ness rule: file-path within Subtask
   file_ownership OR axis is spec-compliance against the Subtask slice =
   IN-SCOPE; else OUT-OF-SCOPE. No grey area. Returns a structured decision
-  the workflow-curator agent can act on. Triggered by the workflow-curator
-  agent when the orchestrator routes a finding for triage.
+  the invoking Coordinator (or curator role) can act on. Triggered when the
+  Coordinator/orchestrator routes a finding for triage.
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -22,33 +22,31 @@ current Task as a Subtask (ID-N.M), promote to roadmap, promote to backlog, reco
 settled decision-register ruling (a DR-intent the Orchestrator writes on `main`), or close
 as no-action. Returns a structured decision; does **not** perform any writes.
 
-This skill is the decision half of the curator's job. The write half is `update-ledgers`.
+This skill is the decision half of the triage job. The write half is the ordna task
+ledger — direct file edits per `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §5 (the
+`update-ledgers` skill is retired; ID-165 ordna cutover).
 
 Tasks are addressed by `ID-N` (e.g. `ID-15`); Subtasks by `ID-N.M` (e.g. `ID-15.3`).
 
-**Ledger CLI — read-only affordance:** This skill is decision-only and does not write. For
-targeted reads of a single ledger record (e.g. inspecting a candidate-duplicate's
-`linked_backlog[]`, `track`, or `priority`), prefer
-`bun scripts/ledger-cli.ts get <ledger> <id> [field]` or
-`bun scripts/ledger-cli.ts show <ledger> <id>` (the `Bash` allowed-tool is the channel)
-over loading the full backlog or full roadmap via `Read` + `Grep`. The CLI command surface
-is documented in `lib/ledger/README.md`;
-`bun scripts/ledger-cli.ts schema [ledger|recordKind]` prints each field's name + type +
-budget so decisions can be authored against the explicit schema.
+**Ledger reads:** This skill is decision-only and does not write. The task ledger is
+**ordna** — one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` (YAML
+frontmatter + body; Git is the source of truth). Read via `cat` on the task file, or the
+ordna CLI from the docs-site root: `cd "$KH_PRIVATE_DOCS_DIR" && ordna list` /
+`ordna show <id>` (non-interactive verbs only — bare `ordna` opens the TUI and hangs).
+File format, status model, and frontmatter conventions:
+`${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.
 
-**Field budgets:** Decision payloads carrying free-text fields (`subtask_spec.scope`,
-`backlog_slot.description`, `roadmap_proposed_theme.description`) are subject to
-write-time budgets enforced downstream when `scripts/ledger-cli.ts` is invoked;
-over-budget fields hard-reject. The canonical budgets live in
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §2/§3
-(Task.description ≤1500, Subtask.description ≤250, Subtask.testStrategy ≤300,
-Subtask.details unbudgeted append-only) — compose decision output within budget.
+**Field discipline:** the old CLI write-time budgets are retired with the old CLI. Keep
+free-text decision fields (`subtask_spec.scope`, `backlog_slot.description`,
+`roadmap_proposed_theme.description`) concise anyway — they land verbatim in task-file
+body sections a human scans.
 
 ---
 
 ## Inputs
 
-The curator agent invokes this skill with a finding packet:
+The invoker (Coordinator, or a session acting in the curator role) supplies a finding
+packet:
 
 | Field                                          | Description                                                                                                                                                                                                                                                                       |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -64,23 +62,23 @@ The curator agent invokes this skill with a finding packet:
 | `task_context.parent_task_acceptance_criteria` | Parent Task ID-N's `## Acceptance criteria` excerpt (PRODUCT.md). Required input for Branch A predicate 3; the Orchestrator dispatcher MUST populate this — especially at wave close when the source Subtask has promoted to `done` and the Subtask-level fields above are stale. |
 | `task_context.sibling_subtask_file_ownership`  | Map of `{ subtask_id: file_ownership_allowed_globs }` for pending/in-progress sibling Subtasks under the same parent Task ID-N. Required input for Branch A predicate 3 (file-path arm).                                                                                          |
 
-You also read the initiatives + backlog ledgers (at
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`) to check for existing coverage —
-**slice reads only** (`show initiatives [id]` / `list projects [--initiative <id>]` /
-`show backlog <itemId>`), never wholesale `Read`. (`show roadmap <themeId>` is **RETIRED**
-— clean `retired-verb` envelope, no read performed.)
+You also check for existing coverage in two places: **initiatives** are plain docs under
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/` (no longer ledger records
+— read them directly); **backlog items** are ordna tasks with `status: backlog` in the
+single id-space (`cd "$KH_PRIVATE_DOCS_DIR" && ordna list -s backlog`, or grep over
+`tasks/*.md`).
 
 ---
 
 ## Step 1: Check for existing coverage
 
-Before deciding anything new, check whether the roadmap or backlog already covers the
-finding's subject area: record-anchored lookups via the ledger CLI (see preamble);
-thematic sweeps via `grep` on the ledger JSONs for the term that names the finding's
-domain (`auth`, `design tokens`, `barrel exports`, etc.) — cheaper than a wholesale
-`Read`.
+Before deciding anything new, check whether an initiative doc or the backlog already
+covers the finding's subject area: task-anchored lookups via `ordna show <id>` / `cat`
+(see preamble); thematic sweeps via `grep` over `${KH_PRIVATE_DOCS_DIR}/tasks/*.md` and
+the initiative docs for the term that names the finding's domain (`auth`, `design
+tokens`, `barrel exports`, etc.).
 
-If an existing roadmap or backlog item already covers this finding:
+If an existing initiative or backlog item already covers this finding:
 
 - **Decision:** `no-action`
 - **Justification:** "Already covered by {item-id} in {file}: {description}"
@@ -126,7 +124,8 @@ These thresholds are signals, not hard gates. The full Branch B / Branch C crite
 Step 2 govern the final decision. The caller-count check informs the "multi-month or
 cross-cutting" vs "weeks or smaller" judgement — do not short-circuit Step 2.
 
-**Record the count.** Write the result into the ledger entry's `notes` field as:
+**Record the count.** Write the result into the resulting task file's `## Notes` section
+as:
 
 > gitnexus caller count at triage: N callers across M modules
 
@@ -148,8 +147,7 @@ Subtask of the active Task (or of a dedicated baseline-health Task) and MUST be 
 until the baseline is green again. The backlog is only for tactical future improvements
 that do NOT block the current green baseline.
 
-**Committed-work rule — concrete defects go to the Task List, not the backlog (per
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/task-list-discipline.md` §0):** A
+**Committed-work rule — concrete defects go to the Task List, not the backlog:** A
 finding that is _committed_ work — a discovered defect/regression we will fix, or a scoped
 fix on a committed path (e.g. the critical path) — routes to the **Task List** (a new
 Task, or a Subtask if in-scope per Branch A), NOT the backlog. Branch C (backlog) is for
@@ -158,7 +156,7 @@ before they would be worked. The commitment test: _have we committed to doing th
 Task List; not yet → Backlog.
 
 **Recurrence rule — is this a recurrence of a prior flagged finding? → Task List, not
-backlog (per `task-list-discipline.md` §0; A3 resolve-at-source loop):** Before walking
+backlog (A3 resolve-at-source loop):** Before walking
 Branch A, ask: _is this finding a recurrence of one the `evaluate-workflow`
 recurring-finding surface has already flagged_ — the same canonical key seen across ≥3
 distinct sessions (e.g. the `recurring-issue-thrash` flag)? A recurrence-class finding is
@@ -172,15 +170,16 @@ an identical recurrence of a won't-fix finding is `no-action` (Branch D), not a 
 Task.
 
 **Active-task-first rule (DR-021) — an active ID-N owns its in-scope findings:** Before
-routing anything to Branch C, check whether ANY active (`in_progress`) Task ID-N — not
-only the current Task — owns the finding's scope
-(`bun scripts/ledger-cli.ts list task --status in_progress`, then slice-read candidate
-owners). If an active task owns it, **Decision: `subtask`** with `parent_task_id` set to
-the OWNING task, materialised as an add-subtask — or, when an existing Subtask of that
-task already owns the surface, as a `details` journal-append intent on that Subtask (set
-`disposition: journal-append` + `journal_target`). This holds even when the work is
-next-session. The backlog receives a finding ONLY when no active task owns it; a settled
-cross-cutting ruling routes to Branch E (decision-register), not either ledger.
+routing anything to Branch C, check whether ANY active (`doing`) Task ID-N — not only the
+current Task — owns the finding's scope
+(`cd "$KH_PRIVATE_DOCS_DIR" && ordna list -s doing`, then `cat` candidate owners' task
+files). If an active task owns it, **Decision: `subtask`** with `parent_task_id` set to
+the OWNING task, materialised as a new `### {N.M}` entry under the owning task file's
+`## Subtasks` — or, when an existing Subtask of that task already owns the surface, as a
+dated `## Progress` append on that task (set `disposition: journal-append` +
+`journal_target`). This holds even when the work is next-session. The backlog receives a
+finding ONLY when no active task owns it; a settled cross-cutting ruling routes to
+Branch E (decision-register), not either ledger.
 
 **Liam-driven promote (no finding source) — short-circuit at the top of the tree:**
 
@@ -195,10 +194,11 @@ only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
   item's existing `notes`.
 - **Decision is short-circuit:** `decision: subtask` (Promote target = task-list) when
   Liam direction names a parent Task; `decision: roadmap`/`backlog` are NOT reachable from
-  a Liam-driven promote (the item is already on the backlog). The actual Promote write is
-  performed by `update-roadmap-backlog` Promote mode, which fires
-  `bun scripts/ledger-cli.ts promote <backlogId> <taskJson>` — the atomic backlog-delete +
-  task-create write. The skill never invokes that CLI directly.
+  a Liam-driven promote (the item is already on the backlog). The actual promotion is a
+  status flip — `cd "$KH_PRIVATE_DOCS_DIR" && ordna move <id> todo` (never a file move) —
+  performed by the invoker per `tasks/AGENTS.md`; when the item folds into a parent Task
+  instead, the invoker edits the parent's task file directly. This skill performs neither
+  write.
 - The decision-tree's binary in-scope-ness check (Branch A) and Branches B/C/D do NOT run
   in this mode — the promotion is the entire decision.
 - Output: `decision: subtask` with `subtask_spec` populated from the backlog item's
@@ -269,30 +269,25 @@ journal_target: null | "ID-N.M"  # required when disposition is journal-append
 The orchestrator allocates the new Subtask ID-N.M and decides whether to fold it into the
 current wave or schedule it for a fix wave.
 
-> **Write substrate (downstream — informational):** The Orchestrator or
-> `update-roadmap-backlog` materialises this spec via
-> `bun scripts/ledger-cli.ts add-subtask <parent_task_id> --title <…> --description <…> --test-strategy <…> [--depends N,M]`
-> (see `lib/ledger/README.md`). Omit `--id` — auto-id allocates the next available integer
-> per Task. Keep `scope` + `acceptance_criteria` within the field budgets (see preamble)
-> so the write does not hard-reject.
+> **Write substrate (downstream — informational):** The Orchestrator materialises this
+> spec by editing the owning task file directly — a new `### {N.M} <title> — pending`
+> entry under `tasks/id-N.md`'s `## Subtasks` section (there are no child task files, and
+> no body-edit CLI verb; DR-089 keeps decomposition in the Intent workspace spec-note,
+> which `## Subtasks` mirrors). Format: `tasks/AGENTS.md` §2.
 
 ### Branch B — Is it strategic / cross-cutting? ("roadmap promotion")
 
 Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
-> **Write path RETIRED (ID-148.8/DR-073/074):** this branch's classification logic (below)
-> still applies for deciding whether a finding is strategic vs tactical, but the
-> roadmap-theme write mechanism it used to hand off to is gone — `create-theme` returns a
-> clean `retired-verb` envelope, `RoadmapThemeSchema`/`lib/validation/roadmap-schema.ts`
-> is deleted, and the roadmap ledger's data was repurposed server-side to the
-> SERVER-managed `initiatives.json` (writes via ServerIntent through the task-view
-> patch-server). The initiatives `create-project` verb requires an **existing**
-> initiative/sub-initiative path —
-> `create-initiative [<parentPath>] <initiativeJson | --title …>` (ID-156.8/ DR-077) now
-> creates one when none exists, but **no designed procedure decides WHEN a genuinely-new
-> strategic finding should mint a fresh initiative vs attach to an existing one**. Return
-> `decision: roadmap` with the proposed shape below and flag it as an open procedural gap
-> (ID-148.11 ambiguous case) rather than assuming which to do.
+> **Write path (ID-165 ordna cutover):** this branch's classification logic (below)
+> decides whether a finding is strategic vs tactical; the write surface it hands off to
+> is now plain docs — initiatives live under
+> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/` as ordinary documents,
+> not ledger records, and there is no CLI write path. **No designed procedure decides
+> WHEN a genuinely-new strategic finding should mint a fresh initiative doc vs attach to
+> an existing one** — that remains an owner call. Return `decision: roadmap` with the
+> proposed shape below and flag the mint-vs-attach question for the owner rather than
+> assuming which to do.
 
 Roadmap-strategic findings were previously chained through a flat list of **themes** —
 multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining
@@ -301,11 +296,11 @@ out to active work items. Branch B is reserved exclusively for findings that sur
 
 A finding routes to Branch B when **both** of these hold:
 
-1. **Not covered by an existing initiative/project.** Inspect via
-   `bun scripts/ledger-cli.ts show initiatives [id]` / `list projects [--initiative <id>]`
-   (slice reads). The finding's subject is NOT covered by any existing
-   initiative/project's linked work. If the finding extends existing linked work, it is
-   Branch C (active work item) not Branch B.
+1. **Not covered by an existing initiative.** Inspect the initiative docs under
+   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/` (and any tasks carrying
+   the matching `initiative:` frontmatter key). The finding's subject is NOT covered by
+   any existing initiative's linked work. If the finding extends existing linked work, it
+   is Branch C (active work item) not Branch B.
 2. **Multi-month or cross-cutting capability.** The capability is genuinely multi-month in
    scope OR cross-cuts multiple feature areas at the headline level (e.g. "support
    multi-tenant deployments", "ship sales-proposal as a sibling application").
@@ -314,9 +309,8 @@ A finding routes to Branch B when **both** of these hold:
 
 **If both hold → Decision: `roadmap`.**
 
-Propose the shape (historical field names kept for orientation — the write mechanism that
-consumed this shape, `update-roadmap-backlog` Create-mode's `RoadmapThemeSchema`
-population, is retired; no replacement shape is designed yet):
+Propose the shape (historical field names kept for orientation — no schema consumes this
+any more; it briefs the owner's initiative-doc edit):
 
 ```yaml
 roadmap_proposed_theme:
@@ -329,7 +323,7 @@ roadmap_proposed_theme:
 
 > If only condition 1 OR only condition 2 holds — e.g. uncovered but single-feature/weeks
 > — route to Branch C as a `backlog` candidate. Branch B is for **new strategic**
-> introductions; existing initiatives/projects accept new linked work via Branch C.
+> introductions; existing initiatives accept new linked work via Branch C.
 
 ### Branch C — Is it an active work item? ("active work item promotion")
 
@@ -349,18 +343,17 @@ A finding is a **backlog** candidate when **all** of these hold:
    the active-task-first rule above; an owning active task takes the finding as
    add-subtask or journal-append, even for next-session work).
 
-This is the most common destination for non-blocking out-of-scope findings. Branch C
-output includes `rank` — the within-priority-tier deterministic ordering integer. The
-curator may set `rank` explicitly when the finding's evidence carries an obvious ordering
-signal; otherwise it defaults to `null` and the curator (or `update-roadmap-backlog`
-Update mode) sets it later.
+This is the most common destination for non-blocking out-of-scope findings. (The old
+backlog schema's `rank` ordering integer is retired with it — ordna has no rank field;
+ordering within a priority tier is board/eyeball territory.)
 
 **If yes → Decision: `backlog`.**
 
 Identify the slot:
 
-- Inspect existing backlog items via `bun scripts/ledger-cli.ts show backlog <itemId>`
-  (slice read) to learn the `track` values in use.
+- Inspect existing backlog items (`cd "$KH_PRIVATE_DOCS_DIR" && ordna list -s backlog`,
+  then `cat` candidates) to learn the `track` values in use — `track`/`type` survive as
+  extra-frontmatter provenance keys per `tasks/AGENTS.md` §3.
 - Identify the right track (`onboarding`, `authentication`, `search`, etc.) or propose a
   new one.
 - Identify the right `type` (`feature` / `research` / etc. — see existing items for
@@ -373,13 +366,12 @@ backlog_slot:
   track: "{track-name}"
   type: "feature" | "research" | "infra" | "tech_debt"
   priority: "high" | "medium" | "low"  # default medium unless evidence supports otherwise
-  status: "spec_needed" | "needs_research" | "parked" | "ready"
-  rank: null | {integer}  # default null; set explicitly if ordering signal present
+  status_tag: "spec-needed" | "needs-research" | "parked" | "ready" | "blocked"
 ```
 
-> `rank` default is `null`. The schema does NOT enforce uniqueness or contiguity within a
-> priority tier; the `update-roadmap-backlog` Create / Update flows enforce discipline via
-> the auto-shift collision policy.
+> The former backlog `status` enum survives as **tags** on the ordna backlog item
+> (`tasks/AGENTS.md` — status model); `status_tag` maps 1:1 onto them. The item itself is
+> created with ordna's default `status: backlog`.
 
 ### Branch E — Is it a settled, re-litigable ruling? (decision-register)
 
@@ -403,8 +395,7 @@ is `decision-register` (E), recorded so it stays settled.
 **If both hold → Decision: `decision-register`.** Return a **DR-intent** — the proposed
 ruling in one to three sentences, no implementation detail. You do **not** write the
 register: `DR-NNN` entries are written on `main` by the Orchestrator / handoff (the
-register is not one of the three workflow ledgers, so `update-roadmap-backlog` does not
-touch it).
+register is not part of the task ledger, so the ordna write path does not touch it).
 
 ```yaml
 decision_register_intent:
@@ -429,14 +420,13 @@ Possible reasons:
 
 ## Step 3: Output the decision
 
-> **Write-time gates (downstream — informational):** The decision payload's downstream
-> consumer (`update-roadmap-backlog` → `scripts/ledger-cli.ts`) enforces field budgets and
-> the record-set delta; over-budget fields hard-reject unless `--force` is explicitly
-> passed. Compose `subtask_spec.scope`, `backlog_slot.description`, and
-> `roadmap_proposed_theme.description` within budget (see preamble) so the write succeeds
-> first-try.
+> **Downstream write (informational):** The decision payload's downstream consumer is a
+> human or Coordinator performing direct file edits per `tasks/AGENTS.md` §5 — `ordna
+> create` for backlog items, task-file edits for subtasks, initiative-doc edits for
+> roadmap. No CLI gates remain; compose fields concisely (see preamble) because they land
+> verbatim.
 
-Return to the curator agent:
+Return to the invoker:
 
 ```yaml
 decision: subtask | roadmap | backlog | no-action | decision-register
@@ -471,8 +461,7 @@ backlog_slot:
   track: "..."
   type: "..."
   priority: "..."
-  status: "..."
-  rank: null | {integer}
+  status_tag: "..."
 
 # Branch E populated (decision-register — settled re-litigable ruling)
 decision_register_intent:
@@ -494,28 +483,18 @@ omitted.
 
 ## Provenance handoff
 
-You do not write provenance yourself, but the curator passes your decision to
-`update-roadmap-backlog` along with the source context:
+You do not write provenance yourself, but the invoker carries your decision to the write
+along with the source context:
 
 - Source Task / Subtask ID (`ID-N` if surfaced at Task level; `ID-N.M` if surfaced
   mid-Subtask).
 - Source commit SHA (if from a checker).
 - Session counter (e.g. `kh-prod-readiness-s47`).
 
-The `update-roadmap-backlog` skill attaches this to the resulting ledger entry via the
-schema-appropriate fields. Under `BacklogItemSchema` (`lib/validation/backlog-schema.ts`),
-the backlog surface uses `session_refs` + `commit_refs`.
-(`RoadmapThemeSchema`/`lib/validation/roadmap-schema.ts` is **deleted** — the roadmap
-write path is retired; the initiatives-ledger vendored twin
-`lib/validation/initiatives-schema.ts` uses `originating_session`, not `session_refs`, and
-is out of this skill's write scope.)
-
-> **CLI input shape:** When provenance fields are involved, the curator-side input going
-> INTO `update-roadmap-backlog` should be a JSON object (positional-JSON or
-> `--file <path>`), not flag-by-flag — the CLI's named-flag mode covers only a subset of
-> fields (per `bun scripts/ledger-cli.ts --help`:
-> `--title --description --status --depends 1,2 --priority --id`), and `--session-refs` /
-> `--commit-refs` are NOT named flags.
+Provenance lands as extra-frontmatter keys on the resulting ordna task file —
+`session_refs`, `commit_refs`, `cross_doc_links`, `status_note` (glossary:
+`tasks/AGENTS.md` §3) — added by file edit after `ordna create`, plus a `## Goal` section
+stating the finding's origin (`tasks/AGENTS.md` §5, finding hand-off).
 
 ---
 
@@ -536,11 +515,10 @@ is out of this skill's write scope.)
    duplicates fragment the ledger.
 5. **Routing a tactical item to Branch B — it belongs on Backlog.** Branch B = **new
    strategic capability** only. A single-feature finding routes to Branch C even if it
-   touches an existing initiative/project's linked-work area. Adding work to an existing
-   initiative/project is NOT a Branch B event — it is Branch C creating a backlog entry
-   that the curator later links in (via `link-backlog`, once a write path exists — see the
-   Branch B write-path note above). Only genuinely-new strategic introductions justify
-   Branch B.
+   touches an existing initiative's linked-work area. Adding work to an existing
+   initiative is NOT a Branch B event — it is Branch C creating a backlog item that later
+   gets the `initiative:` frontmatter key linking it in. Only genuinely-new strategic
+   introductions justify Branch B.
 6. **Treating wave-close findings as fully OOS when the current Subtask is closed.** When
    the orchestrator routes a wave-close batch where the source Subtask has already
    promoted to `done`, the curator MUST re-anchor Branch A on (a) sibling
@@ -562,8 +540,11 @@ capability → roadmap) — live in [references/examples.md](references/examples
 
 ---
 
-## What hands off to `update-ledgers`
+## What hands off to the ledger write
 
-For `roadmap` and `backlog` decisions, the curator agent immediately invokes
-`update-ledgers` with the decision payload as input. That skill performs the actual JSON
-edit and any pipeline regeneration.
+For `backlog` decisions, the invoker performs the write per `tasks/AGENTS.md` §5 (finding
+hand-off): `cd "$KH_PRIVATE_DOCS_DIR" && ordna create "<title>" -t <tags>`, then adds
+provenance frontmatter + `## Goal` by direct file edit. For `roadmap` decisions, the
+proposed-theme brief goes to the owner for an initiative-doc edit (mint-vs-attach is the
+owner's call — see Branch B). The retired `update-ledgers` skill is archived at
+`.dev-workflow/sdlc/.claude/skills/update-ledgers/` for historical reference.

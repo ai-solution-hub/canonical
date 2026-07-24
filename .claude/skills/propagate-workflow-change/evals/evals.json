@@ -3,14 +3,14 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "We just landed a ledger-cli read-path change this session: `append-journal <id> <text>` is renamed to `journal add <id> <text>`, and `show task <id>` no longer includes the `<info added on …>` journal blocks by default — you now pass `--journal` to get them. Propagate this across the dev-lifecycle skills and agents so next session's agents aren't reading the old commands.",
-      "expected_output": "A confirmed change summary, a grep-driven sweep of the canonical .claude/skills + .claude/agents and docs-site .claude/skills surface, minimal voice-preserving edits swapping the stale tokens, a per-file report (patched / flagged / discarded), and a post-edit re-grep showing zero unjustified survivors of the old tokens.",
+      "prompt": "We just landed an ordna change this session: `ordna create` now defaults new items to `todo` instead of `backlog`, and the `status_note` extra-frontmatter key is renamed to `blocked_note`. Propagate this across the dev-lifecycle skills and agents so next session's agents aren't reading the old conventions.",
+      "expected_output": "A confirmed change summary, a grep-driven sweep of the canonical .claude/skills and docs-site .claude/skills + tasks/AGENTS.md surface, minimal voice-preserving edits swapping the stale tokens, a per-file report (patched / flagged / discarded), and a post-edit re-grep showing zero unjustified survivors of the old tokens.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "The server-ledger cutover (id-90) is going in — `bun scripts/ledger-cli.ts` is being replaced by the task-view patch-server. Which skills and agents reference ledger-cli today, and what would a propagation of this cutover have to touch? Don't edit anything yet, just map it.",
-      "expected_output": "A discovery-only pass: reads references/surface-map.md, re-greps the workflow surface for ledger-cli references, and returns the per-file list of dependents (both repos) with the command verbs each uses, distinguishing true ledger references from homographs, and noting this is a map-only request (no patches).",
+      "prompt": "We're considering swapping ordna's storage mode from `file` to `hybrid` (id-collision hardening). Which skills and docs reference the file-storage assumption or direct task-file writes today, and what would a propagation of this change have to touch? Don't edit anything yet, just map it.",
+      "expected_output": "A discovery-only pass: reads references/surface-map.md, re-greps the workflow surface for direct-file-write and storage-mode references, and returns the per-file list of dependents (both repos) with what each assumes, distinguishing true task-ledger references from homographs, and noting this is a map-only request (no patches).",
       "files": []
     }
   ]

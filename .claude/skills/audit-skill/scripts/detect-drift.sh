@@ -82,7 +82,7 @@ if [ -n "$refs" ]; then
   [ -d "$claude_root" ] || claude_root="."
   while IFS= read -r r; do
     [ -z "$r" ] && continue
-    # skill-relative OR repo-root (prose often cites repo-root `scripts/ledger-cli.ts`)
+    # skill-relative OR repo-root (prose often cites repo-root paths like `scripts/…`)
     [ -e "$dir/$r" ] && continue
     [ -e "$r" ] && continue
     # cross-dir: a file with this basename may live under another skill/agent dir — a path

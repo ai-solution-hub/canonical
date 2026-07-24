@@ -45,8 +45,8 @@ done
 # tokens like "main" are stoplisted, leaving only "canonical"), or pure branch-hash hex
 # (worktree branches like cmux-worker-...-88957f6b). Lightweight source only (this is a
 # SessionStart hook — must stay fast): grep the newest continuation-prompt file rather than
-# shell out to ledger-cli (heavy bun startup + stderr `[branding]` noise on every session
-# start). Any failure here (missing env var, missing dir, no files, no matches) degrades
+# shell out to the ordna CLI (process startup cost on every session start; bare `ordna`
+# would open the TUI and hang). Any failure here (missing env var, missing dir, no files, no matches) degrades
 # silently to the pre-existing behaviour below — never blocks session start.
 degenerate=false
 if [ "${#TOKENS[@]}" -eq 0 ]; then

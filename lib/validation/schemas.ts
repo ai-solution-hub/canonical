@@ -43,9 +43,9 @@ for (const word of DOMAIN_UNCOUNTABLES) {
 // ──────────────────────────────────────────
 
 /**
- * Canonical bare-digit id format used by Task.id (task-list-schema.ts) and
- * BacklogItem.id (backlog-schema.ts) post-15.4 migration. "ID-N" is a prose
- * convention only — JSON storage is always bare-digit.
+ * Canonical bare-digit id format (post-15.4 migration; formerly shared with
+ * the ledger schemas' Task.id / BacklogItem.id, retired {165.13}). "ID-N" is
+ * a prose convention only — JSON storage is always bare-digit.
  *
  * Roadmap ids use dotted-decimal positional ids (e.g. "9.2", "12.15.3") and
  * are NOT covered by this regex.

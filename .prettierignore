@@ -63,12 +63,6 @@ docs/reference/classification-prompt.md
 scripts/tests/fixtures/taxonomy_snapshot.json
 lib/mcp/plugin-bundle.ts
 
-# Synthetic ledger fixtures (ID-68.35) — written in the ledger-cli canonical
-# serialiser format (escapeNonAscii(JSON.stringify(v,null,2))); Prettier's
-# single-element-array compaction diverges from it and breaks the --scoped
-# minimal-diff write tests.
-__tests__/fixtures/ledger/
-
 # Byte-exact round-trip fixtures (ID-132 {132.10} S451 rider) — generated
 # VERBATIM from producer/bundle_writer.py's own regenerate_indexes()/
 # render_log_entry() output; Prettier's proseWrap/printWidth re-wraps the

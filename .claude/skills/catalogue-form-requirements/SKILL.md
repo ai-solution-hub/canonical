@@ -52,8 +52,8 @@ An executable TS file at
 `scripts/catalogue-from-instance-<form_template_id>.ts` — a per-form copy that
 drives the generic template `scripts/catalogue-from-instance.ts` with the
 instance id baked in. The generic template can also be run directly; the
-per-form copy exists so the intended run is reviewable in PR / `task-view` and
-auditable in commit history.
+per-form copy exists so the intended run is reviewable in PR and auditable in
+commit history.
 
 The script, when run, performs the **read → classify → embed → confirm → write**
 flow:

@@ -1,6 +1,6 @@
 ---
 name: propagate-workflow-change
-description: Propagate ONE dev-workflow change across every dev-lifecycle skill and agent that describes the old behaviour, so context continuity does not silently break session to session. Use this whenever workflow tooling, a data shape, or a process step changes and the skills/agents that reference it may now be stale — e.g. after adding or renaming a ledger-cli command or flag, editing a task-list.json / product-backlog.json schema field, adding a hook, retiring or renaming a skill, or moving a ledger path. It runs a grep-driven sweep of the workflow surface (canonical `.claude/skills` + `.claude/agents`, docs-site `.claude/skills` + `CLAUDE.md`), patches stale references minimally in each file's own voice, and reports per-file fixes with anything ambiguous flagged for the owner. Distinct from update-skill (author ONE skill) and audit-skill (de-drift ONE file): this is the cross-cutting, many-file propagation of a single change. Reach for it on phrases like "propagate this change", "which skills reference the old X", "the workflow changed, update the skills", or after landing a batch of ledger/tooling changes.
+description: Propagate ONE dev-workflow change across every dev-lifecycle skill and agent that describes the old behaviour, so context continuity does not silently break session to session. Use this whenever workflow tooling, a data shape, or a process step changes and the skills/agents that reference it may now be stale — e.g. after an ordna CLI verb or config change, renaming a task-file frontmatter key or body section in tasks/AGENTS.md, adding a hook, retiring or renaming a skill, or moving the task-ledger path. It runs a grep-driven sweep of the workflow surface (canonical `.claude/skills` + `.claude/agents`, docs-site `.claude/skills` + `CLAUDE.md` + `tasks/AGENTS.md`), patches stale references minimally in each file's own voice, and reports per-file fixes with anything ambiguous flagged for the owner. Distinct from update-skill (author ONE skill) and audit-skill (de-drift ONE file): this is the cross-cutting, many-file propagation of a single change. Reach for it on phrases like "propagate this change", "which skills reference the old X", "the workflow changed, update the skills", or after landing a batch of ledger/tooling changes.
 ---
 
 ## Step 0 — Mark sentinel (REQUIRED before any skill/agent edit)
@@ -17,10 +17,11 @@ Re-touch if the sweep runs long — the sentinel expires after 10 minutes.
 
 # Propagate Workflow Change
 
-When the dev workflow's tooling, data shapes, or process changes — a ledger-cli flag is
-added, a ledger schema field is renamed, a new hook lands, a skill is retired — the
-dev-lifecycle skills and agents that _describe the old behaviour_ go stale. Nothing
-errors; the next session's agents just read outdated instructions and quietly diverge.
+When the dev workflow's tooling, data shapes, or process changes — an ordna verb or
+config default changes, a task-file frontmatter key is renamed, a new hook lands, a skill
+is retired — the dev-lifecycle skills and agents that _describe the old behaviour_ go
+stale. Nothing errors; the next session's agents just read outdated instructions and
+quietly diverge.
 This skill makes fixing that repeatable instead of ad hoc: one change in, a
 swept-and-patched surface out, with a report of exactly what moved.
 
@@ -36,9 +37,8 @@ precise, voice-preserving edits that a reviewer can trust.
 You need a structured statement of what changed before you can find what went stale:
 
 - **what changed** — the command / flag / field / hook / path / skill name
-- **old → new behaviour** — the exact tokens, both sides (e.g.
-  `append-journal <id> <text>` → `journal add <id> <text>`; or `show task <id>` now needs
-  `--journal` to include journals)
+- **old → new behaviour** — the exact tokens, both sides (e.g. `ordna create` default
+  status `backlog` → `todo`; or frontmatter key `status_note` → `blocked_note`)
 - **affected surface hints** — command names, flag strings, file paths, field names to
   grep
 
@@ -58,36 +58,36 @@ note).
 Sweep these roots:
 
 - canonical `.claude/skills/` — the dev-lifecycle skills (start-session, handoff,
-  workflow-orchestration, implement-subtask, implement-specs, session-driver-cmux,
-  update-roadmap-backlog, planning-and-task-breakdown, spec-driven-implementation,
-  triage-finding, and any other hit) — including their `references/` and `scripts/`.
-- canonical `.claude/agents/` — task-planner, task-executor, task-checker,
-  workflow-curator, code-reviewer + the shared `references/` files (shared-discipline,
-  planner-reporting, …).
-- docs-site `.claude/skills/` — evaluate-workflow, evaluate-findings — and docs-site
-  `CLAUDE.md` where it describes workflow tooling.
+  research, recall-grounding, triage-finding, audit-skill, write-product-spec,
+  write-tech-spec, and any other hit) — including their `references/` and `scripts/`.
+- canonical `.claude/agents/` — currently absent (the ID-164 quarantine moved the old
+  agents to `.dev-workflow/sdlc/.claude/`, which is stale-by-design — never sweep it);
+  re-add this root if live agents return.
+- docs-site `.claude/skills/` — evaluate-workflow, evaluate-findings, sync-ledger-context
+  — docs-site `CLAUDE.md` where it describes workflow tooling, and docs-site
+  `tasks/AGENTS.md` (the single home for task-ledger conventions).
 
 Grep for **both exact and paraphrased** mentions, because prose describes tools in words
 as often as it quotes them:
 
 ```bash
 # exact token — the command / flag / field / path that changed
-grep -rniE "append-journal|show task|--journal" <roots>
-# paraphrased — the behaviour described in prose (e.g. "show dumps the full record")
-grep -rniE "full (record|dump)|slice.read|journal (block|append|entry)" <roots>
+grep -rniE "ordna (create|move|show|list)|status: (backlog|todo|doing|done)" <roots>
+# paraphrased — the behaviour described in prose (e.g. "promotion is a status flip")
+grep -rniE "status flip|task file|frontmatter|Progress.*append" <roots>
 ```
 
-Judge every hit — greps over-match. A "mirror" in `chrome-cdp` or a docs "mirror" of
-source code is not a ledger mirror; `json.dumps` is not a ledger `dump`. Keep the
-ledger-workflow hits, discard the homographs, and note the borderline ones for Step 4.
+Judge every hit — greps over-match. A "board" in a UI skill is not the ordna board; a
+"task file" in a CI context is not an ordna task file. Keep the ledger-workflow hits,
+discard the homographs, and note the borderline ones for Step 4.
 
 ## Step 3 — Patch minimally, in each file's own voice
 
 For each true stale reference, make the smallest edit that carries the change:
 
-- **Replace the stale token, keep the sentence.** Swap `append-journal` for the new verb;
-  do not rewrite the paragraph around it. The surrounding voice, examples, and structure
-  are load-bearing and tuned per file.
+- **Replace the stale token, keep the sentence.** Swap the old verb or key for the new
+  one; do not rewrite the paragraph around it. The surrounding voice, examples, and
+  structure are load-bearing and tuned per file.
 - **Never touch frontmatter** (`description:`, `model:`, agent `<example>` blocks) unless
   the change is _about_ triggering — those strings are tuned for dispatch, and an old
   token there may be deliberate.
@@ -108,7 +108,7 @@ Return a per-file table so a reviewer can audit the sweep without re-running it:
 ## Patched
 | file:line | stale reference | fix |
 |-----------|-----------------|-----|
-| .../start-session/SKILL.md:131 | `list task --status done --since` | `… --since` now roll-up default |
+| .../start-session/SKILL.md:131 | `ordna list -s in-progress` | status renamed — `ordna list -s doing` |
 ## Flagged (owner decides — not patched)
 | file:line | reference | why ambiguous |
 ## Discarded (homographs, not this change)
@@ -122,12 +122,12 @@ survivor, a one-line justification (frontmatter-deliberate, test-pinned, homogra
 flagged-for-owner). A survivor with no reason is a missed edit; go back to Step 3.
 
 ```bash
-grep -rniE "append-journal|<old-token>" <roots>   # expect: only justified survivors
+grep -rniE "<old-token>|<old-token-2>" <roots>   # expect: only justified survivors
 ```
 
 ## Keep the surface-map current
 
-When a sweep teaches you a new dependency (a skill you didn't know read `task-list.json`,
-a new command in play), add it to `references/surface-map.md`. The map is what lets the
+When a sweep teaches you a new dependency (a skill you didn't know read the task files, a
+new ordna verb in play), add it to `references/surface-map.md`. The map is what lets the
 next propagation start from knowledge instead of a cold grep — it decays if you don't feed
 it.

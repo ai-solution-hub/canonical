@@ -3,13 +3,14 @@
   // `scripts` from the exclude list, so a standalone `tsc --noEmit` typechecks
   // the WHOLE repo INCLUDING `scripts/*.ts`. The base `tsconfig.json` excludes
   // `scripts`, and `next build` only typechecks files inside the Next.js
-  // compilation graph — so standalone CLI scripts (e.g. scripts/ledger-cli.ts)
-  // are never gated by CI without this. A type error here is an unambiguous
-  // "build is broken" signal (the `build-gate` job in .github/workflows/ci.yml).
+  // compilation graph — so standalone CLI scripts (e.g.
+  // scripts/eval-classification.ts) are never gated by CI without this. A type
+  // error here is an unambiguous "build is broken" signal (the `build-gate`
+  // job in .github/workflows/ci.yml).
   //
-  // ROOT CAUSE this closes (bl-200 / S283 retro): a `tsc` break in
-  // scripts/ledger-cli.ts sat undetected on main ~4 sessions because no CI job
-  // typechecked scripts/. ledger-cli.ts is type-clean today and is gated here.
+  // ROOT CAUSE this closes (bl-200 / S283 retro): a `tsc` break in a
+  // standalone CLI script (the since-retired ledger-cli, ID-165) sat
+  // undetected on main ~4 sessions because no CI job typechecked scripts/.
   //
   // `supabase`, `mcp-apps`, `docs-site` stay excluded: generated DB types,
   // self-contained Vite single-file builds, and the docs site each carry their

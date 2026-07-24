@@ -15,9 +15,10 @@
       "Bash(mkdir -p .claude/skills/*)",
       "Bash(mkdir -p ~/.claude/.sentinels)",
       "Bash(touch ~/.claude/.sentinels/*)",
-      "Bash(bun scripts/ledger-cli.ts)",
-      "Bash(bun scripts/ledger-cli.ts show *)",
-      "Bash(bun scripts/ledger-cli.ts get *)",
+      "Bash(ordna list)",
+      "Bash(ordna list *)",
+      "Bash(ordna show *)",
+      "Bash(cat /Users/liamj/Documents/development/knowledge-hub-docs-site/tasks/*)",
       "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site status *)",
       "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site log *)",
       "Bash(git -C /Users/liamj/Documents/development/knowledge-hub-docs-site diff *)",
@@ -77,16 +78,6 @@
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/mempal-recall.sh\""
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ledger-compact-session-end.sh\""
           }
         ]
       }

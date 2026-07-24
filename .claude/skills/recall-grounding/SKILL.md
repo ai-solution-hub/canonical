@@ -56,14 +56,18 @@ This closes the loop where an agent presents a stale conclusion and the human
 owner has to point at memory to correct it.
 
 **Cheap guard:** before relying on any cited `id-N` / `DR-NNN` /
-`{N.M}` in a conclusion:
+`{N.M}` in a conclusion, check the task's live status straight from its ordna
+task file — no CLI needed (`tasks/id-N.md` is one small markdown file, YAML
+frontmatter + body):
 
 ```bash
-bun scripts/ledger-cli.ts get task <id> status
+grep -m1 '^status:' "$KH_PRIVATE_DOCS_DIR/tasks/id-<N>.md"   # frontmatter status, no CLI
+cd "$KH_PRIVATE_DOCS_DIR" && ordna show <id>                 # CLI equivalent (non-interactive)
 ```
 
-This is cheap (one CLI call) and catches the "reopen a closed task as if it
-were live" class of error.
+This is cheap and catches the "reopen a closed task as if it were live" class
+of error (the DR-070 carry-over — `tasks/AGENTS.md` §5, "check status before
+citing"). Use non-interactive verbs only; bare `ordna` opens the TUI and hangs.
 
 Skip recall for pure greenfield work with no memory relevance (renaming a
 variable, fixing a typo) — recall is decision-driven, not reflexive on every

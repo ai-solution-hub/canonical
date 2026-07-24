@@ -3,11 +3,11 @@
 Five worked decision walks for the `triage-finding` decision tree. The contract itself
 lives in `SKILL.md` Step 2 (Branch A/B/C/D/E); these examples only illustrate it.
 
-> **Note (ID-148.8/DR-073/074):** Examples 1 and 5 below illustrate Branch B ("roadmap"
-> decision) using the pre-retirement `show roadmap <themeId>` / "theme" vocabulary. The
-> classification logic they illustrate still applies; the write mechanism (`create-theme`)
-> is retired — see SKILL.md's Branch B note for the current landed state and the open
-> write-path gap.
+> **Note (ID-165 ordna cutover):** Examples 1 and 5 below illustrate Branch B ("roadmap"
+> decision) using the historical "theme" vocabulary. The classification logic they
+> illustrate still applies; the write surface is now plain initiative docs
+> (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/`) — see SKILL.md's
+> Branch B note for the current state and the open mint-vs-attach owner call.
 
 ## Example 1 — Cross-cutting auth pattern (roadmap routing)
 
@@ -23,10 +23,11 @@ pattern. Out of scope for current Subtask ID-7.3 (which is one specific coverage
   ID-7.3's slice — Subtask ID-7.3's spec only requires its one route conform. NOT
   IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
-- Branch B (new strategic capability): condition 1 — check existing coverage via
-  `bun scripts/ledger-cli.ts list projects` for "auth pattern modernisation"
-  (`show roadmap <themeId>` is retired). No existing coverage. condition 2 — multi-route
-  refactor that cross-cuts auth surface; multi-week scope. BOTH HOLD.
+- Branch B (new strategic capability): condition 1 — check existing coverage for "auth
+  pattern modernisation" in the initiative docs
+  (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/`). No existing coverage.
+  condition 2 — multi-route refactor that cross-cuts auth surface; multi-week scope. BOTH
+  HOLD.
 - **Decision: `roadmap`** with `roadmap_proposed_theme`
   `{ title: "auth pattern modernisation", time_horizon: "next", initial_linked_tasks: [], initial_linked_backlog: [] }`.
 
@@ -67,7 +68,7 @@ Subtask ID-12.1 owns `lib/foo/bar.ts`.
 > Binary in-scope-ness governs routing, not effort. The Orchestrator may still defer or
 > skip a low-value Subtask after seeing the spec.
 
-## Example 4 — Feature-scoped tech debt (rank default null)
+## Example 4 — Feature-scoped tech debt
 
 **Finding:** "The search filter component (`components/search/Filter.tsx`) re-renders on
 every keystroke because of an unstable empty-array default. Out of scope for current
@@ -83,8 +84,8 @@ Subtask ID-14.2 (which is in `components/change-reports/`)."
 - Branch B? condition 1 — search is already covered by an existing theme (e.g. "search
   experience"). FAILS condition 1. Skip Branch B.
 - Branch C? Yes — tactical, single-feature, weeks-scope, no current Task touches search.
-- **Decision: `backlog`** in `track: search`, `type: tech_debt`, `priority: medium`,
-  `rank: null` (no obvious within-tier ordering signal — curator may rank later).
+- **Decision: `backlog`** in `track: search`, `type: tech_debt`, `priority: medium` (the
+  old backlog `rank` field is retired with the ordna cutover).
 
 ## Example 5 — New capability theme proposal (Branch B routing)
 
@@ -102,10 +103,10 @@ tenant id. Out of scope for current Subtask ID-22.3 (which only touches one rout
   spec-compliance issue against that slice. NOT IN-SCOPE.
 - Branch A → OUT-OF-SCOPE. Continue.
 - Branch B (new strategic capability):
-  - condition 1 — inspect existing coverage via `bun scripts/ledger-cli.ts list projects`
-    (`show roadmap <themeId>` is retired). No existing initiative/project covers
-    "multi-tenant deployments" (none of the linked work enumerates tenant-scoping work).
-    HOLDS.
+  - condition 1 — inspect existing coverage in the initiative docs
+    (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/`). No existing
+    initiative covers "multi-tenant deployments" (none of the linked work enumerates
+    tenant-scoping work). HOLDS.
   - condition 2 — multi-month scope, cuts across every authenticated route, requires
     schema changes (tenant id columns), middleware changes (request-context propagation),
     and possibly RLS rewrites. Genuinely cross-cutting at the headline level. HOLDS.
@@ -122,7 +123,8 @@ tenant id. Out of scope for current Subtask ID-22.3 (which only touches one rout
     initial_linked_tasks: []
     initial_linked_backlog: []
   ```
-- Historical: the curator (via `update-roadmap-backlog` Create) used to append the theme;
-  subsequent active work items (per Branch C findings) got added to `linked_backlog[]`
-  over time. This write path is now retired — see the note at the top of this file.
-  Subtask ID-22.3 itself remains unchanged — the finding is OUT-OF-SCOPE for that Subtask.
+- Historical: the curator used to append the theme to a roadmap ledger; subsequent active
+  work items (per Branch C findings) got added to `linked_backlog[]` over time. That
+  write path is retired — the brief now goes to the owner for an initiative-doc edit (see
+  the note at the top of this file). Subtask ID-22.3 itself remains unchanged — the
+  finding is OUT-OF-SCOPE for that Subtask.

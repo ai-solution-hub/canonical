@@ -54,7 +54,7 @@ artifacts that feed that decomposition.
 Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`,
 where:
 
-- `N` is the Task ID from `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/task-list.json`
+- `N` is the Task ID from the ordna task ledger (`${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`)
   and `<slug>` is a short kebab-case feature name (e.g.
   `/specs/ID-9-astro-starlight-docs-foundation/PRODUCT.md`).
 

@@ -272,30 +272,6 @@ jobs:
             bun install --frozen-lockfile
           fi
 
-      - name: Install task-view (clone @ tag)
-        # ID-90.22: the Vitest shards run the ledger WRITE suites
-        # (__tests__/scripts/ledger-*.test.ts) which default to the server
-        # transport (KH_LEDGER_SERVER unset → ON). ensureServer spawns
-        # `.cache/task-view-<TASK_VIEW_TAG>/apps/server/index.ts`
-        # (ledger-server-lifecycle.ts:340); /.cache/ is gitignored, so this job
-        # must provision task-view itself. (The ledger-mirror-parity job — the
-        # other former cloner — was retired under ID-68.35 when the ledgers moved
-        # to the docs-site repo.) TASK_VIEW_TAG is a static literal (not external
-        # context) — safe in run:.
-        env:
-          TASK_VIEW_TAG: v0.12.1-task-view
-        run: |
-          git clone --depth 1 --branch "$TASK_VIEW_TAG" \
-            https://github.com/liam-jons/task-view.git "$RUNNER_TEMP/task-view"
-          (cd "$RUNNER_TEMP/task-view" && bun install)
-
-      - name: Provision .cache/task-view-<tag> (for ensureServer)
-        env:
-          TASK_VIEW_TAG: v0.12.1-task-view
-        run: |
-          mkdir -p .cache
-          ln -sfn "$RUNNER_TEMP/task-view" ".cache/task-view-$TASK_VIEW_TAG"
-
       - name: Test (Vitest, shard ${{ matrix.shard }}/4)
         env:
           # Vitest setup imports validated env modules; mirror the build step.
@@ -1268,7 +1244,8 @@ jobs:
 
   build-gate:
     # bl-200 (S283 retro) — standalone whole-repo `tsc --noEmit` build-break
-    # alarm. A `tsc` error in scripts/ledger-cli.ts sat undetected on main ~4
+    # alarm. A `tsc` error in a standalone CLI script (the since-retired
+    # ledger-cli, ID-165) sat undetected on main ~4
     # sessions because no CI job typechecks `scripts/`: the base `tsconfig.json`
     # EXCLUDES `scripts`, and `next build` (run inside `quality-precheck`) only
     # typechecks files in the Next.js compilation graph — standalone CLI scripts

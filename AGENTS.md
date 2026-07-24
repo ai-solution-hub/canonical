@@ -44,13 +44,18 @@ before reporting.
 
 ## Ledger protocol
 
-The ledgers (private docs-site; access rules in CLAUDE.md § Ledgers) stay canonical for
-task state.
+The task ledger is ordna (private docs-site; access rules in CLAUDE.md § Ledgers) and
+stays canonical for task state.
 
-- **Workers never write the ledger.** Return ledger-write intents in your report; the
-  Coordinator applies them via `bun scripts/ledger-cli.ts` on MAIN.
+- **Workers edit task files directly.** Update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`
+  (frontmatter + body) as work progresses; the Coordinator alone moves a task to `done`
+  (the dependency-gated terminal status).
 - **Verify live status before citing.** Before citing a task / subtask / decision-record
-  state in a conclusion, check it: `bun scripts/ledger-cli.ts get task <id> status`.
+  state in a conclusion, check the task file's `status` frontmatter (`cat` the file, or
+  `ordna show <id>` from the docs-site root).
+- **Conventions live in `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md`** — file format,
+  statuses, id scheme. `.ordna/config.yaml` comments are ephemeral (the CLI rewrites the
+  file on every run), so config commentary belongs in that AGENTS.md, never in the yaml.
 - **Intent notes are the working record; specs export.** Workspace spec and task notes
   carry the session's running state; durable spec content exports to
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-N-<slug>/` at closeout.

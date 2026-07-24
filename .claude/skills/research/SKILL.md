@@ -76,7 +76,7 @@ Record the best-practice constraints that should shape the design, not summaries
 
 - **Memory**: run a recall pass (the `recall-grounding` skill) seeded by the task's domain — prior sessions frequently hold the "we tried this and it failed because…" context that no doc captures.
 - **Decision register**: read the in-force `DR-NNN` entries (`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`). Cite the governing DR wherever the task touches settled ground; never re-derive or re-litigate a settled ruling.
-- **Related specs and tasks**: check `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/` for sibling specs in the same area, and the ledger for adjacent tasks (`bun scripts/ledger-cli.ts show task <id>` — never read the ledger JSONs wholesale).
+- **Related specs and tasks**: check `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/` for sibling specs in the same area, and the ordna task ledger for adjacent tasks (`cat "$KH_PRIVATE_DOCS_DIR/tasks/id-N.md"`, or `ordna list` / `ordna show <id>` from the docs-site root).
 
 ### (iv) External research — when warranted
 

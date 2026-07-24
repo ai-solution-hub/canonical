@@ -17,7 +17,6 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 | bun lint / bun run format | ESLint / Prettier |
 | python3 -m pytest scripts/tests/ | Python pipeline tests |
 | bun run test:e2e | Playwright E2E |
-| task-view <ledger.json> | Workflow-ledger editor (github.com/liam-jons/task-view) |
 
 MCP eval + plugin/app build commands: see `lib/mcp/CLAUDE.md`. Type regen: see`supabase/CLAUDE.md`. Use `gh-axi` for GitHub and `chrome-devtools-axi` for browser automation.
 
@@ -34,7 +33,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 | hooks/ | Custom hooks — domain sub dirs + general at root |
 | lib/ | Core modules (ai/, mcp/, procurement/, validation/, …) |
 | types/ | TypeScript types |
-| scripts/ | Python pipeline (cocoindex_pipeline/), ingestion/search CLIs, ledger-cli |
+| scripts/ | Python pipeline (cocoindex_pipeline/), ingestion/search CLIs |
 | supabase/ | Migrations + generated types |
 | tests/ | Vitest tests — mirrors source structure |
 | e2e/ | Playwright specs |
@@ -59,11 +58,11 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 
 - **Worktree isolation:** `isolation: "worktree"` for parallel Agent dispatch; cherry-pick (not merge) parallel branches; agents start stale — first action`git fetch origin {branch} && git reset --hard origin/{branch}`.
 - **ALWAYS check worktree **`git status`** before removing it.**
-- **Workers never write the ledger in-branch** — return ledger-write intents; the Orchestrator applies them via `scripts/ledger-cli.ts` on MAIN.
+- **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
 
 ## Ledgers
 
-Ledgers live in the PRIVATE docs-site: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/`(task-list, product-backlog, product-retros, initiatives + per-record mirrors in`tasks/`, `backlog/`, `initiatives/`, `retros/`). **Never Read the ledger JSONs wholesale **(task-list.json is multi-MB). Access via the CLI:`bun scripts/ledger-cli.ts show task <id>` / `get task <id> <field>` (reads), mutation subcommands for writes (run `bun scripts/ledger-cli.ts` for usage).
+The task ledger is **ordna** in the PRIVATE docs-site: one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` (YAML frontmatter + body; Git is the source of truth — no database, no server). Read via `cat` on the task file, or the ordna CLI from the docs-site root: `ordna list` / `ordna show <id>` (non-interactive — bare `ordna` opens the TUI board and hangs background shells, like `supabase db push`). Write by editing the task file directly. File format + conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.
 
 ## Key References
 
@@ -76,7 +75,7 @@ Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-Ap
 ## Deployment & CI
 
 - Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline(`onprem-deploy.yml`); staging URL[https://canonical-platform-git-staging-tw-group.vercel.app](https://canonical-platform-git-staging-tw-group.vercel.app); `staging` branch is deploy-only. GitHub: [https://github.com/ai-solution-hub/canonical](https://github.com/ai-solution-hub/canonical).
-- PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.Side workflows incl. `schema-parity`, `task-view-vendor-drift` (re-vendor reminder when ledger schemas change).
+- PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.Side workflows incl. `schema-parity`.
 
 ## Memory (MemPalace)
 
