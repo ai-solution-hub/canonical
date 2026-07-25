@@ -34,6 +34,34 @@ import { createServiceClient } from '../fixtures/supabase';
 
 let extraQAIds: string[] = [];
 
+/**
+ * Wait until the list on screen is genuinely the filtered set.
+ *
+ * {128.19}: the previous form asserted `getByText(/\d+ Q&A pairs?/)` was
+ * visible after filling the search box. That count line is ALREADY on screen
+ * carrying the UNFILTERED total, so the assertion resolved instantly and the
+ * caller raced the still-pending debounced search. Selection tests then clicked
+ * select-all against the unfiltered rows; when the debounce fired, the filter
+ * change reset the selection by design and the test saw select-all "not
+ * register". That race was the flake — reproduced 3/3 with the count going
+ * 27 -> 2 AFTER the click.
+ *
+ * Every rendered row carrying the prefix is the honest settle condition: it is
+ * true exactly when the filtered result is what the user is looking at, and it
+ * does not depend on knowing the expected count.
+ */
+async function expectFilteredTo(page: Page, prefix: string) {
+  await expect
+    .poll(
+      async () => {
+        const rows = await page.locator('[data-qa-row]').allInnerTexts();
+        return rows.length > 0 && rows.every((t) => t.includes(prefix));
+      },
+      { timeout: 15000 },
+    )
+    .toBe(true);
+}
+
 /** Navigate to library and filter to only worker items via search */
 async function gotoLibraryFiltered(page: Page, prefix: string) {
   await page.goto('/library');
@@ -41,12 +69,8 @@ async function gotoLibraryFiltered(page: Page, prefix: string) {
     timeout: 20000,
   });
   // Search for the prefix to filter down to worker items only
-  const searchInput = page.getByLabel('Search Q&A pairs');
-  await searchInput.fill(prefix);
-  // Wait for the filtered results to settle
-  await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-    timeout: 15000,
-  });
+  await page.getByLabel('Search Q&A pairs').fill(prefix);
+  await expectFilteredTo(page, prefix);
 }
 
 test.describe('Q&A Library page', () => {
@@ -761,16 +785,15 @@ test.describe('Q&A Library page', () => {
     viewerPage: page,
     workerData,
   }) => {
-    // Filter to worker items so rows are in the virtualised list
+    // Filter to worker items so rows are in the virtualised list. Same
+    // settle-condition as gotoLibraryFiltered — this spec had its own inlined
+    // copy of the racy version ({128.19}).
     await page.goto('/library');
     await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
       timeout: 20000,
     });
-    const searchInput = page.getByLabel('Search Q&A pairs');
-    await searchInput.fill(workerData.prefix);
-    await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-      timeout: 20000,
-    });
+    await page.getByLabel('Search Q&A pairs').fill(workerData.prefix);
+    await expectFilteredTo(page, workerData.prefix);
 
     // Ratified contract (test-philosophy.md §2.1): selection UI is NOT
     // role-gated — viewers DO see the select-all header checkbox

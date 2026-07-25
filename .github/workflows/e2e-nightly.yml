@@ -501,11 +501,18 @@ jobs:
           # {128.8}: fail-fast budgets are now config-driven — playwright.config.ts
           # reads these. {145.23} S481: raised 4→40 — at 4 every shard of the
           # S477 diagnostic run aborted at cap and 103 tests never ran, so a
-          # "green" was untrustworthy as the close signal. 40 is effectively
-          # uncapped for this suite; the 18-min global timeout below remains
-          # the real sick-shard backstop. Smoke/local leave these unset →
-          # CI defaults (5 / 12 min).
-          PW_MAX_FAILURES: "40"
+          # "green" was untrustworthy as the close signal. The 18-min global
+          # timeout below remains the real sick-shard backstop. Smoke/local
+          # leave these unset → CI defaults (5 / 12 min).
+          #
+          # id-328 S493: raised 40→60. 40 was NOT effectively uncapped — the
+          # worst shard of run 30071928733 produced 36 failed RESULTS
+          # (18 unique failures × 2 attempts, because Playwright's counter is
+          # result-shaped, not test-shaped) against a cap of 40. That is 10%
+          # headroom, so one further regression would silently truncate the
+          # run again and re-manufacture the untrustworthy "green" the 4→40
+          # raise was meant to end.
+          PW_MAX_FAILURES: "60"
           PW_GLOBAL_TIMEOUT_MS: "1080000"
           # {128.10}: Supabase connection points at THIS RUN's ephemeral
           # branch (provision-branch's outputs), not the shared staging

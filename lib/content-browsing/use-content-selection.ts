@@ -31,13 +31,21 @@ export function useContentSelection(resetDeps: unknown[]): SelectionState {
     });
   }, []);
 
-  const toggleSelectAll = useCallback((allIds: string[]) => {
-    setSelectedIds((prev) => {
-      if (prev.size === allIds.length && allIds.length > 0) {
-        return new Set();
-      }
-      return new Set(allIds);
-    });
+  /**
+   * Select or clear every id in `allIds`.
+   *
+   * {128.19}: this deliberately takes the direction as an argument. The
+   * previous form derived it by comparing `prev.size === allIds.length`, which
+   * is only correct while the visible row count is frozen between two clicks.
+   * It is not: a background refetch or retained placeholder data can change
+   * the list underneath the user, and when it did, "deselect all" re-selected
+   * everything instead of clearing — on a surface whose next action is a bulk
+   * verify or bulk delete. The caller always knows the direction (the header
+   * checkbox hands it over in `onCheckedChange`), so it passes it down rather
+   * than having it guessed here.
+   */
+  const setAllSelected = useCallback((allIds: string[], selected: boolean) => {
+    setSelectedIds(selected ? new Set(allIds) : new Set());
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -60,7 +68,7 @@ export function useContentSelection(resetDeps: unknown[]): SelectionState {
   return {
     selectedIds,
     toggleSelect,
-    toggleSelectAll,
+    setAllSelected,
     clearSelection,
     isAllSelected,
   };

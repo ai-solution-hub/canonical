@@ -51,7 +51,7 @@ const {
     bulkOperating: false,
     bulkProgress: { current: 0, total: 0, label: '' },
     toggleSelect: vi.fn(),
-    toggleSelectAll: vi.fn(),
+    setAllSelected: vi.fn(),
     clearSelection: vi.fn(),
     handleBulkVerify: vi.fn(),
     handleBulkDelete: vi.fn(),

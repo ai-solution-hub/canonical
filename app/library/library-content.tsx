@@ -507,7 +507,9 @@ export function LibraryContent() {
                 checked={
                   items.length > 0 && bulk.selectedIds.size === items.length
                 }
-                onCheckedChange={bulk.toggleSelectAll}
+                onCheckedChange={(checked) =>
+                  bulk.setAllSelected(checked === true)
+                }
                 aria-label={
                   bulk.selectedIds.size === items.length
                     ? 'Deselect all Q&A pairs'

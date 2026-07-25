@@ -135,28 +135,28 @@ export function useLibraryData(filters: LibraryFilters) {
     queryKey: queryKeys.contentItems.library(
       filters as Record<string, unknown>,
     ),
-    // id-128 {128.19} — DIAGNOSIS, NOT YET FIXED. Every filter change mints a
-    // new query key, and with no retained data `isLoading` goes true until the
-    // new fetch lands. The list surface gates BOTH the select-all header and
-    // the rows on `!isLoading` (app/library/library-content.tsx:500 and :527),
-    // so the header unmounts/remounts on each filter change and on the
-    // invalidateQueries after every bulk mutation — that is the "element was
-    // detached from the DOM, retrying" behind the flaky selection specs
-    // (reproduced locally: 4 of 5 runs failed).
+    // id-128 {128.19} — `placeholderData: keepPreviousData` was evaluated here
+    // and DELIBERATELY NOT ADOPTED. Recording why, because the earlier
+    // diagnosis pointed at it twice.
     //
-    // `placeholderData: keepPreviousData` was TRIED here and REVERTED: it does
-    // keep the header mounted, but it exposes a second, worse defect. The
-    // select/deselect toggle decides direction by
-    // `prev.size === allIds.length` (lib/content-browsing/use-content-selection
-    // .ts:34-41), so as soon as retained data makes the visible count differ
-    // between the two clicks, "deselect all" RE-SELECTS instead of clearing —
-    // a user-visible bug on a bulk-mutation surface. Local runs went from 4/5
-    // to 6/10 failing, with the failure changing from detachment to a stuck
-    // "30 selected" toolbar.
+    // The diagnosis said the select-all header unmounts "on every filter change
+    // AND on the post-mutation invalidateQueries". Only the first half is true.
+    // `isLoading` is `isPending && isFetching`, and `isPending` means "no data
+    // at all" — after `invalidateQueries` the query keeps its data and stays
+    // `success`, so `isLoading` never goes true and the header never unmounts.
+    // Retaining data buys nothing on the mutation path.
     //
-    // Fixing this properly means making the toggle direction explicit rather
-    // than size-derived, THEN retaining data. Both are app changes needing
-    // their own verification — tracked on {128.19}, not patched here.
+    // On the filter path it is actively harmful. A filter change is also a
+    // `resetDeps` change, so `useContentSelection` clears the selection by
+    // design ("acted on an item I can't see" prevention). Retaining data would
+    // leave the previous filter's rows on screen, interactive, with a live
+    // select-all — and every selection made in that window is guaranteed to be
+    // discarded microseconds later. Measured against the e2e selection specs,
+    // it made things worse, not better (27 stale rows selected, then wiped).
+    //
+    // The real flake was test-side: the specs' filter helper returned while the
+    // debounced search was still pending, so the click landed in exactly that
+    // window. Fixed in e2e/tests/qa-library.spec.ts.
     queryFn: async () => {
       const supabase = createClient();
 

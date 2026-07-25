@@ -60,7 +60,8 @@ export interface UseLibraryBulkActionsReturn {
   // Selection state
   selectedIds: Set<string>;
   toggleSelect: (id: string) => void;
-  toggleSelectAll: () => void;
+  /** Select or clear every currently listed item. Direction is explicit. */
+  setAllSelected: (selected: boolean) => void;
   clearSelection: () => void;
 
   // Bulk operation state
@@ -94,7 +95,7 @@ export function useLibraryBulkActions({
   const {
     selectedIds,
     toggleSelect,
-    toggleSelectAll: sharedToggleSelectAll,
+    setAllSelected: sharedSetAllSelected,
     clearSelection,
   } = useContentSelection(filterDeps);
 
@@ -102,10 +103,16 @@ export function useLibraryBulkActions({
   const { bulkOperating, bulkProgress, runBulkOperation } =
     useContentBulkRunner<ContentListItem>(queryKeys.contentItems.all);
 
-  // Adapt toggleSelectAll to close over items (preserves existing public API)
-  const toggleSelectAll = useCallback(() => {
-    sharedToggleSelectAll(items.map((i) => i.id));
-  }, [items, sharedToggleSelectAll]);
+  // Adapt setAllSelected to close over the currently listed items
+  const setAllSelected = useCallback(
+    (selected: boolean) => {
+      sharedSetAllSelected(
+        items.map((i) => i.id),
+        selected,
+      );
+    },
+    [items, sharedSetAllSelected],
+  );
 
   // Wrapper: run bulk op with selection clearing after
   const runWithClear = useCallback(
@@ -248,7 +255,7 @@ export function useLibraryBulkActions({
   return {
     selectedIds,
     toggleSelect,
-    toggleSelectAll,
+    setAllSelected,
     clearSelection,
     bulkOperating,
     bulkProgress,

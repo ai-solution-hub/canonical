@@ -126,7 +126,7 @@ describe('useLibraryBulkActions', () => {
     expect(result.current.selectedIds.size).toBe(0);
   });
 
-  it('toggleSelectAll selects all items then deselects all', () => {
+  it('selects every listed item then clears them again', () => {
     const params = defaultParams();
     const { result } = renderHook(
       () => useLibraryBulkActions(params),
@@ -134,7 +134,7 @@ describe('useLibraryBulkActions', () => {
     );
 
     act(() => {
-      result.current.toggleSelectAll();
+      result.current.setAllSelected(true);
     });
     expect(result.current.selectedIds.size).toBe(3);
     expect(result.current.selectedIds.has('a1')).toBe(true);
@@ -142,7 +142,35 @@ describe('useLibraryBulkActions', () => {
     expect(result.current.selectedIds.has('a3')).toBe(true);
 
     act(() => {
-      result.current.toggleSelectAll();
+      result.current.setAllSelected(false);
+    });
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it('clears the selection even when the item list changed in between', () => {
+    // {128.19}: with retained (placeholder) data the visible list can grow or
+    // shrink between the select and deselect clicks. Direction must come from
+    // the caller, not from comparing the selection size to the list length.
+    const params = defaultParams();
+    const { result, rerender } = renderHook(
+      (p: UseLibraryBulkActionsParams) => useLibraryBulkActions(p),
+      { ...hookWrapper(), initialProps: params },
+    );
+
+    act(() => {
+      result.current.setAllSelected(true);
+    });
+    expect(result.current.selectedIds.size).toBe(3);
+
+    // A background refetch reveals a fourth row. filterDeps are unchanged, so
+    // the selection is deliberately NOT reset.
+    rerender({
+      ...params,
+      items: [...params.items, { ...params.items[0], id: 'a4' }],
+    });
+
+    act(() => {
+      result.current.setAllSelected(false);
     });
     expect(result.current.selectedIds.size).toBe(0);
   });

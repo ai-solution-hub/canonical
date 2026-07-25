@@ -13,7 +13,12 @@
 export interface SelectionState {
   selectedIds: Set<string>;
   toggleSelect: (id: string) => void;
-  toggleSelectAll: (allIds: string[]) => void;
+  /**
+   * Select or clear every id in `allIds`. The direction is an explicit
+   * argument and is never inferred from the current selection size — see the
+   * note on the hook itself ({128.19}).
+   */
+  setAllSelected: (allIds: string[], selected: boolean) => void;
   clearSelection: () => void;
   isAllSelected: (totalCount: number) => boolean;
 }

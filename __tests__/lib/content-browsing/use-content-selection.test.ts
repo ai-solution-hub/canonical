@@ -39,36 +39,58 @@ describe('useContentSelection', () => {
   });
 
   // -----------------------------------------------------------------------
-  // toggleSelectAll
+  // setAllSelected
+  //
+  // Direction is an explicit argument, never inferred from the current
+  // selection size. {128.19}: the previous size-derived form compared
+  // `prev.size === allIds.length` to decide select-vs-deselect, so any change
+  // in the visible row count between two clicks silently inverted the second
+  // one — "deselect all" re-selected everything.
   // -----------------------------------------------------------------------
 
-  it('selects all when none are selected', () => {
+  it('selects every visible item when asked to select', () => {
     const { result } = renderHook(() => useContentSelection([]));
-    act(() => result.current.toggleSelectAll(['a', 'b', 'c']));
+    act(() => result.current.setAllSelected(['a', 'b', 'c'], true));
     expect(result.current.selectedIds.size).toBe(3);
     expect(result.current.selectedIds.has('a')).toBe(true);
     expect(result.current.selectedIds.has('b')).toBe(true);
     expect(result.current.selectedIds.has('c')).toBe(true);
   });
 
-  it('deselects all when all are already selected', () => {
+  it('empties the selection when asked to deselect', () => {
     const { result } = renderHook(() => useContentSelection([]));
-    act(() => result.current.toggleSelectAll(['a', 'b']));
-    act(() => result.current.toggleSelectAll(['a', 'b']));
+    act(() => result.current.setAllSelected(['a', 'b'], true));
+    act(() => result.current.setAllSelected(['a', 'b'], false));
     expect(result.current.selectedIds.size).toBe(0);
   });
 
-  it('selects all when only some are selected (partial -> full)', () => {
+  it('promotes a partial selection to a full one when asked to select', () => {
     const { result } = renderHook(() => useContentSelection([]));
     act(() => result.current.toggleSelect('a'));
-    // Only 1 selected but allIds has 3 => should select all
-    act(() => result.current.toggleSelectAll(['a', 'b', 'c']));
+    act(() => result.current.setAllSelected(['a', 'b', 'c'], true));
     expect(result.current.selectedIds.size).toBe(3);
   });
 
-  it('does nothing for empty allIds array', () => {
+  it('still deselects when the visible row count grew since selecting', () => {
+    // The {128.19} regression: everything visible was selected, then a
+    // background refetch (or retained placeholder data) revealed a fourth
+    // row before the user clicked again. Deselect must still deselect.
     const { result } = renderHook(() => useContentSelection([]));
-    act(() => result.current.toggleSelectAll([]));
+    act(() => result.current.setAllSelected(['a', 'b', 'c'], true));
+    act(() => result.current.setAllSelected(['a', 'b', 'c', 'd'], false));
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it('still deselects when the visible row count shrank since selecting', () => {
+    const { result } = renderHook(() => useContentSelection([]));
+    act(() => result.current.setAllSelected(['a', 'b', 'c'], true));
+    act(() => result.current.setAllSelected(['a', 'b'], false));
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it('leaves the selection empty when there is nothing to select', () => {
+    const { result } = renderHook(() => useContentSelection([]));
+    act(() => result.current.setAllSelected([], true));
     expect(result.current.selectedIds.size).toBe(0);
   });
 
@@ -93,7 +115,7 @@ describe('useContentSelection', () => {
 
   it('returns true when selection size matches totalCount', () => {
     const { result } = renderHook(() => useContentSelection([]));
-    act(() => result.current.toggleSelectAll(['a', 'b']));
+    act(() => result.current.setAllSelected(['a', 'b'], true));
     expect(result.current.isAllSelected(2)).toBe(true);
   });
 
