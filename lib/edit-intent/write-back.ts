@@ -64,11 +64,16 @@ import type { Database } from '@/supabase/types/database.types';
 
 /**
  * The private Supabase Storage bucket the corpus's kept-evidence bytes live
- * in (TECH §2.1 R(a); provisioned per-project by
- * `scripts/provision-corpus-bucket.ts`, {138.8}). Kept as a plain literal
- * here (not imported from `scripts/`) — app code (`lib/`, `app/`) does not
- * import from `scripts/` in this codebase; the two modules share the string
- * by convention, documented at both ends.
+ * in (TECH §2.1 R(a)).
+ *
+ * S493: provisioning is now DECLARATIVE — `[storage.buckets.corpus]` in
+ * `supabase/config.toml`. The previous per-project provisioning script
+ * (`scripts/provision-corpus-bucket.ts`, {138.8}) has been retired: it was
+ * wired into nothing and had never been run, which is why the bucket existed
+ * on no project at all — not Platform staging, not Platform prod, not any
+ * ephemeral branch — and why folder-drop uploads were being rejected. A
+ * config declaration reaches local resets, `supabase config push`, and
+ * branches; a hand-run script reached none of them.
  */
 export const CORPUS_BUCKET = 'corpus';
 
@@ -100,14 +105,17 @@ type ApplyDbLeg = () => Promise<void>;
  *     file leg was skipped, DB-only.
  *   - NEW (bucket): there is no equivalent static env var — the bucket name
  *     is a fixed literal (`CORPUS_BUCKET`) and its EXISTENCE is a per-project
- *     runtime fact set by {138.8}'s provisioning script, not a deploy toggle.
- *     A project that has not yet been provisioned (local dev, CI, a
- *     not-yet-onboarded client project) is detected empirically off the
- *     Storage API's own error, mirroring the exact "Bucket not found"
- *     message-sniff idiom already used by `ensureCorpusBucket` /
- *     `ensureBrandingBucket` (`scripts/provision-corpus-bucket.ts:117-123`,
- *     `scripts/reseed-tenant-instance.ts:178-184`) — rather than inventing a
- *     new config surface that would need wiring into every deployment.
+ *     runtime fact. A project that has not yet been provisioned (a
+ *     not-yet-onboarded client project, or a branch predating the S493
+ *     config declaration) is detected empirically off the Storage API's own
+ *     error, mirroring the "Bucket not found" message-sniff idiom used by
+ *     `ensureBrandingBucket` (`scripts/reseed-tenant-instance.ts:178-184`).
+ *
+ *     S493 note: this graceful branch is now a genuine edge case rather than
+ *     the normal state. The bucket is declared in `supabase/config.toml`, so
+ *     local resets, `config push` and new branches all create it. Until S493
+ *     it existed NOWHERE, and this "idle mode" was silently the default on
+ *     every environment — which is the opposite of what it was designed for.
  *
  * Degrades to the SAME graceful DB-only outcome the old idle-mode check gave
  * (`fileBacked: false`, save still lands, no error surfaced). Any OTHER
