@@ -654,9 +654,22 @@ export function buildEntityRelationships(): EntityRelationshipShape[] {
       relationship_type: 'holds',
       confidence: 0.9,
     },
+    // Supplier-held certification. {128.23}: `source_entity` must be the
+    // client org, NOT the supplier. app/api/certifications/route.ts:156-159
+    // keeps only `holds` rows whose `source_entity` matches
+    // BRANDING.organisationName, so an 'Acme Ltd'-sourced row never reached
+    // the response and CertificationSummaryCard's collapsible supplier
+    // section rendered null — the seed, not the UI, was what could not
+    // express supplier certifications.
+    //
+    // Supplier semantics live on the entity_mention metadata
+    // (`holder: 'supplier'` + `supplier_name: 'Acme Ltd'` in
+    // buildEntityMentions above), which is exactly what the route reads at
+    // :292-313 to split self-held from supplier-held. The relationship row
+    // only answers "which certifications does this organisation track".
     {
       itemIndex: 6,
-      source_entity: 'Acme Ltd',
+      source_entity: BRANDING.organisationName,
       target_entity: 'ISO 9001 (Acme Supplier)',
       relationship_type: 'holds',
       confidence: 0.85,

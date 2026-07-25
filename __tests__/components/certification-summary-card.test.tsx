@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import {
   CertificationSummaryCard,
   type CertificationEntry,
@@ -465,7 +471,7 @@ describe('CertificationSummaryCard', () => {
   // Edit callback
   // -------------------------------------------------------------------------
 
-  it('renders certification card as clickable link when content items exist', () => {
+  it('links a certification row to its evidence document', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert()]}
@@ -474,14 +480,22 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    // When content_items exist, the entire card is a link to the first item.
-    // ID-135.26: content_item ids are source_documents ids (re-pointed post-
-    // {131.19}) — the card links to /documents/[id], not the deleted
-    // /item/[id].
-    const cardLinks = screen.getAllByRole('listitem');
-    const certCard = cardLinks[0];
-    expect(certCard.tagName).toBe('A');
-    expect(certCard).toHaveAttribute('href', '/documents/ci-1');
+    // When content_items exist, the whole row is a click target for the first
+    // item's evidence document. ID-135.26: content_item ids are
+    // source_documents ids (re-pointed post-{131.19}) — the card links to
+    // /documents/[id], not the deleted /item/[id].
+    //
+    // {128.23}: asserted through the row's link rather than the row element's
+    // tagName. The row itself used to be the <a>, which made every nested
+    // control (Review link, edit button) invalid `<a>`-in-`<a>` nesting and
+    // triggered a React hydration error; it is now a <div> carrying a
+    // stretched overlay link (components/dashboard/entity-summary-row.tsx).
+    // The destination is the behaviour; the element that carries it is not.
+    const row = screen.getAllByRole('listitem')[0];
+    const evidenceLink = within(row).getByRole('link', {
+      name: 'View evidence for ISO 27001',
+    });
+    expect(evidenceLink).toHaveAttribute('href', '/documents/ci-1');
   });
 
   it('calls onEditEntity when certification has no content items', () => {

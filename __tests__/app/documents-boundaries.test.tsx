@@ -19,6 +19,7 @@ vi.mock('@/lib/logger/client', () => ({
 
 import DiffError from '@/app/documents/[id]/diff/error';
 import DiffLoading from '@/app/documents/[id]/diff/loading';
+import SourceDocumentDetailLoading from '@/app/documents/[id]/loading';
 
 // Mock next/link
 vi.mock('next/link', () => ({
@@ -105,5 +106,25 @@ describe('Diff Loading Skeleton', () => {
   it('contains screen-reader text', () => {
     render(<DiffLoading />);
     expect(screen.getByText('Loading diff review...')).toBeInTheDocument();
+  });
+});
+
+// id-354: the `/documents/[id]` route-loading skeleton had no unit test while
+// every sibling boundary in this directory did. Asserted here at the same
+// level as the siblings above — the announcement a screen-reader user gets
+// while the segment streams. Deliberately NOT asserted: Skeleton counts or
+// class strings, which change with any visual tweak without changing what a
+// user observes.
+describe('Source Document Detail Loading Skeleton', () => {
+  it('announces the in-flight document load to assistive technology', () => {
+    render(<SourceDocumentDetailLoading />);
+    expect(
+      screen.getByRole('status', { name: 'Loading document' }),
+    ).toBeInTheDocument();
+  });
+
+  it('tells a screen-reader user the document is still loading', () => {
+    render(<SourceDocumentDetailLoading />);
+    expect(screen.getByText('Loading document...')).toBeInTheDocument();
   });
 });

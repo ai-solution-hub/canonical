@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { Layers, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ExpiryBadge } from '@/components/dashboard/expiry-badge';
+import {
+  EntitySummaryRow,
+  ROW_ACTION_CLASS,
+} from '@/components/dashboard/entity-summary-row';
 import { cn } from '@/lib/utils';
 import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import type { ExpiryStatus } from '@/lib/certification-status';
@@ -107,6 +111,7 @@ function FrameworkRow({
               onEdit?.(framework.canonical_name);
             }}
             className={cn(
+              ROW_ACTION_CLASS,
               'text-sm font-medium text-foreground',
               onEdit && 'cursor-pointer hover:underline',
             )}
@@ -120,7 +125,7 @@ function FrameworkRow({
             <Button
               variant="outline"
               size="sm"
-              className="h-6 gap-1 px-2 text-xs"
+              className={`${ROW_ACTION_CLASS} h-6 gap-1 px-2 text-xs`}
               asChild
             >
               <Link
@@ -160,25 +165,13 @@ function FrameworkRow({
     </>
   );
 
-  if (itemLink) {
-    return (
-      <Link
-        href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
-        role="listitem"
-      >
-        {cardContent}
-      </Link>
-    );
-  }
-
   return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
-      role="listitem"
+    <EntitySummaryRow
+      itemLink={itemLink}
+      overlayLabel={`View evidence for ${formatEntityDisplayName(framework.canonical_name)}`}
     >
       {cardContent}
-    </div>
+    </EntitySummaryRow>
   );
 }
 

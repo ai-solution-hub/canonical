@@ -12,6 +12,7 @@ import {
 } from '@/lib/governance/review-action-owner';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,6 +21,30 @@ import { z } from 'zod';
 export const maxDuration = 30;
 
 const ReviewActionResponseSchema = z.object({ success: z.literal(true) });
+
+/**
+ * id-327: the `verification_history` inserts below were fire-and-forget, so a
+ * failed audit write vanished without trace.
+ *
+ * They are checked but NOT escalated to a 500: by the time they run the
+ * governance state change has already landed, and there is no enclosing
+ * transaction to roll it back. Reporting a failure would deny a change that
+ * really happened and invite the client to retry it. So the failure is made
+ * observable (structured warn + Sentry breadcrumb) and the action still
+ * succeeds — the same primary-write / secondary-write split this route
+ * already applies to the `source_documents.updated_by` stamp.
+ */
+function reportFailedAuditWrite(
+  error: { code?: string; message: string } | null,
+  context: { itemId: string; ownerKind: string; action: string },
+): void {
+  if (!error) return;
+  logBestEffortWarn(
+    'governance.verification.audit',
+    'Failed to record verification_history audit row',
+    { ...context, code: error.code, error: error.message },
+  );
+}
 
 export const POST = defineRoute(
   ReviewActionResponseSchema,
@@ -53,18 +78,30 @@ export const POST = defineRoute(
       // boundary and still omits it, so the resolver's q_a_pairs fallback
       // probe (see lib/governance/review-action-owner.ts) is what un-404s
       // it; an explicit owner_kind (future callers) resolves directly.
-      const ownerKind = await resolveReviewItemOwner(
+      const ownerResolution = await resolveReviewItemOwner(
         supabase,
         item_id,
         owner_kind,
       );
 
-      if (!ownerKind) {
+      // id-327: a failed probe is NOT an absent item. The resolver used to
+      // collapse both into `null`, so an RLS denial or a DB outage reached the
+      // user as a confident 404 — unactionable, and invisible in telemetry.
+      if (ownerResolution.status === 'lookup_failed') {
+        return NextResponse.json(
+          { error: 'Failed to look up content item' },
+          { status: 500 },
+        );
+      }
+
+      if (ownerResolution.status === 'not_found') {
         return NextResponse.json(
           { error: 'Content item not found' },
           { status: 404 },
         );
       }
+
+      const ownerKind = ownerResolution.ownerKind;
 
       // ID-131 {131.19}: content_items is dying — for a source_document
       // owner, item_id IS the source_documents id directly (every
@@ -141,11 +178,18 @@ export const POST = defineRoute(
         // BOTH owner kinds now (previously gated on sourceDocumentId, which
         // was always truthy pre-ID-152 since the existence check above was
         // source_documents-only).
-        await supabase.from('verification_history').insert({
-          ...verificationHistoryOwnerFields(ownerKind, item_id),
-          action_type: 'verify',
-          note: note ?? null,
-          performed_by: user.id,
+        const { error: verifyAuditError } = await supabase
+          .from('verification_history')
+          .insert({
+            ...verificationHistoryOwnerFields(ownerKind, item_id),
+            action_type: 'verify',
+            note: note ?? null,
+            performed_by: user.id,
+          });
+        reportFailedAuditWrite(verifyAuditError, {
+          itemId: item_id,
+          ownerKind,
+          action: 'verify',
         });
 
         // Resolve any open review_needed flags — verification overrides
@@ -241,11 +285,18 @@ export const POST = defineRoute(
         // Record in verification history for unified audit trail.
         // ID-152: guaranteed a source_document owner here (q_a_pair returns
         // early above), so this fires unconditionally, same as before.
-        await supabase.from('verification_history').insert({
-          ...verificationHistoryOwnerFields(ownerKind, item_id),
-          action_type: 'flag',
-          note: flag_details ?? null,
-          performed_by: user.id,
+        const { error: flagAuditError } = await supabase
+          .from('verification_history')
+          .insert({
+            ...verificationHistoryOwnerFields(ownerKind, item_id),
+            action_type: 'flag',
+            note: flag_details ?? null,
+            performed_by: user.id,
+          });
+        reportFailedAuditWrite(flagAuditError, {
+          itemId: item_id,
+          ownerKind,
+          action: 'flag',
         });
 
         await supabase
@@ -299,11 +350,18 @@ export const POST = defineRoute(
         // Record in verification history. ID-152 generalises this table to
         // {source_document, q_a_pair} (owner ruling Option B) — fires for
         // BOTH owner kinds now, mirroring the verify branch above.
-        await supabase.from('verification_history').insert({
-          ...verificationHistoryOwnerFields(ownerKind, item_id),
-          action_type: 'unverify',
-          note: note ?? null,
-          performed_by: user.id,
+        const { error: unverifyAuditError } = await supabase
+          .from('verification_history')
+          .insert({
+            ...verificationHistoryOwnerFields(ownerKind, item_id),
+            action_type: 'unverify',
+            note: note ?? null,
+            performed_by: user.id,
+          });
+        reportFailedAuditWrite(unverifyAuditError, {
+          itemId: item_id,
+          ownerKind,
+          action: 'unverify',
         });
       } else if (action === 'publish') {
         // Linear review-queue "Publish" quick-action — draft-state items

@@ -516,6 +516,18 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     );
   });
 
+  it('names the procurement form array after the table it was read from (form_instances)', async () => {
+    const mock = createMockSupabaseTableDispatch();
+    const bundle = await assembleAuditTrailBundle(mock as never, VALID_UUID_A);
+
+    // id-324: the exported key lagged the {145.6} `form_templates` →
+    // `form_instances` table rename, so a data subject reading their own
+    // audit-trail bundle saw an array labelled after a table that no longer
+    // exists — unmappable back to the records it describes.
+    expect(bundle).toHaveProperty('form_instances');
+    expect(bundle).not.toHaveProperty('form_templates');
+  });
+
   it('form_instances fetch checks created_by and outcome_recorded_by (gap-fill: never bundled pre-id-138.19)', async () => {
     const mock = createMockSupabaseTableDispatch();
     await assembleAuditTrailBundle(mock as never, VALID_UUID_A);

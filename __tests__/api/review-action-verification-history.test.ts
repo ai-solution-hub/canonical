@@ -29,6 +29,17 @@ vi.mock('next/headers', () => ({
   }),
 }));
 
+// id-327: the failure paths below are best-effort — their only observable is
+// the operator-facing warning. Spy on the real telemetry surface (everything
+// else in the module stays real) so those tests can assert the failure was
+// actually reported rather than swallowed.
+const telemetryMocks = vi.hoisted(() => ({ logBestEffortWarn: vi.fn() }));
+
+vi.mock('@/lib/supabase/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/supabase/telemetry')>()),
+  logBestEffortWarn: telemetryMocks.logBestEffortWarn,
+}));
+
 // Suppress console.error noise from route error handling
 vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -37,6 +48,9 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 // ---------------------------------------------------------------------------
 
 import { POST as postAction } from '@/app/api/review/action/route';
+// The route rate-limits 30 POSTs/min per user and the in-memory counter leaks
+// across tests — reset it per test so each one stands alone.
+import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,6 +65,7 @@ const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
 function resetMocks() {
   vi.clearAllMocks();
+  _resetRateLimitStore();
 
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
@@ -948,5 +963,254 @@ describe('POST /api/review/action — ID-152 owner-aware existence lookup', () =
     const res = await postAction(req);
 
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// id-327: the owner existence probe used to collapse EVERY Supabase error to
+// "no such row", so an RLS denial or a dropped connection reached the user as
+// a confident 404 — indistinguishable from an item that genuinely does not
+// exist, and invisible to operators. PostgREST's real no-rows signal under
+// `.single()` is PGRST116; every other code is a failure the caller must be
+// told about.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — existence-probe failure honesty (id-327)', () => {
+  beforeEach(resetMocks);
+
+  /** The two tables the owner probe may read, in probe order. */
+  function existenceProbeCalls(): string[] {
+    return mockSupabase.from.mock.calls
+      .map((c) => c[0])
+      .filter((t) => t === 'source_documents' || t === 'q_a_pairs');
+  }
+
+  it('reports a failed lookup as a server error rather than a missing item', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table' },
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).not.toBe('Content item not found');
+  });
+
+  it('does not attribute the item to a q_a_pair when the source_documents lookup fails', async () => {
+    configureRole(mockSupabase, 'editor');
+    // A failed first probe leaves the item's owner genuinely unknown. Falling
+    // through to q_a_pairs would stamp the audit trail with an owner nobody
+    // established — worse than failing.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '08006', message: 'connection failure' },
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(500);
+    expect(existenceProbeCalls()).toEqual(['source_documents']);
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
+  it('reports an explicit-owner_kind lookup failure as a server error too', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table' },
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'verify',
+        owner_kind: 'q_a_pair',
+      },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(500);
+  });
+
+  it('still 404s when PostgREST reports the row genuinely does not exist', async () => {
+    configureRole(mockSupabase, 'editor');
+    // PGRST116 is `.single()`'s no-rows code — a true absence, not a failure.
+    mockSupabase._chain.single.mockResolvedValue({
+      data: null,
+      error: {
+        code: 'PGRST116',
+        message: 'JSON object requested, multiple (or no) rows returned',
+      },
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(404);
+    const json = await res.json();
+    expect(json.error).toBe('Content item not found');
+    // Both tables were probed before concluding the item is absent.
+    expect(existenceProbeCalls()).toEqual(['source_documents', 'q_a_pairs']);
+  });
+
+  it('surfaces the failing table and error code to operators when a lookup fails', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: '42501', message: 'permission denied for table' },
+    });
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    await postAction(req);
+
+    expect(telemetryMocks.logBestEffortWarn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        table: 'source_documents',
+        code: '42501',
+        itemId: VALID_UUID,
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// id-327: the verification_history inserts were fire-and-forget. The
+// governance state change has already landed by then, so a failed audit write
+// cannot honestly be reported as a failed action — but it must not vanish
+// either.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — audit-write failure reporting (id-327)', () => {
+  beforeEach(resetMocks);
+
+  /**
+   * Resolve the awaited chains of the verify path in order: the facet update,
+   * the source_documents updated_by stamp, then the audit insert (failing).
+   */
+  function failTheAuditInsert() {
+    mockSupabase._chain.then
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null }),
+      )
+      .mockImplementationOnce((resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: {
+            code: '23503',
+            message: 'violates foreign key constraint',
+          },
+        }),
+      );
+  }
+
+  it('still confirms the verify, because the governance state change already landed', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    failTheAuditInsert();
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    // Reporting a failure here would invite a retry of a write that already
+    // succeeded — the item IS verified.
+    expect(res.status).toBe(200);
+  });
+
+  it('reports the lost audit row to operators instead of discarding the error', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    failTheAuditInsert();
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    await postAction(req);
+
+    expect(telemetryMocks.logBestEffortWarn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        action: 'verify',
+        itemId: VALID_UUID,
+        ownerKind: 'source_document',
+        code: '23503',
+      }),
+    );
+  });
+
+  it('reports a lost unverify audit row for the same reason', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    failTheAuditInsert();
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'unverify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    expect(telemetryMocks.logBestEffortWarn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ action: 'unverify', code: '23503' }),
+    );
+  });
+
+  it('leaves a successful verify silent — no warning when the audit row lands', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+    const res = await postAction(req);
+
+    expect(res.status).toBe(200);
+    expect(telemetryMocks.logBestEffortWarn).not.toHaveBeenCalled();
   });
 });

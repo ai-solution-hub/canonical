@@ -71,6 +71,33 @@ const DEFAULT_SEED_COUNT = 4;
 /** Smaller seed for the cancel test (Test 4). */
 const CANCEL_SEED_COUNT = 2;
 
+/**
+ * Accessible name of the return-to-draft action in the bulk bar.
+ *
+ * NOTE — this is NOT the visible text. `publication-bulk-action-bar.tsx:169`
+ * sets `aria-label="Return selected items to draft"` over a button whose
+ * visible label reads "Return selected to draft", so the aria-label wins for
+ * `getByRole(...{ name })` and the visible string never matches. The same
+ * divergence does not bite the Approve button, whose aria-label ("Approve
+ * selected items") merely *appends* to its visible text.
+ *
+ * That mismatch is a WCAG 2.5.3 (Label in Name) failure — reported as an owner
+ * question under {128.23}, deliberately NOT papered over here. The assertions
+ * below target the real accessible name so they fail honestly if the control
+ * is removed; if the aria-label is later dropped to satisfy 2.5.3, this
+ * constant is the single line to update.
+ */
+const RETURN_TO_DRAFT_ACCESSIBLE_NAME = /^Return selected items to draft$/;
+
+/**
+ * Confirmation-dialog action labels, verbatim from
+ * `publication-bulk-action-bar.tsx` (`<AlertDialogAction>` children at :215
+ * and :235). The dialog *title* carries the count ("Approve 3 items?"); the
+ * action button does not, and there is no "Confirm" button on either dialog.
+ */
+const CONFIRM_APPROVE_NAME = /^Approve$/;
+const CONFIRM_RETURN_NAME = /^Return to draft$/;
+
 interface SeedResult {
   /** IDs of rows inserted by `seedInReviewItems`. */
   ids: string[];
@@ -317,9 +344,16 @@ test.describe('§5.3 publication-bulk-action — admin happy path', () => {
       name: /Approve selected/,
     });
     await expect(approveSelected).toBeEnabled();
-    await expect(
-      bulkBar.getByRole('button', { name: /Return selected to draft/ }),
-    ).toBeEnabled();
+
+    const returnToDraft = bulkBar.getByRole('button', {
+      name: RETURN_TO_DRAFT_ACCESSIBLE_NAME,
+    });
+    await expect(returnToDraft).toBeEnabled();
+    // The label a sighted user reads. Asserted separately from the accessible
+    // name above precisely because the two currently disagree — pinning both
+    // is what makes the WCAG 2.5.3 divergence visible to the next reader
+    // instead of silently encoded in one locator.
+    await expect(returnToDraft).toHaveText('Return selected to draft');
     await expect(
       bulkBar.getByRole('button', { name: /Clear selection/ }),
     ).toBeEnabled();
@@ -332,9 +366,15 @@ test.describe('§5.3 publication-bulk-action — admin happy path', () => {
 
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();
+    // Title and body are two elements (AlertDialogTitle + AlertDialogDescription),
+    // so they must be asserted separately — `getByText` matches within a single
+    // element, and the concatenated sentence this spec used to look for exists
+    // in no element at all, making that assertion unsatisfiable rather than
+    // merely stale.
+    await expect(dialog.getByText('Approve 3 items?')).toBeVisible();
     await expect(
       dialog.getByText(
-        /Approve 3 items\? This publishes them to the knowledge base immediately\./,
+        'This publishes them to the knowledge base immediately.',
       ),
     ).toBeVisible();
 
@@ -348,11 +388,8 @@ test.describe('§5.3 publication-bulk-action — admin happy path', () => {
       { timeout: 30_000 },
     );
 
-    // The confirm button label depends on the impl; spec §3.3 says
-    // "Confirm | Cancel". Match either "Confirm" or "Approve N items"
-    // (the latter is mentioned at §3.5 line 395 as the icon-paired label).
     const confirmButton = dialog.getByRole('button', {
-      name: /^(Confirm|Approve \d+ items?)$/,
+      name: CONFIRM_APPROVE_NAME,
     });
     await confirmButton.click();
 
@@ -432,9 +469,7 @@ test.describe('§5.3 publication-bulk-action — editor happy path (PR-1 RBAC)',
       { timeout: 30_000 },
     );
 
-    await dialog
-      .getByRole('button', { name: /^(Confirm|Approve \d+ items?)$/ })
-      .click();
+    await dialog.getByRole('button', { name: CONFIRM_APPROVE_NAME }).click();
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);
@@ -482,7 +517,7 @@ test.describe('§5.3 publication-bulk-action — return to draft', () => {
     await expect(bulkBar.getByText(/2 of \d+ selected/)).toBeVisible();
 
     await bulkBar
-      .getByRole('button', { name: /Return selected to draft/ })
+      .getByRole('button', { name: RETURN_TO_DRAFT_ACCESSIBLE_NAME })
       .click();
 
     const dialog = page.getByRole('alertdialog');
@@ -497,9 +532,7 @@ test.describe('§5.3 publication-bulk-action — return to draft', () => {
       { timeout: 30_000 },
     );
 
-    await dialog
-      .getByRole('button', { name: /^(Confirm|Return \d+ items?)$/ })
-      .click();
+    await dialog.getByRole('button', { name: CONFIRM_RETURN_NAME }).click();
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);

@@ -14,6 +14,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { ExpiryBadge } from '@/components/dashboard/expiry-badge';
+import {
+  EntitySummaryRow,
+  ROW_ACTION_CLASS,
+} from '@/components/dashboard/entity-summary-row';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import type { ExpiryStatus } from '@/lib/certification-status';
@@ -190,7 +194,7 @@ function CertificationRow({
                 e.preventDefault();
                 onEdit(cert.canonical_name);
               }}
-              className="cursor-pointer text-sm font-medium text-foreground hover:underline"
+              className={`${ROW_ACTION_CLASS} cursor-pointer text-sm font-medium text-foreground hover:underline`}
               aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
             >
               {formatEntityDisplayName(cert.canonical_name)}
@@ -215,7 +219,7 @@ function CertificationRow({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1 text-xs"
+              className={`${ROW_ACTION_CLASS} gap-1 text-xs`}
               asChild
             >
               <Link
@@ -252,25 +256,13 @@ function CertificationRow({
     </>
   );
 
-  if (itemLink) {
-    return (
-      <Link
-        href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
-        role="listitem"
-      >
-        {cardContent}
-      </Link>
-    );
-  }
-
   return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
-      role="listitem"
+    <EntitySummaryRow
+      itemLink={itemLink}
+      overlayLabel={`View evidence for ${formatEntityDisplayName(cert.canonical_name)}`}
     >
       {cardContent}
-    </div>
+    </EntitySummaryRow>
   );
 }
 
@@ -307,7 +299,7 @@ function RegistrationRow({
                 e.preventDefault();
                 onEdit(reg.canonical_name);
               }}
-              className="cursor-pointer text-sm font-medium text-foreground hover:underline"
+              className={`${ROW_ACTION_CLASS} cursor-pointer text-sm font-medium text-foreground hover:underline`}
               aria-label={`Edit ${formatEntityDisplayName(reg.canonical_name)}`}
             >
               {formatEntityDisplayName(reg.canonical_name)}
@@ -322,7 +314,7 @@ function RegistrationRow({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1 text-xs"
+              className={`${ROW_ACTION_CLASS} gap-1 text-xs`}
               asChild
             >
               <Link
@@ -361,25 +353,13 @@ function RegistrationRow({
     </>
   );
 
-  if (itemLink) {
-    return (
-      <Link
-        href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
-        role="listitem"
-      >
-        {cardContent}
-      </Link>
-    );
-  }
-
   return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
-      role="listitem"
+    <EntitySummaryRow
+      itemLink={itemLink}
+      overlayLabel={`View evidence for ${formatEntityDisplayName(reg.canonical_name)}`}
     >
       {cardContent}
-    </div>
+    </EntitySummaryRow>
   );
 }
 

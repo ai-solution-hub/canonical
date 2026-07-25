@@ -496,9 +496,18 @@ export interface AuditTrailBundle {
   form_response_history: Record<string, unknown>[];
   form_responses: Record<string, unknown>[];
   form_questions: Record<string, unknown>[];
-  // form_templates ADDED (id-138.19): created_by + outcome_recorded_by are
-  // user-linked but were never bundled (untyped queries — tsc missed the gap).
-  form_templates: Record<string, unknown>[];
+  // ADDED (id-138.19): created_by + outcome_recorded_by are user-linked but
+  // were never bundled (untyped queries — tsc missed the gap).
+  //
+  // KEY RENAMED form_templates → form_instances (id-324): the table was
+  // renamed under {145.6}; {145.32} re-pointed the READ but left this output
+  // key on the dead name, so the bundle labelled an array after a table that
+  // no longer exists. Clean rename rather than an alias or dual keys —
+  // pre-launch with zero consumers of the bundle shape (grep: AuditTrailBundle
+  // is referenced only by this file and its test; the GDPR handover runbook
+  // documents `audit-trail.json` as a file, never its keys), and emitting both
+  // names would re-import the exact ambiguity the rename removes.
+  form_instances: Record<string, unknown>[];
   verification_history: Record<string, unknown>[];
   classification_disputes: Record<string, unknown>[];
   feed_flags: Record<string, unknown>[];
@@ -657,7 +666,7 @@ export async function assembleAuditTrailBundle(
     procurementRespHistory,
     procurementResponses,
     procurementQuestions,
-    formTemplates,
+    formInstances,
     verificationHistory,
     classificationDisputes,
     feedFlags,
@@ -764,7 +773,7 @@ export async function assembleAuditTrailBundle(
     form_response_history: procurementRespHistory,
     form_responses: procurementResponses,
     form_questions: procurementQuestions,
-    form_templates: formTemplates,
+    form_instances: formInstances,
     verification_history: verificationHistory,
     classification_disputes: classificationDisputes,
     feed_flags: feedFlags,

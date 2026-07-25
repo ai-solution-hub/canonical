@@ -313,20 +313,16 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     );
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    // Worker fixture seeds an Acme Ltd supplier certification
-    // ("ISO 9001 (Acme Supplier)", metadata.holder = 'supplier'), so the
-    // supplier toggle must be present.
+    // Worker fixture seeds a supplier certification ("ISO 9001 (Acme
+    // Supplier)", metadata.holder = 'supplier' / supplier_name = 'Acme Ltd'),
+    // so the supplier toggle must be present.
     //
-    // KNOWN FIXTURE GAP ({128.23}): the seeded 'holds' relationship for that
-    // certification has source_entity = 'Acme Ltd', but
-    // app/api/certifications/route.ts only keeps relationships whose
-    // source_entity matches BRANDING.organisationName, so the entity never
-    // reaches the response and SupplierSection renders null. The UI behaviour
-    // asserted here is intact — the seed is what cannot express it. Fix
-    // belongs in e2e/fixtures/test-data.ts `buildEntityRelationships()`
-    // (source_entity → BRANDING.organisationName; metadata.holder /
-    // supplier_name already carry the supplier semantics). Deliberately NOT
-    // weakened or skipped here.
+    // The fixture gap this test previously documented is CLOSED: the seeded
+    // 'holds' row is now sourced from BRANDING.organisationName rather than
+    // 'Acme Ltd', so it survives the source_entity filter in
+    // app/api/certifications/route.ts:156-159 and SupplierSection renders.
+    // Supplier semantics ride on the entity_mention metadata, not the
+    // relationship's source (e2e/fixtures/test-data.ts).
     const supplierToggle = complianceSection
       .locator('button[aria-expanded]')
       .filter({

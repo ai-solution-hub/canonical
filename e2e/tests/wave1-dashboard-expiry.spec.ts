@@ -41,13 +41,14 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     void _workerData;
     // ComplianceStatusSection renders when certification data exists (it
     // returns null otherwise). The worker fixture seeds 4 entity_relationships
-    // ('holds'), 3 of them sourced from the client organisation — ISO 27001 /
-    // Cyber Essentials Plus / G-Cloud 14 — plus matching entity_mentions, so
-    // the populated branch must render. (The 4th 'holds' row is sourced from
-    // 'Acme Ltd' and is filtered out by /api/certifications, which only keeps
-    // relationships whose source_entity is the client org.) The previous
-    // conditional `if (await section.isVisible())` masked missing-fixture
-    // regressions per `feedback_e2e_conditional_false_pass`.
+    // ('holds'), all sourced from the client organisation — ISO 27001 / Cyber
+    // Essentials Plus / G-Cloud 14 / ISO 9001 (Acme Supplier) — plus matching
+    // entity_mentions, so the populated branch must render. /api/certifications
+    // keeps only relationships whose source_entity is the client org; the
+    // supplier row carries its supplier semantics in the mention metadata
+    // rather than in source_entity ({128.23}). The previous conditional
+    // `if (await section.isVisible())` masked missing-fixture regressions per
+    // `feedback_e2e_conditional_false_pass`.
     const section = page.locator('section[aria-label="Compliance status"]');
 
     await expect(section).toBeVisible({ timeout: 10000 });
