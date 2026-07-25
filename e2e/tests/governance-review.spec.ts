@@ -5,8 +5,24 @@ import { navigateViaHeader } from '../helpers/responsive';
  * Flow 8: Content Governance and Review
  *
  * Tests the /review page — review queue loading, speed-review card display,
- * verify/flag/next actions, progress tracking, and empty queue handling.
- * The authenticated test user must have editor or admin role.
+ * verify/flag/next actions, and progress tracking. The authenticated test
+ * user must have editor or admin role.
+ *
+ * There is deliberately NO empty-queue test here: emptiness is anti-monotone
+ * on a shared DB — any concurrent worker's seed falsifies it — so it can only
+ * be asserted at the READ boundary (route-intercept), never by seeding. See
+ * `change-reports-page.spec.ts`'s `stubEmptyChangeReports` for that pattern.
+ *
+ * Eleven of the thirteen tests below need a non-empty queue, and the queue is
+ * supplied by the worker-scoped `workerData` fixture (12 unverified
+ * source_documents per worker). Playwright only instantiates a fixture that is
+ * actually destructured, so the destructure IS the dependency declaration —
+ * a comment claiming the fixture ran is not one. Hence the
+ * `workerData: _workerData` / `void _workerData;` pairs (same precedent as
+ * e2e/tests/wave1-dashboard-expiry.spec.ts and e2e/tests/bid-pipeline.spec.ts).
+ * Before {328.3} this file declared nothing and passed only off whichever
+ * other spec happened to run earlier on the same worker — green on staging's
+ * ambient corpus, red on a cold ephemeral branch.
  */
 
 test.describe('Review page — queue display', () => {
@@ -27,7 +43,9 @@ test.describe('Review page — queue display', () => {
 
   test('shows the seeded review queue with actionable items', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     // The worker fixture seeds 10+ unverified content items, so the review
     // toolbar must be present. We deliberately do NOT accept the empty state
     // here — that branch is covered by a separate test below.
@@ -37,7 +55,9 @@ test.describe('Review page — queue display', () => {
 
   test('progress bar is displayed when items exist', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     // Seeded data guarantees a non-empty queue, so the progress bar is
     // always rendered.
     const progressBar = page.getByLabel(/Review progress/);
@@ -48,7 +68,9 @@ test.describe('Review page — queue display', () => {
 test.describe('Review page — action bar', () => {
   test('action bar shows verify, flag, next, and exit buttons', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -75,7 +97,9 @@ test.describe('Review page — action bar', () => {
 
   test('verify button advances to the next item', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -104,7 +128,9 @@ test.describe('Review page — action bar', () => {
 
   test('flag button shows flag input for reason', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -129,7 +155,9 @@ test.describe('Review page — action bar', () => {
 
   test('flag cancel hides the flag input', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -155,11 +183,37 @@ test.describe('Review page — action bar', () => {
 
   test('next button advances to the following queue item', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
     ).toBeVisible({ timeout: 10000 });
+
+    // This is the only test in the file needing TWO items rather than one, so
+    // assert the queue length up front, off app/review/review-content.tsx:397's
+    // `aria-label="Review queue — {n} item(s) pending review"` (a <section>,
+    // hence role=region). Note the label singularises at n=1, so the regex
+    // must allow `item` as well as `items` — otherwise the exact case this
+    // guards against would fail as "locator not found" and tell us nothing.
+    const queueRegion = page.getByRole('region', {
+      name: /^Review queue — \d+ items? pending review$/,
+    });
+    await expect(queueRegion).toBeVisible({ timeout: 15000 });
+
+    // Parse the count so a short queue fails on a message naming the length,
+    // instead of on the "Review item 2 of" article timing out — which reads
+    // as a navigation bug and sends the next triage session down the wrong
+    // path.
+    const queueLength = Number(
+      /(\d+)/.exec((await queueRegion.getAttribute('aria-label')) ?? '')?.[1] ??
+        0,
+    );
+    expect(
+      queueLength,
+      `this test advances to the SECOND queue item, so it needs >=2 — the queue has ${queueLength}. The workerData fixture seeds 12 unverified source_documents per worker; a count of 1 means only the seedPublicationReviewFixture row is present, i.e. the fixture did not run.`,
+    ).toBeGreaterThanOrEqual(2);
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
     await expect(actionBar).toBeVisible({ timeout: 10000 });
@@ -189,7 +243,9 @@ test.describe('Review page — action bar', () => {
 
   test('back button is disabled on the first item', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -205,7 +261,9 @@ test.describe('Review page — action bar', () => {
 
   test('exit button navigates away from review page', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -223,7 +281,9 @@ test.describe('Review page — action bar', () => {
 
   test('keyboard shortcut help dialog opens', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     await page.goto('/review');
     await expect(
       page.getByRole('heading', { name: 'Review Queue' }),
@@ -255,7 +315,9 @@ test.describe('Review page — action bar', () => {
 test.describe('Review page — queue state', () => {
   test('review page renders the seeded queue toolbar', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     // Worker fixture seeds 10+ unverified items, so the action toolbar
     // is the deterministic state — never the empty state.
     await page.goto('/review');
