@@ -234,9 +234,18 @@ test.describe('Change Reports page', () => {
     });
     await expect(heroHeading).toBeVisible({ timeout: 10000 });
 
-    // Description text is visible
+    // Description text is visible. {128.23}: the hero body copy has TWO
+    // variants (app/change-reports/page.tsx) and which one renders depends on
+    // the environment, not on anything this test controls:
+    //   isNewAccount -> "…we'll summarise what changed in your knowledge base."
+    //   otherwise    -> "See what changed in your knowledge base, grouped by…"
+    // `useAccountAge()` (hooks/use-account-age.ts) sets `isNewAccount` from
+    // `auth.users.created_at < 24h`, so a freshly seeded CI account takes the
+    // first branch while a long-lived local account takes the second. Assert
+    // the phrase both variants share — the hero always tells the user this
+    // page is about what changed in their knowledge base.
     await expect(
-      page.getByText('See what changed in your knowledge base'),
+      page.getByText(/what changed in your knowledge base/),
     ).toBeVisible();
 
     // Generate button is present

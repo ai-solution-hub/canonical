@@ -89,19 +89,29 @@ test.describe('Provenance -- Per-item tab', () => {
     await expect(lookupButton).toBeEnabled();
     await lookupButton.click();
 
-    // Wait for the loading skeleton to appear then disappear
-    // The provenance data should render three cards: Classification,
-    // Processing, and Drafting
-    const classificationCard = page.getByRole('heading', {
-      name: 'Classification',
-    });
-    await expect(classificationCard).toBeVisible({ timeout: 15000 });
+    // The provenance data renders its cards: Classification, Processing,
+    // Drafting and Review Schedule.
+    //
+    // {128.23}: these were `getByRole('heading', …)` and could never match —
+    // the card titles are `<CardTitle>`, which `components/ui/card.tsx`
+    // renders as a plain `<div>`, so they carry no heading role. The titles
+    // ARE the user-visible card labels, so we assert them as exact text
+    // scoped to the Per-item tabpanel. `exact: true` matters: it keeps
+    // "Classification" from also matching the "Classification model" field
+    // label inside the Processing card.
+    const perItemPanel = page.getByRole('tabpanel', { name: 'Per-item' });
 
-    const processingCard = page.getByRole('heading', { name: 'Processing' });
-    await expect(processingCard).toBeVisible();
+    await expect(
+      perItemPanel.getByText('Classification', { exact: true }),
+    ).toBeVisible({ timeout: 15000 });
 
-    const draftingCard = page.getByRole('heading', { name: 'Drafting' });
-    await expect(draftingCard).toBeVisible();
+    await expect(
+      perItemPanel.getByText('Processing', { exact: true }),
+    ).toBeVisible();
+
+    await expect(
+      perItemPanel.getByText('Drafting', { exact: true }),
+    ).toBeVisible();
 
     // The item ID should be displayed in the header
     await expect(page.getByText(`Item: ${itemId}`)).toBeVisible();

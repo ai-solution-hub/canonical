@@ -5,7 +5,7 @@ import { navigateViaHeader } from '../helpers/responsive';
  * Flow 8: Content Governance and Review
  *
  * Tests the /review page — review queue loading, speed-review card display,
- * verify/flag/skip actions, progress tracking, and empty queue handling.
+ * verify/flag/next actions, progress tracking, and empty queue handling.
  * The authenticated test user must have editor or admin role.
  */
 
@@ -46,7 +46,7 @@ test.describe('Review page — queue display', () => {
 });
 
 test.describe('Review page — action bar', () => {
-  test('action bar shows verify, flag, skip, and exit buttons', async ({
+  test('action bar shows verify, flag, next, and exit buttons', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/review');
@@ -63,8 +63,11 @@ test.describe('Review page — action bar', () => {
     ).toBeVisible();
     await expect(actionBar.getByRole('button', { name: /Flag/ })).toBeVisible();
 
-    // Navigation
-    await expect(actionBar.getByRole('button', { name: /Skip/ })).toBeVisible();
+    // Navigation. {128.23}: the advance control is labelled "Next item
+    // (keyboard shortcut: right arrow)" — it was renamed from "Skip".
+    await expect(
+      actionBar.getByRole('button', { name: /Next item/ }),
+    ).toBeVisible();
 
     // Meta
     await expect(actionBar.getByRole('button', { name: /Exit/ })).toBeVisible();
@@ -150,7 +153,7 @@ test.describe('Review page — action bar', () => {
     });
   });
 
-  test('skip button advances to the next item without changing status', async ({
+  test('next button advances to the following queue item', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/review');
@@ -161,13 +164,26 @@ test.describe('Review page — action bar', () => {
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
     await expect(actionBar).toBeVisible({ timeout: 10000 });
 
-    const skipButton = actionBar.getByRole('button', { name: /Skip/ });
-    await expect(skipButton).toBeEnabled();
+    // {128.23}: the control formerly labelled "Skip" is now "Next item
+    // (keyboard shortcut: right arrow)" (review-action-bar.tsx).
+    const nextButton = actionBar.getByRole('button', { name: /Next item/ });
+    await expect(nextButton).toBeEnabled();
 
-    // Click skip
-    await skipButton.click();
+    // The review card is a role="article" region named
+    // "Review item {position} of {total}: {title}", so queue position is
+    // observable. The seeded queue has 10+ items, so item 1 is showing.
+    await expect(
+      page.getByRole('article', { name: /^Review item 1 of / }),
+    ).toBeVisible({ timeout: 10000 });
 
-    // Should still be on the review page with the next item or completion
+    await nextButton.click();
+
+    // Advancing must surface the SECOND queue item — asserting the position
+    // moved is the actual behaviour; a bare URL check would pass even if the
+    // card never changed.
+    await expect(
+      page.getByRole('article', { name: /^Review item 2 of / }),
+    ).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/review/);
   });
 
@@ -230,7 +246,9 @@ test.describe('Review page — action bar', () => {
     // Should list the key shortcuts
     await expect(page.getByText('Verify current item')).toBeVisible();
     await expect(page.getByText('Flag for review')).toBeVisible();
-    await expect(page.getByText('Skip to next item')).toBeVisible();
+    // {128.23}: the right-arrow shortcut is described as "Next item"
+    // (review-content.tsx shortcut table); "Skip to next item" is gone.
+    await expect(page.getByText('Next item')).toBeVisible();
   });
 });
 

@@ -11,8 +11,9 @@ import { isMobileViewport, searchFromHeader } from '../helpers/responsive';
  *
  * All sections are server-rendered with Suspense boundaries.
  *
- * Worker-scoped data provides 12 content items (including stale/expired),
- * 3 workspaces (1 bid in drafting state), notifications, and read marks.
+ * Worker-scoped data provides 12 content items (with aging/stale/expired
+ * freshness applied to their `record_lifecycle` rows), 2 workspaces,
+ * 2 procurement items (1 in drafting state), and notifications.
  */
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,7 @@ test.describe('Dashboard -- content health stats', () => {
 
   test('quick stats strip shows unhealthy content indicators', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
     await page.goto('/');
 
@@ -212,23 +214,30 @@ test.describe('Dashboard -- content health stats', () => {
     const healthSection = page.locator('section[aria-label="Content health"]');
     await expect(healthSection).toBeVisible({ timeout: 15000 });
 
-    // Worker data seeds stale (items[3]), expired (items[4]), and aging
-    // (items[8], items[11]) items. At least one unhealthy label should appear.
-    // Dashboard aggregates ALL data, so there could be more from other sources.
-    //
-    // Visibility implies non-zero because the QuickStatsStrip component
-    // conditionally renders Aging/Stale/Expired labels ONLY when their
-    // respective counts are > 0 (see quick-stats-strip.tsx lines 72-74).
-    const agingLabel = healthSection.getByText('Aging');
-    const staleLabel = healthSection.getByText('Stale');
-    const expiredLabel = healthSection.getByText('Expired');
+    // {128.23}: the worker fixture applies the seeded documents' freshness to
+    // `record_lifecycle` (post-M6 `source_documents` has no freshness columns
+    // at all), which is exactly what `get_dashboard_attention_counts` reads.
+    // It guarantees aging/stale/expired documents, so all three tiles must
+    // render — QuickStatsStrip conditionally renders each Aging/Stale/Expired
+    // label ONLY when its count is > 0 (quick-stats-strip.tsx), so visibility
+    // alone already proves the count is non-zero. The numeric lower bound on
+    // top of that proves the dashboard aggregates THIS worker's rows: counts
+    // are corpus-wide, so other data can only push them higher.
+    for (const [label, seeded] of [
+      ['Aging', workerData.seededFreshnessCounts.aging],
+      ['Stale', workerData.seededFreshnessCounts.stale],
+      ['Expired', workerData.seededFreshnessCounts.expired],
+    ] as const) {
+      const statLabel = healthSection.getByText(label, { exact: true });
+      await expect(statLabel).toBeVisible({ timeout: 10000 });
 
-    // At least one of the unhealthy indicators should be present.
-    // Multiple may exist, so use .first() to avoid strict mode violation
-    // on the .or() chain (which unions the locators).
-    await expect(
-      agingLabel.or(staleLabel).or(expiredLabel).first(),
-    ).toBeVisible({ timeout: 10000 });
+      // StatItem renders <span dot/><span value/><span label/> for freshness
+      // labels, so index the reverse `preceding-sibling` axis to pick the
+      // value span rather than unioning it with the decorative dot.
+      const statValue = statLabel.locator('xpath=preceding-sibling::span[1]');
+      const valueText = await statValue.textContent();
+      expect(Number(valueText)).toBeGreaterThanOrEqual(seeded);
+    }
   });
 });
 

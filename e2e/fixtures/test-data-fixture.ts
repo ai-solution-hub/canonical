@@ -91,8 +91,26 @@ export interface WorkerData {
   intelligenceWorkspaceId: string;
   /** ID of the seeded intelligence feed source. */
   intelligenceFeedSourceId: string;
+  /**
+   * ID of the seeded active scoring prompt (`feed_prompts` version 1) for the
+   * intelligence workspace — without it the filter-rules page renders only its
+   * "No filter rules configured" empty state.
+   */
+  intelligenceFeedPromptId: string;
   /** IDs of the seeded feed articles (2 passed + 1 filtered). */
   feedArticleIds: string[];
+  /**
+   * Freshness buckets this worker guarantees on the dashboard's Content Health
+   * strip, applied to `record_lifecycle` (post-M6 `source_documents` has no
+   * freshness columns). Dashboard counts are corpus-wide, so specs assert
+   * these as lower bounds.
+   */
+  seededFreshnessCounts: {
+    fresh: number;
+    aging: number;
+    stale: number;
+    expired: number;
+  };
   /** Worker-unique prefix (e.g. "[E2E-W0]") for data isolation. */
   prefix: string;
   /** Indices of content items that have pre-computed embeddings. */
@@ -120,6 +138,12 @@ export interface WorkerData {
  *   the 2 q_a_pairs indices have no workspace_id column to assign)
  * - 2 notifications (freshness_alert + governance_review)
  * - 5 pre-computed embeddings (items 0, 1, 2, 3, 7), now via `record_embeddings`
+ * - 1 intelligence workspace + 1 feed source + 3 feed articles + 1 ACTIVE
+ *   `feed_prompts` version (the filter-rules page gates its entire UI on a
+ *   non-empty prompt list)
+ * - freshness/lifecycle applied to the seeded documents' trigger-minted
+ *   `record_lifecycle` rows (1 stale, 1 expired, 2 aging) — post-M6 the
+ *   freshness axis no longer lives on `source_documents`
  */
 export const test = base.extend<{}, { workerData: WorkerData }>({
   workerData: [
@@ -242,6 +266,70 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           itemIds[sdShapeEntries[i]!.index] = row.id;
           sourceDocumentIds.push(row.id);
         });
+      }
+
+      // --- Restore the freshness/lifecycle axis on `record_lifecycle` ---
+      //
+      // ID-131.19 M6 retirement: `source_documents` carries NO freshness,
+      // freshness_checked_at, lifecycle_type or expiry_date columns — that
+      // whole axis moved to the polymorphic `record_lifecycle` table, so the
+      // shapes' lifecycle fields were silently dropped by the insert above
+      // and every seeded document read back as `fresh`. The dashboard's
+      // `get_dashboard_attention_counts` RPC computes its freshness summary
+      // from `record_lifecycle` joined to `source_documents`, so with all
+      // rows fresh `QuickStatsStrip` renders no Aging/Stale/Expired tiles at
+      // all (dashboard.spec.ts §3 "unhealthy content indicators").
+      //
+      // This is an UPDATE, not an INSERT: `source_documents` carries an
+      // AFTER INSERT trigger (`trg_record_lifecycle_mint_source_document`)
+      // that already minted exactly one `record_lifecycle` row per document
+      // with `freshness` defaulted to 'fresh'. `record_lifecycle.owner_id` is
+      // a GENERATED STORED column (`COALESCE(source_document_id,
+      // q_a_pair_id)`) under UNIQUE (owner_kind, owner_id), so a second
+      // INSERT for the same document is a constraint violation.
+      const FRESHNESS_STATES = ['fresh', 'aging', 'stale', 'expired'] as const;
+      type FreshnessState = (typeof FRESHNESS_STATES)[number];
+
+      const lifecycleShapeEntries = sdShapeEntries.filter(
+        ({ shape }) =>
+          shape.freshness !== undefined ||
+          shape.freshness_checked_at !== undefined ||
+          shape.lifecycle_type !== undefined ||
+          shape.expiry_date !== undefined,
+      );
+
+      await Promise.all(
+        lifecycleShapeEntries
+          .filter(({ index }) => Boolean(itemIds[index]))
+          .map(({ shape, index }) =>
+            supabase
+              .from('record_lifecycle')
+              .update({
+                freshness: shape.freshness ?? 'fresh',
+                freshness_checked_at: shape.freshness_checked_at ?? null,
+                lifecycle_type: shape.lifecycle_type ?? 'evergreen',
+                expiry_date: shape.expiry_date ?? null,
+              })
+              .eq('owner_kind', 'source_document')
+              .eq('source_document_id', itemIds[index]!)
+              .throwOnError(),
+          ),
+      );
+
+      // Freshness buckets this worker guarantees on the dashboard. Every
+      // `source_documents` row gets a minted `record_lifecycle` row, so any
+      // shape without an explicit `freshness` counts towards `fresh`.
+      const seededFreshnessCounts: Record<FreshnessState, number> = {
+        fresh: 0,
+        aging: 0,
+        stale: 0,
+        expired: 0,
+      };
+      for (const { shape } of sdShapeEntries) {
+        const state = (shape.freshness ?? 'fresh') as FreshnessState;
+        if (FRESHNESS_STATES.includes(state)) {
+          seededFreshnessCounts[state] += 1;
+        }
       }
 
       // --- Seed entity_mentions for the entity filter UI and certifications card ---
@@ -564,6 +652,34 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const intelligenceFeedSourceId = feedSource?.id ?? '';
 
+      // --- Active scoring prompt for the intelligence workspace ---
+      //
+      // `/intelligence/[workspaceId]/filter-rules` short-circuits to
+      // "No filter rules configured for this workspace yet." when
+      // `GET /api/intelligence/workspaces/{id}/prompts` returns an empty
+      // array — the RefinementPanel, the advanced-editor disclosure and the
+      // version sidebar are all behind that gate
+      // (si-prompt-refinement.spec.ts). One active version is enough:
+      // `is_active` is what the page resolves `activePrompt` from, and
+      // `feed_prompts` is UNIQUE (workspace_id, version).
+      const { data: feedPrompt } = await supabase
+        .from('feed_prompts')
+        .insert({
+          workspace_id: intelligenceWorkspaceId,
+          prompt_text:
+            `${prefix} Score each article for relevance to UK cyber-security ` +
+            `procurement. Pass an article only when it names a buyer, a ` +
+            `framework, or a live tender opportunity.`,
+          version: 1,
+          is_active: true,
+          change_notes: 'E2E worker-scoped seed.',
+        })
+        .select('id')
+        .single()
+        .throwOnError();
+
+      const intelligenceFeedPromptId = feedPrompt?.id ?? '';
+
       // Seed 3 feed articles (2 passed, 1 filtered)
       const articleShapes = buildIntelligenceFeedArticles(timestamps.now);
       const feedArticleInserts = articleShapes.map((shape) => ({
@@ -623,6 +739,8 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const intelItemIds = (intelItems ?? []).map((i: { id: string }) => i.id);
       sourceDocumentIds.push(...intelItemIds);
+      // These land on the trigger-minted default of `freshness = 'fresh'`.
+      seededFreshnessCounts.fresh += intelItemIds.length;
 
       const data: WorkerData = {
         contentItemIds: itemIds,
@@ -647,7 +765,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         notificationIds,
         intelligenceWorkspaceId,
         intelligenceFeedSourceId,
+        intelligenceFeedPromptId,
         feedArticleIds,
+        seededFreshnessCounts,
         prefix,
         embeddedItemIndices: EMBEDDING_ITEM_INDICES,
       };
@@ -657,7 +777,8 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           `(${precomputedEmbeddings.length} with embeddings), ` +
           `2 workspaces (kb_section + intelligence), 2 procurement items (1 in drafting) with ${data.questionIds.length} questions and ` +
           `${data.responseIds.length} responses, ${data.notificationIds.length} notifications, ` +
-          `${data.feedArticleIds.length} feed articles ` +
+          `${data.feedArticleIds.length} feed articles + 1 active feed prompt, ` +
+          `freshness ${JSON.stringify(data.seededFreshnessCounts)} ` +
           `(prefix: ${prefix})`,
       );
 
@@ -675,6 +796,13 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // removed. `content_items`/`content_history` are also DROPPED;
       // cleanup now targets `q_a_pairs` + `source_documents` (+ their
       // `record_embeddings` rows — polymorphic, no FK cascade).
+      //
+      // No explicit step for `feed_prompts` or `record_lifecycle`: both have
+      // real ON DELETE CASCADE FKs (`feed_prompts.workspace_id` ->
+      // `workspaces`, reaped by the prefix sweep in step 5;
+      // `record_lifecycle.source_document_id` -> `source_documents`, reaped
+      // by the by-id delete in the same step). Adding redundant deletes here
+      // would only widen the teardown's blast radius.
 
       // 1. Notifications (by ID)
       if (notificationIds.length > 0) {

@@ -50,10 +50,10 @@ test.describe('Intelligence article review', () => {
     const articleContent = page.locator('main, [role="main"]').first();
     await expect(articleContent).toBeVisible({ timeout: 10000 });
 
-    // At least one article card should be visible
-    const articleCards = page.locator(
-      '[data-testid="article-card"], [data-testid="feed-article-card"], article, [role="article"]',
-    );
+    // At least one article card should be visible. Each card renders as a
+    // semantic <article> (components/intelligence/article-card.tsx), so the
+    // ARIA role is the user-facing contract we assert against.
+    const articleCards = page.getByRole('article');
 
     // Wait for articles to load — may be rendered as a list
     await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
@@ -92,9 +92,7 @@ test.describe('Intelligence article review', () => {
 
     // The fixture seeds 1 filtered article ("Irrelevant Sports Article", score 0.15)
     // Verify at least one article appears in the filtered view
-    const articleCards = page.locator(
-      '[data-testid="article-card"], [data-testid="feed-article-card"], article, [role="article"]',
-    );
+    const articleCards = page.getByRole('article');
     await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
 
     // Verify the filtered article title contains the worker prefix
@@ -122,9 +120,7 @@ test.describe('Intelligence flag creation', () => {
     await page.waitForLoadState('networkidle', { timeout: 15000 });
 
     // Wait for articles to render
-    const articleCards = page.locator(
-      '[data-testid="article-card"], [data-testid="feed-article-card"], article, [role="article"]',
-    );
+    const articleCards = page.getByRole('article');
     await expect(articleCards.first()).toBeVisible({ timeout: 8000 });
 
     // Find a flag button (text "Flag as irrelevant" on passed tab)

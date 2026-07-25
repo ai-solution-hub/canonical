@@ -739,15 +739,24 @@ test.describe('Procurement create happy path submit (8.0.3)', () => {
     //    (`components/procurement/procurement-creation-wizard.tsx`) renders
     //    inputs with `wizard-procurement-name` / `wizard-procurement-buyer`
     //    ids, a `FormTypePicker` radiogroup (also required — both submit
-    //    buttons stay disabled without a selection), and submits the
-    //    create-only path via the "Start Blank Procurement" button
+    //    buttons stay disabled until a form type is CONFIRMED), and submits
+    //    the create-only path via the "Start Blank Procurement" button
     //    (`handleCreateProcurement(e, false)`, which POSTs /api/procurement
     //    and navigates via `onCreated`/`router.push`).
+    //
+    //    id-351: FormTypePicker is deliberately infer-then-confirm (B-14,
+    //    "confirm-first; never silent-assign") — selecting a radio only sets
+    //    the picker's local state; `onConfirm` fires from the "Confirm form
+    //    type" button (components/procurement/form-type-picker.tsx:182-185).
+    //    Without that second click the wizard's `formType` stays null and
+    //    both submit buttons stay disabled forever. This was previously
+    //    mis-filed as an ephemeral-branch seed/hydration defect.
     await dialog
       .getByRole('radiogroup', { name: 'Form type' })
       .getByRole('radio')
       .first()
       .click();
+    await dialog.getByRole('button', { name: /Confirm form type/ }).click();
     const nameInput = dialog.locator('#wizard-procurement-name');
     await nameInput.waitFor({ state: 'visible', timeout: 10000 });
     await nameInput.fill(uniqueName);

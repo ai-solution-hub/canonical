@@ -27,6 +27,36 @@ import { createServiceClient } from '../fixtures/supabase';
  *   - DO NOT rely on optimistic UI without reload verification
  */
 
+/**
+ * Resolve `application_types.id` for a given `application_types.key`.
+ *
+ * S246 WP2b T2 (migration 20260520120828) DROPPED `workspaces.type` and
+ * replaced it with the NOT NULL `application_type_id` FK — the discriminator
+ * is now `application_types.key`. `application_types.id` is `gen_random_uuid()`
+ * and is NOT stable across Supabase projects/branches, so it must be queried,
+ * never hardcoded. Mirrors the `resolveAppTypeId` lookup the worker fixture
+ * already does (`e2e/fixtures/test-data-fixture.ts`).
+ */
+async function resolveAppTypeId(
+  supabase: ReturnType<typeof createServiceClient>,
+  key: string,
+): Promise<string> {
+  const { data } = await supabase
+    .from('application_types')
+    .select('id')
+    .eq('key', key)
+    .single()
+    .throwOnError();
+
+  const id = (data as { id: string } | null)?.id;
+  if (!id) {
+    throw new Error(
+      `[si-starter-pack-seeding] No application_types row for key '${key}'.`,
+    );
+  }
+  return id;
+}
+
 test.describe('SI Starter Pack Seeding', () => {
   /** IDs of workspaces created during these tests — cleaned up in afterAll. */
   const createdWorkspaceIds: string[] = [];
@@ -113,7 +143,21 @@ test.describe('SI Starter Pack Seeding', () => {
     await expect(submitButton).toBeEnabled({ timeout: 3000 });
     await submitButton.click();
 
-    // 7. Wait for workspace page to load (dialog closes, navigates to workspace)
+    // 7. Creating a workspace does NOT auto-navigate. `app/intelligence/page.tsx`
+    //    renders <WorkspaceCreationDialog> with no `onCreated` handler, and
+    //    `useCreateIntelligenceWorkspace` only invalidates the list query — so
+    //    the observable outcome of a successful create is: the dialog closes,
+    //    the list refetches, and the new workspace card renders in the grid.
+    //    Assert exactly that, then open the workspace the way a user does — by
+    //    clicking its card (which is the `/intelligence/{id}` link).
+    await expect(createDialog).not.toBeVisible({ timeout: 15000 });
+
+    const workspaceCard = page
+      .getByRole('link')
+      .filter({ hasText: workspaceName });
+    await expect(workspaceCard).toBeVisible({ timeout: 15000 });
+    await workspaceCard.click();
+
     await page.waitForURL(/\/intelligence\/[a-f0-9-]+/, { timeout: 15000 });
 
     // 8. Capture workspace ID from URL
@@ -231,7 +275,8 @@ test.describe('SI Starter Pack Seeding', () => {
         .from('workspaces')
         .insert({
           name: `${workerData.prefix} SI Seed ${Date.now()}`,
-          type: 'intelligence',
+          // S246 WP2b T2: `type` column dropped; use the application_type_id FK.
+          application_type_id: await resolveAppTypeId(supabase, 'intelligence'),
           domain_metadata: {},
         })
         .select('id')
@@ -335,7 +380,8 @@ test.describe('SI Starter Pack Seeding', () => {
         .from('workspaces')
         .insert({
           name: `${workerData.prefix} SI Seed ${Date.now()}`,
-          type: 'intelligence',
+          // S246 WP2b T2: `type` column dropped; use the application_type_id FK.
+          application_type_id: await resolveAppTypeId(supabase, 'intelligence'),
           domain_metadata: {},
         })
         .select('id')

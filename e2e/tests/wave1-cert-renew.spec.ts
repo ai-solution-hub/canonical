@@ -1,34 +1,62 @@
 import { test, expect } from '../fixtures';
 
 /**
- * Wave 1: Certification/Framework Renewal Button
+ * Wave 1: Certification/Framework Renewal Affordance
  *
- * Tests the Renew button on certification and framework cards on the
- * dashboard. The button appears only for items with 'expiring_soon' or
- * 'expired' expiry status, and links to the item detail page with a
- * `renewal_entity` query parameter.
+ * Tests the renewal affordance on certification and framework cards on the
+ * dashboard. It appears only for items with 'expiring_soon' or 'expired'
+ * expiry status, and links to the evidence document for that entity
+ * (`/documents/{sourceDocumentId}`).
  *
- * The CertificationSummaryCard renders inside ComplianceStatusSection
- * on the dashboard (/). Each certification/framework/registration row
- * shows an ExpiryBadge and, conditionally, a Renew button.
+ * Copy differs per card (verified against the components):
+ * - CertificationSummaryCard rows → visible text "Review",
+ *   aria-label `Review {canonical_name}`.
+ * - FrameworkSummaryCard rows → visible text "Renew",
+ *   aria-label `View {canonical_name} for renewal`.
+ *
+ * The CertificationSummaryCard renders inside ComplianceStatusSection on the
+ * dashboard (/). Each certification/framework/registration row shows an
+ * ExpiryBadge and, conditionally, the renewal link. Rows render as
+ * `<a role="listitem">` when the entity has an evidence document and
+ * `<div role="listitem">` otherwise — ancestor lookups must therefore match on
+ * role, never on tag name.
+ *
+ * ComplianceStatusSection does NOT pass `onEditEntity` to
+ * CertificationSummaryCard, so certification rows render their name as static
+ * text (the editable-name button only exists on surfaces that pass a handler).
+ *
+ * Every test depends on the worker-scoped `workerData` fixture seeding the
+ * compliance rows; Playwright only instantiates a fixture that is actually
+ * destructured, hence the `workerData: _workerData` / `void _workerData;`
+ * pairs below (same precedent as e2e/tests/bid-pipeline.spec.ts).
  *
  * @tag @wave1
  */
 
-test.describe('Certification renewal button', { tag: '@wave1' }, () => {
-  test.beforeEach(async ({ authenticatedPage: page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
-      timeout: 10000,
-    });
-  });
+test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
+  test.beforeEach(
+    async ({ authenticatedPage: page, workerData: _workerData }) => {
+      // Referencing the worker fixture is what forces the compliance seed to
+      // exist before the dashboard is loaded.
+      void _workerData;
+      await page.goto('/');
+      await expect(
+        page.getByRole('heading', { name: 'Canonical' }),
+      ).toBeVisible({
+        timeout: 10000,
+      });
+    },
+  );
 
   test('certification cards render with entity names', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
-    // Worker fixture seeds 2 self-held certifications via entity_mentions
-    // and entity_relationships, so the compliance section and the
-    // CertificationSummaryCard must render with at least 2 listitems.
+    void _workerData;
+    // Worker fixture seeds 2 self-held certifications — ISO 27001 and Cyber
+    // Essentials Plus — via entity_mentions + 'holds' entity_relationships, so
+    // the compliance section and the CertificationSummaryCard must render a
+    // named row for each.
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -41,17 +69,21 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
 
     const certRows = certCard.locator('[role="listitem"]');
     const rowCount = await certRows.count();
-    expect(rowCount).toBeGreaterThanOrEqual(1);
+    expect(rowCount).toBeGreaterThanOrEqual(2);
 
-    // Each row should have a name button with an edit label
-    const firstRow = certRows.first();
-    const nameButton = firstRow.locator('button[aria-label^="Edit"]');
-    await expect(nameButton).toBeVisible();
+    // Each seeded certification is surfaced as exactly one named row (the API
+    // aggregates mentions by canonical_name, so duplicates would be a bug).
+    await expect(certRows.filter({ hasText: 'ISO 27001' })).toHaveCount(1);
+    await expect(
+      certRows.filter({ hasText: 'Cyber Essentials Plus' }),
+    ).toHaveCount(1);
   });
 
   test('certification cards show expiry status badges', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -65,63 +97,77 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     const badgeCount = await expiryBadges.count();
     expect(badgeCount).toBeGreaterThan(0);
 
-    // Verify badge labels are valid statuses
+    // Verify badge labels are one of the four statuses ExpiryBadge renders
+    // (components/dashboard/expiry-badge.tsx — the `unknown` status reads
+    // "No expiry date", not "Unknown").
     for (let i = 0; i < Math.min(badgeCount, 5); i++) {
       const ariaLabel = await expiryBadges.nth(i).getAttribute('aria-label');
       expect(ariaLabel).toMatch(
-        /Expiry status: (Valid|Expiring Soon|Expired|Unknown)/,
+        /^Expiry status: (Valid|Expiring Soon|Expired|No expiry date)$/,
       );
     }
 
-    // Verify semantic freshness token classes on badges
-    const firstBadge = expiryBadges.first();
-    const className = await firstBadge.getAttribute('class');
-    expect(className).toMatch(/freshness/);
+    // The badge's visible text must match its accessible label — a sighted
+    // user and a screen-reader user see the same status. (Asserting the
+    // freshness token class instead would couple the test to the styling
+    // implementation; see docs/reference/testing/test-philosophy.md §2.1.)
+    const firstLabel = await expiryBadges.first().getAttribute('aria-label');
+    expect(firstLabel).toBeTruthy();
+    await expect(expiryBadges.first()).toHaveText(
+      firstLabel!.replace('Expiry status: ', ''),
+    );
   });
 
-  test('Renew button appears for expiring or expired certifications', async ({
+  test('renewal link appears for expiring or expired certifications', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // The seeded fixture includes "Cyber Essentials Plus" with an expiring
-    // soon date, so at least one Renew button must be present.
-    const renewButtons = complianceSection.locator(
-      'a[aria-label*="Upload renewed"]',
-    );
-    await expect(renewButtons.first()).toBeVisible({ timeout: 10000 });
-    const renewCount = await renewButtons.count();
-    expect(renewCount).toBeGreaterThan(0);
+    // soon date, so at least one renewal link must be present.
+    const renewalLinks = complianceSection.locator('a[aria-label^="Review "]');
+    await expect(renewalLinks.first()).toBeVisible({ timeout: 10000 });
+    const renewalCount = await renewalLinks.count();
+    expect(renewalCount).toBeGreaterThan(0);
 
-    for (let i = 0; i < Math.min(renewCount, 3); i++) {
-      const renewLink = renewButtons.nth(i);
+    for (let i = 0; i < Math.min(renewalCount, 3); i++) {
+      const renewalLink = renewalLinks.nth(i);
 
-      // Verify the link text contains "Renew"
-      await expect(renewLink.getByText('Renew')).toBeVisible();
+      // Verify the visible affordance text
+      await expect(renewalLink).toHaveText(/Review/);
 
-      // Verify the href format: /item/{id}?renewal_entity={encoded_name}
-      const href = await renewLink.getAttribute('href');
-      expect(href).toMatch(/^\/item\/[a-f0-9-]+\?renewal_entity=.+$/);
+      // Verify the href format: /documents/{sourceDocumentId}
+      const href = await renewalLink.getAttribute('href');
+      expect(href).toMatch(/^\/documents\/[0-9a-f-]{36}$/);
 
-      // The parent listitem should also have an expiry badge showing Expiring Soon or Expired
-      const parentRow = renewLink.locator(
-        'xpath=ancestor::div[@role="listitem"]',
+      // The parent listitem should also have an expiry badge showing Expiring
+      // Soon or Expired. Match the ancestor on role, not tag: a row with an
+      // evidence document renders as <a role="listitem">, so an
+      // `ancestor::div[...]` lookup would resolve to zero elements and make
+      // the badge assertions below vacuous.
+      const parentRow = renewalLink.locator(
+        'xpath=ancestor::*[@role="listitem"]',
       );
+      await expect(parentRow).toBeVisible({ timeout: 5000 });
       const expiryBadge = parentRow.locator(
         'span[aria-label^="Expiry status:"]',
       );
       await expect(expiryBadge).toBeVisible({ timeout: 5000 });
       const status = await expiryBadge.getAttribute('aria-label');
-      expect(status).toMatch(/Expiry status: (Expiring Soon|Expired)/);
+      expect(status).toMatch(/^Expiry status: (Expiring Soon|Expired)$/);
     }
   });
 
-  test('Renew button does not appear for valid certifications', async ({
+  test('renewal link does not appear for valid certifications', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -140,19 +186,24 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     const validCount = await validBadges.count();
     expect(validCount).toBeGreaterThan(0);
 
-    // For each valid certification, verify no Renew button exists in that row
+    // For each valid certification, verify no renewal link exists in that row
     for (let i = 0; i < Math.min(validCount, 3); i++) {
       const parentRow = validBadges
         .nth(i)
-        .locator('xpath=ancestor::div[@role="listitem"]');
-      const renewLink = parentRow.locator('a[aria-label*="Upload renewed"]');
-      await expect(renewLink).not.toBeVisible();
+        .locator('xpath=ancestor::*[@role="listitem"]');
+      // Assert the row resolves first — otherwise a mis-targeted ancestor
+      // lookup would make the absence assertion pass vacuously.
+      await expect(parentRow).toBeVisible();
+      const renewalLink = parentRow.locator('a[aria-label^="Review "]');
+      await expect(renewalLink).toHaveCount(0);
     }
   });
 
   test('framework cards show Renew button for expiring frameworks', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -165,6 +216,11 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     );
     await expect(frameworkCard).toBeVisible({ timeout: 10000 });
 
+    // FrameworkSummaryCard labels its renewal link
+    // `View {canonical_name} for renewal` and keeps the visible "Renew" text.
+    const anyRenewLink = frameworkCard.locator('a[aria-label*="for renewal"]');
+    await expect(anyRenewLink.first()).toBeVisible({ timeout: 10000 });
+
     const frameworkRows = frameworkCard.locator('[role="listitem"]');
     const rowCount = await frameworkRows.count();
     expect(rowCount).toBeGreaterThan(0);
@@ -172,7 +228,7 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     for (let i = 0; i < Math.min(rowCount, 3); i++) {
       const row = frameworkRows.nth(i);
       const expiryBadge = row.locator('span[aria-label^="Expiry status:"]');
-      const renewLink = row.locator('a[aria-label*="Upload renewed"]');
+      const renewLink = row.locator('a[aria-label*="for renewal"]');
       await expect(expiryBadge).toBeVisible({ timeout: 5000 });
 
       const status = await expiryBadge.getAttribute('aria-label');
@@ -180,20 +236,24 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
         status?.includes('Expiring Soon') || status?.includes('Expired');
 
       if (isExpiring) {
-        // Renew button should be present
+        // Renew button should be present, labelled, and link to the evidence
+        // document for that framework.
         await expect(renewLink).toBeVisible();
+        await expect(renewLink).toHaveText(/Renew/);
         const href = await renewLink.getAttribute('href');
-        expect(href).toMatch(/\/item\/[a-f0-9-]+\?renewal_entity=/);
+        expect(href).toMatch(/^\/documents\/[0-9a-f-]{36}$/);
       } else {
         // Renew button should NOT be present
-        await expect(renewLink).not.toBeVisible();
+        await expect(renewLink).toHaveCount(0);
       }
     }
   });
 
-  test('certification card shows evidence count per entity', async ({
+  test('certification card shows linked-item count per entity', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -204,18 +264,24 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
     );
     await expect(certCard).toBeVisible({ timeout: 10000 });
 
-    // Each row shows "N evidence" count with an aria-label
-    const evidenceCounts = certCard.locator('span[aria-label*="evidence"]');
-    await expect(evidenceCounts.first()).toBeVisible({ timeout: 10000 });
+    // Each row shows an "N linked item(s)" evidence count with a matching
+    // aria-label (certification-summary-card.tsx).
+    const linkedCounts = certCard.locator('span[aria-label*="linked item"]');
+    await expect(linkedCounts.first()).toBeVisible({ timeout: 10000 });
 
-    const ariaLabel = await evidenceCounts.first().getAttribute('aria-label');
-    // Format: "N evidence item" or "N evidence items"
-    expect(ariaLabel).toMatch(/^\d+ evidence items?$/);
+    const ariaLabel = await linkedCounts.first().getAttribute('aria-label');
+    // Format: "N linked item" or "N linked items"
+    expect(ariaLabel).toMatch(/^\d+ linked items?$/);
+
+    // The visible text mirrors the accessible label.
+    await expect(linkedCounts.first()).toHaveText(/^\d+ linked items?$/);
   });
 
   test('certification card shows copy and review buttons in header', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
@@ -239,14 +305,28 @@ test.describe('Certification renewal button', { tag: '@wave1' }, () => {
 
   test('supplier certifications section is collapsible', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    void _workerData;
     const complianceSection = page.locator(
       'section[aria-label="Compliance status"]',
     );
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    // Worker fixture seeds an Acme Ltd supplier certification, so the
+    // Worker fixture seeds an Acme Ltd supplier certification
+    // ("ISO 9001 (Acme Supplier)", metadata.holder = 'supplier'), so the
     // supplier toggle must be present.
+    //
+    // KNOWN FIXTURE GAP ({128.23}): the seeded 'holds' relationship for that
+    // certification has source_entity = 'Acme Ltd', but
+    // app/api/certifications/route.ts only keeps relationships whose
+    // source_entity matches BRANDING.organisationName, so the entity never
+    // reaches the response and SupplierSection renders null. The UI behaviour
+    // asserted here is intact — the seed is what cannot express it. Fix
+    // belongs in e2e/fixtures/test-data.ts `buildEntityRelationships()`
+    // (source_entity → BRANDING.organisationName; metadata.holder /
+    // supplier_name already carry the supplier semantics). Deliberately NOT
+    // weakened or skipped here.
     const supplierToggle = complianceSection
       .locator('button[aria-expanded]')
       .filter({

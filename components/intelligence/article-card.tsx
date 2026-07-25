@@ -44,7 +44,7 @@ export function ArticleCard({
   const reasoningLabel = tab === 'passed' ? 'Summary' : 'Why filtered';
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <article className="rounded-lg border bg-card p-4 shadow-sm">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -147,6 +147,6 @@ export function ArticleCard({
               : 'Flag as relevant'}
         </Button>
       </div>
-    </div>
+    </article>
   );
 }

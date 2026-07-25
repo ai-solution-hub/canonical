@@ -79,9 +79,8 @@ interface SeedResult {
 }
 
 /**
- * Seed N `publication_status='in_review'` `source_documents` rows with the
- * admin user as `created_by`/`content_owner_id`. Returns ids + titles for
- * assertion + cleanup.
+ * Seed N `publication_status='in_review'` `source_documents` rows owned by the
+ * admin user. Returns ids + titles for assertion + cleanup.
  *
  * ID-131.19 M6 retirement: `content_items` DROPPED at M6; the production
  * route (app/api/review/publication-bulk-action/route.ts) reads/writes
@@ -90,6 +89,15 @@ interface SeedResult {
  * spec's UI assertions) — `filename` carries the same seed-prefixed value
  * so the queue UI (which reads `suggested_title ?? filename`) renders it
  * identically to how `title` used to render.
+ *
+ * Ownership columns (S461 {128.23} reconciliation — both columns this seed
+ * used to write are gone from `source_documents`):
+ *   - `created_by` never existed on `source_documents`; the equivalent
+ *     provenance column is `uploaded_by`.
+ *   - `content_owner_id` was relocated onto the polymorphic
+ *     `record_lifecycle` facet by ID-131 {131.6} M1a
+ *     (`20260628190000_id131_record_lifecycle_facet.sql`).
+ * Both writes are repointed below.
  */
 async function seedInReviewItems(
   count: number,
@@ -134,8 +142,7 @@ async function seedInReviewItems(
       content_type: 'article',
       primary_domain: 'Service Delivery',
       publication_status: 'in_review',
-      created_by: adminUserId,
-      content_owner_id: adminUserId,
+      uploaded_by: adminUserId,
       mime_type: 'text/plain',
       file_size: 1,
       content_hash: `${SEED_PREFIX}-${testTag}-${i}`,
@@ -170,6 +177,33 @@ async function seedInReviewItems(
       `In_review seed insert returned ${ids.length} rows, expected ${count}`,
     );
   }
+
+  // Content ownership lives on the `record_lifecycle` facet post ID-131
+  // {131.6} M1a. We UPDATE rather than INSERT: the {131.38} FACET-MINT
+  // AFTER INSERT trigger on `source_documents`
+  // (20260706100000_id131_facet_mint.sql) already minted exactly one
+  // `owner_kind='source_document'` facet row per row inserted above, and
+  // `record_lifecycle_owner_kind_owner_id_key` (UNIQUE on the generated
+  // `owner_id`) would reject a second insert with 23505. The row count check
+  // keeps the mint assumption honest — a silent 0-row update would leave the
+  // seed unowned without anyone noticing.
+  const { data: facetRows } = await svc
+    .from('record_lifecycle')
+    .update({ content_owner_id: adminUserId })
+    .eq('owner_kind', 'source_document')
+    .in('source_document_id', ids)
+    .select('id')
+    .throwOnError();
+
+  const facetCount = (facetRows ?? []).length;
+  if (facetCount !== count) {
+    throw new Error(
+      `Expected ${count} record_lifecycle facet rows for the ${testTag} seed, got ` +
+        `${facetCount} — the {131.38} forward-mint trigger on source_documents ` +
+        `did not fire for every seeded row.`,
+    );
+  }
+
   return { ids, titles };
 }
 
@@ -180,6 +214,11 @@ async function seedInReviewItems(
  * ID-131.19 M6 retirement: content_history DROPPED at M6 and the bulk-action
  * route no longer writes an audit trail at all (Wave 1 Fix 4) — no history
  * cleanup pass needed anymore.
+ *
+ * The `record_lifecycle` facet rows the seed owns need no separate delete:
+ * `record_lifecycle_source_document_id_fkey` is `ON DELETE CASCADE`
+ * (20260628190000_id131_record_lifecycle_facet.sql), so dropping the
+ * source_documents rows takes the facet rows with them.
  */
 async function cleanupSeed(testTag: string): Promise<void> {
   const svc = createServiceClient();
@@ -197,11 +236,14 @@ async function cleanupSeed(testTag: string): Promise<void> {
 async function gotoPublicationReviewTab(page: Page): Promise<void> {
   await page.goto('/review?tab=publication-review');
 
-  // The page heading from review-tabs.tsx still says "Review Queue" — wait
-  // for it as the page-load gate (mirrors governance-review.spec.ts).
-  await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible(
-    { timeout: 15000 },
-  );
+  // Page-load gate. NOT the "Review Queue" h1: that heading lives in
+  // review-content.tsx, which review-tabs.tsx mounts only for tabs 1-5
+  // (review-tabs.tsx:305-307 swaps in PublicationReviewQueue for tab 6
+  // instead), so it never renders on this tab. Gate on the tablist itself,
+  // which is the shell common to every tab.
+  await expect(
+    page.getByRole('tab', { name: /Awaiting publication/ }),
+  ).toBeVisible({ timeout: 15000 });
 
   // Wait for the awaiting-publication queue section to mount — its
   // aria-label includes the item count, so we match by prefix only.

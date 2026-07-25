@@ -135,6 +135,28 @@ export function useLibraryData(filters: LibraryFilters) {
     queryKey: queryKeys.contentItems.library(
       filters as Record<string, unknown>,
     ),
+    // id-128 {128.19} — DIAGNOSIS, NOT YET FIXED. Every filter change mints a
+    // new query key, and with no retained data `isLoading` goes true until the
+    // new fetch lands. The list surface gates BOTH the select-all header and
+    // the rows on `!isLoading` (app/library/library-content.tsx:500 and :527),
+    // so the header unmounts/remounts on each filter change and on the
+    // invalidateQueries after every bulk mutation — that is the "element was
+    // detached from the DOM, retrying" behind the flaky selection specs
+    // (reproduced locally: 4 of 5 runs failed).
+    //
+    // `placeholderData: keepPreviousData` was TRIED here and REVERTED: it does
+    // keep the header mounted, but it exposes a second, worse defect. The
+    // select/deselect toggle decides direction by
+    // `prev.size === allIds.length` (lib/content-browsing/use-content-selection
+    // .ts:34-41), so as soon as retained data makes the visible count differ
+    // between the two clicks, "deselect all" RE-SELECTS instead of clearing —
+    // a user-visible bug on a bulk-mutation surface. Local runs went from 4/5
+    // to 6/10 failing, with the failure changing from detachment to a stuck
+    // "30 selected" toolbar.
+    //
+    // Fixing this properly means making the toggle direction explicit rather
+    // than size-derived, THEN retaining data. Both are app changes needing
+    // their own verification — tracked on {128.19}, not patched here.
     queryFn: async () => {
       const supabase = createClient();
 
