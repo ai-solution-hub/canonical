@@ -78,12 +78,31 @@ enabled = true
 sql_paths = ["./seed.sql"]
 
 # Sign-up domain restriction hook — staging branch.
-# Generic, config-driven function defined in
-# supabase/migrations/20260603121652_hook_restrict_signup_to_allowed_domain.sql.
+# Generic, config-driven function, now carried by
+# supabase/migrations/20260617130000_squash_baseline.sql:3872 (the standalone
+# 20260603121652 migration was absorbed into the baseline and deleted).
 # Reads the allowed domain from the single-row `public.signup_policy` config table
 # (set per-environment out of band; ID-68.21 GUC->config-table pivot superseded the
-# dead `app.allowed_signup_domain` GUC); fail-closed when unset. Replays on every
-# branch creation; this block wires it into the staging auth pipeline.
+# dead `app.allowed_signup_domain` GUC); FAIL-CLOSED when unset — an empty
+# signup_policy rejects EVERY sign-up with a 403, it does not admit everyone.
+#
+# THIS BLOCK HAS NEVER BEEN APPLIED. Verified S494: it is inert, because applying
+# it needs either the Supabase GitHub integration (NOT connected — the platform
+# said so itself in a preview-branch log: "Additional skipped steps: configuration
+# … only available for Branching via GitHub"; `branches list` also returns an empty
+# `git_branch` on the production branch) or `supabase config push`, which is not
+# yet safe to run here (id-365). Whether staging's hook is instead DASHBOARD-wired
+# is unverified — there is no `config pull` and `config push` has no `--dry-run`,
+# so it cannot be read back from the CLI. Retained, not deleted, because it records
+# the intent that {365.4} makes live.
+#
+# DO NOT "fix" this by promoting the block to base `[auth.hook.before_user_created]`.
+# Configure carries every `[auth.hook.*]` leg but each is pointer-guarded, so a
+# preview branch currently falls through to the commented-out base block and gets
+# nothing. Promoting it would silently arm a FAIL-CLOSED hook on every preview
+# branch, where `signup_policy` is empty by construction — verified on a live
+# branch, which returns 403 "Sign-up is currently unavailable". Seeding the policy
+# row through the tenant-provisioning path is the real fix (id-367 {367.5}).
 [remotes.staging.auth.hook.before_user_created]
 enabled = true
 uri = "pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain"
@@ -116,10 +135,10 @@ openai_api_key = "env(OPENAI_API_KEY)"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
-[inbucket]
-enabled = true
+# [inbucket]
+# enabled = true
 # Port to use for the email testing server web interface.
-port = 54324
+# port = 54324
 # Uncomment to expose additional ports for testing user applications that send emails.
 # smtp_port = 54325
 # pop3_port = 54326
@@ -159,13 +178,26 @@ allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officed
 #     retires that script.
 #
 #     THE REMOTE APPLY COMMAND IS `supabase seed buckets --linked`, NOT
-#     `config push`. Corrected S493 after this comment initially claimed
-#     otherwise: `config push`'s storage leg is `v1UpdateStorageConfig`
-#     (PATCH /v1/projects/{ref}/config/storage), carrying only project-level
-#     `fileSizeLimit`/`features`/`external` — there is no bucket array in it.
-#     Buckets are a Storage-API resource (/storage/v1/bucket). `seed buckets`
-#     also takes only `--linked`, no `--project-ref`, so it needs a
-#     `supabase link` first.
+#     `config push`. Re-verified S494 against CLI 2.108.0 source, and the
+#     situation is worse than the S493 note claimed. `ToUpdateStorageConfigBody()`
+#     (`pkg/config/storage.go:63-127`) builds a body of `FileSizeLimit` +
+#     `Features{IcebergCatalog, ImageTransformation, S3Protocol, VectorBuckets}`
+#     only. The `Buckets` field exists on the struct (`storage.go:19`,
+#     `toml:"buckets"`) and is NEVER READ by the update path
+#     (`internal/config/push/push.go:42` -> `pkg/config/updater.go:20-37`, five
+#     legs: api/db/auth/storage/experimental -> `updater.go:272-301`).
+#     Buckets cannot even reach the DIFF: `DiffWithRemote`
+#     (`storage.go:152-165`) round-trips through `FromRemoteStorageConfig`,
+#     which overwrites only file-size/features, so `Buckets` is byte-identical
+#     on both sides and cancels. If ONLY buckets differ, `config push` prints
+#     "Remote Storage config is up to date." and makes no HTTP call at all.
+#     Supabase staff confirm the same in supabase/cli#4731.
+#
+#     Note the flag asymmetry, which is the opposite way round from the S493
+#     note: `config push` DOES accept `--project-ref` (so it needs no prior
+#     `supabase link`), while `seed buckets` takes only `--linked` and so DOES
+#     need one. That asymmetry is what {365.5} has to design around, since
+#     `e2e-nightly.yml:242` deliberately stays stateless with no `link` step.
 #
 #     THIS DOES NOT YET REACH EPHEMERAL BRANCHES — do not assume otherwise.
 #     `scripts/e2e-ephemeral-branch.ts` replays `supabase/migrations/*.sql` +
