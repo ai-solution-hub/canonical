@@ -248,7 +248,15 @@ test.describe('Dashboard -- content health stats', () => {
 test.describe('Dashboard -- compliance status', () => {
   test('compliance status section renders', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    // ComplianceStatusSection returns null when /api/certifications reports no
+    // certifications, frameworks or registrations, so this test depends on the
+    // worker-scoped compliance seed — and Playwright only instantiates a
+    // fixture that is actually destructured. Without this pair the seed never
+    // ran and the section was legitimately absent ({128.23}; same omission the
+    // two wave1 specs carried).
+    void _workerData;
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'Canonical' })).toBeVisible({
