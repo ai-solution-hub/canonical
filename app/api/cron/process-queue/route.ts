@@ -40,31 +40,9 @@ import { runJobByType } from '@/lib/queue/dispatch';
 import { handleJobFailure } from '@/lib/queue/failure';
 import { reapStuckJobs } from '@/lib/queue/visibility-timeout';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Json, Tables } from '@/supabase/types/database.types';
+import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
-
-/**
- * Shape of the widened `claim_next_job(p_idempotency_key_prefix text)` RPC
- * (ID-128 {128.21}, migration
- * `20260725143717_id128_claim_next_job_test_isolation.sql`).
- *
- * The generated `database.types.ts` still carries the pre-{128.21} zero-arg
- * Args for this function — its regen is deferred with the migration, exactly
- * as {128.20} deferred `p_fence_name`, because no PRODUCTION caller passes
- * the new argument. This local structural type is therefore the single
- * documented cast needed for the scoped branch below; the unscoped branch —
- * the one Vercel Cron actually takes — keeps full generated typing.
- */
-type ScopedClaimCall = (
-  fn: 'claim_next_job',
-  args: { p_idempotency_key_prefix: string },
-) => {
-  single: () => PromiseLike<{
-    data: Tables<'processing_queue'> | null;
-    error: { message: string } | null;
-  }>;
-};
 
 /** Stop claiming when within 10s of the Vercel function timeout
  *  (`maxDuration = 60` post-S224 §5.4.1 D-3 ratification — Vercel Pro plan
@@ -122,9 +100,9 @@ export async function GET(request: NextRequest) {
     // argument — `claim_next_job` is invoked with no args object at all, so
     // production behaviour is provably byte-identical to pre-{128.21}.
     const { data: job, error } = claimPrefix
-      ? await (supabase.rpc as unknown as ScopedClaimCall)('claim_next_job', {
-          p_idempotency_key_prefix: claimPrefix,
-        }).single()
+      ? await supabase
+          .rpc('claim_next_job', { p_idempotency_key_prefix: claimPrefix })
+          .single()
       : await supabase.rpc('claim_next_job').single();
     if (error || !job) break;
 
