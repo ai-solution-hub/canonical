@@ -74,20 +74,24 @@ const CANCEL_SEED_COUNT = 2;
 /**
  * Accessible name of the return-to-draft action in the bulk bar.
  *
- * NOTE — this is NOT the visible text. `publication-bulk-action-bar.tsx:169`
- * sets `aria-label="Return selected items to draft"` over a button whose
- * visible label reads "Return selected to draft", so the aria-label wins for
- * `getByRole(...{ name })` and the visible string never matches. The same
- * divergence does not bite the Approve button, whose aria-label ("Approve
- * selected items") merely *appends* to its visible text.
+ * This now equals the VISIBLE text, and that is the point. The button
+ * previously carried `aria-label="Return selected items to draft"` over visible
+ * text reading "Return selected to draft" — the aria-label won for
+ * `getByRole(...{ name })`, and because "items" was inserted mid-string the
+ * visible text was not a substring of the accessible name. That is a WCAG 2.5.3
+ * (Label in Name) failure: a voice-control user saying the words they can see
+ * would not activate the control.
  *
- * That mismatch is a WCAG 2.5.3 (Label in Name) failure — reported as an owner
- * question under {128.23}, deliberately NOT papered over here. The assertions
- * below target the real accessible name so they fail honestly if the control
- * is removed; if the aria-label is later dropped to satisfy 2.5.3, this
- * constant is the single line to update.
+ * Owner-ratified fix (S494): the redundant aria-label was dropped rather than
+ * the visible text changed, so the accessible name is now derived from the
+ * visible text. The Approve button keeps its aria-label because that one
+ * *appends* ("Approve selected" -> "Approve selected items"), which satisfies
+ * 2.5.3.
+ *
+ * The visible-text assertion at the site below is kept deliberately, so the two
+ * are pinned independently and a future re-divergence fails loudly.
  */
-const RETURN_TO_DRAFT_ACCESSIBLE_NAME = /^Return selected items to draft$/;
+const RETURN_TO_DRAFT_ACCESSIBLE_NAME = /^Return selected to draft$/;
 
 /**
  * Confirmation-dialog action labels, verbatim from

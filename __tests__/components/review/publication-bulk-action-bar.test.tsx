@@ -87,7 +87,7 @@ describe('PublicationBulkActionBar', () => {
     ).toBeInTheDocument();
     expect(
       within(toolbar).getByRole('button', {
-        name: /return selected items to draft/i,
+        name: /return selected to draft/i,
       }),
     ).toBeInTheDocument();
     expect(
@@ -209,7 +209,7 @@ describe('PublicationBulkActionBar', () => {
     });
     await user.click(
       screen.getByRole('button', {
-        name: /return selected items to draft/i,
+        name: /return selected to draft/i,
       }),
     );
     const dialog = await screen.findByRole('alertdialog');
@@ -231,7 +231,7 @@ describe('PublicationBulkActionBar', () => {
       name: /approve selected items/i,
     });
     const returnBtn = screen.getByRole('button', {
-      name: /return selected items to draft/i,
+      name: /return selected to draft/i,
     });
     const clearBtn = screen.getByRole('button', { name: /clear selection/i });
 
@@ -258,7 +258,7 @@ describe('PublicationBulkActionBar', () => {
       screen.getByRole('button', { name: /approve selected items/i }),
     ).toBeDisabled();
     expect(
-      screen.getByRole('button', { name: /return selected items to draft/i }),
+      screen.getByRole('button', { name: /return selected to draft/i }),
     ).toBeDisabled();
     expect(
       screen.getByRole('button', { name: /clear selection/i }),
@@ -284,7 +284,7 @@ describe('PublicationBulkActionBar', () => {
       name: /approve selected items/i,
     });
     const returnBtn = screen.getByRole('button', {
-      name: /return selected items to draft/i,
+      name: /return selected to draft/i,
     });
     expect(approveBtn).toHaveAttribute('aria-disabled', 'true');
     expect(returnBtn).toHaveAttribute('aria-disabled', 'true');

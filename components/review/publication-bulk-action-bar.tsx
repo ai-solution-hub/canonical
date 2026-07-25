@@ -166,8 +166,13 @@ export function PublicationBulkActionBar({
             disabled={isPending || selectedCount === 0}
             aria-disabled={capExceeded || undefined}
             className="min-h-[44px] gap-2"
-            aria-label="Return selected items to draft"
           >
+            {/* No aria-label: the visible text IS the accessible name. An
+                aria-label of "Return selected items to draft" used to sit here,
+                which inserted "items" mid-string and so did NOT contain the
+                visible text as a substring — a WCAG 2.5.3 (Label in Name)
+                failure that broke voice control on this button. The Approve
+                button's aria-label is safe only because it *appends*. */}
             <Undo2 className="size-4" aria-hidden="true" />
             Return selected to draft
           </Button>
