@@ -30,8 +30,10 @@
 -- REVOKE-by-default), and it is what Supabase changelog #45329 (2026-04-28) makes
 -- the platform default for existing projects on 2026-10-30. Adopting early.
 --
--- Idempotent and re-runnable. Must be re-applied after any staging refresh or
--- branch recreate that replays the squash baseline (DR-049).
+-- Idempotent and re-runnable. It rides the migration chain, so a from-zero replay
+-- applies it automatically — no post-refresh manual step (S493, proven by rebuilding
+-- Platform prod from the chain: anon table grants 509 -> 0; this is what retired the
+-- former DR-049 mandate to re-run the ACL sweep by hand).
 
 -- =============================================================================
 -- 1. RLS — close the read half on the six PUBLIC/USING(true) policies
