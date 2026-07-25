@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, hasBrowserSession } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/query-keys';
 import {
   formatSubtopic as formatSubtopicUtil,
@@ -39,6 +39,11 @@ interface TaxonomyContextValue {
 // ---------------------------------------------------------------------------
 
 async function fetchTaxonomyDomains(): Promise<TaxonomyDomain[]> {
+  // Root-layout provider — see the note in fetchLayerVocabulary. Pre-auth this
+  // can only 401, and throwing sends TanStack Query into its retry schedule for
+  // a request that cannot succeed.
+  if (!(await hasBrowserSession())) return [];
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from('taxonomy_domains')
@@ -53,6 +58,8 @@ async function fetchTaxonomyDomains(): Promise<TaxonomyDomain[]> {
 }
 
 async function fetchTaxonomySubtopics(): Promise<TaxonomySubtopic[]> {
+  if (!(await hasBrowserSession())) return [];
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from('taxonomy_subtopics')

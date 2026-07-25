@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@/lib/supabase/client';
+import { createClient, hasBrowserSession } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/query-keys';
 import { FALLBACK_LAYERS } from '@/lib/client-config';
 
@@ -56,6 +56,13 @@ const FALLBACK_LAYER_DEFINITIONS: LayerDefinition[] = FALLBACK_LAYERS.map(
 // ---------------------------------------------------------------------------
 
 async function fetchLayerVocabulary(): Promise<LayerDefinition[]> {
+  // This provider is mounted in the root layout, so it also runs on the
+  // unauthenticated routes. `anon` reaches no relation post-id-347, so the
+  // query could only 401 — and its `console.warn` on failure trips the E2E
+  // console gate (e2e/helpers/console-gate.ts) on every /login spec. Serve the
+  // fallback vocabulary directly instead.
+  if (!(await hasBrowserSession())) return FALLBACK_LAYER_DEFINITIONS;
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from('layer_vocabulary')

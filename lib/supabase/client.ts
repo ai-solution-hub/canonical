@@ -28,3 +28,25 @@ export function createClient(): SupabaseClient<Database> {
   }
   return browserClient;
 }
+
+/**
+ * Whether the browser currently holds a Supabase session.
+ *
+ * Root-layout providers (`TaxonomyProvider`, `LayerVocabularyProvider`) mount
+ * on EVERY route, including the unauthenticated ones (`lib/routes.ts`
+ * PUBLIC_ROUTES: /login, /auth/callback, /oauth/consent). Since the id-347
+ * anon lockdown, `anon` reaches no relation at all, so a reference-data fetch
+ * from those routes can only 401 — it cannot succeed and never could have
+ * carried a signed-in user's data. Callers use this to skip the round trip and
+ * fall back to their static defaults instead of firing a request that is
+ * guaranteed to fail (and, for anything under a console gate, to log).
+ *
+ * Reads local storage only — no network call — so it is cheap enough to sit in
+ * a TanStack Query `queryFn`.
+ */
+export async function hasBrowserSession(): Promise<boolean> {
+  const {
+    data: { session },
+  } = await createClient().auth.getSession();
+  return session !== null;
+}

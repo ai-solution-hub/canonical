@@ -13,12 +13,14 @@ const mockEq = vi.fn();
 const mockOrder = vi.fn();
 const mockFrom = vi.fn();
 
-const { mockCreateClient } = vi.hoisted(() => ({
+const { mockCreateClient, mockHasBrowserSession } = vi.hoisted(() => ({
   mockCreateClient: vi.fn(),
+  mockHasBrowserSession: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: mockCreateClient,
+  hasBrowserSession: mockHasBrowserSession,
 }));
 
 vi.mock('@/lib/client-config', () => ({
@@ -126,6 +128,11 @@ function wrapper({ children }: { children: React.ReactNode }) {
 beforeEach(() => {
   vi.clearAllMocks();
   setupMockSupabase();
+  // Signed in by default. The provider is mounted in the root layout, so it
+  // also runs on the unauthenticated routes; it now skips the query entirely
+  // when there is no session (id-347 anon lockdown — anon reaches no relation,
+  // so the fetch could only 401). The no-session path has its own test below.
+  mockHasBrowserSession.mockResolvedValue(true);
 });
 
 describe('LayerVocabularyProvider', () => {
@@ -141,6 +148,29 @@ describe('LayerVocabularyProvider', () => {
 
     expect(result.current.layers).toEqual(DB_LAYERS);
     expect(result.current.error).toBeNull();
+  });
+
+  it('serves the fallback vocabulary without querying when signed out', async () => {
+    mockHasBrowserSession.mockResolvedValue(false);
+
+    const { result } = renderHook(() => useLayerVocabulary(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    // The visitor still gets a usable vocabulary...
+    expect(result.current.getLayerKeys()).toEqual([
+      'sales_brief',
+      'bid_detail',
+      'company_reference',
+      'research',
+    ]);
+    expect(result.current.error).toBeNull();
+    // ...and no DB round trip was attempted. Post-id-347 `anon` reaches no
+    // relation, so a query here could only 401 — and its console.warn on
+    // failure trips the E2E console gate on every /login spec.
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 
   it('provides getLayerKeys helper', async () => {
