@@ -41,8 +41,8 @@ export interface IntelligenceWorkspace {
   is_archived: boolean | null;
   created_at: string | null;
   updated_at: string | null;
-  /** Joined from company_profiles */
-  company_profile_name?: string;
+  /** Joined from company_profiles; `null` when the workspace has no profile. */
+  company_profile_name?: string | null;
   /** Aggregate counts */
   source_count?: number;
   article_count?: number;

@@ -754,6 +754,11 @@ export async function postAdminQaDedupReject(
 // triggers it from this surface.
 
 import type { PromotionSummary } from '@/lib/q-a-pairs/promote-corpus';
+import type {
+  PairCandidateRow,
+  ExtractionCandidateRow,
+  QaPromotionCandidateDisposition,
+} from '@/lib/q-a-pairs/promotion-candidate-review';
 
 /**
  * Honest per-candidate disposition — mirrors `promoteCorpusExtractions`' own
@@ -886,33 +891,19 @@ export async function postQaPromoteCorpus(): Promise<PromotionSummary> {
 // scoping rationale: 'new'/'self_healing' candidates have no per-item
 // judgement gap and stay on the existing batch "Run promotion pass").
 
-/** The pair/extraction shape a disposition response echoes back (UI-shaped
- *  subset — the route's typed PairCandidateRow / ExtractionCandidateRow). */
-/** @public */
-export interface QaPromotionCandidateDispositionPair {
-  id: string;
-  question_text: string;
-  answer_standard: string;
-  alternate_question_phrasings: string[];
-  publication_status: string;
-}
-
-/** @public */
-export interface QaPromotionCandidateDispositionExtraction {
-  id: string;
-  extracted_question_text: string;
-  extracted_answer_text: string | null;
-  alternate_question_phrasings: string[];
-  promoted_to_pair_id: string | null;
-  invalidated_at: string | null;
-}
-
-/** @public */
-export interface QaPromotionCandidateDisposition {
-  disposition: 'accepted' | 'edited' | 'rejected';
-  pair: QaPromotionCandidateDispositionPair;
-  extraction: QaPromotionCandidateDispositionExtraction;
-}
+/**
+ * The pair/extraction shape a disposition response echoes back. Declared at
+ * `lib/q-a-pairs/promotion-candidate-review.ts` (the module the three routes
+ * import and annotate their return types with) and re-exported here for
+ * existing consumers that import the wire types from this fetcher module —
+ * the review module is the canonical declaration site, this is a
+ * pass-through, never the reverse.
+ */
+export type {
+  PairCandidateRow as QaPromotionCandidateDispositionPair,
+  ExtractionCandidateRow as QaPromotionCandidateDispositionExtraction,
+  QaPromotionCandidateDisposition,
+};
 
 /** Reviewer-supplied edit body — question_text + answer_standard are
  *  REQUIRED (both NOT NULL columns on q_a_pairs). */

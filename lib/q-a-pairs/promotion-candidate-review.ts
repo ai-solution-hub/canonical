@@ -138,7 +138,7 @@ const PAIR_READ_COLUMNS =
   'id, question_text, answer_standard, alternate_question_phrasings, publication_status' as const;
 
 /** The subset of q_a_extractions this module reads/writes. */
-interface ExtractionCandidateRow {
+export interface ExtractionCandidateRow {
   id: string;
   extracted_question_text: string;
   extracted_answer_text: string | null;
@@ -148,12 +148,26 @@ interface ExtractionCandidateRow {
 }
 
 /** The subset of q_a_pairs this module reads/writes. */
-interface PairCandidateRow {
+export interface PairCandidateRow {
   id: string;
   question_text: string;
   answer_standard: string;
   alternate_question_phrasings: string[];
   publication_status: string;
+}
+
+/**
+ * The wire shape the three `/api/governance/promotion-candidates/:id/*` routes
+ * echo back on success. Declared here — the shared module all three routes
+ * already import — so the routes can annotate their return type and the
+ * fetcher can re-export it, rather than each side declaring its own copy
+ * (type-drift-detect conformance convention; the fetcher is the pass-through,
+ * never the declaration site).
+ */
+export interface QaPromotionCandidateDisposition {
+  disposition: 'accepted' | 'edited' | 'rejected';
+  pair: PairCandidateRow;
+  extraction: ExtractionCandidateRow;
 }
 
 /** Reviewer-supplied edit body (route validates via zod before calling in). */

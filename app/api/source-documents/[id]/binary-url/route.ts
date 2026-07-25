@@ -46,13 +46,24 @@ const SIGNED_URL_TTL_SECONDS = 300;
 /** Storage bucket for source document binary assets. */
 const DOCUMENTS_BUCKET = 'documents';
 
+/**
+ * The 200 wire shape. Declared here (not at the consuming hook) because the
+ * route file is the canonical declaration site for response contracts —
+ * `hooks/procurement/use-citation-document-binary.ts` re-exports it.
+ */
+export interface CitationDocumentBinary {
+  signed_url: string;
+  expires_in: number;
+  mime_type: string;
+}
+
 // TODO(OPS-T1): author ResponseSchema
 export const GET = defineRoute(
   z.unknown(),
   async (
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) => {
+  ): Promise<NextResponse<CitationDocumentBinary> | NextResponse> => {
     try {
       // Step 1 — Authenticate + authorise the caller.
       const auth = await getAuthorisedClient();

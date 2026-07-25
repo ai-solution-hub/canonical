@@ -12,11 +12,13 @@ import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson } from '@/lib/query/fetchers';
 
-export interface CitationDocumentBinary {
-  signed_url: string;
-  expires_in: number;
-  mime_type: string;
-}
+import type { CitationDocumentBinary } from '@/app/api/source-documents/[id]/binary-url/route';
+
+// Re-exported for consumers that import the wire type from this hook module
+// rather than the route file directly — the route file is the canonical
+// declaration site (type-drift-detect conformance convention), this hook is a
+// pass-through re-export, never the reverse.
+export type { CitationDocumentBinary };
 
 /**
  * `documentId` is nullable — pass `null` to skip the fetch (e.g. before it's

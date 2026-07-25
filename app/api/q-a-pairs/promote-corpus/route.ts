@@ -34,7 +34,10 @@ export const maxDuration = 120;
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
+import {
+  promoteCorpusExtractions,
+  type PromotionSummary,
+} from '@/lib/q-a-pairs/promote-corpus';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -73,7 +76,9 @@ const PromoteCorpusResponseSchema = z.object({
 
 export const POST = defineRoute(
   PromoteCorpusResponseSchema,
-  async (_request: NextRequest) => {
+  async (
+    _request: NextRequest,
+  ): Promise<NextResponse<PromotionSummary> | NextResponse> => {
     try {
       const auth = await getAuthorisedClient(['admin', 'editor']);
       if (!auth.success) return authFailureResponse(auth);

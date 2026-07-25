@@ -23,7 +23,10 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { editAwaitingReviewCandidate } from '@/lib/q-a-pairs/promotion-candidate-review';
+import {
+  editAwaitingReviewCandidate,
+  type QaPromotionCandidateDisposition,
+} from '@/lib/q-a-pairs/promotion-candidate-review';
 import { parseBody } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -48,7 +51,10 @@ const STATUS_BY_ERROR_CODE: Record<string, number> = {
 
 export const POST = defineRoute(
   z.unknown(),
-  async (request: NextRequest, context: RouteContext) => {
+  async (
+    request: NextRequest,
+    context: RouteContext,
+  ): Promise<NextResponse<QaPromotionCandidateDisposition> | NextResponse> => {
     try {
       const { extractionId } = await context.params;
 
