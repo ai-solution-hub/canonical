@@ -118,6 +118,38 @@ async function globalTeardown(): Promise<void> {
     // Also clean legacy [E2E Test] prefix data
     await supabase.from('workspaces').delete().like('name', '[E2E Test]%');
 
+    // {328.3} M3 (RESEARCH I-1): `form_instances` had NO safety sweep at all.
+    // The only cleanup was `test-data-fixture.ts`'s delete-by-id, which never
+    // runs for a worker killed by a crash, a shard timeout or a `maxFailures`
+    // abort — so aborted workers leaked permanently. 381 such orphans were
+    // found on Platform staging.
+    //
+    // PREDICATE: `name LIKE '[E2E-%'` (plus the legacy `[E2E Test]%`), keyed on
+    // the per-worker prefix the fixture itself writes at
+    // `test-data-fixture.ts:479` (`name: \`${prefix} ${shape.name}\``, where
+    // prefix is `[E2E-S{shard}-W{worker}]` or `[E2E-W{worker}]`). Verified
+    // read-only against staging before landing: matches 381 of 396 rows, and
+    // the 15 it does NOT match are all genuine app-created rows
+    // (`ingest_source` 'app_upload'/'minted', plain human names). No row
+    // carried a non-`[E2E-` bracket prefix, so the `[S224-W4C-…]` shape that
+    // escaped the S492 sweeps has no analogue on this table. `[` and `-` are
+    // not LIKE metacharacters in Postgres (only `%` and `_` are), and neither
+    // literal contains one, so the pattern cannot widen.
+    //
+    // RECONCILING, not clean-exit-only: this matches on the prefix rather than
+    // on ids held in worker memory, so a run reaps every PREVIOUS run's
+    // orphans as well as its own. A run killed before teardown is therefore
+    // self-healing on the next run — which is the property delete-by-id lacked.
+    //
+    // No FK ordering needed: both inbound FKs are ON DELETE CASCADE —
+    // `form_questions.form_instance_id` (20260712062000_id145_w1c_rename_
+    // reshape.sql:97, onward to form_responses/form_response_history) and
+    // `form_attachments.form_instance_id` (20260716113306_id147_form_
+    // attachments.sql:39).
+    for (const prefix of E2E_CONTENT_PREFIXES) {
+      await supabase.from('form_instances').delete().like('name', `${prefix}%`);
+    }
+
     // ID-131.19: the admin-dedup fixture tag-based fallback sweep that used
     // to run here was retired at ID-131.15 (G-DEDUP) alongside the
     // admin-dedup E2E fixture family itself and the content_items rows it
