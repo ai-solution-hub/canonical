@@ -156,10 +156,25 @@ allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officed
 #     and had never been run against anything. That is the source of the
 #     nightly's `corpus bucket "corpus" is not provisioned in this project —
 #     upload rejected` (lib/upload/folder-drop.ts:349). Declaring it here
-#     retires that script: `db reset` creates it locally, `supabase config push
-#     --project-ref <ref>` creates it remotely, and — the point that actually
-#     unblocks {128.10} — an ephemeral branch gets it too, because branches
-#     inherit config, not hand-run scripts.
+#     retires that script.
+#
+#     THE REMOTE APPLY COMMAND IS `supabase seed buckets --linked`, NOT
+#     `config push`. Corrected S493 after this comment initially claimed
+#     otherwise: `config push`'s storage leg is `v1UpdateStorageConfig`
+#     (PATCH /v1/projects/{ref}/config/storage), carrying only project-level
+#     `fileSizeLimit`/`features`/`external` — there is no bucket array in it.
+#     Buckets are a Storage-API resource (/storage/v1/bucket). `seed buckets`
+#     also takes only `--linked`, no `--project-ref`, so it needs a
+#     `supabase link` first.
+#
+#     THIS DOES NOT YET REACH EPHEMERAL BRANCHES — do not assume otherwise.
+#     `scripts/e2e-ephemeral-branch.ts` replays `supabase/migrations/*.sql` +
+#     `seed.sql` through raw `psql` and never invokes the CLI, and
+#     `supabase/setup-cli` appears in NO workflow, so the CLI is not even
+#     installed on a runner. A fresh branch therefore has ZERO buckets —
+#     `documents`, `templates` and `tender-documents` are missing too, not just
+#     `corpus`, across 5 call sites. id-328 cluster B and {128.10} stay OPEN on
+#     that axis; the CI wiring is tracked on id-365.
 #   * `onprem-backups` existed on both Platform projects but was declared
 #     nowhere: hand-created 2026-06-25 with null size and null mime limits,
 #     which is the signature of dashboard/API creation rather than config.
@@ -167,15 +182,15 @@ allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officed
 #     reproduce the live NULL — the bucket inherits the global
 #     `[storage] file_size_limit = "50MiB"` above (verified on a local reset).
 #     The live projects therefore still differ from this declaration, and a
-#     `config push` WOULD cap them at 50MiB. Decide the real cap before
-#     pushing: backup archives may exceed it.
+#     `seed buckets` run WOULD cap them at 50MiB. Decide the real cap before
+#     running it anywhere near the backup bucket: archives may exceed it.
 #
-# DO NOT blanket `supabase config push` at a long-lived project. This file is
-# local-dev-shaped — `[auth] site_url` is `http://127.0.0.1:3000`, so pushing
-# it wholesale to Platform prod would repoint prod's auth redirects at
-# localhost. `config push` is the right mechanism for EPHEMERAL BRANCHES
-# ({128.10} / DR-085); making it safe for prod first requires the auth URLs to
-# become environment-aware.
+# Separately, and unrelated to buckets: DO NOT blanket `supabase config push` at
+# a long-lived project. This file is local-dev-shaped — `[auth] site_url` is
+# `http://127.0.0.1:3000` — so pushing it wholesale at Platform prod would
+# repoint prod's auth redirects at localhost. That hazard does NOT apply to
+# `seed buckets`, which touches buckets only. Making `config push` safe for a
+# real project is id-365.
 #
 # Deliberately NO `allowed_mime_types` on `corpus`: it is a heterogeneous
 # store. write-back.ts stamps CORPUS_OBJECT_CONTENT_TYPE, but folder-drop.ts
