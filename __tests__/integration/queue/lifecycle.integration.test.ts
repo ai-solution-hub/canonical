@@ -41,6 +41,16 @@
  *   that was inserted is identifiable from its idempotency_key /
  *   pipeline_name suffix.
  *
+ * Live-job isolation (ID-128 {128.21}):
+ *   That same TEST_PREFIX now also scopes CLAIMING, not just cleanup.
+ *   `buildCronRequest()` appends `?idempotency_key_prefix=<TEST_PREFIX>`,
+ *   which the route forwards to the widened
+ *   `claim_next_job(p_idempotency_key_prefix)`
+ *   (`supabase/migrations/20260725143717_id128_claim_next_job_test_isolation.sql`),
+ *   so a tick driven from here can only ever claim rows THIS run seeded.
+ *   Before that, this suite's ticks drained the whole shared staging queue
+ *   and stub-completed real production jobs.
+ *
  * Graceful-skip seam:
  *   `HAS_REQUIRED_ENV` (line 99) gates the entire suite. When env vars
  *   are missing the tests skip silently per
@@ -196,9 +206,22 @@ async function enqueueViaProduction(opts: EnqueueOpts): Promise<string> {
 /**
  * Build a Bearer-token cron request for the worker route. Mirrors the
  * pattern used in publication-state-cadence.integration.test.ts.
+ *
+ * ID-128 {128.21} — the request ALWAYS carries
+ * `?idempotency_key_prefix=<TEST_PREFIX>`, so every tick this suite drives
+ * can only claim rows this run seeded.
+ *
+ * This is not belt-and-braces: without it, the route's claim loop drains
+ * EVERY pending row on the shared Platform staging DB and hands each one to
+ * the `runJobByType` test-double, which writes `status='completed'` plus a
+ * fake result. Nine real `form_draft_all` jobs were destroyed exactly that
+ * way (2026-06-25 and 2026-07-08 incidents) before the scoping landed — see
+ * the migration header for the evidence.
  */
 function buildCronRequest(): Request {
-  return new Request('http://localhost/api/cron/process-queue', {
+  const url = new URL('http://localhost/api/cron/process-queue');
+  url.searchParams.set('idempotency_key_prefix', TEST_PREFIX);
+  return new Request(url, {
     method: 'GET',
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   });
@@ -991,10 +1014,10 @@ describeIfEnv(
 
       const afterTick = await readRow(jobId);
       expect(afterTick.status).toBe('cancelled');
-      // dispatchSpy MAY have been called for OTHER seeded rows in this
-      // suite (the cron is global), so we assert the SPECIFIC tripwire:
-      // our cancelled row's status is unchanged AND its result/payload
-      // were not overwritten.
+      // dispatchSpy MAY have been called for OTHER rows THIS RUN seeded
+      // (the tick is prefix-scoped, not row-scoped), so we assert the
+      // SPECIFIC tripwire: our cancelled row's status is unchanged AND its
+      // result/payload were not overwritten.
       expect(afterTick.completed_at).toBe(afterCancel.completed_at);
       expect(afterTick.error_message).toBe('cancelled by user');
     }, 60_000);

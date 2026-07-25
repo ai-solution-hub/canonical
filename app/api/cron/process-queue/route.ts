@@ -15,7 +15,10 @@
  *      the visibility-timeout window (per §5.3).
  *   3. Claims jobs one-at-a-time via `claim_next_job()` until either
  *      the queue is empty or the per-invocation budget
- *      (`TIMEOUT_BUFFER_MS`) is approached.
+ *      (`TIMEOUT_BUFFER_MS`) is approached. An optional
+ *      `?idempotency_key_prefix=` query param narrows the tick to one
+ *      tranche (ID-128 {128.21}); absent — as it always is for Vercel
+ *      Cron — the claim is the unchanged global one.
  *   4. For each claim, dispatches via `runJobByType` and writes a
  *      terminal status (`completed` on success; `handleJobFailure`
  *      classifies failure into `retried | failed | dead_lettered`).
@@ -37,9 +40,31 @@ import { runJobByType } from '@/lib/queue/dispatch';
 import { handleJobFailure } from '@/lib/queue/failure';
 import { reapStuckJobs } from '@/lib/queue/visibility-timeout';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Json } from '@/supabase/types/database.types';
+import type { Json, Tables } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;
+
+/**
+ * Shape of the widened `claim_next_job(p_idempotency_key_prefix text)` RPC
+ * (ID-128 {128.21}, migration
+ * `20260725143717_id128_claim_next_job_test_isolation.sql`).
+ *
+ * The generated `database.types.ts` still carries the pre-{128.21} zero-arg
+ * Args for this function — its regen is deferred with the migration, exactly
+ * as {128.20} deferred `p_fence_name`, because no PRODUCTION caller passes
+ * the new argument. This local structural type is therefore the single
+ * documented cast needed for the scoped branch below; the unscoped branch —
+ * the one Vercel Cron actually takes — keeps full generated typing.
+ */
+type ScopedClaimCall = (
+  fn: 'claim_next_job',
+  args: { p_idempotency_key_prefix: string },
+) => {
+  single: () => PromiseLike<{
+    data: Tables<'processing_queue'> | null;
+    error: { message: string } | null;
+  }>;
+};
 
 /** Stop claiming when within 10s of the Vercel function timeout
  *  (`maxDuration = 60` post-S224 §5.4.1 D-3 ratification — Vercel Pro plan
@@ -64,6 +89,20 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const supabase = createServiceClient();
 
+  // ID-128 {128.21} — optional claim scope. Vercel Cron invokes the bare
+  // URL, so in production `claimPrefix` is null and the claim below is the
+  // unchanged global one. A CRON_SECRET-authenticated caller may narrow the
+  // tick to rows whose `idempotency_key` starts with the given prefix —
+  // which is how the queue integration suites drive this route against the
+  // shared staging DB without draining (and stub-completing) real pending
+  // jobs, and equally how an operator can drain a single tranche.
+  //
+  // Read off `request.url` rather than `request.nextUrl` so a plain
+  // `Request` works too: the integration suites invoke GET in-process with
+  // a `new Request(...)` cast to NextRequest, which has no `nextUrl`.
+  const claimPrefix =
+    new URL(request.url).searchParams.get('idempotency_key_prefix') || null;
+
   // Visibility-timeout reap BEFORE claiming new work (spec §5.3 + §4.3
   // ordering). A worker crash leaves a row at `status='processing'`
   // forever; the reap returns those rows to `pending` so the very same
@@ -79,7 +118,14 @@ export async function GET(request: NextRequest) {
   };
 
   while (Date.now() - startTime < TIMEOUT_BUFFER_MS) {
-    const { data: job, error } = await supabase.rpc('claim_next_job').single();
+    // The unscoped branch is deliberately the ORIGINAL call, argument-for-
+    // argument — `claim_next_job` is invoked with no args object at all, so
+    // production behaviour is provably byte-identical to pre-{128.21}.
+    const { data: job, error } = claimPrefix
+      ? await (supabase.rpc as unknown as ScopedClaimCall)('claim_next_job', {
+          p_idempotency_key_prefix: claimPrefix,
+        }).single()
+      : await supabase.rpc('claim_next_job').single();
     if (error || !job) break;
 
     summary.processed += 1;

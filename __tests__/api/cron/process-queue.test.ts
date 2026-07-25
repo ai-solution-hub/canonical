@@ -20,6 +20,10 @@
  *   - AC-11: Two concurrent worker invocations do not double-claim — the
  *            worker calls `claim_next_job` (FOR UPDATE SKIP LOCKED is
  *            DB-side; W2 contract assertion is "uses the RPC, not raw SELECT").
+ *   - ID-128 {128.21}: claim scoping — the Vercel Cron invocation still
+ *            claims globally with NO RPC argument (the hard "production
+ *            default unchanged" constraint), while an authenticated caller
+ *            may narrow the tick via `?idempotency_key_prefix=`.
  *
  * Implementation note: the W2-A worker route impl file lands in a parallel
  * worktree. Tests run after the W2 merge — `bunx tsc --noEmit` in THIS
@@ -310,6 +314,75 @@ describe('GET /api/cron/process-queue', () => {
     // status writes; but it MUST NOT .from('processing_queue').select(...)
     // for claim (that bypasses claim_next_job's lock semantics).
     expect(fromCalls).toContain('processing_queue');
+  });
+
+  // -------------------------------------------------------------------------
+  // ID-128 {128.21}: claim scoping.
+  //
+  // The outbound RPC call is the behaviour under test here — it is literally
+  // what the worker asks the database to claim, and the {128.21} hard
+  // constraint is that the PRODUCTION invocation stays a global,
+  // argument-free claim. Nine real production jobs were destroyed by an
+  // unscoped test-driven tick, so "Vercel Cron still claims globally" and
+  // "an authenticated caller can narrow the tick" both need pinning.
+  // -------------------------------------------------------------------------
+  it('claims from the whole queue when invoked without a scope, as Vercel Cron does', async () => {
+    const job = makeJob();
+    configureClaimSequence([job]);
+    mockRunJobByType.mockResolvedValueOnce({ ok: true });
+
+    await GET(
+      createMockCronRequest({ path: '/api/cron/process-queue' }) as never,
+    );
+
+    // No args object at all — byte-identical to the pre-{128.21} call, so
+    // `claim_next_job`'s DEFAULT (p_idempotency_key_prefix IS NULL) branch
+    // runs and the claim is the unchanged global one.
+    const claimCalls = mockSupabase.rpc.mock.calls.filter(
+      (c) => c[0] === 'claim_next_job',
+    );
+    expect(claimCalls.length).toBeGreaterThanOrEqual(1);
+    for (const call of claimCalls) {
+      expect(call).toEqual(['claim_next_job']);
+    }
+  });
+
+  it('claims only the requested tranche when a scope prefix is supplied', async () => {
+    const job = makeJob();
+    configureClaimSequence([job]);
+    mockRunJobByType.mockResolvedValueOnce({ ok: true });
+
+    const res = await GET(
+      createMockCronRequest({
+        path: '/api/cron/process-queue?idempotency_key_prefix=%5BS223-LIFECYCLE-42%5D',
+      }) as never,
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('claim_next_job', {
+      p_idempotency_key_prefix: '[S223-LIFECYCLE-42]',
+    });
+  });
+
+  it('ignores an empty scope parameter and claims from the whole queue', async () => {
+    // `?idempotency_key_prefix=` (present but blank) must not reach the RPC
+    // as an empty string: the SQL treats an empty prefix as "claim
+    // nothing", which would silently stall the production worker.
+    configureClaimSequence([]);
+
+    await GET(
+      createMockCronRequest({
+        path: '/api/cron/process-queue?idempotency_key_prefix=',
+      }) as never,
+    );
+
+    const claimCalls = mockSupabase.rpc.mock.calls.filter(
+      (c) => c[0] === 'claim_next_job',
+    );
+    expect(claimCalls.length).toBeGreaterThanOrEqual(1);
+    for (const call of claimCalls) {
+      expect(call).toEqual(['claim_next_job']);
+    }
   });
 
   // -------------------------------------------------------------------------
