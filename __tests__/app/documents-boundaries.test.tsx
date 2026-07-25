@@ -75,7 +75,7 @@ describe('Diff Error Boundary', () => {
   it('has a navigation link to /library', () => {
     render(<DiffError error={error} reset={reset} />);
     expect(
-      screen.getByRole('link', { name: /back to browse/i }),
+      screen.getByRole('link', { name: /back to library/i }),
     ).toHaveAttribute('href', '/library');
   });
 

@@ -399,7 +399,9 @@ def _extract_plane1_questions(raw_bytes: bytes, form_format: str) -> list[dict]:
     authenticated the SAME way the cocoindex sidecar already authenticates
     to `/api/internal/pipeline-runs/record` (ID-127.18, S436 D1 — mirrors
     `_emit_pipeline_run_webhook` in `scripts/cocoindex_pipeline/flow.py`):
-    `PIPELINE_TRIGGER_SECRET` preferred, `CRON_SECRET` fallback.
+    `PIPELINE_TRIGGER_SECRET` is the sole outbound bearer — the legacy
+    `CRON_SECRET` dual-accept fallback was retired at ID-127.18 (bid_worker
+    sat outside that sweep's boundary and kept a dead copy until id-356).
 
     Raises RuntimeError (caught per-plane by the caller — a Plane-1 failure
     must not prevent Plane-2 from writing its own rows, Inv-17-style) when
@@ -407,13 +409,11 @@ def _extract_plane1_questions(raw_bytes: bytes, form_format: str) -> list[dict]:
     or a transport error occurs.
     """
     url = os.environ.get("NEXT_PUBLIC_APP_URL")
-    secret = os.environ.get("PIPELINE_TRIGGER_SECRET") or os.environ.get(
-        "CRON_SECRET"
-    )
+    secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
     if not url or not secret:
         raise RuntimeError(
-            "NEXT_PUBLIC_APP_URL or PIPELINE_TRIGGER_SECRET/CRON_SECRET not "
-            "set — cannot reach the Plane-1 extraction bridge"
+            "NEXT_PUBLIC_APP_URL or PIPELINE_TRIGGER_SECRET not set — cannot "
+            "reach the Plane-1 extraction bridge"
         )
 
     response = httpx.post(

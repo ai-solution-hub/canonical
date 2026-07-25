@@ -417,7 +417,7 @@ describe('ReviewContent', () => {
   });
 
   // 3. Empty queue — all verified
-  it('shows "All items have been verified" and Back to Browse link when all verified', () => {
+  it('shows "All items have been verified" and Back to Library link when all verified', () => {
     setHookReturn({
       queue: [],
       currentItem: null,
@@ -435,7 +435,7 @@ describe('ReviewContent', () => {
     expect(
       screen.getByText(/All 50 items have been verified/),
     ).toBeInTheDocument();
-    const browseLink = screen.getByRole('link', { name: 'Back to Browse' });
+    const browseLink = screen.getByRole('link', { name: 'Back to Library' });
     expect(browseLink).toHaveAttribute('href', '/library');
   });
 

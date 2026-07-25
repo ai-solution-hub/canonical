@@ -3021,7 +3021,12 @@ export const IntelligenceWorkspaceSchema = z.object({
   is_archived: z.boolean().nullable(),
   created_at: z.string().nullable(),
   updated_at: z.string().nullable(),
-  company_profile_name: z.string().optional(),
+  // id-350: BOTH handlers emit `null` when the workspace has no
+  // company_profile_id (app/api/intelligence/workspaces/[id]/route.ts:46,74
+  // and .../workspaces/route.ts:151-153). `.optional()` admits
+  // `string | undefined` but NOT `null`, so every profile-less workspace
+  // failed response validation with response_schema_validation_failed.
+  company_profile_name: z.string().nullable().optional(),
   source_count: z.number().optional(),
   article_count: z.number().optional(),
   passed_article_count: z.number().optional(),
