@@ -11,7 +11,7 @@ project uses bun for all Node.js operations. npm and yarn must never be used dir
    other npm command. Always use the bun equivalent:
    - `npm install` -> `bun install`
    - `npm run dev` -> `bun dev`
-   - `npm run build` -> `bun build`
+   - `npm run build` -> `bun run build`
    - `npm test` -> `bun run test` (NOT `bun test` — that invokes bun's built-in test
      runner, not Vitest)
    - `npm run lint` -> `bun lint`
