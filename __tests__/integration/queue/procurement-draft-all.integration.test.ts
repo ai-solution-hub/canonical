@@ -215,8 +215,21 @@ function buildPostRequest(
   );
 }
 
-function buildCronRequest(): Request {
-  return new Request('http://localhost/api/cron/process-queue', {
+function buildCronRequest(procurementId: string): Request {
+  // ID-372 {372.2}: scope every tick this suite drives to THIS test's own
+  // jobs. The route's idempotency keys are real-shaped
+  // (`form_draft_all:<form_id>:<date>:<hash>`), so the seeded bid's id IS a
+  // per-run-unique claim prefix — no re-keying needed, and the AC-9
+  // key-formula assertions stay untouched. Without this the tick claimed
+  // the globally oldest pending row on shared staging (the {128.21} class:
+  // stealing sibling suites' jobs and completing real rows with
+  // test-double results).
+  const url = new URL('http://localhost/api/cron/process-queue');
+  url.searchParams.set(
+    'idempotency_key_prefix',
+    `form_draft_all:${procurementId}`,
+  );
+  return new Request(url, {
     method: 'GET',
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   });
@@ -412,7 +425,12 @@ describeIfEnv(
       expect(pr).toBeTruthy();
       expect(pr!.status).toBe('running');
       expect(pr!.pipeline_name).toBe('form_draft_all');
-      expect(pr!.workspace_id).toBe(procurementId);
+      // ID-145 {145.23} round-2 (ca5fe068): `pipeline_runs.workspace_id`
+      // FK now points at workspaces(id) and [id] is a form_instances id,
+      // so the producer deliberately writes NULL (see the route's insert
+      // comment). This assertion pinned the pre-{145.23} contract and sat
+      // red in the nightly noise from 15/07 until id-372 drained it.
+      expect(pr!.workspace_id).toBeNull();
     }, 30_000);
   },
 );
@@ -674,7 +692,7 @@ describeIfEnv(
       // Drive the worker.
       const { GET } = await import('@/app/api/cron/process-queue/route');
       const cronResponse = await GET(
-        buildCronRequest() as unknown as import('next/server').NextRequest,
+        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
       );
       expect(cronResponse.status).toBe(200);
 
@@ -781,7 +799,7 @@ describeIfEnv(
 
       const { GET } = await import('@/app/api/cron/process-queue/route');
       await GET(
-        buildCronRequest() as unknown as import('next/server').NextRequest,
+        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
       );
 
       const { data: row } = await serviceClient
@@ -893,7 +911,7 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
 
     const { GET } = await import('@/app/api/cron/process-queue/route');
     await GET(
-      buildCronRequest() as unknown as import('next/server').NextRequest,
+      buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
     );
 
     const { data: row } = await serviceClient
@@ -949,7 +967,7 @@ describeIfEnv('AC-7 — bid with 0 questions → permanent failure', () => {
 
     const { GET } = await import('@/app/api/cron/process-queue/route');
     await GET(
-      buildCronRequest() as unknown as import('next/server').NextRequest,
+      buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
     );
 
     const { data: row } = await serviceClient
@@ -1168,30 +1186,47 @@ describeIfEnv(
 
       // Snapshot count BEFORE cron — should be 1 (producer INSERTed
       // status='running' at-enqueue).
+      //
+      // ID-145 {145.23} round-2 (ca5fe068): workspace_id is deliberately
+      // NULL post-FK-re-point, so the per-run lookup keys on the
+      // caller-allocated pipeline_run_id instead. Cardinality ("the worker
+      // UPDATEd the SAME row, never INSERTed a second") is asserted below
+      // by proving no OTHER form_draft_all row appeared in this test's
+      // window.
       const { count: countBefore } = await serviceClient
         .from('pipeline_runs')
         .select('id', { count: 'exact', head: true })
-        .eq('pipeline_name', 'form_draft_all')
-        .eq('workspace_id', procurementId);
+        .eq('id', enqueueBody.pipeline_run_id)
+        .eq('pipeline_name', 'form_draft_all');
       expect(countBefore).toBe(1);
 
       // Drive cron tick.
       const { GET } = await import('@/app/api/cron/process-queue/route');
       await GET(
-        buildCronRequest() as unknown as import('next/server').NextRequest,
+        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
       );
 
-      // Cardinality assertion — STILL exactly 1 row. NOT 2. Pattern 2
-      // contract: same UUID, status flipped to terminal.
+      // Pattern 2 contract, re-keyed for the NULL workspace_id era:
+      // (a) the caller-allocated row itself flipped to terminal in place;
       const { data: rows, error: rowsErr } = await serviceClient
         .from('pipeline_runs')
         .select('id, status, items_created, items_processed')
-        .eq('pipeline_name', 'form_draft_all')
-        .eq('workspace_id', procurementId);
+        .eq('id', enqueueBody.pipeline_run_id);
       expect(rowsErr).toBeNull();
       expect(rows).toHaveLength(1);
       expect(rows![0].id).toBe(enqueueBody.pipeline_run_id);
       expect(rows![0].status).toBe('completed');
+      // (b) and the worker INSERTed no second row for this run — zero
+      // other form_draft_all rows created since this test enqueued
+      // (5s clock-skew guard; cross-PR runs are serialised by the
+      // integration-staging-integration concurrency group).
+      const { count: rogueRows } = await serviceClient
+        .from('pipeline_runs')
+        .select('id', { count: 'exact', head: true })
+        .eq('pipeline_name', 'form_draft_all')
+        .neq('id', enqueueBody.pipeline_run_id)
+        .gte('created_at', new Date(Date.now() - 120_000).toISOString());
+      expect(rogueRows).toBe(0);
       // items_created is string[] per feedback_record_pipeline_run_signature.
       expect(rows![0].items_created).toEqual(draftedIds);
       expect(rows![0].items_processed).toBe(2);

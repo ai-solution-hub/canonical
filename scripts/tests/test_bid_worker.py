@@ -1273,3 +1273,60 @@ class TestAnalyseFormJob:
         mock_sb.from_.return_value.update.assert_any_call(
             {"processing_status": "analysis_failed"}
         )
+
+
+# ── ID-372 {372.2}: worker claim is scoped to the types it processes ─────────
+
+
+class TestWorkerJobTypeScoping:
+    def test_worker_job_types_matches_ts_constant(self):
+        """WORKER_JOB_TYPES must stay byte-identical between bid_worker.py
+        and lib/queue/worker-job-types.ts — the cron route EXCLUDES this
+        list from its claims while this worker INCLUDES exactly it, so a
+        one-sided edit reopens the mutual job-destruction defect (a type
+        claimed by both, or claimed by neither and stuck pending)."""
+        import re
+
+        from bid_worker import WORKER_JOB_TYPES
+
+        ts_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "lib", "queue",
+            "worker-job-types.ts",
+        )
+        with open(ts_path, encoding="utf-8") as fh:
+            source = fh.read()
+        match = re.search(
+            r"export\s+const\s+WORKER_JOB_TYPES\s*=\s*\[(.*?)\]\s*as\s+const\s*;",
+            source,
+            re.DOTALL,
+        )
+        assert match, "WORKER_JOB_TYPES export not found in worker-job-types.ts"
+        ts_values = re.findall(r"'([^']+)'", match.group(1))
+        assert ts_values == WORKER_JOB_TYPES
+
+    def test_worker_job_types_covers_exactly_the_process_job_dispatch(self):
+        """Every type in WORKER_JOB_TYPES must be dispatchable by
+        process_job, and process_job must reject anything outside it —
+        otherwise the claim scope and the handler set drift apart and a
+        claimed row dies in the ValueError branch again."""
+        from bid_worker import WORKER_JOB_TYPES, process_job
+
+        # Outside the list → ValueError (the loop's failed-status branch).
+        with pytest.raises(ValueError, match="Unknown job type"):
+            process_job(_make_mock_supabase(), {
+                "job_type": "form_draft_all",
+                "payload": {},
+            })
+
+        # Inside the list → routed to a real handler (which then raises on
+        # the empty payload — anything BUT the Unknown-job-type ValueError).
+        for job_type in WORKER_JOB_TYPES:
+            try:
+                process_job(_make_mock_supabase(), {
+                    "job_type": job_type,
+                    "payload": {},
+                })
+            except ValueError as exc:
+                assert "Unknown job type" not in str(exc)
+            except Exception:
+                pass  # handler-level failure on a stub payload is expected

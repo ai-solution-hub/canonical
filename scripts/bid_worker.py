@@ -59,6 +59,17 @@ from scripts.cocoindex_pipeline.form_extractors.shared import FormExtractionErro
 POLL_INTERVAL = 2  # seconds
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# ID-372 {372.2}: the job types THIS worker processes — its claim is scoped
+# to exactly these via claim_next_job(p_job_types => ...). Before this
+# scoping the worker claimed the globally-oldest pending row of ANY type
+# and process_job's ValueError marked it failed ("Unknown job type: ..."),
+# destroying the app cron's jobs whenever this 2s poller won the race
+# (24 falsely-failed form_draft_all rows measured on Platform staging,
+# 17-26/07/2026). Mirrors lib/queue/worker-job-types.ts WORKER_JOB_TYPES —
+# the parity test in scripts/tests/test_bid_worker.py pins the two lists
+# together; change both or CI fails.
+WORKER_JOB_TYPES = ["template_fill", "analyse_form"]
+
 # Per WP-S5.3 D-21 F-1: --env=prod flag asserts SUPABASE_URL contains
 # the prod project ref before entering the polling loop. The ref is sourced
 # from PROD_PROJECT_REF (env) — per-client and never committed (ID-68).
@@ -765,8 +776,13 @@ def main():
 
     while True:
         try:
-            # Claim next pending job (atomic via RPC — uses FOR UPDATE SKIP LOCKED)
-            result = supabase.rpc("claim_next_job", {}).execute()
+            # Claim next pending job (atomic via RPC — uses FOR UPDATE SKIP
+            # LOCKED). Scoped to WORKER_JOB_TYPES (ID-372 {372.2}) so this
+            # worker can never claim — and falsely fail — a job type it has
+            # no handler for.
+            result = supabase.rpc(
+                "claim_next_job", {"p_job_types": WORKER_JOB_TYPES}
+            ).execute()
 
             if result.data and len(result.data) > 0:
                 job = result.data[0]
