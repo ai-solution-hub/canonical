@@ -48,6 +48,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 ## Orchestration & Sub-agents
 
 - **Worktree isolation:** `isolation: "worktree"` for parallel Agent dispatch; cherry-pick (not merge) parallel branches; agents start stale — first action`git fetch origin {branch} && git reset --hard origin/{branch}`.
+- **Never `git stash` in a dispatch worktree** — the stash ref list is global across worktrees; use a WIP commit on the agent's own branch instead.
 - **ALWAYS check worktree **`git status`** before removing it.**
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
 - **Intent (ACP) sessions:** permission prompts never surface in Intent — a user-level PreToolUse hook (`~/.claude/hooks/intent-acp-autoallow.sh`) auto-allows tool calls when cwd is under `~/intent/workspaces/`. Claude Code's force-ask files (`.claude/settings*.json`, `.claude/hooks/`, `.claude/skills/`, `.claude/agents/`) can NOT be auto-allowed by hooks — a Write/Edit to them inside Intent stalls until Intent's ~30-min watchdog kills the turn. Do those edits from a terminal session instead.
@@ -66,7 +67,7 @@ Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-Ap
 
 ## Deployment & CI
 
-- Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline(`onprem-deploy.yml`); staging URL[https://canonical-platform-git-staging-tw-group.vercel.app](https://canonical-platform-git-staging-tw-group.vercel.app); `staging` branch is deploy-only. GitHub: [https://github.com/ai-solution-hub/canonical](https://github.com/ai-solution-hub/canonical).
+- Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline(`onprem-deploy.yml`); staging URL[https://canonical-platform-git-staging-tw-group.vercel.app](https://canonical-platform-git-staging-tw-group.vercel.app); `staging` branch is deploy-only in the current interim (PRs target `main`); the staging-first flow in `runbooks/ci.md` §3 (feature→staging→main) is the target model, arriving with id-127/id-128. GitHub: [https://github.com/ai-solution-hub/canonical](https://github.com/ai-solution-hub/canonical).
 - PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.Side workflows incl. `schema-parity`.
 
 ## Memory (MemPalace)

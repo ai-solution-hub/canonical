@@ -234,3 +234,12 @@ test('user can create and complete a task', async ({ page }) => {
 | Using `test.skip` permanently  | Dead code                      | Remove or fix it           |
 | Overly broad assertions        | Doesn't catch regressions      | Be specific                |
 | No async error handling        | Swallowed errors, false passes | Always `await` async tests |
+
+## pyright (Python pipeline)
+
+pyright is a **manual, local-only diagnostic** for `scripts/` — it is not wired into CI or
+any gate, and there is no `pyrightconfig.json` by design. When reviewing or checking
+Python work, **baseline the error count against `main`'s pre-existing count rather than
+expecting zero** — the repo carries a known accepted backlog (~31 pre-existing + ~10
+adjudicated-acceptable), and re-adjudicating it per review wastes rounds. (Formerly
+DR-053; re-homed here S499. Wire-it-or-accept-it remains an open curation-queue item.)
