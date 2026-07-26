@@ -46,9 +46,12 @@
   storage leg AFTER applying auth — non-atomic), and **non-tty `config push`
   AUTO-APPLIES with no confirmation and no dry-run** — never run it at a ref with
   no matching remote block (base `[auth]` is local-dev-shaped, `site_url`
-  127.0.0.1). Bucket reach is split ({365.5}): git-triggered preview branches (PR
-  required) DO seed all declared buckets; dashboard-created branches and the
-  psql-replay `scripts/e2e-ephemeral-branch.ts` path get ZERO.
+  127.0.0.1). Bucket reach is split: git-triggered preview branches (PR required)
+  DO seed all declared buckets; dashboard/CLI-created branches get ZERO (Seed +
+  Configure are git-PR-integration-exclusive). CI E2E lanes run the LOCAL stack
+  on the runner (DR-096, {365.5}) — `supabase db reset` creates every declared
+  bucket there; the psql-replay `scripts/e2e-ephemeral-branch.ts` path is
+  retired and deleted.
 - **RLS** is role-based via `get_user_role()`.
 - **Table grants + policy roles (id-347, S492/S493):** the squash baseline set
   `ALTER DEFAULT PRIVILEGES … GRANT ALL ON TABLES TO anon`
