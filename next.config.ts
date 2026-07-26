@@ -7,6 +7,15 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  // Build/dev output root. Next 16 takes a per-directory dev lock at
+  // `<distDir>/dev/lock` and refuses to start a second `next dev` for the same
+  // directory even on a different port ("Another next dev server is already
+  // running"). Parallel agents sharing one checkout therefore collide on the
+  // LOCK, not the port — so varying the port alone (portless, `-p`) does not
+  // help. Giving each concurrent session its own distDir moves the lock and
+  // the Turbopack cache apart, letting them coexist. Defaults to `.next`, so
+  // CI, Vercel, and single-session local dev are unaffected.
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   // Skill markdown is inlined at build time via
   // scripts/generate-skills-inline.ts (output: lib/ai/skills/inlined.generated.ts)
   // so no runtime FS access is required. The previous outputFileTracingIncludes

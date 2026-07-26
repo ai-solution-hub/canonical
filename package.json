@@ -8,7 +8,7 @@
     "bun": ">=1.3.0"
   },
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "predev": "bun run generate:skills && bun run generate:content-type-values && bun run generate:branding",
     "prebuild": "bun run generate:skills && bun run generate:content-type-values && bun run generate:client-branding && bun run generate:branding",
@@ -61,7 +61,7 @@
     "eval:procurement-drafting": "bun run scripts/eval-procurement-drafting.ts",
     "eval:entity": "bun run scripts/eval-entity-classification.ts",
     "eval:all": "bun run eval:classification && bun run eval:search && bun run eval:procurement-drafting && bun run eval:entity",
-    "dev:clean": "rm -rf .next && next dev --turbopack",
+    "dev:clean": "rm -rf \"${NEXT_DIST_DIR:-.next}\" && next dev",
     "analyze": "ANALYZE=true next build",
     "build:vercel": "bun run generate:skills && bun run generate:content-type-values && bun run generate:client-branding && bun run generate:branding && bun run build:mcp-apps && next build",
     "db:row-count-diff": "bun run scripts/db-row-count-diff.ts",

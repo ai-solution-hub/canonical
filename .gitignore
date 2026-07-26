@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 .next/
+# Per-session build roots (NEXT_DIST_DIR) used to run concurrent dev servers
+# from one checkout — see the distDir note in next.config.ts.
+.next-*/
 
 # Environment
 .env
