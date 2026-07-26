@@ -13,7 +13,7 @@
 // `origin_kind` — the save is one `q_a_pairs` UPDATE with an affected-row
 // assertion.
 //
-// ID-127 {127.38} / DR-086 — SIDECAR WRITE HALF RETIRED. The {59.30} dual-write
+// ID-127 {127.38} / DR-086a — SIDECAR WRITE HALF RETIRED. The {59.30} dual-write
 // is gone: both the INV-12 write-back leg (rewrite the pair's existing sidecar
 // object) and the INV-13 MATERIALISE-ON-FIRST-EDIT leg (mint a reserved-prefix
 // sidecar object and stamp the uuid5 of its path as `source_document_id`) have

@@ -2,7 +2,7 @@
  * API route tests for the UC6 user-direct Q&A write route
  * (`app/api/q-a-pairs/[id]/route.ts`, PATCH) — ID-59 {59.11} (PC-A4 / PC-4).
  *
- * ID-127 {127.38} / DR-086: the {59.30} sidecar emit + first-edit
+ * ID-127 {127.38} / DR-086a: the {59.30} sidecar emit + first-edit
  * materialisation legs are RETIRED. The route is KH-DB-ONLY again, so the
  * emit suite (write-back / materialise / INV-7 gate / bucket-idle-mode) is
  * gone and the contract it proved is replaced by the positive zero-Storage
@@ -343,7 +343,7 @@ describe('PATCH /api/q-a-pairs/:id', () => {
     });
   });
 
-  // ── {127.38} KH-DB-only (DR-086) ─────────────────────────────────────────
+  // ── {127.38} KH-DB-only (DR-086a) ─────────────────────────────────────────
   describe('{127.38} KH-DB-only: no revision reaches Storage', () => {
     it('a curated_explicit pair with an existing sidecar linkage performs NO Storage read or PUT', async () => {
       // `curated_explicit` + a non-null source_document_id was the INV-12

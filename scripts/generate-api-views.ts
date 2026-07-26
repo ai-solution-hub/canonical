@@ -74,7 +74,8 @@ const MIGRATIONS_DIR = join(import.meta.dir, '..', 'supabase', 'migrations');
 // 20260706150000 re-timestamp precedent) — an in-place regen at its old stamp
 // would emit views over tables that do not exist at that replay position and
 // break the fresh-stack replay (the e2e ephemeral-branch path). All snapshots
-// fold into the next squash baseline. Stamp is DR-081 time-anchored (UTC at
+// fold into the next squash baseline. Stamp is DR-081b-time-anchored (retired
+// id; the stamp rules live in supabase/CLAUDE.md) — UTC at
 // the re-point) and strictly after every repo migration; the remote
 // schema_migrations table is not readable from this lane — the Orchestrator
 // verifies no collision against remote before any push.

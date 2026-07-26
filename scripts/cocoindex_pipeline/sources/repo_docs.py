@@ -71,11 +71,11 @@ changes:
   `field(compare=False)` exemption) — storing it would re-leak the
   file-grained invalidation the span hash exists to avoid.
 
-**PC-5 — citation provenance, generalised (ID-163 TECH, DR-086).** The
+**PC-5 — citation provenance, generalised (ID-163 TECH, DR-086b).** The
 BI-17 discipline L-records enforces via `enrich.py`'s `_mint`/`seen_anchors`
 per-row `canonical://` pattern applies here too, on a DIFFERENT anchor
 scheme: a system concept has no DB row, so it cites a git-pinned PUBLIC
-blob URL instead (DR-086 — the `canonical` repo is public and is the
+blob URL instead (DR-086b — the `canonical` repo is public and is the
 citation base directly). `read_concept` is the sole mint site: every call
 mints the artefact's `resource_uri.py:build_git_blob_citation` anchor into
 `self.seen_anchors` and returns it on `RepoConceptRaw.resource` — an
@@ -212,7 +212,7 @@ class RepoConceptRaw:
     text: str = ""
 
     resource: str = ""
-    """PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation anchor
+    """PC-5 (ID-163 TECH, DR-086b): the git-blob/doc-page citation anchor
     `read_concept` minted for this artefact (`producer/resource_uri.py:
     build_git_blob_citation`) — the system-bundle analogue of L-records'
     per-row `resource` field (`enrich.py:_with_resource`). Empty when the
@@ -359,7 +359,7 @@ def _read_source_ref(root: Path, source_ref: str) -> str:
 def _mint_git_blob_citation(
     root: Path, key: RepoConceptKey, seen_anchors: "set[str]"
 ) -> str:
-    """PC-5 (ID-163 TECH, DR-086): mint `key`'s backing artefact into a
+    """PC-5 (ID-163 TECH, DR-086b): mint `key`'s backing artefact into a
     git-blob/doc-page citation anchor (`producer/resource_uri.py:
     build_git_blob_citation`) and record it into `seen_anchors` — the
     exact analogue of `enrich.py`'s `_mint`/`seen_anchors` per-row
@@ -427,7 +427,7 @@ class RepoDocsSource:
         self._root = Path(root)
         self._navigation_docs_dir = Path(navigation_docs_dir)
         self.seen_anchors: "set[str]" = set()
-        """PC-5 (ID-163 TECH, DR-086): the per-run provenance ledger
+        """PC-5 (ID-163 TECH, DR-086b): the per-run provenance ledger
         `read_concept` mints into — one git-blob/doc-page anchor per
         backing artefact actually READ this run, the exact analogue of
         L-records' per-row `canonical://` `seen_anchors` set

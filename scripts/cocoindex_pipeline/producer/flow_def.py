@@ -76,7 +76,7 @@ Two more pieces wire in at this same seam:
   BEFORE it is staged into the client-owned repo — an approved human edit is
   never dropped by a fresh regeneration. Defaults to `()`; PERSISTING which
   overrides are "approved" across runs is a separate, not-yet-built concern
-  (the follow-on accept/edit/reject review surface, DR-013 shape) — this
+  (the follow-on accept/edit/reject review surface, DR-016 shape) — this
   seam accepts whatever the caller supplies, exactly like every other
   injection seam in this module.
 - **BI-28 provenance map ({132.21}/{132.22}).** `git_sync.sync_bundle`'s
@@ -150,7 +150,7 @@ class ProducerRunReport:
     `sync_result` is the `git_sync.SyncResult` (or `None` when the staging step
     was skipped: no `repo_path`, or a log.md-only no-op run).
     `proposed_change_set` is `git_sync.proposed_change_set(sync_result)`'s
-    JSON-serialisable DR-013-shaped payload (BI-27/DR-016; `None` alongside
+    JSON-serialisable DR-016-shaped payload (BI-27/DR-016; `None` alongside
     `sync_result is None`)."""
 
     ran: bool = True

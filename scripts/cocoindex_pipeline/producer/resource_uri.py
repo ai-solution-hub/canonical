@@ -278,13 +278,13 @@ def contains_record_pointer(text: str) -> bool:
     return _SCHEME in text or bool(_EMBEDDED_UUID_RE.search(text))
 
 
-# ── PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation scheme ─────
+# ── PC-5 (ID-163 TECH, DR-086b): the git-blob/doc-page citation scheme ─────
 #
 # The `system_baseline` bundle's concepts have no DB row, so they cannot
 # cite a `canonical://` anchor — but the BI-17 provenance DISCIPLINE ("every
 # citation is real, minted from a backing artefact this run actually read")
 # carries over unchanged, generalised to a second, additive anchor scheme:
-# a git-pinned PUBLIC blob URL (DR-086 — the `canonical` repo IS public and
+# a git-pinned PUBLIC blob URL (DR-086b — the `canonical` repo IS public and
 # is the citation base directly; no mirror, no private-docs-site
 # indirection — a private URL is never a citation, S3 hard rule).
 # `sources/repo_docs.py:RepoDocsSource.read_concept` is the sole mint site
@@ -299,9 +299,9 @@ def contains_record_pointer(text: str) -> bool:
 # different concern from a repo git-blob citation.
 
 PUBLIC_CANONICAL_BLOB_BASE = "https://github.com/ai-solution-hub/canonical/blob"
-"""S3/DR-086: the public host a `system_baseline` citation is pinned to when
+"""S3/DR-086b: the public host a `system_baseline` citation is pinned to when
 its backing artefact lives in the PUBLIC `canonical` repo. Every bundle repo
-(platform- or client-owned) remains private per DR-086 and is never a mint
+(platform- or client-owned) remains private per DR-086b and is never a mint
 source. `is_git_blob_citation` recognises ONLY this prefix. The PRIVATE
 docs-site is no longer "rejected by construction" here — under DR-087 it is a
 SEPARATE, additive, authorised scheme (`AUTHORISED_DOCS_SITE_BLOB_BASE` /
@@ -353,7 +353,7 @@ def build_git_blob_citation(
 
 def is_git_blob_citation(value: str) -> bool:
     """True iff `value` is a PC-5 git-blob/doc-page citation pinned to the
-    PUBLIC canonical repo (S3/DR-086) — the `system_baseline` bundle's
+    PUBLIC canonical repo (S3/DR-086b) — the `system_baseline` bundle's
     citation-anchor scheme, additive alongside `is_canonical_resource_uri`'s
     `canonical://` BI-6 scheme. Matches ONLY `PUBLIC_CANONICAL_BLOB_BASE`, so
     an authorised DR-087 docs-site anchor (a different prefix) returns False
@@ -425,7 +425,7 @@ def is_docs_site_citation(value: str) -> bool:
     """True iff `value` is a DR-087 authorised docs-site citation — a git-blob
     URL pinned to the PRIVATE `knowledge-hub-docs-site` repo. The additive
     third citation scheme alongside `is_canonical_resource_uri` (`canonical://`,
-    BI-6) and `is_git_blob_citation` (public canonical blob, DR-086).
+    BI-6) and `is_git_blob_citation` (public canonical blob, DR-086b).
     Recognises ONLY the docs-site blob prefix, so it is disjoint from both:
     access control (the private repo), not non-recognition, is the DR-087
     safeguard."""

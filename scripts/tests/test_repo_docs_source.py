@@ -517,14 +517,14 @@ class TestReadConceptSampleRowsFind:
         assert _run(source.find("")) == []
 
 
-# ── PC-5 (ID-163 TECH, DR-086): git-blob citation mint on read_concept ──
+# ── PC-5 (ID-163 TECH, DR-086b): git-blob citation mint on read_concept ──
 
 
 class TestPC5GitBlobCitationMint:
     """`read_concept` mints, per backing artefact READ, a git-blob citation
     anchor into `self.seen_anchors` — the exact analogue of L-records'
     per-row `canonical://` mint (`enrich.py:_mint`), generalised to the
-    system-bundle's public blob-URL scheme (S3/DR-086)."""
+    system-bundle's public blob-URL scheme (S3/DR-086b)."""
 
     def test_e1_read_concept_mints_the_line_range_citation(self, tmp_path: Path) -> None:
         _seed_two_pillars(FakeRepo(tmp_path))
@@ -560,7 +560,7 @@ class TestPC5GitBlobCitationMint:
         assert expected in source.seen_anchors
 
     def test_mint_base_is_the_public_canonical_repo(self, tmp_path: Path) -> None:
-        """S3/DR-086 hard rule, proven by construction: every minted
+        """S3/DR-086b hard rule, proven by construction: every minted
         anchor resolves on the PUBLIC canonical repo, never a private
         host."""
         _seed_two_pillars(FakeRepo(tmp_path))

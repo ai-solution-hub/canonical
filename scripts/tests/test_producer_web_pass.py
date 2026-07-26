@@ -617,7 +617,7 @@ class TestValidatePass2Citations:
                 [], previous_entries=set(), seen_anchors=set(), catalogue_paths=set()
             )
 
-    # ── PC-5 (ID-163 TECH, DR-086): git-blob/doc-page additive branch ──
+    # ── PC-5 (ID-163 TECH, DR-086b): git-blob/doc-page additive branch ──
 
     def test_a_new_git_blob_anchor_in_seen_anchors_is_accepted(self) -> None:
         anchor = build_git_blob_citation(
@@ -727,7 +727,7 @@ class TestParseReferenceConcept:
             )
 
     def test_a_git_blob_anchor_is_also_rejected_dr025_scope_unchanged(self) -> None:
-        """PC-5 scope note (ID-163 TECH, DR-086): the git-blob/doc-page
+        """PC-5 scope note (ID-163 TECH, DR-086b): the git-blob/doc-page
         scheme generalises `_validate_citation`/`_validate_pass2_citation`
         only. `_validate_reference_concept_citations` stays
         `canonical://reference_items`-only — a reference concept exists

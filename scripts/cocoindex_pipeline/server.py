@@ -469,7 +469,7 @@ async def _read_full_reprocess_flag(request: web.Request) -> bool:
 
 # ──────────────────────────────────────────────────────────────────────────
 # P5 — content-hash-gated pull-sync ({138.14}; TECH.md §3.2 P5, §2.3 R(c),
-# §2.6 R(ops); DR-015)
+# §2.6 R(ops); DR-046)
 # ──────────────────────────────────────────────────────────────────────────
 #
 # Bucket → VPS-volume materialise, run immediately before every corpus walk
@@ -539,7 +539,7 @@ def _resolve_storage_downloader() -> Callable[[str], bytes]:
     Mirrors `scripts/bid_worker.py`'s `SUPABASE_URL` /
     `SUPABASE_SERVICE_ROLE_KEY` env convention and its `supabase-py`
     `.storage.from_(bucket).download(...)` precedent (same file,
-    `fill_template_job`) — outbound HTTPS only, zero new ingress (DR-015).
+    `fill_template_job`) — outbound HTTPS only, zero new ingress (DR-046).
     One client is built per pull-sync pass and reused across every candidate
     row (not one client per row).
     """

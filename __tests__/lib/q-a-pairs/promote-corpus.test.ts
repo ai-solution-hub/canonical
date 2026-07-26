@@ -1117,7 +1117,7 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
 // Supabase mock; there is nothing on disk to assert any more (no temp dir, no
 // COCOINDEX_SOURCE_PATH gate — the former idle mode is gone).
 //
-// ID-127 {127.38} / DR-086: the linked VALUE is now the extraction's own
+// ID-127 {127.38} / DR-086a: the linked VALUE is now the extraction's own
 // source_document_id — the real corpus document — rather than a uuid5 derived
 // from a reserved-prefix sidecar path that no walk ever mints a row for. A NULL
 // extraction lineage aborts the publish (OQ-4, ruled strict).

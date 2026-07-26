@@ -274,7 +274,7 @@ def test_parse_citation_entry_bare_form_has_no_label():
 
 
 # ──────────────────────────────────────────
-# PC-5 (ID-163 TECH, DR-086): the git-blob/doc-page citation scheme —
+# PC-5 (ID-163 TECH, DR-086b): the git-blob/doc-page citation scheme —
 # the system_baseline bundle's additive anchor form alongside canonical://.
 # ──────────────────────────────────────────
 

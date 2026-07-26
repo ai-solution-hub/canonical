@@ -17,9 +17,10 @@ type QAPairRow = Tables<'q_a_pairs'>;
  * {135.22}).
  *
  * REUSES the mature `components/qa` family rather than rebuilding a viewer
- * from scratch (S440 owner ruling design note; DR-013's id-111/id-117
- * "link-out only" rule does NOT apply here — the qa component family is
- * explicitly exempted for id-135 surfaces):
+ * from scratch (S440 owner ruling design note — the sole record of this
+ * carve-out, mirrored in retired DR-013's tombstone: the qa component family
+ * is explicitly exempted from the id-111/id-117 "link-out only" rule for
+ * id-135 surfaces):
  *
  * - `QAAnswerDisplay` — was a fully-built, zero-caller orphan (its IMS
  *   item-detail caller was deleted at {131.17}). This viewer is its first

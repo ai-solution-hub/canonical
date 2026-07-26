@@ -297,7 +297,7 @@ class TestFullRun:
         staged_paths = _git(repo, "diff", "--cached", "--name-only").splitlines()
         assert "topics/alpha.md" in staged_paths
 
-        # The machine-readable proposed_change_set (DR-013 shape) is emitted.
+        # The machine-readable proposed_change_set (DR-016 shape) is emitted.
         assert report.proposed_change_set is not None
         assert report.proposed_change_set["staged"] is True
         changed_paths = {c["concept_path"] for c in report.proposed_change_set["changes"]}

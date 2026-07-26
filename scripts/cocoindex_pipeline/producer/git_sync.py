@@ -68,7 +68,7 @@ lands in a STAGING state (`sync_bundle(..., stage_only=True)` — applies
 + `git add`, no commit; the ONE gated commit happens later at the
 publish gate, `producer/publish.py`, not per-run) and emits a
 machine-readable per-run proposed-change set (`proposed_change_set` —
-the DR-013 shape the follow-on accept/edit/reject review UI binds to,
+the DR-016 shape the follow-on accept/edit/reject review UI binds to,
 reshaped from the same reconcile decisions this module already renders
 into `log.md`). Each proposed-change entry reserves a per-entry
 `source_workspace_id` provenance slot that `{132.22}`
@@ -202,7 +202,7 @@ class ProposedFieldChange:
 @dataclass(frozen=True)
 class ProposedChange:
     """One managed path's entry in a run's machine-readable proposed-change
-    set (BI-27/DR-016 — the DR-013 shape the follow-on accept/edit/reject
+    set (BI-27/DR-016 — the DR-016 shape the follow-on accept/edit/reject
     review UI binds to). `change_kind` is one of `add` / `modify` / `remove`
     / `unchanged` / `human_edit_conflict` / `augmentation_refused`.
     `source_workspace_id` is the per-entry provenance slot `{132.22}`
@@ -216,7 +216,7 @@ class ProposedChange:
     source_workspace_id: "str | None" = None
 
     def to_json_dict(self) -> "dict[str, object]":
-        """A JSON-serialisable view — the review UI (DR-013 shape) binds to
+        """A JSON-serialisable view — the review UI (DR-016 shape) binds to
         this; nothing here is a Python-only type."""
         return {
             "concept_path": self.concept_path,
@@ -658,7 +658,7 @@ def sync_bundle(
     field-level human edits captured from any human-edit conflict, for the
     flow to re-apply via `reapply_overrides`) and `proposed_changes` (the
     machine-readable per-run change set; feed to `proposed_change_set` for the
-    DR-013-shaped review payload).
+    DR-016-shaped review payload).
 
     Returns a `SyncResult` — `commit_sha` is the sha of a new commit (a
     committing run that applied and/or removed at least one managed path), the
@@ -776,7 +776,7 @@ def proposed_change_set(
     result: SyncResult, *, run_timestamp: "str | None" = None
 ) -> "dict[str, object]":
     """Reshape a `SyncResult` into the machine-readable, JSON-serialisable
-    per-run proposed-change set (BI-27/DR-016 — the DR-013 shape the follow-on
+    per-run proposed-change set (BI-27/DR-016 — the DR-016 shape the follow-on
     accept/edit/reject review UI binds to). This is the same reconcile data
     this module renders into `log.md`, re-projected as structured records
     rather than prose. Every entry carries a per-entry `source_workspace_id`

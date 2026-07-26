@@ -164,7 +164,7 @@ class TestBidOutcomeProvenanceStamp:
     def test_the_provenance_survives_into_the_dr013_proposed_change_set_payload(
         self, repo: Path
     ) -> None:
-        """The accept/edit/reject review UI (DR-013 shape) binds to the
+        """The accept/edit/reject review UI (DR-016 shape) binds to the
         JSON-serialisable `proposed_change_set` payload — the provenance must
         be attributable there, not merely on the in-memory dataclass."""
         result = sync_bundle(

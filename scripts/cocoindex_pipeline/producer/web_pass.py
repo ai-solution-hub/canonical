@@ -26,7 +26,7 @@ that must pass before that handoff:
     `fetch_url` — this module's own ledger). A citation already present in
     the concept's PRIOR (Pass-1) `# Citations` is trusted without
     re-proving provenance — it already passed this gate once. **PC-5**
-    (id-163 TECH, DR-086) adds a THIRD, additive anchor scheme for the
+    (id-163 TECH, DR-086b) adds a THIRD, additive anchor scheme for the
     `system_baseline` bundle class — a git-pinned public `canonical`-repo
     blob URL, minted per artefact by `sources/repo_docs.py:RepoDocsSource.
     read_concept` — `_validate_pass2_citation` accepts it under the same
@@ -495,7 +495,7 @@ def _validate_pass2_citation(
     a tool result THIS RUN actually produced (BI-17) — mirrors
     `producer/enrich.py:_validate_citation`'s form contract, extended
     with the Pass-2 `seen_anchors` union (record anchors + gated-fetch
-    anchors). PC-5 (id-163 TECH, DR-086) adds the SAME additive git-blob/
+    anchors). PC-5 (id-163 TECH, DR-086b) adds the SAME additive git-blob/
     doc-page branch `_validate_citation` carries, and DR-087 the authorised
     docs-site branch alongside it, for the `system_baseline` bundle class —
     never the `canonical://`/cross-link forms."""

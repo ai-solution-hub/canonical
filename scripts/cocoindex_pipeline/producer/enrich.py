@@ -49,7 +49,7 @@ resource_uri builders from the row ids the Source adapter actually returned,
 and recorded into `seen_anchors` at mint time), so a validated citation is
 provably traceable to a real row this run actually read.
 
-**PC-5 (ID-163 TECH, DR-086) — the git-blob/doc-page scheme, additive.**
+**PC-5 (ID-163 TECH, DR-086b) — the git-blob/doc-page scheme, additive.**
 `_validate_citation` accepts a SECOND anchor form for the `system_baseline`
 bundle class: a git-pinned PUBLIC `canonical`-repo blob URL
 (`resource_uri.py:is_git_blob_citation`), minted per backing artefact by
@@ -547,14 +547,14 @@ def _validate_citation(
 
     Four forms, four provenance checks (the git-blob PC-5 and docs-site
     DR-087 branches are ADDITIVE for the `system_baseline` bundle class —
-    id-163 TECH, DR-086/DR-087 — leaving the first two byte-identical):
+    id-163 TECH, DR-086b/DR-087 — leaving the first two byte-identical):
       - a BI-6/BI-8 record-anchor `canonical://` uri must ALSO be a member
         of `seen_anchors` — the anchors `_annotate_raw_with_anchors` actually
         minted into a `read_concept_raw` tool result this run. A well-formed
         but never-issued `canonical://source_documents/<random-uuid>` FAILS
         here even though it passes the format check.
       - a PC-5 git-blob/doc-page citation (`resource_uri.py:
-        is_git_blob_citation`, S3/DR-086 — a PUBLIC `canonical`-repo blob
+        is_git_blob_citation`, S3/DR-086b — a PUBLIC `canonical`-repo blob
         URL) must ALSO be a member of `seen_anchors` — the anchors
         `RepoDocsSource.read_concept` (`sources/repo_docs.py`) actually
         minted this run. Same provenance rule as the record-anchor form,

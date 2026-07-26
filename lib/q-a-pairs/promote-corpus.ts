@@ -654,7 +654,7 @@ export async function promoteCorpusExtractions(
 // is the pure-DB provenance link: q_a_pairs.source_document_id is set so the
 // pair carries its corpus lineage as a DB column (no file, no round-trip).
 //
-// ID-127 {127.38} / DR-086 — THE LINKED VALUE IS THE EXTRACTION'S OWN
+// ID-127 {127.38} / DR-086a — THE LINKED VALUE IS THE EXTRACTION'S OWN
 // source_document_id, passed in by the caller. It formerly derived a `sd:`
 // uuid5 from the pair's reserved-prefix sidecar rel-path, which — with the file
 // emit already retired — pointed at a source_documents row that is NEVER

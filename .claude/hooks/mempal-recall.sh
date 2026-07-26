@@ -3,7 +3,7 @@
 # context seeded by the current branch + cwd basename, read lock-free from chroma.sqlite3.
 #
 # Closes the write-only loop on MemPalace: the palace is written at session close but was
-# never read at start. This hook does the read side. Design constraints (DR-003, DR-009):
+# never read at start. This hook does the read side. Design constraints (DR-009):
 #   - LOCK-FREE READ ONLY: opens chroma.sqlite3 with mode=ro (never a chromadb writer), so
 #     it coexists with the single MCP/daemon writer and never corrupts the index.
 #   - GRACEFUL NO-OP: any error (DB absent, locked, sqlite missing) exits 0 with no output —

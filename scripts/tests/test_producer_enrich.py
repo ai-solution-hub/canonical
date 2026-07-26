@@ -454,7 +454,7 @@ class TestCitationValidationProxy:
 
 
 class TestPC5GitBlobCitationValidation:
-    """PC-5 (ID-163 TECH, DR-086): `_validate_citation`'s additive
+    """PC-5 (ID-163 TECH, DR-086b): `_validate_citation`'s additive
     git-blob/doc-page branch — the `system_baseline` bundle's citation
     scheme, generalising the SAME `seen_anchors` membership discipline
     (not format alone) to a public `canonical`-repo blob URL. The

@@ -326,7 +326,7 @@ class TestRemoval:
 # The S436 amendment upgrades the 3-way reconcile from "flag divergence,
 # leave file in place" to "flag → capture-as-override → re-apply", adds a
 # STAGING landing (the one gated commit happens at the publish gate, not
-# per-run), and emits a machine-readable per-run proposed-change set (DR-013
+# per-run), and emits a machine-readable per-run proposed-change set (DR-016
 # shape) the follow-on accept/edit/reject review UI binds to.
 
 
@@ -580,7 +580,7 @@ def _system_okf_doc(
 ) -> str:
     """A realistic `system_baseline` concept doc (PC-4 concept types —
     `schema`/`tool`/`api`/`navigation`/`playbook`) citing the PC-5 git-blob
-    scheme (`build_git_blob_citation`, DR-086) rather than a
+    scheme (`build_git_blob_citation`, DR-086b) rather than a
     `canonical://source_documents/<uuid>` anchor — the shape a
     `RepoDocsSource`-drafted concept actually carries."""
     anchor = build_git_blob_citation(git_blob_sha, path)
@@ -829,7 +829,7 @@ class TestProposedChangeSet:
         result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
 
         payload = proposed_change_set(result)
-        encoded = json.dumps(payload)  # the review UI (DR-013 shape) binds to it
+        encoded = json.dumps(payload)  # the review UI (DR-016 shape) binds to it
 
         assert "topic-a.md" in encoded
         assert any(c["concept_path"] == "topic-a.md" for c in payload["changes"])

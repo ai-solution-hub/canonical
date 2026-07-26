@@ -680,7 +680,7 @@ def render_citations_trailer(
     `citations` are normalised TARGETS (an absolute record/blob anchor, or a
     concept rel_path WITHOUT a leading `/`). Per entry:
       - absolute anchors — a `canonical://` record anchor (BI-6), a PC-5
-        public git-blob URL (DR-086), or a DR-087 authorised docs-site URL:
+        public git-blob URL (DR-086b), or a DR-087 authorised docs-site URL:
         label = the anchor text itself, target = the anchor (verbatim, an
         already-absolute URL);
       - concept cross-links: target = the §5.1 bundle-ABSOLUTE form

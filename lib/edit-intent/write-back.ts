@@ -332,7 +332,7 @@ export async function writeFileFirstWithRestore(
   return { warnings };
 }
 
-// ID-127 {127.38} / DR-086: `writeNewCorpusObject` (the {138.12} T4
+// ID-127 {127.38} / DR-086a: `writeNewCorpusObject` (the {138.12} T4
 // no-prior-object mint) is DELETED. Its sole caller was the q_a-pairs
 // MATERIALISE-ON-FIRST-EDIT branch, retired with the rest of the sidecar
 // write half — no other leg mints an object with no prior bytes to restore.
