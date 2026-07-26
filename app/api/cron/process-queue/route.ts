@@ -38,6 +38,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { runJobByType } from '@/lib/queue/dispatch';
 import { handleJobFailure } from '@/lib/queue/failure';
+import { WORKER_JOB_TYPES } from '@/lib/queue/worker-job-types';
 import { reapStuckJobs } from '@/lib/queue/visibility-timeout';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Json } from '@/supabase/types/database.types';
@@ -96,14 +97,19 @@ export async function GET(request: NextRequest) {
   };
 
   while (Date.now() - startTime < TIMEOUT_BUFFER_MS) {
-    // The unscoped branch is deliberately the ORIGINAL call, argument-for-
-    // argument — `claim_next_job` is invoked with no args object at all, so
-    // production behaviour is provably byte-identical to pre-{128.21}.
-    const { data: job, error } = claimPrefix
-      ? await supabase
-          .rpc('claim_next_job', { p_idempotency_key_prefix: claimPrefix })
-          .single()
-      : await supabase.rpc('claim_next_job').single();
+    // ID-372 {372.2}: every claim excludes the bid worker's job types.
+    // Without this the two consumers destroy each other's jobs whenever
+    // they win the claim race — this route's `no_handler_registered`
+    // default would permanently fail a template_fill/analyse_form row it
+    // reached before scripts/bid_worker.py did. The exclude shape (not an
+    // include list) keeps PermanentJobError as the loud dead-letter for
+    // types nobody registered a handler for.
+    const { data: job, error } = await supabase
+      .rpc('claim_next_job', {
+        p_idempotency_key_prefix: claimPrefix ?? undefined,
+        p_exclude_job_types: [...WORKER_JOB_TYPES],
+      })
+      .single();
     if (error || !job) break;
 
     summary.processed += 1;

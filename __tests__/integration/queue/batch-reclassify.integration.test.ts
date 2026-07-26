@@ -176,7 +176,16 @@ function buildPostRequest(body: Record<string, unknown> = {}): Request {
 }
 
 function buildCronRequest(): Request {
-  return new Request('http://localhost/api/cron/process-queue', {
+  // ID-372 {372.2}: scope every tick this suite drives to batch_reclassify
+  // jobs for the fixed 'default' workspace — the route's key formula is
+  // `batch_reclassify:default:<date>:<hash>` (no per-run component, see the
+  // beforeAll cleanup note), so this is the narrowest available prefix.
+  // It stops this suite's ticks claiming OTHER job types on shared staging
+  // (the {128.21} class); same-type cross-run residue is already handled
+  // by the age-gated beforeAll cleanup.
+  const url = new URL('http://localhost/api/cron/process-queue');
+  url.searchParams.set('idempotency_key_prefix', 'batch_reclassify:default:');
+  return new Request(url, {
     method: 'GET',
     headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
   });

@@ -34,6 +34,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 import { createMockCronRequest } from '@/__tests__/helpers/factories/cron-request';
+import { WORKER_JOB_TYPES } from '@/lib/queue/worker-job-types';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks — declared via `vi.hoisted` per CLAUDE.md vi.mock gotcha.
@@ -305,7 +306,12 @@ describe('GET /api/cron/process-queue', () => {
     // Assertion: the worker invoked supabase.rpc('claim_next_job', ...).
     // FOR UPDATE SKIP LOCKED concurrency is DB-side per spec §3.6 — the
     // contract level test is "the worker uses the RPC".
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('claim_next_job');
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'claim_next_job',
+      expect.objectContaining({
+        p_exclude_job_types: [...WORKER_JOB_TYPES],
+      }),
+    );
     // Sanity: no DB-side SELECT FOR UPDATE / SKIP LOCKED escapes the
     // worker (raw SELECTs go through `from('processing_queue').select(...)`
     // — the worker never .from('processing_queue').select() to claim).
@@ -317,16 +323,18 @@ describe('GET /api/cron/process-queue', () => {
   });
 
   // -------------------------------------------------------------------------
-  // ID-128 {128.21}: claim scoping.
+  // ID-128 {128.21} + ID-372 {372.2}: claim scoping.
   //
   // The outbound RPC call is the behaviour under test here — it is literally
-  // what the worker asks the database to claim, and the {128.21} hard
-  // constraint is that the PRODUCTION invocation stays a global,
-  // argument-free claim. Nine real production jobs were destroyed by an
-  // unscoped test-driven tick, so "Vercel Cron still claims globally" and
-  // "an authenticated caller can narrow the tick" both need pinning.
+  // what the worker asks the database to claim. Two constraints layer up:
+  // {128.21} — an authenticated caller can narrow the tick by idempotency-
+  // key prefix, and an unscoped Vercel Cron tick claims across all its
+  // types; {372.2} — EVERY claim this route makes excludes the Python bid
+  // worker's job types (template_fill / analyse_form), because this route's
+  // `no_handler_registered` default would permanently fail those rows if it
+  // ever won the claim race against the 2s bid-worker poller.
   // -------------------------------------------------------------------------
-  it('claims from the whole queue when invoked without a scope, as Vercel Cron does', async () => {
+  it('claims across all non-worker types when invoked without a scope, as Vercel Cron does', async () => {
     const job = makeJob();
     configureClaimSequence([job]);
     mockRunJobByType.mockResolvedValueOnce({ ok: true });
@@ -335,15 +343,20 @@ describe('GET /api/cron/process-queue', () => {
       createMockCronRequest({ path: '/api/cron/process-queue' }) as never,
     );
 
-    // No args object at all — byte-identical to the pre-{128.21} call, so
-    // `claim_next_job`'s DEFAULT (p_idempotency_key_prefix IS NULL) branch
-    // runs and the claim is the unchanged global one.
+    // No prefix (undefined → SQL NULL branch), and the worker-type
+    // exclusion ALWAYS present ({372.2}).
     const claimCalls = mockSupabase.rpc.mock.calls.filter(
       (c) => c[0] === 'claim_next_job',
     );
     expect(claimCalls.length).toBeGreaterThanOrEqual(1);
     for (const call of claimCalls) {
-      expect(call).toEqual(['claim_next_job']);
+      expect(call).toEqual([
+        'claim_next_job',
+        {
+          p_idempotency_key_prefix: undefined,
+          p_exclude_job_types: [...WORKER_JOB_TYPES],
+        },
+      ]);
     }
   });
 
@@ -361,6 +374,7 @@ describe('GET /api/cron/process-queue', () => {
     expect(res.status).toBe(200);
     expect(mockSupabase.rpc).toHaveBeenCalledWith('claim_next_job', {
       p_idempotency_key_prefix: '[S223-LIFECYCLE-42]',
+      p_exclude_job_types: [...WORKER_JOB_TYPES],
     });
   });
 
@@ -381,7 +395,13 @@ describe('GET /api/cron/process-queue', () => {
     );
     expect(claimCalls.length).toBeGreaterThanOrEqual(1);
     for (const call of claimCalls) {
-      expect(call).toEqual(['claim_next_job']);
+      expect(call).toEqual([
+        'claim_next_job',
+        {
+          p_idempotency_key_prefix: undefined,
+          p_exclude_job_types: [...WORKER_JOB_TYPES],
+        },
+      ]);
     }
   });
 
