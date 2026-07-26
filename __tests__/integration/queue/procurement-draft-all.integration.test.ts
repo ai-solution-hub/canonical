@@ -692,7 +692,9 @@ describeIfEnv(
       // Drive the worker.
       const { GET } = await import('@/app/api/cron/process-queue/route');
       const cronResponse = await GET(
-        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildCronRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
       );
       expect(cronResponse.status).toBe(200);
 
@@ -799,7 +801,9 @@ describeIfEnv(
 
       const { GET } = await import('@/app/api/cron/process-queue/route');
       await GET(
-        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildCronRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
       );
 
       const { data: row } = await serviceClient
@@ -911,7 +915,9 @@ describeIfEnv('AC-6 — bid not in draftable state', () => {
 
     const { GET } = await import('@/app/api/cron/process-queue/route');
     await GET(
-      buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
+      buildCronRequest(
+        procurementId,
+      ) as unknown as import('next/server').NextRequest,
     );
 
     const { data: row } = await serviceClient
@@ -967,7 +973,9 @@ describeIfEnv('AC-7 — bid with 0 questions → permanent failure', () => {
 
     const { GET } = await import('@/app/api/cron/process-queue/route');
     await GET(
-      buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
+      buildCronRequest(
+        procurementId,
+      ) as unknown as import('next/server').NextRequest,
     );
 
     const { data: row } = await serviceClient
@@ -1203,7 +1211,9 @@ describeIfEnv(
       // Drive cron tick.
       const { GET } = await import('@/app/api/cron/process-queue/route');
       await GET(
-        buildCronRequest(procurementId) as unknown as import('next/server').NextRequest,
+        buildCronRequest(
+          procurementId,
+        ) as unknown as import('next/server').NextRequest,
       );
 
       // Pattern 2 contract, re-keyed for the NULL workspace_id era:
