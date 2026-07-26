@@ -123,6 +123,34 @@ conventions in `tasks/AGENTS.md`.
 Historical references to any of this inside `.dev-workflow/sdlc/` or point-in-time spec
 dirs are quarantined/stale-by-design — discard them from every sweep.
 
+## Decision register — one file per decision (id-368, S498)
+
+The register is **not** one file any more. `src/content/docs/reference/decision-register.md`
+is a **generated pointer index**; each decision is its own file at
+`src/content/docs/reference/decisions/dr-<nnn>-<slug>.md` with `dr:` frontmatter
+(`id`, `status`, `decided`, `session`, `supersedes`, `superseded_by`, `amends`, `tags`,
++ optional `retired_reason` / `substance_moved_to` / `collision_note`).
+
+Load-bearing invariants any future sweep must preserve:
+
+- **Decision files are never deleted.** Closure is `status: superseded` (with
+  `superseded_by`) or `status: retired` (with `retired_reason`). Deletion-by-sweep is what
+  left 610 citation sites dangling and let `DR-087` be re-issued for an unrelated ruling.
+- **Ids are never re-issued**, retired included. 42 tombstone files hold the previously
+  swept ids; the filename↔id rule turns a re-issue into a disk collision.
+- **Never hand-edit `decision-register.md`** — regenerate with `bun run decisions:index`
+  from the docs-site root. CI gate: `__tests__/decision-register-integrity.test.ts`.
+
+| File | Dependency |
+| --- | --- |
+| `handoff/SKILL.md` §1a | WRITES decisions — full authoring procedure incl. admission test, id allocation, bidirectional supersession, regen+verify |
+| `start-session/SKILL.md` §2d | READS the in-force table, then opens individual decision files on demand |
+| `triage-finding/SKILL.md` Branch E | returns a DR-intent; names `reference/decisions/` as the write target |
+| `research/SKILL.md`, `write-tech-spec/SKILL.md`, `write-product-spec/SKILL.md` | READ the in-force table before drafting |
+| `recall-grounding/SKILL.md` | status-checks a cited `DR-NNN` before relying on it |
+| docs-site `sync-ledger-context/SKILL.md` | resolves a `DR-NNN` ref to its own file; diffs that file directly (the generated index churns on every unrelated decision) |
+| docs-site `src/content.config.ts` | Zod-validates the `dr:` frontmatter at `astro check` time |
+
 ## Homograph traps (grep over-matches — discard these)
 
 - `audit-skill/scripts/detect-drift.sh` — repo-root `scripts/…` path talk is a detector

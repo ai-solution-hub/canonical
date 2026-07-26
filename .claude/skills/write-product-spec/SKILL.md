@@ -143,8 +143,9 @@ exactly as shown):
 
 ### Decision register
 
-Before drafting, read the in-force entries of the decision register
-(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`) — the durable
+Before drafting, read the in-force table of the decision register
+(`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md`, a generated
+index over `reference/decisions/`) — the durable
 store of settled cross-cutting rulings and won't-fixes (`DR-NNN`). Do not re-propose
 behaviour a `DR` has already settled or ruled out of scope; where the spec must touch a
 settled area, cite the governing `DR-NNN` rather than re-litigating it.

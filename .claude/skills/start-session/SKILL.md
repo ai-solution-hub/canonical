@@ -98,11 +98,19 @@ read at session open**, not a per-turn ritual.
   then read those files and surface the durable sections — **Unresolved
   questions**, **Workflow improvements**, **Failed assumptions**, **Architecture
   decisions**. Don't re-read them each turn; this is the single settled-state pass.
-- **Decision register:** read the in-force (`accepted`) entries from
+- **Decision register:** read the **"In force"** table in
   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md` — the binding
-  settled-rulings guardrail (`DR-NNN`). Plain markdown, no CLI slice — grep the
-  `DR-` headings (plus the newest ids the continuation prompt cites) rather than reading
-  it wholesale.
+  settled-rulings guardrail (`DR-NNN`). That page is a GENERATED index: one row per
+  decision (id, date, status, one-line ruling, link). Read the table, then open only the
+  individual files under `reference/decisions/` that the session actually needs — the
+  continuation prompt's cited ids, plus anything the table shows touching your task's
+  ground. Never read the whole `decisions/` directory.
+
+  Below the in-force table is **"Superseded and retired"**. Skip it at session start; go
+  there only when resolving a citation that isn't in the in-force table. A `DR-NNN` cited
+  in a live doc but absent from the in-force table is a closed decision with a file of its
+  own — read its `retired_reason` / `superseded_by` rather than assuming the citation is
+  broken.
 
 ---
 

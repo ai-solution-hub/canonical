@@ -394,7 +394,8 @@ is `decision-register` (E), recorded so it stays settled.
 
 **If both hold → Decision: `decision-register`.** Return a **DR-intent** — the proposed
 ruling in one to three sentences, no implementation detail. You do **not** write the
-register: `DR-NNN` entries are written on `main` by the Orchestrator / handoff (the
+register: a `DR-NNN` is written on `main` by the Orchestrator / handoff as its own file
+under `reference/decisions/` — never by editing the generated index (the
 register is not part of the task ledger, so the ordna write path does not touch it).
 
 ```yaml
