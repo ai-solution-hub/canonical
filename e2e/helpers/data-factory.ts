@@ -88,29 +88,14 @@ export async function createTestBid(
   return data!.id;
 }
 
-/**
- * Create a kb_section workspace for a single test, returning its ID.
- * Uses the worker prefix for automatic cleanup.
- */
-export async function createTestWorkspace(
-  prefix: string,
-  overrides: Record<string, unknown> = {},
-): Promise<string> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('workspaces')
-    .insert({
-      name: `${prefix} Temp Workspace ${Date.now()}`,
-      description: 'Temporary test workspace.',
-      type: 'kb_section',
-      ...overrides,
-    })
-    .select('id')
-    .single()
-    .throwOnError();
-
-  return data!.id;
-}
+// {328.3} M4: `createTestWorkspace` was DELETED here. It had zero callers and
+// could not have worked if it had any — it inserted `type: 'kb_section'`, a
+// column dropped at S246 WP2b T2 and replaced by the NOT-NULL
+// `application_type_id` FK, so any call would have thrown "Could not find the
+// 'type' column of 'workspaces'". Deleted rather than repaired: a helper with
+// no consumer just re-accrues drift. If a workspace factory is needed again,
+// `e2e/fixtures/test-data-fixture.ts:447-461` is the correct, live pattern for
+// resolving `application_type_id`.
 
 /**
  * Create a bid response for a given question, returning the response ID.

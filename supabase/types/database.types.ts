@@ -3665,7 +3665,7 @@ export type Database = {
         }[]
       }
       claim_next_job: {
-        Args: never
+        Args: { p_idempotency_key_prefix?: string }
         Returns: Database["public"]["Tables"]["processing_queue"]["Row"][]
         SetofOptions: {
           from: "*"
@@ -8088,7 +8088,7 @@ export type Database = {
         }[]
       }
       claim_next_job: {
-        Args: never
+        Args: { p_idempotency_key_prefix?: string }
         Returns: {
           attempts: number
           completed_at: string | null
