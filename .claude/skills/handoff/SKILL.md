@@ -14,7 +14,9 @@ at session close (the file is written to, and committed in, the docs-site checko
 
 ---
 
-## Step 1 — Write settled rulings to the Decision Register
+## Step 1 — Update the Decision Register and the Ordna Task Ledger
+
+## Step 1a — Write settled rulings to the Decision Register
 
 Determine the session's architectural rulings and append them to
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md` as `DR-NNN` entries
@@ -26,6 +28,10 @@ When a new decision **supersedes** an existing `DR-NNN` (or this session flipped
 state that downstream docs assert), run the docs-site `sync-ledger-context` skill — or flag
 it in *Session deltas* — so docs carrying the superseded assertion get a *Ledger drift* stamp instead of silently going
 stale.
+
+## Step 1b — Reconcile task statuses. 
+
+For every task touched this session: flip status via ordna move (done is Coordinator-only, dependency-gated), refresh status_note + session_refs, and tick shipped ACs in the task file. The continuation prompt must never carry state the ledger contradicts.
 
 ## Step 2 — Retro-authoring assist (candidate mining → Coordinator authors)
 
