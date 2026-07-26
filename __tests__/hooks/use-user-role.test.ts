@@ -166,6 +166,49 @@ describe('useUserRole', () => {
     expect(result.current.canAdmin).toBe(false);
   });
 
+  it('defaults to viewer when the role lookup reports "no rows" (PGRST116)', async () => {
+    // .single() surfaces a genuinely absent role row as PGRST116 in
+    // production — an absence, not an error (id-327 carve-out).
+    mockChain.single.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows returned' },
+    });
+
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.role).toBe('viewer');
+    expect(result.current.error).toBeNull();
+  });
+
+  it('surfaces a transient lookup failure instead of downgrading the user to viewer', async () => {
+    // id-369 F2: a DB error used to fall into the `?? 'viewer'` default,
+    // silently stripping admins of every admin control.
+    mockChain.single.mockResolvedValue({
+      data: null,
+      error: { code: '57014', message: 'statement timeout' },
+    });
+
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.role).not.toBe('viewer');
+    expect(result.current.role).toBeNull();
+    expect(result.current.error).toBeTruthy();
+    expect(result.current.canEdit).toBe(false);
+    expect(result.current.canAdmin).toBe(false);
+  });
+
   it('returns null role when not authenticated', async () => {
     mockAuth.getUser.mockResolvedValue({
       data: { user: null },
