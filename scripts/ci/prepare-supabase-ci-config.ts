@@ -80,7 +80,9 @@ export function disableServicesInConfig(
 }
 
 async function main(): Promise<void> {
-  const configPath = resolve(import.meta.dir, '../../supabase/config.toml');
+  // import.meta.dirname, not Bun's import.meta.dir — this file sits in the
+  // Next.js build-typecheck graph, whose types don't know Bun's ImportMeta.
+  const configPath = resolve(import.meta.dirname, '../../supabase/config.toml');
   const before = readFileSync(configPath, 'utf8');
   const { output, flipped, alreadyDisabled, missing } =
     disableServicesInConfig(before);
