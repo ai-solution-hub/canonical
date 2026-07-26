@@ -11,10 +11,23 @@ import { createTestRequest } from '../helpers/mock-next';
 // ---------------------------------------------------------------------------
 
 const mockSupabase = createMockSupabaseClient();
+// Separate service-role client mock — id-369 F1 moved cross-user
+// notification inserts off the actor's client onto the service client, so
+// the two must be distinguishable in tests.
+const mockServiceSupabase = createMockSupabaseClient();
+
+const { mockLogBestEffortWarn } = vi.hoisted(() => ({
+  mockLogBestEffortWarn: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
-  createServiceClient: vi.fn(() => mockSupabase),
+  createServiceClient: vi.fn(() => mockServiceSupabase),
+}));
+
+vi.mock('@/lib/supabase/telemetry', () => ({
+  logBestEffortWarn: mockLogBestEffortWarn,
+  logSwallowedError: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
@@ -95,6 +108,17 @@ function resetMocks() {
 
   mockSupabase.from.mockReturnValue(mockSupabase._chain);
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+  // Service client (notification inserts): re-chain + default success.
+  for (const method of chainableMethods) {
+    mockServiceSupabase._chain[method].mockReturnValue(
+      mockServiceSupabase._chain,
+    );
+  }
+  mockServiceSupabase._chain.then.mockImplementation(
+    (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+  );
+  mockServiceSupabase.from.mockReturnValue(mockServiceSupabase._chain);
 }
 
 // ===========================================================================
@@ -820,6 +844,123 @@ describe('POST /api/governance/review', () => {
         governance_review_status: 'reverted',
         governance_reviewer_id: 'test-user-id',
         governance_review_due: null,
+      }),
+    );
+  });
+
+  // id-369 F1: cross-user notification rows are RLS-denied for the actor's
+  // client (`notifications_insert` WITH CHECK user_id = auth.uid()), so the
+  // route must write them with the service-role client and surface the
+  // in-band `{ error }` PostgREST returns instead of throwing.
+  it('notifies the content owner and last editor of the verdict via the service-role client', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Item lookup: pending
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
+      error: null,
+    });
+
+    // Update return: .update().eq().select('id').single() succeeds
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    // Notification itemDetail lookup: owner AND last editor differ from
+    // the reviewer, so both get a notification.
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        content_owner_id: 'owner-user-id',
+        source_documents: { updated_by: 'editor-user-id' },
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/governance/review', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'approve', notes: 'All good' },
+    });
+    const res = await postReview(req);
+    expect(res.status).toBe(200);
+
+    // Both cross-user rows land through the service-role client…
+    expect(mockServiceSupabase.from).toHaveBeenCalledWith('notifications');
+    const inserts = mockServiceSupabase._chain.insert.mock.calls.map(
+      (call) => call[0],
+    );
+    expect(inserts).toEqual([
+      expect.objectContaining({
+        user_id: 'owner-user-id',
+        type: 'governance_approve',
+        entity_id: VALID_UUID,
+        message: 'All good',
+      }),
+      expect.objectContaining({
+        user_id: 'editor-user-id',
+        type: 'governance_approve',
+        entity_id: VALID_UUID,
+      }),
+    ]);
+    // …and never through the actor's RLS-scoped client.
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('notifications');
+  });
+
+  it('reports the verdict as successful but records telemetry when a notification insert is denied', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        governance_review_status: 'pending',
+        next_review_date: null,
+        review_cadence_days: null,
+        verified_at: null,
+      },
+      error: null,
+    });
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: {
+        content_owner_id: 'owner-user-id',
+        source_documents: { updated_by: null },
+      },
+      error: null,
+    });
+
+    // PostgREST returns DB-level rejections in-band as `{ error }` — the
+    // insert resolves (never throws), so only an explicit check can see it.
+    mockServiceSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { message: 'insert violates row-level security policy' },
+        }),
+    );
+
+    const req = createTestRequest('/api/governance/review', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'approve' },
+    });
+    const res = await postReview(req);
+
+    // Notification dispatch is best-effort: the review action succeeded.
+    expect(res.status).toBe(200);
+    expect(mockLogBestEffortWarn).toHaveBeenCalledWith(
+      'governance.review.notify',
+      expect.any(String),
+      expect.objectContaining({
+        user_id: 'owner-user-id',
+        error: 'insert violates row-level security policy',
       }),
     );
   });

@@ -1,7 +1,8 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
-import { logger } from '@/lib/logger';
+import { createServiceClient } from '@/lib/supabase/server';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { BulkOwnerAssignSchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -157,18 +158,41 @@ export const POST = defineRoute(
       // Create a single notification for the new owner summarising the bulk action
       if (owner_id !== user.id) {
         try {
-          await supabase.from('notifications').insert({
-            user_id: owner_id,
-            type: 'owner_assignment',
-            entity_type: 'content_item',
-            entity_id: itemIds[0],
-            title: `You have been assigned as owner of ${count} content item${count === 1 ? '' : 's'}`,
-            message: null,
-          });
+          // id-369 F1: this row is for the NEW owner, and the
+          // `notifications_insert` RLS policy only allows
+          // `user_id = auth.uid()`, so the acting admin's client is denied
+          // every time — and PostgREST resolves that denial in-band as
+          // `{ error }` rather than throwing, so the catch below never saw
+          // it. Cross-user insert goes through the service client, with the
+          // in-band error routed explicitly.
+          const { error: notifyError } = await createServiceClient()
+            .from('notifications')
+            .insert({
+              user_id: owner_id,
+              type: 'owner_assignment',
+              entity_type: 'content_item',
+              entity_id: itemIds[0],
+              title: `You have been assigned as owner of ${count} content item${count === 1 ? '' : 's'}`,
+              message: null,
+            });
+          if (notifyError) {
+            logBestEffortWarn(
+              'content.owner.notify',
+              'Failed to create bulk owner assignment notification',
+              {
+                owner_id,
+                error: notifyError.message,
+              },
+            );
+          }
         } catch (err) {
-          logger.warn(
-            { err },
+          logBestEffortWarn(
+            'content.owner.notify',
             'Failed to create bulk owner assignment notification',
+            {
+              owner_id,
+              error: err instanceof Error ? err.message : String(err),
+            },
           );
         }
       }

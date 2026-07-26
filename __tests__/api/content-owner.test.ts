@@ -11,15 +11,26 @@ import { createTestRequest } from '../helpers/mock-next';
 // ---------------------------------------------------------------------------
 
 const mockSupabase = createMockSupabaseClient();
+// Separate service-role client mock — id-369 F1 moved the cross-user owner
+// notification insert off the actor's client onto the service client, so
+// the two must be distinguishable in tests.
+const mockServiceSupabase = createMockSupabaseClient();
 
-const { mockCookies, mockCreateServiceClient } = vi.hoisted(() => ({
-  mockCookies: vi.fn(),
-  mockCreateServiceClient: vi.fn(),
-}));
+const { mockCookies, mockCreateServiceClient, mockLogBestEffortWarn } =
+  vi.hoisted(() => ({
+    mockCookies: vi.fn(),
+    mockCreateServiceClient: vi.fn(),
+    mockLogBestEffortWarn: vi.fn(),
+  }));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
   createServiceClient: mockCreateServiceClient,
+}));
+
+vi.mock('@/lib/supabase/telemetry', () => ({
+  logBestEffortWarn: mockLogBestEffortWarn,
+  logSwallowedError: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
@@ -95,8 +106,21 @@ beforeEach(() => {
     resolve({ data: [], error: null, count: 0 }),
   );
 
-  // Default service client mock for stats route
+  // Service client: re-chain + default success (notification insert in the
+  // bulk-assign route awaits the chain directly).
+  for (const m of chainable) {
+    mockServiceSupabase._chain[m].mockReturnValue(mockServiceSupabase._chain);
+  }
+  mockServiceSupabase._chain.then.mockReset();
+  mockServiceSupabase._chain.then.mockImplementation(
+    (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+  );
+  mockServiceSupabase.from.mockReturnValue(mockServiceSupabase._chain);
+
+  // Default service client mock — `from` for the bulk-assign notification
+  // insert, `auth.admin` for the stats route's display-name resolution.
   mockCreateServiceClient.mockReturnValue({
+    from: mockServiceSupabase.from,
     auth: {
       admin: {
         getUserById: vi.fn().mockResolvedValue({
@@ -198,10 +222,8 @@ describe('POST /api/content-owners/bulk-assign', () => {
       error: null,
     });
 
-    // Notification insert (awaited chain)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
+    // Notification insert goes through the service client (id-369 F1) —
+    // covered by its own tests below; default service mock resolves success.
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {
       method: 'POST',
@@ -249,10 +271,8 @@ describe('POST /api/content-owners/bulk-assign', () => {
       error: null,
     });
 
-    // Notification insert (awaited chain)
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
-    );
+    // Notification insert goes through the service client (id-369 F1) —
+    // covered by its own tests below; default service mock resolves success.
 
     const req = createTestRequest('/api/content-owners/bulk-assign', {
       method: 'POST',
@@ -281,6 +301,78 @@ describe('POST /api/content-owners/bulk-assign', () => {
   // now that filter queries hit source_documents directly. The equivalent
   // "resolves to nothing" gap is item_ids that don't resolve to an existing
   // source_documents row (e.g. stale/removed ids) — covered below.
+  // id-369 F1: the owner-assignment notification is a cross-user row — the
+  // `notifications_insert` RLS policy (user_id = auth.uid()) denies the
+  // acting admin's client, so the route must write it with the service-role
+  // client and surface the in-band `{ error }` PostgREST returns.
+  it('notifies the new owner of the assignment via the service-role client', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: VALID_UUID }], error: null }),
+    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: 1, error: null });
+
+    const req = createTestRequest('/api/content-owners/bulk-assign', {
+      method: 'POST',
+      body: { item_ids: [VALID_UUID], owner_id: OWNER_UUID },
+    });
+    const res = await bulkAssignPost(req);
+    expect(res.status).toBe(200);
+
+    // The cross-user row lands through the service-role client…
+    expect(mockServiceSupabase.from).toHaveBeenCalledWith('notifications');
+    expect(mockServiceSupabase._chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: OWNER_UUID,
+        type: 'owner_assignment',
+        entity_id: VALID_UUID,
+      }),
+    );
+    // …and never through the actor's RLS-scoped client.
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('notifications');
+  });
+
+  it('reports the assignment as successful but records telemetry when the notification insert is denied', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: VALID_UUID }], error: null }),
+    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: 1, error: null });
+
+    // PostgREST returns DB-level rejections in-band as `{ error }` — the
+    // insert resolves (never throws), so only an explicit check can see it.
+    mockServiceSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: null,
+          error: { message: 'insert violates row-level security policy' },
+        }),
+    );
+
+    const req = createTestRequest('/api/content-owners/bulk-assign', {
+      method: 'POST',
+      body: { item_ids: [VALID_UUID], owner_id: OWNER_UUID },
+    });
+    const res = await bulkAssignPost(req);
+
+    // Notification dispatch is best-effort: the assignment succeeded.
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(mockLogBestEffortWarn).toHaveBeenCalledWith(
+      'content.owner.notify',
+      expect.any(String),
+      expect.objectContaining({
+        owner_id: OWNER_UUID,
+        error: 'insert violates row-level security policy',
+      }),
+    );
+  });
+
   it('returns success with 0 items when none of the requested item_ids resolve to an existing source document', async () => {
     configureRole(mockSupabase, 'admin');
 

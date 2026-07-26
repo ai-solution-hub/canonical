@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   createMcpClient: vi.fn(),
   getMcpUserId: vi.fn(),
   getMcpUserRole: vi.fn(),
+  createServiceClient: vi.fn(),
+  logBestEffortWarn: vi.fn(),
 }));
 
 vi.mock('@/lib/mcp/auth', () => ({
@@ -37,11 +39,24 @@ vi.mock('@/lib/supabase/safe', () => ({
   isOk: (r: { ok: boolean }) => r.ok,
 }));
 
+// id-369 F1: cross-user notification inserts go through the service-role
+// client (lazily imported inside the tool), never the RLS-scoped MCP client.
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(),
+  createServiceClient: mocks.createServiceClient,
+}));
+
+vi.mock('@/lib/supabase/telemetry', () => ({
+  logBestEffortWarn: mocks.logBestEffortWarn,
+  logSwallowedError: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // Imports after mocks
 // ---------------------------------------------------------------------------
 
 import { registerGovernanceTools } from '@/lib/mcp/tools/governance';
+import { tryQuery } from '@/lib/supabase/safe';
 import {
   createMockMcpServer,
   type MockToolRegistration,
@@ -127,6 +142,9 @@ describe('review_governance_item MCP tool', () => {
     mocks.checkMcpRole.mockResolvedValue('editor');
     mocks.getMcpUserId.mockReturnValue('user-admin-001');
     mocks.getMcpUserRole.mockResolvedValue('editor');
+    mocks.createServiceClient.mockReturnValue({
+      from: vi.fn(() => chain({ data: null, error: null })),
+    });
 
     mockServer = createMockMcpServer();
     await registerGovernanceTools(mockServer.server);
@@ -234,6 +252,120 @@ describe('review_governance_item MCP tool', () => {
     expect(text).toContain('LGTM');
     expect(res.structuredContent?.new_status).toBe('approved');
     expect(res.structuredContent?.action).toBe('approve');
+  });
+
+  // id-369 F1: cross-user notification rows are RLS-denied for the
+  // RLS-scoped MCP client (`notifications_insert` WITH CHECK user_id =
+  // auth.uid()), so the tool must write them with the service-role client
+  // and surface the in-band `{ error }` PostgREST returns.
+  it('notifies the content owner and last editor of the verdict via the service-role client', async () => {
+    let step = 0;
+    const itemRow = {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Awaiting approval',
+      suggested_title: null,
+      governance_review_status: 'pending',
+      content_owner_id: 'user-owner',
+      owner_kind: 'source_document',
+      source_document_id: '11111111-1111-4111-8111-111111111111',
+      next_review_date: null,
+      review_cadence_days: null,
+      verified_at: null,
+    };
+    const fromMock = vi.fn(() => {
+      step += 1;
+      if (step === 1) return chain({ data: itemRow, error: null });
+      return chain({ data: { id: itemRow.id }, error: null });
+    });
+    mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+    // The owning source_documents lookup supplies the last editor.
+    (tryQuery as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      data: { suggested_title: 'Awaiting approval', updated_by: 'user-editor' },
+    });
+
+    const serviceChain = chain({ data: null, error: null });
+    const serviceFrom = vi.fn(() => serviceChain);
+    mocks.createServiceClient.mockReturnValue({ from: serviceFrom });
+
+    const tool = mockServer.getTool('review_governance_item')!;
+    const res = await callTool(tool, {
+      item_id: itemRow.id,
+      action: 'approve',
+      notes: 'All good',
+    });
+
+    expect(res.isError).toBeUndefined();
+    // Both cross-user rows land through the service-role client…
+    expect(serviceFrom).toHaveBeenCalledWith('notifications');
+    const inserts = (
+      serviceChain.insert as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call) => call[0]);
+    expect(inserts).toEqual([
+      expect.objectContaining({
+        user_id: 'user-owner',
+        type: 'governance_approve',
+        entity_id: itemRow.id,
+        message: 'All good',
+      }),
+      expect.objectContaining({
+        user_id: 'user-editor',
+        type: 'governance_approve',
+        entity_id: itemRow.id,
+      }),
+    ]);
+    // …and never through the RLS-scoped MCP client.
+    expect(fromMock).not.toHaveBeenCalledWith('notifications');
+  });
+
+  it('reports the verdict as successful but records telemetry when a notification insert is denied', async () => {
+    let step = 0;
+    const itemRow = {
+      id: '11111111-1111-4111-8111-111111111111',
+      title: 'Awaiting approval',
+      suggested_title: null,
+      governance_review_status: 'pending',
+      content_owner_id: 'user-owner',
+      updated_by: null,
+      next_review_date: null,
+      review_cadence_days: null,
+      verified_at: null,
+    };
+    const fromMock = vi.fn(() => {
+      step += 1;
+      if (step === 1) return chain({ data: itemRow, error: null });
+      return chain({ data: { id: itemRow.id }, error: null });
+    });
+    mocks.createMcpClient.mockReturnValue({ from: fromMock });
+
+    // PostgREST returns DB-level rejections in-band as `{ error }` — the
+    // insert resolves (never throws), so only an explicit check can see it.
+    const serviceChain = chain({
+      data: null,
+      error: { message: 'insert violates row-level security policy' },
+    });
+    mocks.createServiceClient.mockReturnValue({
+      from: vi.fn(() => serviceChain),
+    });
+
+    const tool = mockServer.getTool('review_governance_item')!;
+    const res = await callTool(tool, {
+      item_id: itemRow.id,
+      action: 'approve',
+    });
+
+    // Notification dispatch is best-effort: the verdict succeeded.
+    expect(res.isError).toBeUndefined();
+    expect(res.structuredContent?.new_status).toBe('approved');
+    expect(mocks.logBestEffortWarn).toHaveBeenCalledWith(
+      'governance.review.notify',
+      expect.any(String),
+      expect.objectContaining({
+        user_id: 'user-owner',
+        error: 'insert violates row-level security policy',
+      }),
+    );
   });
 
   it('routes each of the 3 actions to the matching new_status', async () => {

@@ -12,6 +12,8 @@ import {
 } from '@/lib/governance/review-input-statuses';
 import { logger } from '@/lib/logger';
 import { isOk, tryQuery } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   GovernanceReviewBodySchema,
@@ -279,15 +281,39 @@ export const POST = defineRoute(
           notifyTargets.add(updatedBy);
         }
 
-        for (const targetUserId of notifyTargets) {
-          await supabase.from('notifications').insert({
-            user_id: targetUserId,
-            type: `governance_${action}`,
-            entity_type: 'content_item',
-            entity_id: item_id,
-            title: `Governance review: ${action.replace('_', ' ')}`,
-            message: notes ?? null,
-          });
+        // id-369 F1: these rows are for OTHER users, and the
+        // `notifications_insert` RLS policy only allows
+        // `user_id = auth.uid()`, so the actor's client is denied every
+        // time — and PostgREST resolves that denial in-band as `{ error }`
+        // rather than throwing, so the catch below never saw it. Cross-user
+        // inserts go through the service client, with the in-band error
+        // routed explicitly.
+        if (notifyTargets.size > 0) {
+          const serviceClient = createServiceClient();
+          for (const targetUserId of notifyTargets) {
+            const { error: notifyError } = await serviceClient
+              .from('notifications')
+              .insert({
+                user_id: targetUserId,
+                type: `governance_${action}`,
+                entity_type: 'content_item',
+                entity_id: item_id,
+                title: `Governance review: ${action.replace('_', ' ')}`,
+                message: notes ?? null,
+              });
+            if (notifyError) {
+              logBestEffortWarn(
+                'governance.review.notify',
+                'Failed to create governance review notification',
+                {
+                  user_id: targetUserId,
+                  item_id,
+                  action,
+                  error: notifyError.message,
+                },
+              );
+            }
+          }
         }
       } catch (err) {
         logger.warn({ err }, 'Failed to create governance notification');
