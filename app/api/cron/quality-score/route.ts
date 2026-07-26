@@ -384,7 +384,10 @@ export async function GET(request: NextRequest) {
             { err: govUpdateError, itemId: item.itemId },
             'Failed to set governance_review_status to pending',
           );
-          failedUpdates.push({ id: item.itemId, error: govUpdateError.message });
+          failedUpdates.push({
+            id: item.itemId,
+            error: govUpdateError.message,
+          });
         }
       }
 

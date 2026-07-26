@@ -319,7 +319,11 @@ export const POST = defineRoute(
           logBestEffortWarn(
             'governance.item.stamp',
             'Failed to stamp source_documents.updated_by after flag',
-            { itemId: item_id, code: stampError.code, error: stampError.message },
+            {
+              itemId: item_id,
+              code: stampError.code,
+              error: stampError.message,
+            },
           );
         }
       } else if (action === 'unverify') {

@@ -48,7 +48,9 @@ const CLIENT_FACTORY_PATTERN = /^create[A-Za-z0-9_]*Client$/;
  */
 function isClientTypeName(name) {
   return (
-    name === 'Supabase' || name === 'DbClient' || name.includes('SupabaseClient')
+    name === 'Supabase' ||
+    name === 'DbClient' ||
+    name.includes('SupabaseClient')
   );
 }
 
@@ -109,7 +111,10 @@ function hasClientTypeAnnotation(idNode) {
   if (!typeName) return false;
   if (typeName.type === 'Identifier') return isClientTypeName(typeName.name);
   // Qualified: `supabaseJs.SupabaseClient`
-  if (typeName.type === 'TSQualifiedName' && typeName.right.type === 'Identifier') {
+  if (
+    typeName.type === 'TSQualifiedName' &&
+    typeName.right.type === 'Identifier'
+  ) {
     return isClientTypeName(typeName.right.name);
   }
   return false;

@@ -308,26 +308,29 @@ jobs:
     # Spec: docs/audits/kh-production-readiness-phase-1/specs/wp-g4.3-e2e-smoke-spec.md
     # Runs in parallel with `quality-precheck`/`quality-test` (no `needs:`) so total CI wall-clock stays
     # close to max(quality, e2e-smoke).
-    # Dependabot-skip: requires staging Supabase URL + service-role key +
-    # TEST_USER_*_PASSWORD which resolve empty for Dependabot PRs.
+    #
+    # {365.5} / DR-096: this job runs against a LOCAL Supabase stack booted on
+    # the runner (pinned setup-cli + `supabase start` + `db reset` +
+    # `seed:e2e-users`) — it no longer touches the shared staging project, so
+    # the cross-PR `integration-staging-e2e` concurrency group is gone: smoke
+    # jobs from different PRs now run fully in parallel. Supabase connection
+    # values are the CLI's public local demo constants
+    # (scripts/ci/local-stack.env), not secrets.
+    # Dependabot-skip: still requires TEST_USER_*_PASSWORD + server-boot
+    # secrets (ANTHROPIC/OPENAI/CRON_SECRET), resolved from the separate
+    # Dependabot secrets store for bot-triggered runs.
     name: E2E smoke
-    # Cross-PR serialisation: only one e2e-smoke job runs at a time across
-    # the repo. Per-job-type group keys keep intra-PR parallelism (e2e-smoke,
-    # mcp-eval-seed, mcp-eval matrix, integration all run in parallel within
-    # one workflow run). cancel-in-progress: false queues instead of
-    # cancelling — Dependabot PR throughput trades latency for fixture
-    # isolation against the shared CI Supabase project.
-    concurrency:
-      group: integration-staging-e2e
-      cancel-in-progress: false
     runs-on: ubuntu-latest
     # Staging env scope per docs/runbooks/github-environments.md §2 —
-    # carries staging Supabase URL/keys + TEST_USER_1/2/3 credentials.
-    # Case-sensitive: must exactly match `Staging`.
+    # carries TEST_USER_1/2/3/4 + server-boot secrets (Supabase values are
+    # local constants now). Case-sensitive: must exactly match `Staging`.
     # Dependabot drops env binding (no env-scoped secret access for
     # bot-triggered runs) — uses repo Dependabot namespace instead.
     environment: ${{ github.actor == 'dependabot[bot]' && '' || 'Staging' }}
-    timeout-minutes: 15
+    # {365.5}: raised 15 → 25 for the cutover measurement runs — stack start +
+    # db reset are unmeasured on this runner tier (DR-096 gate). Tighten once
+    # the first runs establish the real budget.
+    timeout-minutes: 25
     permissions:
       contents: read
       pull-requests: read
@@ -371,13 +374,28 @@ jobs:
         # `--with-deps` installs the Linux system libraries the GH-hosted
         # runner doesn't carry by default.
         run: bunx playwright install --with-deps chromium
-      - name: Cleanup stale test artifacts (staging preflight)
-        env:
-          ALLOW_STALE_TEST_ARTIFACT_CLEANUP: "1"
-          TEST_ARTIFACT_CLEANUP_MIN_AGE_MINUTES: "120"
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: bun run cleanup:stale-test-artifacts
+
+      # {365.5}: the "Cleanup stale test artifacts (staging preflight)" step is
+      # REMOVED — it cleaned leftover test data on the SHARED staging project
+      # between runs. A freshly-reset local stack has no ambient data by
+      # construction (the script remains for the integration lane, which still
+      # targets staging by design).
+
+      - name: Setup Supabase CLI (pinned)
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          # 2.109.1 = the DR-095 floor and the version every S496/S497
+          # measurement ran on. setup-cli with no `version:` installs
+          # `latest`, which drifts ~weekly — pin, bump deliberately, and
+          # expect the demo-credential assert below to catch a drifted bump.
+          version: "2.109.1"
+
+      - name: Load local-stack constants
+        # Ambient SUPABASE_URL / *_PUBLISHABLE_KEY / SERVICE_ROLE_KEY /
+        # POSTGRES_PASSWORD for the build + stack + test steps below — the
+        # Supabase CLI's public local demo constants
+        # (scripts/ci/local-stack.env), not secrets.
+        run: grep -vE '^(#|$)' scripts/ci/local-stack.env >> "$GITHUB_ENV"
 
       - name: Build (Next.js prod)
         # id-128 {128.11}: migrate smoke onto the same build-once + `next
@@ -391,20 +409,14 @@ jobs:
         # (lib/env-client.ts) and BAKED AT BUILD TIME, not at `next
         # start`. Each MUST be set in THIS step's env, or the served
         # bundle carries stale/missing values. Env block mirrors
-        # e2e-nightly.yml's "Build (Next.js prod)" step.
+        # e2e-nightly.yml's "Build (Next.js prod)" step. The Supabase
+        # values + POSTGRES_PASSWORD arrive ambient from "Load local-stack
+        # constants" above ({365.5} / DR-096 — local stack, not staging).
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          # Production stores bare names; mirror to NEXT_PUBLIC_* for the client schema.
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           # VERCEL_GIT_COMMIT_SHA is Vercel-only; substitute github.sha so the Sentry release tag resolves.
@@ -418,34 +430,79 @@ jobs:
           CLASSIFICATION_BATCH_SIZE: ${{ vars.CLASSIFICATION_BATCH_SIZE }}
         run: bun run build
 
+      - name: Disable heavy services for CI
+        # Flips `enabled = false` for studio/analytics/edge_runtime/realtime
+        # in supabase/config.toml (runner-local edit). `supabase start -x` is
+        # NOT sufficient: image pulls gate on config `enabled`, not the
+        # exclude list (supabase/cli#4088 — the exclude-still-pulls trap).
+        run: bun run scripts/ci/prepare-supabase-ci-config.ts
+
+      - name: Start local Supabase stack (TIMED — DR-096 measurement gate)
+        # First-run timings on THIS runner tier (2 vCPU/8 GB) are part of the
+        # DR-096 cutover measurement — nothing published measures the full
+        # stack below 4 vCPU/16 GB. `free -h` brackets give memory headroom.
+        run: |
+          nproc
+          free -h
+          time supabase start
+          free -h
+
+      - name: Assert running stack matches baked demo credentials
+        # The build step baked scripts/ci/local-stack.env's demo keys into the
+        # client bundle. If a CLI bump ever changes the local demo
+        # credentials, fail LOUD here — not as unexplained 401s in specs.
+        run: |
+          status_json="$(supabase status -o json)"
+          actual_anon="$(jq -r '.ANON_KEY' <<<"$status_json")"
+          actual_service="$(jq -r '.SERVICE_ROLE_KEY' <<<"$status_json")"
+          if [ "$actual_anon" != "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Local stack ANON_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          if [ "$actual_service" != "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Local stack SERVICE_ROLE_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          echo "Local stack credentials match the baked constants."
+
+      - name: Reset database (TIMED — migrations + seed.sql + buckets)
+        # `db reset` is the one idempotent provisioning primitive: it replays
+        # every migration, runs seed.sql, and creates all five declared
+        # [storage.buckets.*] unconditionally — regardless of what `start`
+        # already did on this (fresh) Docker volume.
+        run: time supabase db reset
+
+      - name: Seed E2E users
+        # auth.users + user_roles only — seed.sql §5 defers users to this
+        # script by contract (DR-096: E2E users stay OUT of seed.sql).
+        # SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY arrive ambient (local
+        # stack).
+        env:
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
+        run: bun run seed:e2e-users
+
       - name: Run Playwright smoke
         env:
           # id-128 {128.11}: serve the prebuilt app via `next start` (routes
           # precompiled by the step above) instead of `bun dev`.
           PLAYWRIGHT_WEB_SERVER_CMD: "bun run start"
-          # Staging Supabase connection — env scope resolves these from the
-          # `Staging` GH environment.
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # Server-side secrets the dev server boots with (lib/env-server.ts
-          # validates at module load — every Zod-required field must be set
-          # or `bun run dev` fails at first import).
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # Supabase connection + POSTGRES_PASSWORD arrive ambient from "Load
+          # local-stack constants" ({365.5} / DR-096 — this runner's own
+          # loopback stack, not staging). Remaining server-boot secrets
+          # (lib/env-server.ts validates at module load — every Zod-required
+          # field must be set or `next start` fails at first import):
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          # Mirror to NEXT_PUBLIC_* for the client schema (same pattern as
-          # the `quality` job's build step).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
-          # Test-user credentials — pre-seeded into staging by
-          # scripts/seed-e2e-users.ts (per docs/runbooks/staging-refresh.md §4).
+          # Test-user credentials — seeded onto THIS runner's local stack by
+          # the "Seed E2E users" step above.
           TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
           TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
           TEST_USER_2_EMAIL: ${{ vars.TEST_USER_2_EMAIL }}

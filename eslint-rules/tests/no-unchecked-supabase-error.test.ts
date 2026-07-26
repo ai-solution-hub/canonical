@@ -222,32 +222,36 @@ const tsRuleTester = new RuleTester({
   },
 });
 
-tsRuleTester.run('no-unchecked-supabase-error (TS annotations)', rule as never, {
-  valid: [
-    // Annotated param used correctly.
-    {
-      code: "async function f(sc: SupabaseClient<Database>) { const { data, error } = await sc.from('x').select(); return { data, error }; }",
-    },
-    // Annotation on an unrelated type — not a client.
-    {
-      code: "async function f(api: RestApi) { const { data } = await api.from('x').select(); return data; }",
-    },
-  ],
-  invalid: [
-    // `SupabaseClient`-annotated param under an arbitrary name.
-    {
-      code: "async function f(anyName: SupabaseClient<Database>) { const { data } = await anyName.from('x').select(); return data; }",
-      errors: [{ messageId: 'missingErrorDestructure' }],
-    },
-    // Local type alias annotation.
-    {
-      code: "async function f(conn: DbClient) { await conn.from('x').update({ a: 1 }).eq('id', 1); }",
-      errors: [{ messageId: 'discardedQueryResult' }],
-    },
-    // Annotated const binding.
-    {
-      code: "async function f() { const sc: SupabaseClient<Database> = getInjectedClient(); const { data } = await sc.from('x').select(); return data; }",
-      errors: [{ messageId: 'missingErrorDestructure' }],
-    },
-  ],
-});
+tsRuleTester.run(
+  'no-unchecked-supabase-error (TS annotations)',
+  rule as never,
+  {
+    valid: [
+      // Annotated param used correctly.
+      {
+        code: "async function f(sc: SupabaseClient<Database>) { const { data, error } = await sc.from('x').select(); return { data, error }; }",
+      },
+      // Annotation on an unrelated type — not a client.
+      {
+        code: "async function f(api: RestApi) { const { data } = await api.from('x').select(); return data; }",
+      },
+    ],
+    invalid: [
+      // `SupabaseClient`-annotated param under an arbitrary name.
+      {
+        code: "async function f(anyName: SupabaseClient<Database>) { const { data } = await anyName.from('x').select(); return data; }",
+        errors: [{ messageId: 'missingErrorDestructure' }],
+      },
+      // Local type alias annotation.
+      {
+        code: "async function f(conn: DbClient) { await conn.from('x').update({ a: 1 }).eq('id', 1); }",
+        errors: [{ messageId: 'discardedQueryResult' }],
+      },
+      // Annotated const binding.
+      {
+        code: "async function f() { const sc: SupabaseClient<Database> = getInjectedClient(); const { data } = await sc.from('x').select(); return data; }",
+        errors: [{ messageId: 'missingErrorDestructure' }],
+      },
+    ],
+  },
+);
