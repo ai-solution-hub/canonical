@@ -11,6 +11,7 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 | Command | Description |
 | --- | --- |
 | bun install / bun dev | Install deps / dev server (Turbopack, localhost:3000) |
+| NEXT_DIST_DIR=.next-N bun dev | Second+ dev server in the SAME checkout — see below |
 | bun run build | Production build (`bun build` is Bun's own bundler — errors, never runs this script) |
 | bun run test | Vitest suite (full regression gate after merges) |
 | bun run test:integration | Integration suite (real Anthropic + Supabase) |
@@ -19,6 +20,14 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 | bun run test:e2e | Playwright E2E |
 
 MCP eval + plugin/app build commands: see `lib/mcp/CLAUDE.md`. Type regen: see`supabase/CLAUDE.md`. Use `gh-axi` for GitHub and `chrome-devtools-axi` for browser automation.
+
+**Turbopack is the default bundler** in Next 16 for both `next dev` and `next build` — no `--turbopack` flag, and `--webpack` would split dev from the Vercel prod build (which Sentry's debug-ID source maps depend on). Do not opt out.
+
+**Parallel dev servers.** Next takes a per-directory lock at `<distDir>/dev/lock` and refuses a second `next dev` for the same directory *even on a different port* — so a different port alone never fixes it. Rules:
+
+- **Different worktrees** → nothing to do; separate dirs, separate locks.
+- **Same checkout** → give each session its own build root: `NEXT_DIST_DIR=.next-1 bun dev` (slots `.next-1`..`.next-4`). Use only those names — they are pre-registered in `tsconfig.json`'s `include`, and Next matches those strings literally: any other name makes it rewrite AND reformat `tsconfig.json`, dirtying the tree for every parallel session.
+- **Port collisions / stable URLs** → `portless run next dev` gives each server a named `.localhost` URL and auto-assigns a port (worktrees get a branch-name subdomain). Not installed by default; see the local-development runbook.
 
 ## Architecture
 

@@ -1,27 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# scripts/new-worktree.sh — create a TOP-LEVEL sibling git worktree and provision
-# it with the canonical symlink + copy layout.
+# scripts/new-worktree.sh — create a TOP-LEVEL sibling git worktree and provision it.
 #
-# Native `claude --worktree <name>` always nests worktrees under
-# .claude/worktrees/ and cannot create top-level siblings; `git worktree add`
-# can place a sibling but does NOT apply symlinkDirectories / .worktreeinclude;
-# `git-worktreeinclude` copies but never symlinks. This wrapper combines a plain
-# `git worktree add ../<name>` with scripts/provision-worktree.sh so a top-level
-# worktree gets the IDENTICAL layout (symlinked node_modules/.venv/.bin/.cache,
-# surgically-symlinked .gitnexus index, copied .env.local/tsbuildinfo) from the
-# single config source.
+# `claude --worktree` only nests under .claude/worktrees/; `git worktree add`
+# places a sibling but applies neither symlinkDirectories nor .worktreeinclude.
+# This wraps `git worktree add ../<name>` with scripts/provision-worktree.sh,
+# which owns the symlink + copy layout.
 #
 # Usage:
 #   scripts/new-worktree.sh <name> [<base-ref>]
 #
-#   <name>       Worktree dir + branch name. Created as a sibling of the repo
-#                root: <repo-parent>/<name> on a new branch <name>.
+#   <name>       Worktree dir + branch name, created at <repo-parent>/<name>.
 #   <base-ref>   Ref to branch from. Default: current HEAD of the main worktree.
 #
-# Idempotency: refuses if the branch or the destination path already exists
-# (with a recovery hint), so a half-finished prior run is surfaced, not masked.
+# Refuses if the branch or destination already exists, with a recovery hint.
 
 USAGE="Usage: new-worktree.sh <name> [<base-ref>]"
 NAME="${1:?$USAGE}"

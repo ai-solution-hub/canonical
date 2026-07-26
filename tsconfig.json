@@ -41,7 +41,28 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  // The `.next-1`..`.next-4` entries are the FIXED slot names for concurrent
+  // dev servers sharing one checkout (NEXT_DIST_DIR — see next.config.ts).
+  // Next matches these include strings LITERALLY: start a dev server with any
+  // dist dir not listed here and it rewrites AND reformats this file, dirtying
+  // the tree for every parallel session. A glob (`.next-*/types/**/*.ts`) does
+  // NOT satisfy the check — verified. So agents pick a slot from this list
+  // rather than inventing a name; four covers realistic parallelism.
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    ".next-1/types/**/*.ts",
+    ".next-1/dev/types/**/*.ts",
+    ".next-2/types/**/*.ts",
+    ".next-2/dev/types/**/*.ts",
+    ".next-3/types/**/*.ts",
+    ".next-3/dev/types/**/*.ts",
+    ".next-4/types/**/*.ts",
+    ".next-4/dev/types/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "scripts",

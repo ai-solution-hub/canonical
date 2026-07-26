@@ -143,6 +143,37 @@ while IFS= read -r dir; do
   fi
 done < <(read_symlink_dirs)
 
+# --- node_modules (copy-on-write clone, NOT a symlink) ---
+#
+# node_modules must be a REAL directory: a symlinked tree breaks package
+# resolution (realpath escapes the worktree, so bun/next resolve against the
+# source root). It is also too big to copy byte-for-byte. A CoW clone gives a
+# real directory at near-zero disk cost — APFS `cp -c`, Btrfs/XFS
+# `cp --reflink`. Falls back to a plain recursive copy elsewhere.
+#
+# Skipped when the worktree already has its own node_modules, so re-running is
+# safe and a worktree that has diverged (different lockfile) is never clobbered.
+
+NM_SRC="$SOURCE_ROOT/node_modules"
+NM_DST="$WORKTREE_PATH/node_modules"
+CLONED=0
+if [ -e "$NM_DST" ]; then
+  echo "  skip node_modules: already present in worktree" >&2
+elif [ -d "$NM_SRC" ]; then
+  if cp -c -R "$NM_SRC" "$NM_DST" 2>/dev/null; then
+    echo "  clone: node_modules (APFS copy-on-write)" >&2
+    CLONED=1
+  elif cp -R --reflink=auto "$NM_SRC" "$NM_DST" 2>/dev/null; then
+    echo "  clone: node_modules (reflink)" >&2
+    CLONED=1
+  elif cp -R "$NM_SRC" "$NM_DST" 2>/dev/null; then
+    echo "  copy: node_modules (full copy — no CoW support on this filesystem)" >&2
+    CLONED=1
+  else
+    echo "  Note: could not provision node_modules; run 'bun install' in the worktree." >&2
+  fi
+fi
+
 # --- .gitnexus (surgical: real dir + lbug/meta.json symlinks + register) ---
 
 PARENT_GNX="$SOURCE_ROOT/.gitnexus"
@@ -200,4 +231,4 @@ if [ -f "$INCLUDE_FILE" ]; then
   done < "$INCLUDE_FILE"
 fi
 
-echo "provision-worktree: done ($SYMLINKED symlinks, $COPIED copies)" >&2
+echo "provision-worktree: done ($SYMLINKED symlinks, $CLONED node_modules clones, $COPIED copies)" >&2

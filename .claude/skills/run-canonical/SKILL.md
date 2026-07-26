@@ -94,6 +94,18 @@ bun dev
 Starts Next.js with Turbopack on `http://localhost:3000`. Run it in the
 background (or a dedicated pane) so you can keep observing while it serves.
 
+If it exits with `Another next dev server is already running`, another session
+holds this directory's lock (`<distDir>/dev/lock`). A different port does not
+help. Either observe the server already up, or take your own build root — pick
+an unused slot from `.next-1`..`.next-4`, never a fresh name (any other name
+makes Next rewrite and reformat `tsconfig.json`):
+
+```bash
+NEXT_DIST_DIR=.next-1 bun dev
+```
+
+Next then reports the port it picked — observe that port, not 3000.
+
 If the server OOMs or behaves oddly after a dependency or config change, clear
 the Next cache and relaunch:
 
