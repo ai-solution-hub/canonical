@@ -1216,16 +1216,16 @@ describeIfEnv(
       expect(rows).toHaveLength(1);
       expect(rows![0].id).toBe(enqueueBody.pipeline_run_id);
       expect(rows![0].status).toBe('completed');
-      // (b) and the worker INSERTed no second row for this run — zero
-      // other form_draft_all rows created since this test enqueued
-      // (5s clock-skew guard; cross-PR runs are serialised by the
-      // integration-staging-integration concurrency group).
+      // (b) and the worker INSERTed no second row — every form_draft_all
+      // row in this run's window is one THIS SUITE enqueued (tracked in
+      // seededPipelineRunIds); anything outside that set would be a rogue
+      // worker-side INSERT breaking Pattern 2's update-in-place contract.
       const { count: rogueRows } = await serviceClient
         .from('pipeline_runs')
         .select('id', { count: 'exact', head: true })
         .eq('pipeline_name', 'form_draft_all')
-        .neq('id', enqueueBody.pipeline_run_id)
-        .gte('created_at', new Date(Date.now() - 120_000).toISOString());
+        .gte('created_at', new Date(Date.now() - 120_000).toISOString())
+        .not('id', 'in', `(${[...seededPipelineRunIds].join(',')})`);
       expect(rogueRows).toBe(0);
       // items_created is string[] per feedback_record_pipeline_run_signature.
       expect(rows![0].items_created).toEqual(draftedIds);
