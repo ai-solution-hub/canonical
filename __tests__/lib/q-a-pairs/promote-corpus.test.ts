@@ -27,10 +27,6 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
-// ID-131 {131.8} BI-16 (QA-DBONLY): the `__qa__` sidecar emit is retired, so the
-// fs / path / os / carried-set-parse helpers are no longer needed — the provenance
-// link is pure-DB (q_a_pairs.source_document_id), asserted on the Supabase mock.
-import { qaSidecarRelPath, sdUuid5 } from '@/lib/q-a-pairs/sidecar-path';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted — mock factory must be initialised before vi.mock() is hoisted
@@ -60,6 +56,13 @@ const UUID_A = '00000000-0000-4000-a000-000000000001';
 const UUID_B = '00000000-0000-4000-a000-000000000002';
 const UUID_NEW_PAIR = '00000000-0000-4000-a000-000000000099';
 const UUID_EXISTING_PAIR = '00000000-0000-4000-a000-000000000098';
+/**
+ * The corpus document an extraction was walked out of. {127.38}: this is the
+ * value the promoter links onto the promoted pair, so the default fixture
+ * carries it NOT NULL — the shape the walk actually mints (asserted by G5,
+ * `scripts/verify-platform-promotion-gate.ts`).
+ */
+const UUID_SOURCE_DOC = '00000000-0000-4000-a000-000000000097';
 
 /** Stub embedding — 1024-dim, non-null. */
 const STUB_EMBEDDING = Array.from({ length: 1024 }, (_, i) => i / 1024);
@@ -85,7 +88,7 @@ function makeExtraction(overrides: Partial<ExtractionRow> = {}): ExtractionRow {
     promoted_to_pair_id: null,
     invalidated_at: null,
     extractor_kind: 'llm_extraction',
-    source_document_id: null,
+    source_document_id: UUID_SOURCE_DOC,
     extraction_metadata: {},
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -1108,11 +1111,16 @@ describe('promoteCorpusExtractions — {59.24} OQ-2 active retirement pass', () 
 // ---------------------------------------------------------------------------
 // Test suite — {59.29} corpus provenance-link leg (TECH R1; INV-9/INV-11).
 //
-// ID-131 {131.8} BI-16 (QA-DBONLY): the `__qa__/*.md` sidecar emit is RETIRED —
-// the promoter writes ONLY the pure-DB q_a_pairs.source_document_id provenance
+// ID-131 {131.8} BI-16 (QA-DBONLY): the sidecar file emit is RETIRED — the
+// promoter writes ONLY the pure-DB q_a_pairs.source_document_id provenance
 // link (no file, no round-trip). These are pure-DB behaviour tests on the shared
 // Supabase mock; there is nothing on disk to assert any more (no temp dir, no
 // COCOINDEX_SOURCE_PATH gate — the former idle mode is gone).
+//
+// ID-127 {127.38} / DR-086: the linked VALUE is now the extraction's own
+// source_document_id — the real corpus document — rather than a uuid5 derived
+// from a reserved-prefix sidecar path that no walk ever mints a row for. A NULL
+// extraction lineage aborts the publish (OQ-4, ruled strict).
 //
 // CAS-won link-then-publish DB-call order:
 //   rpc      → eligible set
@@ -1136,16 +1144,16 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
   });
 
   // -------------------------------------------------------------------------
-  // Happy path: a successful promotion writes the sidecar .md (carried set
-  // ONLY — NO lifecycle keys) AND sets source_document_id = sdUuid5(relPath),
-  // keyed on the PAIR PK. The pair is then published (embed UPDATE fires).
-  // (INV-9 / INV-11; seed = newPairId consistency with {59.30})
+  // Happy path: a successful promotion links the pair to the corpus document
+  // the extraction came from, then publishes it (embed UPDATE fires).
+  // (INV-9 / INV-11; {127.38} — the linked value is extraction.source_document_id)
   // -------------------------------------------------------------------------
-  it('writes only the source_document_id provenance link keyed on the pair PK, then publishes (no __qa__ file)', async () => {
+  it('links the pair to the corpus document the extraction came from, then publishes', async () => {
     const extraction = makeExtraction({
       id: UUID_A,
       extracted_question_text: 'What is the procurement threshold?',
       extracted_answer_text: 'The threshold is £25,000.',
+      source_document_id: UUID_SOURCE_DOC,
     });
 
     supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
@@ -1179,13 +1187,10 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
     expect(result.embed_failed).toBe(0);
     expect(result.failures).toHaveLength(0);
 
-    // The provenance link is keyed on the PAIR PK (newPairId), NOT the
-    // extraction id (BI-16: no file is materialised, so there is nothing on
-    // disk to assert — the lineage lives solely on q_a_pairs.source_document_id).
-    const relPath = qaSidecarRelPath(UUID_NEW_PAIR);
-    expect(relPath).not.toContain(UUID_A); // not keyed on the extraction id
-
-    // source_document_id UPDATE carries sdUuid5(relPath) for the pair PK.
+    // {127.38}: the linked value is the EXTRACTION's own source_document_id —
+    // a real corpus document row, resolvable by every downstream consumer
+    // (derived_pairs, the MCP resource lookup, the citation overlay, the
+    // l_records join) — not an id derived from a path nothing ever mints.
     const updateCalls = supabase._chain.update.mock.calls as Array<
       [Record<string, unknown>]
     >;
@@ -1193,7 +1198,7 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
       (call) => 'source_document_id' in call[0],
     );
     expect(linkCall).toBeDefined();
-    expect(linkCall![0].source_document_id).toBe(sdUuid5(relPath));
+    expect(linkCall![0].source_document_id).toBe(UUID_SOURCE_DOC);
 
     // Publish happened (emit succeeded first): embed UPDATE fired.
     const embedCall = updateCalls.find(
@@ -1253,6 +1258,51 @@ describe('promoteCorpusExtractions — {59.29} corpus provenance-link leg (link-
       (call) => call[0]?.publication_status === 'published',
     );
     expect(embedCall).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // {127.38} OQ-4 (STRICT): an extraction with NO source_document_id has no
+  // lineage to link, so the publish is ABORTED rather than publishing a pair
+  // without provenance (INV-11). No link UPDATE is even issued, the pair stays
+  // draft, and the RPC re-selects it next run.
+  // -------------------------------------------------------------------------
+  it('a NULL extraction lineage aborts the publish (pair stays draft), never publishing a pair without provenance', async () => {
+    const extraction = makeExtraction({ id: UUID_A, source_document_id: null });
+
+    supabase.rpc.mockResolvedValueOnce({ data: [extraction], error: null });
+    supabase._chain.single.mockResolvedValueOnce({
+      data: { id: UUID_NEW_PAIR },
+      error: null,
+    });
+    // then #1: CAS UPDATE → 1 row. No provenance-link UPDATE follows.
+    supabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: extraction.id }], error: null }),
+    );
+
+    const result: PromotionSummary = await promoteCorpusExtractions(
+      supabase as unknown as SupabaseClientLike,
+    );
+
+    expect(result.promoted).toBe(1);
+    expect(result.sidecar_failed).toBe(1);
+    expect(result.failures).toContainEqual({
+      extractionId: UUID_A,
+      newPairId: UUID_NEW_PAIR,
+      reason: 'sidecar_failed',
+    });
+
+    // Nothing was linked and nothing was published.
+    const updateCalls = supabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    expect(
+      updateCalls.find((call) => 'source_document_id' in call[0]),
+    ).toBeUndefined();
+    expect(
+      updateCalls.find((call) => call[0]?.publication_status === 'published'),
+    ).toBeUndefined();
+    expect(mockGenerateEmbedding).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

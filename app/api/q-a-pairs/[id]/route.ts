@@ -1,9 +1,6 @@
 // app/api/q-a-pairs/[id]/route.ts
 //
 // ID-59 {59.11} — UC6 user-direct Q&A write route (PC-A4 / PC-4).
-// ID-59 {59.30} — sidecar emit + first-edit materialisation (TECH R2; PRODUCT
-// INV-12 / INV-13 / INV-7). This slice replaces the prior v1.1 deferral that
-// wrote ONLY to Postgres: an in-scope revision now also reaches a file.
 //
 // AUTHENTICATED route. It is NOT in proxy.ts `publicRoutes` — it must sit
 // behind auth (any non-API public endpoint would otherwise need allowlisting;
@@ -11,36 +8,21 @@
 // the middleware before reaching the handler, and the in-handler role guard
 // rejects anyone below editor).
 //
-// SIDECAR EMIT (INV-12 / INV-13): for an INV-7-scope pair (`curated_explicit`)
-// this revision is a DUAL-WRITE — the carried-set bytes go to the pair's
-// `__qa__/` sidecar `.md` object AND the q_a_pairs row is UPDATEd, presented
-// as ONE atomic save via the shared file-first + compensating-restore
-// primitive (`writeFileFirstWithRestore`, the same ordering the content-item
-// route uses).
-//   - `source_document_id IS NOT NULL` → write-back to the existing sidecar.
-//   - `source_document_id IS NULL` → MATERIALISE a sidecar on this first edit
-//     (mint the object + set `source_document_id = sdUuid5(relPath)`); the
-//     cocoindex re-walk mints the matching `source_documents` row next ingest,
-//     re-keying the SAME uuid5, so the linkage round-trips (FK-LESS — no FK to
-//     violate by writing the id before that row exists).
-//   - the `corpus` bucket not provisioned in this project, or write-back
-//     storage_path resolves null → DB-only fall-through; the save still lands
-//     and self-heals next walk/pull-sync.
-// Pairs OUTSIDE the INV-7 set (`derived_from_form_response`, `imported_legacy`,
-// and — for this user-direct route — anything not `curated_explicit`) keep the
-// KH-DB-only behaviour: no sidecar is minted.
+// KH-DB-ONLY (TECH UC6): a revision writes to Postgres and NOTHING else. No
+// Storage object is read, written or minted by this route, for any
+// `origin_kind` — the save is one `q_a_pairs` UPDATE with an affected-row
+// assertion.
 //
-// {138.12} T4 RE-POINT (TECH §3.3 T4, folded into T1): the sidecar's file leg
-// now targets the `corpus` Storage bucket (object key = the resolved
-// storage_path / minted relPath, consumed verbatim) instead of a
-// `COCOINDEX_SOURCE_PATH`-joined on-disk write — both branches below re-point
-// onto `lib/edit-intent/write-back.ts`'s Storage-backed primitives
-// (`writeFileFirstWithRestore` for the existing-sidecar write-back,
-// `writeNewCorpusObject` for the MATERIALISE mint) so the whole sidecar
-// surface lands in the SAME bucket at the SAME key scheme; a
-// `CorpusBucketUnavailableError` is the Storage-leg idle-mode equivalent of
-// the old `COCOINDEX_SOURCE_PATH`-unset check (see write-back.ts's module
-// header) and is caught here to fall through to the pre-existing DB-only path.
+// ID-127 {127.38} / DR-086 — SIDECAR WRITE HALF RETIRED. The {59.30} dual-write
+// is gone: both the INV-12 write-back leg (rewrite the pair's existing sidecar
+// object) and the INV-13 MATERIALISE-ON-FIRST-EDIT leg (mint a reserved-prefix
+// sidecar object and stamp the uuid5 of its path as `source_document_id`) have
+// been deleted, along with the `{138.12}` T4 re-point that had moved them onto
+// the `corpus` Storage bucket. No app code derives or mints a Q&A sidecar path
+// any more — the prefix stays RESERVED (guarded by the RATIFY-2 assertion in
+// `__tests__/integration/cocoindex/platform-corpus-shape.test.ts`), but no
+// writer targets it. This restores the KH-DB-only contract `TECH.md` never
+// stopped specifying for UC6.
 //
 // History snapshots: the existing `q_a_pairs_history_trigger()` (AFTER UPDATE
 // on q_a_pairs, updated in {59.5} to also copy OLD.edit_intent) writes the
@@ -52,18 +34,7 @@ import {
   coerceIntent,
   type EditIntent,
 } from '@/lib/edit-intent/arbitrate';
-import {
-  CorpusBucketUnavailableError,
-  writeFileFirstWithRestore,
-  writeNewCorpusObject,
-} from '@/lib/edit-intent/write-back';
 import { safeErrorMessage } from '@/lib/error';
-import {
-  qaSidecarRelPath,
-  sdUuid5,
-  serialiseCarriedSet,
-  type CarriedSet,
-} from '@/lib/q-a-pairs/sidecar-path';
 import { isOk, tryQuery, type PostgrestLike } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import type { Database } from '@/supabase/types/database.types';
@@ -71,21 +42,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-/**
- * The `origin_kind` values whose pairs get a sidecar via the USER-DIRECT route
- * (PRODUCT INV-7). Only `curated_explicit` materialises here: those are the
- * pairs a human edits in-platform, so the canonical-file promise only holds if
- * their edit reaches a file. `extracted_from_corpus` pairs are file-seeded by
- * the corpus-promotion leg ({59.29}); `derived_from_form_response` /
- * `imported_legacy` are explicitly NOT v1 for the sidecar — a sidecar would
- * invent a file identity for a KH-DB-native pair (the source-layout-freeze
- * hazard UC1's source-less guard already refuses). They keep their KH-DB-only
- * resting state.
- */
-const USER_DIRECT_SIDECAR_ORIGIN_KINDS: ReadonlySet<string> = new Set([
-  'curated_explicit',
-]);
 
 /**
  * Per-actor edit intent contributed by one side of a concurrent (CRDT) merge.
@@ -134,20 +90,14 @@ const EDITABLE_COLUMNS = [
 ] as const;
 
 /**
- * The pair fields read BEFORE the UPDATE: the INV-7 gate inputs
- * (`origin_kind`, `source_document_id`) plus the carried set the file leg
- * serialises. The carried fields are read so a partial PATCH can be merged
- * onto the stored values to produce the full post-edit carried set the
- * sidecar must contain (the file is the WHOLE carried set, never a delta).
+ * The pair shape the existence pre-read projects. {127.38}: the pre-read no
+ * longer feeds a sidecar decision — it exists ONLY to distinguish "no such
+ * pair" (404) from a genuine write failure (500). Without it the UPDATE's
+ * `.single()` raises PGRST116 on a missing id and the route would answer 500.
  */
-interface PairReadRow extends CarriedSet {
-  origin_kind: string;
-  source_document_id: string | null;
+interface PairExistsRow {
+  id: string;
 }
-
-const PAIR_READ_COLUMNS =
-  'origin_kind, source_document_id, question_text, answer_standard, ' +
-  'answer_advanced, alternate_question_phrasings, scope_tag, anti_scope_tag';
 
 /** The generated `q_a_pairs` row + update shapes (the codebase typed-update pattern). */
 type QAPairsRow = Database['public']['Tables']['q_a_pairs']['Row'];
@@ -183,29 +133,6 @@ function resolveEditIntent(
     opId: ctx.userId,
   });
   return arbitrateMany([single]);
-}
-
-/**
- * Build the FULL post-edit carried set the sidecar must contain: the stored
- * carried fields with the partial PATCH's editable fields merged over them.
- * The file always holds the whole carried set (INV-2), never a delta — so a
- * PATCH that only touches `answer_standard` still produces a complete sidecar
- * carrying the unchanged `question_text` etc.
- */
-function buildCarriedSet(
-  stored: PairReadRow,
-  directFields: Record<string, unknown>,
-): CarriedSet {
-  const merged: PairReadRow = { ...stored, ...directFields } as PairReadRow;
-  return {
-    question_text: merged.question_text,
-    answer_standard: merged.answer_standard,
-    answer_advanced: merged.answer_advanced ?? null,
-    // text[] NOT NULL DEFAULT '{}' — coalesce a null read to the empty array.
-    alternate_question_phrasings: merged.alternate_question_phrasings ?? [],
-    scope_tag: merged.scope_tag ?? null,
-    anti_scope_tag: merged.anti_scope_tag ?? null,
-  };
 }
 
 export const PATCH = defineRoute(
@@ -251,18 +178,18 @@ export const PATCH = defineRoute(
         contentItemId: id,
       });
 
-      // ── Pre-read the pair: INV-7 gate inputs + the carried set ───────────────
-      // The sidecar decision needs the pair's `origin_kind` (the INV-7 gate) and
-      // `source_document_id` (write-back vs materialise vs DB-only) BEFORE the
-      // UPDATE — the file leg is file-first, so the file write must precede the
-      // DB leg. The carried fields are read so a partial PATCH merges onto the
-      // stored values to form the WHOLE post-edit carried set the file holds.
-      const pairResult = await tryQuery<PairReadRow | null>(
+      // ── Existence pre-read: 404 vs 500 ───────────────────────────────────────
+      // {127.38}: this used to also project the INV-7 gate inputs + the carried
+      // set for the sidecar decision. With the file leg retired it is narrowed
+      // to a bare existence check — but it must NOT be removed: it is what
+      // makes a PATCH against an unknown id a 404 rather than the 500 the
+      // UPDATE's `.single()` PGRST116 would otherwise produce.
+      const pairResult = await tryQuery<PairExistsRow | null>(
         supabase
           .from('q_a_pairs')
-          .select(PAIR_READ_COLUMNS)
+          .select('id')
           .eq('id', id)
-          .maybeSingle() as unknown as PostgrestLike<PairReadRow | null>,
+          .maybeSingle() as unknown as PostgrestLike<PairExistsRow | null>,
         'q_a_pairs.userDirectRevision.preRead',
       );
       if (!isOk(pairResult)) {
@@ -277,141 +204,35 @@ export const PATCH = defineRoute(
           { status: 404 },
         );
       }
-      const storedPair = pairResult.data;
 
-      // The carried set the sidecar must contain (full set; partial PATCH merged).
-      const carried = buildCarriedSet(storedPair, directFields);
-
-      // The id to set on the materialise path. NULL on every other path so the
-      // DB leg never clobbers an existing/absent linkage with a stale value.
-      let mintedSourceDocumentId: string | null = null;
-
-      // ── The DB leg, shared by all branches (file-first injects it) ───────────
+      // ── The DB leg — the whole save (KH-DB-only) ────────────────────────────
       // Captures the updated row + an explicit affected-row assertion so a 0-row
       // PATCH is a surfaced failure, never a silent no-op (REST PATCH gotcha).
-      // On the materialise branch it ALSO sets `source_document_id` so the pair
-      // becomes file-canonical from this edit forward (INV-13).
-      let updatedRow: QAPairsRow | null = null;
-      const applyDbLeg = async (): Promise<void> => {
-        const updatePayload: QAPairsUpdate = {
-          ...directFields,
-          edit_intent: editIntent,
-          updated_at: new Date().toISOString(),
-        };
-        if (mintedSourceDocumentId !== null) {
-          updatePayload.source_document_id = mintedSourceDocumentId;
-        }
-        const updateResult = await tryQuery<QAPairsRow>(
-          supabase
-            .from('q_a_pairs')
-            .update(updatePayload)
-            .eq('id', id)
-            .select('*')
-            .single() as unknown as PostgrestLike<QAPairsRow>,
-          'q_a_pairs.userDirectRevision',
-        );
-        if (!isOk(updateResult)) {
-          throw updateResult.error;
-        }
-        // Affected-row assertion: `.single()` already errors PGRST116 on 0 rows,
-        // but a null data with no error is a silent failure we must not swallow.
-        if (updateResult.data === null) {
-          throw new Error('Q&A pair UPDATE affected 0 rows');
-        }
-        updatedRow = updateResult.data;
+      const updatePayload: QAPairsUpdate = {
+        ...directFields,
+        edit_intent: editIntent,
+        updated_at: new Date().toISOString(),
       };
-
-      // ── Branch on the INV-7 gate + sidecar state ─────────────────────────────
-      // {138.12} T4 RE-POINT: the old `!sourceRoot` (COCOINDEX_SOURCE_PATH
-      // unset) idle-mode gate is GONE — the Storage-leg equivalent
-      // (`CorpusBucketUnavailableError`) is now discovered per-branch, at
-      // Storage-call time, not via a static env-var check up front (see
-      // write-back.ts's module header for the full rationale).
-      const inSidecarScope = USER_DIRECT_SIDECAR_ORIGIN_KINDS.has(
-        storedPair.origin_kind,
+      const updateResult = await tryQuery<QAPairsRow>(
+        supabase
+          .from('q_a_pairs')
+          .update(updatePayload)
+          .eq('id', id)
+          .select('*')
+          .single() as unknown as PostgrestLike<QAPairsRow>,
+        'q_a_pairs.userDirectRevision',
       );
-
-      if (!inSidecarScope) {
-        // Outside the INV-7 set: the save is KH-DB-only.
-        await applyDbLeg();
-      } else if (storedPair.source_document_id !== null) {
-        // WRITE-BACK (INV-12): the pair already has a sidecar. Resolve its
-        // storage_path FK-LESSLY (two plain reads, NEVER a PostgREST embed —
-        // the embed PGRST200s post-FK-drop, BUG-E) and rewrite the sidecar
-        // object as one atomic save with the DB UPDATE.
-        const docResult = await tryQuery<{
-          storage_path: string | null;
-        } | null>(
-          supabase
-            .from('source_documents')
-            .select('storage_path')
-            .eq('id', storedPair.source_document_id)
-            .maybeSingle() as unknown as PostgrestLike<{
-            storage_path: string | null;
-          } | null>,
-          'q_a_pairs.userDirectRevision.resolveStoragePath',
-        );
-        if (!isOk(docResult)) {
-          return NextResponse.json(
-            { error: 'Failed to update Q&A pair' },
-            { status: 500 },
-          );
-        }
-        const storagePath = docResult.data?.storage_path ?? null;
-        if (storagePath === null) {
-          // No source_documents row yet (or no storage_path) — the sidecar has
-          // not materialised. Fall through to DB-only for this one edit,
-          // exactly like writeBackFileFirst's idle/dangling fall-through; the
-          // next walk reconciles. (Covers the FK-less write-before-row window.)
-          await applyDbLeg();
-        } else {
-          try {
-            await writeFileFirstWithRestore({
-              supabase,
-              objectKey: storagePath,
-              newContent: serialiseCarriedSet(carried),
-              applyDbLeg,
-            });
-          } catch (err) {
-            if (err instanceof CorpusBucketUnavailableError) {
-              // Storage-leg idle-mode equivalent — DB-only fall-through.
-              await applyDbLeg();
-            } else {
-              throw err;
-            }
-          }
-        }
-      } else {
-        // MATERIALISE-ON-FIRST-EDIT (INV-13, OQ-25-4 RATIFIED): a source-less
-        // `curated_explicit` pair mints its sidecar on this edit. Key the path on
-        // the pair PK (CONSISTENCY with {59.29}'s corpus emit, which also keys on
-        // the pair PK — a pair has ONE canonical sidecar path). The DB leg sets
-        // `source_document_id = sdUuid5(relPath)`; the cocoindex re-walk mints the
-        // matching source_documents row next ingest, re-keying the SAME uuid5.
-        // FK-LESS: writing the id before that row exists violates no FK (INV-8).
-        const relPath = qaSidecarRelPath(id);
-        try {
-          await writeNewCorpusObject({
-            supabase,
-            objectKey: relPath,
-            newContent: serialiseCarriedSet(carried),
-          });
-          // Only stamp the linkage once the sidecar object actually landed —
-          // a dangling source_document_id pointing at an object that was
-          // NEVER written would never be reconciled by any future walk
-          // (mirrors the old !sourceRoot idle-mode contract: no file ⇒ no
-          // linkage to a file that was never written).
-          mintedSourceDocumentId = sdUuid5(relPath);
-        } catch (err) {
-          if (!(err instanceof CorpusBucketUnavailableError)) throw err;
-          // Storage-leg unconfigured here — DB-only; mintedSourceDocumentId
-          // stays null (see above).
-        }
-        await applyDbLeg();
+      if (!isOk(updateResult)) {
+        throw updateResult.error;
+      }
+      // Affected-row assertion: `.single()` already errors PGRST116 on 0 rows,
+      // but a null data with no error is a silent failure we must not swallow.
+      if (updateResult.data === null) {
+        throw new Error('Q&A pair UPDATE affected 0 rows');
       }
 
       return NextResponse.json({
-        q_a_pair: updatedRow,
+        q_a_pair: updateResult.data,
         edit_intent: editIntent,
       });
     } catch (err) {

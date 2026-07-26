@@ -61,7 +61,6 @@ import {
 import {
   CorpusBucketUnavailableError,
   writeBackFileFirst,
-  writeNewCorpusObject,
   CORPUS_BUCKET,
 } from '@/lib/edit-intent/write-back';
 import { WriterFenceBusyError } from '@/lib/corpus/writer-fence';
@@ -586,80 +585,5 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
         expect.stringContaining('COCOINDEX_WORKER_URL unset'),
       );
     });
-  });
-});
-
-describe('writeNewCorpusObject — {138.12} T4 no-prior-object mint (q_a-pairs MATERIALISE branch)', () => {
-  let mockSupabase: MockSupabaseClient;
-  const OBJECT_KEY = '__qa__/some-pair-id.md';
-  const CONTENT = '# Question\n\nAnswer body\n';
-
-  beforeEach(() => {
-    mockSupabase = createMockSupabaseClient();
-    mockSupabase.rpc.mockResolvedValue({ data: true, error: null });
-    bucket(mockSupabase).upload.mockResolvedValue({
-      data: { path: OBJECT_KEY },
-      error: null,
-    });
-    delete process.env.COCOINDEX_WORKER_URL;
-    delete process.env.PIPELINE_TRIGGER_SECRET;
-    delete process.env.CRON_SECRET;
-  });
-
-  afterEach(() => {
-    delete process.env.COCOINDEX_WORKER_URL;
-    delete process.env.PIPELINE_TRIGGER_SECRET;
-    delete process.env.CRON_SECRET;
-    vi.restoreAllMocks();
-  });
-
-  function client() {
-    return mockSupabase as unknown as Parameters<
-      typeof writeNewCorpusObject
-    >[0]['supabase'];
-  }
-
-  it('mints the object with upsert:true (tolerant of a stray orphan, mirrors the original writeFile semantics)', async () => {
-    await writeNewCorpusObject({
-      supabase: client(),
-      objectKey: OBJECT_KEY,
-      newContent: CONTENT,
-    });
-
-    expect(bucket(mockSupabase).upload).toHaveBeenCalledWith(
-      OBJECT_KEY,
-      CONTENT,
-      expect.objectContaining({ upsert: true, contentType: 'text/markdown' }),
-    );
-  });
-
-  it('throws CorpusBucketUnavailableError when the corpus bucket is not provisioned', async () => {
-    bucket(mockSupabase).upload.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Bucket not found' },
-    });
-
-    await expect(
-      writeNewCorpusObject({
-        supabase: client(),
-        objectKey: OBJECT_KEY,
-        newContent: CONTENT,
-      }),
-    ).rejects.toThrow(CorpusBucketUnavailableError);
-  });
-
-  it('a genuine upload error (not bucket-not-found) throws as-is', async () => {
-    bucket(mockSupabase).upload.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'quota exceeded' },
-    });
-
-    await expect(
-      writeNewCorpusObject({
-        supabase: client(),
-        objectKey: OBJECT_KEY,
-        newContent: CONTENT,
-      }),
-    ).rejects.not.toThrow(CorpusBucketUnavailableError);
   });
 });
