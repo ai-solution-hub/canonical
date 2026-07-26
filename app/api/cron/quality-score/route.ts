@@ -370,7 +370,7 @@ export async function GET(request: NextRequest) {
         const reviewDue = new Date(
           Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000,
         ).toISOString();
-        await supabase
+        const { error: govUpdateError } = await supabase
           .from('record_lifecycle')
           .update({
             governance_review_status: 'pending',
@@ -379,6 +379,13 @@ export async function GET(request: NextRequest) {
           })
           .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
           .eq('source_document_id', item.itemId);
+        if (govUpdateError) {
+          logger.error(
+            { err: govUpdateError, itemId: item.itemId },
+            'Failed to set governance_review_status to pending',
+          );
+          failedUpdates.push({ id: item.itemId, error: govUpdateError.message });
+        }
       }
 
       // Determine notification recipients per item

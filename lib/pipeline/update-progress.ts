@@ -79,6 +79,9 @@ export async function updatePipelineProgress(
 ): Promise<void> {
   try {
     const serviceClient = createServiceClient();
+    // id-369 category C: documented intentional best-effort — mid-flight
+    // progress observability must never block the worker (see file header).
+    // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate best-effort progress write; failures logged via the catch below
     await serviceClient
       .from('pipeline_runs')
       .update({

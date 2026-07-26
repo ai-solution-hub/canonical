@@ -11,6 +11,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { QuestionMatchBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -169,13 +170,27 @@ export const POST = defineRoute(
         // question_matches wiring, a LATER Subtask, is the sanctioned
         // persistence path for match candidates — out of this Subtask's
         // scope). Scope on `form_instance_id` (workspace_id is dropped).
-        await supabase
+        const { error: postureError } = await supabase
           .from('form_questions')
           .update({
             confidence_posture: posture,
           })
           .eq('id', question.id)
           .eq('form_instance_id', id);
+        if (postureError) {
+          // Secondary status write — matching succeeded and the response
+          // carries the posture; do not fail the batch, make it observable.
+          logBestEffortWarn(
+            'procurement.question.posture',
+            'Failed to persist confidence_posture after question match',
+            {
+              questionId: question.id,
+              formInstanceId: id,
+              code: postureError.code,
+              error: postureError.message,
+            },
+          );
+        }
 
         return {
           question_id: question.id,

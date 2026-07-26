@@ -1017,10 +1017,16 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
             context_snippet: extractEntityContext(plainText, e.name),
           }));
 
-          await supabase
+          const { error: mentionDeleteError } = await supabase
             .from('entity_mentions')
             .delete()
             .eq('source_document_id', sourceDocumentId);
+          if (mentionDeleteError) {
+            logger.warn(
+              { err: mentionDeleteError, item_id: item.id },
+              'batch_reclassify handler: entity mention delete failed',
+            );
+          }
 
           const { error: entityError } = await supabase
             .from('entity_mentions')
@@ -1038,10 +1044,16 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
 
         // Always delete existing relationships for this item first
         // (clean slate on reclassify, even when zero new relationships found).
-        await supabase
+        const { error: relDeleteError } = await supabase
           .from('entity_relationships')
           .delete()
           .eq('source_document_id', sourceDocumentId);
+        if (relDeleteError) {
+          logger.warn(
+            { err: relDeleteError, item_id: item.id },
+            'batch_reclassify handler: entity relationship delete failed',
+          );
+        }
 
         if (relationships.length > 0) {
           const relRows = relationships.map((r) => ({

@@ -22,6 +22,7 @@ import {
   isDuration,
   addDurationToDate,
 } from '@/lib/entities/token-match';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 
 /** Entity types that can receive temporal metadata */
 const TEMPORAL_ENTITY_TYPES = new Set([
@@ -248,10 +249,23 @@ export async function bridgeTemporalReferencesToEntities(
 
     // 4. Update entity mention metadata if we found matching references
     if (updated) {
-      await supabase
+      const { error: metadataError } = await supabase
         .from('entity_mentions')
         .update({ metadata: newMetadata as Record<string, string> })
         .eq('id', mention.id);
+      if (metadataError) {
+        // Best-effort enrichment write — classification already landed;
+        // surface the lost temporal metadata without failing the bridge.
+        logBestEffortWarn(
+          'entities.metadata.bridge',
+          'Failed to persist temporal metadata on entity mention',
+          {
+            mentionId: mention.id,
+            code: metadataError.code,
+            error: metadataError.message,
+          },
+        );
+      }
     }
   }
 }

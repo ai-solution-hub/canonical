@@ -105,6 +105,9 @@ export async function createIntelligenceGuide(
       .select('id, section_name');
 
     if (sectorError) {
+      // id-369 category C: rollback delete before `return null`; the
+      // failure signal is preserved by the null return.
+      // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate rollback; failure signal preserved via return null
       await supabase.from('guides').delete().eq('id', guideId);
       return null;
     }
@@ -165,6 +168,9 @@ export async function createIntelligenceGuide(
 
     if (topicError) {
       // Clean up guide and any sector sections already inserted (CASCADE handles children)
+      // id-369 category C: rollback delete before `return null`; the
+      // failure signal is preserved by the null return.
+      // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate rollback; failure signal preserved via return null
       await supabase.from('guides').delete().eq('id', guideId);
       return null;
     }

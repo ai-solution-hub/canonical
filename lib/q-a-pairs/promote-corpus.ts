@@ -542,6 +542,9 @@ export async function promoteCorpusExtractions(
 
     if (casError) {
       // CAS error — clean up the orphan pair we just inserted, then surface.
+      // id-369 category C: compensating rollback of an orphan row; the
+      // failure signal surfaces via the adjacent throw.
+      // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate rollback; error surfaces via the throw below
       await client.from('q_a_pairs').delete().eq('id', newPairId);
       throw new Error(
         safeErrorMessage(
@@ -558,6 +561,9 @@ export async function promoteCorpusExtractions(
       //
       // A concurrent run already linked this extraction. Our just-inserted
       // pair has no link, no embedding, was never published — safe to delete.
+      // id-369 category C: compensating rollback of an orphan row; a failed
+      // delete leaves an unlinked, unpublished pair — deliberate best-effort.
+      // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate rollback of an orphan row (id-369 category C)
       await client.from('q_a_pairs').delete().eq('id', newPairId);
       already_promoted++;
     } else {

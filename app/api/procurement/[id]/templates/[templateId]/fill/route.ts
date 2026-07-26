@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { TemplateFillBodySchema } from '@/lib/validation/template-schemas';
@@ -189,10 +190,23 @@ export const POST = defineRoute(
       }
 
       // Update form status to filling.
-      await supabase
+      const { error: fillingError } = await supabase
         .from('form_instances')
         .update({ processing_status: 'filling' })
         .eq('id', templateId);
+      if (fillingError) {
+        // Secondary display-status write — the fill job below still runs;
+        // do not fail the request, make the status drift observable.
+        logBestEffortWarn(
+          'procurement.form.status',
+          'Failed to set processing_status to filling before queueing job',
+          {
+            formInstanceId: templateId,
+            code: fillingError.code,
+            error: fillingError.message,
+          },
+        );
+      }
 
       // Insert job into processing_queue. Flat, non-enveloped payload — this
       // job type predates the QueueJobPayload envelope (lib/queue/envelope.ts
@@ -215,10 +229,24 @@ export const POST = defineRoute(
         .single();
 
       if (jobError || !job) {
-        await supabase
+        // Compensating rollback of the status write above — the request is
+        // already failing with 500; a rollback failure only needs to be
+        // observable, not to mask the primary error.
+        const { error: rollbackError } = await supabase
           .from('form_instances')
           .update({ processing_status: form.processing_status })
           .eq('id', templateId);
+        if (rollbackError) {
+          logBestEffortWarn(
+            'procurement.form.status',
+            'Failed to roll back processing_status after queue failure',
+            {
+              formInstanceId: templateId,
+              code: rollbackError.code,
+              error: rollbackError.message,
+            },
+          );
+        }
 
         logger.error({ err: jobError }, 'Failed to queue fill job');
         return NextResponse.json(

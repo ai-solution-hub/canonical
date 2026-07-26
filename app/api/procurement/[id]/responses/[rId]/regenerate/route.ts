@@ -13,6 +13,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { ResponseRegenerateBodySchema } from '@/lib/validation/schemas';
 import type { Json } from '@/supabase/types/database.types';
@@ -156,11 +157,25 @@ export const POST = defineRoute(
       }
 
       // Update question status back to ai_drafted
-      await supabase
+      const { error: statusError } = await supabase
         .from('form_questions')
         .update({ status: 'ai_drafted' })
         .eq('id', question.id)
         .eq('form_instance_id', id);
+      if (statusError) {
+        // Secondary status write — the regenerated response is saved; do
+        // not fail the request, make the status drift observable.
+        logBestEffortWarn(
+          'procurement.question.status',
+          'Failed to set question status to ai_drafted after regenerate',
+          {
+            questionId: question.id,
+            formInstanceId: id,
+            code: statusError.code,
+            error: statusError.message,
+          },
+        );
+      }
 
       return NextResponse.json({
         question_id: question.id,

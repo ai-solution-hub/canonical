@@ -196,7 +196,7 @@ export const POST = defineRoute(
         // flags. source_document-only: ingestion_quality_log has no q_a_pair
         // support yet (ID-152 deferred, needs its own product call).
         if (sourceDocumentId) {
-          await supabase
+          const { error: flagResolveError } = await supabase
             .from('ingestion_quality_log')
             .update({
               resolved: true,
@@ -206,6 +206,18 @@ export const POST = defineRoute(
             .eq('source_document_id', sourceDocumentId)
             .eq('flag_type', 'review_needed')
             .eq('resolved', false);
+          if (flagResolveError) {
+            logBestEffortWarn(
+              'governance.flags.resolve',
+              'Failed to resolve open review_needed flags after verify',
+              {
+                itemId: item_id,
+                sourceDocumentId,
+                code: flagResolveError.code,
+                error: flagResolveError.message,
+              },
+            );
+          }
         }
       } else if (action === 'flag') {
         // ID-152 deferred: ingestion_quality_log (the flag record itself)
@@ -299,10 +311,17 @@ export const POST = defineRoute(
           action: 'flag',
         });
 
-        await supabase
+        const { error: stampError } = await supabase
           .from('source_documents')
           .update({ updated_by: user.id })
           .eq('id', item_id);
+        if (stampError) {
+          logBestEffortWarn(
+            'governance.item.stamp',
+            'Failed to stamp source_documents.updated_by after flag',
+            { itemId: item_id, code: stampError.code, error: stampError.message },
+          );
+        }
       } else if (action === 'unverify') {
         // No record_lifecycle facet row is ever minted anywhere in the
         // system yet (Phase 2 facet-mint migration proposed) — a gap that

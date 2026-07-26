@@ -9,6 +9,7 @@ import { countWords } from '@/lib/editor-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { sb } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import {
   ProcurementResponseSchema,
@@ -310,11 +311,24 @@ export const PATCH = defineRoute(
 
       // Set change_reason session variable for the trigger to capture.
       if (change_reason) {
-        await supabase.rpc('set_config', {
+        const { error: reasonError } = await supabase.rpc('set_config', {
           setting: 'app.change_reason',
           value: change_reason,
           is_local: true,
         });
+        if (reasonError) {
+          // Best-effort audit annotation — the update itself is checked
+          // below; a missing change_reason must not block it, only be seen.
+          logBestEffortWarn(
+            'procurement.response.reason',
+            'Failed to set change_reason before response update',
+            {
+              responseId: rId,
+              code: reasonError.code,
+              error: reasonError.message,
+            },
+          );
+        }
       }
 
       const { data: updated, error: updateError } = await supabase
@@ -336,17 +350,43 @@ export const PATCH = defineRoute(
 
       // Update question status based on review status
       if (review_status === 'edited' || review_status === 'approved') {
-        await supabase
+        const { error: statusError } = await supabase
           .from('form_questions')
           .update({ status: 'complete' })
           .eq('id', existing.question_id)
           .eq('form_instance_id', id);
+        if (statusError) {
+          // Secondary status write — the response update has landed; do
+          // not fail the request, make the status drift observable.
+          logBestEffortWarn(
+            'procurement.question.status',
+            'Failed to set question status to complete after review',
+            {
+              questionId: existing.question_id,
+              formInstanceId: id,
+              code: statusError.code,
+              error: statusError.message,
+            },
+          );
+        }
       } else if (review_status === 'needs_review') {
-        await supabase
+        const { error: statusError } = await supabase
           .from('form_questions')
           .update({ status: 'needs_review' })
           .eq('id', existing.question_id)
           .eq('form_instance_id', id);
+        if (statusError) {
+          logBestEffortWarn(
+            'procurement.question.status',
+            'Failed to set question status to needs_review',
+            {
+              questionId: existing.question_id,
+              formInstanceId: id,
+              code: statusError.code,
+              error: statusError.message,
+            },
+          );
+        }
       }
 
       return NextResponse.json(updated);

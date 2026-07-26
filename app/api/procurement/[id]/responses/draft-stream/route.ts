@@ -21,6 +21,7 @@ import { PIPELINE_SYSTEM_USER_ID } from '@/lib/intelligence/types';
 import { logger } from '@/lib/logger';
 import type { ProcurementWorkflowState } from '@/lib/domains/procurement/procurement-workflow';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { ResponseDraftStreamBodySchema } from '@/lib/validation/schemas';
 import type { Database, Json } from '@/supabase/types/database.types';
@@ -451,11 +452,25 @@ export const POST = defineRoute(
 
             // Update question status.
             // ID-145 {145.21}: form_questions.workspace_id → form_instance_id (W1c).
-            await supabase
+            const { error: statusError } = await supabase
               .from('form_questions')
               .update({ status: 'ai_drafted' })
               .eq('id', question.id)
               .eq('form_instance_id', id);
+            if (statusError) {
+              // Secondary status write — the drafted response is saved; do
+              // not fail the stream, make the status drift observable.
+              logBestEffortWarn(
+                'procurement.question.status',
+                'Failed to set question status to ai_drafted after draft',
+                {
+                  questionId: question.id,
+                  formInstanceId: id,
+                  code: statusError.code,
+                  error: statusError.message,
+                },
+              );
+            }
 
             send('done', {
               response_id: response?.id,

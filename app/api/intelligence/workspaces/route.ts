@@ -276,14 +276,26 @@ export const POST = defineRoute(
       promptText +=
         ' Prioritise articles that could inform bids, sales conversations, or strategic decisions.';
 
-      await supabase.from('feed_prompts').insert({
-        workspace_id: workspace.id,
-        prompt_text: promptText,
-        version: 1,
-        is_active: true,
-        created_by: user.id,
-        change_notes: 'Auto-generated from company profile',
-      });
+      const { error: promptError } = await supabase
+        .from('feed_prompts')
+        .insert({
+          workspace_id: workspace.id,
+          prompt_text: promptText,
+          version: 1,
+          is_active: true,
+          created_by: user.id,
+          change_notes: 'Auto-generated from company profile',
+        });
+      if (promptError) {
+        logger.error(
+          { err: promptError, workspaceId: workspace.id },
+          'Failed to create initial feed prompt for workspace',
+        );
+        return NextResponse.json(
+          { error: 'Failed to create initial feed prompt' },
+          { status: 500 },
+        );
+      }
 
       // Auto-create intelligence guide (non-blocking — failure does not prevent workspace creation)
       let guideCreated = false;
@@ -311,10 +323,20 @@ export const POST = defineRoute(
           guideId = guideResult.guideId;
 
           // Bind the guide to the satellite (typed column, not JSONB).
-          await supabase
+          // PostgREST reports failures in-band — the enclosing catch never
+          // sees them, so check explicitly. Binding failure stays
+          // non-blocking (workspace + guide both exist), but must be
+          // visible.
+          const { error: guideBindError } = await supabase
             .from('intelligence_workspaces')
             .update({ guide_id: guideResult.guideId })
             .eq('workspace_id', workspace.id);
+          if (guideBindError) {
+            logger.error(
+              { err: guideBindError, workspaceId: workspace.id },
+              'Failed to bind intelligence guide to workspace',
+            );
+          }
         }
       } catch {
         // Guide creation failed — workspace still succeeds

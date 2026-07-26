@@ -3,6 +3,7 @@ import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { sb } from '@/lib/supabase/safe';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { ResponseRestoreBodySchema } from '@/lib/validation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -85,11 +86,25 @@ export const POST = defineRoute(
       }
 
       // Set change_reason session variable for the trigger to capture.
-      await supabase.rpc('set_config', {
+      const { error: reasonError } = await supabase.rpc('set_config', {
         setting: 'app.change_reason',
         value: `Restored from version ${version}`,
         is_local: true,
       });
+      if (reasonError) {
+        // Best-effort audit annotation — the restore itself is checked
+        // below; a missing change_reason must not block it, only be seen.
+        logBestEffortWarn(
+          'procurement.response.reason',
+          'Failed to set change_reason before response restore',
+          {
+            responseId: rId,
+            version,
+            code: reasonError.code,
+            error: reasonError.message,
+          },
+        );
+      }
 
       // Update the current response (this triggers the snapshot of the current version)
       const { data: updated, error: updateError } = await supabase

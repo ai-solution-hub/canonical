@@ -482,10 +482,24 @@ export async function processFeedSource(
 
   // Update article_count on feed_sources
   if (result.articlesNew > 0) {
-    await supabase
+    const { error: countError } = await supabase
       .from('feed_sources')
       .update({ article_count: source.article_count + result.articlesNew })
       .eq('id', source.id);
+    if (countError) {
+      // Secondary counter write — articles are already landed; surface the
+      // drift without failing the run.
+      logBestEffortWarn(
+        'intelligence.pipeline.articlecount',
+        'Failed to update feed_sources.article_count after poll',
+        {
+          sourceId: source.id,
+          articlesNew: result.articlesNew,
+          code: countError.code,
+          error: countError.message,
+        },
+      );
+    }
   }
 
   result.durationMs = Date.now() - startTime;
@@ -522,7 +536,24 @@ async function updateSourceAfterPoll(
     updateData.last_modified = lastModified;
   }
 
-  await supabase.from('feed_sources').update(updateData).eq('id', source.id);
+  const { error: pollStatusError } = await supabase
+    .from('feed_sources')
+    .update(updateData)
+    .eq('id', source.id);
+  if (pollStatusError) {
+    // A silent failure here means consecutive_failures never increments, so
+    // a broken feed is never auto-disabled — surface it.
+    logBestEffortWarn(
+      'intelligence.pipeline.pollstatus',
+      'Failed to update feed_sources poll status',
+      {
+        sourceId: source.id,
+        status,
+        code: pollStatusError.code,
+        error: pollStatusError.message,
+      },
+    );
+  }
 }
 
 /** Short timeout for the fire-and-forget walk nudge (D-3). */
@@ -687,7 +718,7 @@ export async function runPipeline(
       errors.push(...feedResult.errors);
 
       // Update queue entry
-      await supabase
+      const { error: queueUpdateError } = await supabase
         .from('si_processing_queue')
         .update({
           status: feedResult.errors.length > 0 ? 'failed' : 'complete',
@@ -699,6 +730,20 @@ export async function runPipeline(
           articles_passed: feedResult.articlesPassed,
         })
         .eq('id', queueEntry.id);
+      if (queueUpdateError) {
+        // Bookkeeping write — the feed run itself is complete; surface the
+        // stuck queue entry without failing the run.
+        logBestEffortWarn(
+          'intelligence.pipeline.queue.update',
+          'Failed to update si_processing_queue entry after feed run',
+          {
+            queueEntryId: queueEntry.id,
+            sourceId: source.id,
+            code: queueUpdateError.code,
+            error: queueUpdateError.message,
+          },
+        );
+      }
     }
   }
 

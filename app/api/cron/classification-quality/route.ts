@@ -214,7 +214,7 @@ export async function GET(request: NextRequest) {
           });
         } else if (sameTaxonomy) {
           // Same taxonomy, same or lower confidence — revert to old values
-          await supabase
+          const { error: revertError } = await supabase
             .from('source_documents')
             .update({
               primary_domain: oldDomain,
@@ -222,6 +222,12 @@ export async function GET(request: NextRequest) {
               classification_confidence: oldConfidence,
             })
             .eq('id', item.id);
+          if (revertError) {
+            logger.error(
+              { err: revertError, itemId: item.id },
+              'Classification revert failed — item left with new classification',
+            );
+          }
 
           results.push({
             itemId: item.id,
@@ -236,7 +242,7 @@ export async function GET(request: NextRequest) {
           });
         } else {
           // Different taxonomy — revert and flag for human review
-          await supabase
+          const { error: revertError } = await supabase
             .from('source_documents')
             .update({
               primary_domain: oldDomain,
@@ -244,6 +250,12 @@ export async function GET(request: NextRequest) {
               classification_confidence: oldConfidence,
             })
             .eq('id', item.id);
+          if (revertError) {
+            logger.error(
+              { err: revertError, itemId: item.id },
+              'Classification revert failed — item left with new classification',
+            );
+          }
 
           results.push({
             itemId: item.id,

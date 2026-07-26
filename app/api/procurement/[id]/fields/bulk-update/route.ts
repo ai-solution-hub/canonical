@@ -1,6 +1,7 @@
 import { defineRoute } from '@/lib/api/define-route';
 import { authFailureResponse, getAuthorisedClient } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { BulkFieldMappingSchema } from '@/lib/validation/template-schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -81,10 +82,23 @@ export const POST = defineRoute(
         .not('question_id', 'is', null)
         .in('mapping_status', ['confirmed', 'manual']);
 
-      await supabase
+      const { error: mapCountError } = await supabase
         .from('form_instances')
         .update({ mapped_count: count ?? 0 })
         .eq('id', id);
+      if (mapCountError) {
+        // Secondary counter write — the field mappings themselves have
+        // landed, so do not fail the request; make the drift observable.
+        logBestEffortWarn(
+          'procurement.form.mapcount',
+          'Failed to update form_instances.mapped_count after bulk mapping',
+          {
+            formInstanceId: id,
+            code: mapCountError.code,
+            error: mapCountError.message,
+          },
+        );
+      }
 
       return NextResponse.json({
         updated,

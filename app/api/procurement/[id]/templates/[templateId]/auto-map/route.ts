@@ -7,6 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { similarity } from '@/lib/domains/procurement/form-templating/template-auto-map';
+import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { parseBody } from '@/lib/validation';
 import { AutoMapBodySchema } from '@/lib/validation/template-schemas';
 import { NextRequest, NextResponse } from 'next/server';
@@ -163,7 +164,7 @@ export const POST = defineRoute(
         if (bestMatch) {
           // Update field with auto-mapped question.
           // ID-145 {145.6} M3: `form_template_fields` -> `form_instance_fields`.
-          await supabase
+          const { error: mappingError } = await supabase
             .from('form_instance_fields')
             .update({
               question_id: bestMatch.question_id,
@@ -171,6 +172,20 @@ export const POST = defineRoute(
               mapping_confidence: bestMatch.confidence,
             })
             .eq('id', field.id);
+          if (mappingError) {
+            // Per-field write in a best-effort batch — do not fail the
+            // whole auto-map; make the failed persist observable.
+            logBestEffortWarn(
+              'procurement.field.automap',
+              'Failed to persist auto-mapped question for field',
+              {
+                fieldId: field.id,
+                questionId: bestMatch.question_id,
+                code: mappingError.code,
+                error: mappingError.message,
+              },
+            );
+          }
 
           mappings.push({
             field_id: field.id,
@@ -196,10 +211,23 @@ export const POST = defineRoute(
         .not('question_id', 'is', null)
         .in('mapping_status', ['unreviewed', 'confirmed', 'manual']);
 
-      await supabase
+      const { error: mapCountError } = await supabase
         .from('form_instances')
         .update({ mapped_count: count ?? 0 })
         .eq('id', templateId);
+      if (mapCountError) {
+        // Secondary counter write — the mappings themselves have landed,
+        // so do not fail the request; make the drift observable.
+        logBestEffortWarn(
+          'procurement.form.mapcount',
+          'Failed to update form_instances.mapped_count after auto-map',
+          {
+            formInstanceId: templateId,
+            code: mapCountError.code,
+            error: mapCountError.message,
+          },
+        );
+      }
 
       return NextResponse.json({
         mapped,

@@ -84,28 +84,66 @@ export const POST = defineRoute(
 
       // Check if ALL mentions of the old canonical_name were moved.
       // If yes, also update entity_relationships to point to the new name.
-      const { data: remaining } = await serviceClient
+      // A failed read must NOT default `allMoved` to true — it gates the
+      // destructive relationship rewrite below.
+      const { data: remaining, error: remainingErr } = await serviceClient
         .from('entity_mentions')
         .select('id')
         .eq('canonical_name', canonical_name)
         .limit(1);
+
+      if (remainingErr) {
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              remainingErr,
+              'Failed to check remaining mentions after split',
+            ),
+          },
+          { status: 500 },
+        );
+      }
 
       const allMoved = !remaining || remaining.length === 0;
       let relationshipsUpdated = 0;
 
       if (allMoved) {
         // Update relationships where the old name was source or target
-        const { data: srcUpdated } = await serviceClient
+        const { data: srcUpdated, error: srcErr } = await serviceClient
           .from('entity_relationships')
           .update({ source_entity: new_canonical_name })
           .eq('source_entity', canonical_name)
           .select('id');
 
-        const { data: tgtUpdated } = await serviceClient
+        if (srcErr) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                srcErr,
+                'Failed to update entity relationships after split',
+              ),
+            },
+            { status: 500 },
+          );
+        }
+
+        const { data: tgtUpdated, error: tgtErr } = await serviceClient
           .from('entity_relationships')
           .update({ target_entity: new_canonical_name })
           .eq('target_entity', canonical_name)
           .select('id');
+
+        if (tgtErr) {
+          return NextResponse.json(
+            {
+              error: safeErrorMessage(
+                tgtErr,
+                'Failed to update entity relationships after split',
+              ),
+            },
+            { status: 500 },
+          );
+        }
 
         relationshipsUpdated =
           (srcUpdated?.length ?? 0) + (tgtUpdated?.length ?? 0);

@@ -114,12 +114,18 @@ async function handleCreate(
 
   const nextVersion = (maxRow?.version ?? 0) + 1;
 
-  // 2. Deactivate all active prompts for this workspace
-  await supabase
-    .from('feed_prompts')
-    .update({ is_active: false })
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true);
+  // 2. Deactivate all active prompts for this workspace. Must not fail
+  // silently — a swallowed error here leaves TWO active prompts, breaking
+  // the one-active-version invariant. sb() throws; the route's catch
+  // returns 500 before the new version is inserted.
+  await sb(
+    supabase
+      .from('feed_prompts')
+      .update({ is_active: false })
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true),
+    'feed_prompts.deactivate.create',
+  );
 
   // 3. Capture performance snapshot from feed_articles
   const snapshot = await capturePerformanceSnapshot(supabase, workspaceId);
@@ -184,12 +190,17 @@ async function handleRollback(
 
   const nextVersion = (maxRow?.version ?? 0) + 1;
 
-  // 3. Deactivate current active
-  await supabase
-    .from('feed_prompts')
-    .update({ is_active: false })
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true);
+  // 3. Deactivate current active. Same invariant as handleCreate — a
+  // silent failure here leaves two active prompts. sb() throws to the
+  // route's catch (500) before the rollback version is inserted.
+  await sb(
+    supabase
+      .from('feed_prompts')
+      .update({ is_active: false })
+      .eq('workspace_id', workspaceId)
+      .eq('is_active', true),
+    'feed_prompts.deactivate.rollback',
+  );
 
   // 4. Capture performance snapshot
   const snapshot = await capturePerformanceSnapshot(supabase, workspaceId);
