@@ -43,11 +43,10 @@ Prefer to have a `PRODUCT.md` first so the technical plan is anchored to agreed 
 If the implementation is still too uncertain, build an e2e prototype first and then write
 the tech spec from what was learned.
 
-**{N.4} PLAN and Intent decomposition:** in the Intent workflow, the plan/decomposition
-surface is the Intent workspace spec-note — the Coordinator decomposes the work into task
-notes there and delegates from it. A checked-in `PLAN.md` ({N.4}) is written only when a
-durable, in-repo plan artifact is warranted; `TECH.md` remains the checked-in
-implementation plan that feeds that decomposition.
+**Plan surface (DR-089):** the plan/decomposition surface is the Intent workspace
+spec-note — the Coordinator decomposes the work into task notes there and delegates from
+it. The checked-in `PLAN.md` ({N.4}) artefact is retired; `TECH.md` remains the
+checked-in implementation plan that feeds that decomposition.
 
 ## Research before writing
 

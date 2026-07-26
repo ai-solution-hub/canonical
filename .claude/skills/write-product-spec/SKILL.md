@@ -45,11 +45,10 @@ self-implementing) invokes this skill directly when a task warrants a durable sp
 feature (or let the user know that's the expected next step). The product spec should be
 written so the tech spec can be written directly from it.
 
-**{N.4} PLAN and Intent decomposition:** in the Intent workflow, the plan/decomposition
-surface is the Intent workspace spec-note — the Coordinator decomposes the work into task
-notes there and delegates from it. A checked-in `PLAN.md` ({N.4}) is written only when a
-durable, in-repo plan artifact is warranted; the specs here remain the checked-in
-artifacts that feed that decomposition.
+**Plan surface (DR-089):** the plan/decomposition surface is the Intent workspace
+spec-note — the Coordinator decomposes the work into task notes there and delegates from
+it. The checked-in `PLAN.md` ({N.4}) artefact is retired; the specs here remain the
+checked-in artifacts that feed that decomposition.
 
 Write specs to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/ID-N-<slug>/PRODUCT.md`,
 where:

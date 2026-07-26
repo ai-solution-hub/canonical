@@ -95,7 +95,7 @@ Vague answers ("edge cases", "scale") mean the research isn't done; each answer 
 
 ## Output — RESEARCH.md
 
-Write to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-N-<slug>/RESEARCH.md` (the `{N.1}` artefact — dir convention as in `spec-driven-implementation`). Structure:
+Write to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/specs/id-N-<slug>/RESEARCH.md` (the `{N.1}` artefact — spec-dir convention `specs/id-N-<slug>/`, per the project CLAUDE.md). Structure:
 
 ```markdown
 # RESEARCH — ID-N <title>
@@ -120,6 +120,5 @@ Findings, not designs: cite evidence (`file.ts:42`, DR-NNN, doc URLs) and state 
 
 ## Related skills
 
-- `spec-driven-implementation` — the spec chain this feeds ({N.1} → {N.4}).
-- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md; they self-direct research for small tasks where no RESEARCH.md exists.
+- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md ({N.1} feeds {N.2}/{N.3}); they self-direct research for small tasks where no RESEARCH.md exists. The plan surface is the Intent workspace spec-note; {N.4} PLAN.md is retired (DR-089).
 - `workflow-orchestration` — Coordinator-side dispatch and right-sizing of the chain.
