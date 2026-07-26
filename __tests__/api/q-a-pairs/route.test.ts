@@ -1,9 +1,13 @@
 /**
  * API route tests for the UC6 user-direct Q&A write route
- * (`app/api/q-a-pairs/[id]/route.ts`, PATCH) — ID-59 {59.11} (PC-A4 / PC-4)
- * + {59.30} sidecar emit + first-edit materialisation (TECH R2; INV-12/13/7).
- * {138.12} T4 — the sidecar file leg re-points onto the `corpus` Storage
- * bucket (TECH §3.3 T4, folded into T1).
+ * (`app/api/q-a-pairs/[id]/route.ts`, PATCH) — ID-59 {59.11} (PC-A4 / PC-4).
+ *
+ * ID-127 {127.38} / DR-086: the {59.30} sidecar emit + first-edit
+ * materialisation legs are RETIRED. The route is KH-DB-ONLY again, so the
+ * emit suite (write-back / materialise / INV-7 gate / bucket-idle-mode) is
+ * gone and the contract it proved is replaced by the positive zero-Storage
+ * assertion below: NO `origin_kind` — including the formerly in-scope
+ * `curated_explicit` — reaches Storage on a PATCH.
  *
  * Covers:
  *   - Auth gating: unauthenticated (401), viewer (403), editor/admin allowed.
@@ -12,24 +16,14 @@
  *     route performs NO app-side history insert (asserted: no `insert` on
  *     q_a_pair_history).
  *   - edit_intent stamp (single-actor + CRDT arbitrateMany merge path).
- *   - Validation: empty body → 400; unknown edit_intent coerced to 'cosmetic'.
- *   - {59.30}/{138.12} sidecar emit (INV-12 write-back, INV-13 materialise,
- *     INV-7 gate):
- *     · existing-sidecar `curated_explicit` pair → carried bytes PUT to the
- *       `corpus` bucket object AND the DB UPDATEd; force the DB leg to throw
- *       AFTER the PUT → the object is RESTORED and one failure surfaces.
- *     · source-less `curated_explicit` pair → a sidecar is MINTED (object PUT
- *       + source_document_id set = sdUuid5(qaSidecarRelPath(id))).
- *     · `derived_from_form_response` pair → NO Storage PUT (INV-7 — not in set).
- *     · the `corpus` bucket not provisioned in this project (Storage-leg
- *       idle-mode equivalent) → DB-only (save lands, no Storage PUT, no
- *       linkage set on the materialise path).
- *     · affected-row = 1 assertion on the UPDATE (0-row PATCH is a failure).
- *     · the DEFERRED-v1.1 comment is gone from the route source.
+ *   - Validation: empty body → 400; unknown id → 404; unknown edit_intent
+ *     coerced to 'cosmetic'.
+ *   - Failure surfacing: UPDATE error → 500; affected-row = 1 assertion on the
+ *     UPDATE (a 0-row PATCH is a failure, never a silent 200).
+ *   - {127.38} KH-DB-only: a `curated_explicit` PATCH performs NO Storage
+ *     read/PUT and never writes `source_document_id`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import {
   createMockSupabaseClient,
@@ -37,11 +31,6 @@ import {
   configureUnauthenticated,
 } from '../../helpers/mock-supabase';
 import { createTestRequest, createTestParams } from '../../helpers/mock-next';
-import {
-  sdUuid5,
-  qaSidecarRelPath,
-  parseCarriedSet,
-} from '@/lib/q-a-pairs/sidecar-path';
 import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 
 // ---------------------------------------------------------------------------
@@ -98,19 +87,13 @@ function bucket(): MockStorageBucket {
   return from(CORPUS_BUCKET);
 }
 
-/** A stored pair the pre-read resolves to. Defaults to the DB-only baseline. */
+/**
+ * The row the existence pre-read resolves to. {127.38}: the pre-read projects
+ * `id` alone now that no sidecar decision hangs off it — a non-null row means
+ * "the pair exists", nothing more.
+ */
 function storedPair(over: Record<string, unknown> = {}) {
-  return {
-    origin_kind: 'derived_from_form_response',
-    source_document_id: null,
-    question_text: 'Stored question?',
-    answer_standard: 'Stored answer.',
-    answer_advanced: null,
-    alternate_question_phrasings: [],
-    scope_tag: null,
-    anti_scope_tag: null,
-    ...over,
-  };
+  return { id: QA_UUID, ...over };
 }
 
 function makeContext() {
@@ -128,14 +111,6 @@ function makeRequest(body: unknown) {
 function configurePreRead(row: Record<string, unknown> | null) {
   mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
     data: row,
-    error: null,
-  });
-}
-
-/** Configure the storage_path resolution (.maybeSingle) for write-back. */
-function configureStoragePath(storage_path: string | null) {
-  mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-    data: { storage_path },
     error: null,
   });
 }
@@ -368,19 +343,18 @@ describe('PATCH /api/q-a-pairs/:id', () => {
     });
   });
 
-  // ── {59.30}/{138.12} sidecar emit ─────────────────────────────────────────
-  describe('{59.30}/{138.12} sidecar emit (INV-12 / INV-13 / INV-7)', () => {
-    it('write-back (INV-12): an existing-sidecar curated_explicit pair PUTs the carried bytes AND UPDATEs the DB', async () => {
+  // ── {127.38} KH-DB-only (DR-086) ─────────────────────────────────────────
+  describe('{127.38} KH-DB-only: no revision reaches Storage', () => {
+    it('a curated_explicit pair with an existing sidecar linkage performs NO Storage read or PUT', async () => {
+      // `curated_explicit` + a non-null source_document_id was the INV-12
+      // write-back branch — the shape that used to rewrite a corpus object.
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
           origin_kind: 'curated_explicit',
           source_document_id: SOURCE_DOC_ID,
-          question_text: 'Original question?',
-          answer_standard: 'Original answer.',
         }),
       );
-      configureStoragePath('__qa__/existing-sidecar.md');
       configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
 
       const res = await PATCH(
@@ -389,68 +363,25 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       );
 
       expect(res.status).toBe(200);
-
-      // Storage leg: carried bytes PUT to the resolved sidecar object key.
-      expect(bucket().upload).toHaveBeenCalledTimes(1);
-      const [objectKey, bytes] = bucket().upload.mock.calls[0];
-      expect(objectKey).toBe('__qa__/existing-sidecar.md');
-      // The full post-edit carried set (partial PATCH merged onto stored).
-      const carried = parseCarriedSet(bytes);
-      expect(carried.question_text).toBe('Original question?');
-      expect(carried.answer_standard).toBe('Edited answer.');
-      // Lifecycle never leaks into the object (INV-9).
-      expect(bytes).not.toContain('edit_intent');
-      expect(bytes).not.toContain('source_document_id');
-
-      // DB leg: UPDATE ran; existing linkage is NOT re-written on write-back.
-      expect(mockSupabase._chain.update).toHaveBeenCalledTimes(1);
+      // The save landed on the DB alone: no snapshot download, no PUT, and no
+      // source_documents storage_path resolution.
+      expect(bucket().download).not.toHaveBeenCalled();
+      expect(bucket().upload).not.toHaveBeenCalled();
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('source_documents');
       const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
       expect(updatePayload.answer_standard).toBe('Edited answer.');
       expect(updatePayload.source_document_id).toBeUndefined();
     });
 
-    it('write-back atomicity: a DB-leg failure AFTER the PUT RESTORES the object and surfaces one failure', async () => {
-      configureRole(mockSupabase, 'editor');
-      configurePreRead(
-        storedPair({
-          origin_kind: 'curated_explicit',
-          source_document_id: SOURCE_DOC_ID,
-        }),
-      );
-      configureStoragePath('__qa__/existing-sidecar.md');
-      // The prior bytes the compensating restore must PUT back.
-      const PRIOR = '--- prior bytes ---';
-      bucket().download.mockResolvedValueOnce({
-        data: new Blob([PRIOR]),
-        error: null,
-      });
-      // The DB UPDATE fails after the PUT.
-      mockSupabase._chain.single.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'db boom', code: 'XXXXX' },
-      });
-
-      const res = await PATCH(
-        makeRequest({ answer_standard: 'Edited answer.' }),
-        makeContext(),
-      );
-
-      // One failure surfaced.
-      expect(res.status).toBe(500);
-      // upload called twice: the edit, then the compensating restore.
-      expect(bucket().upload).toHaveBeenCalledTimes(2);
-      const restoreCall = bucket().upload.mock.calls[1];
-      expect(restoreCall[1]).toBe(PRIOR);
-    });
-
-    it('materialise-on-first-edit (INV-13): a source-less curated_explicit pair MINTS a sidecar (Storage PUT + source_document_id)', async () => {
+    it('a source-less curated_explicit pair MINTS nothing — no Storage PUT, no source_document_id stamped', async () => {
+      // `curated_explicit` + a null source_document_id was the INV-13
+      // MATERIALISE-ON-FIRST-EDIT branch — the only app path that ever minted
+      // a Q&A sidecar object and stamped a derived linkage id. Both are gone.
       configureRole(mockSupabase, 'editor');
       configurePreRead(
         storedPair({
           origin_kind: 'curated_explicit',
           source_document_id: null,
-          question_text: 'Authored question?',
-          answer_standard: 'Authored answer.',
         }),
       );
       configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
@@ -461,114 +392,9 @@ describe('PATCH /api/q-a-pairs/:id', () => {
       );
 
       expect(res.status).toBe(200);
-
-      // Path + linkage are keyed on the PAIR PK (consistency with {59.29}).
-      const expectedRelPath = qaSidecarRelPath(QA_UUID);
-      const expectedSdId = sdUuid5(expectedRelPath);
-
-      // MATERIALISE mints via writeNewCorpusObject — no download/snapshot,
-      // a plain fenced PUT (no prior object to restore).
-      expect(bucket().download).not.toHaveBeenCalled();
-      expect(bucket().upload).toHaveBeenCalledTimes(1);
-      const [objectKey, bytes] = bucket().upload.mock.calls[0];
-      expect(objectKey).toBe(expectedRelPath);
-      const carried = parseCarriedSet(bytes);
-      expect(carried.question_text).toBe('Authored question?');
-      expect(carried.answer_standard).toBe('Now edited.');
-
-      // DB leg sets the linkage so the pair is file-canonical from now on.
-      const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
-      expect(updatePayload.source_document_id).toBe(expectedSdId);
-    });
-
-    it('INV-7 gate: a derived_from_form_response pair does NOT mint a sidecar', async () => {
-      configureRole(mockSupabase, 'editor');
-      configurePreRead(
-        storedPair({
-          origin_kind: 'derived_from_form_response',
-          source_document_id: null,
-        }),
-      );
-      configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
-
-      const res = await PATCH(
-        makeRequest({ answer_standard: 'Edited.', edit_intent: 'data' }),
-        makeContext(),
-      );
-
-      expect(res.status).toBe(200);
-      // Not in the INV-7 user-direct set → KH-DB-only, no Storage PUT.
       expect(bucket().upload).not.toHaveBeenCalled();
       const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
       expect(updatePayload.source_document_id).toBeUndefined();
     });
-
-    it('{138.12} Storage-leg idle-mode equivalent (materialise branch): corpus bucket not provisioned → DB-only, no linkage set', async () => {
-      configureRole(mockSupabase, 'editor');
-      configurePreRead(
-        storedPair({
-          origin_kind: 'curated_explicit',
-          source_document_id: null,
-        }),
-      );
-      // The MATERIALISE mint's PUT fails with the bucket-not-found signature.
-      bucket().upload.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Bucket not found' },
-      });
-      configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
-
-      const res = await PATCH(
-        makeRequest({ answer_standard: 'Edited.', edit_intent: 'data' }),
-        makeContext(),
-      );
-
-      expect(res.status).toBe(200);
-      // Bucket unconfigured → the save lands DB-only; the linkage is NEVER
-      // set to a sidecar that was never actually written (no dangling ref).
-      const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
-      expect(updatePayload.source_document_id).toBeUndefined();
-    });
-
-    it('{138.12} Storage-leg idle-mode equivalent (write-back branch): corpus bucket not provisioned → DB-only, existing linkage untouched', async () => {
-      configureRole(mockSupabase, 'editor');
-      configurePreRead(
-        storedPair({
-          origin_kind: 'curated_explicit',
-          source_document_id: SOURCE_DOC_ID,
-        }),
-      );
-      configureStoragePath('__qa__/existing-sidecar.md');
-      // The write-back snapshot download fails with bucket-not-found.
-      bucket().download.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Bucket not found' },
-      });
-      configureUpdateReturns({ id: QA_UUID, edit_intent: 'data' });
-
-      const res = await PATCH(
-        makeRequest({ answer_standard: 'Edited answer.', edit_intent: 'data' }),
-        makeContext(),
-      );
-
-      expect(res.status).toBe(200);
-      expect(bucket().upload).not.toHaveBeenCalled();
-      const updatePayload = mockSupabase._chain.update.mock.calls[0][0];
-      expect(updatePayload.answer_standard).toBe('Edited answer.');
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Source-level guard: the DEFERRED-v1.1 deferral is reversed.
-// ---------------------------------------------------------------------------
-describe('{59.30} route source no longer defers the file write', () => {
-  it('the DEFERRED-v1.1 "no file write" comment is gone', () => {
-    const src = readFileSync(
-      join(process.cwd(), 'app/api/q-a-pairs/[id]/route.ts'),
-      'utf8',
-    );
-    expect(src).not.toContain('DEFERRED-v1.1');
-    expect(src).not.toMatch(/there is no file\s+write here, by design/);
   });
 });

@@ -79,9 +79,8 @@ export const CORPUS_BUCKET = 'corpus';
 
 /**
  * MIME type stamped on every corpus object write. Write-back content is
- * always the canonical markdown source (or a `__qa__/` sidecar markdown
- * file) — mirrors the existing `text/markdown` precedent
- * (`lib/mcp/tools/content.ts:752`).
+ * always the canonical markdown source — mirrors the existing `text/markdown`
+ * precedent (`lib/mcp/tools/content.ts:752`).
  */
 const CORPUS_OBJECT_CONTENT_TYPE = 'text/markdown';
 
@@ -207,22 +206,21 @@ function nudgeCorpusRewalk(objectKey: string): void {
 
 /**
  * {59.28} — the file-first ordering core, extracted from `writeBackFileFirst`
- * so the content-leg adapter AND both Q&A sidecar emit legs ({59.29}/{59.30})
- * share ONE ordering primitive (NEW-OQ-26-1: the DRY extraction, not a
- * Q&A-local duplicate).
+ * so the content-leg adapter and the (since-retired, {127.38}) Q&A sidecar
+ * emit legs shared ONE ordering primitive (NEW-OQ-26-1: the DRY extraction,
+ * not a Q&A-local duplicate). `writeBackFileFirst` is now its only caller.
  *
- * {138.12} T1/T4 RE-POINT: `absPath` (an OS filesystem path) is replaced by
+ * {138.12} T1 RE-POINT: `absPath` (an OS filesystem path) is replaced by
  * `objectKey` (the `corpus` bucket key, consumed verbatim — see the module
- * header). Both callers (`writeBackFileFirst` below, and the q_a-pairs
- * write-back branch, `app/api/q-a-pairs/[id]/route.ts`) now pass a Storage
- * object key rather than an OS-joined path, and both now supply `supabase`
- * so this primitive can call Storage + the writer-fence RPC directly.
+ * header). The caller passes a Storage object key rather than an OS-joined
+ * path, and supplies `supabase` so this primitive can call Storage + the
+ * writer-fence RPC directly.
  *
  * Invariant (file-first, compensating-restore): given a bucket object key
- * expected to ALREADY exist (the caller is write-BACKing an existing
- * object, never minting a new one — see `writeNewCorpusObject` for the
- * no-prior-object case), snapshot → PUT (fenced) → applyDbLeg →
- * restore-on-DB-failure (fenced).
+ * expected to ALREADY exist (the caller is write-BACKing an existing object,
+ * never minting a new one — {127.38} retired the no-prior-object mint
+ * counterpart along with its only caller), snapshot → PUT (fenced) →
+ * applyDbLeg → restore-on-DB-failure (fenced).
  *   1. snapshot the prior object bytes (Storage download). A "bucket not
  *      found" error here throws {@link CorpusBucketUnavailableError} — the
  *      caller's Storage-leg idle-mode-equivalent fallback. Any OTHER
@@ -334,59 +332,10 @@ export async function writeFileFirstWithRestore(
   return { warnings };
 }
 
-/**
- * {138.12} T4 — the no-prior-object counterpart to
- * `writeFileFirstWithRestore`, for the q_a-pairs MATERIALISE-ON-FIRST-EDIT
- * branch (`app/api/q-a-pairs/[id]/route.ts`, INV-13): there is no prior
- * sidecar to snapshot/restore, so this is a plain fenced PUT + happy-path
- * nudge, mirroring the original `writeFile`-then-`applyDbLeg` MATERIALISE
- * shape verbatim (a DB-leg failure after this call leaves an orphan object
- * the next walk/pull-sync reconciles — same accepted risk as before).
- *
- * `upsert: true` (not `false`) deliberately matches the ORIGINAL `writeFile`
- * call's tolerant semantics: `writeFile` always succeeds even if a stray
- * file happened to already exist at that path (e.g. a prior partial
- * materialise attempt); `upsert: false` would introduce a NEW failure mode
- * (a conflict error) that did not exist pre-re-point.
- *
- * Throws {@link CorpusBucketUnavailableError} when the bucket is not
- * provisioned in this project (Storage-leg idle-mode equivalent) — the
- * caller decides its own DB-only fallback, exactly as it did for the
- * write-back branch.
- */
-export interface WriteNewCorpusObjectParams {
-  supabase: SupabaseClient<Database>;
-  /** The `corpus` bucket object key to mint. */
-  objectKey: string;
-  /** The new object's full bytes. */
-  newContent: string;
-}
-
-export async function writeNewCorpusObject(
-  params: WriteNewCorpusObjectParams,
-): Promise<void> {
-  const { supabase, objectKey, newContent } = params;
-  const bucket = supabase.storage.from(CORPUS_BUCKET);
-
-  await withWriterFence(
-    supabase,
-    async () => {
-      const { error } = await bucket.upload(objectKey, newContent, {
-        upsert: true,
-        contentType: CORPUS_OBJECT_CONTENT_TYPE,
-      });
-      if (error) {
-        if (isBucketNotFoundError(error)) {
-          throw new CorpusBucketUnavailableError(objectKey);
-        }
-        throw error;
-      }
-    },
-    'write-back-materialise',
-  );
-
-  nudgeCorpusRewalk(objectKey);
-}
+// ID-127 {127.38} / DR-086: `writeNewCorpusObject` (the {138.12} T4
+// no-prior-object mint) is DELETED. Its sole caller was the q_a-pairs
+// MATERIALISE-ON-FIRST-EDIT branch, retired with the rest of the sidecar
+// write half — no other leg mints an object with no prior bytes to restore.
 
 export interface WriteBackParams {
   supabase: SupabaseClient<Database>;
@@ -488,9 +437,9 @@ export async function writeBackFileFirst(
   // ── Storage-leg write ({59.28} extraction, {138.12} T1 re-point) ────────────
   // snapshot -> PUT (fenced) -> applyDbLeg -> restore-on-DB-failure (fenced).
   // Extracted to `writeFileFirstWithRestore` so the Q&A sidecar emit legs
-  // ({59.29}/{59.30}) share the IDENTICAL ordering primitive; the content
-  // adapter's observable behaviour is unchanged (its tests are the regression
-  // gate). On a degraded restore the original DB error is re-raised with
+  // ({59.29}/{59.30}, retired at {127.38}) shared the IDENTICAL ordering
+  // primitive; the content adapter's observable behaviour is unchanged (its
+  // tests are the regression gate). On a degraded restore the original DB error is re-raised with
   // `writeBackWarnings`; on success the (currently always empty) warnings flow
   // out on the result.
   try {

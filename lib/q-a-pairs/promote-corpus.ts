@@ -83,10 +83,6 @@ import { tryQuery } from '@/lib/supabase/safe';
 import { safeErrorMessage } from '@/lib/error';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
-// ID-131 {131.8} BI-16 (QA-DBONLY): the `__qa__/*.md` sidecar emit is retired —
-// only the pure-DB source_document_id provenance link survives, so the fs /
-// path / carried-set-serialise / write-back-restore imports are no longer used.
-import { qaSidecarRelPath, sdUuid5 } from '@/lib/q-a-pairs/sidecar-path';
 import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -111,10 +107,12 @@ interface SkipRecord {
  * eligibility RPC re-selects it next run → self-healing.
  *
  *   'embed_failed'   — generateEmbedding threw, or the embed UPDATE no-op'd.
- *   'sidecar_failed' — the corpus sidecar file could not be written / linked
- *                      (INV-11: never a silent DB-only published-without-a-file
- *                      pair). emit-then-publish means the publish is ABORTED, so
- *                      the pair stays draft, exactly like an embed failure.
+ *   'sidecar_failed' — the corpus provenance link could not be written (INV-11:
+ *                      never a silent published-without-lineage pair). The
+ *                      field name predates {127.38}, which retired the file leg
+ *                      this counter was originally named for; link-then-publish
+ *                      means the publish is ABORTED, so the pair stays draft,
+ *                      exactly like an embed failure.
  */
 type PromotionFailureReason = 'embed_failed' | 'sidecar_failed';
 
@@ -274,11 +272,13 @@ export interface SupabaseClientLike {
  *       CAS 0 rows → delete orphan + count already_promoted.
  *   3d. For linked-but-unembedded rows: skip INSERT + CAS; jump to step 4
  *       to re-attempt embedding on the existing pair (self-heal, OQ-3).
- *   5.  Link provenance (TECH R1, CAS-won branch only; ID-131 {131.8} BI-16):
- *       set q_a_pairs.source_document_id as pure-DB provenance, THEN publish
- *       (link-then-publish). The `__qa__/<pairId>.md` file is NO LONGER
- *       materialised (BI-16 QA-DBONLY). A link failure aborts the publish (pair
- *       stays draft, count sidecar_failed, self-heal next run).
+ *   5.  Link provenance (TECH R1, CAS-won branch only; ID-127 {127.38}):
+ *       set q_a_pairs.source_document_id to the extraction's OWN
+ *       source_document_id — the real corpus document the Q&A was extracted
+ *       from — as pure-DB provenance, THEN publish (link-then-publish). No file
+ *       is written or path derived. A link failure (including a NULL extraction
+ *       lineage) aborts the publish (pair stays draft, count sidecar_failed,
+ *       self-heal next run).
  *   4.  Embed: generateEmbedding(question_text). On success: UPDATE pair
  *       SET publication_status='published', then dual-write the embedding
  *       into record_embeddings (ID-131.19, M6 — the inline question_embedding
@@ -567,16 +567,22 @@ export async function promoteCorpusExtractions(
       // embed_failed++.
       promoted++;
 
-      // ---- Step 5 — link-then-publish (TECH R1.1/R1.3; ID-131 {131.8} BI-16) ----
+      // ---- Step 5 — link-then-publish (TECH R1.1/R1.3; ID-127 {127.38}) ----
       //
-      // ID-131 {131.8} BI-16 (QA-DBONLY): the `__qa__/*.md` sidecar file is NO
-      // LONGER materialised — only the pure-DB q_a_pairs.source_document_id
-      // provenance link is written, BEFORE embedAndPublish. A link failure
-      // ABORTS the publish: the pair stays draft+NULL — the SAME retryable state
-      // the embed-decouple produces (INV-11). The eligibility RPC re-selects it
-      // next run → self-healing. There is no longer an idle mode: with no file
-      // leg there is nothing to gate on COCOINDEX_SOURCE_PATH.
-      const emitOutcome = await emitCorpusSidecar(client, newPairId);
+      // Only the pure-DB q_a_pairs.source_document_id provenance link is
+      // written, BEFORE embedAndPublish — no file is materialised and no
+      // sidecar path is derived ({127.38}). The linked
+      // value is the EXTRACTION's own source_document_id: the real corpus
+      // document this Q&A came from, so the pair resolves in `derived_pairs`,
+      // the MCP resource lookup, the citation overlay and the l_records join.
+      // A link failure ABORTS the publish: the pair stays draft+NULL — the SAME
+      // retryable state the embed-decouple produces (INV-11). The eligibility
+      // RPC re-selects it next run → self-healing.
+      const emitOutcome = await emitCorpusSidecar(
+        client,
+        newPairId,
+        extraction.source_document_id ?? null,
+      );
 
       if (emitOutcome === 'failed') {
         // Provenance-link leg failed — abort the publish (pair stays draft+NULL).
@@ -636,21 +642,29 @@ export async function promoteCorpusExtractions(
 // Step 5 — corpus provenance-link helper (TECH R1; maps INV-9, INV-11)
 //
 // ID-131 {131.8} BI-16 (QA-DBONLY): the `{59.x}` Q&A sidecar round-trip is
-// RETIRED. The promoter NO LONGER materialises promoted pairs back to the
-// corpus as `__qa__/<pairId>.md` files — a Q&A pair is a RECORD, never a
-// concept, and writing it as a bundle file contradicts the concept != record
-// split. The ONLY surviving leg is the pure-DB provenance link:
-// q_a_pairs.source_document_id is still set so the pair carries its corpus
-// lineage as a DB column (no file, no round-trip).
+// RETIRED. The promoter does NOT materialise promoted pairs back to the corpus
+// as files — a Q&A pair is a RECORD, never a concept, and writing it as a
+// bundle file contradicts the concept != record split. The ONLY surviving leg
+// is the pure-DB provenance link: q_a_pairs.source_document_id is set so the
+// pair carries its corpus lineage as a DB column (no file, no round-trip).
 //
-// KEY ON THE PAIR PK (newPairId), NOT the extraction id: a pair has ONE
-// canonical lineage id regardless of which leg writes it.
+// ID-127 {127.38} / DR-086 — THE LINKED VALUE IS THE EXTRACTION'S OWN
+// source_document_id, passed in by the caller. It formerly derived a `sd:`
+// uuid5 from the pair's reserved-prefix sidecar rel-path, which — with the file
+// emit already retired — pointed at a source_documents row that is NEVER
+// minted. That dangling id silently broke every consumer of
+// q_a_pairs.source_document_id (`derived_pairs` on the source-document route,
+// the MCP resource lookup, the procurement citation overlay, the l_records LEFT
+// JOIN), and kept the app deriving reserved-prefix paths after the Python walk
+// gate that recognised that prefix was removed ({127.37}). The real corpus
+// document id resolves in all four. FK-LESS by design (M1 / BUG-E precedent):
+// there is no FK on this column to violate.
 //
-// source_document_id = sdUuid5(qaSidecarRelPath(pairId)) — the deterministic
-// `sd:` uuid5 derived from the pair's canonical sidecar rel-path, stable across
-// runs (INV-20). FK-LESS by design (M1 / BUG-E precedent): with the file leg
-// retired the row it points at is never minted, and there is no FK to violate —
-// it is pure-DB provenance.
+// NULL extraction lineage → 'failed' (OQ-4, ruled STRICT): a pair is never
+// published without lineage (INV-11). `q_a_extractions.source_document_id` is
+// nullable in schema, but the walk mints it NOT NULL for every extraction
+// (asserted by G5, `scripts/verify-platform-promotion-gate.ts`), so this is a
+// guard, not an expected path. The pair stays draft and the RPC re-selects it.
 //
 // Affected-row assertion: the source_document_id UPDATE is asserted to affect
 // exactly 1 row — a 0-row REST PATCH is a silent failure (mirrors the CAS /
@@ -662,7 +676,8 @@ export async function promoteCorpusExtractions(
 /**
  * Outcome of the corpus provenance-link attempt.
  *   'written' — the q_a_pairs.source_document_id linkage is in place.
- *   'failed'  — the linkage UPDATE failed (or no-op'd); the pair must NOT be
+ *   'failed'  — the linkage UPDATE failed (or no-op'd), or the extraction
+ *               carries no source_document_id to link; the pair must NOT be
  *               published (link-then-publish abort, INV-11).
  *
  * ID-131 {131.8} BI-16: the former 'idle' outcome is gone — with no file leg to
@@ -674,12 +689,14 @@ type SidecarEmitOutcome = 'written' | 'failed';
 async function emitCorpusSidecar(
   client: SupabaseClientLike,
   newPairId: string,
+  /** The extraction's own source_document_id — the corpus document this Q&A
+   *  was extracted from ({127.38}). NULL aborts the publish (OQ-4 strict). */
+  sourceDocumentId: string | null,
 ): Promise<SidecarEmitOutcome> {
-  // BI-16 (QA-DBONLY): write ONLY the pure-DB provenance link — no `__qa__`
-  // file is materialised. The id is the deterministic `sd:` uuid5 of the pair's
-  // canonical sidecar rel-path (stable across runs; FK-less by design).
-  const relPath = qaSidecarRelPath(newPairId);
-  const sourceDocumentId = sdUuid5(relPath);
+  // OQ-4 STRICT: no lineage to link ⇒ do not publish a pair without one.
+  if (sourceDocumentId === null) {
+    return 'failed';
+  }
 
   // {59.29} nit fold: typed Pick payload — compile-checks the field name and
   // matches the carried/archive/embed UPDATE-payload convention in this file.

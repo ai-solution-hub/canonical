@@ -11,7 +11,7 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 | Command | Description |
 | --- | --- |
 | bun install / bun dev | Install deps / dev server (Turbopack, localhost:3000) |
-| bun build | Production build |
+| bun run build | Production build (`bun build` is Bun's own bundler — errors, never runs this script) |
 | bun run test | Vitest suite (full regression gate after merges) |
 | bun run test:integration | Integration suite (real Anthropic + Supabase) |
 | bun lint / bun run format | ESLint / Prettier |
