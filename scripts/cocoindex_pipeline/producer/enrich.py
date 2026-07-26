@@ -236,6 +236,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
+    is_docs_site_citation,
     is_git_blob_citation,
 )
 from scripts.cocoindex_pipeline.producer.validator import (
@@ -544,20 +545,26 @@ def _validate_citation(
     surfaced to the model — not merely well-formed. Raises `Pass1DraftError`
     otherwise.
 
-    Three forms, three provenance checks (the third, PC-5, is an ADDITIVE
-    branch for the `system_baseline` bundle class — id-163 TECH, DR-086 —
-    leaving the first two byte-identical):
+    Four forms, four provenance checks (the git-blob PC-5 and docs-site
+    DR-087 branches are ADDITIVE for the `system_baseline` bundle class —
+    id-163 TECH, DR-086/DR-087 — leaving the first two byte-identical):
       - a BI-6/BI-8 record-anchor `canonical://` uri must ALSO be a member
         of `seen_anchors` — the anchors `_annotate_raw_with_anchors` actually
         minted into a `read_concept_raw` tool result this run. A well-formed
         but never-issued `canonical://source_documents/<random-uuid>` FAILS
         here even though it passes the format check.
       - a PC-5 git-blob/doc-page citation (`resource_uri.py:
-        is_git_blob_citation`, S3/DR-086 — a public `canonical`-repo blob
-        URL, never the private docs-site) must ALSO be a member of
-        `seen_anchors` — the anchors `RepoDocsSource.read_concept`
-        (`sources/repo_docs.py`) actually minted this run. Same provenance
-        rule as the record-anchor form, new scheme.
+        is_git_blob_citation`, S3/DR-086 — a PUBLIC `canonical`-repo blob
+        URL) must ALSO be a member of `seen_anchors` — the anchors
+        `RepoDocsSource.read_concept` (`sources/repo_docs.py`) actually
+        minted this run. Same provenance rule as the record-anchor form,
+        new scheme.
+      - a DR-087 authorised docs-site citation (`resource_uri.py:
+        is_docs_site_citation` — a git-blob URL pinned to the PRIVATE
+        `knowledge-hub-docs-site` repo) is admitted under the SAME
+        `seen_anchors` discipline. DR-087 reversed DR-086b: the docs-site IS
+        citable for authorised consumers (access control is the safeguard),
+        so it is recognised here as a distinct scheme rather than rejected.
       - a BI-9 concept cross-link path must ALSO be a member of
         `catalogue_paths` — the concept catalogue `list_concepts` offers
         this run. A well-formed but non-existent concept path FAILS here.
@@ -595,6 +602,15 @@ def _validate_citation(
                 "read_concept_raw tool result this run — a git-blob anchor "
                 "must be copied from an actual tool result, not invented "
                 "(BI-17 provenance, PC-5 git-blob scheme)"
+            )
+        return entry
+    if is_docs_site_citation(entry):
+        if entry not in seen_anchors:
+            raise Pass1DraftError(
+                f"enrich_concept: citation {entry!r} was never minted into a "
+                "read_concept_raw tool result this run — an authorised "
+                "docs-site anchor must be copied from an actual tool result, "
+                "not invented (BI-17 provenance, DR-087 docs-site scheme)"
             )
         return entry
     try:

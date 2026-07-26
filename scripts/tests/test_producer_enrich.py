@@ -92,6 +92,7 @@ from scripts.cocoindex_pipeline.producer.prompts import (  # noqa: E402
     PASS1_INSTRUCTION_PROMPT,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    build_docs_site_citation,
     build_git_blob_citation,
     build_q_a_pairs_query_uri,
     build_reference_item_uri,
@@ -484,16 +485,21 @@ class TestPC5GitBlobCitationValidation:
         with pytest.raises(enrich.Pass1DraftError, match="never minted"):
             enrich._validate_citation(fabricated, seen_anchors=set(), catalogue_paths=set())
 
-    def test_rejects_a_private_docs_site_url_even_if_present_in_seen_anchors(self) -> None:
-        """S3/DR-086 hard rule: a private-host URL is never a valid
-        citation — it does not match the public git-blob scheme
-        (`is_git_blob_citation` returns False for it), so it falls
+    def test_rejects_an_unrecognised_non_blob_url_even_if_present_in_seen_anchors(
+        self,
+    ) -> None:
+        """A URL matching NONE of the citation schemes (not `canonical://`,
+        not a public git-blob, not a DR-087 docs-site blob) still falls
         through to the concept cross-link branch and fails the catalogue
-        check, even were it (erroneously) present in `seen_anchors`."""
-        private_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+        check. A rendered docs-site *page* host is not the authorised
+        docs-site anchor — that anchor is the git-blob PIN
+        (`is_docs_site_citation`, tested in `TestDR087DocsSiteCitationValidation`
+        below) — so a rendered-host URL is not admitted even if erroneously
+        present in `seen_anchors`."""
+        rendered_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
         with pytest.raises(enrich.Pass1DraftError, match="catalogue"):
             enrich._validate_citation(
-                private_url, seen_anchors={private_url}, catalogue_paths=set()
+                rendered_url, seen_anchors={rendered_url}, catalogue_paths=set()
             )
 
     def test_git_blob_form_normalises_a_link_wrapped_anchor_to_its_target(self) -> None:
@@ -1981,3 +1987,54 @@ class TestProducerAsyncClientFactoryWiring:
         # The client the factory returned is the one that actually ran the
         # Pass-1 loop — proof the return value is used, not just called.
         assert client.messages.create.call_args_list
+
+
+class TestDR087DocsSiteCitationValidation:
+    """DR-087 (amends DR-086b, owner ratification S489 — id-163 {163.20}):
+    `_validate_citation` admits the authorised docs-site anchor (a git-blob
+    URL pinned to the PRIVATE knowledge-hub-docs-site repo) under the SAME
+    `seen_anchors` provenance discipline as the other schemes — reversing the
+    {163.6} by-construction rejection. The public git-blob and `canonical://`
+    branches are untouched by this addition."""
+
+    def test_accepts_a_docs_site_anchor_that_was_minted(self) -> None:
+        anchor = build_docs_site_citation(
+            "deadbeef", "reference/decision-register.md", line_start=53, line_end=61
+        )
+        assert (
+            enrich._validate_citation(anchor, seen_anchors={anchor}, catalogue_paths=set())
+            == anchor
+        )
+
+    def test_accepts_a_docs_site_page_anchor_with_no_line_range(self) -> None:
+        anchor = build_docs_site_citation("deadbeef", "reference/platform-context.md")
+        assert (
+            enrich._validate_citation(anchor, seen_anchors={anchor}, catalogue_paths=set())
+            == anchor
+        )
+
+    def test_rejects_a_well_formed_but_never_minted_docs_site_anchor(self) -> None:
+        """Provenance, not format alone — mirrors the git-blob/canonical
+        cases: an authorised docs-site URL nobody actually minted this run
+        still fails."""
+        fabricated = build_docs_site_citation("deadbeef", "reference/decision-register.md")
+        with pytest.raises(enrich.Pass1DraftError, match="never minted"):
+            enrich._validate_citation(fabricated, seen_anchors=set(), catalogue_paths=set())
+
+    def test_docs_site_form_normalises_a_link_wrapped_anchor_to_its_target(self) -> None:
+        anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
+        assert (
+            enrich._validate_citation(
+                f"[1] [{anchor}]({anchor})", seen_anchors={anchor}, catalogue_paths=set()
+            )
+            == anchor
+        )
+
+    def test_a_docs_site_anchor_is_a_distinct_scheme_from_the_public_git_blob(
+        self,
+    ) -> None:
+        """Disjoint schemes: the docs-site anchor validates via its own
+        branch, never mistaken for the public git-blob one."""
+        anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
+        assert not enrich.is_git_blob_citation(anchor)
+        assert enrich.is_docs_site_citation(anchor)

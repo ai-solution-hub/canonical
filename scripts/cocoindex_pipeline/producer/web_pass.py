@@ -148,6 +148,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     citation_target,
     concept_citation_path,
     is_canonical_resource_uri,
+    is_docs_site_citation,
     is_git_blob_citation,
     reference_item_uri_from_source_url,
 )
@@ -495,8 +496,9 @@ def _validate_pass2_citation(
     `producer/enrich.py:_validate_citation`'s form contract, extended
     with the Pass-2 `seen_anchors` union (record anchors + gated-fetch
     anchors). PC-5 (id-163 TECH, DR-086) adds the SAME additive git-blob/
-    doc-page branch `_validate_citation` carries, for the `system_baseline`
-    bundle class — never the `canonical://`/cross-link forms."""
+    doc-page branch `_validate_citation` carries, and DR-087 the authorised
+    docs-site branch alongside it, for the `system_baseline` bundle class —
+    never the `canonical://`/cross-link forms."""
     if not isinstance(entry, str) or not entry.strip():
         raise Pass2EnrichError(
             f"run_web_pass: citation entries must be non-empty strings, got {entry!r}"
@@ -532,6 +534,16 @@ def _validate_pass2_citation(
                 "git-blob anchor must be copied from an actual tool "
                 "result, not invented (BI-17 provenance, PC-5 git-blob "
                 "scheme)"
+            )
+        return entry
+    if is_docs_site_citation(entry):
+        if entry not in seen_anchors:
+            raise Pass2EnrichError(
+                f"run_web_pass: citation {entry!r} was never minted into a "
+                "read_concept_raw/sample_rows tool result this run — an "
+                "authorised docs-site anchor must be copied from an actual "
+                "tool result, not invented (BI-17 provenance, DR-087 "
+                "docs-site scheme)"
             )
         return entry
     try:

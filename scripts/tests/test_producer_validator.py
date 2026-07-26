@@ -342,6 +342,28 @@ def test_render_citations_trailer_falls_back_to_rel_path_label():
     assert "[1] [topics/gdpr.md](/topics/gdpr.md)" in trailer
 
 
+def test_render_citations_trailer_renders_a_git_blob_citation_as_an_absolute_link():
+    """F3 (id-163 {163.20}): a PC-5 public git-blob citation is an already-
+    absolute URL, so it renders as `[n] [url](url)` — NOT mangled into the
+    broken `/https://…` target the concept-path arm would produce
+    (`"https://…".lstrip("/")` is a no-op)."""
+    anchor = ru.build_git_blob_citation(
+        "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
+    )
+    trailer = v.render_citations_trailer([anchor])
+    assert f"[1] [{anchor}]({anchor})" in trailer
+    assert "/https://" not in trailer
+
+
+def test_render_citations_trailer_renders_an_authorised_docs_site_citation_as_an_absolute_link():
+    """DR-087: an authorised docs-site citation is likewise an absolute URL,
+    rendered verbatim as its own target — never `/https://…`."""
+    anchor = ru.build_docs_site_citation("deadbeef", "reference/decision-register.md")
+    trailer = v.render_citations_trailer([anchor])
+    assert f"[1] [{anchor}]({anchor})" in trailer
+    assert "/https://" not in trailer
+
+
 def test_normalise_citations_section_rewrites_legacy_to_numbered_links():
     uri = ru.build_source_document_uri(uuid.uuid4())
     body = f"Prose.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"

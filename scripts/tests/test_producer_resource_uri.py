@@ -326,13 +326,15 @@ def test_is_git_blob_citation_false_for_a_canonical_scheme_uri():
     assert not ru.is_git_blob_citation(uri)
 
 
-def test_is_git_blob_citation_false_for_a_private_docs_site_url():
-    """S3/DR-086 hard rule: the private docs-site is never a mint source —
-    proven here by construction, not an explicit denylist: a private-host
-    URL simply does not match the public blob-base prefix."""
-    assert not ru.is_git_blob_citation(
-        "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
-    )
+def test_is_git_blob_citation_false_for_an_authorised_docs_site_blob_url():
+    """DR-087 (amends DR-086b): the authorised docs-site anchor is a SEPARATE
+    additive scheme, not the public git-blob one. `is_git_blob_citation`
+    matches ONLY the public canonical prefix, so a docs-site blob URL returns
+    False here — it is recognised instead by `is_docs_site_citation`, NOT
+    rejected by construction as under DR-086b."""
+    docs_site = ru.build_docs_site_citation("deadbeef", "reference/decision-register.md")
+    assert not ru.is_git_blob_citation(docs_site)
+    assert ru.is_docs_site_citation(docs_site)
 
 
 def test_is_git_blob_citation_false_for_a_bare_concept_cross_link_path():
@@ -341,3 +343,108 @@ def test_is_git_blob_citation_false_for_a_bare_concept_cross_link_path():
 
 def test_is_git_blob_citation_false_for_non_string():
     assert not ru.is_git_blob_citation(None)  # type: ignore[arg-type]
+
+
+def test_public_git_blob_citation_output_is_byte_identical_dr087_additive_guard():
+    """{163.20} DoD: admitting the DR-087 docs-site scheme must NOT perturb
+    the PUBLIC git-blob citation output. Frozen literals — any drift in the
+    public mint path turns this red."""
+    assert (
+        ru.build_git_blob_citation("deadbeef", "docs/navigation/getting-started.md")
+        == "https://github.com/ai-solution-hub/canonical/blob/deadbeef/"
+        "docs/navigation/getting-started.md"
+    )
+    assert (
+        ru.build_git_blob_citation(
+            "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
+        )
+        == "https://github.com/ai-solution-hub/canonical/blob/deadbeef/"
+        "lib/mcp/tools/content.ts#L4-L9"
+    )
+
+
+# ──────────────────────────────────────────
+# DR-087 (id-163 {163.20}, owner ratification S489 — amends DR-086b): the
+# authorised docs-site citation scheme — a git-blob URL pinned to the PRIVATE
+# knowledge-hub-docs-site repo, additive alongside the public git-blob scheme.
+# The docs-site IS citable for AUTHORISED consumers (access control is the
+# safeguard); the by-construction rejection {163.6} locked under DR-086b is
+# reworked here into a recognised, distinct third scheme.
+# ──────────────────────────────────────────
+
+
+def test_authorised_docs_site_blob_base_is_the_private_docs_site_repo():
+    assert (
+        ru.AUTHORISED_DOCS_SITE_BLOB_BASE
+        == "https://github.com/ai-solution-hub/knowledge-hub-docs-site/blob"
+    )
+
+
+def test_build_docs_site_citation_whole_file_form_has_no_line_range():
+    anchor = ru.build_docs_site_citation("deadbeef", "reference/decision-register.md")
+    assert (
+        anchor
+        == f"{ru.AUTHORISED_DOCS_SITE_BLOB_BASE}/deadbeef/reference/decision-register.md"
+    )
+    assert "#L" not in anchor
+
+
+def test_build_docs_site_citation_line_range_form_appends_the_l_fragment():
+    anchor = ru.build_docs_site_citation(
+        "deadbeef", "specs/id-163/TECH.md", line_start=12, line_end=40
+    )
+    assert (
+        anchor
+        == f"{ru.AUTHORISED_DOCS_SITE_BLOB_BASE}/deadbeef/specs/id-163/TECH.md#L12-L40"
+    )
+
+
+def test_build_docs_site_citation_rejects_empty_sha():
+    with pytest.raises(ValueError, match="git_blob_sha"):
+        ru.build_docs_site_citation("", "x.md")
+
+
+def test_build_docs_site_citation_rejects_empty_path():
+    with pytest.raises(ValueError, match="path"):
+        ru.build_docs_site_citation("deadbeef", "")
+
+
+def test_build_docs_site_citation_rejects_a_partial_line_range():
+    with pytest.raises(ValueError, match="line_start"):
+        ru.build_docs_site_citation("deadbeef", "x.md", line_start=4, line_end=None)
+    with pytest.raises(ValueError, match="line_end"):
+        ru.build_docs_site_citation("deadbeef", "x.md", line_start=None, line_end=9)
+
+
+def test_is_docs_site_citation_true_for_an_authorised_docs_site_blob_url():
+    anchor = ru.build_docs_site_citation("deadbeef", "reference/decision-register.md")
+    assert ru.is_docs_site_citation(anchor)
+
+
+def test_is_docs_site_citation_false_for_a_public_canonical_git_blob_url():
+    """Disjoint schemes: a public canonical git-blob URL is NOT a docs-site
+    citation (and vice versa, above)."""
+    public = ru.build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
+    assert not ru.is_docs_site_citation(public)
+
+
+def test_is_docs_site_citation_false_for_a_canonical_scheme_uri():
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    assert not ru.is_docs_site_citation(uri)
+
+
+def test_is_docs_site_citation_false_for_a_rendered_docs_site_page_url():
+    """The DR-087 anchor is the git-blob PIN (content- + line-addressable,
+    stable for re-runs), NOT the rendered Starlight page — a rendered-host
+    URL is not this scheme."""
+    assert not ru.is_docs_site_citation(
+        "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+    )
+
+
+def test_is_docs_site_citation_false_for_a_bare_concept_cross_link_path():
+    assert not ru.is_docs_site_citation("topics/gdpr.md")
+
+
+def test_is_docs_site_citation_false_for_non_string():
+    assert not ru.is_docs_site_citation(None)  # type: ignore[arg-type]

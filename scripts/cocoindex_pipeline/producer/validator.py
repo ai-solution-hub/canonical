@@ -102,6 +102,8 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
 from scripts.cocoindex_pipeline.producer.resource_uri import (
     contains_record_pointer,
     is_canonical_resource_uri,
+    is_docs_site_citation,
+    is_git_blob_citation,
     parse_citation_entry,
 )
 
@@ -675,9 +677,12 @@ def render_citations_trailer(
         [1] [canonical://source_documents/<uuid>](canonical://source_documents/<uuid>)
         [2] [ISO 9001:2015 — Quality Management Certification](/certifications/iso-9001.md)
 
-    `citations` are normalised TARGETS (a `canonical://` record anchor, or a
+    `citations` are normalised TARGETS (an absolute record/blob anchor, or a
     concept rel_path WITHOUT a leading `/`). Per entry:
-      - record anchors: label = the URI text itself, target = the URI;
+      - absolute anchors — a `canonical://` record anchor (BI-6), a PC-5
+        public git-blob URL (DR-086), or a DR-087 authorised docs-site URL:
+        label = the anchor text itself, target = the anchor (verbatim, an
+        already-absolute URL);
       - concept cross-links: target = the §5.1 bundle-ABSOLUTE form
         (`/` + rel_path); label = `titles[rel_path]` (the target concept's
         title, when the caller can resolve one at render time), else
@@ -690,7 +695,16 @@ def render_citations_trailer(
     """
     lines = ["# Citations", ""]
     for index, citation in enumerate(citations, start=1):
-        if is_canonical_resource_uri(citation):
+        if (
+            is_canonical_resource_uri(citation)
+            or is_git_blob_citation(citation)
+            or is_docs_site_citation(citation)
+        ):
+            # An absolute record/blob anchor is its own citation TARGET,
+            # verbatim. F3: without the git-blob + docs-site branches a
+            # `https://…/blob/…` URL fell through to the concept-path arm and
+            # was mangled — `"https://…".lstrip("/")` is a no-op, so it was
+            # emitted as the broken target `/https://…`.
             label, target = citation, citation
         else:
             rel_path = citation.lstrip("/")

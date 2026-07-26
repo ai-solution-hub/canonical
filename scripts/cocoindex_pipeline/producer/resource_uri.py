@@ -299,11 +299,14 @@ def contains_record_pointer(text: str) -> bool:
 # different concern from a repo git-blob citation.
 
 PUBLIC_CANONICAL_BLOB_BASE = "https://github.com/ai-solution-hub/canonical/blob"
-"""S3/DR-086: the ONLY public host a `system_baseline` citation may be
-pinned to. The private docs-site — and every bundle repo, platform-owned or
-client-owned, all of which are private per DR-086 — is NEVER a mint source.
-`is_git_blob_citation` recognises ONLY this prefix, so a private URL simply
-does not match: rejected by construction, not by an explicit denylist."""
+"""S3/DR-086: the public host a `system_baseline` citation is pinned to when
+its backing artefact lives in the PUBLIC `canonical` repo. Every bundle repo
+(platform- or client-owned) remains private per DR-086 and is never a mint
+source. `is_git_blob_citation` recognises ONLY this prefix. The PRIVATE
+docs-site is no longer "rejected by construction" here — under DR-087 it is a
+SEPARATE, additive, authorised scheme (`AUTHORISED_DOCS_SITE_BLOB_BASE` /
+`is_docs_site_citation` below), so a docs-site URL simply belongs to that
+other recogniser, not this one."""
 
 
 def build_git_blob_citation(
@@ -352,7 +355,80 @@ def is_git_blob_citation(value: str) -> bool:
     """True iff `value` is a PC-5 git-blob/doc-page citation pinned to the
     PUBLIC canonical repo (S3/DR-086) — the `system_baseline` bundle's
     citation-anchor scheme, additive alongside `is_canonical_resource_uri`'s
-    `canonical://` BI-6 scheme. Any other host — including the PRIVATE
-    docs-site or any bundle repo — is rejected by construction: it simply
-    does not start with `PUBLIC_CANONICAL_BLOB_BASE`."""
+    `canonical://` BI-6 scheme. Matches ONLY `PUBLIC_CANONICAL_BLOB_BASE`, so
+    an authorised DR-087 docs-site anchor (a different prefix) returns False
+    here — it is recognised by `is_docs_site_citation`, a separate scheme,
+    NOT rejected."""
     return isinstance(value, str) and value.startswith(f"{PUBLIC_CANONICAL_BLOB_BASE}/")
+
+
+# ── DR-087 (owner ratification S489, id-163 {163.20}): the authorised
+#    docs-site citation scheme — ADDITIVE alongside the public git-blob
+#    scheme above, reversing the DR-086b "docs-site is never a citation"
+#    clause. The docs-site IS citable *for authorised consumers*: access
+#    control (a private repo) is the safeguard, and the provenance is needed
+#    for future curation and for a producer re-run to locate a concept's
+#    original source. The anchor is the exact analogue of the public git-blob
+#    scheme, pinned to the PRIVATE `knowledge-hub-docs-site` repo instead of
+#    the public `canonical` repo; a blob-SHA pin (content- and line-
+#    addressable) is chosen over the rendered Starlight page URL (a moving
+#    deployment host) so re-run source-location is stable.
+
+AUTHORISED_DOCS_SITE_BLOB_BASE = (
+    "https://github.com/ai-solution-hub/knowledge-hub-docs-site/blob"
+)
+"""DR-087: the git-blob base for the PRIVATE, access-controlled docs-site
+repo — the authorised `system_baseline` citation scheme admitted alongside
+`PUBLIC_CANONICAL_BLOB_BASE`. A distinct prefix, so `is_git_blob_citation`
+(public-only) and `is_docs_site_citation` are disjoint recognisers: a
+docs-site anchor is a *different scheme*, never a public git-blob."""
+
+
+def build_docs_site_citation(
+    git_blob_sha: str,
+    path: str,
+    *,
+    line_start: "int | None" = None,
+    line_end: "int | None" = None,
+) -> str:
+    """DR-087: the git-pinned citation for a backing artefact in the PRIVATE
+    docs-site repo — the authorised-consumer analogue of
+    `build_git_blob_citation`, identical in shape
+    (`<AUTHORISED_DOCS_SITE_BLOB_BASE>/<git_blob_sha>/<path>`, optionally with
+    a trailing `#L<start>-L<end>` fragment) but pinned to the access-
+    controlled docs-site repo. Deliberately MIRRORS `build_git_blob_citation`
+    rather than sharing its body: the public git-blob mint path stays
+    byte-identical (the {163.20} DoD), so the two builders are kept
+    independent. Same both-or-neither line-range and non-empty-input contract.
+    """
+    if not git_blob_sha:
+        raise ValueError(
+            "build_docs_site_citation: git_blob_sha must be non-empty — an "
+            "artefact absent at HEAD (empty git_blob_sha) cannot be pinned to "
+            "a resolvable docs-site blob URL and must not be cited (DR-087)"
+        )
+    if not path:
+        raise ValueError("build_docs_site_citation: path must be non-empty (DR-087)")
+    base = f"{AUTHORISED_DOCS_SITE_BLOB_BASE}/{git_blob_sha}/{path}"
+    if line_start is None and line_end is None:
+        return base
+    if line_start is None or line_end is None:
+        raise ValueError(
+            "build_docs_site_citation: line_start and line_end must both be "
+            f"set or both omitted; got line_start={line_start!r}, "
+            f"line_end={line_end!r}"
+        )
+    return f"{base}#L{line_start}-L{line_end}"
+
+
+def is_docs_site_citation(value: str) -> bool:
+    """True iff `value` is a DR-087 authorised docs-site citation — a git-blob
+    URL pinned to the PRIVATE `knowledge-hub-docs-site` repo. The additive
+    third citation scheme alongside `is_canonical_resource_uri` (`canonical://`,
+    BI-6) and `is_git_blob_citation` (public canonical blob, DR-086).
+    Recognises ONLY the docs-site blob prefix, so it is disjoint from both:
+    access control (the private repo), not non-recognition, is the DR-087
+    safeguard."""
+    return isinstance(value, str) and value.startswith(
+        f"{AUTHORISED_DOCS_SITE_BLOB_BASE}/"
+    )

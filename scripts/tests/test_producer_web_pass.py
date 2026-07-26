@@ -82,6 +82,7 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     derive_concept_confidence,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    build_docs_site_citation,
     build_git_blob_citation,
     build_source_document_uri,
     reference_item_uri_from_source_url,
@@ -637,19 +638,46 @@ class TestValidatePass2Citations:
                 [anchor], previous_entries=set(), seen_anchors=set(), catalogue_paths=set()
             )
 
-    def test_a_private_docs_site_url_is_rejected_even_if_present_in_seen_anchors(
+    def test_an_unrecognised_non_blob_url_is_rejected_even_if_in_seen_anchors(
         self,
     ) -> None:
-        """S3/DR-086 hard rule: does not match the public blob scheme, so
-        it falls through to the concept cross-link branch and fails the
-        BI-9 catalogue check — never accepted as a citation."""
-        private_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
+        """A URL matching none of the schemes (not `canonical://`, not a
+        public git-blob, not a DR-087 docs-site blob) falls through to the
+        concept cross-link branch and fails the BI-9 catalogue check. A
+        rendered docs-site *page* host is not the authorised docs-site anchor
+        — that is the git-blob PIN (`is_docs_site_citation`, admitted in the
+        DR-087 tests below) — so it is never accepted here."""
+        rendered_url = "https://knowledge-hub-docs-site.example.test/specs/id-163/TECH.md"
         with pytest.raises(web_pass.Pass2EnrichError, match="BI-9"):
             web_pass._validate_pass2_citations(
-                [private_url],
+                [rendered_url],
                 previous_entries=set(),
-                seen_anchors={private_url},
+                seen_anchors={rendered_url},
                 catalogue_paths=set(),
+            )
+
+    # ── DR-087 (amends DR-086b): authorised docs-site additive branch ──
+
+    def test_a_new_docs_site_anchor_in_seen_anchors_is_accepted(self) -> None:
+        """DR-087: an authorised docs-site anchor minted this run is admitted
+        under the SAME Pass-2 `seen_anchors` discipline as the git-blob and
+        record-anchor schemes."""
+        anchor = build_docs_site_citation(
+            "deadbeef", "reference/decision-register.md", line_start=53, line_end=61
+        )
+        validated = web_pass._validate_pass2_citations(
+            [anchor],
+            previous_entries=set(),
+            seen_anchors={anchor},
+            catalogue_paths=set(),
+        )
+        assert validated == (anchor,)
+
+    def test_a_new_docs_site_anchor_not_in_seen_anchors_is_rejected(self) -> None:
+        anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
+        with pytest.raises(web_pass.Pass2EnrichError, match="never minted"):
+            web_pass._validate_pass2_citations(
+                [anchor], previous_entries=set(), seen_anchors=set(), catalogue_paths=set()
             )
 
 
@@ -708,6 +736,21 @@ class TestParseReferenceConcept:
         actually-minted-equivalent git-blob anchor is still rejected here,
         the same as any other non-`reference_items` anchor."""
         anchor = build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
+        with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
+            web_pass._parse_reference_concept(
+                self._raw(citations=[anchor]), seen_gated_anchors={anchor}
+            )
+
+    def test_a_docs_site_anchor_is_also_rejected_dr025_scope_unchanged(self) -> None:
+        """DR-087 scope note (id-163 {163.20}): admitting the authorised
+        docs-site scheme generalises `_validate_citation`/
+        `_validate_pass2_citation` only. `_validate_reference_concept_citations`
+        stays `canonical://reference_items`-only — a reference concept exists
+        specifically to carry GATED-FETCH provenance, a different concern from
+        a repo docs-site citation — so a well-formed docs-site anchor is
+        rejected here, the same as any other non-`reference_items` anchor.
+        The DR-025 boundary is unchanged by DR-087."""
+        anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
         with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
             web_pass._parse_reference_concept(
                 self._raw(citations=[anchor]), seen_gated_anchors={anchor}
