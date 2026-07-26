@@ -255,37 +255,180 @@ _DEFINE_TOOL_CALL_RE = re.compile(
 )
 
 
+_REGEX_PRECEDING_KEYWORDS = frozenset(
+    {
+        "await",
+        "case",
+        "delete",
+        "do",
+        "else",
+        "in",
+        "instanceof",
+        "new",
+        "of",
+        "return",
+        "throw",
+        "typeof",
+        "void",
+        "yield",
+    }
+)
+"""Keywords after which a `/` opens a regex literal, not division — the
+one place the last-significant-char heuristic in `_match_closing_paren`
+is wrong on its own (`return /re/.test(x)` ends on an identifier char,
+which otherwise reads as an expression end → division)."""
+
+
+def _skip_string(text: str, start: int) -> int:
+    """Index just past the single/double-quoted string opening at `start`,
+    honouring backslash escapes. A raw newline terminates the scan at that
+    newline (TS `'`/`"` strings are single-line; self-healing there keeps
+    one stray apostrophe — `// the table's rows` was the real-corpus F2
+    trigger before comments were skipped — from swallowing the file)."""
+    quote = text[start]
+    i = start + 1
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == quote:
+            return i + 1
+        if ch == "\n":
+            return i
+        i += 1
+    return n
+
+
+def _skip_regex(text: str, start: int) -> int:
+    """Index just past the regex literal opening at `start`, honouring
+    backslash escapes and `[...]` character classes (an unescaped `/`
+    inside a class does not close the regex). A raw newline terminates at
+    that newline — regex literals are single-line, so hitting one means
+    the `/` was not a regex after all (self-heal, mirrors `_skip_string`).
+    Trailing flags are plain identifier chars the caller's code state
+    consumes harmlessly."""
+    i = start + 1
+    n = len(text)
+    in_class = False
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "\n":
+            return i
+        if in_class:
+            if ch == "]":
+                in_class = False
+        elif ch == "[":
+            in_class = True
+        elif ch == "/":
+            return i + 1
+        i += 1
+    return n
+
+
 def _match_closing_paren(text: str, open_idx: int) -> int:
     """Return the index of the ')' that closes the '(' at `open_idx`,
-    skipping over string/template literals (a `)` inside a tool's
-    `description` prose is common and must not perturb the depth count).
-    Assumes `text[open_idx] == '('`."""
+    counting paren depth through a small TS-state scanner ({163.19}): the
+    depth count skips single/double-quoted strings, template literals
+    (INCLUDING nested `${...}` interpolation, where code state — and the
+    count — resumes), regex literals, and line + block comments. The
+    original quote-only scanner died on the real corpus (F2, `ValueError`
+    at content.ts index 55376): an apostrophe inside a line comment
+    (`workspaces.ts` — "the `workspaces` table's") flipped it into string
+    state and every subsequent paren was swallowed. Assumes
+    `text[open_idx] == '('`."""
     if text[open_idx] != "(":
         raise ValueError(f"expected '(' at index {open_idx}, got {text[open_idx]!r}")
     depth = 0
     i = open_idx
     n = len(text)
-    quote: "str | None" = None
+    # Frame stack: "code" counts parens; a backtick pushes "template"; a
+    # `${` inside a template pushes "interp" — code state again, popped by
+    # the `}` that closes the interpolation (per-frame brace depth keeps
+    # object literals inside the interpolation from popping early).
+    frames: "list[list]" = [["code", 0]]
+    # Regex-vs-division disambiguation: a `/` opens a regex iff the last
+    # significant code char cannot END an expression (or the identifier it
+    # ends is a keyword — `_REGEX_PRECEDING_KEYWORDS`). `word` carries the
+    # most recent identifier across whitespace/comments for that check.
+    prev_sig = ""
+    word = ""
     while i < n:
         ch = text[i]
-        if quote is not None:
+        if frames[-1][0] == "template":
             if ch == "\\":
                 i += 2
                 continue
-            if ch == quote:
-                quote = None
+            if ch == "`":
+                frames.pop()
+                prev_sig = "`"
+                word = ""
+                i += 1
+                continue
+            if ch == "$" and i + 1 < n and text[i + 1] == "{":
+                frames.append(["interp", 0])
+                prev_sig = "{"
+                word = ""
+                i += 2
+                continue
             i += 1
             continue
-        if ch in "'\"`":
-            quote = ch
+        # "code" / "interp" frame — real TS code state.
+        if ch in "'\"":
+            i = _skip_string(text, i)
+            prev_sig = ch
+            word = ""
+            continue
+        if ch == "`":
+            frames.append(["template", 0])
             i += 1
             continue
+        if ch == "/" and i + 1 < n and text[i + 1] == "/":
+            eol = text.find("\n", i)
+            i = n if eol == -1 else eol
+            continue
+        if ch == "/" and i + 1 < n and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+            continue
+        if ch == "/":
+            is_ident_end = prev_sig.isalnum() or prev_sig in "_$"
+            regex_ok = (
+                not prev_sig
+                or (word in _REGEX_PRECEDING_KEYWORDS if is_ident_end else True)
+            ) and prev_sig not in ")]'\"`"
+            if regex_ok:
+                i = _skip_regex(text, i)
+            else:
+                i += 1
+            prev_sig = "'"  # expression end either way — next `/` is division
+            word = ""
+            continue
+        if frames[-1][0] == "interp" and ch in "{}":
+            if ch == "{":
+                frames[-1][1] += 1
+            elif frames[-1][1] == 0:
+                frames.pop()
+                prev_sig = "`"
+                word = ""
+                i += 1
+                continue
+            else:
+                frames[-1][1] -= 1
         if ch == "(":
             depth += 1
         elif ch == ")":
             depth -= 1
             if depth == 0:
                 return i
+        if not ch.isspace():
+            if ch.isalnum() or ch in "_$":
+                word = word + ch if (prev_sig.isalnum() or prev_sig in "_$") else ch
+            prev_sig = ch
         i += 1
     raise ValueError(f"unbalanced parentheses scanning from index {open_idx}")
 

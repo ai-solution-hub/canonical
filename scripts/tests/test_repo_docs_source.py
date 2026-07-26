@@ -35,7 +35,10 @@ from scripts.cocoindex_pipeline.sources.repo_docs import (
     RepoConceptKey,
     RepoDocsSource,
     Source,
+    _DEFINE_TOOL_CALL_RE,
     _git_blob_sha,
+    _read_source_ref,
+    _span_content_hash,
 )
 
 
@@ -613,3 +616,234 @@ class TestPC5GitBlobCitationMint:
         get_key = next(k for k in keys if k.rel_path == "tool/get.md")
         _run(source.sample_rows(get_key, 2))
         assert len(source.seen_anchors) == 1
+
+
+# ── F2 ({163.19}) — the TS-state span scanner ───────────────────────────
+#
+# The original quote-only `_match_closing_paren` died on the real corpus
+# (`ValueError: unbalanced parentheses` at content.ts index 55376): an
+# apostrophe inside a LINE COMMENT (workspaces.ts — "the `workspaces`
+# table's") flipped it into string state, swallowing every later paren.
+# The hardened scanner skips comments, template-literal text (resuming the
+# count inside `${...}` interpolation), and regex literals. Each fixture
+# below seeds ONE hazard state and asserts the exact span line range plus
+# the {163.18} invariant: `span_content_hash` == hash of the read-back span.
+
+
+def _one_hazard_tool(repo: FakeRepo, body_lines: "list[str]") -> RepoConceptKey:
+    """Seed one `hazard` tool whose handler body is `body_lines`, then
+    return its enumerated key. Layout is fixed: `defineTool(` opens on L3,
+    the body starts on L7, and the closing `);` lands on L7+len(body)."""
+    lines = [
+        "import { defineTool } from './shared';",
+        "export function registerHazardTools(server) {",
+        "  defineTool(",
+        "    server,",
+        "    'hazard',",
+        "    { title: 'Hazard' },",
+        *body_lines,
+        "  );",
+        "}",
+        "export const AFTER_THE_CALL = (1);",
+    ]
+    repo.write(_TOOL_FILE, "\n".join(lines) + "\n")
+    keys = _run(RepoDocsSource(repo.root).list_concepts())
+    tool_keys = [k for k in keys if k.concept_type == "tool"]
+    assert len(tool_keys) == 1, "hazard corpus must enumerate exactly one tool"
+    return tool_keys[0]
+
+
+def _assert_span(repo: FakeRepo, key: RepoConceptKey, lend: int) -> None:
+    """The span must run L3 → the true closing `);` line, and its hash must
+    equal the hash of the exact text `read_concept` would draft from — the
+    {163.18} G-SPAN-HASH re-verification on the hardened enumerator."""
+    assert key.source_ref == f"{_TOOL_FILE}#L3-L{lend}"
+    span = _read_source_ref(repo.root, key.source_ref)
+    assert span.lstrip().startswith("defineTool(")
+    assert span.rstrip().endswith(");")
+    assert key.span_content_hash == _span_content_hash(span)
+
+
+class TestF2TSStateSpanScanner:
+    def test_apostrophe_in_a_line_comment_does_not_flip_string_state(
+        self, tmp_path: Path
+    ) -> None:
+        """THE real-corpus F2 trigger (workspaces.ts:66): one possessive
+        apostrophe in a `//` comment swallowed the rest of the file."""
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async () => {",
+                "      // the workspaces table's rows (legacy filter)",
+                "      return {};",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+    def test_unbalanced_open_paren_in_a_line_comment_is_not_counted(
+        self, tmp_path: Path
+    ) -> None:
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async () => {",
+                "      // opens ( but never closes",
+                "      return {};",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+    def test_unbalanced_close_paren_in_a_block_comment_is_not_counted(
+        self, tmp_path: Path
+    ) -> None:
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async () => {",
+                "      /* don't count this ) stray close",
+                "         nor this one ) either */",
+                "      return {};",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 12)
+
+    def test_unbalanced_close_paren_in_a_string_is_not_counted(
+        self, tmp_path: Path
+    ) -> None:
+        """The one state the ORIGINAL scanner already handled — kept as a
+        regression pin so the rewrite never loses it."""
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async () => {",
+                "      const msg = 'all done :)' + \"and again )\";",
+                "      return {};",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+    def test_template_interpolation_and_nested_template_resume_the_count(
+        self, tmp_path: Path
+    ) -> None:
+        """Template TEXT is skipped (the stray `(` never counts) but code
+        inside `${...}` — including a NESTED template — is real TS state
+        the scanner re-enters. The original scanner treated the nested
+        backtick as the CLOSE of the outer template and drowned."""
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async () => {",
+                "      const msg = `open ( ${fmt(`inner ${n}`)} tail`;",
+                "      return {};",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+    def test_regex_literal_parens_are_not_counted(self, tmp_path: Path) -> None:
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async (value) => {",
+                "      const clean = value.replace(/\\)/g, '').replace(/[()]/g, '');",
+                "      return { clean };",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+    def test_regex_after_a_return_keyword_is_a_regex_not_division(
+        self, tmp_path: Path
+    ) -> None:
+        """`return /re/` ends on an identifier char, which the
+        last-significant-char heuristic alone reads as an expression end
+        (division) — the keyword list is what catches it."""
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async (value) => {",
+                "      return /\\(open/.test(value);",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 10)
+
+    def test_division_is_not_mistaken_for_a_regex_literal(
+        self, tmp_path: Path
+    ) -> None:
+        """`(total / 2) + (n / 4)` — reading either `/` as a regex would
+        swallow the `)` after it and derail the depth count."""
+        repo = FakeRepo(tmp_path)
+        key = _one_hazard_tool(
+            repo,
+            [
+                "    async (total, n) => {",
+                "      const half = (total / 2) + (n / 4);",
+                "      return { half };",
+                "    },",
+            ],
+        )
+        _assert_span(repo, key, 11)
+
+
+# ── F2 ({163.19}) — the REAL lib/mcp/tools corpus, not FakeRepo ─────────
+#
+# FakeRepo fixtures HID F2: the fixtures' TS was too clean to contain a
+# commented apostrophe. This class enumerates the actual checked-in corpus
+# (37 `defineTool` call sites at {163.19} time) so any future TS state the
+# scanner mishandles surfaces here first.
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REAL_TOOLS_DIR = _REPO_ROOT / "lib" / "mcp" / "tools"
+
+
+def _real_corpus_tool_keys() -> "list[RepoConceptKey]":
+    if not _REAL_TOOLS_DIR.is_dir():
+        pytest.skip("real lib/mcp/tools corpus not present in this checkout")
+    keys = _run(RepoDocsSource(_REPO_ROOT).list_concepts())
+    return [k for k in keys if k.concept_type == "tool"]
+
+
+class TestF2RealCorpusRegression:
+    def test_list_concepts_survives_the_full_real_corpus(self) -> None:
+        """The F2 repro itself: before {163.19} this raised `ValueError:
+        unbalanced parentheses scanning from index 55376` (content.ts) —
+        with governance.ts, procurement.ts and workspaces.ts also fatal.
+        One key per `defineTool(server, '<name>'` call site, none dropped
+        (the regex count is the same enumeration the scanner starts from,
+        so equality proves no call site died mid-scan)."""
+        tool_keys = _real_corpus_tool_keys()
+        expected = sum(
+            len(_DEFINE_TOOL_CALL_RE.findall(p.read_text(encoding="utf-8")))
+            for p in _REAL_TOOLS_DIR.glob("*.ts")
+        )
+        assert expected > 0
+        assert len(tool_keys) == expected
+
+    def test_every_real_span_ends_at_a_true_closing_paren(self) -> None:
+        """A truncated or overshot span would end mid-argument; every real
+        `defineTool(...)` statement ends `);` on its own line."""
+        for key in _real_corpus_tool_keys():
+            span = _read_source_ref(_REPO_ROOT, key.source_ref)
+            assert span.lstrip().startswith("defineTool("), key.source_ref
+            assert span.rstrip().endswith(");"), key.source_ref
+
+    def test_every_real_span_hash_matches_the_read_back_span(self) -> None:
+        """{163.18} G-SPAN-HASH re-verified on the hardened enumerator:
+        each E1 key's memo lever is the hash of EXACTLY the text
+        `read_concept` drafts from, and E1 keys still carry no file sha."""
+        for key in _real_corpus_tool_keys():
+            span = _read_source_ref(_REPO_ROOT, key.source_ref)
+            assert key.span_content_hash == _span_content_hash(span), key.source_ref
+            assert key.git_blob_sha == ""
