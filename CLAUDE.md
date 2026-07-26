@@ -15,37 +15,19 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 | bun run build | Production build (`bun build` is Bun's own bundler — errors, never runs this script) |
 | bun run test | Vitest suite (full regression gate after merges) |
 | bun run test:integration | Integration suite (real Anthropic + Supabase) |
-| bun lint / bun run format | ESLint / Prettier |
 | python3 -m pytest scripts/tests/ | Python pipeline tests |
-| bun run test:e2e | Playwright E2E |
 
 MCP eval + plugin/app build commands: see `lib/mcp/CLAUDE.md`. Type regen: see`supabase/CLAUDE.md`. Use `gh-axi` for GitHub and `chrome-devtools-axi` for browser automation.
 
 **Turbopack is the default bundler** in Next 16 for both `next dev` and `next build` — no `--turbopack` flag, and `--webpack` would split dev from the Vercel prod build (which Sentry's debug-ID source maps depend on). Do not opt out.
 
-**Parallel dev servers.** Next takes a per-directory lock at `<distDir>/dev/lock` and refuses a second `next dev` for the same directory *even on a different port* — so a different port alone never fixes it. Rules:
-
-- **Different worktrees** → nothing to do; separate dirs, separate locks.
-- **Same checkout** → give each session its own build root: `NEXT_DIST_DIR=.next-1 bun dev` (slots `.next-1`..`.next-4`). Use only those names — they are pre-registered in `tsconfig.json`'s `include`, and Next matches those strings literally: any other name makes it rewrite AND reformat `tsconfig.json`, dirtying the tree for every parallel session.
-- **Port collisions / stable URLs** → `portless run next dev` gives each server a named `.localhost` URL and auto-assigns a port (worktrees get a branch-name subdomain). Not installed by default; see the local-development runbook.
+**Parallel dev servers.** Next locks per *directory*, not per port, so a second `next dev` in the SAME checkout needs its own build root: `NEXT_DIST_DIR=.next-1 bun dev` (slots `.next-1`..`.next-4` — those names only; any other name dirties `tsconfig.json`). Full rules — worktrees, port collisions, `portless`: the **`run-canonical`** skill.
 
 ## Architecture
 
 Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST be added to its `publicRoutes` allowlist or they silently redirect to `/login`.
 
-| Directory | Contents |
-| --- | --- |
-| app/ | Next.js 16 App Router — API + page routes |
-| mcp-apps/ | MCP App UIs (Vite single-file builds) |
-| components/ | Domain subdirs — never add components at root |
-| contexts/ | React contexts |
-| hooks/ | Custom hooks — domain sub dirs + general at root |
-| lib/ | Core modules (ai/, mcp/, procurement/, validation/, …) |
-| types/ | TypeScript types |
-| scripts/ | Python pipeline (cocoindex_pipeline/), ingestion/search CLIs |
-| supabase/ | Migrations + generated types |
-| tests/ | Vitest tests — mirrors source structure |
-| e2e/ | Playwright specs |
+**Placement conventions** (the rest of the layout is what `ls` shows): never add components at the `components/` root — domain subdirs only; `hooks/` takes domain subdirs plus general hooks at root.
 
 ## Environment & Database
 
@@ -89,11 +71,9 @@ Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-Ap
 
 ## Memory (MemPalace)
 
-Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). Known issue: `mempalace_search` with a `wing`filter errors (`Error finding id` — upstream #1665, HNSW↔sqlite drift after bulk add/delete; affects MCP **and** CLI) — search without the wing filter and filter results client-side.
+Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). The SessionStart hook `.claude/hooks/mempal-recall.sh` injects a lock-free FTS digest of prior context — seeded by branch + cwd base name, diary-first, CHECKPOINT-noise filtered — on session `startup`/`clear`.
 
-**Proactive recall (read-at-start).** The SessionStart hook `.claude/hooks/mempal-recall.sh`injects a lock-free (`mode=ro&immutable=1`, no chromadb writer — DR-009/DR-003) FTS digest of prior context — seeded by branch + cwd base name, diary-first, CHECKPOINT-noise filtered — on session `startup`/`clear`. Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass (the `recall-grounding` skill — decision-point triggers + the `-32002` lock-freeFTS fall through; underlying palace-search mechanism: the plugin `mempalace-recall` skill)before relying on memory of prior work, decisions, or people; honour the #1665 workaround above (no `wing` filter; filter client-side).
-
-**On-demand historic stores**: the `knowledge-hub-archive` repo is mined into a separate palace, searchable via `mempalace --palace ~/.mempalace-archive search "…"` (CLI only; point-in-time /possibly-superseded — verify against current docs-site before trusting); the full pre-S355350k transcript history is cold in `/mempalace-backup-PRE-PATHA-20260612.tar.gz`(extract → open the nested`.mempalace/palace`, collection `mempalace_drawers`, for a specific older conversation).
+**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, the `mempalace_search` wing-filter defect (upstream #1665) and its client-side-filter workaround, the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->

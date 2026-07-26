@@ -101,7 +101,27 @@ Constraints on this read (non-negotiable):
 **Fail open, always.** If the palace errors, is corrupt, or is unreachable:
 tell the user memory is degraded and proceed — never block on recall.
 
-## 3. Where this fits in agent briefs
+## 3. On-demand historic stores
+
+The live palace is not the whole record. Two cold stores hold pre-cutover
+context — reach for them only when the live palace comes up empty on older work:
+
+- **Archive palace** — the `knowledge-hub-archive` repo mined into a separate
+  palace. **CLI only**, no MCP surface:
+
+  ```bash
+  mempalace --palace ~/.mempalace-archive search "<seed terms>"
+  ```
+
+  Point-in-time and possibly superseded — verify anything it returns against
+  the current docs-site before trusting it.
+
+- **Cold transcript backup** — the full pre-S355350k transcript history in
+  `/mempalace-backup-PRE-PATHA-20260612.tar.gz`. Extract, open the nested
+  `.mempalace/palace`, collection `mempalace_drawers`, to recover one specific
+  older conversation. Last resort — not a routine recall path.
+
+## 4. Where this fits in agent briefs
 
 Root `AGENTS.md` § Ledger protocol carries the compact form of §1 — verify live
 status before citing a task, subtask, or decision-record state. This skill is
