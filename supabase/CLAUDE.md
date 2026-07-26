@@ -38,10 +38,17 @@
   --linked`. **`supabase config push` does NOT create buckets** — its storage leg
   carries project-level settings only, and the `Buckets` field is never read by the
   update path. Note the flag asymmetry: `config push` takes `--project-ref` and needs
-  no link; `seed buckets` is `--linked`-only and does. Do NOT blanket `config push` at
-  a long-lived project — this file is local-dev-shaped (`[auth] site_url =
-  "http://127.0.0.1:3000"`), so it would break that project's auth redirects; making
-  it safe is id-365. Buckets do NOT reach ephemeral branches today ({365.5}).
+  no link; `seed buckets` is `--linked`-only and does. **`config push` at the two
+  long-lived Platform projects is now SAFE (S496)** via the
+  `[remotes.staging]`/`[remotes.prod]` blocks — selection by `project_id` match is
+  proven, each block mirrors live values so a push is a no-op until a value
+  deliberately changes. Constraints: CLI >= 2.109.1 (2.108.0 dies mid-push at the
+  storage leg AFTER applying auth — non-atomic), and **non-tty `config push`
+  AUTO-APPLIES with no confirmation and no dry-run** — never run it at a ref with
+  no matching remote block (base `[auth]` is local-dev-shaped, `site_url`
+  127.0.0.1). Bucket reach is split ({365.5}): git-triggered preview branches (PR
+  required) DO seed all declared buckets; dashboard-created branches and the
+  psql-replay `scripts/e2e-ephemeral-branch.ts` path get ZERO.
 - **RLS** is role-based via `get_user_role()`.
 - **Table grants + policy roles (id-347, S492/S493):** the squash baseline set
   `ALTER DEFAULT PRIVILEGES … GRANT ALL ON TABLES TO anon`

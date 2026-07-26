@@ -77,6 +77,34 @@ project_id = "rbwqewalexrzgxtvcqrh"
 enabled = true
 sql_paths = ["./seed.sql"]
 
+# Environment-specific auth values ({365.2}, S496). Values mirror the LIVE
+# project config (read via the Management API on 26/07/2026) so a `config push`
+# is a no-op until a value here deliberately changes. Selection is by
+# project_id match: `supabase config push --project-ref <ref>` prints
+# "Loading config override: [remotes.<name>]" — proven S496 against a throwaway
+# preview branch. Preview branches match NO remote block (their ref is minted
+# per-branch) and fall through to the base [auth] block below.
+# Requires CLI >= 2.109.1: 2.108.0 dies mid-push at the storage leg
+# (LegacyConfigPushStorageReadNetworkError, missing databasePoolMode) AFTER
+# applying api/db/auth — a partial, non-atomic apply.
+[remotes.staging.auth]
+site_url = "https://canonical-platform-git-staging-tw-group.vercel.app"
+additional_redirect_urls = [
+  "https://canonical-platform-git-staging-tw-group.vercel.app/auth/callback",
+  "https://canonical-platform-git-staging-tw-group.vercel.app/**",
+]
+
+# TOTP MFA is ON for both long-lived environments (dashboard-set; measured live
+# 26/07/2026). Base [auth.mfa.totp] stays false for local dev + preview
+# branches. S496 incident, do not repeat: a `config push` from a NON-TTY shell
+# auto-applies WITHOUT confirmation — piping "N" does not abort — and the base
+# false briefly disabled TOTP enrolment on staging before being restored via
+# the Management API. There is NO non-interactive dry-run; treat every
+# non-interactive `config push` as an apply.
+[remotes.staging.auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 # Sign-up domain restriction hook — staging branch.
 # Generic, config-driven function, now carried by
 # supabase/migrations/20260617130000_squash_baseline.sql:3872 (the standalone
@@ -86,15 +114,13 @@ sql_paths = ["./seed.sql"]
 # dead `app.allowed_signup_domain` GUC); FAIL-CLOSED when unset — an empty
 # signup_policy rejects EVERY sign-up with a 403, it does not admit everyone.
 #
-# THIS BLOCK HAS NEVER BEEN APPLIED. Verified S494: it is inert, because applying
-# it needs either the Supabase GitHub integration (NOT connected — the platform
-# said so itself in a preview-branch log: "Additional skipped steps: configuration
-# … only available for Branching via GitHub"; `branches list` also returns an empty
-# `git_branch` on the production branch) or `supabase config push`, which is not
-# yet safe to run here (id-365). Whether staging's hook is instead DASHBOARD-wired
-# is unverified — there is no `config pull` and `config push` has no `--dry-run`,
-# so it cannot be read back from the CLI. Retained, not deleted, because it records
-# the intent that {365.4} makes live.
+# STATUS (S496, supersedes the S494 "never been applied" note): the GitHub
+# integration IS now connected (26/07/2026, Automatic branching on, "Deploy to
+# production" OFF), and `supabase config push --project-ref rbwqewalexrzgxtvcqrh`
+# has been run and verified a NO-OP — the live (dashboard-wired) hook matches
+# this block, confirmed via the Management API
+# (GET /v1/projects/<ref>/config/auth), which is also the way to read config
+# back — the CLI still has no `config pull`.
 #
 # DO NOT "fix" this by promoting the block to base `[auth.hook.before_user_created]`.
 # Configure carries every `[auth.hook.*]` leg but each is pointer-guarded, so a
@@ -106,6 +132,34 @@ sql_paths = ["./seed.sql"]
 [remotes.staging.auth.hook.before_user_created]
 enabled = true
 uri = "pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain"
+
+# Platform PROD ({365.2}, S496). Same regime as [remotes.staging]: values mirror
+# the live project config so `config push --project-ref zjqbrdctesqvouboziae`
+# is a no-op until a value here deliberately changes. The hook block mirrors the
+# live (dashboard-wired) hook; auth-hook legs are pointer-guarded upstream, so
+# omitting it would also leave the live value untouched — it is declared here so
+# the file, not the dashboard, is the record of intent ({365.4} / DR-085).
+[remotes.prod]
+project_id = "zjqbrdctesqvouboziae"
+
+[remotes.prod.auth]
+site_url = "https://kh.aisolutionhub.co.uk"
+additional_redirect_urls = [
+  "https://canonical-platform-tw-group.vercel.app/",
+  "https://canonical-platform-tw-group.vercel.app/**",
+  "https://canonical-*-platform-tw-group.vercel.app",
+  "https://canonical-*-platform-tw-group.vercel.app/**",
+  "https://kh.aisolutionhub.co.uk/auth/callback",
+  "https://kh.aisolutionhub.co.uk/**",
+]
+
+[remotes.prod.auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_restrict_signup_to_allowed_domain"
+
+[remotes.prod.auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -199,14 +253,18 @@ allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officed
 #     need one. That asymmetry is what {365.5} has to design around, since
 #     `e2e-nightly.yml:242` deliberately stays stateless with no `link` step.
 #
-#     THIS DOES NOT YET REACH EPHEMERAL BRANCHES — do not assume otherwise.
-#     `scripts/e2e-ephemeral-branch.ts` replays `supabase/migrations/*.sql` +
-#     `seed.sql` through raw `psql` and never invokes the CLI, and
-#     `supabase/setup-cli` appears in NO workflow, so the CLI is not even
-#     installed on a runner. A fresh branch therefore has ZERO buckets —
-#     `documents`, `templates` and `tender-documents` are missing too, not just
-#     `corpus`, across 5 call sites. id-328 cluster B and {128.10} stay OPEN on
-#     that axis; the CI wiring is tracked on id-365.
+#     BRANCH REACH, measured S496 — the answer is split by HOW the branch is
+#     made. A GIT-TRIGGERED preview branch (GitHub integration, PR required —
+#     the integration's own check-run says "open a PR to create a new branch")
+#     DOES seed every bucket declared here: all five appeared on a throwaway
+#     branch with mime types intact (Seed step, gated behind Migrate). A
+#     dashboard-created branch gets ZERO (S494 measurement, still true). And
+#     `scripts/e2e-ephemeral-branch.ts` replays migrations + `seed.sql` through
+#     raw `psql`, never invokes the CLI (no `supabase/setup-cli` in any
+#     workflow), so OUR e2e ephemeral branches still have ZERO buckets —
+#     id-328 cluster B and {128.10} stay OPEN on that axis only; CI wiring is
+#     tracked on id-365 {365.5}. Note the branch inherited the global 50MiB cap
+#     on `onprem-backups` ({365.6}).
 #   * `onprem-backups` existed on both Platform projects but was declared
 #     nowhere: hand-created 2026-06-25 with null size and null mime limits,
 #     which is the signature of dashboard/API creation rather than config.
@@ -217,12 +275,14 @@ allowed_mime_types = ["application/pdf", "application/vnd.openxmlformats-officed
 #     `seed buckets` run WOULD cap them at 50MiB. Decide the real cap before
 #     running it anywhere near the backup bucket: archives may exceed it.
 #
-# Separately, and unrelated to buckets: DO NOT blanket `supabase config push` at
-# a long-lived project. This file is local-dev-shaped — `[auth] site_url` is
-# `http://127.0.0.1:3000` — so pushing it wholesale at Platform prod would
-# repoint prod's auth redirects at localhost. That hazard does NOT apply to
-# `seed buckets`, which touches buckets only. Making `config push` safe for a
-# real project is id-365.
+# Separately, and unrelated to buckets: `config push` at the long-lived
+# projects is SAFE ONLY via the [remotes.staging]/[remotes.prod] blocks (S496:
+# selection by project_id match is proven — the CLI prints "Loading config
+# override: [remotes.<name>]"), on CLI >= 2.109.1, and each block mirrors the
+# live values so a push is a no-op until a value deliberately changes. Two
+# standing hazards: non-tty `config push` AUTO-APPLIES with no confirmation and
+# has no dry-run; and a project with NO matching remote block gets the base
+# local-dev [auth] (site_url 127.0.0.1) — never push at a ref without a block.
 #
 # Deliberately NO `allowed_mime_types` on `corpus`: it is a heterogeneous
 # store. write-back.ts stamps CORPUS_OBJECT_CONTENT_TYPE, but folder-drop.ts
