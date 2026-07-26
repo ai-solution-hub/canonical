@@ -119,7 +119,7 @@ read_symlink_dirs() {
     fi
   done
   # Fallback only if neither settings file declares the key.
-  printf '%s\n' node_modules .venv .cache
+  printf '%s\n' .venv
 }
 
 SYMLINKED=0

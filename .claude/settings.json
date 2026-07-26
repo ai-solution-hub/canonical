@@ -84,7 +84,7 @@
     ]
   },
   "worktree": {
-    "symlinkDirectories": ["node_modules", ".venv", ".cache"]
+    "symlinkDirectories": [".venv"]
   },
   "sandbox": {
     "network": {
