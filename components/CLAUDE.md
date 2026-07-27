@@ -40,3 +40,6 @@ Design system: **Warm Meridian** — spec
   clean remount — don't write a `useEffect` that calls `setState` on prop change.
 - **Data fetching:** TanStack Query exclusively — keys in `lib/query/query-keys.ts`,
   fetchers in `lib/query/fetchers.ts`. No SWR, no raw fetch in hooks.
+- **Markdown rendering: Streamdown** (`streamdown` pkg) — new surfaces use it; the
+  legacy marked+DOMPurify path is a grandfathered exception, never the default
+  (DR-040, re-homed S504).

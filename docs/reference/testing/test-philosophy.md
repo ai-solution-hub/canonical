@@ -175,7 +175,14 @@ The 8 remediation waves are tracked at `docs/audits/kh-production-readiness-phas
 
 ---
 
-## 10. When this document changes
+## 10. Proving a data-shape invariant (DR-094, re-homed S504)
+
+A data-shape invariant ("column X is never NULL under the new writer", "every row
+carries provenance Y") is proven ONLY by rows **written under the new code** —
+pre-existing rows prove nothing about the writer, and a green suite over legacy
+fixtures is not evidence. Write through the new path, then assert on what landed.
+
+## 11. When this document changes
 
 - Adding a new criterion: ratify with Liam first; new criteria affect every existing test.
 - Adding an antipattern: include cross-link to the file or PR where it was first observed.

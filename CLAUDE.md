@@ -44,6 +44,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
 - **Content review vs governance review:** `/review` = content quality;`/api/governance/review` = freshness/ownership. Separate workflows.
 - Guard hooks enforce: no unquoted heredocs containing `!`, no client names in filenames/commands (private denylist), sentinel-gated `.claude/{agents,skills}` edits.
+- The Read-tool deny on `supabase/types/database.types.ts` in `.claude/settings.json` is deliberate (DR-022, re-homed S504): the generated file is huge and generated — query types via `Tables<'x'>` or `sed`-range reads, and never "fix" the deny.
 
 ## Orchestration & Sub-agents
 
@@ -88,3 +89,5 @@ GitNexus indexes this repo as **canonical** and exposes on-demand code-intellige
 - Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, debugging, refactoring, guide, cli).
 
 <!-- gitnexus:end -->
+
+**Impact/rename authority (DR-071):** GitNexus — not Memtrace — is the authority for impact analysis and renames in this repo. Memtrace complements for discovery/history; when the two disagree on blast radius, GitNexus wins. (The user-global MEMTRACE.md routing does not override this.)
