@@ -173,6 +173,15 @@
 # string sits after the path prefix it matches on — so the post-walk step is
 # the only guard for it.
 #
+# The tail belongs IN the secret's value, matching both deployed workers (the
+# `ca-pipeline-platform-staging` and `-production` Coolify apps both carry it
+# inside their own URL string). CONSIDERED AND REJECTED: minting a separate
+# `VERCEL_AUTOMATION_BYPASS_SECRET` and composing the URL here. It reads like
+# it would make the token independently rotatable, but it does not — the two
+# Coolify URL strings would still need editing on a rotation, so it saves
+# nothing operationally, while making CI the only surface whose value shape
+# differs from the deployed ones. Do not re-litigate.
+#
 # Workflow-injection mitigation: all github context + secret values arrive via
 # the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
 # eval-nightly.yml / integration-nightly.yml / onprem-deploy.yml).
