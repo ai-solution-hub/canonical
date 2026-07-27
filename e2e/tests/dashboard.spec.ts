@@ -118,6 +118,13 @@ test.describe('Dashboard -- attention and bids sections', () => {
     });
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
+    // A11Y CONTRACT, asserted explicitly rather than left implicit in strict
+    // mode: the dashboard exposes EXACTLY ONE landmark with this accessible
+    // name. Two landmarks sharing a name is a real defect — screen-reader
+    // users get two indistinguishable regions — so it must fail here loudly.
+    // This is what `.first()` used to suppress.
+    await expect(bidsSection).toHaveCount(1);
+
     // Heading within the section. ID-145 {145.20} BI-33: the heading was
     // renamed "Active Bids" -> "Active Procurements" so it agrees with the
     // aria-label above and the QuickStatsStrip tile below. Match it by ROLE:
@@ -196,6 +203,12 @@ test.describe('Dashboard -- content health stats', () => {
     // the "resolved to 2 elements" flake, not a duplicate landmark.
     const healthSection = page.getByRole('region', { name: 'Content health' });
     await expect(healthSection).toBeVisible({ timeout: 10000 });
+
+    // A11Y CONTRACT (see the same assertion on the bids section above):
+    // exactly one landmark carries this accessible name. A genuinely
+    // duplicated landmark fails HERE — what this no longer trips on is the
+    // hidden streaming-staging copy, which no screen reader can reach.
+    await expect(healthSection).toHaveCount(1);
 
     // Heading
     await expect(healthSection.getByText('Content Health')).toBeVisible();
