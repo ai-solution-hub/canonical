@@ -1,6 +1,6 @@
 ---
 name: ast-dataflow
-description: "Catalogue and entry point for the ast-dataflow skill family. Use when you need type-checker-resolved symbol analysis across the KH codebase: finding callers, tracing column reads/writes, auditing dead exports, inspecting string-literal sites, resolving re-export chains, or profiling type evolution. Examples: 'find all callers of sb()', 'which files read bid_questions.project_id', 'are there dead exports in lib/bid', 'verify this rename is complete', 'pin the wrong-argument bug in classifyContent'"
+description: "Catalogue and entry point for the ast-dataflow skill family. Use when you need type-checker-resolved symbol analysis across the KH codebase: finding callers or callees, tracing column reads/writes, auditing dead exports, inspecting string-literal or fixture sites, resolving re-export chains, profiling type evolution, or auditing schema wiring. Examples: 'find all callers of sb()', 'which files read form_questions.question_text', 'are there dead exports in lib/bid', 'verify this rename is complete', 'which schema columns are built but never wired'"
 allowed-tools: Bash, Read, Edit
 ---
 
@@ -10,16 +10,25 @@ allowed-tools: Bash, Read, Edit
 
 ast-dataflow is a type-checker-resolved static analysis library for the
 Knowledge Hub TypeScript codebase. It wraps `ts-morph` (the TypeScript
-compiler API) and exposes twelve queries as a CLI and as a programmatic
-module. Unlike `grep` or text search, every query resolves symbols through
-TypeScript's type system — aliases, re-exports, and indirect references are
-all tracked.
+compiler API) and exposes fifteen queries as a CLI, as a programmatic
+module, and as a warm MCP server. Unlike `grep` or text search, every query
+resolves symbols through TypeScript's type system — aliases, re-exports, and
+indirect references are all tracked.
 
 **Primary CLI:**
 
 ```bash
 bun run ast-dataflow <query> [args]
 ```
+
+**Warm MCP server** (id-375): `bun run ast-dataflow-mcp` starts a stdio
+server exposing one dispatching `ast_dataflow` tool (plus `corpus_info`)
+over a long-lived ts-morph Project — first call pays the ~6 s project load,
+subsequent calls run in ~100-200 ms with a per-call staleness sweep
+(`meta.refreshedFiles` etc.). Not registered in `.mcp.json` — registration
+happens at the extraction phase, when canonical installs the tool as an end
+user would (PRODUCT.md A3 rider); the CLI stays the always-available cold
+path.
 
 ---
 
@@ -39,7 +48,7 @@ together — see the Cross-tool patterns section below.
 
 ## Query catalogue
 
-Eleven queries are available. Match your question to the right query:
+Fifteen queries are available. Match your question to the right query:
 
 ### callers — "who calls this function?"
 
@@ -57,6 +66,24 @@ function/method that wraps the call), `resolution` (`direct` | `aliased` |
 **Use when:** debugging a wrong-argument bug, verifying a contract
 (e.g. UUID shape), or confirming every caller before modifying a function.
 **Companion skill:** `ast-dataflow-call-chain-pin` (Pattern 5).
+
+---
+
+### callees — "what does this function call?"
+
+```bash
+bun run ast-dataflow callees \
+  --symbol 'lib/supabase/safe.ts:sb'
+```
+
+The inverse of `callers`: every call made from inside the named function's
+body, resolved through the type checker. External (node_modules) callees are
+excluded by default with a top-level `externalCount`; `--include-external`
+emits them with `callee.file: null` (never a node_modules path). Error kind
+`not_callable` when the symbol is not a function.
+
+**Use when:** understanding a function before refactoring it, auditing what
+a route handler touches, building a mental call graph downward.
 
 ---
 
@@ -113,11 +140,30 @@ finding hardcoded URL fragments.
 
 ---
 
+### fixture-uses — "where does a name appear in test fixtures?"
+
+```bash
+bun run ast-dataflow fixture-uses \
+  --needle question_text
+```
+
+Scans fixture corpora — JSON fixtures (hand-rolled lexer with key/value +
+structural path context), fixture TS files, and markdown frontmatter —
+for the needle, classifying each hit as `key` or `value` with its
+structural path. Fixture-by-convention: `/fixtures/` path segment or
+`*-fixture.ts` basename. Confidence is always `indirect` (fixtures are
+data, not type-checked code).
+
+**Use when:** column/field renames that must sweep test data, auditing
+which fixtures pin a schema name, pre-migration fixture impact.
+
+---
+
 ### column-reads — "every TS file that reads a Supabase column"
 
 ```bash
 bun run ast-dataflow column-reads \
-  --table content_items --column summary
+  --table form_questions --column question_text
 ```
 
 Walks the TypeScript call graph to find every `.select()` / `.from()` call
@@ -133,7 +179,7 @@ all read sites, column-access audits.
 
 ```bash
 bun run ast-dataflow column-writes \
-  --table content_items --column summary
+  --table form_questions --column question_text
 ```
 
 Finds `.insert()`, `.update()`, `.upsert()` call chains writing the named
@@ -250,6 +296,31 @@ fetcher and route definitions.
 
 ---
 
+### schema-coverage — "which schema columns are built but never wired?"
+
+```bash
+bun run ast-dataflow schema-coverage [--table X] [--report path.md]
+```
+
+The headline report query (id-375 A6). Enumerates every table/column from
+the generated `database.types.ts`, one-pass-scans the corpus for all
+`.from()` chains (including one-hop const-resolved table names), and emits
+a per-column verdict: `wired | read-only | write-only | undecidable |
+unwired`. Conservative by construction: wildcard/indirect evidence never
+counts as wiring; a column is `unwired` only when its table also has zero
+smoke; unknown tables/columns are structured errors (`unknown_table` /
+`unknown_column`). `--report <path>` additionally writes a Markdown report
+(unwired-first, evidence + caveats); no writes without the flag. Full
+807-column sweep runs in ~7 s. Blind to: RPC SQL bodies, `api.*` views,
+external PostgREST consumers, the Python pipeline — pair with
+`ast-dataflow-py` for cross-language column sweeps.
+
+**Use when:** built-not-wired audits, pre-migration column-retirement
+candidates, "is anything actually using this table?", owner-facing schema
+hygiene reports.
+
+---
+
 ## Python corpus sibling (column lineage only)
 
 `bun run ast-dataflow-py column-reads|column-writes --table X --column Y
@@ -311,7 +382,8 @@ failure:
   query: string;
   args: Record<string, unknown>;
   error: {
-    kind: 'ambiguous_symbol' | 'unknown_file' | 'parse_error' | 'out_of_corpus';
+    kind: 'ambiguous_symbol' | 'unknown_file' | 'parse_error' | 'out_of_corpus'
+        | 'not_callable' | 'unknown_table' | 'unknown_column';
     message: string;
     hint?: string;
   };
@@ -327,6 +399,9 @@ Common error codes:
 | `unknown_file` | Module path does not exist in the project | Check the path; file may have been renamed |
 | `parse_error` | Malformed argument (bad symbol format, empty required arg) | Fix the argument shape shown in the hint |
 | `out_of_corpus` | File exists but the named symbol is not declared/exported there | Check the export name; may be default-exported |
+| `not_callable` | `callees` target resolves but is not a function | Check the symbol; classes/values have no callees |
+| `unknown_table` | `schema-coverage --table` names a table absent from the generated schema | Check `database.types.ts`; table may have been dropped |
+| `unknown_column` | `schema-coverage --column` names a column absent from the table | Check the Row type for the table |
 
 A query that runs successfully with zero matches returns `results: []` with
 no `error` field — an empty result set is not an error.
