@@ -54,10 +54,10 @@ describe('no-unchecked-supabase-error — configured scope', () => {
     expect(await severityFor(file)).toBe(ERROR);
   });
 
-  it.each(['scripts/mcp-eval/functional-correctness.ts', 'lib/supabase/safe.ts'])(
-    'leaves %s unguarded (deliberate carve-out)',
-    async (file) => {
-      expect(await severityFor(file)).toBeUndefined();
-    },
-  );
+  it.each([
+    'scripts/mcp-eval/functional-correctness.ts',
+    'lib/supabase/safe.ts',
+  ])('leaves %s unguarded (deliberate carve-out)', async (file) => {
+    expect(await severityFor(file)).toBeUndefined();
+  });
 });
