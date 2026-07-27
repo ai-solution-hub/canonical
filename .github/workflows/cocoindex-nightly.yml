@@ -162,13 +162,16 @@
 # The expected Staging value, per id-127 AMENDMENT-staging-prod-two-server.md
 # OQ-3 (as corrected at S415) and deploy/coolify/.env.staging.example:50, is
 #   <NEXT_PUBLIC_APP_URL>/api/internal/pipeline-runs/record?x-vercel-protection-bypass=<token>
-# The query param is NOT optional: the Platform-staging Vercel deployment has
-# Deployment Protection on, and flow.py sends only Authorization +
-# Content-Type — it cannot supply the bypass as a header. A URL that is
-# correctly hosted but missing the token gets Vercel's 401 (never reaching the
-# route), which the post-walk step below surfaces as
-# "pipeline-run webhook returned HTTP 401". The host-match check cannot detect
-# that, because the query string sits after the path it matches on.
+# The query param is NOT optional, and this is EMPIRICALLY CONFIRMED, not
+# inferred: an unauthenticated POST to that route returns HTTP 401 with
+# `{"protection":{"password_enabled":false,"vercel_auth_enabled":true,...},
+# "error":{"message":"Protected deployment"}}` — Vercel's edge, not the route.
+# flow.py sends only Authorization + Content-Type, so it cannot supply the
+# bypass as a header; the token must live in the URL. A correctly-hosted URL
+# missing the token therefore never reaches `verifyPipelineTriggerAuth` at all,
+# and no row lands. The host-match check below CANNOT detect this — the query
+# string sits after the path prefix it matches on — so the post-walk step is
+# the only guard for it.
 #
 # Workflow-injection mitigation: all github context + secret values arrive via
 # the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
@@ -587,7 +590,7 @@ jobs:
           fi
           if [ -n "$HITS" ]; then
             printf '%s\n' "$HITS"
-            echo "::warning::The sidecar reported pipeline-run webhook problems (above). No pipeline_runs row landed for the affected emissions, so cases polling for one will have timed out. HTTP 401 with an HTML body = Vercel Deployment Protection, i.e. the URL is missing its ?x-vercel-protection-bypass=<token> query param (see the header). HTTP 401 with a JSON body = the bearer is wrong: PIPELINE_TRIGGER_SECRET must match the receiving app's value (verifyPipelineTriggerAuth, lib/cron-auth.ts). A connection error = the app was unreachable."
+            echo "::warning::The sidecar reported pipeline-run webhook problems (above). No pipeline_runs row landed for the affected emissions, so cases polling for one will have timed out. Read the body_preview to tell the modes apart: HTTP 401 with 'Protected deployment' / 'vercel_auth_enabled' = the request died at Vercel's edge and never reached the route, i.e. the URL is missing its ?x-vercel-protection-bypass=<token> query param (see the header). HTTP 401 with '{\"error\":\"Unauthorised\"}' = the route ran and rejected the bearer: PIPELINE_TRIGGER_SECRET must match the receiving app's value (verifyPipelineTriggerAuth, lib/cron-auth.ts). HTTP 400 = the route ran and authenticated; the payload failed schema validation. An emission-failed line = the app was unreachable (DNS/TLS/timeout)."
           else
             echo "No pipeline-run webhook problems in the sidecar log. flow.py is silent on success, so this is a negative signal only — the positive proof is a terminal pipeline_runs row, which the Vitest tier asserts."
           fi
