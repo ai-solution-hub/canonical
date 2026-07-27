@@ -50,6 +50,20 @@ import { advanceBidState } from '../helpers/data-factory';
 const STATUS_URL_PATH_RE = /\/api\/jobs\/[0-9a-f-]{36}\/status$/;
 
 test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
+  // RETRIES ARE DELIBERATELY OFF FOR THIS SPEC.
+  //
+  // The producer route rate-limits at ONE request per 120 seconds per user
+  // (`checkRateLimit('draft-all:${user.id}', 1, 120_000)` —
+  // app/api/procurement/[id]/responses/draft-all/route.ts). Playwright re-runs
+  // a failed test within seconds and every e2e user is the shared admin, so a
+  // retry's POST is deterministically 429ed: the retry cannot pass, and it
+  // reports a DIFFERENT, misleading symptom ("queued toast never appeared")
+  // that hides the original failure. That is exactly what happened on nightly
+  // run 30244345218 — attempt 1 failed a bad assertion at the disabled-button
+  // check, attempt 2 then failed at the toast because its POST came back 429.
+  // One honest attempt beats three, two of which cannot be true.
+  test.describe.configure({ retries: 0 });
+
   test.beforeEach(async ({ workerData }) => {
     // The draft-all route 400s ("must be drafting or later") unless the
     // item's workflow_state is drafting/in_review/ready_for_export. The
@@ -142,12 +156,32 @@ test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
     await expect(draftAllButton).toBeVisible({ timeout: 15_000 });
     await expect(draftAllButton).toBeEnabled();
 
+    // Capture the producer POST so a non-202 fails HERE with the server's own
+    // status + body, instead of surfacing 1.5s later as an unexplained "queued
+    // toast never appeared". A 429 from the route's 1-per-120s limiter is the
+    // specific case this makes legible.
+    const draftAllPost = page.waitForResponse(
+      (resp) =>
+        /\/api\/procurement\/[0-9a-f-]{36}\/responses\/draft-all$/.test(
+          new URL(resp.url()).pathname,
+        ) && resp.request().method() === 'POST',
+      { timeout: 15_000 },
+    );
+
     // Track when click fires so we can measure toast latency.
     const clickedAt = Date.now();
 
     // 3. Click "Draft All" — fires POST draft-all directly (no
     //    CostEstimateDialog confirm step in the current flow).
     await draftAllButton.click();
+
+    const postResponse = await draftAllPost;
+    if (postResponse.status() !== 202) {
+      const body = await postResponse.text().catch(() => '<unreadable>');
+      throw new Error(
+        `draft-all returned HTTP ${postResponse.status()} (expected 202): ${body}`,
+      );
+    }
 
     // ASSERTION 1: queued toast within 1 second.
     // sonner toasts render in a <li> with a description string. Match
@@ -163,11 +197,28 @@ test.describe('Procurement draft-all queued flow (S224 §5.4.1 AC-10)', () => {
     ).toBeLessThanOrEqual(1500);
 
     // ASSERTION 2: button is now disabled (draftingAll=true).
-    await expect(draftAllButton).toBeDisabled({ timeout: 1000 });
-    // Button label flips to "Drafting...".
-    await expect(
-      page.getByRole('button', { name: /^Drafting\.\.\.$/ }),
-    ).toBeVisible({ timeout: 1000 });
+    //
+    // THE OLD ASSERTION HERE WAS WRONG, not merely flaky. One button carries
+    // both the state and the label — `disabled={draftingAll}` and
+    // `{draftingAll ? 'Drafting...' : 'Draft All'}`
+    // (components/procurement/item-questions-panel.tsx:502-510) — so its
+    // accessible name flips in the SAME render that disables it. Asserting
+    // `toBeDisabled()` against a locator keyed on the pre-click name
+    // (`/^Draft All$/`) is therefore unsatisfiable by construction: by the
+    // time the button is disabled, nothing answers to that name, which is why
+    // nightly run 30244345218 reported "element(s) not found" rather than
+    // "not disabled".
+    //
+    // Assert the same AC-10 contract ("button disables") against the button as
+    // it is actually named while drafting. Strictly stronger than before: it
+    // pins visible AND disabled AND that the enabled "Draft All" affordance is
+    // gone, so a regression that leaves a live re-submit button still fails.
+    const draftingButton = page.getByRole('button', {
+      name: /^Drafting\.\.\.$/,
+    });
+    await expect(draftingButton).toBeVisible({ timeout: 1000 });
+    await expect(draftingButton).toBeDisabled();
+    await expect(draftAllButton).toHaveCount(0);
 
     // ASSERTION 3: ≥ 2 status-polling requests within 10 seconds.
     // The hook polls every 3s while activeJobId is set; we expect at

@@ -478,6 +478,19 @@ export const POST = defineRoute(
               total_tokens: totalTokens,
             });
           } catch (err) {
+            // Log BEFORE narrowing to the client-safe message. `send('error',
+            // …)` emits only `safeErrorMessage`'s generic fallback for any
+            // non-allowlisted error, so without this the upstream cause left
+            // no trace anywhere: an Anthropic 401/429, a pgvector failure and
+            // a genuine logic bug all surfaced identically as an SSE
+            // `event: error` reading "Streaming draft failed", server-side
+            // silence included. That is what made the e2e-nightly draft-stream
+            // red (run 30244345218) cost a full trace archaeology pass to
+            // attribute. The client contract below is UNCHANGED.
+            logger.error(
+              { err, op: 'draft_stream', formInstanceId: id },
+              'Streaming draft failed',
+            );
             send('error', {
               error: safeErrorMessage(err, 'Streaming draft failed'),
             });

@@ -395,6 +395,21 @@ test.describe('Procurement draft-stream happy path (8.0.7)', () => {
     const bodyBuf = await sseResponse.body();
     const bodyText = bodyBuf.toString('utf-8');
 
+    // The route answers 200 + `text/event-stream` and only THEN reports
+    // failure, as an in-band `event: error` frame. Surface that frame's
+    // payload verbatim: a stream that died on an upstream error and a stream
+    // that genuinely produced no tokens are different bugs, and the bare
+    // token-count assertion below reports both as "emitted zero tokens".
+    // (e2e-nightly run 30244345218 was the former — an Anthropic 401 — and
+    // read as the latter.) This changes only the DIAGNOSTIC; both cases still
+    // fail.
+    const errorFrame = bodyText.match(/^event: error\ndata: (.*)$/m);
+    if (errorFrame) {
+      throw new Error(
+        `draft-stream emitted an SSE error frame instead of tokens: ${errorFrame[1]}`,
+      );
+    }
+
     // ASSERTION: at least one non-empty data chunk was emitted (real
     // streaming, not a zero-chunk silent failure).
     const tokenEventCount = (bodyText.match(/^event: token$/gm) ?? []).length;

@@ -93,6 +93,7 @@ test.describe('Dashboard -- attention and bids sections', () => {
 
   test('active bids section shows seeded bid card', async ({
     authenticatedPage: page,
+    workerData,
   }) => {
     await page.goto('/');
 
@@ -101,26 +102,43 @@ test.describe('Dashboard -- attention and bids sections', () => {
     });
 
     // ID-128.14: `ActiveProcurementsSection` (renamed from ActiveBidsSection
-    // at id-61 {61.3} / S248 WP2 T4) carries aria-label="Active procurements"
-    // — this locator was stale, never updated after that historical rename.
-    // Use .first() in case Suspense re-render creates a transient duplicate
-    const bidsSection = page
-      .locator('section[aria-label="Active procurements"]')
-      .first();
+    // at id-61 {61.3} / S248 WP2 T4) carries aria-label="Active procurements".
+    //
+    // Locate the ACCESSIBLE LANDMARK, not a raw `section[aria-label=...]` CSS
+    // node. React's streaming SSR parks a resolved Suspense boundary's markup
+    // in a `<div hidden id="S:n">` staging container and relocates it into the
+    // boundary position via its `$RC` inline script; during that window a CSS
+    // locator matches BOTH copies ("resolved to 2 elements"). The staged copy
+    // is `hidden`, so it is absent from the accessibility tree — `getByRole`
+    // matches exactly the one real landmark. This is STRICTER than the old
+    // `.first()`: a genuinely duplicated landmark still fails here, whereas
+    // `.first()` silently swallowed it.
+    const bidsSection = page.getByRole('region', {
+      name: 'Active procurements',
+    });
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Heading within the section. ID-145 {145.20} BI-33: the heading was
     // renamed "Active Bids" -> "Active Procurements" so it agrees with the
-    // aria-label above and the QuickStatsStrip tile below.
-    await expect(bidsSection.getByText('Active Procurements')).toBeVisible();
-
-    // The seeded bid card should show "IT Support Services" (with worker prefix)
-    // Multiple workers may seed bids, so use .first()
+    // aria-label above and the QuickStatsStrip tile below. Match it by ROLE:
+    // `getByText` does case-insensitive SUBSTRING matching, so the old
+    // `getByText('Active Procurements')` also matched the empty state's
+    // "No active procurements" paragraph.
     await expect(
-      bidsSection.getByText(/IT Support Services/).first(),
+      bidsSection.getByRole('heading', { name: 'Active Procurements' }),
     ).toBeVisible();
 
-    // Buyer text (multiple bid cards may exist from parallel workers)
+    // THIS worker's seeded procurement, matched on its own prefix. Requesting
+    // `workerData` above is what makes the seed run at all — Playwright only
+    // instantiates a fixture a test actually destructures, and this test used
+    // to assert on seeded rows without asking for the seed (same omission
+    // {128.23} fixed in the compliance test below). Run in isolation it hit
+    // the "No active procurements" empty state 100% of the time.
+    await expect(
+      bidsSection.getByText(`${workerData.prefix} IT Support Services`),
+    ).toBeVisible();
+
+    // Buyer text (this worker seeds two procurements sharing the buyer)
     await expect(bidsSection.getByText('E2E Test Corp').first()).toBeVisible();
   });
 
@@ -130,10 +148,11 @@ test.describe('Dashboard -- attention and bids sections', () => {
   }) => {
     await page.goto('/');
 
-    // Wait for Active Bids section
-    const bidsSection = page
-      .locator('section[aria-label="Active procurements"]')
-      .first();
+    // Wait for Active Bids section (accessible landmark — see the streaming
+    // staging-copy note on the previous test).
+    const bidsSection = page.getByRole('region', {
+      name: 'Active procurements',
+    });
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
     // Click the bid card link
@@ -154,19 +173,28 @@ test.describe('Dashboard -- attention and bids sections', () => {
 test.describe('Dashboard -- content health stats', () => {
   test('quick stats strip shows content health section', async ({
     authenticatedPage: page,
+    workerData: _workerData,
   }) => {
+    // The active-procurement tile asserted below requires a non-zero count, so
+    // this test depends on the worker-scoped seed — and Playwright only
+    // instantiates a fixture that is actually destructured ({128.23}).
+    void _workerData;
     await page.goto('/');
 
     // Wait for dashboard to load (Active Bids as proxy for Suspense resolution)
-    const bidsSection = page
-      .locator('section[aria-label="Active procurements"]')
-      .first();
+    const bidsSection = page.getByRole('region', {
+      name: 'Active procurements',
+    });
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
-    // Content health section — only one QuickStatsStrip is rendered on the
-    // dashboard (app/page.tsx), so no .first() needed. If strict mode fails
-    // here, it indicates duplicate sections in the DOM (a real bug).
-    const healthSection = page.locator('section[aria-label="Content health"]');
+    // Content health section — exactly one QuickStatsStrip is rendered on the
+    // dashboard (app/page.tsx), and `getByRole` asserts exactly one such
+    // LANDMARK: a second accessible region with this name still fails strict
+    // mode here (the a11y contract we care about). What it deliberately does
+    // NOT match is React's transient `<div hidden id="S:n">` streaming staging
+    // copy, which a `section[aria-label=...]` CSS locator did match — that was
+    // the "resolved to 2 elements" flake, not a duplicate landmark.
+    const healthSection = page.getByRole('region', { name: 'Content health' });
     await expect(healthSection).toBeVisible({ timeout: 10000 });
 
     // Heading
@@ -210,8 +238,9 @@ test.describe('Dashboard -- content health stats', () => {
   }) => {
     await page.goto('/');
 
-    // Wait for content health section — single instance, no .first() needed
-    const healthSection = page.locator('section[aria-label="Content health"]');
+    // Wait for content health section — accessible landmark, exactly one
+    // (see the streaming staging-copy note on the previous test).
+    const healthSection = page.getByRole('region', { name: 'Content health' });
     await expect(healthSection).toBeVisible({ timeout: 15000 });
 
     // {128.23}: the worker fixture applies the seeded documents' freshness to
@@ -383,9 +412,9 @@ test.describe('Dashboard -- mobile layout', () => {
     ).toBeVisible();
 
     // Active Bids section should be visible (stacked, not side-by-side)
-    const bidsSection = page
-      .locator('section[aria-label="Active procurements"]')
-      .first();
+    const bidsSection = page.getByRole('region', {
+      name: 'Active procurements',
+    });
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
   });
 });
@@ -426,7 +455,7 @@ test.describe('Dashboard -- partial-failure warnings banner', () => {
     // assertion runs against the fully-hydrated dashboard, not the skeleton
     // tree (where the banner would also legitimately be absent).
     await expect(
-      page.locator('section[aria-label="Active procurements"]').first(),
+      page.getByRole('region', { name: 'Active procurements' }),
     ).toBeVisible({ timeout: 15000 });
 
     // The banner uses role="status" + the aria-labelledby heading defined
