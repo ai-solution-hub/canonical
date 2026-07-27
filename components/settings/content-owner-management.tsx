@@ -107,10 +107,14 @@ export function ContentOwnerManagement() {
   const fetchTeamMembers = useCallback(async () => {
     try {
       const supabase = createClient();
-      const { data: roles } = await supabase
+      // id-369 F9: a dropped `error` here rendered an EMPTY owner dropdown,
+      // so an admin concluded there were no team members. Surface it instead.
+      const { data: roles, error } = await supabase
         .from('user_roles')
         .select('user_id, role')
         .in('role', ['admin', 'editor']);
+
+      if (error) throw error;
 
       if (!roles || roles.length === 0) {
         setTeamMembers([]);
@@ -138,6 +142,10 @@ export function ContentOwnerManagement() {
       );
     } catch (err) {
       console.error('Failed to fetch team members:', err);
+      // Without this the dropdown just renders empty and the admin reads it as
+      // "no team members exist" — the exact F9 wrong conclusion. Mirrors the
+      // `fetchStats` failure path above.
+      toast.error('Failed to load team members');
     }
   }, []);
 

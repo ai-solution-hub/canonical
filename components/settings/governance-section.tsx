@@ -106,6 +106,10 @@ export function GovernanceSection() {
       // (owner_kind='source_document', SD-only freshness axis per D7).
       // Ratified TECH.md E3 — this client-side consumer is kept + repointed.
       const supabase = createClient();
+      // id-369 category C: best-effort "Last run" display, guarded by `data?.`
+      // below — a failed read simply omits the timestamp, and no caller draws
+      // a wrong conclusion from its absence.
+      // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate best-effort display read; absence is a valid rendered state
       const { data } = await supabase
         .from('record_lifecycle')
         .select('freshness_checked_at')

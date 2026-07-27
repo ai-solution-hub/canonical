@@ -91,9 +91,22 @@ const eslintConfig = defineConfig([
     // code, AND Server Components / page+layout files in app/**/*.tsx.
     // OPS-31: extended to app/**/*.tsx so Next.js 16 Server Component data
     // fetching is in-scope (previously only app/api/** + lib/**).
+    // id-369 {369.4} (RC-3): extended to hooks/** and components/** — those
+    // two dirs query Supabase directly from the client and produced 2 of
+    // id-369's 10 findings (F2 use-user-role, F9 content-owner-management).
+    // `scripts/**` stays out per the same AC: a swallowed error there costs a
+    // developer one confusing rerun, not a user a wrong answer.
     // The `lib/supabase/safe.ts` ignore is only because the wrapper itself
     // destructures raw.
-    files: ['app/api/**/*.ts', 'lib/**/*.ts', 'app/**/*.tsx'],
+    files: [
+      'app/api/**/*.ts',
+      'lib/**/*.ts',
+      'app/**/*.tsx',
+      'hooks/**/*.ts',
+      'hooks/**/*.tsx',
+      'components/**/*.ts',
+      'components/**/*.tsx',
+    ],
     ignores: [
       '**/*.test.ts',
       '**/*.test.tsx',

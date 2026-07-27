@@ -181,6 +181,10 @@ export function useBatchCreate(): UseBatchCreateReturn {
           // ID-131 {131.21}: rebound off content_items.title onto
           // q_a_pairs.question_text — this hook now writes q_a_pairs, so the
           // duplicate check must search the same table it writes to.
+          // id-369 category C: duplicate-check read, explicitly best-effort —
+          // `checkDuplicates` already documents that a failure degrades to
+          // "no duplicates found", which never blocks or corrupts the create.
+          // eslint-disable-next-line local/no-unchecked-supabase-error -- deliberate best-effort duplicate probe; failure degrades to an empty match list
           const { data } = await supabase
             .from('q_a_pairs')
             .select('id, question_text')
