@@ -437,6 +437,21 @@ jobs:
               echo "::warning::PIPELINE_RUN_WEBHOOK_URL does NOT begin with NEXT_PUBLIC_APP_URL (${APP_URL}). The rollup will be recorded by a DIFFERENT app deployment, which may write pipeline_runs into a DIFFERENT Supabase project than the one this lane queries — the cases would fail while looking correctly wired. Expected: ${APP_URL}/api/internal/pipeline-runs/record"
               ;;
           esac
+          # The prefix check above CANNOT see this: a bare, tail-less URL has
+          # the correct prefix and passes it, then 401s at Vercel's edge — the
+          # guard would run, pass, and miss the exact defect it was added for.
+          # That is the id-379 "signal too weak to see the failure" shape, so
+          # assert the tail as its own condition. Warn rather than fail, per
+          # the step's rule above: the secret's value is the owner's to fix,
+          # and one spec cluster's dependency must not red the other ~60 cases.
+          case "${PIPELINE_RUN_WEBHOOK_URL}" in
+            *"x-vercel-protection-bypass="*)
+              echo "Bypass token present in the URL — the POST can clear Vercel Deployment Protection and reach the route."
+              ;;
+            *)
+              echo "::warning::PIPELINE_RUN_WEBHOOK_URL carries NO ?x-vercel-protection-bypass=<token> query param. The Platform-staging Vercel deployment has Deployment Protection ON, and flow.py sends only Authorization + Content-Type — so every rollup POST will be rejected at Vercel's edge with 'Protected deployment' WITHOUT reaching verifyPipelineTriggerAuth, no pipeline_runs row will land, and the cases polling for one will time out. Append the tail to the Staging secret, matching what the ca-pipeline-platform-staging Coolify app already carries. (If Deployment Protection is ever turned off for this app, this warning becomes noise and should be removed with it.)"
+              ;;
+          esac
 
       - name: Seed fixture corpus into the container (docker cp)
         # Mirrors live-verify.sh step 0b exactly: the buildpack image ships
