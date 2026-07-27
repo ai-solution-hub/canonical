@@ -170,6 +170,18 @@ services:
       # exact image it ran on, matching the `image:` line above.
       IMAGE_SHA: ${COCOINDEX_IMAGE_TAG}
 
+      # --- LLM tier redirect (id-389) — STAGING-ONLY key, deliberately absent
+      # from the production compose (absent = SDK default = real API; and an
+      # EMPTY value would break the client: anthropic 0.79.0 takes '' over its
+      # default, so this var must never be set blank). Default = the tier-1
+      # mock service below (wiring iteration at $0, no live key). Operator
+      # flips tiers via Coolify env: `https://api.anthropic.com` for a
+      # final-parity real-key run; the OpenRouter tier-2 value when
+      # extraction-quality runs begin. NOT in check-compose-parity's
+      # REQUIRED_ENV_KEYS — it is a staging iteration affordance, not shared
+      # structure.
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-http://mockllm-platform-staging:8080}
+
       # --- Supabase / API secrets (PLATFORM STAGING values, injected by Coolify) ---
       # SUPABASE_* MUST be the platform-staging project values, NOT production.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
@@ -247,6 +259,52 @@ services:
 
     # No volumes (stateless — see production service comment) and no
     # healthcheck (no HTTP surface).
+
+  # ----------------------------------------------------------------------------
+  # mockllm — id-389 tier-1 LLM substrate (STAGING-ONLY; no production sibling).
+  #
+  # Runs `scripts/cocoindex_pipeline/mock_llm.py` from the SAME pinned pipeline
+  # image (no separate artefact — the mock is version-locked to the extraction
+  # code it mocks, and the boot-time self-check inside mock_llm.py kills the
+  # container at start if the canned payloads no longer validate against
+  # extraction.py's own adapters). The cocoindex service above reaches it via
+  # its ANTHROPIC_BASE_URL default (`http://mockllm-platform-staging:8080` —
+  # compose-network DNS), making a staging corpus walk $0 and independent of
+  # any live Anthropic key.
+  #
+  # COMPOSE-INTERNAL ONLY — NEVER expose: no Traefik labels, no ports. A mock
+  # that answers /v1/messages unauthenticated must not be reachable off-box.
+  #
+  # Same CNB entrypoint override as bid-worker above (the buildpack ENTRYPOINT
+  # pins the `web` process and never execs `command:`).
+  # ----------------------------------------------------------------------------
+  mockllm-platform-staging:
+    image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
+    container_name: ca-mockllm-platform-staging
+    restart: unless-stopped
+    entrypoint: ["/cnb/lifecycle/launcher"]
+    command: ["python3", "-m", "scripts.cocoindex_pipeline.mock_llm"]
+
+    # Tiny footprint: canned responses only — no extractors, no Docling.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
+
+    environment:
+      PORT: "8080"
+
+    # Same /dev/tcp liveness idiom as the cocoindex service (the buildpack
+    # image ships no curl/wget).
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # ------------------------------------------------------------------------------
 # Volumes
