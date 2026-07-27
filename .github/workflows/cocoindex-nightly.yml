@@ -406,11 +406,19 @@ jobs:
             echo "::warning::PIPELINE_RUN_WEBHOOK_URL is unset in the Staging environment — flow.py will silently skip the pipeline-run webhook, no pipeline_runs row will land, and every case polling for one will time out. Add the secret to the Staging GitHub environment."
             exit 0
           fi
-          if ! docker exec cocoindex-sidecar sh -c '[ -n "${PIPELINE_RUN_WEBHOOK_URL:-}" ]'; then
-            echo "PIPELINE_RUN_WEBHOOK_URL is set on the runner but did NOT reach the sidecar container — check the 'docker run -e' list above." >&2
-            exit 1
+          # Probe by OUTPUT, not by exit status: a non-zero `docker exec` means
+          # "could not probe" (no `sh` on the buildpack image's exec PATH,
+          # container already gone) — NOT "variable absent". Conflating the two
+          # would red the whole lane for a diagnostic that failed to run.
+          if PRESENCE="$(docker exec cocoindex-sidecar sh -c 'printf %s "${PIPELINE_RUN_WEBHOOK_URL:+present}"' 2>/dev/null)"; then
+            if [ "$PRESENCE" != "present" ]; then
+              echo "PIPELINE_RUN_WEBHOOK_URL is set on the runner but did NOT reach the sidecar container — check the 'docker run -e' list above." >&2
+              exit 1
+            fi
+            echo "PIPELINE_RUN_WEBHOOK_URL present on the runner AND inside the sidecar container."
+          else
+            echo "::warning::Could not probe the sidecar container for PIPELINE_RUN_WEBHOOK_URL (docker exec failed) — runner-side presence confirmed, container-side unverified."
           fi
-          echo "PIPELINE_RUN_WEBHOOK_URL present on the runner AND inside the sidecar container."
           APP_URL="${NEXT_PUBLIC_APP_URL%/}"
           case "${PIPELINE_RUN_WEBHOOK_URL}" in
             "${APP_URL}"/*)
