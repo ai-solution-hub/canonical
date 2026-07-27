@@ -55,6 +55,12 @@ stale.
 
 For every task touched this session: flip status via ordna move (done is Coordinator-only, dependency-gated), refresh status_note + session_refs, and tick shipped ACs in the task file. The continuation prompt must never carry state the ledger contradicts.
 
+**Verify before you flip.** For a branch-based subtask, confirm its named symbols exist
+on `main` (`git cat-file -e main:<path>`) before moving it to done — a done-checkbox over
+an unlanded branch is how {163.20} (S498) and {163.19} (S499) were both lost. Not on
+`main` ⇒ status stays open and the branch is named in `status_note`. Canonical home for
+this rule is `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §5; this is its session-close mirror.
+
 ## Step 1c — Reconcile the owning initiative and project
 
 The ledger's strategic layer only stays true if session close writes back to it.
@@ -178,8 +184,8 @@ Run the read-only generator and paste its block into the prompt's *Mechanical st
 bash scripts/session-close-report.sh
 ```
 
-It emits branch/HEAD, named worktrees, open PRs + CI (`gh-axi`), and index
-freshness.
+It emits branch/HEAD, named worktrees, unregistered Intent workspace checkouts,
+open PRs + CI (`gh-axi`), and index freshness.
 
 ---
 
