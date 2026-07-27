@@ -159,6 +159,17 @@
 # so the guard step below compares it against vars.NEXT_PUBLIC_APP_URL, which is
 # the staging app, and warns on a mismatch WITHOUT printing either value.
 #
+# The expected Staging value, per id-127 AMENDMENT-staging-prod-two-server.md
+# OQ-3 (as corrected at S415) and deploy/coolify/.env.staging.example:50, is
+#   <NEXT_PUBLIC_APP_URL>/api/internal/pipeline-runs/record?x-vercel-protection-bypass=<token>
+# The query param is NOT optional: the Platform-staging Vercel deployment has
+# Deployment Protection on, and flow.py sends only Authorization +
+# Content-Type — it cannot supply the bypass as a header. A URL that is
+# correctly hosted but missing the token gets Vercel's 401 (never reaching the
+# route), which the post-walk step below surfaces as
+# "pipeline-run webhook returned HTTP 401". The host-match check cannot detect
+# that, because the query string sits after the path it matches on.
+#
 # Workflow-injection mitigation: all github context + secret values arrive via
 # the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
 # eval-nightly.yml / integration-nightly.yml / onprem-deploy.yml).
@@ -576,7 +587,7 @@ jobs:
           fi
           if [ -n "$HITS" ]; then
             printf '%s\n' "$HITS"
-            echo "::warning::The sidecar reported pipeline-run webhook problems (above). No pipeline_runs row landed for the affected emissions, so cases polling for one will have timed out. Check that PIPELINE_RUN_WEBHOOK_URL is set and reachable and that PIPELINE_TRIGGER_SECRET matches the receiving app's value (verifyPipelineTriggerAuth, lib/cron-auth.ts)."
+            echo "::warning::The sidecar reported pipeline-run webhook problems (above). No pipeline_runs row landed for the affected emissions, so cases polling for one will have timed out. HTTP 401 with an HTML body = Vercel Deployment Protection, i.e. the URL is missing its ?x-vercel-protection-bypass=<token> query param (see the header). HTTP 401 with a JSON body = the bearer is wrong: PIPELINE_TRIGGER_SECRET must match the receiving app's value (verifyPipelineTriggerAuth, lib/cron-auth.ts). A connection error = the app was unreachable."
           else
             echo "No pipeline-run webhook problems in the sidecar log. flow.py is silent on success, so this is a negative signal only — the positive proof is a terminal pipeline_runs row, which the Vitest tier asserts."
           fi
