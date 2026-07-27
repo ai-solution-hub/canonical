@@ -116,10 +116,48 @@
 #     cocoindex_pipeline/server.py's /walk auth block; both curl calls below
 #     send this, matching deploy/onprem/verify/live-verify.sh),
 #     TEST_USER_{1,2,3}_PASSWORD, STAGING_SUPABASE_DB_URL (sources
-#     COCOINDEX_DB_DSN below — no new secret)
+#     COCOINDEX_DB_DSN below — no new secret),
+#     PIPELINE_RUN_WEBHOOK_URL (the `pipeline_runs` round-trip — see the
+#     next block)
 #   Vars:
 #     SUPABASE_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_CLIENT_ID,
 #     AI_EMBEDDING_MODEL, AI_EMBEDDING_DIMS, TEST_USER_{1,2,3}_EMAIL
+#
+# `pipeline_runs` ROUND-TRIP + ITS STATED EXTERNAL DEPENDENCY.
+# The sidecar does NOT write `pipeline_runs` itself. `_emit_pipeline_run_webhook`
+# (scripts/cocoindex_pipeline/flow.py) POSTs the rollup — `in_progress` at flow
+# start, one terminal status at flow end — to PIPELINE_RUN_WEBHOOK_URL, and the
+# receiving app route `/api/internal/pipeline-runs/record` performs the ONLY
+# `recordPipelineRun` -> `pipeline_runs` write (Inv-18). With the URL unset the
+# emission is SILENTLY SKIPPED (best-effort by design: flow.py logs a warning
+# and returns, the walk still succeeds), so no row ever lands and every case
+# that polls for one times out with no signal pointing at the cause. That is
+# what happened in run 30272898165. The bearer half was already wired
+# (PIPELINE_TRIGGER_SECRET, below); only the URL was missing.
+#
+# Bearer, confirmed from source (both halves agree — no CRON_SECRET anywhere in
+# this path): flow.py sends `Bearer $PIPELINE_TRIGGER_SECRET` and the route
+# gates on `verifyPipelineTriggerAuth` (lib/cron-auth.ts), which is
+# PIPELINE_TRIGGER_SECRET-ONLY since ID-127.18 retired the legacy CRON_SECRET
+# dual-accept. Same secret this job already sends to /walk.
+#
+# STATED DEPENDENCY (a real coupling, not a footnote): wiring this makes those
+# cases depend on a DEPLOYED, REACHABLE app at PIPELINE_RUN_WEBHOOK_URL. If the
+# Vercel staging deployment is down, unreachable, or rejects the bearer, the
+# rollup never lands and the same cases fail again for an entirely unrelated
+# reason. Emission is best-effort, so the sidecar will NOT fail the walk — the
+# only symptom is a missing row. The two guard steps below exist precisely to
+# make that mode loud instead of silent: one asserts the value reached the
+# container and points at the same host as NEXT_PUBLIC_APP_URL, the other
+# surfaces flow.py's webhook error lines after the walk.
+#
+# VALUE CORRECTNESS: the URL MUST address the app backed by the SAME Supabase
+# project this lane's Vitest layer queries (vars.SUPABASE_URL = Platform
+# staging). A URL pointing at the production app would land the rollup in the
+# PRODUCTION `pipeline_runs` table — the cases would still fail while looking
+# correctly wired. The secret's value cannot be read from the workflow (masked),
+# so the guard step below compares it against vars.NEXT_PUBLIC_APP_URL, which is
+# the staging app, and warns on a mismatch WITHOUT printing either value.
 #
 # Workflow-injection mitigation: all github context + secret values arrive via
 # the job-level `env:` block, never inline ${{ }} in run: steps (mirrors
@@ -207,6 +245,12 @@ jobs:
       # STAGING_SUPABASE_DB_URL — no separately-minted COCOINDEX_DB_DSN
       # secret (operator OQ ratified, S455 pickup).
       COCOINDEX_DB_DSN: ${{ secrets.STAGING_SUPABASE_DB_URL }}
+      # The ONLY path by which a `pipeline_runs` row can exist for this walk —
+      # see the round-trip block in the header. Paired with the
+      # PIPELINE_TRIGGER_SECRET bearer already declared above; both are read by
+      # `_emit_pipeline_run_webhook` in flow.py and BOTH must be non-empty or
+      # the emission is silently skipped.
+      PIPELINE_RUN_WEBHOOK_URL: ${{ secrets.PIPELINE_RUN_WEBHOOK_URL }}
       # Sidecar container + Vitest wiring (this job's local topology, not
       # secrets — literal here is fine).
       COCOINDEX_IMAGE_TAG: "kh-cocoindex-pipeline:nightly-${{ github.run_id }}"
@@ -300,6 +344,7 @@ jobs:
             -e "OPENAI_API_KEY=${OPENAI_API_KEY}" \
             -e "CRON_SECRET=${CRON_SECRET}" \
             -e "PIPELINE_TRIGGER_SECRET=${PIPELINE_TRIGGER_SECRET}" \
+            -e "PIPELINE_RUN_WEBHOOK_URL=${PIPELINE_RUN_WEBHOOK_URL}" \
             -v "${COCOINDEX_HOST_STATE_PATH}:/cocoindex-state" \
             "${COCOINDEX_IMAGE_TAG}"
 
@@ -320,6 +365,47 @@ jobs:
             fi
             sleep 1
           done
+
+      - name: Confirm the pipeline-run webhook config reached the sidecar
+        # Mirrors the `/extract` seam preflight in e2e-nightly.yml (f96b0457),
+        # for the same defect class: an unset secret resolves to the EMPTY
+        # STRING, not an error, and flow.py's emission is best-effort — so
+        # without this the ONLY symptom of a missing or misdirected URL is a
+        # `pipeline_runs` row that never lands and a cluster of opaque polling
+        # timeouts (run 30272898165).
+        #
+        # Prints PRESENCE and a host-match verdict ONLY — never either value.
+        # PIPELINE_RUN_WEBHOOK_URL is a secret (masked in logs anyway); what
+        # matters is that it addresses the SAME app as NEXT_PUBLIC_APP_URL,
+        # because that app decides which Supabase project `recordPipelineRun`
+        # writes into, and the Vitest tier below asserts against
+        # vars.SUPABASE_URL.
+        #
+        # Warn, do not fail, on the two conditions the owner controls (secret
+        # unset / pointed elsewhere): the walk is unaffected and the ~60 cases
+        # that never read `pipeline_runs` must still run. HARD-fail only the
+        # one condition this file owns — value present on the runner but not
+        # inside the container, i.e. a broken `docker run -e` list.
+        run: |
+          set -euo pipefail
+          if [ -z "${PIPELINE_RUN_WEBHOOK_URL:-}" ]; then
+            echo "::warning::PIPELINE_RUN_WEBHOOK_URL is unset in the Staging environment — flow.py will silently skip the pipeline-run webhook, no pipeline_runs row will land, and every case polling for one will time out. Add the secret to the Staging GitHub environment."
+            exit 0
+          fi
+          if ! docker exec cocoindex-sidecar sh -c '[ -n "${PIPELINE_RUN_WEBHOOK_URL:-}" ]'; then
+            echo "PIPELINE_RUN_WEBHOOK_URL is set on the runner but did NOT reach the sidecar container — check the 'docker run -e' list above." >&2
+            exit 1
+          fi
+          echo "PIPELINE_RUN_WEBHOOK_URL present on the runner AND inside the sidecar container."
+          APP_URL="${NEXT_PUBLIC_APP_URL%/}"
+          case "${PIPELINE_RUN_WEBHOOK_URL}" in
+            "${APP_URL}"/*)
+              echo "Webhook target matches NEXT_PUBLIC_APP_URL (${APP_URL}) — the rollup is recorded by the app backed by the same Supabase project this lane asserts against."
+              ;;
+            *)
+              echo "::warning::PIPELINE_RUN_WEBHOOK_URL does NOT begin with NEXT_PUBLIC_APP_URL (${APP_URL}). The rollup will be recorded by a DIFFERENT app deployment, which may write pipeline_runs into a DIFFERENT Supabase project than the one this lane queries — the cases would fail while looking correctly wired. Expected: ${APP_URL}/api/internal/pipeline-runs/record"
+              ;;
+          esac
 
       - name: Seed fixture corpus into the container (docker cp)
         # Mirrors live-verify.sh step 0b exactly: the buildpack image ships
@@ -467,6 +553,32 @@ jobs:
         run: |
           if [ -f "${RUNNER_TEMP}/walk-pump.pid" ]; then
             kill "$(cat "${RUNNER_TEMP}/walk-pump.pid")" 2>/dev/null || true
+          fi
+
+      - name: Surface pipeline-run webhook failures (post-walk)
+        # flow.py logs NOTHING on a successful emission — only the unset-env
+        # skip warning, "pipeline-run webhook returned HTTP <code>" (bearer
+        # rejected / route 4xx-5xx), or "pipeline-run webhook emission failed"
+        # (DNS, TLS, timeout — i.e. the deployed app was unreachable, the
+        # stated external dependency in the header). All three are best-effort
+        # and do NOT fail the walk, so without this step a broken round-trip
+        # looks exactly like a healthy one until the polling cases time out.
+        # Covers the whole run (initial walk + every pump-driven walk during
+        # Vitest), hence its position after the pump is stopped.
+        if: always()
+        run: |
+          set -euo pipefail
+          SINCE="${COCOINDEX_WALK_LOG_SINCE:-}"
+          if [ -n "$SINCE" ]; then
+            HITS="$(docker logs --since "$SINCE" cocoindex-sidecar 2>&1 | grep -F "pipeline-run webhook" || true)"
+          else
+            HITS="$(docker logs cocoindex-sidecar 2>&1 | grep -F "pipeline-run webhook" || true)"
+          fi
+          if [ -n "$HITS" ]; then
+            printf '%s\n' "$HITS"
+            echo "::warning::The sidecar reported pipeline-run webhook problems (above). No pipeline_runs row landed for the affected emissions, so cases polling for one will have timed out. Check that PIPELINE_RUN_WEBHOOK_URL is set and reachable and that PIPELINE_TRIGGER_SECRET matches the receiving app's value (verifyPipelineTriggerAuth, lib/cron-auth.ts)."
+          else
+            echo "No pipeline-run webhook problems in the sidecar log. flow.py is silent on success, so this is a negative signal only — the positive proof is a terminal pipeline_runs row, which the Vitest tier asserts."
           fi
 
       - name: Dump sidecar container logs (always — primary diagnostic)
