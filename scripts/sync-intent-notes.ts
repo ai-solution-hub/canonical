@@ -15,7 +15,9 @@
  *
  * The five spike requirements, each addressed here:
  *   1. Movement       — copy top-level `*.md` only; never `.meta/` or dotfiles.
- *   2. Ref rewriting  — `intent://local/{task,note}/<id>` → `./<id>.md`
+ *   2. Ref rewriting  — `intent://local/{task,note}/<id>` → `./<id>.md` when a
+ *      source note matches; unresolvable links de-linkify to their label
+ *      (Intent task ids have no note file), bare refs stay verbatim
  *                       (relative link, target sits in the same folder; link
  *                       text is preserved).
  *   3. Astro YAML     — Intent writes unquoted `title: {N.M} …` values that
@@ -69,6 +71,8 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 const INTENT_REF =
   /intent:\/\/local\/(?:task|note)\/([A-Za-z0-9][A-Za-z0-9-]*)/g;
+const INTENT_LINK =
+  /\[([^\]]*)\]\(intent:\/\/local\/(?:task|note)\/([A-Za-z0-9][A-Za-z0-9-]*)\)/g;
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 interface Resolved {
@@ -192,13 +196,16 @@ function safeQuoteTitle(raw: string): string {
  * Deterministic transform of one note's content:
  *   normalise frontmatter YAML (quote title, full re-dump) + rewrite refs.
  * `resolveRef` maps an intent-link id (which may be a short prefix of a note
- * UUID) to the on-disk note basename, so rewritten relative links resolve.
+ * UUID) to the on-disk note basename, so rewritten relative links resolve —
+ * or null when no source note matches (Intent task ids never do). An
+ * unresolvable markdown link is de-linkified to its label; an unresolvable
+ * bare ref is left verbatim — either way no dead `./<id>.md` link is written.
  * Throws (with the caller supplying the filename) if the frontmatter cannot be
  * made parseable even after quoting the title.
  */
 function transform(
   content: string,
-  resolveRef: (id: string) => string,
+  resolveRef: (id: string) => string | null,
 ): string {
   const m = content.match(FRONTMATTER);
   let out: string;
@@ -220,10 +227,14 @@ function transform(
     const normalised = stringifyYaml(parsed);
     out = `---\n${normalised}---\n${body}`;
   }
-  return out.replace(
-    INTENT_REF,
-    (_all, id: string) => `./${resolveRef(id)}.md`,
-  );
+  out = out.replace(INTENT_LINK, (_all, label: string, id: string) => {
+    const r = resolveRef(id);
+    return r ? `[${label}](./${r}.md)` : label;
+  });
+  return out.replace(INTENT_REF, (all, id: string) => {
+    const r = resolveRef(id);
+    return r ? `./${r}.md` : all;
+  });
 }
 
 function fail(msg: string): never {
@@ -273,14 +284,15 @@ function main() {
   const sourceNames = new Set(sources.map((f) => f.replace(/\.md$/, '')));
 
   // Map an intent-link id to a note basename: exact match wins; else a unique
-  // source whose UUID starts with the (possibly short) id; else the id verbatim
-  // (left as a dangling relative link for the skill to triage).
-  const resolveRef = (id: string): string => {
+  // source whose UUID starts with the (possibly short) id; else null — the
+  // transform de-linkifies (link form) or leaves the ref verbatim (bare form),
+  // and the id is reported below for the skill to triage.
+  const resolveRef = (id: string): string | null => {
     if (sourceNames.has(id)) return id;
     const prefixed = [...sourceNames].filter((n) => n.startsWith(`${id}-`));
     if (prefixed.length === 1) return prefixed[0];
     unresolvedRefs.add(id);
-    return id;
+    return null;
   };
 
   for (const file of sources) {
@@ -321,7 +333,7 @@ function main() {
   if (updated.length) console.error(`  updated:   ${updated.join(', ')}`);
   if (unresolvedRefs.size) {
     console.error(
-      `  WARN dangling refs (target file absent in source): ` +
+      `  WARN unresolvable intent refs (links de-linkified, bare refs left verbatim): ` +
         `${[...unresolvedRefs].join(', ')}`,
     );
   }
