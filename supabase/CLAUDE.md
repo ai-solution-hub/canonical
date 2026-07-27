@@ -101,3 +101,5 @@
   wrapper on regen. Gate: `bun scripts/check-api-view-coverage.ts` (INV-20) — wired
   into `.github/workflows/api-view-coverage.yml` (nightly + migration-path-filtered
   push, staging-scoped), no longer ad-hoc/local-only.
+
+- **Every `api`-surface change ships its companion exposure migration in the SAME batch (DR-032)** — a new/renamed public view, RPC, or grant lands with the migration that exposes it, never in a follow-up. Re-homed here S504; the register row remains the ADR.
