@@ -119,7 +119,7 @@ beforeAll(async () => {
   // 2. Stage a DIFFERENT pipeline corpus whose Stage-5 pass runs concurrently.
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-8/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });

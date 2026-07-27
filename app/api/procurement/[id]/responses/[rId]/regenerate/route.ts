@@ -190,6 +190,12 @@ export const POST = defineRoute(
         },
       });
     } catch (err) {
+      // Log BEFORE narrowing to the client-safe message — see the identical
+      // note on draft-stream's catch. Without this the 500 body carries only
+      // `safeErrorMessage`'s generic fallback and nothing reaches the server
+      // log, so an upstream Anthropic 401 was indistinguishable from a real
+      // regression (e2e-nightly run 30244345218). Response contract UNCHANGED.
+      logger.error({ err, op: 'response_regenerate' }, 'Regenerate failed');
       return NextResponse.json(
         { error: safeErrorMessage(err, 'Failed to regenerate response') },
         { status: 500 },

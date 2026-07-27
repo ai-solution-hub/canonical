@@ -31,7 +31,13 @@ export default defineConfig({
     ],
     globals: true,
     setupFiles: ['__tests__/setup.ts'],
-    testTimeout: 120_000,
+    // 180s, deliberately ABOVE the cocoindex staging-poll default of 120s
+    // (__tests__/integration/cocoindex/_helpers/fixture-staging.ts
+    // DEFAULT_TIMEOUT_MS). ID-128.3: the two used to be equal, so a poll's
+    // deadline and its test budget expired at the same instant and Vitest
+    // killed the test before the poll could emit its own diagnostic. Keep
+    // this strictly greater than DEFAULT_TIMEOUT_MS.
+    testTimeout: 180_000,
     hookTimeout: 30_000,
     pool: 'forks',
     fileParallelism: false,

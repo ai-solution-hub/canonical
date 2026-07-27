@@ -97,10 +97,11 @@ const seededContentIds: string[] = [];
 
 // The Q&A-form-shaped fixture other landed cocoindex integration tests use
 // to exercise `extract_qa_form` (e.g. op-id-round-trip, idempotency-memo-hit)
-// is `docs/testing/test-data/templates/csp-checklist/...xlsx` — that
-// directory does NOT exist in this checkout (repo-wide search + `git log
-// --all` both come up empty; verified while landing this stub — flagged as
-// an out-of-scope finding, NOT fixed here). This test instead uses the ITT
+// is `docs/testing/test-data/templates/csp-cloud-security-principles/...xlsx`.
+// This comment previously recorded that directory as missing — it was: those
+// tests pointed at a `csp-checklist/` path that never existed in git, and
+// ID-128.3 repointed all 20 literals at the real dir (landed 5aa747d4,
+// id-145.10). Left as-is regardless: this test instead uses the ITT
 // evaluation-matrix xlsx, a form-shaped spreadsheet expected to classify
 // similarly; if it does not yield `q_a_extractions` rows, the fixture choice
 // (not the memo-hit contract below) is the thing to revisit.

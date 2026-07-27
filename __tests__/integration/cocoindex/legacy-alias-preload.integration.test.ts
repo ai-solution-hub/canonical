@@ -75,7 +75,7 @@ beforeAll(async () => {
   ]);
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-10/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });

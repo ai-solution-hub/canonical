@@ -21,9 +21,11 @@
  * dev and GIT-INTEGRATION preview branches only — a Management-API-created
  * branch does NOT inherit it and is born with the Supabase DEFAULT
  * `db_schema: "public,graphql_public"` ({128.10} iteration-6 empirical
- * finding), so it needs this script run against it (the `mirror-postgrest`
- * leg of scripts/e2e-ephemeral-branch.ts). This script also covers standalone
- * managed projects, where config.toml is not applied on db push.
+ * finding), so any such branch needs this script run against it. That was the
+ * script's one automated caller — the E2E ephemeral-branch `mirror-postgrest`
+ * leg, retired with the whole hosted-branch topology by DR-096. The script is
+ * now operator-invoked only (client-app-deploy.md step 3b.5), covering
+ * standalone managed projects, where config.toml is not applied on db push.
  *
  * SAFETY:
  *   - DRY-RUN BY DEFAULT. Pass --apply to write. Without it, prints the planned

@@ -82,7 +82,7 @@ const POLL_TIMEOUT_MS = 180_000;
 // The fixture template the dedup sibling stages — reused verbatim so the
 // corpus produces the same certification-bearing entity surface.
 const FIXTURE_PATH =
-  'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx';
+  'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
 
 // The two surface variants of the SAME entity Stage-5 should dedup across docs
 // (mirrors the cross-document-dedup sibling corpus).
