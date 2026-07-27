@@ -89,3 +89,7 @@ tools/ast-dataflow/__tests__/fixtures/**/malformed.json
 # Misc
 *.log
 .DS_Store
+
+# ast-dataflow - tool and related files are due to be extracted from repo
+tools/ast-dataflow/**
+tools/ast_dataflow_py/**
