@@ -215,6 +215,21 @@
 # a real-key run at minute 1 when the key is dead/disabled (the S501 lane once
 # burned 75 min discovering exactly that), instead of after the build + walk.
 #
+# `llm_tier: openrouter` = REAL Claude extraction billed via OpenRouter
+# credits (the id-387 producer regime's endpoint), for extraction-QUALITY
+# runs while the direct Anthropic key stays disabled. Mechanics are the
+# probe-proven {132.35} slice C/E recipe from producer/agent_loop.py:
+# ANTHROPIC_BASE_URL=https://openrouter.ai/api (the Anthropic-skin
+# /v1/messages endpoint), auth as a BEARER via ANTHROPIC_AUTH_TOKEN
+# (= secrets.PRODUCER_AUTH_TOKEN), and ANTHROPIC_API_KEY forced EMPTY in the
+# sidecar — a non-empty Anthropic-shaped X-Api-Key silently pins OpenRouter's
+# provider routing AND would transmit the real Anthropic key to a third
+# party (the slice E double rationale). extraction.py's model stays the
+# ANTHROPIC_MODEL constant, which OpenRouter's skin routes to the anthropic
+# provider — so this tier is real-model quality, not the cheap-model
+# variant; a cheap-model tier needs an extraction model-override knob, which
+# is a DR-060 memo-invalidation surface deliberately NOT smuggled in here.
+#
 # Spec: S403-coverage-audit.md gap (2) HIGH.
 
 name: Cocoindex nightly
@@ -230,11 +245,13 @@ on:
     inputs:
       llm_tier:
         description:
-          "LLM tier (id-389): mock = $0 canned extraction (default); anthropic =
-          real key, one-run final parity only"
+          "LLM tier (id-389): mock = $0 canned extraction (default); openrouter
+          = real Claude via OpenRouter credits (quality runs); anthropic =
+          direct key, one-run final parity only"
         type: choice
         options:
           - mock
+          - openrouter
           - anthropic
         default: mock
 
@@ -308,6 +325,10 @@ jobs:
       # the choice input constrains the value set.
       LLM_TIER: ${{ inputs.llm_tier || 'mock' }}
       MOCK_LLM_PORT: "8090"
+      # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2) — the
+      # same credential the deployed producer uses (id-387 regime map).
+      PRODUCER_AUTH_TOKEN: ${{ secrets.PRODUCER_AUTH_TOKEN }}
+      OPENROUTER_ANTHROPIC_BASE_URL: "https://openrouter.ai/api"
 
     steps:
       - name:
@@ -320,23 +341,39 @@ jobs:
         # no live credential; its own /health gate below is its preflight.
         run: |
           set -euo pipefail
-          if [ "$LLM_TIER" != "anthropic" ]; then
-            echo "LLM tier '${LLM_TIER}': no live Anthropic credential in play — preflight not applicable (mock /health gate covers the mock tier)."
-            exit 0
-          fi
+          case "$LLM_TIER" in
+            anthropic)
+              PREFLIGHT_URL="https://api.anthropic.com/v1/messages"
+              AUTH_ARGS=(-H "x-api-key: ${ANTHROPIC_API_KEY}")
+              ;;
+            openrouter)
+              # Bearer auth, NEVER x-api-key: an Anthropic-shaped X-Api-Key
+              # pins OpenRouter's provider routing (producer slice E).
+              PREFLIGHT_URL="${OPENROUTER_ANTHROPIC_BASE_URL}/v1/messages"
+              AUTH_ARGS=(-H "Authorization: Bearer ${PRODUCER_AUTH_TOKEN}")
+              if [ -z "$PRODUCER_AUTH_TOKEN" ]; then
+                echo "llm_tier=openrouter but secrets.PRODUCER_AUTH_TOKEN is empty/unprovisioned — failing at minute 1." >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "LLM tier '${LLM_TIER}': no live credential in play — preflight not applicable (mock /health gate covers the mock tier)."
+              exit 0
+              ;;
+          esac
           HTTP_CODE=$(curl -s -o /tmp/preflight-body.json -w "%{http_code}" -m 20 \
-            -X POST "https://api.anthropic.com/v1/messages" \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -X POST "$PREFLIGHT_URL" \
+            "${AUTH_ARGS[@]}" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
             -d '{"model":"claude-haiku-4-5-20251001","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}' \
             || echo "000")
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Anthropic credential preflight FAILED (HTTP ${HTTP_CODE}) — the key is dead, disabled, or unreachable. Failing at minute 1 instead of after the walk. Response body:" >&2
+            echo "Credential preflight FAILED for tier '${LLM_TIER}' (HTTP ${HTTP_CODE}) — the credential is dead, disabled, or unreachable. Failing at minute 1 instead of after the walk. Response body:" >&2
             cat /tmp/preflight-body.json >&2 || true
             exit 1
           fi
-          echo "Anthropic credential preflight OK (HTTP 200)."
+          echo "Credential preflight OK for tier '${LLM_TIER}' (HTTP 200)."
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -445,14 +482,26 @@ jobs:
         # gets ANTHROPIC_BASE_URL pointed at it — extraction's zero-arg
         # AsyncAnthropic() picks the var up natively. On the anthropic tier
         # the var is simply absent (an empty value would BREAK the SDK:
-        # base_url='' beats its default — never pass it blank).
+        # base_url='' beats its default — never pass it blank). On the
+        # openrouter tier the base URL is the Anthropic-skin endpoint, auth
+        # is the Bearer ANTHROPIC_AUTH_TOKEN, and ANTHROPIC_API_KEY is
+        # forced EMPTY (provider-pinning defeat + never send the Anthropic
+        # key to a third party — producer slice E, probe-proven).
         run: |
           set -euo pipefail
           docker network create coco-nightly 2>/dev/null || true
           EXTRA_LLM_ARGS=()
-          if [ "$LLM_TIER" = "mock" ]; then
-            EXTRA_LLM_ARGS+=(-e "ANTHROPIC_BASE_URL=http://mock-llm:${MOCK_LLM_PORT}")
-          fi
+          SIDECAR_ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}"
+          case "$LLM_TIER" in
+            mock)
+              EXTRA_LLM_ARGS+=(-e "ANTHROPIC_BASE_URL=http://mock-llm:${MOCK_LLM_PORT}")
+              ;;
+            openrouter)
+              EXTRA_LLM_ARGS+=(-e "ANTHROPIC_BASE_URL=${OPENROUTER_ANTHROPIC_BASE_URL}")
+              EXTRA_LLM_ARGS+=(-e "ANTHROPIC_AUTH_TOKEN=${PRODUCER_AUTH_TOKEN}")
+              SIDECAR_ANTHROPIC_API_KEY=""
+              ;;
+          esac
           docker run -d --name cocoindex-sidecar \
             --network coco-nightly \
             -p "${COCOINDEX_PORT}:${COCOINDEX_PORT}" \
@@ -463,7 +512,7 @@ jobs:
             -e "COCOINDEX_DB_DSN=${COCOINDEX_DB_DSN}" \
             -e "SUPABASE_URL=${SUPABASE_URL}" \
             -e "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}" \
-            -e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" \
+            -e "ANTHROPIC_API_KEY=${SIDECAR_ANTHROPIC_API_KEY}" \
             -e "OPENAI_API_KEY=${OPENAI_API_KEY}" \
             -e "CRON_SECRET=${CRON_SECRET}" \
             -e "PIPELINE_TRIGGER_SECRET=${PIPELINE_TRIGGER_SECRET}" \
