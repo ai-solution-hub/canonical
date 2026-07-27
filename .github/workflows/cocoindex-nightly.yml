@@ -230,8 +230,8 @@ on:
     inputs:
       llm_tier:
         description:
-          "LLM tier (id-389): mock = $0 canned extraction (default);
-          anthropic = real key, one-run final parity only"
+          "LLM tier (id-389): mock = $0 canned extraction (default); anthropic =
+          real key, one-run final parity only"
         type: choice
         options:
           - mock
@@ -310,7 +310,9 @@ jobs:
       MOCK_LLM_PORT: "8090"
 
     steps:
-      - name: Credential preflight — hard-fail at minute 1, before any spend (id-389)
+      - name:
+          Credential preflight — hard-fail at minute 1, before any spend
+          (id-389)
         # One cheap /v1/messages ping against the REAL endpoint whenever a
         # live credential is in play. A dead/disabled key fails HERE — not 75
         # minutes later after the buildpacks build and a fence-gated walk
