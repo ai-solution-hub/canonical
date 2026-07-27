@@ -55,6 +55,36 @@ stale.
 
 For every task touched this session: flip status via ordna move (done is Coordinator-only, dependency-gated), refresh status_note + session_refs, and tick shipped ACs in the task file. The continuation prompt must never carry state the ledger contradicts.
 
+## Step 1c — Reconcile the owning initiative and project
+
+The ledger's strategic layer only stays true if session close writes back to it.
+Resolve every task this session touched to its owning **project**, then reconcile.
+
+1. **Resolve.** Reverse-lookup the task id across
+   `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/*.md` — projects sit
+   both directly under `## Projects` and under `## Sub-initiatives` → `- Projects:`:
+
+   ```bash
+   grep -rn "Linked tasks:.*\b<N>\b" "$KH_PRIVATE_DOCS_DIR/src/content/docs/ledgers/initiatives/"
+   ```
+
+   Failing that, fall back to the task file's `initiative:` slug, matched against the
+   slugified initiative `title:` (`start-session` §2c step 2 has the snippet).
+2. **Reconcile status against what actually shipped.** One line per project:
+   *advanced* (name the new status) or *unchanged* (name the reason). Statuses: `idea`
+   `proposal` `backlog` `discovery` `accepted` `ready` `paused` `in-progress`
+   `maintenance` `completed` `cancelled`. Advance only on shipped evidence — merged SHA
+   or ticked ACs — never on intent. A `completed` project that took new work is a
+   **flag, not an edit**: re-opening it or minting a successor is a mint decision.
+3. **Write back** only what step 2 marked *advanced* — the `[status]`, and the `Summary`
+   line if it is now wrong. Adding the task id to `Linked tasks:` is in scope when the
+   task is plainly that project's work; minting a project or initiative is **not**.
+   Commit with the docs-site commit in Step 5.
+4. **Unowned is the common path, not an error.** Only 126 of 354 task files resolve to an
+   initiative by either route, and no `Linked tasks:` entry names an id above 163. Record
+   *"unowned"* on the line, carry it into *Session focus* as an ownership gap, and do not
+   backfill the ledger from the handoff.
+
 ## Step 2 — Retro-authoring assist (candidate mining → Coordinator authors)
 
 ### 2a — Dispatch the Retro Miner specialist agent
@@ -82,6 +112,7 @@ Confirm before drafting (ask Liam if unsure):
 
 1. What did this session complete / leave in-flight?
 2. The next session's purpose (≤ 3-4 areas)?
+3. Which initiative/project does that purpose sit under (Step 1c), or is it unowned?
 
 ---
 
@@ -105,7 +136,9 @@ _Authored at the close of S{NNN}; for the next session._
 
 ## Session focus
 
-{3-4 lines: focus for the next session}
+{3-4 lines: focus for the next session. Open by naming the owning initiative and
+project — "{Initiative title} -> {project-slug} [status]" — or "unowned" where Step 1c
+resolved no owner.}
 
 ## Completed this session (Tasks + SHAs)
 
@@ -175,3 +208,5 @@ git --git-dir="$DOCS/.git" --work-tree="$DOCS" push
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] New architectural decisions written to the Decision Register.
+- [ ] Owning initiative + project reconciled (Step 1c); *Session focus* names
+      them, or records the ownership gap.

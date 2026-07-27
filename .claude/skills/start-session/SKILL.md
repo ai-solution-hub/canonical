@@ -60,26 +60,47 @@ conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md`.
 append-only journal) for narrative state, the `## Subtasks` block for the spec
 brief, frontmatter `status` + `status_note` for the task-level rollup.
 
-### 2c: Owning-initiative strategic context
+### 2c: Owning initiative → project (strategic context)
 
-Load the owning **Initiative** for your task so the session opens with the
-strategic "why this Task matters" — not just the tactical state.
+Load the owning **project** for your task so the session opens with the strategic
+"why this Task matters" — not just the tactical state.
 
-Initiatives left the ledger system — they are now plain docs-site markdown at
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/`.
+Initiatives are plain docs-site markdown, one numbered file per initiative:
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/<n>.md`. Projects sit at
+**two** levels — directly under `## Projects`, and under `## Sub-initiatives` →
+`- Projects:`. Check both; five of ten initiatives park every project one level down.
 
-1. **Resolve the owner directly** from the task file's `initiative:` frontmatter
-   slug — no reverse `linked_tasks[]` lookup any more
-   (`grep -n '^initiative:' "$KH_PRIVATE_DOCS_DIR/tasks/id-<N>.md"`).
-2. **Read the matching initiative doc** (small numbered set — resolve the slug via
-   `grep -rl "<slug>" "$KH_PRIVATE_DOCS_DIR/src/content/docs/ledgers/initiatives/"`).
-   Surface the initiative **title** + intro ("why this matters") and the
-   `## Projects` entry (**status** + **summary**) whose **Linked tasks** include the
-   active id. If `substrate_doc` is set it is the floor for the initiative's latest
-   context, not the ceiling — confirm against the task file and the Decision Register
-   before acting on it.
-3. **No `initiative:` key → explicit note** — *"no owning initiative — operational
-   Task"*.
+1. **Resolve the project first — it works with or without the frontmatter key.** The
+   project is the entry whose `Linked tasks:` includes the active id:
+
+   ```bash
+   INIT_DIR="$KH_PRIVATE_DOCS_DIR/src/content/docs/ledgers/initiatives"
+   grep -rn "Linked tasks:.*\b<N>\b" "$INIT_DIR"/
+   ```
+2. **Resolve the initiative** from the task file's `initiative:` frontmatter. The value
+   is a **slugified title**, not a string present in the initiative doc — grepping the
+   slug misses (`sdlc-workflow-orchestration` → zero hits) or is ambiguous
+   (`core-product` → two files). Match it against the slugified `title:` instead:
+
+   ```bash
+   SLUG=$(sed -n 's/^initiative: //p' "$KH_PRIVATE_DOCS_DIR/tasks/id-<N>.md")
+   for f in "$INIT_DIR"/*.md; do
+     t=$(sed -n 's/^title: //p' "$f" | head -1 | tr 'A-Z ' 'a-z-')
+     [ "$t" = "$SLUG" ] && echo "$f"
+   done
+   ```
+3. **Surface**, in order: the initiative **title** + intro ("why this matters"); the
+   owning sub-initiative's scope boundary, if the project sits under one; then the
+   project's **[status]**, **Summary**, and sibling **Linked tasks** — the siblings are
+   the work you may be about to duplicate or block.
+4. **`Substrate doc`, where set, is the floor for context, not the ceiling** — confirm
+   against the task file and the Decision Register before acting on it. Two live
+   pointers aim into `_archive/` (initiative 4).
+5. **Unowned is the common case, not the exception.** Only **126 of 354** task files
+   resolve by either route — 125 by frontmatter, 80 by `Linked tasks`, none above id
+   **163**. When neither resolves, state *"no owning initiative/project — unowned
+   Task"* and continue; do not invent an owner or halt. Ownership backfill belongs to
+   the initiatives-ledger project.
 
 ### 2d: Settled-state read-back (one-time retro review + decision register)
 
