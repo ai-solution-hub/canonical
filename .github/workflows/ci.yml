@@ -1131,8 +1131,11 @@ jobs:
           # cocoindex additionally needs COCOINDEX_STAGING_URL +
           # COCOINDEX_SOURCE_PATH + COCOINDEX_FIXTURE_STAGING_URL (sidecar).
           # Enabling the two flags would run the 52 Supabase+AI cases on
-          # existing CI creds but adds real Anthropic/OpenAI spend per run —
-          # deferred (bl-338; nightly cocoindex lane tracked separately).
+          # existing CI creds but adds real Anthropic/OpenAI spend per run, so
+          # they execute OFF the PR gate in the nightly lanes instead:
+          # integration-nightly.yml ({128.4}, folds bl-338) flips both flags for
+          # the 52 Supabase+AI cases; cocoindex-nightly.yml ({128.3}, folds
+          # bl-341) provisions the COCOINDEX_* sidecar for the cocoindex suite.
         # `tee` so the log appears live in the GH Actions step UI as it
         # streams, not just post-failure (spec §2.8).
         # `set -o pipefail` ensures the pipeline returns the test runner's
