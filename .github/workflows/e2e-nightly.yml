@@ -45,7 +45,11 @@
 # Required secrets / vars (Staging environment scope — per
 # docs/runbooks/github-environments.md §2): server-boot secrets
 # (ANTHROPIC_API_KEY / OPENAI_API_KEY / CRON_SECRET / SENTRY_*) +
-# TEST_USER_1/2/3/4 credentials. NO Supabase secrets remain in this lane: the
+# TEST_USER_1/2/3/4 credentials + the B1 `/extract` seam pair
+# (COCOINDEX_WORKER_URL / EXTRACT_API_TOKEN — see the "Run Playwright" step).
+# Both jobs declare `environment: Staging`, which is what makes those
+# environment-scoped secrets resolvable at all; a job without `environment:`
+# sees only repo-level secrets. NO Supabase secrets remain in this lane: the
 # stack is loopback-local and its demo credentials are public constants
 # (scripts/ci/local-stack.env). SUPABASE_ACCESS_TOKEN is no longer used here.
 #
@@ -292,6 +296,27 @@ jobs:
           TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
         run: bun run seed:e2e-users
 
+      - name: Check /extract seam config is present
+        # Non-fatal on purpose. A missing secret resolves to the EMPTY STRING,
+        # not an error, so without this the only symptom is
+        # content-ingestion-url.spec.ts returning 503 — the exact opaque
+        # failure this wiring exists to end. Warn loudly instead, and do NOT
+        # hard-fail: one spec's dependency must not red the other ~40 specs in
+        # the shard. Prints presence only; both values are Staging secrets and
+        # would be masked anyway.
+        env:
+          COCOINDEX_WORKER_URL: ${{ secrets.COCOINDEX_WORKER_URL }}
+          EXTRACT_API_TOKEN: ${{ secrets.EXTRACT_API_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$COCOINDEX_WORKER_URL" ] || missing="$missing COCOINDEX_WORKER_URL"
+          [ -n "$EXTRACT_API_TOKEN" ] || missing="$missing EXTRACT_API_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::warning::Unset in the Staging environment:$missing — /api/ingest/url will return 503 and content-ingestion-url.spec.ts will fail. Add the secret(s) to the Staging GitHub environment."
+          else
+            echo "/extract seam configured (COCOINDEX_WORKER_URL + EXTRACT_API_TOKEN both present)."
+          fi
+
       - name:
           Run Playwright (shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal
           }})
@@ -328,6 +353,25 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}
           AI_EMBEDDING_DIMS: ${{ vars.AI_EMBEDDING_DIMS }}
+          # B1 `/extract` PURE-CLEANER seam (id-328 cluster B, second half).
+          # `POST /api/ingest/url` hands already-fetched HTML to
+          # `cleanViaWorker` (lib/extraction/clean-via-worker.ts); with either
+          # of these unset it throws `ExtractEndpointError` and the route
+          # returns a recoverable 503 — which is why
+          # content-ingestion-url.spec.ts 503'd on 100% of runs. There is
+          # deliberately NO in-process Readability fallback ({112.13}), so the
+          # spec cannot pass without a reachable, bearer-authorised endpoint.
+          #
+          # Points at the PLATFORM STAGING worker (the on-prem B1 box). Load is
+          # negligible and this is a nightly, not a PR gate: the route's
+          # url-exists check short-circuits BEFORE extraction, so the spec's
+          # re-submit leg costs nothing — ONE `/extract` call per run (two if
+          # the `--retries=1` retry fires), carrying example.com's ~1 KB of
+          # HTML against a 20 MB per-route cap and a shared 120-req/60 s
+          # window. That is strictly less than one production user pressing
+          # Import, which the same box already serves.
+          COCOINDEX_WORKER_URL: ${{ secrets.COCOINDEX_WORKER_URL }}
+          EXTRACT_API_TOKEN: ${{ secrets.EXTRACT_API_TOKEN }}
           # Test-user credentials — seeded onto THIS shard's local stack by
           # the "Seed E2E users" step above.
           TEST_USER_1_EMAIL: ${{ vars.TEST_USER_1_EMAIL }}
