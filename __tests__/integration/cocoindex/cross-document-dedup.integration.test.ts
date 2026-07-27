@@ -61,13 +61,13 @@ beforeAll(async () => {
   // templates from the ID-49.10 committed fixture library.
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-3-dedup/${TEST_PREFIX}-A.xlsx`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-3-dedup/${TEST_PREFIX}-B.xlsx`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });

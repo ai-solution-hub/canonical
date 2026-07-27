@@ -115,7 +115,7 @@ const FIXTURES: ReadonlyArray<{
   {
     kind: 'classification',
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destSuffix: 'classification.xlsx',
   },
   {

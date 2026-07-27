@@ -111,6 +111,10 @@
 #   Secrets:
 #     SUPABASE_SERVICE_ROLE_KEY, SUPABASE_PUBLISHABLE_KEY, POSTGRES_PASSWORD,
 #     ANTHROPIC_API_KEY, OPENAI_API_KEY, CRON_SECRET,
+#     PIPELINE_TRIGGER_SECRET (the ONLY bearer /walk accepts since ID-127.18
+#     retired the CRON_SECRET dual-accept fallback — see scripts/
+#     cocoindex_pipeline/server.py's /walk auth block; both curl calls below
+#     send this, matching deploy/onprem/verify/live-verify.sh),
 #     TEST_USER_{1,2,3}_PASSWORD, STAGING_SUPABASE_DB_URL (sources
 #     COCOINDEX_DB_DSN below — no new secret)
 #   Vars:
@@ -359,7 +363,7 @@ jobs:
 
           trigger_walk() {
             WALK_LOG_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
-            WALK_RESPONSE="$(curl -s -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+            WALK_RESPONSE="$(curl -s -X POST -H "Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}" \
               "http://localhost:${COCOINDEX_PORT}/walk")"
             echo "walk response: ${WALK_RESPONSE}"
             REQUEST_ID="$(printf '%s' "$WALK_RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("requestId",""))' 2>/dev/null || true)"
@@ -407,12 +411,18 @@ jobs:
         # Vitest run (under ID-83/bl-221 nothing walks those stages unless we
         # keep issuing /walk) — mirrors live-verify.sh step 5. Each pass is
         # incremental; unchanged files memo-hit and burn nothing.
+        #
+        # ID-128.3 cadence: 30s -> 10s (owner-ratified). A staging poll's
+        # 120s budget (_helpers/fixture-staging.ts DEFAULT_TIMEOUT_MS) got at
+        # most ~4 walk attempts at 30s, each of which can lose the {138.9}
+        # writer-fence race on the SHARED Staging project; at 10s it gets
+        # ~12. Incremental passes memo-hit, so the extra POSTs are cheap.
         run: |
           set -euo pipefail
           (
             while true; do
-              sleep 30
-              curl -s -o /dev/null -X POST -H "Authorization: Bearer ${CRON_SECRET}" \
+              sleep 10
+              curl -s -o /dev/null -X POST -H "Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}" \
                 "http://localhost:${COCOINDEX_PORT}/walk" || true
             done
           ) &

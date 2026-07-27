@@ -80,7 +80,7 @@ beforeAll(async () => {
   // entity_mentions rows (Stage-5 fails AFTER they are committed).
   await injectStage5Failure({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-12/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
     failMode: 'embedder',

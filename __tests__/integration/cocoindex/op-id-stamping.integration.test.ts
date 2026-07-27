@@ -80,7 +80,7 @@ beforeAll(async () => {
   // round-trip back to pipeline_runs (Inv-12).
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-checklist/Cloud Security Principles Checklist V5_3.xlsx',
+      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-11-12/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
