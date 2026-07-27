@@ -281,13 +281,14 @@ Reached only when Branch A's binary in-scope-ness rule returned OUT-OF-SCOPE.
 
 > **Write path (ID-165 ordna cutover):** this branch's classification logic (below)
 > decides whether a finding is strategic vs tactical; the write surface it hands off to
-> is now plain docs — initiatives live under
-> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/` as ordinary documents,
-> not ledger records, and there is no CLI write path. **No designed procedure decides
-> WHEN a genuinely-new strategic finding should mint a fresh initiative doc vs attach to
-> an existing one** — that remains an owner call. Return `decision: roadmap` with the
-> proposed shape below and flag the mint-vs-attach question for the owner rather than
-> assuming which to do.
+> is now plain docs — initiative records live under
+> `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/` as numbered markdown
+> files (DR-101), and there is no CLI write path. **The mint-vs-attach decision is
+> designed: run the mint-or-link ladder — `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §6
+> (id-340).** Branch B corresponds to the ladder's **R5b rung only** (a fresh top-level
+> initiative — owner-ratified, an agent proposes and never mints unattended). Rungs
+> R1–R4 resolve inside Branch C territory. Return `decision: roadmap` with the proposed
+> shape below plus the ladder's recorded probe line.
 
 Roadmap-strategic findings were previously chained through a flat list of **themes** —
 multi-month capability areas, each with `linked_tasks[]` and `linked_backlog[]` chaining

@@ -55,9 +55,12 @@ Shape essentials that skills reference (all defined in `tasks/AGENTS.md`):
   moves a task to `done` (via `ordna move` so the `depends_on` gate fires); promotion is
   a status flip (`ordna move <id> todo`), never a file move.
 
-**Initiatives** — plain docs under
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/`, no longer ledger records;
-tasks link to them via the `initiative:` frontmatter key.
+**Initiatives** — numbered record docs under
+`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/<N>.md` (DR-101: the ONLY
+home of task placement — `## Projects` → `Linked tasks:` — while `initiatives/<tree>/`
+docs are link-free theme documentation). Tasks carry the `initiative:` frontmatter key
+(slug = `kebab(title)`); a placement is two edits (task key + project `Linked tasks:`
+line). Placement procedure: the mint-or-link ladder, `tasks/AGENTS.md` §6 (id-340).
 
 **Single id-space** — backlog items are ordinary tasks with `status: backlog`; former
 `bl-*` ids were renumbered (`tasks/ID-CROSSWALK.md`).

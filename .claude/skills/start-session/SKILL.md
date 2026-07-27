@@ -98,8 +98,11 @@ Initiatives are plain docs-site markdown, one numbered file per initiative:
    pointers aim into `_archive/` (initiative 4).
 5. **Unowned is the common case, not the exception.** Only **126 of 354** task files
    resolve by either route — 125 by frontmatter, 80 by `Linked tasks`, none above id
-   **163**. When neither resolves, state *"no owning initiative/project — unowned
-   Task"* and continue; do not invent an owner or halt. Ownership backfill belongs to
+   **163**. When neither resolves and the session's work makes ownership matter
+   (spec-chain work, a promote), run the mint-or-link ladder —
+   `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §6 (id-340, DR-101) — and record its
+   verdict; otherwise state *"no owning initiative/project — unowned Task"* and
+   continue. Do not invent an owner or halt; bulk ownership backfill belongs to
    the initiatives-ledger project.
 
 ### 2d: Settled-state read-back (one-time retro review + decision register)
