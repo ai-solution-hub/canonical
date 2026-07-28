@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # PreToolUse hook (ID-48.11).
 #
-# Blocks Write/Edit/MultiEdit to files under .claude/agents/ or .claude/skills/
-# UNLESS one of the authoring skills (create-skill / update-skill /
-# agent-development) has been recently invoked. Invocation is signalled by a
-# "sentinel" touch-file written by Step 0 of those skill bodies.
+# Blocks Write/Edit/MultiEdit — and, when wired under the Bash matcher,
+# Bash-mediated writes (redirects, mv/cp/rm/tee, sed -i, scripted splices) —
+# to files under .claude/agents/ or .claude/skills/ UNLESS one of the
+# authoring skills (create-skill / update-skill / agent-development) has been
+# recently invoked. Invocation is signalled by a "sentinel" touch-file
+# written by Step 0 of those skill bodies. Bash detection is a heuristic on
+# the command text, not a parser: read-only commands touching those paths
+# stay unguarded; a blocked false positive is escaped by invoking the
+# authoring skill (its Step 0 touch runs via Bash and is allowlisted).
 #
 # Why sentinel-gated rather than transcript-gated:
 # PreToolUse hooks receive only the tool input + cwd via stdin JSON — they do
@@ -36,16 +41,40 @@ TTL_SECONDS=600
 
 INPUT=$(cat)
 FP=$(echo "$INPUT" | jq -r '.tool_input.file_path' 2>/dev/null || true)
+CMD=$(echo "$INPUT" | jq -r '.tool_input.command' 2>/dev/null || true)
 
-# If no file_path (shouldn't happen for Write|Edit|MultiEdit), allow — the
-# worktree-isolation hook upstream will block anything malformed.
-if [ -z "$FP" ] || [ "$FP" = "null" ]; then
-  exit 0
-fi
+PATH_RE='(^|[/ "'"'"'=])\.claude/(agents|skills)/'
 
-# Phase 1: only act on .claude/agents/ or .claude/skills/ paths. Matches
-# both absolute paths (worktree or main repo) and relative paths.
-if ! echo "$FP" | grep -qE '(^|/)\.claude/(agents|skills)/'; then
+if [ -n "$FP" ] && [ "$FP" != "null" ]; then
+  # Write|Edit|MultiEdit shape.
+  # Phase 1: only act on .claude/agents/ or .claude/skills/ paths. Matches
+  # both absolute paths (worktree or main repo) and relative paths.
+  if ! echo "$FP" | grep -qE '(^|/)\.claude/(agents|skills)/'; then
+    exit 0
+  fi
+elif [ -n "$CMD" ] && [ "$CMD" != "null" ]; then
+  # Bash shape (id-386 guard-scope extension: Bash-mediated writes previously
+  # bypassed this guard entirely). Heuristic, not a parser: flag only commands
+  # that plausibly WRITE into .claude/(agents|skills)/ — reads stay unguarded.
+  FP="$CMD"
+  if ! echo "$CMD" | grep -qE "$PATH_RE"; then
+    exit 0
+  fi
+  WRITES=0
+  # (a) A redirect whose target is under the guarded path.
+  echo "$CMD" | grep -qE '>>?[ ]*"?[^ ]*\.claude/(agents|skills)/' && WRITES=1
+  # (b) A mutating verb with the guarded path inside its own segment
+  #     (no pipe/;/& between verb and path).
+  echo "$CMD" | grep -qE '\b(mv|cp|rm|tee|install|rsync|truncate|dd|patch)\b[^|;&]*\.claude/(agents|skills)/' && WRITES=1
+  # (c) In-place editors.
+  echo "$CMD" | grep -qE '\b(sed|perl)\b[^|;&]*-i[^|;&]*\.claude/(agents|skills)/' && WRITES=1
+  # (d) Scripted writes (the proven python3-splice route): a python/node
+  #     invocation naming the path alongside a write API.
+  echo "$CMD" | grep -qE '\b(python3?|node)\b' \
+    && echo "$CMD" | grep -qE 'open\(|write_text|writeFile|shutil\.' && WRITES=1
+  [ "$WRITES" -eq 1 ] || exit 0
+else
+  # Neither shape present — allow; nothing to judge.
   exit 0
 fi
 
@@ -71,7 +100,7 @@ if [ "$FOUND_RECENT" -eq 1 ]; then
 fi
 
 cat >&2 <<EOF
-BLOCKED: Write/Edit/MultiEdit to '$FP' under .claude/(agents|skills)/ requires
+BLOCKED: writing under .claude/(agents|skills)/ (via '$FP') requires
 invoking one of the authoring skills first (create-skill / update-skill /
 agent-development). Those skills write a sentinel touch-file at
 \$HOME/.claude/.sentinels/<skill>.touch; this hook checks for one with a

@@ -1,7 +1,8 @@
 ---
 name: triage-finding
 description:
-  Decide whether a finding surfaced by a task-executor or task-checker
+  Decide whether a finding surfaced by a task-executor or a Checker
+  (the Claude Code task-checker agent, or the Intent-path verifier specialist)
   is (a) a Subtask of an active Task (ID-N.M — the current Task, or any
   active Task that owns the finding's scope per DR-021), (b) a roadmap
   promotion (strategic / cross-cutting), (c) a backlog promotion (tactical /
@@ -50,7 +51,7 @@ packet:
 
 | Field                                          | Description                                                                                                                                                                                                                                                                       |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `finding.source`                               | `task-executor` or `task-checker`                                                                                                                                                                                                                                                 |
+| `finding.source`                               | `task-executor` or `task-checker` (either Checker surface emits `task-checker`: the Claude Code `task-checker` agent, or the Intent `verifier` specialist agent — the Intent path's Checker since id-164)                                                                          |
 | `finding.source_context`                       | Task ID-N (or Subtask ID-N.M if surfaced mid-subtask), branch, commit SHA                                                                                                                                                                                                         |
 | `finding.description`                          | The finding itself, verbatim                                                                                                                                                                                                                                                      |
 | `finding.evidence`                             | `file:line` references + observed behaviour                                                                                                                                                                                                                                       |
@@ -183,7 +184,8 @@ Branch E (decision-register), not either ledger.
 
 **Liam-driven promote (no finding source) — short-circuit at the top of the tree:**
 
-This skill's canonical input is a finding packet from a `task-executor` or `task-checker`.
+This skill's canonical input is a finding packet from a `task-executor` or a Checker
+(`task-checker` agent on the Claude Code path; `verifier` specialist on the Intent path).
 However, the workflow-orchestration skill (or the Orchestrator directly) may invoke this
 skill on a backlog item being picked up for implementation — there is no finding source,
 only an Orchestrator-or-Liam decision to promote. When invoked under that shape:
