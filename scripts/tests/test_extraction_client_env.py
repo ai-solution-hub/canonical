@@ -32,7 +32,9 @@ def test_empty_base_url_falls_back_to_sdk_default(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     client = extraction._extraction_async_client()
-    assert str(client.base_url).startswith("https://api.anthropic.com")
+    # Exact equality, not startswith — a substring check would also pass for
+    # attacker-shaped hosts (CodeQL py/incomplete-url-substring-sanitization).
+    assert str(client.base_url) == "https://api.anthropic.com"
 
 
 def test_empty_auth_token_sends_no_bearer_header(monkeypatch):
@@ -48,7 +50,7 @@ def test_real_values_pass_through(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://mockllm-platform-staging:8080")
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "or-token")
     client = extraction._extraction_async_client()
-    assert str(client.base_url).startswith("http://mockllm-platform-staging:8080")
+    assert str(client.base_url) == "http://mockllm-platform-staging:8080"
     assert client.auth_headers["Authorization"] == "Bearer or-token"
 
 
