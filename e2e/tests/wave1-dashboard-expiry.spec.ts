@@ -49,7 +49,7 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     // rather than in source_entity ({128.23}). The previous conditional
     // `if (await section.isVisible())` masked missing-fixture regressions per
     // `feedback_e2e_conditional_false_pass`.
-    const section = page.locator('section[aria-label="Compliance status"]');
+    const section = page.getByRole('region', { name: 'Compliance status' });
 
     await expect(section).toBeVisible({ timeout: 10000 });
     await expect(
@@ -62,18 +62,18 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const section = page.locator('section[aria-label="Compliance status"]');
+    const section = page.getByRole('region', { name: 'Compliance status' });
 
     await expect(section).toBeVisible({ timeout: 10000 });
 
     // The section contains CertificationSummaryCard and/or FrameworkSummaryCard
     // CertificationSummaryCard has aria-label="Certifications we hold"
-    const certSection = section.locator(
-      'section[aria-label="Certifications we hold"]',
-    );
-    const frameworkSection = section.locator(
-      'section[aria-label="Framework memberships"]',
-    );
+    const certSection = section.getByRole('region', {
+      name: 'Certifications we hold',
+    });
+    const frameworkSection = section.getByRole('region', {
+      name: 'Framework memberships',
+    });
 
     // At least one of these should be present. `.first()` is required, not a
     // weakening: now that the worker fixture actually seeds (it never did
@@ -90,7 +90,7 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const section = page.locator('section[aria-label="Compliance status"]');
+    const section = page.getByRole('region', { name: 'Compliance status' });
 
     await expect(section).toBeVisible({ timeout: 10000 });
 
@@ -116,7 +116,7 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const section = page.locator('section[aria-label="Compliance status"]');
+    const section = page.getByRole('region', { name: 'Compliance status' });
 
     await expect(section).toBeVisible({ timeout: 10000 });
 
@@ -144,7 +144,7 @@ test.describe('Dashboard compliance status section', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const section = page.locator('section[aria-label="Compliance status"]');
+    const section = page.getByRole('region', { name: 'Compliance status' });
 
     await expect(section).toBeVisible({ timeout: 10000 });
 

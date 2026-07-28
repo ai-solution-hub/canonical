@@ -55,7 +55,7 @@ test.describe('Content creation -- page access and tab structure', () => {
 
     // The URL import section is visible
     await expect(
-      page.locator('section[aria-label="Import content from URL"]'),
+      page.getByRole('region', { name: 'Import content from URL' }),
     ).toBeVisible();
   });
 
@@ -78,7 +78,7 @@ test.describe('Content creation -- page access and tab structure', () => {
 
     // The URL import section loads for editor too
     await expect(
-      page.locator('section[aria-label="Import content from URL"]'),
+      page.getByRole('region', { name: 'Import content from URL' }),
     ).toBeVisible();
   });
 });
@@ -99,7 +99,7 @@ test.describe('Content creation -- tab deep-linking and routing', () => {
 
     // Upload section is visible
     await expect(
-      page.locator('section[aria-label="Upload documents"]'),
+      page.getByRole('region', { name: 'Upload documents' }),
     ).toBeVisible();
   });
 
@@ -114,7 +114,7 @@ test.describe('Content creation -- tab deep-linking and routing', () => {
 
     // Batch section is visible
     await expect(
-      page.locator('section[aria-label="Batch Q&A creation"]'),
+      page.getByRole('region', { name: 'Batch Q&A creation' }),
     ).toBeVisible();
   });
 
