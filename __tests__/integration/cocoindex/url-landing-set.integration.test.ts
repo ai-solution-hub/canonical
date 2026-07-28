@@ -188,7 +188,7 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
     const { data, error } = await client
       .from('reference_items')
       .select(
-        'id, body, embedding, source_document_id, ingestion_source, published_at, source_url',
+        'id, body, source_document_id, ingestion_source, published_at, source_url',
       )
       .eq('id', riId);
     expect(error).toBeNull();
@@ -197,9 +197,23 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
     const ri = data![0]!;
     expect(ri.source_url).toBe(normalised);
     expect(ri.body).toBeTruthy(); // non-empty extracted body
-    expect(ri.embedding).not.toBeNull(); // whole-record embedding (BI-17)
     expect(ri.source_document_id).toBe(sdId);
     expect(ri.ingestion_source).toBe('rss_feed');
+
+    // Whole-record embedding (BI-17) — reference_items.embedding was
+    // DROPPED by migration 20260706120000_id131_drop_inline_vector_cols
+    // (DR-036); the vector lands on record_embeddings keyed
+    // (owner_kind='reference_item', owner_id = ri id).
+    const { data: embRows, error: embError } = await client
+      .from('record_embeddings')
+      .select('id, embedding')
+      .eq('owner_kind', 'reference_item')
+      .eq('owner_id', riId)
+      .limit(1);
+    expect(embError).toBeNull();
+    expect(embRows).not.toBeNull();
+    expect(embRows!.length).toBeGreaterThan(0);
+    expect(embRows![0]!.embedding).not.toBeNull();
 
     // published_at round-trips the seeded ledger value: the pipeline takes
     // the LATEST ledger row's published_at (UrlItem D-10), so compare to

@@ -215,17 +215,24 @@ describe.skipIf(!ENABLED)(
     it('Inv-15: memo-hit cycle produces no new audit_log rows for the content_item (v1.1 substrate)', async () => {
       const client = await createLiveServiceClient();
 
-      // Probe audit_log existence (v1.1 gate).
-      const { error: probeError } = await client
+      // Probe audit_log existence (v1.1 gate). `audit_log` has ZERO
+      // migrations today — v1 substrate is op_id-via-pipeline_runs, so the
+      // absent-table arm is the one that currently runs. NB the HEAD-request
+      // shape: a missing table does NOT reliably surface as a truthy
+      // `error` through supabase-js (`head: true` has no response body to
+      // parse — observed live in the 2026-07-28 nightly, where `error` was
+      // null and `count` was null). A null count is therefore ALSO the
+      // table-absent signal: an existing table always yields a numeric
+      // exact count (0 for empty).
+      const { count: probeCount, error: probeError } = await client
         .from('audit_log')
         .select('id', { count: 'exact', head: true })
         .limit(0);
 
-      if (probeError) {
+      if (probeError || probeCount === null) {
         // V1 environment — audit_log table absent. Inv-15 is trivially
         // true at v1 (no audit rows produced because no audit table
         // exists). Document the v1 gap; v1.1 activates the assertion.
-        expect(probeError.message.length).toBeGreaterThan(0);
         return;
       }
 
@@ -237,11 +244,16 @@ describe.skipIf(!ENABLED)(
       // ID-131.19 M6 retirement: content_items DROPPED at M6 —
       // source_documents is now the governed table a pipeline-driven
       // write would land on.
-      const { count: auditRowsAfter } = await client
+      const { count: auditRowsAfter, error: auditCountError } = await client
         .from('audit_log')
         .select('id', { count: 'exact', head: true })
         .eq('table_name', 'source_documents')
         .eq('row_id', contentItemId);
+
+      // The probe proved the table exists, so this count MUST resolve —
+      // a null here is a query failure, not absence.
+      expect(auditCountError).toBeNull();
+      expect(auditRowsAfter).not.toBeNull();
 
       // Inv-15 verifiability: at v1.1, audit_log row count for the
       // source_documents row is the SAME after the memo-hit cycle as after

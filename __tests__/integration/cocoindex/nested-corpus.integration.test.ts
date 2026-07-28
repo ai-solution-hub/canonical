@@ -69,72 +69,74 @@ afterAll(async () => {
   await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
-describe.skipIf(!ENABLED)(
-  'Inv-5 — nested-corpus coverage (3-level-deep file produces source_documents row)',
-  () => {
-    it(
-      'produces a source_documents row for a file at <source>/a/b/c/file.md',
-      async () => {
-        const client = await createLiveServiceClient();
+// Scaffold gate: the beforeAll's stageFixture call above is still commented
+// out as FUTURE — no nested fixture ever lands, so the poll below can never
+// observe a row (a deterministic permanent red, not a behaviour signal).
+// describe.skip (not skipIf) until the nested corpus-drop wiring exists; the
+// body is kept intact as the ready-to-activate contract.
+describe.skip('Inv-5 — nested-corpus coverage (3-level-deep file produces source_documents row)', () => {
+  it(
+    'produces a source_documents row for a file at <source>/a/b/c/file.md',
+    async () => {
+      const client = await createLiveServiceClient();
 
-        const deadline = Date.now() + POLL_TIMEOUT_MS;
-        let landedRow: { id: string; metadata: unknown } | null = null;
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      let landedRow: { id: string; metadata: unknown } | null = null;
 
-        while (Date.now() < deadline) {
-          // ID-131.19 M6 retirement: content_items DROPPED at M6;
-          // source_documents.filename replaces content_items.title, and
-          // source_documents.extraction_metadata replaces content_items's
-          // `metadata` column (no `metadata` column exists on
-          // source_documents).
-          const { data } = await client
-            .from('source_documents')
-            .select('id, extraction_metadata')
-            .ilike('filename', `${TEST_PREFIX}%`)
-            .limit(1);
+      while (Date.now() < deadline) {
+        // ID-131.19 M6 retirement: content_items DROPPED at M6;
+        // source_documents.filename replaces content_items.title, and
+        // source_documents.extraction_metadata replaces content_items's
+        // `metadata` column (no `metadata` column exists on
+        // source_documents).
+        const { data } = await client
+          .from('source_documents')
+          .select('id, extraction_metadata')
+          .ilike('filename', `${TEST_PREFIX}%`)
+          .limit(1);
 
-          if (data && data.length > 0) {
-            landedRow = {
-              id: data[0]!.id as string,
-              metadata: data[0]!.extraction_metadata,
-            };
-            seededContentIds.push(landedRow.id);
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        if (data && data.length > 0) {
+          landedRow = {
+            id: data[0]!.id as string,
+            metadata: data[0]!.extraction_metadata,
+          };
+          seededContentIds.push(landedRow.id);
+          break;
         }
 
-        // Inv-5 verifiability: nested file MUST produce a row. Absence
-        // proves the source-binding adapter is configured with
-        // `recursive=False` (the cocoindex localfs default) and is silently
-        // skipping nested files.
-        expect(landedRow).not.toBeNull();
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
 
-        // Defensive sanity check: the row's extraction_metadata should
-        // include the nested path (the per-document source_uri / file_path
-        // is part of the FlowRowMetadata shape stamped during the
-        // postgres_upsert stage).
-        const metadata = landedRow!.metadata as Record<string, unknown> | null;
-        if (metadata) {
-          // Common fields the metadata might carry — check whichever is
-          // present without asserting exclusively on any one (the source
-          // landing shape may evolve across 28.14 / 28.15 / 28.16 wiring).
-          const sourcePath =
-            (metadata.source_uri as string | undefined) ??
-            (metadata.file_path as string | undefined) ??
-            (metadata.path as string | undefined);
+      // Inv-5 verifiability: nested file MUST produce a row. Absence
+      // proves the source-binding adapter is configured with
+      // `recursive=False` (the cocoindex localfs default) and is silently
+      // skipping nested files.
+      expect(landedRow).not.toBeNull();
 
-          if (sourcePath) {
-            // Nested-fixture path must appear somewhere in the source-path
-            // metadata field.
-            expect(sourcePath).toContain('/a/b/c/');
-          }
+      // Defensive sanity check: the row's extraction_metadata should
+      // include the nested path (the per-document source_uri / file_path
+      // is part of the FlowRowMetadata shape stamped during the
+      // postgres_upsert stage).
+      const metadata = landedRow!.metadata as Record<string, unknown> | null;
+      if (metadata) {
+        // Common fields the metadata might carry — check whichever is
+        // present without asserting exclusively on any one (the source
+        // landing shape may evolve across 28.14 / 28.15 / 28.16 wiring).
+        const sourcePath =
+          (metadata.source_uri as string | undefined) ??
+          (metadata.file_path as string | undefined) ??
+          (metadata.path as string | undefined);
+
+        if (sourcePath) {
+          // Nested-fixture path must appear somewhere in the source-path
+          // metadata field.
+          expect(sourcePath).toContain('/a/b/c/');
         }
-      },
-      POLL_TIMEOUT_MS + 30_000,
-    );
-  },
-);
+      }
+    },
+    POLL_TIMEOUT_MS + 30_000,
+  );
+});
 
 // `NESTED_SUFFIX` is documented here for future fixture-drop helpers but
 // not directly referenced in the assertion above (the FUTURE beforeAll

@@ -30,6 +30,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
 import {
   dropFixture,
+  fetchChunkEmbedding,
   pollContentChunksFor,
   pollContentItemsFor,
   stageFixture,
@@ -134,8 +135,13 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
       expect(chunks.length).toBe(1);
       const chunk = chunks[0]!;
       expect(chunk.position).toBe(0);
-      // C-30: the chunk carries a populated embedding.
-      expect(chunk.embedding).not.toBeNull();
+      // C-30: the chunk carries a populated embedding — read from
+      // record_embeddings (owner_kind='content_chunk'); the inline
+      // content_chunks.embedding column was DROPPED by migration
+      // 20260706120000_id131_drop_inline_vector_cols (DR-036).
+      const embeddingRow = await fetchChunkEmbedding(chunk.id);
+      expect(embeddingRow).not.toBeNull();
+      expect(embeddingRow!.embedding).not.toBeNull();
       // C-21 / C-13: op_id stamped + a valid v4 UUID.
       expect(chunk.op_id).not.toBeNull();
       expect(chunk.op_id!).toMatch(UUID_V4_REGEX);
@@ -223,6 +229,17 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
       expect(before.length).toBeGreaterThan(0);
       const beforeByPosition = new Map(before.map((c) => [c.position, c]));
 
+      // Snapshot each chunk's record_embeddings vector BEFORE the re-ingest
+      // (content_chunks.embedding was DROPPED by migration
+      // 20260706120000_id131_drop_inline_vector_cols / DR-036 — the vector
+      // lives on record_embeddings keyed owner_kind='content_chunk').
+      const beforeEmbeddings = new Map<string, unknown>();
+      for (const c of before) {
+        const row = await fetchChunkEmbedding(c.id);
+        expect(row, `record_embeddings row for chunk ${c.id}`).not.toBeNull();
+        beforeEmbeddings.set(c.id, row!.embedding);
+      }
+
       // Re-stage the IDENTICAL bytes under the same dest path → cocoindex's
       // content-hash memo (@coco.fn(memo=True)) skips the whole ingest_file
       // component, so the chunk rows are NOT re-declared (C-31, TECH §2.7).
@@ -246,7 +263,12 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
         expect(b).toBeDefined();
         expect(a.id).toBe(b!.id);
         expect(a.op_id).toBe(b!.op_id);
-        expect(a.embedding).toEqual(b!.embedding);
+        // C-31: the chunk's record_embeddings vector is byte-identical
+        // across the memo no-op re-ingest (fetched before/after — no
+        // re-embed happened).
+        const afterRow = await fetchChunkEmbedding(a.id);
+        expect(afterRow).not.toBeNull();
+        expect(afterRow!.embedding).toEqual(beforeEmbeddings.get(a.id));
       }
     },
     POLL_TIMEOUT_MS + 120_000,

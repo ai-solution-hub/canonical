@@ -240,177 +240,180 @@ afterAll(async () => {
 // The test — Inv-22 validation-failure structured record.
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!ENABLED)(
-  'Inv-22 — malformed Anthropic response produces structured pipeline_runs failure record',
-  () => {
-    it('pipeline_runs row lands with status="failed" and error_class in 7-class vocabulary', async () => {
-      // Inv-22 verifiability: "ingest a contrived input that produces an
-      // invalid LLM response (mock the LLM to return a malformed
-      // discriminator); assert pipeline_runs shows a failure record".
-      //
-      // The pipeline_runs row is keyed on op_id (the per-flow UUID).
-      // beforeAll captured observedOpIdRef.current from the failure-injected flow run.
-      expect(observedOpIdRef.current).not.toBeNull();
-      expect(observedOpIdRef.current).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-      );
+// Scaffold gate: the beforeAll above is prose-only (Approach A/B harness
+// deferred to 28.18) — `observedOpIdRef.current` is never assigned and no
+// fixture is ever seeded, so all three cases fail in cascade (the third even
+// sends the literal string "null" to PostgREST → 22P02). describe.skip (not
+// skipIf) until the 28.18 failure-injection harness lands; the bodies are
+// kept intact as the ready-to-activate contract.
+describe.skip('Inv-22 — malformed Anthropic response produces structured pipeline_runs failure record', () => {
+  it('pipeline_runs row lands with status="failed" and error_class in 7-class vocabulary', async () => {
+    // Inv-22 verifiability: "ingest a contrived input that produces an
+    // invalid LLM response (mock the LLM to return a malformed
+    // discriminator); assert pipeline_runs shows a failure record".
+    //
+    // The pipeline_runs row is keyed on op_id (the per-flow UUID).
+    // beforeAll captured observedOpIdRef.current from the failure-injected flow run.
+    expect(observedOpIdRef.current).not.toBeNull();
+    expect(observedOpIdRef.current).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
 
-      const client = await createLiveServiceClient();
-      const { data, error } = await client
-        .from('pipeline_runs')
-        .select('id, status, result, error_message, op_id, pipeline_name')
-        .eq('op_id', observedOpIdRef.current!)
-        .order('started_at', { ascending: false });
+    const client = await createLiveServiceClient();
+    const { data, error } = await client
+      .from('pipeline_runs')
+      .select('id, status, result, error_message, op_id, pipeline_name')
+      .eq('op_id', observedOpIdRef.current!)
+      .order('started_at', { ascending: false });
 
-      expect(error).toBeNull();
-      expect(data).toBeTruthy();
-      // The flow emits TWO pipeline_runs rows per Inv-16 (one
-      // `in_progress` at flow start, one terminal at flow end). The
-      // failure-injected flow produces:
-      //   1. in_progress at flow start
-      //   2. failed at flow end (Inv-22 — ValidationError caught,
-      //      structured failure emitted to webhook)
-      // The assertion is on the TERMINAL row (status='failed').
-      expect(data!.length).toBeGreaterThanOrEqual(1);
+    expect(error).toBeNull();
+    expect(data).toBeTruthy();
+    // The flow emits TWO pipeline_runs rows per Inv-16 (one
+    // `in_progress` at flow start, one terminal at flow end). The
+    // failure-injected flow produces:
+    //   1. in_progress at flow start
+    //   2. failed at flow end (Inv-22 — ValidationError caught,
+    //      structured failure emitted to webhook)
+    // The assertion is on the TERMINAL row (status='failed').
+    expect(data!.length).toBeGreaterThanOrEqual(1);
 
-      const terminalRow = data!.find((r) => r.status === 'failed');
-      expect(terminalRow).toBeTruthy();
-      expect(terminalRow!.status).toBe('failed');
+    const terminalRow = data!.find((r) => r.status === 'failed');
+    expect(terminalRow).toBeTruthy();
+    expect(terminalRow!.status).toBe('failed');
 
-      // error_class lives in `pipeline_runs.result.error_class` per the
-      // webhook route's composition logic (route.ts lines 195-200).
-      const result = terminalRow!.result as Record<string, unknown> | null;
-      expect(result).not.toBeNull();
-      const errorClass = result!.error_class as string | undefined;
-      expect(errorClass).toBeDefined();
-      // Strict membership check against the 7-class Inv-25 vocabulary.
-      expect(PIPELINE_ERROR_CLASSES).toContain(errorClass);
+    // error_class lives in `pipeline_runs.result.error_class` per the
+    // webhook route's composition logic (route.ts lines 195-200).
+    const result = terminalRow!.result as Record<string, unknown> | null;
+    expect(result).not.toBeNull();
+    const errorClass = result!.error_class as string | undefined;
+    expect(errorClass).toBeDefined();
+    // Strict membership check against the 7-class Inv-25 vocabulary.
+    expect(PIPELINE_ERROR_CLASSES).toContain(errorClass);
 
-      // For a Pydantic ValidationError, the top-level error_class MUST be
-      // `extraction_validation_failed` (Inv-25 + extraction.py contract).
-      // Any other 7-class value would indicate a different stage failed
-      // (e.g. postgres_write_failed) — which is a valid pipeline_runs
-      // failure but NOT the Inv-22 contract.
-      expect(errorClass).toBe('extraction_validation_failed');
+    // For a Pydantic ValidationError, the top-level error_class MUST be
+    // `extraction_validation_failed` (Inv-25 + extraction.py contract).
+    // Any other 7-class value would indicate a different stage failed
+    // (e.g. postgres_write_failed) — which is a valid pipeline_runs
+    // failure but NOT the Inv-22 contract.
+    expect(errorClass).toBe('extraction_validation_failed');
 
-      // error_message is human-readable; the Inv-13 cross-link requires
-      // raw LLM response is REDACTED of PII (not the assertion here —
-      // owned by sibling test in 28.18). Test asserts presence + non-
-      // empty per Inv-22 "structured failure" contract.
-      expect(terminalRow!.error_message).toBeTruthy();
-      expect(typeof terminalRow!.error_message).toBe('string');
-      expect((terminalRow!.error_message as string).length).toBeGreaterThan(0);
-    });
+    // error_message is human-readable; the Inv-13 cross-link requires
+    // raw LLM response is REDACTED of PII (not the assertion here —
+    // owned by sibling test in 28.18). Test asserts presence + non-
+    // empty per Inv-22 "structured failure" contract.
+    expect(terminalRow!.error_message).toBeTruthy();
+    expect(typeof terminalRow!.error_message).toBe('string');
+    expect((terminalRow!.error_message as string).length).toBeGreaterThan(0);
+  });
 
-    it('no partial extraction rows written for the failed content_items_id', async () => {
-      // Inv-22 second clause: "AND writes no partial extraction row to
-      // q_a_extractions / entity_mentions / content_items". The
-      // ValidationError fires BEFORE any UPSERT (per extraction.py
-      // contract: TypeAdapter.validate_json raises on malformed JSON,
-      // which propagates up; the cocoindex flow-scope try/except catches
-      // and emits the failure webhook — no UPSERT executes).
-      //
-      // The seeded content_items_id (from the dropped fixture) must
-      // therefore have ZERO rows on q_a_extractions and entity_mentions
-      // post-flow.
-      expect(seededContentIds.length).toBeGreaterThan(0);
+  it('no partial extraction rows written for the failed content_items_id', async () => {
+    // Inv-22 second clause: "AND writes no partial extraction row to
+    // q_a_extractions / entity_mentions / content_items". The
+    // ValidationError fires BEFORE any UPSERT (per extraction.py
+    // contract: TypeAdapter.validate_json raises on malformed JSON,
+    // which propagates up; the cocoindex flow-scope try/except catches
+    // and emits the failure webhook — no UPSERT executes).
+    //
+    // The seeded content_items_id (from the dropped fixture) must
+    // therefore have ZERO rows on q_a_extractions and entity_mentions
+    // post-flow.
+    expect(seededContentIds.length).toBeGreaterThan(0);
 
-      const client = await createLiveServiceClient();
+    const client = await createLiveServiceClient();
 
-      // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
-      // `seededContentIds` already holds `source_documents.id` values
-      // directly (per `pollContentItemsFor`'s M6 retarget note), so the
-      // "zero rows" assertion below is scoped to THIS fixture without any
-      // separate resolution query.
-      const sourceDocumentIds = seededContentIds;
-      expect(sourceDocumentIds.length).toBeGreaterThan(0);
+    // ID-131.19 M6 retirement: `content_items` was DROPPED at M6.
+    // `seededContentIds` already holds `source_documents.id` values
+    // directly (per `pollContentItemsFor`'s M6 retarget note), so the
+    // "zero rows" assertion below is scoped to THIS fixture without any
+    // separate resolution query.
+    const sourceDocumentIds = seededContentIds;
+    expect(sourceDocumentIds.length).toBeGreaterThan(0);
 
-      const { data: qaRows, error: qaError } = await client
-        .from('q_a_extractions')
-        .select('id')
-        .in('source_document_id', sourceDocumentIds);
-      expect(qaError).toBeNull();
-      // Zero rows — partial write would have populated this table.
-      expect(qaRows).toBeTruthy();
-      expect(qaRows!.length).toBe(0);
+    const { data: qaRows, error: qaError } = await client
+      .from('q_a_extractions')
+      .select('id')
+      .in('source_document_id', sourceDocumentIds);
+    expect(qaError).toBeNull();
+    // Zero rows — partial write would have populated this table.
+    expect(qaRows).toBeTruthy();
+    expect(qaRows!.length).toBe(0);
 
-      const { data: entityRows, error: entityError } = await client
-        .from('entity_mentions')
-        .select('id')
-        .in('source_document_id', sourceDocumentIds);
-      expect(entityError).toBeNull();
-      expect(entityRows).toBeTruthy();
-      expect(entityRows!.length).toBe(0);
+    const { data: entityRows, error: entityError } = await client
+      .from('entity_mentions')
+      .select('id')
+      .in('source_document_id', sourceDocumentIds);
+    expect(entityError).toBeNull();
+    expect(entityRows).toBeTruthy();
+    expect(entityRows!.length).toBe(0);
 
-      // source_documents row itself may exist (created by an earlier stage
-      // of the flow, BEFORE the extraction stage that failed) — but the
-      // classification-output fields (content_type, primary_domain,
-      // classification_confidence) MUST be unpopulated by the failed flow.
-      // Per Path A binding semantics, these columns are written by
-      // `extract_classification` post-validation; a validation failure
-      // means the UPSERT never executed. (ID-131.19 M6 retirement:
-      // content_items DROPPED at M6; source_documents.classification_confidence
-      // replaces content_items.confidence_score.)
-      const { data: contentRows, error: contentError } = await client
-        .from('source_documents')
-        .select('id, content_type, primary_domain, classification_confidence')
-        .in('id', seededContentIds);
-      expect(contentError).toBeNull();
-      expect(contentRows).toBeTruthy();
-      for (const row of contentRows!) {
-        // The Path A pre-extraction stage may populate content_type with
-        // a placeholder (e.g. 'unknown' or the fixture's source-derived
-        // hint) before extraction runs. The Inv-22 assertion is that
-        // extraction did NOT mutate it — which we cannot directly check
-        // without a pre-extraction snapshot. The structural check below
-        // verifies that classification_confidence is NULL (would be a
-        // float in [0,1] if extraction succeeded) — its NULL state is
-        // the cleanest observable proof that classification UPSERT
-        // didn't fire.
-        expect(row.classification_confidence).toBeNull();
-      }
-    });
+    // source_documents row itself may exist (created by an earlier stage
+    // of the flow, BEFORE the extraction stage that failed) — but the
+    // classification-output fields (content_type, primary_domain,
+    // classification_confidence) MUST be unpopulated by the failed flow.
+    // Per Path A binding semantics, these columns are written by
+    // `extract_classification` post-validation; a validation failure
+    // means the UPSERT never executed. (ID-131.19 M6 retirement:
+    // content_items DROPPED at M6; source_documents.classification_confidence
+    // replaces content_items.confidence_score.)
+    const { data: contentRows, error: contentError } = await client
+      .from('source_documents')
+      .select('id, content_type, primary_domain, classification_confidence')
+      .in('id', seededContentIds);
+    expect(contentError).toBeNull();
+    expect(contentRows).toBeTruthy();
+    for (const row of contentRows!) {
+      // The Path A pre-extraction stage may populate content_type with
+      // a placeholder (e.g. 'unknown' or the fixture's source-derived
+      // hint) before extraction runs. The Inv-22 assertion is that
+      // extraction did NOT mutate it — which we cannot directly check
+      // without a pre-extraction snapshot. The structural check below
+      // verifies that classification_confidence is NULL (would be a
+      // float in [0,1] if extraction succeeded) — its NULL state is
+      // the cleanest observable proof that classification UPSERT
+      // didn't fire.
+      expect(row.classification_confidence).toBeNull();
+    }
+  });
 
-    it('error_class in pipeline_runs.result is one of the Pydantic-level sub-classes (when 28.13 persists the sub-class)', async () => {
-      // This assertion is GATED on a 28.13 schema-design decision: when
-      // 28.13 persists the Pydantic-level sub-class (one of
-      // PYDANTIC_LEVEL_ERROR_CLASSES) in addition to the top-level
-      // 7-class, this test verifies the sub-class lands in
-      // pipeline_runs.result.pydantic_error_class.
-      //
-      // If the sub-class persistence is NOT YET shipped, this test
-      // currently skips its assertion body via the
-      // `pydanticErrorClass === undefined` short-circuit — preserving the
-      // contract for FUTURE 28.13 sub-class observability without
-      // blocking the 28.14 promote-to-done gate.
-      //
-      // The exact landing-key name (`result.pydantic_error_class` vs
-      // `result.error_subclass` vs `result.error_detail.pydantic_type`)
-      // is owned by 28.13 — when 28.13 lands the schema decision, edit
-      // this test to read the correct key.
-      const client = await createLiveServiceClient();
-      const { data, error } = await client
-        .from('pipeline_runs')
-        .select('result')
-        .eq('op_id', observedOpIdRef.current!)
-        .eq('status', 'failed')
-        .maybeSingle();
+  it('error_class in pipeline_runs.result is one of the Pydantic-level sub-classes (when 28.13 persists the sub-class)', async () => {
+    // This assertion is GATED on a 28.13 schema-design decision: when
+    // 28.13 persists the Pydantic-level sub-class (one of
+    // PYDANTIC_LEVEL_ERROR_CLASSES) in addition to the top-level
+    // 7-class, this test verifies the sub-class lands in
+    // pipeline_runs.result.pydantic_error_class.
+    //
+    // If the sub-class persistence is NOT YET shipped, this test
+    // currently skips its assertion body via the
+    // `pydanticErrorClass === undefined` short-circuit — preserving the
+    // contract for FUTURE 28.13 sub-class observability without
+    // blocking the 28.14 promote-to-done gate.
+    //
+    // The exact landing-key name (`result.pydantic_error_class` vs
+    // `result.error_subclass` vs `result.error_detail.pydantic_type`)
+    // is owned by 28.13 — when 28.13 lands the schema decision, edit
+    // this test to read the correct key.
+    const client = await createLiveServiceClient();
+    const { data, error } = await client
+      .from('pipeline_runs')
+      .select('result')
+      .eq('op_id', observedOpIdRef.current!)
+      .eq('status', 'failed')
+      .maybeSingle();
 
-      expect(error).toBeNull();
-      expect(data).toBeTruthy();
-      const result = data!.result as Record<string, unknown> | null;
-      expect(result).not.toBeNull();
+    expect(error).toBeNull();
+    expect(data).toBeTruthy();
+    const result = data!.result as Record<string, unknown> | null;
+    expect(result).not.toBeNull();
 
-      // FUTURE 28.13 sub-class observability — the key name is
-      // provisional. Update this lookup when 28.13 ratifies the key.
-      const pydanticErrorClass = result!.pydantic_error_class as
-        | string
-        | undefined;
-      if (pydanticErrorClass === undefined) {
-        // 28.13 sub-class persistence not yet shipped — skip assertion.
-        return;
-      }
-      expect(PYDANTIC_LEVEL_ERROR_CLASSES).toContain(pydanticErrorClass);
-    });
-  },
-);
+    // FUTURE 28.13 sub-class observability — the key name is
+    // provisional. Update this lookup when 28.13 ratifies the key.
+    const pydanticErrorClass = result!.pydantic_error_class as
+      | string
+      | undefined;
+    if (pydanticErrorClass === undefined) {
+      // 28.13 sub-class persistence not yet shipped — skip assertion.
+      return;
+    }
+    expect(PYDANTIC_LEVEL_ERROR_CLASSES).toContain(pydanticErrorClass);
+  });
+});

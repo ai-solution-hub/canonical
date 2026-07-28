@@ -172,6 +172,15 @@ export interface PollContentItemsOpts {
    * Interval between poll attempts. Defaults to 2_000.
    */
   pollIntervalMs?: number;
+  /**
+   * When true, only rows with a non-null `op_id` match — i.e. rows written
+   * by an actual pipeline run. Tests that seed their own NULL-op_id
+   * `source_documents` row under the SAME prefix they later poll (e.g. the
+   * Inv-8 classifyContent-coexistence seed) set this so the poll waits for
+   * the pipeline's row instead of matching their own seed instantly.
+   * Default false (unchanged behaviour).
+   */
+  requireOpId?: boolean;
 }
 
 export interface PolledContentItemRow {
@@ -223,10 +232,14 @@ export async function pollContentItemsFor(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const { data, error } = await client
+    let query = client
       .from('source_documents')
       .select('id, op_id')
       .ilike('filename', `${titlePrefix}%`);
+    if (opts.requireOpId) {
+      query = query.not('op_id', 'is', null);
+    }
+    const { data, error } = await query;
 
     if (error) {
       // Surface PostgREST / network errors to the caller. Network-isolation
@@ -248,7 +261,9 @@ export async function pollContentItemsFor(
   }
 
   throw new Error(
-    `pollContentItemsFor: timed out after ${timeoutMs}ms waiting for source_documents row with filename ILIKE '${titlePrefix}%'`,
+    `pollContentItemsFor: timed out after ${timeoutMs}ms waiting for source_documents row with filename ILIKE '${titlePrefix}%'${
+      opts.requireOpId ? ' (non-null op_id required)' : ''
+    }`,
   );
 }
 
@@ -270,6 +285,12 @@ export interface PollContentChunksOpts {
  * tests assert on. Mirrors the columns written by the {56.8} chunking stage
  * (PRODUCT C-10..C-13) plus the heading-derived columns the test verifies are
  * NULL / the DB default `'{}'` (C-13 + [GAP-CMI-004] disposition (a)).
+ *
+ * NB: `content_chunks.embedding` was DROPPED by migration
+ * 20260706120000_id131_drop_inline_vector_cols (ID-131 {131.19} / DR-036) —
+ * chunk vectors live on the separate `record_embeddings` table keyed by
+ * (owner_kind='content_chunk', owner_id=<chunk id>). Callers asserting on
+ * the vector use `fetchChunkEmbedding` below.
  */
 export interface PolledContentChunkRow {
   id: string;
@@ -278,7 +299,6 @@ export interface PolledContentChunkRow {
   position: number;
   char_count: number;
   word_count: number;
-  embedding: unknown;
   op_id: string | null;
   heading_text: string | null;
   heading_level: number | null;
@@ -287,7 +307,7 @@ export interface PolledContentChunkRow {
 }
 
 const CONTENT_CHUNK_COLUMNS =
-  'id, source_document_id, content, position, char_count, word_count, embedding, op_id, heading_text, heading_level, heading_path, parent_chunk_id';
+  'id, source_document_id, content, position, char_count, word_count, op_id, heading_text, heading_level, heading_path, parent_chunk_id';
 
 /**
  * Poll `content_chunks` for a given `source_document_id` via the live service-role
@@ -351,12 +371,67 @@ function toPolledContentChunkRow(
     position: r.position as number,
     char_count: r.char_count as number,
     word_count: r.word_count as number,
-    embedding: r.embedding ?? null,
     op_id: (r.op_id as string | null) ?? null,
     heading_text: (r.heading_text as string | null) ?? null,
     heading_level: (r.heading_level as number | null) ?? null,
     heading_path: (r.heading_path as string[] | null) ?? null,
     parent_chunk_id: (r.parent_chunk_id as string | null) ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// fetchChunkEmbedding
+// ---------------------------------------------------------------------------
+
+export interface ChunkEmbeddingRow {
+  id: string;
+  embedding: unknown;
+}
+
+/**
+ * Fetch the `record_embeddings` row for a single `content_chunks` id.
+ *
+ * `content_chunks.embedding` was DROPPED by migration
+ * 20260706120000_id131_drop_inline_vector_cols (ID-131 {131.19} / DR-036);
+ * chunk vectors land on `record_embeddings` keyed by
+ * (owner_kind='content_chunk', owner_id=<chunk id>) via the flow's
+ * `_declare_record_embedding`. Mirrors the proven read in
+ * stage-topology.integration.test.ts (owner_kind='source_document').
+ *
+ * Returns the row (the pgvector value round-trips through PostgREST as an
+ * opaque string) or null when no row exists — callers assert non-null /
+ * byte-identity per their invariant (C-30 / C-31).
+ *
+ * Throws when live-DB credentials are not real (callers must env-gate via
+ * `hasRealLiveDbCredentials()` first).
+ */
+export async function fetchChunkEmbedding(
+  chunkId: string,
+): Promise<ChunkEmbeddingRow | null> {
+  if (!hasRealLiveDbCredentials()) {
+    throw new Error(
+      'fetchChunkEmbedding: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
+    );
+  }
+
+  const client = await createLiveServiceClient();
+  const { data, error } = await client
+    .from('record_embeddings')
+    .select('id, embedding')
+    .eq('owner_kind', 'content_chunk')
+    .eq('owner_id', chunkId)
+    .limit(1);
+
+  if (error) {
+    throw new Error(
+      `fetchChunkEmbedding: query failed — ${error.message ?? String(error)}`,
+    );
+  }
+
+  if (!data || data.length === 0) return null;
+  return {
+    id: data[0]!.id as string,
+    embedding: data[0]!.embedding ?? null,
   };
 }
 
