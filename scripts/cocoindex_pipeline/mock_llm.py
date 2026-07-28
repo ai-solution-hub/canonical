@@ -37,9 +37,24 @@ Contract with `extraction.py` (the load-bearing invariants):
     so the mock fails at boot — not mid-walk — if the schemas drift.
   - Streamed responses end with `stop_reason: "end_turn"`, so
     `_guard_not_truncated` passes.
-  - A request with NO system prompt gets a plain "pong" message — the
-    id-389 credential-preflight ping — while an UNRECOGNISED system prompt
-    is a loud 400 (a real caller whose prompt this mock does not know).
+  - A request with NO system prompt is EITHER the Stage-5 pair-resolution
+    call (`pair_resolver.KhPairResolver._invoke_llm` sends its prompt as a
+    bare user message, no system block — recognised via the imported
+    `_PAIR_RESOLUTION_PROMPT_TEMPLATE` and answered "same"/"different"
+    deterministically, see `_pair_decision`) OR the id-389
+    credential-preflight ping (answered "pong"). An UNRECOGNISED system
+    prompt is a loud 400 (a real caller whose prompt this mock does not
+    know).
+
+Content echo (id-389 follow-up — Stage-5 near-match testability): entity
+payloads ECHO certification-shaped surface forms found verbatim in the
+request's `content_text` (see `_echo_entity_tokens`), so a fixture that
+inlines e.g. 'ISO 27001' and 'ISO27001' produces mentions whose
+entity_names are those EXACT surface forms with spans at the real match
+offsets. Combined with the pair-resolution route above, mock-tier walks
+exercise real Stage-5 near-match semantics (two distinct per-doc
+canonicals that resolve to one cross-document value) instead of
+hash-names that can never near-match.
 
 NEVER expose this server publicly: compose-internal / runner-local only.
 """
@@ -50,10 +65,11 @@ import hashlib
 import json
 import logging
 import os
+import re
 
 from aiohttp import web
 
-from scripts.cocoindex_pipeline import extraction, prompts
+from scripts.cocoindex_pipeline import extraction, pair_resolver, prompts
 
 _logger = logging.getLogger(__name__)
 
@@ -100,40 +116,120 @@ _QA_FORM_PAYLOAD = extraction.QAFormExtraction(
 # Entity mentions and relationships are NOT static: their DB write targets
 # carry uniqueness constraints keyed on the extracted NAME
 # (entity_mentions_canonical_name_entity_type_source_document_id_key,
-# entity_relationships_unique_tuple), so one fixed "MOCK Organisation Ltd"
-# for every request collides the moment two chunks of the same document
-# extract — proven in the first mock-tier adjudication run (30310909744:
-# 277 + 238 UniqueViolationErrors → 519 failed item writes → 27 poll
-# timeouts). Each payload is instead a DETERMINISTIC function of the
-# request's `content_text` — the same key the extractors memoise on — so
-# it is stable per chunk (memo-compatible) and unique across chunks.
+# entity_relationships_unique_tuple). The extractors call the LLM ONCE per
+# DOCUMENT (flow.py `_ingest_content_branch` / `ingest_once` — content_text
+# is the full converted markdown; PR #140's "two chunks of one document"
+# framing was wrong about granularity), so a static "MOCK Organisation Ltd"
+# made every document's rows share the SAME names. That collided the
+# constraints wherever two write-path invocations share a natural key but
+# not a PK id — proven in the first mock-tier adjudication run
+# (30310909744: 277 + 238 UniqueViolationErrors → 519 failed item writes →
+# 27 poll timeouts). The two concrete shapes:
+#   (a) entity_relationships FK is ON DELETE SET NULL and the unique tuple
+#       is NULLS NOT DISTINCT — identical static tuples from DIFFERENT
+#       documents collide as soon as a full-replace walk orphans a second
+#       one to source_document_id NULL;
+#   (b) byte-identical files at DIFFERENT rel_paths resolve to ONE
+#       source_document_id (content_hash-first identity, id-138) while the
+#       engine-path em:/er: PKs are still rel_path-seeded (flow.py
+#       declare-rows block) — same natural key, different PK → collision.
+# Making each payload a DETERMINISTIC function of the request's
+# `content_text` — the same key the extractors memoise on — kills (a)
+# outright and confines (b) to byte-identical duplicates (a latent,
+# name-scheme-independent flow.py PK-seeding gap; ingest_once already
+# seeds on source_document_id). Content-echoed names below keep that
+# property: they derive from content_text and the always-present rows keep
+# a per-content tag on the constraint-keyed fields.
 
 
 def _content_tag(content_text: str) -> str:
     return hashlib.sha256(content_text.encode("utf-8")).hexdigest()[:12]
 
 
+# ── Content echo (id-389 follow-up: Stage-5 near-match testability) ──────────
+#
+# Certification-shaped tokens (uppercase acronym + 3-6 digits, optional single
+# space: 'ISO 27001', 'ISO27001', 'ISO 9001', ...) are echoed VERBATIM as
+# entity mentions, spans at the real match offsets. entity_type is 'standard'
+# DELIBERATELY, not 'certification': canonicalise_entity_name's
+# certification-only ISO normaliser (canonicalisation.py `_ISO_TIGHT_RE`)
+# rewrites 'iso27001' → 'iso 27001', which would pre-unify the surface
+# variants at the per-doc phase — flow.py's `_em_dedup` would then collapse
+# them to ONE row and Stage-5 would never see a near-match pair. Under
+# 'standard' the per-doc canonicals stay distinct ('iso 27001' vs 'iso27001'),
+# both rows land, and resolution is exercised for real. 'standard' is also
+# what keeps the Inv-20 test contract honest (canonical_name == lowercase+trim
+# of the surface form) and the Inv-21 cross-run canonicals distinct.
+
+_CERT_TOKEN_RE = re.compile(r"\b[A-Z]{2,6} ?\d{3,6}\b")
+
+# First-occurrence-ordered, deduped on exact surface form, capped so a
+# token-dense document cannot balloon the payload.
+_ECHO_MENTION_CAP = 5
+
+
+def _echo_entity_tokens(content_text: str) -> list[tuple[str, int, int]]:
+    """Certification-shaped surface forms found in `content_text`.
+
+    Returns up to `_ECHO_MENTION_CAP` distinct `(surface, start, end)`
+    triples in first-occurrence order; a repeated surface form keeps its
+    FIRST match offsets. Deterministic in `content_text` (memo-compatible).
+    """
+    seen: set[str] = set()
+    out: list[tuple[str, int, int]] = []
+    for match in _CERT_TOKEN_RE.finditer(content_text):
+        surface = match.group(0)
+        if surface in seen:
+            continue
+        seen.add(surface)
+        out.append((surface, match.start(), match.end()))
+        if len(out) >= _ECHO_MENTION_CAP:
+            break
+    return out
+
+
 def _entity_mentions_payload(content_text: str) -> str:
-    name = f"MOCK Org {_content_tag(content_text)}"
-    return json.dumps(
-        [
+    # The per-content-tag mention is KEPT (always first): it is the row that
+    # never near-matches anything (the Inv-20 'unresolved mention retains
+    # canonical' substrate) and the uniqueness canary the PR #140 win rests
+    # on. Echoed mentions follow in first-occurrence order.
+    tag_name = f"MOCK Org {_content_tag(content_text)}"
+    mentions = [
+        extraction.EntityMentionExtraction(
+            entity_type="organisation",
+            entity_name=tag_name,
+            source_span_start=0,
+            source_span_end=len(tag_name),
+            mention_confidence=0.9,
+        )
+    ]
+    for surface, start, end in _echo_entity_tokens(content_text):
+        mentions.append(
             extraction.EntityMentionExtraction(
-                entity_type="organisation",
-                entity_name=name,
-                source_span_start=0,
-                source_span_end=len(name),
-                mention_confidence=0.9,
-            ).model_dump(mode="json")
-        ]
-    )
+                entity_type="standard",
+                entity_name=surface,
+                source_span_start=start,
+                source_span_end=end,
+                mention_confidence=0.85,
+            )
+        )
+    return json.dumps([m.model_dump(mode="json") for m in mentions])
 
 
 def _relationships_payload(content_text: str) -> str:
+    # Tuple-safety: the TARGET always carries the per-content tag, so the
+    # canonicalised (source, predicate, target) triple remains a function of
+    # content_text — two DIFFERENT documents can never produce an identical
+    # tuple (the NULLS-NOT-DISTINCT orphan-collision class stays dead). The
+    # SOURCE echoes the first content surface form when one exists, so
+    # relationship rows carry a realistic endpoint for md-fixture corpora.
     tag = _content_tag(content_text)
+    echoes = _echo_entity_tokens(content_text)
+    source = echoes[0][0] if echoes else f"MOCK Org {tag}"
     return json.dumps(
         [
             extraction.RelationshipExtraction(
-                source=f"MOCK Org {tag}",
+                source=source,
                 relationship="holds",
                 target=f"MOCK Cert {tag}",
             ).model_dump(mode="json")
@@ -156,11 +252,90 @@ def _qa_form_payload(content_text: str) -> str:
 
 # Boot-time self-check: every canned payload must round-trip the EXACT
 # validation path the extractors run (`validate_json` on extraction.py's own
-# adapters). Schema drift kills the mock at boot, not mid-walk.
+# adapters). Schema drift kills the mock at boot, not mid-walk. Both echo
+# regimes are exercised: token-free content (tag mention only) AND
+# token-bearing content (tag mention + echoed surface forms).
+_ECHO_BOOT_SAMPLE = "boot check: holds ISO 27001 and ISO27001 (id-389 echo)"
 extraction._classification_adapter.validate_json(_classification_payload("x"))
 extraction._qa_form_adapter.validate_json(_qa_form_payload("x"))
 extraction._entity_mentions_adapter.validate_json(_entity_mentions_payload("x"))
+extraction._entity_mentions_adapter.validate_json(
+    _entity_mentions_payload(_ECHO_BOOT_SAMPLE)
+)
 extraction._relationships_adapter.validate_json(_relationships_payload("x"))
+extraction._relationships_adapter.validate_json(
+    _relationships_payload(_ECHO_BOOT_SAMPLE)
+)
+
+# ── Stage-5 pair-resolution route (system-less caller) ───────────────────────
+#
+# `pair_resolver.KhPairResolver._invoke_llm` sends its prompt as a bare user
+# message with NO system block, so it lands in the mock's no-system branch.
+# Before this route existed the branch answered the preflight "pong", which
+# the resolver's thin parser fail-safed to "different" — Stage-5 could
+# therefore NEVER merge a near-match pair in mock-tier runs. The route is
+# recognised via the IMPORTED `_PAIR_RESOLUTION_PROMPT_TEMPLATE` (same
+# version-locking philosophy as the prompts.py exact match: a template edit
+# redeploys with this image, a mismatch means mixed versions) and answered
+# deterministically: "same" iff the two names are equal after casefold +
+# stripping non-alphanumerics — 'iso 27001' vs 'iso27001' → "same",
+# 'iso 27001' vs 'iso 9001' → "different". The credential-preflight ping
+# (any other system-less request) still gets "pong".
+
+_PAIR_PROMPT_HEAD = pair_resolver._PAIR_RESOLUTION_PROMPT_TEMPLATE.split(
+    "{name_a}", 1
+)[0]
+_PAIR_NAME_B_SEP = "\nName B: "
+_PAIR_NORM_STRIP_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _parse_pair_resolution_prompt(user_text: str) -> tuple[str, str] | None:
+    """Parse a KhPairResolver prompt into `(name_a, name_b)`.
+
+    Returns None when `user_text` is not pair-shaped (it is then the
+    preflight ping). Raises ValueError when the text matches the template
+    head but the two names cannot be recovered — a loud 400 in the handler,
+    never a silently wrong adjudication.
+    """
+    if not user_text.startswith(_PAIR_PROMPT_HEAD):
+        return None
+    remainder = user_text[len(_PAIR_PROMPT_HEAD):]
+    name_a, sep, name_b = remainder.partition(_PAIR_NAME_B_SEP)
+    if not sep or not name_a or not name_b:
+        raise ValueError(
+            "mock_llm: pair-resolution prompt matched the template head but "
+            "the Name A / Name B lines could not be parsed"
+        )
+    return name_a, name_b
+
+
+def _pair_decision(name_a: str, name_b: str) -> str:
+    """Deterministic same/different adjudication for a name pair.
+
+    "same" iff the names are equal after casefold + stripping every
+    non-alphanumeric character (space/punctuation-insensitive equality —
+    exactly the near-match class Stage-5's ISO surface variants exercise).
+    A name that normalises to nothing never matches (fail-safe).
+    """
+    norm_a = _PAIR_NORM_STRIP_RE.sub("", name_a.casefold())
+    norm_b = _PAIR_NORM_STRIP_RE.sub("", name_b.casefold())
+    if not norm_a or not norm_b:
+        return "different"
+    return "same" if norm_a == norm_b else "different"
+
+
+# Boot-time self-check: the pair route must recover the exact names from the
+# CURRENT template — template drift kills the mock at boot, not mid-Stage-5.
+if _parse_pair_resolution_prompt(
+    pair_resolver._PAIR_RESOLUTION_PROMPT_TEMPLATE.format(
+        name_a="Probe A", name_b="Probe B"
+    )
+) != ("Probe A", "Probe B"):
+    raise RuntimeError(
+        "mock_llm: pair_resolver._PAIR_RESOLUTION_PROMPT_TEMPLATE drifted — "
+        "the pair-resolution route can no longer parse its own template"
+    )
+
 
 # system-prompt text → (extractor name, content_text → canned response text)
 _ROUTES: dict[str, tuple[str, object]] = {
@@ -293,8 +468,23 @@ async def _handle_messages(request: web.Request) -> web.Response:
     content_text = _last_user_text(body.get("messages"))
 
     if not system_text:
-        # No system prompt = the id-389 credential-preflight ping.
-        extractor, text = "preflight", "pong (mock_llm id-389 tier-1)"
+        # No system prompt = EITHER the Stage-5 pair-resolution call
+        # (KhPairResolver._invoke_llm sends a bare user message) OR the
+        # id-389 credential-preflight ping. Discriminated on the imported
+        # pair-resolution template; a head-matched-but-unparsable prompt is
+        # a loud 400, never a silently wrong adjudication.
+        try:
+            pair = _parse_pair_resolution_prompt(content_text)
+        except ValueError as exc:
+            _logger.error("mock_llm: %s", exc)
+            return web.json_response(
+                {"error": {"type": "invalid_request_error", "message": str(exc)}},
+                status=400,
+            )
+        if pair is not None:
+            extractor, text = "pair_resolution", _pair_decision(*pair)
+        else:
+            extractor, text = "preflight", "pong (mock_llm id-389 tier-1)"
     elif system_text in _ROUTES:
         extractor, builder = _ROUTES[system_text]
         text = builder(content_text)
