@@ -118,8 +118,14 @@ export interface RecordPipelineRunParams {
 }
 
 /**
- * Insert a `pipeline_runs` row with checked error handling and
+ * Record a `pipeline_runs` row with checked error handling and
  * automatic Sentry alerting when the run is not successful.
+ *
+ * Write semantics: a plain insert, EXCEPT when `opId` is provided with a
+ * terminal status — then the helper first tries to transition the
+ * invocation's existing `in_progress` row (Inv-16: one row per pipeline
+ * invocation; Inv-12: op_id resolves to exactly one row), inserting only
+ * if no start row exists.
  *
  * **Never throws.** All failure modes are captured and reported; the
  * caller does not need to wrap this in a try/catch. This is the single
@@ -214,11 +220,11 @@ export async function recordPipelineRun(
     status === 'cancelled';
   const now = new Date().toISOString();
 
-  // Insert the row via `sb()` so any insertion failure throws a
+  // Write the row via `sb()` so any write failure throws a
   // SupabaseError. Catch the throw here — this helper is never-throws by
   // contract — and report it through logBestEffortWarn + Sentry.
-  try {
-    await sb(
+  const insertRow = () =>
+    sb(
       supabase.from('pipeline_runs').insert({
         pipeline_name: pipelineName,
         status,
@@ -236,6 +242,44 @@ export async function recordPipelineRun(
       }),
       'pipeline.record_run.insert',
     );
+
+  try {
+    // Inv-16 (id-28 PRODUCT): ONE `pipeline_runs` row per pipeline
+    // invocation. The cocoindex sidecar emits twice per flow —
+    // `in_progress` at flow start, one terminal status at flow end — and
+    // the terminal emission must COMPLETE the invocation's existing row,
+    // not insert a sibling: two rows per op_id breaks the Inv-12
+    // round-trip ("SELECT pipeline_runs WHERE op_id = <value> → exactly
+    // one row"). Scoped to op_id-carrying terminal writes, so every other
+    // caller (crons, MCP tools, queue telemetry — none pass opId) keeps
+    // plain insert semantics. `completed_at` is deliberately NOT touched
+    // on the transition — it timestamps the insert (see above); `ended_at`
+    // is the run-end signal.
+    if (opId && isTerminal) {
+      const transitioned = await sb(
+        supabase
+          .from('pipeline_runs')
+          .update({
+            status,
+            ended_at: now,
+            items_processed: itemsProcessed ?? null,
+            items_created: itemsCreated ?? null,
+            result: mergedResult,
+            error_message: errorMessage ?? null,
+          })
+          .eq('op_id', opId)
+          .eq('status', 'in_progress')
+          .select('id'),
+        'pipeline.record_run.transition',
+      );
+      if (!transitioned || transitioned.length === 0) {
+        // No in_progress row to complete (start emission lost, or a
+        // pre-transition sidecar) — land the terminal row directly.
+        await insertRow();
+      }
+    } else {
+      await insertRow();
+    }
   } catch (err) {
     const message =
       err instanceof SupabaseError
