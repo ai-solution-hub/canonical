@@ -183,6 +183,22 @@ scratch, because they describe a moment rather than claiming to be current.
 
 ---
 
+## Step 2e — Change-log pass (id-390)
+
+1. From the docs-site root, run `bun run changelog:generate` (needs the public-repo
+   sibling checkout — set `KH_PUBLIC_REPO_DIR` if it is not at `../canonical`). This
+   harvests SCHEMA migration adds, REGISTER events, and any `CHANGELOG-<SURFACE>:`
+   lines already carried in merged-PR bodies or `main` commit trailers.
+2. Author what the generator cannot infer: for each PRODUCT or WORKFLOW change this
+   session shipped that has no harvested entry, add a `CHANGELOG-PRODUCT:` /
+   `CHANGELOG-WORKFLOW:` trailer to the closing docs-site or public-repo commit (one
+   line, present tense, no state restatement — the next generator run harvests it).
+   Grammar + surface definitions: docs-site `AGENTS.md` §6.
+3. Commit the regenerated shard(s) + index with the session-close commit. The
+   integrity gate (`bun run changelog:check`) fails CI if the index is left stale.
+
+---
+
 ## Step 3 — Confirm next-session focus
 
 Confirm before drafting (ask Liam if unsure):
