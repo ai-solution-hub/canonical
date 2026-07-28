@@ -46,6 +46,7 @@ NEVER expose this server publicly: compose-internal / runner-local only.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -96,50 +97,85 @@ _QA_FORM_PAYLOAD = extraction.QAFormExtraction(
     ],
 ).model_dump_json()
 
-_ENTITY_MENTIONS_PAYLOAD = json.dumps(
-    [
-        extraction.EntityMentionExtraction(
-            entity_type="organisation",
-            entity_name="MOCK Organisation Ltd",
-            source_span_start=0,
-            source_span_end=21,
-            mention_confidence=0.9,
-        ).model_dump(mode="json")
-    ]
-)
+# Entity mentions and relationships are NOT static: their DB write targets
+# carry uniqueness constraints keyed on the extracted NAME
+# (entity_mentions_canonical_name_entity_type_source_document_id_key,
+# entity_relationships_unique_tuple), so one fixed "MOCK Organisation Ltd"
+# for every request collides the moment two chunks of the same document
+# extract — proven in the first mock-tier adjudication run (30310909744:
+# 277 + 238 UniqueViolationErrors → 519 failed item writes → 27 poll
+# timeouts). Each payload is instead a DETERMINISTIC function of the
+# request's `content_text` — the same key the extractors memoise on — so
+# it is stable per chunk (memo-compatible) and unique across chunks.
 
-_RELATIONSHIPS_PAYLOAD = json.dumps(
-    [
-        extraction.RelationshipExtraction(
-            source="MOCK Organisation Ltd",
-            relationship="holds",
-            target="MOCK ISO 9001 certification",
-        ).model_dump(mode="json")
-    ]
-)
+
+def _content_tag(content_text: str) -> str:
+    return hashlib.sha256(content_text.encode("utf-8")).hexdigest()[:12]
+
+
+def _entity_mentions_payload(content_text: str) -> str:
+    name = f"MOCK Org {_content_tag(content_text)}"
+    return json.dumps(
+        [
+            extraction.EntityMentionExtraction(
+                entity_type="organisation",
+                entity_name=name,
+                source_span_start=0,
+                source_span_end=len(name),
+                mention_confidence=0.9,
+            ).model_dump(mode="json")
+        ]
+    )
+
+
+def _relationships_payload(content_text: str) -> str:
+    tag = _content_tag(content_text)
+    return json.dumps(
+        [
+            extraction.RelationshipExtraction(
+                source=f"MOCK Org {tag}",
+                relationship="holds",
+                target=f"MOCK Cert {tag}",
+            ).model_dump(mode="json")
+        ]
+    )
+
+
+def _classification_payload(content_text: str) -> str:
+    del content_text  # no uniqueness constraint on the classified fields
+    return _CLASSIFICATION_PAYLOAD
+
+
+def _qa_form_payload(content_text: str) -> str:
+    # No observed uniqueness constraint on q_a_extractions question text
+    # (run 30310909744: zero violations from this class) — keep static
+    # until the DB proves otherwise.
+    del content_text
+    return _QA_FORM_PAYLOAD
+
 
 # Boot-time self-check: every canned payload must round-trip the EXACT
 # validation path the extractors run (`validate_json` on extraction.py's own
 # adapters). Schema drift kills the mock at boot, not mid-walk.
-extraction._classification_adapter.validate_json(_CLASSIFICATION_PAYLOAD)
-extraction._qa_form_adapter.validate_json(_QA_FORM_PAYLOAD)
-extraction._entity_mentions_adapter.validate_json(_ENTITY_MENTIONS_PAYLOAD)
-extraction._relationships_adapter.validate_json(_RELATIONSHIPS_PAYLOAD)
+extraction._classification_adapter.validate_json(_classification_payload("x"))
+extraction._qa_form_adapter.validate_json(_qa_form_payload("x"))
+extraction._entity_mentions_adapter.validate_json(_entity_mentions_payload("x"))
+extraction._relationships_adapter.validate_json(_relationships_payload("x"))
 
-# system-prompt text → (extractor name, canned response text)
-_ROUTES: dict[str, tuple[str, str]] = {
+# system-prompt text → (extractor name, content_text → canned response text)
+_ROUTES: dict[str, tuple[str, object]] = {
     prompts.CLASSIFICATION_PROMPT: (
         "extract_classification",
-        _CLASSIFICATION_PAYLOAD,
+        _classification_payload,
     ),
-    prompts.Q_A_FORM_PROMPT: ("extract_qa_form", _QA_FORM_PAYLOAD),
+    prompts.Q_A_FORM_PROMPT: ("extract_qa_form", _qa_form_payload),
     prompts.ENTITY_MENTION_PROMPT: (
         "extract_entity_mentions",
-        _ENTITY_MENTIONS_PAYLOAD,
+        _entity_mentions_payload,
     ),
     prompts.RELATIONSHIP_PROMPT: (
         "extract_relationships",
-        _RELATIONSHIPS_PAYLOAD,
+        _relationships_payload,
     ),
 }
 
@@ -156,6 +192,26 @@ def _system_text(system: object) -> str:
         first = system[0]
         if isinstance(first, dict):
             return str(first.get("text", ""))
+    return ""
+
+
+def _last_user_text(messages: object) -> str:
+    """The last user message's text — the extractors' `content_text`, which
+    seeds the per-request deterministic payloads above. Handles both wire
+    shapes (plain-string content and content-block lists)."""
+    if not isinstance(messages, list):
+        return ""
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            content = msg.get("content")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                return "".join(
+                    str(block.get("text", ""))
+                    for block in content
+                    if isinstance(block, dict)
+                )
     return ""
 
 
@@ -234,12 +290,14 @@ async def _handle_messages(request: web.Request) -> web.Response:
 
     model = str(body.get("model", "mock"))
     system_text = _system_text(body.get("system"))
+    content_text = _last_user_text(body.get("messages"))
 
     if not system_text:
         # No system prompt = the id-389 credential-preflight ping.
         extractor, text = "preflight", "pong (mock_llm id-389 tier-1)"
     elif system_text in _ROUTES:
-        extractor, text = _ROUTES[system_text][0], _ROUTES[system_text][1]
+        extractor, builder = _ROUTES[system_text]
+        text = builder(content_text)
     else:
         # Loud refusal, never a silent wrong-shape response: an unknown
         # system prompt means a caller this mock does not model (or a

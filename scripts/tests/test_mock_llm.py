@@ -102,6 +102,52 @@ class TestDiscrimination:
         assert len(result) == 1
 
 
+class TestPerChunkUniqueness:
+    """Entity/relationship payloads are a deterministic function of the
+    request's content_text — stable per chunk (memo-compatible), unique
+    across chunks. Static names collide the per-document uniqueness
+    constraints (entity_mentions canonical_name key,
+    entity_relationships_unique_tuple) the moment two chunks of one
+    document extract — run 30310909744's failure mode."""
+
+    def _entity_name(self, content: str) -> str:
+        status, body = _post_messages(
+            {
+                "model": "claude-test",
+                "max_tokens": 64,
+                "system": _system_block(prompts.ENTITY_MENTION_PROMPT),
+                "messages": [{"role": "user", "content": content}],
+            }
+        )
+        assert status == 200
+        mentions = extraction._entity_mentions_adapter.validate_json(
+            body["content"][0]["text"]
+        )
+        return mentions[0].entity_name
+
+    def test_distinct_chunks_get_distinct_entity_names(self) -> None:
+        assert self._entity_name("chunk one") != self._entity_name("chunk two")
+
+    def test_same_chunk_gets_identical_name_on_repeat(self) -> None:
+        # Determinism is what keeps the mock memo-compatible.
+        assert self._entity_name("chunk one") == self._entity_name("chunk one")
+
+    def test_relationship_endpoints_track_the_same_chunk_tag(self) -> None:
+        status, body = _post_messages(
+            {
+                "model": "claude-test",
+                "max_tokens": 64,
+                "system": _system_block(prompts.RELATIONSHIP_PROMPT),
+                "messages": [{"role": "user", "content": "chunk one"}],
+            }
+        )
+        assert status == 200
+        triples = extraction._relationships_adapter.validate_json(
+            body["content"][0]["text"]
+        )
+        assert triples[0].source == self._entity_name("chunk one")
+
+
 class TestRefusalAndPreflight:
     def test_unknown_system_prompt_is_a_loud_400(self) -> None:
         status, body = _post_messages(
