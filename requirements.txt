@@ -58,12 +58,21 @@ bert-score>=0.3.13
 
 # Cocoindex pipeline (ID-28 / T8 cocoindex sidecar)
 # cocoindex requires dangerouslyDisableSandbox in Claude Code dev (CLAUDE.md gotcha).
-# Pin 1.0.7 (bl-252): pulls 1.0.4 SQL-injection hardening + NUL-stripping in text/jsonb
-# ingest; no breaking changes to any USED option across 1.0.4-1.0.7 and the memo-fingerprint
-# scheme is unchanged (ID-89 RESEARCH §3.3, changelog-verified; bl-239 probe
-# scripts/tests/test_file_branch_memo_fingerprint.py stays the executable guard). Bump must
-# precede the ID-45 full-corpus re-ingest so the run lands on 1.0.7.
-cocoindex[postgres]==1.0.7
+# Pin 1.0.18 (id-128 S507): 1.0.7's engine exhausts the pre_commit ownership-
+# transfer retry loop under the nightly's stage-while-walking load ("pre_commit
+# gave up after 8 retries waiting for concurrent ownership transfer", 243
+# events / 30 files in run 30377806744, files stay dead every subsequent
+# pass) — the direct cause of the stage-5-op-id-memo poll-timeout residual
+# class. The 1.0.8-1.0.18 window carries the LMDB/state-store hardening
+# (#2299 dbi-opening read-txn commit for cross-process handle validity,
+# #2231 auto map resize, #2109 page-size rounding). NOTE for DEPLOYED
+# surfaces (not CI, whose LMDB is ephemeral): 1.0.9 moved the UserState db
+# key (0xc0 -> 0x34, #2102) — verify engine-managed migration or reset the
+# /cocoindex-state/lmdb volume on first deploy at this pin.
+# (Prior pin rationale, 1.0.7/bl-252: 1.0.4 SQL-injection hardening +
+# NUL-stripping. bl-239 probe scripts/tests/test_file_branch_memo_fingerprint.py
+# stays the executable guard on the memo-fingerprint scheme.)
+cocoindex[postgres]==1.0.18
 # Docling: MIT-licensed document converter + layout model (1.8 GB weights).
 # Pre-warmed into the image at build time so the model weights ship in-image.
 # Pinned to docling-slim with NO-OCR extras (S437): the full `docling` meta-package
