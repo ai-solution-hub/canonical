@@ -478,6 +478,17 @@ jobs:
         # localhost:8080 is simplest for both the health probe and the
         # Vitest run below.
         #
+        # IMAGE_SHA (Inv-8 forensic key): flow.py reads os.environ["IMAGE_SHA"]
+        # and threads it to the pipeline-run webhook as `extractorVersion`,
+        # which the record route lands as `result.extractor_version`. The
+        # Coolify composes pass it (docker-compose.platform.yaml ~L170); this
+        # lane must too, or every nightly-produced pipeline_runs row lacks
+        # extractor identification and extractor-version-cross-ref hard-fails
+        # ("expected 0 > 0" — the S507 root cause; the S506 webhook fix is
+        # what EXPOSED it, since orphan op_ids previously skipped cleanly).
+        # The local nightly tag (kh-cocoindex-pipeline:nightly-<run_id>)
+        # identifies the exact build, same contract as the compose tag.
+        #
         # id-389: on the mock tier the sidecar joins the mock's network and
         # gets ANTHROPIC_BASE_URL pointed at it — extraction's zero-arg
         # AsyncAnthropic() picks the var up natively. On the anthropic tier
@@ -507,6 +518,7 @@ jobs:
             -p "${COCOINDEX_PORT}:${COCOINDEX_PORT}" \
             "${EXTRA_LLM_ARGS[@]}" \
             -e "PORT=${COCOINDEX_PORT}" \
+            -e "IMAGE_SHA=${COCOINDEX_IMAGE_TAG}" \
             -e "COCOINDEX_SOURCE_PATH=${COCOINDEX_CONTAINER_SOURCE_PATH}" \
             -e "COCOINDEX_DB=/cocoindex-state/lmdb" \
             -e "COCOINDEX_DB_DSN=${COCOINDEX_DB_DSN}" \

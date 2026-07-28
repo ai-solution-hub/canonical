@@ -458,4 +458,121 @@ describe('recordPipelineRun', () => {
     });
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // Inv-16 / Inv-12 — one pipeline_runs row per op_id'd invocation:
+  // a terminal emission COMPLETES the flow-start row, never inserts a sibling.
+  // -------------------------------------------------------------------------
+
+  describe('op_id terminal transition (Inv-16 one-row-per-invocation)', () => {
+    const testOpId = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('a terminal status with opId completes the existing in_progress row without inserting a second row', async () => {
+      const supabase = createMockSupabaseTable({
+        data: [{ id: 'run-row-1' }],
+        error: null,
+      });
+
+      await recordPipelineRun({
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        pipelineName: 'kh_canonical_pipeline',
+        status: 'completed',
+        itemsProcessed: 7,
+        opId: testOpId,
+        result: { stage_counts: { source_walk: 7 } },
+      });
+
+      expect(supabase._chain.update).toHaveBeenCalledTimes(1);
+      const payload = supabase._chain.update.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(payload.status).toBe('completed');
+      expect(typeof payload.ended_at).toBe('string');
+      expect(payload.items_processed).toBe(7);
+      expect(supabase._chain.eq.mock.calls).toEqual(
+        expect.arrayContaining([
+          ['op_id', testOpId],
+          ['status', 'in_progress'],
+        ]),
+      );
+      expect(supabase._chain.insert).not.toHaveBeenCalled();
+    });
+
+    it('a terminal status with opId lands a fresh row when no in_progress row exists', async () => {
+      const supabase = createMockSupabaseTable(); // resolves { data: [], error: null }
+
+      await recordPipelineRun({
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        pipelineName: 'kh_canonical_pipeline',
+        status: 'failed',
+        opId: testOpId,
+        errorMessage: 'walk-wide fault',
+      });
+
+      expect(supabase._chain.update).toHaveBeenCalledTimes(1);
+      expect(supabase._chain.insert).toHaveBeenCalledTimes(1);
+      const payload = supabase._chain.insert.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(payload.op_id).toBe(testOpId);
+      expect(typeof payload.ended_at).toBe('string');
+    });
+
+    it('a flow-start in_progress emission with opId inserts the invocation row without attempting a transition', async () => {
+      const supabase = createMockSupabaseTable();
+
+      await recordPipelineRun({
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        pipelineName: 'kh_canonical_pipeline',
+        status: 'in_progress',
+        opId: testOpId,
+      });
+
+      expect(supabase._chain.update).not.toHaveBeenCalled();
+      expect(supabase._chain.insert).toHaveBeenCalledTimes(1);
+      const payload = supabase._chain.insert.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >;
+      expect(payload.status).toBe('in_progress');
+      expect(payload.ended_at).toBeNull();
+    });
+
+    it('a terminal status WITHOUT opId keeps plain insert semantics for non-cocoindex callers', async () => {
+      const supabase = createMockSupabaseTable();
+
+      await recordPipelineRun({
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        pipelineName: 'content_gaps',
+        status: 'completed',
+      });
+
+      expect(supabase._chain.update).not.toHaveBeenCalled();
+      expect(supabase._chain.insert).toHaveBeenCalledTimes(1);
+    });
+
+    it('a transitioned failed run still fires the Sentry error alert', async () => {
+      const supabase = createMockSupabaseTable({
+        data: [{ id: 'run-row-1' }],
+        error: null,
+      });
+
+      await recordPipelineRun({
+        supabase: supabase as unknown as SupabaseClient<Database>,
+        pipelineName: 'kh_canonical_pipeline',
+        status: 'failed',
+        opId: testOpId,
+        errorMessage: 'update_blocking failed',
+      });
+
+      expect(supabase._chain.insert).not.toHaveBeenCalled();
+      expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+      const [, options] = (
+        Sentry.captureMessage as unknown as ReturnType<typeof vi.fn>
+      ).mock.calls[0]!;
+      expect((options as { level: string }).level).toBe('error');
+    });
+  });
 });
