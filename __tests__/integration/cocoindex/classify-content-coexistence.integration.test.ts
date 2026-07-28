@@ -155,9 +155,15 @@ describe.skipIf(!ENABLED)(
         ).not.toBeNull();
 
         // Wait for the pipeline corpus to complete (its rows landed → its
-        // Stage-5 pass had a chance to run).
+        // Stage-5 pass had a chance to run). requireOpId is load-bearing:
+        // the beforeAll seeds its OWN deliberately-NULL-op_id
+        // source_documents row under this same TEST_PREFIX, so an
+        // unfiltered poll matches that seed instantly and never waits for
+        // the pipeline corpus (test-design race — the Inv-8 assertion then
+        // reads a pipeline that never ran).
         const items = await pollContentItemsFor(TEST_PREFIX, {
           timeoutMs: POLL_TIMEOUT_MS,
+          requireOpId: true,
         });
         for (const r of items) seededContentIds.push(r.id);
         const opId = items.find((r) => r.op_id !== null)?.op_id ?? null;

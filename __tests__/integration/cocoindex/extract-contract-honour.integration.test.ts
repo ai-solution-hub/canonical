@@ -348,11 +348,18 @@ describe.skipIf(!ENABLED)(
       // `EntityMentionExtraction` Pydantic shape (entity_type in 12-value
       // Literal, entity_name non-empty, source_span_start/end ≥ 0,
       // mention_confidence ∈ [0,1]).
+      //
+      // NB the DB analogue of the Pydantic field names (squash-baseline
+      // `entity_mentions` — dedicated span/confidence-name columns NEVER
+      // existed): `mention_confidence` lands on the `confidence` column
+      // (numeric(3,2)) and `source_span_start`/`source_span_end` are
+      // stashed in the `metadata` jsonb — the same live shape
+      // per-doc-canonicalisation asserts for Inv-16.
       const client = await createLiveServiceClient();
       const { data, error } = await client
         .from('entity_mentions')
         .select(
-          'id, source_document_id, entity_type, entity_name, canonical_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, canonical_name, confidence, metadata',
         )
         .in('source_document_id', seededContentIds);
 
@@ -371,19 +378,33 @@ describe.skipIf(!ENABLED)(
         expect(typeof row.entity_name).toBe('string');
         expect((row.entity_name as string).length).toBeGreaterThan(0);
 
-        // source_span offsets — both ≥ 0 per Field(ge=0); end > start
-        // (the Python normalise_entity_span helper tightens whitespace
-        // but cannot widen zero-length spans).
-        expect(row.source_span_start).toBeGreaterThanOrEqual(0);
-        expect(row.source_span_end).toBeGreaterThanOrEqual(0);
-        expect(row.source_span_end).toBeGreaterThanOrEqual(
-          row.source_span_start as number,
-        );
+        // source_span offsets — stashed in the metadata jsonb; they travel
+        // as a pair (both present or both absent). When present: integers
+        // ≥ 0 per Field(ge=0), end ≥ start (the Python
+        // normalise_entity_span helper tightens whitespace but cannot
+        // widen zero-length spans).
+        const md = (row.metadata ?? {}) as Record<string, unknown>;
+        const hasStart = 'source_span_start' in md;
+        const hasEnd = 'source_span_end' in md;
+        expect(hasStart).toBe(hasEnd);
+        if (hasStart) {
+          const start = md.source_span_start as number;
+          const end = md.source_span_end as number;
+          expect(Number.isInteger(start)).toBe(true);
+          expect(Number.isInteger(end)).toBe(true);
+          expect(start).toBeGreaterThanOrEqual(0);
+          expect(end).toBeGreaterThanOrEqual(0);
+          expect(end).toBeGreaterThanOrEqual(start);
+        }
 
-        // mention_confidence ∈ [0, 1] per Q-EX2 EntityMentionExtraction.
-        expect(typeof row.mention_confidence).toBe('number');
-        expect(row.mention_confidence).toBeGreaterThanOrEqual(0);
-        expect(row.mention_confidence).toBeLessThanOrEqual(1);
+        // mention_confidence → `confidence` column ∈ [0, 1] per Q-EX2
+        // EntityMentionExtraction (NULL may surface — the column default
+        // path; when present it MUST be in range).
+        if (row.confidence !== null) {
+          expect(typeof row.confidence).toBe('number');
+          expect(row.confidence).toBeGreaterThanOrEqual(0);
+          expect(row.confidence).toBeLessThanOrEqual(1);
+        }
       }
     });
 

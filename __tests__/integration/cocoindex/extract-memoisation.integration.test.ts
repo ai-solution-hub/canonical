@@ -250,11 +250,17 @@ describe.skipIf(!ENABLED)(
       // `extract_entity_mentions` extractor has the same `@coco.fn(memo=True)`
       // decorator (extraction.py line 599) so the contract applies
       // symmetrically.
+      //
+      // Column note: the Pydantic field names `mention_confidence` /
+      // `source_span_start` / `source_span_end` have no DB columns (squash
+      // baseline) — the DB analogue is the `confidence` column plus spans
+      // inside the `metadata` jsonb (per-doc-canonicalisation's Inv-16
+      // read). Both jsonb + numeric round-trip into the byte signature.
       const client = await createLiveServiceClient();
       const { data: pass1Rows, error: pass1Error } = await client
         .from('entity_mentions')
         .select(
-          'id, source_document_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, confidence, metadata',
         )
         .in('source_document_id', seededContentIds);
 
@@ -276,7 +282,7 @@ describe.skipIf(!ENABLED)(
       const { data: pass2Rows, error: pass2Error } = await client
         .from('entity_mentions')
         .select(
-          'id, source_document_id, entity_type, entity_name, source_span_start, source_span_end, mention_confidence',
+          'id, source_document_id, entity_type, entity_name, confidence, metadata',
         )
         .in('source_document_id', seededContentIds);
 

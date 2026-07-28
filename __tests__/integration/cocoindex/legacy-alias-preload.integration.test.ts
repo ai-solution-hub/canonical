@@ -66,11 +66,14 @@ const POLL_TIMEOUT_MS = 120_000;
 beforeAll(async () => {
   if (!ENABLED) return;
   // Seed the active alias BEFORE staging so the preload picks it up.
+  // No provenance override: the helper's 'client' default is the only
+  // legal test bucket (`entity_aliases_provenance_check` allows just
+  // 'core'/'client'/'recommended'); suite scoping rides on the unique
+  // ALIAS_TO value + id-scoped cleanup, not provenance.
   seededAliases = await seedAliasMap([
     {
       alias: ALIAS_FROM,
       canonical: ALIAS_TO,
-      provenance: `id-53.14-inv10-${TEST_PREFIX}`,
     },
   ]);
   await stageFixture({

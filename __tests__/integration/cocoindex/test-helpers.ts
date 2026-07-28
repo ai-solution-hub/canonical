@@ -455,8 +455,11 @@ export interface AliasSeed {
   /** The canonical the alias resolves to (what Stage-5 should write). */
   canonical: string;
   /**
-   * Provenance label. Defaults to a test-scoped marker so cleanup can locate
-   * the seeded rows even if the caller loses the returned ids.
+   * Provenance label. MUST be one of the platform provenance vocabulary —
+   * `entity_aliases_provenance_check` allows only 'core' | 'client' |
+   * 'recommended' (2026-06-17 squash baseline). Defaults to 'client' (the
+   * right bucket for a runtime-inserted row; 'core' denotes platform-seeded
+   * baseline data).
    */
   provenance?: string;
 }
@@ -473,8 +476,10 @@ export interface SeededAlias {
  * `_preload_entity_aliases` (`WHERE is_active = true`) picks them up.
  *
  * Returns the inserted rows (with ids) so the caller can assert + clean up.
- * The `provenance` defaults to a test marker; callers SHOULD pass a
- * test-unique provenance so concurrent suites do not collide.
+ * Cleanup scoping is by the returned ids (`cleanupAliasMap`) — provenance
+ * was never wired to any query, so a per-test provenance cannot scope
+ * concurrent suites (the earlier guidance to pass a test-unique value was
+ * inert AND violated `entity_aliases_provenance_check`).
  *
  * Throws when live-DB credentials are not real (callers must env-gate).
  */
@@ -491,7 +496,7 @@ export async function seedAliasMap(seeds: AliasSeed[]): Promise<SeededAlias[]> {
     alias: s.alias,
     canonical: s.canonical,
     is_active: true,
-    provenance: s.provenance ?? 'id-53.14-test-seed',
+    provenance: s.provenance ?? 'client',
   }));
 
   const { data, error } = await client
