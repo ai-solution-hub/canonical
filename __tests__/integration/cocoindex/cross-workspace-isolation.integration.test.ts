@@ -53,8 +53,13 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 120_000;
 
-const FIXTURE_PATH =
-  'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
+// S507 retarget (id-389 content-echo): the CSP XLSX previously staged here
+// contains neither surface form, so the W1/W2 variant rows this test needs
+// could never exist. The entity-variants md pair embeds one form each.
+const FIXTURE_PATH_W1 =
+  'docs/testing/test-data/entity-variants/certification-variant-space.md';
+const FIXTURE_PATH_W2 =
+  'docs/testing/test-data/entity-variants/certification-variant-nospace.md';
 
 const VARIANT_W1 = 'ISO 27001';
 const VARIANT_W2 = 'ISO27001';
@@ -63,15 +68,15 @@ beforeAll(async () => {
   if (!ENABLED) return;
   // W1 run: corpus for workspace 1.
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `inv-21-w1/${W1_PREFIX}.xlsx`,
+    fixturePath: FIXTURE_PATH_W1,
+    destPath: `inv-21-w1/${W1_PREFIX}.md`,
     titlePrefix: W1_PREFIX,
   });
   // W2 run: a SEPARATE pipeline invocation for workspace 2 (distinct
   // source-path → distinct op_id → isolated Stage-5 subset).
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `inv-21-w2/${W2_PREFIX}.xlsx`,
+    fixturePath: FIXTURE_PATH_W2,
+    destPath: `inv-21-w2/${W2_PREFIX}.md`,
     titlePrefix: W2_PREFIX,
   });
 }, 60_000);
