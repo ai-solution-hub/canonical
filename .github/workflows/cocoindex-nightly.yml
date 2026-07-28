@@ -762,6 +762,32 @@ jobs:
             kill "$(cat "${RUNNER_TEMP}/walk-pump.pid")" 2>/dev/null || true
           fi
 
+      - name: Quiesce in-flight walk before teardown ({138.9} lease shadow)
+        # A pump-driven walk may still hold the {138.9} DB-side writer-fence
+        # lease when this job tears down. docker-stopping the sidecar
+        # MID-PASS orphans that lease for its full server-side TTL (1h,
+        # writer_fence.py DEFAULT_LEASE_TTL_SECONDS) on the SHARED Staging
+        # project — proven S507: run 30390422726 starved for its entire
+        # 30-min walk window inside the shadow of run 30388008506's
+        # teardown-orphaned lease (acquired 19:49:39 by the final pump walk,
+        # container stopped seconds later, never released — the id-382
+        # release-on-cancel gap, live). Wait (bounded) until every started
+        # walk has reached a terminal log line, so the lease is released by
+        # normal pass completion before the container stops.
+        if: always()
+        run: |
+          for i in $(seq 1 24); do
+            LOGS="$(docker logs cocoindex-sidecar 2>&1 || true)"
+            STARTS=$(printf '%s' "$LOGS" | grep -c '/walk starting pull-sync' || true)
+            DONES=$(printf '%s' "$LOGS" | grep -cE '/walk completed|fence busy|update_blocking failed' || true)
+            if [ "${STARTS:-0}" -le "${DONES:-0}" ]; then
+              echo "sidecar quiescent after $(( (i - 1) * 5 ))s (walk starts=${STARTS}, terminals=${DONES}) — safe to stop"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::warning::sidecar still mid-walk after 120s (starts=${STARTS}, terminals=${DONES}) — stopping anyway; the {138.9} lease may stay orphaned on the shared Staging project for up to its 1h TTL (id-382). The NEXT queued run's walk step will starve against it."
+
       - name: Surface pipeline-run webhook failures (post-walk)
         # flow.py logs NOTHING on a successful emission — only the unset-env
         # skip warning, "pipeline-run webhook returned HTTP <code>" (bearer
