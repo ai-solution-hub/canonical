@@ -80,11 +80,24 @@ error — **do not proceed recall-blind**. Fall through to a lock-free,
 read-only sqlite FTS read against the palace directly.
 
 ```bash
-sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
-  "SELECT substr(replace(string_value, char(10),' '),1,200) FROM embedding_fulltext_search
-   WHERE string_value MATCH '<seed terms: task id OR DR-NNN OR topic>' AND string_value NOT LIKE 'CHECKPOINT:%'
-   ORDER BY rowid DESC LIMIT 8"
+sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" "
+SELECT '['||w.string_value||'/'||r.string_value||'] '||
+       substr(replace(f.string_value, char(10),' '),1,200)
+FROM embedding_fulltext_search f
+JOIN embedding_metadata r ON r.id = f.rowid AND r.key = 'room'
+JOIN embedding_metadata w ON w.id = f.rowid AND w.key = 'wing'
+WHERE f.string_value MATCH '<seed terms: task id OR DR-NNN OR topic>'
+  AND f.string_value NOT LIKE 'CHECKPOINT:%'
+  AND f.string_value NOT LIKE '%Base directory for this skill%'
+  AND NOT EXISTS (SELECT 1 FROM embedding_metadata t
+                  WHERE t.id = f.rowid AND t.key = 'topic' AND t.string_value = 'checkpoint')
+ORDER BY (CASE WHEN r.string_value='diary' THEN 0 ELSE 1 END), f.rowid DESC
+LIMIT 8"
 ```
+
+This is the same diary-first + noise-filter shape the `mempal-recall.sh`
+SessionStart hook uses — keep the two in parity (the hook is the reference
+implementation).
 
 Constraints on this read (non-negotiable):
 
@@ -100,6 +113,28 @@ Constraints on this read (non-negotiable):
 
 **Fail open, always.** If the palace errors, is corrupt, or is unreachable:
 tell the user memory is degraded and proceed — never block on recall.
+
+## 2a. Diary-first + noise filtering on the MCP path too
+
+The palace is dominated by raw transcript mines; the curated diary
+(`wing_claude`, `room='diary'`) is the highest-signal surface and is
+outnumbered roughly 1000:1, so identical boilerplate outranks it on lexical
+match (`runbooks/mempalace-repair.md` §10.5). The SessionStart digest hook
+already compensates; `mempalace_search` does not — so apply the same
+discipline client-side whenever you recall via MCP:
+
+- **Rank diary results first.** Read `room`/`wing` on each result; treat
+  `room='diary'` hits as the primary signal and transcript (`sessions` wing)
+  hits as corroboration.
+- **Drop noise drawers**: anything starting `CHECKPOINT:`, containing
+  `Base directory for this skill`, or `topic='checkpoint'` — these are
+  machine boilerplate, not memory.
+- A second `mempalace_search` scoped by `room: "diary"` is a legitimate
+  follow-up when the unscoped pass returns only transcript noise. If any
+  metadata-scoped search errors (the #1665 class appears under
+  HNSW↔sqlite drift), fall back to an unscoped pass filtered client-side.
+  Note the noise filters still apply — `CHECKPOINT:` drawers live inside
+  `room='diary'` too.
 
 ## 3. On-demand historic stores
 

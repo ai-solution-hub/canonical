@@ -110,6 +110,42 @@ You read the ranked candidates, and author the session's retro record if there a
 `date` (YYYY-MM-DD), `track`; the six category arrays + `session_refs` /
 `commit_refs` / `cross_doc_links` default to empty when omitted.
 
+## Step 2c — Write the session diary entry (mempalace_diary_write)
+
+Cross-session recall quality tracks diary volume, and every recall path ranks
+`room='diary'` first (`runbooks/mempalace-repair.md` §10.5) — feed it at every
+close. Call `mempalace_diary_write` with `agent_name: "claude"` (→ the curated
+`wing_claude` diary), `topic: "S{NNN}"`, and an AAAK-compressed entry:
+
+```
+SESSION:{YYYY-MM-DD}.S{NNN}({branch/slug})|{what shipped: task ids + SHAs}|{what settled: DR ids / rulings}|{what broke or blocked}|{carry}|★–★★★★★
+```
+
+One entry per session; facts over narrative; entity codes and `{N.M}` refs as
+in prior entries (`mempalace_diary_read` shows the house style).
+
+**On `-32001 Peer MCP writer active`** (the norm on this machine — auggie's
+`--mcp-auto-workspace` spawns a peer `mempalace-mcp` per Claude session and
+per bg-spare, so the guard rarely clears): do NOT retry the MCP tool and do
+NOT set `MEMPALACE_MCP_ALLOW_PEER_WRITER` (that opens a direct chroma writer
+beside the daemon). Submit the entry as a daemon job instead — single-writer
+safe, lands when the queue drains:
+
+```bash
+/Users/liamj/.local/share/uv/tools/mempalace/bin/python3 - <<'PY'
+from mempalace.hooks_cli import _submit_daemon_job
+job = _submit_daemon_job("diary_write", {
+    "agent_name": "claude", "entry": "<AAAK entry>",
+    "topic": "S{NNN}", "wing": "wing_claude"},
+    priority=10, wait=False, timeout=30)
+print(job)
+PY
+```
+
+Verify later with `mempalace daemon jobs`. Only if BOTH the MCP tool and the
+daemon are down is the entry **owed** — record that in the continuation
+prompt's *Session Carry* so the next session lands it.
+
 ---
 
 ## Step 3 — Confirm next-session focus
@@ -214,5 +250,6 @@ git --git-dir="$DOCS/.git" --work-tree="$DOCS" push
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
 - [ ] Total length ≤ ~100 lines (longer needs explicit justification).
 - [ ] New architectural decisions written to the Decision Register.
+- [ ] Diary entry written (Step 2c) — or recorded as owed in *Session Carry*.
 - [ ] Owning initiative + project reconciled (Step 1c); *Session focus* names
       them, or records the ownership gap.
