@@ -1,0 +1,130 @@
+# id-390 — advisory change-log presence check (S506-ruled shape, section E).
+#
+# When a PR touches a notable surface, its body should carry at least one
+# structured change-log entry:
+#
+#   CHANGELOG-<SURFACE>: <one line>     SURFACE ∈ SCHEMA|DEPLOY|PRODUCT|WORKFLOW|FIX
+#
+# Entries are harvested into the docs-site change-log (reference/change-log/)
+# by `bun run changelog:generate`; grammar + surface definitions live in the
+# docs-site AGENTS.md §6. A blank prefix line (from the PR template) counts as
+# absent.
+#
+# Surface-detection heuristic — deliberately simple, path-based (the `on:`
+# paths filter below IS the heuristic):
+#   supabase/migrations/**        → a SCHEMA entry is expected
+#   app/** , components/**        → a PRODUCT (or FIX) entry is expected
+#   lib/**                        → a PRODUCT / WORKFLOW / FIX entry is expected
+#
+# ADVISORY ONLY — this workflow must never fail the build. It posts (and
+# clears) a sticky PR comment; hardening to a blocking check is deferred until
+# the id-127/128 staging-first flow makes PRs the sole write path to main.
+
+name: Change-log presence (advisory)
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: changelog-presence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  advise:
+    name: Advisory change-log entry check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Belt and braces with the try/catch below: nothing this job does may
+    # fail the build.
+    continue-on-error: true
+
+    steps:
+      - name: Check PR body for a CHANGELOG-<SURFACE> entry
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const MARKER = '<!-- changelog-presence-advisory -->';
+            // Requires non-blank text after the colon, so the PR template's
+            // empty prefix lines never count as entries.
+            const ENTRY_RE = /^CHANGELOG-(SCHEMA|DEPLOY|PRODUCT|WORKFLOW|FIX):[ \t]*\S/m;
+
+            try {
+              const pr = context.payload.pull_request;
+              const body = (pr.body ?? '').replace(/\r\n/g, '\n');
+              const hasEntry = ENTRY_RE.test(body);
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
+              const sticky = comments.find((c) => c.body?.includes(MARKER));
+
+              if (hasEntry) {
+                if (sticky) {
+                  await github.rest.issues.deleteComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: sticky.id,
+                  });
+                  core.info('Entry present — cleared the advisory comment.');
+                } else {
+                  core.info('Entry present — nothing to do.');
+                }
+                return;
+              }
+
+              const advisory = [
+                MARKER,
+                '**Advisory:** this PR touches a notable surface (migrations / product-facing paths) but its body carries no structured change-log entry.',
+                '',
+                'Add one line per change worth recording (delete unused template prefixes):',
+                '',
+                '```',
+                'CHANGELOG-<SURFACE>: <one line, an event — not a state restatement>',
+                '```',
+                '',
+                '| Surface | Records |',
+                '| --- | --- |',
+                '| `SCHEMA` | database schema change (migration adds also auto-harvest) |',
+                '| `DEPLOY` | deploy-topology / infrastructure change |',
+                '| `PRODUCT` | user-facing behaviour change |',
+                '| `WORKFLOW` | dev-tooling / skills / agents / process change |',
+                '| `FIX` | bug or regression fixed |',
+                '',
+                'Entries are harvested into the docs-site change-log (`reference/change-log/`). Grammar reference: docs-site `AGENTS.md` §6. This check is advisory and never fails the build (id-390).',
+              ].join('\n');
+
+              if (sticky) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: sticky.id,
+                  body: advisory,
+                });
+                core.info('Entry missing — refreshed the advisory comment.');
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: advisory,
+                });
+                core.info('Entry missing — posted the advisory comment.');
+              }
+            } catch (error) {
+              // Advisory only: log and swallow everything (e.g. a fork PR's
+              // read-only token being unable to comment).
+              core.warning(`changelog-presence advisory skipped: ${error.message}`);
+            }
