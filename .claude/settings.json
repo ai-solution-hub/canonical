@@ -43,6 +43,10 @@
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ip-leak-filename-guard.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/sentinel-gated-agents-skills-edit-guard.sh\""
           }
         ]
       },
@@ -66,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx prettier --write $CLAUDE_FILE_PATHS 2>/dev/null || true"
+            "command": "\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/node_modules/.bin/prettier\" --write $CLAUDE_FILE_PATHS || echo \"prettier hook failed: $CLAUDE_FILE_PATHS\" >&2"
           }
         ]
       }
