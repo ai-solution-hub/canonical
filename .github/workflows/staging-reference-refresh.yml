@@ -21,9 +21,8 @@ name: Staging Reference Refresh
 
 on:
   schedule:
-    # Fortnightly: Mondays in week 2 OR week 4 of each month at 03:00 UTC.
-    # Same cadence as the now-deprecated staging-live-mirror.yml.
-    - cron: "0 3 8-14,22-28 * 1"
+    # Weekly: Mondays at 03:00 UTC.
+    - cron: "0 3 * * 1"
   workflow_dispatch:
 
 concurrency:
