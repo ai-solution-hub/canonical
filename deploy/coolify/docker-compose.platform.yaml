@@ -172,6 +172,19 @@ services:
       # --- Supabase / API secrets (PLATFORM PRODUCTION values, injected by Coolify) ---
       # SUPABASE_* MUST be the platform-production project values.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # id-389 tier extension (S506, owner-directed): Platform prod is a
+      # DOGFOODING surface until launch, so the LLM tier is a Coolify env
+      # choice here too. Both default UNSET -> SDK default = real Anthropic
+      # API; set BOTH to route extraction via the OpenRouter Anthropic skin
+      # (Bearer via AUTH_TOKEN; extraction.py forces an empty
+      # ANTHROPIC_API_KEY out of the process env in that mode's client, so
+      # the real key never reaches a third-party endpoint). A blank-rendered
+      # value is SAFE: extraction.py's `_extraction_async_client()` treats
+      # empty-string as unset (the SDK does not - `base_url=""` beats its
+      # default and `auth_token=""` emits a broken `Bearer ` header).
+      # NO mockllm sibling in prod by design - mock is a staging/CI tier.
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union
@@ -991,6 +992,32 @@ async def _anthropic_retry(call, /):
             return await call()
 
 
+def _extraction_async_client() -> anthropic.AsyncAnthropic:
+    """Anthropic client for the extraction lane, hardened against
+    EMPTY-STRING credential env values.
+
+    The SDK (anthropic==0.79.0, empirically verified) treats an empty
+    string as SET for all three of `ANTHROPIC_BASE_URL` /
+    `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY`: `base_url=""` beats the
+    api.anthropic.com default and breaks every request, and
+    `auth_token=""` emits a broken `Authorization: Bearer ` header. That
+    makes compose `${VAR:-}` passthrough — the id-389 LLM-tier mechanism
+    (mock / OpenRouter / real Anthropic selected purely by deploy env) —
+    unsafe without this guard: any surface that renders the var as blank
+    silently kills the lane. Empty is treated as UNSET here, so the SDK
+    falls through to its normal default for that field.
+
+    Deliberately process-wide-env driven (unlike the producer package's
+    isolated client factory in `producer/agent_loop.py`, which reads its
+    own producer-scoped vars): redirecting the extraction lane via
+    `ANTHROPIC_BASE_URL` IS the id-389 tier mechanism.
+    """
+    for var in ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY"):
+        if os.environ.get(var) == "":
+            del os.environ[var]
+    return anthropic.AsyncAnthropic()
+
+
 def _cached_system_block(prompt: str) -> list[dict[str, object]]:
     """Wrap a static instruction prompt in a system block carrying a
     `cache_control: ephemeral` breakpoint (ID-61.1 — closes GAP-Q-EX2-002).
@@ -1130,7 +1157,7 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
     `*Stamped` shape post-memo via `stamp_extraction_base()`. Memo key is
     `(content_text,)` per Inv-21.
     """
-    client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
+    client = _extraction_async_client()
     response = await _anthropic_retry(
         lambda: _anthropic_message(
             client,
@@ -1158,7 +1185,7 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
     pairs). Same memoisation + validation-failure contract as
     `extract_classification`.
     """
-    client = anthropic.AsyncAnthropic()
+    client = _extraction_async_client()
     response = await _anthropic_retry(
         lambda: _anthropic_message(
             client,
@@ -1185,7 +1212,7 @@ async def extract_entity_mentions(
     an array), so the TypeAdapter is `list[EntityMentionExtraction]`.
     Same memoisation + validation-failure contract as `extract_classification`.
     """
-    client = anthropic.AsyncAnthropic()
+    client = _extraction_async_client()
     response = await _anthropic_retry(
         lambda: _anthropic_message(
             client,
@@ -1217,7 +1244,7 @@ async def extract_relationships(
     Returns RAW triples; canonicalisation happens at the {101.7} write site.
     Same memoisation + validation-failure contract as `extract_classification`.
     """
-    client = anthropic.AsyncAnthropic()
+    client = _extraction_async_client()
     response = await _anthropic_retry(
         lambda: _anthropic_message(
             client,

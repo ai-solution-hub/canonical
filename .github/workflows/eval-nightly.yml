@@ -15,8 +15,14 @@
 #   Secrets:
 #     SUPABASE_SERVICE_ROLE_KEY   — staging service-role key (runner + server)
 #     SUPABASE_PUBLISHABLE_KEY    — staging anon/publishable key (server boot)
-#     ANTHROPIC_API_KEY           — real Anthropic calls (L3/L4 suites)
-#     OPENAI_API_KEY              — embedding calls (search suite)
+#     ANTHROPIC_API_KEY           — direct Anthropic calls (L3/L4 suites),
+#                                   `llm_tier=anthropic` parity runs ONLY —
+#                                   the default tier never touches it
+#     PRODUCER_AUTH_TOKEN         — OpenRouter key for the DEFAULT tier
+#                                   (id-389 tier extension: real Claude via
+#                                   credits until launch; see the
+#                                   `llm_tier` input + Resolve-LLM-tier step)
+#     OPENAI_API_KEY              — embedding calls (search suite; tier-independent)
 #     POSTGRES_PASSWORD           — lib/env-server.ts validation at server boot
 #     CRON_SECRET                 — lib/env-server.ts validation at server boot
 #     TEST_USER_1_PASSWORD        — mcp-eval suites authenticate as TEST_USER_1
@@ -48,6 +54,23 @@ on:
     # before typical EU business hours. Runs Mon–Sun.
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      llm_tier:
+        # id-389 tier extension (S506, owner-directed): until launch this
+        # lane runs real Claude BILLED VIA OPENROUTER CREDITS by default —
+        # the direct Anthropic key is disabled (unattributed charges) and
+        # staging+prod are dogfooding-only surfaces. `anthropic` opts a
+        # single run back onto the direct key for a final-parity check.
+        # (No mock tier here: evals measure model QUALITY — canned mock
+        # output would make every score meaningless.)
+        description:
+          "LLM tier (openrouter = real Claude via credits, default; anthropic =
+          direct key parity run)"
+        type: choice
+        default: openrouter
+        options:
+          - openrouter
+          - anthropic
 
 concurrency:
   # One nightly run at a time — no cancellation (queue instead) so a
@@ -78,6 +101,9 @@ jobs:
         ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # id-389 tier extension: schedule runs take the default (openrouter);
+      # `inputs.llm_tier` is a typed choice input, never free text.
+      LLM_TIER: ${{ inputs.llm_tier || 'openrouter' }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
       NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
@@ -93,6 +119,72 @@ jobs:
       TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
 
     steps:
+      - name: Resolve LLM tier (id-389 — OpenRouter default until launch)
+        # openrouter: real Claude billed via OpenRouter credits. The
+        # Anthropic-skin recipe (producer {132.35} slice C/E, proven on
+        # cocoindex-nightly S505): Bearer via ANTHROPIC_AUTH_TOKEN,
+        # ANTHROPIC_BASE_URL at the OpenRouter skin, and ANTHROPIC_API_KEY
+        # forced EMPTY — lib/anthropic.ts routes on a non-empty AUTH_TOKEN
+        # and passes apiKey: null (sending both credentials is rejected by
+        # the API, and a non-empty Anthropic-shaped X-Api-Key pins
+        # OpenRouter's provider routing).
+        env:
+          PRODUCER_AUTH_TOKEN: ${{ secrets.PRODUCER_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$LLM_TIER" in
+            openrouter)
+              if [ -z "$PRODUCER_AUTH_TOKEN" ]; then
+                echo "llm_tier=openrouter but secrets.PRODUCER_AUTH_TOKEN is empty/unprovisioned — failing at minute 1." >&2
+                exit 1
+              fi
+              {
+                echo "ANTHROPIC_AUTH_TOKEN=$PRODUCER_AUTH_TOKEN"
+                echo "ANTHROPIC_BASE_URL=https://openrouter.ai/api"
+                echo "ANTHROPIC_API_KEY="
+              } >> "$GITHUB_ENV"
+              echo "LLM tier: openrouter (real Claude via credits)."
+              ;;
+            anthropic)
+              echo "LLM tier: anthropic (direct key parity run)."
+              ;;
+            *)
+              echo "Unknown llm_tier '$LLM_TIER'" >&2
+              exit 1
+              ;;
+          esac
+
+      - name:
+          Credential preflight — hard-fail at minute 1, before any spend
+          (id-389)
+        run: |
+          set -euo pipefail
+          case "$LLM_TIER" in
+            anthropic)
+              PREFLIGHT_URL="https://api.anthropic.com/v1/messages"
+              AUTH_ARGS=(-H "x-api-key: ${ANTHROPIC_API_KEY}")
+              ;;
+            openrouter)
+              # *** NEVER x-api-key: an Anthropic-shaped X-Api-Key pins
+              # OpenRouter's provider routing (producer slice E).
+              PREFLIGHT_URL="${ANTHROPIC_BASE_URL}/v1/messages"
+              AUTH_ARGS=(-H "Authorization: Bearer ${ANTHROPIC_AUTH_TOKEN}")
+              ;;
+          esac
+          HTTP_CODE=$(curl -s -o /tmp/preflight-body.json -w "%{http_code}" -m 20 \
+            -X POST "$PREFLIGHT_URL" \
+            "${AUTH_ARGS[@]}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}' \
+            || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Credential preflight FAILED for tier '${LLM_TIER}' (HTTP ${HTTP_CODE}) — the credential is dead, disabled, or unreachable. Failing at minute 1 instead of after the build + eval walk. Response body:" >&2
+            cat /tmp/preflight-body.json >&2 || true
+            exit 1
+          fi
+          echo "Credential preflight OK for tier '${LLM_TIER}' (HTTP 200)."
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

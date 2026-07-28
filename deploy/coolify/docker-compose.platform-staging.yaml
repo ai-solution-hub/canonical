@@ -181,6 +181,12 @@ services:
       # REQUIRED_ENV_KEYS — it is a staging iteration affordance, not shared
       # structure.
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-http://mockllm-platform-staging:8080}
+      # OpenRouter tier-2 Bearer (id-389 S506): set alongside the OpenRouter
+      # BASE_URL for extraction-quality runs; default blank = unused. Blank
+      # is SAFE only because extraction.py's `_extraction_async_client()`
+      # scrubs empty-string credential env (auth_token="" would otherwise
+      # send a broken `Authorization: Bearer ` header).
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
 
       # --- Supabase / API secrets (PLATFORM STAGING values, injected by Coolify) ---
       # SUPABASE_* MUST be the platform-staging project values, NOT production.
