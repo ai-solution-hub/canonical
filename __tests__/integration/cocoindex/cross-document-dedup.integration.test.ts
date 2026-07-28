@@ -57,18 +57,23 @@ const VARIANT_B = 'ISO27001';
 beforeAll(async () => {
   if (!ENABLED) return;
   // Two fixtures sharing the TEST_PREFIX corpus — doc A carries 'ISO 27001',
-  // doc B carries 'ISO27001'. The fixtures are the certification-bearing
-  // templates from the ID-49.10 committed fixture library.
+  // doc B carries 'ISO27001'. S507 retarget (id-389 content-echo): the CSP
+  // XLSX previously staged here contains NEITHER surface form (verified by
+  // scanning every XML part of the workbook), so the assertion below was
+  // structurally unsatisfiable for ANY extractor. The entity-variants md
+  // pair embeds exactly one surface form each and is deliberately
+  // distinct-bytes, so each staging lands its own source_documents row
+  // (the F4 hash-collapse gap never triggers).
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
-    destPath: `inv-3-dedup/${TEST_PREFIX}-A.xlsx`,
+      'docs/testing/test-data/entity-variants/certification-variant-space.md',
+    destPath: `inv-3-dedup/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
-    destPath: `inv-3-dedup/${TEST_PREFIX}-B.xlsx`,
+      'docs/testing/test-data/entity-variants/certification-variant-nospace.md',
+    destPath: `inv-3-dedup/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
 }, 60_000);

@@ -79,10 +79,14 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 180_000;
 
-// The fixture template the dedup sibling stages — reused verbatim so the
-// corpus produces the same certification-bearing entity surface.
-const FIXTURE_PATH =
-  'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
+// The same distinct-bytes entity-variants md pair the dedup sibling stages
+// (S507 retarget, id-389 content-echo): the CSP XLSX previously used here
+// contains neither surface form, making the corpus unsatisfiable for any
+// extractor. Doc A carries 'ISO 27001', doc B carries 'ISO27001'.
+const FIXTURE_PATH_A =
+  'docs/testing/test-data/entity-variants/certification-variant-space.md';
+const FIXTURE_PATH_B =
+  'docs/testing/test-data/entity-variants/certification-variant-nospace.md';
 
 // The two surface variants of the SAME entity Stage-5 should dedup across docs
 // (mirrors the cross-document-dedup sibling corpus).
@@ -95,13 +99,13 @@ beforeAll(async () => {
   // doc B carries 'ISO27001'. Same two-doc certification corpus as the dedup
   // sibling, so Stage-5's cross-document UPDATE phase has something to resolve.
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `c54-freshness/${TEST_PREFIX}-A.xlsx`,
+    fixturePath: FIXTURE_PATH_A,
+    destPath: `c54-freshness/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `c54-freshness/${TEST_PREFIX}-B.xlsx`,
+    fixturePath: FIXTURE_PATH_B,
+    destPath: `c54-freshness/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
 }, 60_000);

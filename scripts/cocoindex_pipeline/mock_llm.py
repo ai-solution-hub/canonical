@@ -61,6 +61,8 @@ NEVER expose this server publicly: compose-internal / runner-local only.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import hashlib
 import json
 import logging
@@ -338,7 +340,7 @@ if _parse_pair_resolution_prompt(
 
 
 # system-prompt text → (extractor name, content_text → canned response text)
-_ROUTES: dict[str, tuple[str, object]] = {
+_ROUTES: dict[str, tuple[str, Callable[[str], str]]] = {
     prompts.CLASSIFICATION_PROMPT: (
         "extract_classification",
         _classification_payload,
