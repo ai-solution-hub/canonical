@@ -57,14 +57,14 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     // Essentials Plus — via entity_mentions + 'holds' entity_relationships, so
     // the compliance section and the CertificationSummaryCard must render a
     // named row for each.
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    const certCard = complianceSection.locator(
-      'section[aria-label="Certifications we hold"]',
-    );
+    const certCard = complianceSection.getByRole('region', {
+      name: 'Certifications we hold',
+    });
     await expect(certCard).toBeVisible({ timeout: 10000 });
 
     const certRows = certCard.locator('[role="listitem"]');
@@ -84,9 +84,9 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // ExpiryBadge elements have aria-label="Expiry status: {label}"
@@ -123,9 +123,9 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // The seeded fixture includes "Cyber Essentials Plus" with an expiring
@@ -168,14 +168,14 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    const certCard = complianceSection.locator(
-      'section[aria-label="Certifications we hold"]',
-    );
+    const certCard = complianceSection.getByRole('region', {
+      name: 'Certifications we hold',
+    });
     await expect(certCard).toBeVisible({ timeout: 10000 });
 
     // Seed includes ISO 27001 with a 1-year-out expiry => Valid badge.
@@ -204,16 +204,16 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // The seeded fixture includes G-Cloud 14 with expiring_soon, so the
     // framework card and a Renew button must be present.
-    const frameworkCard = complianceSection.locator(
-      'section[aria-label="Framework memberships"]',
-    );
+    const frameworkCard = complianceSection.getByRole('region', {
+      name: 'Framework memberships',
+    });
     await expect(frameworkCard).toBeVisible({ timeout: 10000 });
 
     // FrameworkSummaryCard labels its renewal link
@@ -254,14 +254,14 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    const certCard = complianceSection.locator(
-      'section[aria-label="Certifications we hold"]',
-    );
+    const certCard = complianceSection.getByRole('region', {
+      name: 'Certifications we hold',
+    });
     await expect(certCard).toBeVisible({ timeout: 10000 });
 
     // Each row shows an "N linked item(s)" evidence count with a matching
@@ -282,14 +282,14 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
-    const certCard = complianceSection.locator(
-      'section[aria-label="Certifications we hold"]',
-    );
+    const certCard = complianceSection.getByRole('region', {
+      name: 'Certifications we hold',
+    });
     await expect(certCard).toBeVisible({ timeout: 10000 });
 
     // Copy button with aria-label
@@ -308,9 +308,9 @@ test.describe('Certification renewal affordance', { tag: '@wave1' }, () => {
     workerData: _workerData,
   }) => {
     void _workerData;
-    const complianceSection = page.locator(
-      'section[aria-label="Compliance status"]',
-    );
+    const complianceSection = page.getByRole('region', {
+      name: 'Compliance status',
+    });
     await expect(complianceSection).toBeVisible({ timeout: 15000 });
 
     // Worker fixture seeds a supplier certification ("ISO 9001 (Acme
