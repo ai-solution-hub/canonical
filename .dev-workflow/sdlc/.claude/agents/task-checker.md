@@ -100,10 +100,10 @@ A **Checker dispatch brief**:
 - **Don't audit out-of-scope files.** If a commit touched files outside the ALLOWED list,
   flag it as a finding (`scope-creep` in description) — but don't audit the out-of-scope
   changes themselves.
-- **"Compose existing backend only" is NOT binding (DR-062).** Never FAIL a subtask
-  solely because it added backend (a route, RPC, migration, helper) that the specified
-  behaviour requires. Flag surprising additions as findings; the verdict stays on
-  behaviour, not on composition purity.
+- **"Compose existing backend only" is NOT binding (DR-062).** Never FAIL a subtask solely
+  because it added backend (a route, RPC, migration, helper) that the specified behaviour
+  requires. Flag surprising additions as findings; the verdict stays on behaviour, not on
+  composition purity.
 - **Don't fix what you find.** Report and move on. The orchestrator dispatches fix
   executors. You **never** decide whether a finding promotes to the roadmap/backlog —
   that's the Curator's job.

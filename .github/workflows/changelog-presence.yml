@@ -27,10 +27,10 @@ on:
     types: [opened, edited, reopened, synchronize]
     branches: [main]
     paths:
-      - 'supabase/migrations/**'
-      - 'app/**'
-      - 'components/**'
-      - 'lib/**'
+      - "supabase/migrations/**"
+      - "app/**"
+      - "components/**"
+      - "lib/**"
 
 permissions:
   pull-requests: write
