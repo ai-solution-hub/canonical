@@ -5,11 +5,26 @@ let client: Anthropic | null = null;
 
 export function getAnthropicClient(): Anthropic {
   if (!client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    // id-389 LLM-tier mechanism: a non-empty ANTHROPIC_AUTH_TOKEN routes
+    // this surface through an Anthropic-skin proxy (OpenRouter) as a
+    // Bearer credential, with ANTHROPIC_BASE_URL picked up from env by
+    // the SDK. apiKey must be explicit null in that mode: if both
+    // credentials are sent the API rejects the request, and a non-empty
+    // Anthropic-shaped X-Api-Key pins OpenRouter's provider routing
+    // (producer slice E). Empty-string env values are treated as unset —
+    // '' is falsy here, mirroring extraction.py's guard.
+    const authToken = process.env.ANTHROPIC_AUTH_TOKEN;
+    if (authToken) {
+      client = new Anthropic({ authToken, apiKey: null });
+    } else {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          'Neither ANTHROPIC_API_KEY nor ANTHROPIC_AUTH_TOKEN is set',
+        );
+      }
+      client = new Anthropic({ apiKey });
     }
-    client = new Anthropic({ apiKey });
   }
   return client;
 }

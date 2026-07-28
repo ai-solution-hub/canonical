@@ -50,6 +50,7 @@ import anthropic
 from scripts.cocoindex_pipeline.extraction import (
     ANTHROPIC_MODEL,
     _anthropic_retry,
+    _extraction_async_client,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -205,7 +206,7 @@ class KhPairResolver:
         `extraction.py`: same client construction (`AsyncAnthropic()`),
         same `_anthropic_retry` tenacity wrapper, same `ANTHROPIC_MODEL`.
         """
-        client = anthropic.AsyncAnthropic()  # picks up ANTHROPIC_API_KEY from env
+        client = _extraction_async_client()
 
         prompt = _PAIR_RESOLUTION_PROMPT_TEMPLATE.format(
             name_a=name_a,
