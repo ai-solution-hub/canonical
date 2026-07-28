@@ -3,7 +3,8 @@
 -- L-records substrate (source_documents / content_chunks / q_a_pairs /
 -- reference_items) + the record_lifecycle facet + the record_embeddings store.
 --
--- Governing note: `.user-scratch/okf-search-sourcing-design-v1.md` §9
+-- Governing note (private docs-site, $KH_PRIVATE_DOCS_DIR):
+-- `src/content/docs/specs/id-131-okf-l-records-refactor/notes/okf-search-sourcing-design-v1.md` §9
 -- (owner-ratified S428) SUPERSEDES the ledger `details` and TECH.md where they
 -- conflict. TECH.md §"Migration set" row M5, §"hybrid_search polymorphic UNION",
 -- §"Function disposition". British English throughout (DD/MM/YYYY).

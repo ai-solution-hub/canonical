@@ -148,6 +148,41 @@ prompt's *Session Carry* so the next session lands it.
 
 ---
 
+## Step 2d — Scratch migrate-or-confirm gate
+
+`.user-scratch/` is gitignored. Anything left there at session close is invisible
+to a fresh clone and to every other machine. S506 measured the cost: of ~101
+`.user-scratch/` paths cited across the docs-site, **33 no longer existed** — the
+evidence had already been lost, silently, one deletion at a time.
+
+So each file this session created or modified in `.user-scratch/` leaves the
+session in one of two states, never a third:
+
+- **migrated** to a tracked home — a spec's `notes/` (working artefact for a
+  task), or dated `reports/` (point-in-time audit, analysis, board, log); or
+- **confirmed as scratch by Liam** — genuinely disposable, and he has said so.
+
+List the candidates (substitute the session's own start time; `-mtime -1` is the
+fallback when it is not to hand):
+
+```bash
+find .user-scratch -type f -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_Store'
+```
+
+For each hit, ask the question the CI guard encodes: **did anything I wrote this
+session cite this file?** A tracked file citing a `.user-scratch/` path is the
+defect the guard exists to catch — migrate the file and repoint the citation.
+Present the list to Liam with a proposed disposition per file; he confirms the
+scratch ones. Do not delete anything at this step — an unmigrated, unconfirmed
+file carries into *Session Carry* rather than disappearing.
+
+The guard itself is `__tests__/docs/user-scratch-citations.test.ts` (mirrored in
+the docs-site). It enforces the rule only on **current-state** surfaces; point-in-time
+surfaces (`reports/`, `ledgers/`, `continuation-prompts/`, spec `notes/`) may cite
+scratch, because they describe a moment rather than claiming to be current.
+
+---
+
 ## Step 3 — Confirm next-session focus
 
 Confirm before drafting (ask Liam if unsure):
