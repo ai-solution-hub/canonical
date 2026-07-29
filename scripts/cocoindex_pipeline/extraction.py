@@ -399,10 +399,14 @@ class QAFormExtraction(_ExtractionCore):
     stamped shape is `QAFormExtractionStamped` (built by `stamp_extraction_base`).
 
     Maps downstream to `q_a_extractions` (per QAPair) only. The `form_metadata`
-    block is NOT persisted by this LLM variant — `form_templates` /
-    `form_template_fields` are written by the deterministic Path-B extractor
-    (`ExtractedForm`, ID-52); Inv-19 keeps Path A off the form tables.
-    (Reconciled S287 / bl-184(a).)
+    block is NOT persisted by this LLM variant — the form tables
+    (`form_instances` / `form_instance_fields` / `form_questions`) are written
+    by the app-side manual-upload lane (`scripts/bid_worker.py`
+    `analyse_form_job` → `app/api/internal/procurement/extract-questions`),
+    the sole writer since ID-136 (DR-014) retired the walk-side forms route
+    and its deterministic Path-B `ExtractedForm` writer (which this docstring
+    used to cite); Inv-19 keeps the walk (Path A) off the form tables.
+    (Docstring corrected id-370 rider, S511.)
     """
 
     extraction_kind: Literal["q_a_form"] = "q_a_form"

@@ -135,6 +135,14 @@ _FLOW_SOURCE_PATH = (
     Path(__file__).resolve().parent.parent / "cocoindex_pipeline" / "flow.py"
 )
 
+# ── id-370 migration path (for the branch-1 answered-predicate pin) ─────────
+_ID370_MIGRATION_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "supabase"
+    / "migrations"
+    / "20260729185524_id370_promotion_candidates_answered_predicate.sql"
+)
+
 
 def _flow_module():
     """Load a fresh stubbed ``cocoindex_pipeline.flow`` (ID-55.1 primitive)."""
@@ -496,4 +504,78 @@ class TestWalkNeverMutatesPromotedQaPair:
             "source_documents no longer flows through sd_target.declare_row "
             "on the content branch (S437/S438 raw-pool move) — both should "
             "stay empty here"
+        )
+
+
+# ── id-370: the promotion-candidates branch-1 answered-predicate pin ────────
+
+
+class TestPromotionCandidatesBranch1AnsweredPredicate:
+    """id-370 (S511 board D6): branch 1 of
+    ``q_a_extractions_promotion_candidates()`` must carry the answered
+    predicate branch 3 already had — an unanswered extraction (blank-form
+    question, NULL/blank ``extracted_answer_text``) is never a promotion
+    candidate.
+
+    This suite has NO SQL-execution seam (its behavioural tests drive the
+    Python-side ``ingest_file`` only), so the function body is pinned
+    STATICALLY over the migration source — the same golden-literal idiom as
+    ``TestEngineTargetsStructurallyExcludeQaPairs``'s flow.py sweep above.
+    The live SQL semantics themselves are verified by the census / {398.3}
+    nightly (zero class-A re-mints post-land)."""
+
+    def test_branch_1_carries_the_answered_predicate(self) -> None:
+        sql = _ID370_MIGRATION_PATH.read_text()
+        # Signature/return shape unchanged — the api wrapper needs no regen.
+        assert (
+            'CREATE OR REPLACE FUNCTION '
+            '"public"."q_a_extractions_promotion_candidates"() '
+            'RETURNS SETOF "public"."q_a_extractions"' in sql
+        ), "signature or return type drifted — that requires an api regen (DR-032) and was explicitly out of id-370's scope"
+        # Isolate branch 1 (between its comment marker and branch 2's).
+        assert "Branch 1" in sql and "Branch 2" in sql
+        branch_1 = sql.split("Branch 1", 1)[1].split("Branch 2", 1)[0]
+        assert "e.promoted_to_pair_id IS NULL" in branch_1
+        assert "e.extracted_answer_text IS NOT NULL" in branch_1, (
+            "branch 1 lost the id-370 answered predicate — unanswered "
+            "extractions would re-enter the operator's candidate list"
+        )
+        assert "trim(e.extracted_answer_text) <> ''" in branch_1, (
+            "branch 1 must trim-check the answer exactly as branch 3 does "
+            "(whitespace-only answers are as unpromotable as NULL ones)"
+        )
+
+    def test_branches_2_and_3_are_unchanged(self) -> None:
+        """The id-370 migration changes ONLY branch 1 — the {138.17}
+        published-diff branch (3) and the draft self-heal branch (2) must
+        survive verbatim, or the D7-ruled combined rewrite (id-363-E +
+        id-364-A) inherits a silently different baseline."""
+        sql = _ID370_MIGRATION_PATH.read_text()
+        branch_2 = sql.split("Branch 2", 1)[1].split("Branch 3", 1)[0]
+        assert "p.id IS NOT NULL" in branch_2
+        assert "re_check.found IS NULL" in branch_2
+        branch_3 = sql.split("Branch 3", 1)[1]
+        assert "re_check.found IS NOT NULL" in branch_3
+        assert (
+            "e.extracted_question_text IS DISTINCT FROM p.question_text"
+            in branch_3
+        )
+        assert (
+            "e.extracted_answer_text IS DISTINCT FROM p.answer_standard"
+            in branch_3
+        )
+
+    def test_class_a_delete_ships_in_the_same_migration(self) -> None:
+        """DR-093 posture (owner-ratified, S494/S511): the class-A rows are
+        deleted in the SAME migration that restores the predicate — never a
+        follow-up."""
+        sql = _ID370_MIGRATION_PATH.read_text()
+        assert re.search(
+            r"DELETE FROM public\.q_a_extractions\s+"
+            r"WHERE extracted_answer_text IS NULL\s+"
+            r"OR trim\(extracted_answer_text\) = ''",
+            sql,
+        ), (
+            "the DR-093 delete of the class-A rows must ship in the id-370 "
+            "migration itself"
         )

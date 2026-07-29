@@ -2275,6 +2275,21 @@ async def _ingest_content_branch(
 
     qa_pairs = _field(qa_form, "qa_pairs", []) or []
     for idx, pair in enumerate(qa_pairs):
+        # id-370 (S511 board D6 — Option 1, DR-014 confirmed in force): declare
+        # ONLY answered pairs. A NULL/blank answer_text is a SANCTIONED
+        # extraction result (prompts.py: "OR null"; QAPair.answer_text:
+        # str | None — both deliberately unchanged) — it is what a blank form's
+        # questions correctly extract to — but q_a_extractions feeds the
+        # answered-pairs-only promotion funnel, so an unanswered pair mints NO
+        # row (mirrors the promotion-candidates RPC's branch-3 predicate:
+        # `extracted_answer_text IS NOT NULL AND trim(...) <> ''`). The
+        # enumerate idx is deliberately PRESERVED (skip, not pre-filter) so an
+        # answered pair's uuid5 PK `qa:{source_document_id}:{idx}` is unchanged
+        # by the gate — a re-walk of a mixed answered/unanswered document
+        # UPSERTs the same rows it minted before, never re-keying them.
+        answer_text = _field(pair, "answer_text")
+        if answer_text is None or not answer_text.strip():
+            continue
         qa_target.declare_row(
             row={
                 # ID-138 {138.10} P3: re-keyed onto the STORED source_document_id
@@ -2287,7 +2302,7 @@ async def _ingest_content_branch(
                 "source_document_id": source_document_id,
                 "extractor_kind": "llm_extraction",
                 "extracted_question_text": _field(pair, "question_text", ""),
-                "extracted_answer_text": _field(pair, "answer_text"),
+                "extracted_answer_text": answer_text,
                 # ID-54.1 (OQ-52-LOSSY): stop dropping the 4 QAPair form-question
                 # fields. expected_response_kind is required in Pydantic so the
                 # None default is defensive; it matches the nullable DB column.
@@ -3298,6 +3313,13 @@ async def ingest_once(
         # ── q_a_extractions (mirrors the content branch's declare loop) ──────
         qa_pairs = _field(qa_form, "qa_pairs", []) or []
         for idx, pair in enumerate(qa_pairs):
+            # id-370 (S511 D6): same answered-pairs-only gate as the content
+            # branch's declare loop this mirrors — see that site's comment for
+            # the full rationale. idx preserved (skip, not pre-filter) so the
+            # uuid5 PK of an answered pair is unchanged by the gate.
+            answer_text = _field(pair, "answer_text")
+            if answer_text is None or not answer_text.strip():
+                continue
             await _insert_qa_extraction_row(
                 conn,
                 extraction_id=uuid.uuid5(
@@ -3306,7 +3328,7 @@ async def ingest_once(
                 source_document_id=source_document_id,
                 extractor_kind="llm_extraction",
                 extracted_question_text=_field(pair, "question_text", ""),
-                extracted_answer_text=_field(pair, "answer_text"),
+                extracted_answer_text=answer_text,
                 expected_response_kind=_field(pair, "expected_response_kind"),
                 evaluation_criteria=_field(pair, "evaluation_criteria"),
                 evidence_requirements=_field(pair, "evidence_requirements", []),
