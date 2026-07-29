@@ -1,9 +1,12 @@
 /**
- * Review Queue API — sort parameter, quality_score, and assigned_to_me tests.
+ * Review Queue API — sort parameter, quality_score, assigned_to_me, and
+ * document-body composition tests.
  *
  * Tests server-side sorting by confidence and quality score,
  * verifies quality_score is included in the response,
- * and tests the assigned_to_me filter intersection logic.
+ * tests the assigned_to_me filter intersection logic,
+ * and verifies each item's `content` is the composed document body
+ * (content_chunks / reference_items — id-392 M6).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -89,7 +92,6 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
     source_url: 'https://example.com',
     publication_status: 'published',
     updated_at: '2026-01-01T00:00:00Z',
-    extracted_text: 'Some content',
     created_at: '2026-01-01T00:00:00Z',
     record_lifecycle: [
       {
@@ -235,6 +237,159 @@ describe('GET /api/review/queue — quality_score in response', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.items[0].quality_score).toBeNull();
+  });
+});
+
+// ===========================================================================
+// id-392 M6 — item `content` is the composed document body.
+//
+// `source_documents.extracted_text` is permanently NULL on the pipeline path
+// and is no longer selected by the queue route. Each item's `content` is now
+// batch-composed via fetchSourceDocumentBodies: content_chunks.content
+// ordered by position and joined with blank lines (pipeline file route),
+// falling back to reference_items.body (URL-ingest route), null when neither
+// exists. The route's own source_documents query stays on the shared chain;
+// the two body-leg tables get dedicated per-table chains (same idiom as the
+// flagged-branch tombstone test below).
+// ===========================================================================
+
+describe('GET /api/review/queue — document body as item content (id-392 M6)', () => {
+  beforeEach(resetMocks);
+
+  const CHUNKED_DOC_ID = '00000000-0000-4000-8000-000000000021';
+  const BODYLESS_DOC_ID = '00000000-0000-4000-8000-000000000022';
+
+  /** Route content_chunks / reference_items to their own resolutions; every
+   * other table (source_documents, counts, verification_history) stays on the
+   * shared sequenced chain. */
+  function stubBodyTables(
+    chunkRows: Array<{
+      source_document_id: string;
+      content: string;
+      position: number;
+    }>,
+    referenceRows: Array<{ source_document_id: string; body: string | null }>,
+  ) {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'content_chunks') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => void) =>
+            resolve({ data: chunkRows, error: null }),
+        };
+      }
+      if (table === 'reference_items') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => void) =>
+            resolve({ data: referenceRows, error: null }),
+        };
+      }
+      return mockSupabase._chain;
+    });
+  }
+
+  it('returns the blank-line-joined chunk body for a chunked document and null content for a bodyless one', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const chunkedRow = makeMockItem({ id: CHUNKED_DOC_ID });
+    const bodylessRow = makeMockItem({ id: BODYLESS_DOC_ID });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({
+            data: [chunkedRow, bodylessRow],
+            error: null,
+            count: 2,
+          });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    stubBodyTables(
+      [
+        {
+          source_document_id: CHUNKED_DOC_ID,
+          content: 'First chunk of the body.',
+          position: 0,
+        },
+        {
+          source_document_id: CHUNKED_DOC_ID,
+          content: 'Second chunk of the body.',
+          position: 1,
+        },
+      ],
+      [],
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'all' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toHaveLength(2);
+
+    const contentById = Object.fromEntries(
+      json.items.map((i: { id: string; content: string | null }) => [
+        i.id,
+        i.content,
+      ]),
+    );
+    // Chunked doc: content is the position-ordered chunk composition.
+    expect(contentById[CHUNKED_DOC_ID]).toBe(
+      'First chunk of the body.\n\nSecond chunk of the body.',
+    );
+    // Bodyless doc in the SAME response: no chunks, no reference body —
+    // content is null (never the legacy extracted_text, which is no longer
+    // read).
+    expect(contentById[BODYLESS_DOC_ID]).toBeNull();
+  });
+
+  it('returns the reference_items body as content for a URL-ingested document with no chunks', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const urlDocRow = makeMockItem({ id: CHUNKED_DOC_ID });
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1)
+          return resolve({ data: [urlDocRow], error: null, count: 1 });
+        return resolve({ data: null, error: null, count: 0 });
+      },
+    );
+
+    stubBodyTables(
+      [],
+      [
+        {
+          source_document_id: CHUNKED_DOC_ID,
+          body: 'Reference body captured on the URL-ingest route.',
+        },
+      ],
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'all' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].content).toBe(
+      'Reference body captured on the URL-ingest route.',
+    );
   });
 });
 

@@ -30,6 +30,11 @@
  *     `@/lib/entities/entity-metadata-bridge`, `@/lib/layer-inference`,
  *     `@/lib/validation/schemas` — kept thin so the handler's per-item
  *     branching logic is exercised.
+ *   - `@/lib/source-documents/body` is deliberately NOT mocked (id-392):
+ *     the real `fetchSourceDocumentBodies` runs against the supabase chain
+ *     mock (content_chunks/reference_items responses enqueued by
+ *     `configureSupabase`) so the composed-body candidate gating in
+ *     `attachBodiesUpTo` is exercised for real.
  *   - Per `feedback_centralised_constant_mock_adoption_sweep`: vi.mock blocks
  *     reach the actual module via `vi.importActual` for re-exports; mocked
  *     functions never duplicate constants.
@@ -245,18 +250,22 @@ function makeAnthropicResponse(
 }
 
 /**
- * Build a realistic source_documents row. ID-131 {131.17} G-IMS-DELETE
- * KEEP-list: batch-reclassify.ts's candidate query is re-pointed off
- * content_items onto source_documents (M3 gave SD the classification
- * family). `content`/`title`/`metadata` -> `extracted_text`/
+ * Build a realistic source_documents candidate row (metadata only). ID-131
+ * {131.17} G-IMS-DELETE KEEP-list: batch-reclassify.ts's candidate query is
+ * re-pointed off content_items onto source_documents (M3 gave SD the
+ * classification family). `title`/`metadata` ->
  * `original_filename`+`filename`/`extraction_metadata`; `platform` has no
  * SD analog and is dropped (it fed the now-removed layer-suggestion logic —
  * D5, `layer` dies with content_items, not re-homed).
+ *
+ * id-392 M6 retarget: the document BODY is no longer a column on this row —
+ * it is composed from content_chunks/reference_items by
+ * `fetchSourceDocumentBodies` (attachBodiesUpTo), so `configureSupabase`
+ * answers those queries separately.
  */
 function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
-    extracted_text: 'Sample content text about security and encryption.',
     original_filename: 'Sample Item',
     filename: 'sample-item.md',
     suggested_title: 'Sample suggested title',
@@ -279,11 +288,20 @@ function makeContentRow(id: string, overrides: Record<string, unknown> = {}) {
 //        → resolves via .then() with { data: domains, error }
 //   2. taxonomy_subtopics.select(...).eq('is_active',true).order(...)
 //        → resolves via .then() with { data: subtopics, error }
-//   3. content_items.select(...) [+optional .eq('primary_domain',...)]
-//        .not(...).is(...).order(...).limit(...)
+//   3. source_documents.select(...) [+optional .eq('primary_domain',...)]
+//        .is('archived_at', null).order(...).limit(...)
 //        → resolves via .then() with { data: items, error }
+//   3b. content_chunks.select(...).in('source_document_id', ids)
+//        .order(...).order(...).range(...) — fetchSourceDocumentBodies'
+//        chunk leg (attachBodiesUpTo, id-392 composed body)
+//        → resolves via .then() with { data: chunkRows, error }
+//   3c. reference_items.select(...).in('source_document_id', ids) — the
+//        fallback leg, fired ONLY for candidates the chunk leg left
+//        bodyless → resolves via .then(); the chain default ({ data: [] })
+//        leaves such candidates bodyless (dropped) unless the scenario
+//        provides referenceRows
 //   4. Per item with successful classification:
-//        a. content_items.update(updateData).eq('id', item.id)
+//        a. source_documents.update(updateData).eq('id', item.id)
 //           → resolves via .then() / chain default { error: null }
 //        b. entity_mentions.delete().eq('source_document_id', ...)
 //           → resolves via chain default
@@ -313,6 +331,21 @@ interface SupabaseScenario {
   /** Content items the filter selects. */
   contentItems: ReturnType<typeof makeContentRow>[];
   contentItemsError?: { message: string } | null;
+  /** id-392: candidate ids that should resolve WITHOUT a composed body
+   *  (no content_chunks and no reference_items rows). Default: none —
+   *  every candidate gets a chunk row. */
+  bodylessIds?: string[];
+  /** id-392: explicit content_chunks rows override. When provided, replaces
+   *  the default one-chunk-per-candidate wiring entirely. */
+  chunkRows?: Array<{
+    source_document_id: string;
+    content: string;
+    position: number;
+  }>;
+  /** id-392: reference_items fallback rows — enqueued ONLY when provided
+   *  (the fallback query fires only for candidates left bodyless by the
+   *  chunk leg). */
+  referenceRows?: Array<{ source_document_id: string; body: string }>;
 }
 
 function configureSupabase(
@@ -339,13 +372,43 @@ function configureSupabase(
 
   if (scenario.subtopicsError) return;
 
-  // 3. content_items.select(...) candidates.
+  // 3. source_documents.select(...) candidates.
   client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
     resolve({
       data: scenario.contentItems,
       error: scenario.contentItemsError ?? null,
     }),
   );
+
+  // 3b. content_chunks read (fetchSourceDocumentBodies' chunk leg via
+  // attachBodiesUpTo — id-392 composed body). One chunk row per candidate
+  // unless the candidate is listed in bodylessIds or the scenario overrides
+  // chunkRows wholesale. NOTE: this then-once only fires when the metadata
+  // filter passes >= 1 candidate (attachBodiesUpTo skips the fetch for an
+  // empty candidate list); an unconsumed enqueue is harmless.
+  const bodyless = new Set(scenario.bodylessIds ?? []);
+  const chunkRows =
+    scenario.chunkRows ??
+    scenario.contentItems
+      .filter((item) => !bodyless.has(item.id))
+      .map((item) => ({
+        source_document_id: item.id,
+        content: 'Sample content text about security and encryption.',
+        position: 0,
+      }));
+  client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+    resolve({ data: chunkRows, error: null }),
+  );
+
+  // 3c. reference_items fallback — fires only for candidates the chunk leg
+  // left bodyless. Enqueued only when the scenario provides rows; otherwise
+  // the chain default ({ data: [] }) resolves it and those candidates stay
+  // bodyless (attachBodiesUpTo drops them).
+  if (scenario.referenceRows) {
+    client._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: scenario.referenceRows, error: null }),
+    );
+  }
 
   // 4-5. Per-item updates + entity writes — each resolves via chain default
   // { data: null, error: null, count: 0 } so we don't enqueue per-item
@@ -683,9 +746,11 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
 
   describe('entities_only mode — candidate filter (ID-131.17)', () => {
     /** Configure the extra entities_only query sequence: taxonomy domains,
-     *  taxonomy subtopics, the source_documents candidate query, then a
-     *  single entity_mentions page (page size 5000 so one page always
-     *  terminates the pagination loop). */
+     *  taxonomy subtopics, the source_documents candidate query, a single
+     *  entity_mentions page (page size 5000 so one page always terminates
+     *  the pagination loop), then the content_chunks body read
+     *  (attachBodiesUpTo / fetchSourceDocumentBodies — id-392: every
+     *  candidate gets one chunk row so none are dropped as bodyless). */
     function configureEntitiesOnlyScenario(
       client: MockSupabaseClient,
       scenario: {
@@ -714,6 +779,17 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
       client._chain.then.mockImplementationOnce(
         (resolve: (v: unknown) => void) =>
           resolve({ data: scenario.entityMentionRows, error: null }),
+      );
+      client._chain.then.mockImplementationOnce(
+        (resolve: (v: unknown) => void) =>
+          resolve({
+            data: scenario.contentItems.map((item) => ({
+              source_document_id: item.id,
+              content: 'Sample content text about security and encryption.',
+              position: 0,
+            })),
+            error: null,
+          }),
       );
     }
 
@@ -835,6 +911,99 @@ describe('runBatchReclassifyJob — batch_reclassify handler (§5.4.2)', () => {
       for (const call of sourceDocEqCalls) {
         expect(call[1]).toBe(item.id);
       }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Composed-body candidate gating (id-392 M6 retarget).
+  //
+  // The document body is composed from content_chunks (pipeline file route)
+  // with a reference_items fallback (URL-ingest route) via
+  // fetchSourceDocumentBodies; source_documents.extracted_text is legacy —
+  // permanently NULL on the pipeline path. attachBodiesUpTo drops bodyless
+  // candidates, matching the retired `.not('extracted_text','is',null)`
+  // pre-filter semantics: a doc with a body classifies, a bodyless doc is
+  // excluded before any Anthropic spend.
+  // -------------------------------------------------------------------------
+
+  describe('composed-body candidate gating (id-392)', () => {
+    it('classifies a candidate from its chunk-composed body and excludes a candidate with no body anywhere', async () => {
+      const bodied = makeContentRow(ITEM_IDS[0]);
+      const bodyless = makeContentRow(ITEM_IDS[1]);
+      configureSupabase(mockSupabase, {
+        domains: [{ id: 'd1', name: 'security' }],
+        subtopics: [
+          { name: 'cyber-security', domain_id: 'd1', description: null },
+        ],
+        contentItems: [bodied, bodyless],
+        bodylessIds: [bodyless.id],
+        chunkRows: [
+          {
+            source_document_id: bodied.id,
+            content: 'First chunk about security.',
+            position: 0,
+          },
+          {
+            source_document_id: bodied.id,
+            content: 'Second chunk about encryption.',
+            position: 1,
+          },
+        ],
+      });
+
+      const result = await runBatchReclassifyJob(
+        makeBody(),
+        mockSupabase as unknown as SupabaseClient<Database>,
+        AUTH_CONTEXT,
+        JOB_ID,
+      );
+
+      // The bodyless doc never becomes a candidate — same outcome an
+      // extracted_text-less doc had under the retired column pre-filter.
+      expect(result.total_items).toBe(1);
+      expect(result.reclassified).toBe(1);
+      expect(result.results.map((r) => r.item_id)).toEqual([bodied.id]);
+      expect(mockAnthropicCreate).toHaveBeenCalledTimes(1);
+
+      // The classification prompt carries the body composed from BOTH
+      // chunks, not a column read.
+      const userMessage = mockAnthropicCreate.mock.calls[0][0].messages[0]
+        .content as string;
+      expect(userMessage).toContain('First chunk about security.');
+      expect(userMessage).toContain('Second chunk about encryption.');
+    });
+
+    it('classifies a chunkless candidate from its reference_items body (URL-ingest route fallback)', async () => {
+      const item = makeContentRow(ITEM_IDS[2]);
+      configureSupabase(mockSupabase, {
+        domains: [{ id: 'd1', name: 'security' }],
+        subtopics: [
+          { name: 'cyber-security', domain_id: 'd1', description: null },
+        ],
+        contentItems: [item],
+        chunkRows: [],
+        referenceRows: [
+          {
+            source_document_id: item.id,
+            body: 'Reference body captured from the URL ingest route.',
+          },
+        ],
+      });
+
+      const result = await runBatchReclassifyJob(
+        makeBody(),
+        mockSupabase as unknown as SupabaseClient<Database>,
+        AUTH_CONTEXT,
+        JOB_ID,
+      );
+
+      expect(result.total_items).toBe(1);
+      expect(result.reclassified).toBe(1);
+      const userMessage = mockAnthropicCreate.mock.calls[0][0].messages[0]
+        .content as string;
+      expect(userMessage).toContain(
+        'Reference body captured from the URL ingest route.',
+      );
     });
   });
 

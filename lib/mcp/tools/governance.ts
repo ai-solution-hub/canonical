@@ -18,6 +18,10 @@ import {
   checkMcpRole,
 } from '@/lib/mcp/auth';
 import { sb, tryQuery, isOk } from '@/lib/supabase/safe';
+import {
+  fetchSourceDocumentBodies,
+  fetchSourceDocumentBody,
+} from '@/lib/source-documents/body';
 import type { Database } from '@/supabase/types/database.types';
 import type {
   FacetOwnerKind,
@@ -133,7 +137,7 @@ export async function registerGovernanceTools(
         const sdRes = await tryQuery(
           supabase
             .from('source_documents')
-            .select('id, suggested_title, extracted_text, archived_at')
+            .select('id, suggested_title, archived_at')
             .eq('id', args.id)
             .maybeSingle(),
           'mcp.governance.delete.resolve.source_document',
@@ -148,7 +152,8 @@ export async function registerGovernanceTools(
           ownerKind = 'source_document';
           item = {
             title: sdRes.data.suggested_title,
-            content: sdRes.data.extracted_text,
+            // Composed body (content_chunks / reference_items — id-392).
+            content: await fetchSourceDocumentBody(supabase, sdRes.data.id!),
             archivedAt: sdRes.data.archived_at,
           };
         } else {
@@ -364,9 +369,7 @@ export async function registerGovernanceTools(
         const [sdRows, qaRows, lifecycleRows] = await Promise.all([
           supabase
             .from('source_documents')
-            .select(
-              'id, suggested_title, extracted_text, publication_status, classified_at',
-            )
+            .select('id, suggested_title, publication_status, classified_at')
             .in('id', args.item_ids),
           supabase
             .from('q_a_pairs')
@@ -416,17 +419,23 @@ export async function registerGovernanceTools(
         }
 
         const rowMap = new Map<string, GovernanceRow>();
-        for (const r of (sdRows.data ?? []) as Array<{
+        const sdRowsTyped = (sdRows.data ?? []) as Array<{
           id: string;
           suggested_title: string | null;
-          extracted_text: string | null;
           publication_status: string | null;
           classified_at: string | null;
-        }>) {
+        }>;
+        // Composed bodies (content_chunks / reference_items — id-392): the
+        // SD `content` here only gates the publish-time auto-classify below.
+        const sdBodies = await fetchSourceDocumentBodies(
+          supabase,
+          sdRowsTyped.map((r) => r.id),
+        );
+        for (const r of sdRowsTyped) {
           rowMap.set(r.id, {
             id: r.id,
             title: r.suggested_title,
-            content: r.extracted_text,
+            content: sdBodies.get(r.id) ?? null,
             publication_status: r.publication_status,
             classified_at: r.classified_at,
             governanceReviewStatus: governanceStatusByOwnerId.get(r.id) ?? null,
@@ -830,7 +839,7 @@ export async function registerGovernanceTools(
           supabase
             .from('source_documents')
             .select(
-              'id, publication_status, archived_at, archived_by, suggested_title, extracted_text',
+              'id, publication_status, archived_at, archived_by, suggested_title',
             )
             .eq('id', args.item_id)
             .maybeSingle(),
@@ -859,7 +868,8 @@ export async function registerGovernanceTools(
           current = {
             publication_status: sdRes.data.publication_status,
             title: sdRes.data.suggested_title,
-            content: sdRes.data.extracted_text,
+            // Composed body (content_chunks / reference_items — id-392).
+            content: await fetchSourceDocumentBody(supabase, sdRes.data.id!),
           };
         } else {
           const qaRes = await tryQuery(

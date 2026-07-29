@@ -4,7 +4,8 @@
  * Verifies that sourceDocumentRevisionToUnified:
  * - produces a well-formed UnifiedRevision from a source_documents row fixture
  * - recordKind is always 'source_document'
- * - text projection is extracted_text (the binary-leg text fallback)
+ * - text projection is the caller-supplied composed body (bodyText — the
+ *   binary-leg text fallback; legacy extracted_text is no longer read)
  * - binary field carries storagePath + mimeType
  * - changeType synthesised as 'initial_ingest' for version===1 / no parent_id
  * - changeType synthesised as 'reingest' for version>1 or parent_id present
@@ -39,7 +40,9 @@ function makeSourceDocRow(
     parent_id: null,
     storage_path: 'docid-0000-0000-0000-000000000001/report.pdf',
     mime_type: 'application/pdf',
-    extracted_text: '## Section 1\n\nExtracted text body.',
+    // Legacy column — permanently NULL on the pipeline path (id-392 M6).
+    // The adapter no longer reads it; text comes from the bodyText param.
+    extracted_text: null,
     created_at: '2026-01-15T10:00:00.000Z',
     uploaded_by: 'user-uuid-alice',
     // Non-required fields with defaults
@@ -92,6 +95,12 @@ const DISPLAY_NAMES = new Map<string, string>([
   ['user-uuid-bob', 'Bob Smith'],
 ]);
 
+/**
+ * Caller-fetched composed document body (content_chunks joined by position, or
+ * reference_items.body on the URL route) — the adapter's 4th argument.
+ */
+const BODY_TEXT = '## Section 1\n\nComposed document body.';
+
 // ---------------------------------------------------------------------------
 // recordKind
 // ---------------------------------------------------------------------------
@@ -102,6 +111,7 @@ describe('sourceDocumentRevisionToUnified — recordKind', () => {
       makeSourceDocRow(),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.recordKind).toBe('source_document');
   });
@@ -118,6 +128,7 @@ describe('sourceDocumentRevisionToUnified — recordId', () => {
       makeSourceDocRow(),
       docId,
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.recordId).toBe(docId);
   });
@@ -133,31 +144,34 @@ describe('sourceDocumentRevisionToUnified — version', () => {
       makeSourceDocRow({ version: 3 }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.version).toBe(3);
   });
 });
 
 // ---------------------------------------------------------------------------
-// text (binary-leg text fallback = extracted_text)
+// text (binary-leg text fallback = caller-supplied composed body)
 // ---------------------------------------------------------------------------
 
 describe('sourceDocumentRevisionToUnified — text projection', () => {
-  it('maps text from extracted_text', () => {
-    const extractedText = '## Report\n\nBody content.';
+  it('maps text from the caller-supplied composed body', () => {
+    const bodyText = '## Report\n\nBody content.';
     const result = sourceDocumentRevisionToUnified(
-      makeSourceDocRow({ extracted_text: extractedText }),
+      makeSourceDocRow(),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      bodyText,
     );
-    expect(result.text).toBe(extractedText);
+    expect(result.text).toBe(bodyText);
   });
 
-  it('maps text as empty string when extracted_text is null', () => {
+  it('maps text as empty string when the composed body is null', () => {
     const result = sourceDocumentRevisionToUnified(
-      makeSourceDocRow({ extracted_text: null }),
+      makeSourceDocRow(),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      null,
     );
     expect(result.text).toBe('');
   });
@@ -173,6 +187,7 @@ describe('sourceDocumentRevisionToUnified — changeType synthesis (OQ-117-4)', 
       makeSourceDocRow({ version: 1, parent_id: null }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.changeType).toBe('initial_ingest');
   });
@@ -182,6 +197,7 @@ describe('sourceDocumentRevisionToUnified — changeType synthesis (OQ-117-4)', 
       makeSourceDocRow({ version: 2, parent_id: null }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.changeType).toBe('reingest');
   });
@@ -195,6 +211,7 @@ describe('sourceDocumentRevisionToUnified — changeType synthesis (OQ-117-4)', 
       }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.changeType).toBe('reingest');
   });
@@ -207,6 +224,7 @@ describe('sourceDocumentRevisionToUnified — changeType synthesis (OQ-117-4)', 
       }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.changeType).toBe('reingest');
   });
@@ -222,6 +240,7 @@ describe('sourceDocumentRevisionToUnified — changeSummary', () => {
       makeSourceDocRow(),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.changeSummary).toBeNull();
   });
@@ -237,6 +256,7 @@ describe('sourceDocumentRevisionToUnified — editIntent', () => {
       makeSourceDocRow(),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.editIntent).toBeNull();
   });
@@ -252,6 +272,7 @@ describe('sourceDocumentRevisionToUnified — createdAt', () => {
       makeSourceDocRow({ created_at: '2026-03-20T14:30:00.000Z' }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.createdAt).toBe('2026-03-20T14:30:00.000Z');
   });
@@ -267,6 +288,7 @@ describe('sourceDocumentRevisionToUnified — createdByLabel resolution', () => 
       makeSourceDocRow({ uploaded_by: 'user-uuid-alice' }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.createdByLabel).toBe('Alice Doe');
   });
@@ -276,6 +298,7 @@ describe('sourceDocumentRevisionToUnified — createdByLabel resolution', () => 
       makeSourceDocRow({ uploaded_by: 'user-uuid-unknown' }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.createdByLabel).toBe('Unknown');
   });
@@ -285,6 +308,7 @@ describe('sourceDocumentRevisionToUnified — createdByLabel resolution', () => 
       makeSourceDocRow({ uploaded_by: null }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.createdByLabel).toBe('System');
   });
@@ -294,6 +318,7 @@ describe('sourceDocumentRevisionToUnified — createdByLabel resolution', () => 
       makeSourceDocRow({ uploaded_by: 'user-uuid-bob' }),
       'docid-0000-0000-0000-000000000001',
       new Map(),
+      BODY_TEXT,
     );
     expect(result.createdByLabel).toBe('Unknown');
   });
@@ -311,6 +336,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
       }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.binary?.storagePath).toBe(
       'docid-0000-0000-0000-000000000001/report.pdf',
@@ -325,6 +351,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
       }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.binary?.mimeType).toBe(
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -339,6 +366,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
       makeSourceDocRow({ storage_path: null as unknown as string }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.binary).toBeUndefined();
   });
@@ -350,6 +378,7 @@ describe('sourceDocumentRevisionToUnified — binary field', () => {
       makeSourceDocRow({ mime_type: null as unknown as string }),
       'docid-0000-0000-0000-000000000001',
       DISPLAY_NAMES,
+      BODY_TEXT,
     );
     expect(result.binary).toBeUndefined();
   });
@@ -369,6 +398,7 @@ describe('sourceDocumentRevisionToUnified — purity', () => {
         frozen as SourceDocumentRow,
         'docid-0000-0000-0000-000000000001',
         DISPLAY_NAMES,
+        BODY_TEXT,
       ),
     ).not.toThrow();
   });

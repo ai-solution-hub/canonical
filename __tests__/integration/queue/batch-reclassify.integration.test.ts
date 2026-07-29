@@ -130,9 +130,16 @@ vi.mock('next/headers', () => ({
  * onto `source_documents` at ID-131.17 (M3 gave source_documents the
  * classification family: primary_domain/primary_subtopic/classified_at/
  * classification_confidence/ai_keywords all live there unchanged) — this
- * fixture now seeds that table directly. `title`/`content`/`platform` have
- * no source_documents equivalent (`suggested_title`/`extracted_text` are
- * the nearest analogs; `platform` is dropped, no destination).
+ * fixture now seeds that table directly. `title`/`platform` have no
+ * source_documents equivalent (`suggested_title` is the nearest analog;
+ * `platform` is dropped, no destination).
+ *
+ * id-392 M6 retarget: the document BODY lives in `content_chunks.content`
+ * (composed by `fetchSourceDocumentBodies`; `extracted_text` is legacy —
+ * permanently NULL on the pipeline path and no longer seeded), so every
+ * fixture also seeds one content_chunks row keyed on the new document id.
+ * Without it the handler's `attachBodiesUpTo` would drop the fixture as
+ * bodyless.
  */
 async function createTestContentItem(opts: {
   classified?: boolean;
@@ -144,7 +151,6 @@ async function createTestContentItem(opts: {
     .insert({
       filename: `${TEST_PREFIX} test item.txt`,
       suggested_title: `${TEST_PREFIX} test item`,
-      extracted_text: `${TEST_PREFIX} sample content text about security and encryption.`,
       mime_type: 'text/plain',
       file_size: 1,
       content_hash: `${TEST_PREFIX}-${randomUUID()}`,
@@ -164,6 +170,21 @@ async function createTestContentItem(opts: {
     );
   }
   seededContentItemIds.add(item.id);
+
+  // id-392: composed-body chunk row (the fixture's document body).
+  const { error: chunkErr } = await serviceClient
+    .from('content_chunks')
+    .insert({
+      source_document_id: item.id,
+      content: `${TEST_PREFIX} sample content text about security and encryption.`,
+      position: 0,
+    });
+  if (chunkErr) {
+    throw new Error(
+      `createTestContentItem: content_chunks insert failed: ${chunkErr.message}`,
+    );
+  }
+
   return { itemId: item.id };
 }
 
@@ -236,6 +257,12 @@ afterAll(async () => {
       .in('source_document_id', sourceDocumentIds);
     await serviceClient
       .from('entity_relationships')
+      .delete()
+      .in('source_document_id', sourceDocumentIds);
+    // id-392: scrub the seeded composed-body chunk rows before their parent
+    // source_documents rows.
+    await serviceClient
+      .from('content_chunks')
       .delete()
       .in('source_document_id', sourceDocumentIds);
     await serviceClient

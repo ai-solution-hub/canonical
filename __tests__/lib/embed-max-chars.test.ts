@@ -41,6 +41,11 @@ import {
 const mockCreate = vi.fn();
 const mockGenerateEmbedding = vi.fn();
 const mockLogBestEffortWarn = vi.fn();
+// id-392 M6 retarget: the document BODY is composed from content_chunks /
+// reference_items via @/lib/source-documents/body — source_documents
+// .extracted_text is legacy (permanently NULL on the pipeline path) and no
+// longer selected. Mocked at the module boundary like the other deps here.
+const mockFetchSourceDocumentBody = vi.fn();
 
 vi.mock('@/lib/anthropic', () => ({
   getAnthropicClient: () => ({
@@ -64,6 +69,11 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
 
 vi.mock('@/lib/supabase/telemetry', () => ({
   logBestEffortWarn: (...args: unknown[]) => mockLogBestEffortWarn(...args),
+}));
+
+vi.mock('@/lib/source-documents/body', () => ({
+  fetchSourceDocumentBody: (...args: unknown[]) =>
+    mockFetchSourceDocumentBody(...args),
 }));
 
 vi.mock('@/lib/content/strip-markdown', () => ({
@@ -178,12 +188,17 @@ describe('S159 WP4b — embedding truncation call-site integration', () => {
     vi.clearAllMocks();
     mockSupabase = createMockSupabaseClient();
 
+    // id-392: long composed body via the mocked module boundary (was
+    // previously an extracted_text column value on the fetched row).
+    mockFetchSourceDocumentBody.mockResolvedValue(
+      '<p>' + 'x'.repeat(200_000) + '</p>',
+    );
+
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
         original_filename: 'Long Content Item',
         filename: 'long-content-item.md',
-        extracted_text: '<p>' + 'x'.repeat(200_000) + '</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,
@@ -284,27 +299,9 @@ describe('S159 WP4b — embedding truncation call-site integration', () => {
   });
 
   it('does not truncate or emit warning for short content', async () => {
-    // Override with short content
-    mockSupabase._chain.single.mockResolvedValue({
-      data: {
-        id: ITEM_ID,
-        original_filename: 'Short Item',
-        filename: 'short-item.md',
-        extracted_text: '<p>Brief content.</p>',
-        content_type: 'article',
-        classified_at: null,
-        primary_domain: null,
-        primary_subtopic: null,
-        secondary_domain: null,
-        secondary_subtopic: null,
-        ai_keywords: null,
-        summary: null,
-        suggested_title: null,
-        classification_confidence: null,
-        classification_reasoning: null,
-      },
-      error: null,
-    });
+    // Override with a short composed body (id-392: the body comes from the
+    // composed document body, not an extracted_text column).
+    mockFetchSourceDocumentBody.mockResolvedValue('<p>Brief content.</p>');
 
     mockCreate.mockResolvedValueOnce(
       createToolUseResponse(baseClassificationInput),

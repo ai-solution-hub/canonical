@@ -42,6 +42,7 @@ import { isExcludedEntity, validateDomain } from '@/lib/ai/classify';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
+import { fetchSourceDocumentBodies } from '@/lib/source-documents/body';
 import { canonicalise } from '@/lib/entities/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { extractEntityContext } from '@/lib/entities/entity-context';
@@ -234,15 +235,18 @@ numeric identifiers as entities.`;
  * directly a source_documents id — the FORMER separate `source_document_id`
  * FK column (ID-131.30/ID-131.36's id-space fix, needed because content_items
  * and source_documents were independent PK spaces) collapses to an identity,
- * so it is no longer selected. `content`/`title` have no SD column of the
- * same name — `extracted_text`/`original_filename`+`filename` are the
- * nearest analogs; `metadata` -> `extraction_metadata`. `platform` has no SD
- * analog and is dropped along with the layer-suggestion logic it fed (D5:
- * `layer` dies with content_items, not re-homed onto source_documents).
+ * so it is no longer selected. `title` has no SD column of the same name —
+ * `original_filename`+`filename` are the nearest analogs; `metadata` ->
+ * `extraction_metadata`. `platform` has no SD analog and is dropped along
+ * with the layer-suggestion logic it fed (D5: `layer` dies with
+ * content_items, not re-homed onto source_documents). `body` is the
+ * composed document body (content_chunks / reference_items via
+ * fetchSourceDocumentBodies — id-392 M6 retarget), attached AFTER the
+ * metadata-filter/sort pass by attachBodiesUpTo below.
  */
 interface ContentRow {
   id: string;
-  extracted_text: string | null;
+  body: string | null;
   original_filename: string | null;
   filename: string;
   suggested_title: string | null;
@@ -253,6 +257,40 @@ interface ContentRow {
   classification_confidence: number | null;
   classified_at: string | null;
   extraction_metadata: Record<string, unknown> | null;
+}
+
+/** Candidate row as selected — metadata only; `body` is attached later. */
+type CandidateRow = Omit<ContentRow, 'body'>;
+
+/**
+ * Attach composed bodies to metadata-sorted candidates, keeping only rows
+ * with a non-empty body, until `limit` rows are collected (limit <= 0 → no
+ * cap). Bodies are fetched in slices so the common small-limit case never
+ * pays for the whole candidate list, and the limit is always filled with
+ * BODIED rows (matching the retired `.not('extracted_text','is',null)`
+ * pre-filter semantics — id-392 M6 retarget).
+ */
+async function attachBodiesUpTo(
+  supabase: SupabaseClient<Database>,
+  rows: CandidateRow[],
+  limit: number,
+): Promise<ContentRow[]> {
+  const BODY_FETCH_SLICE = 50;
+  const out: ContentRow[] = [];
+  for (let start = 0; start < rows.length; start += BODY_FETCH_SLICE) {
+    const slice = rows.slice(start, start + BODY_FETCH_SLICE);
+    const bodies = await fetchSourceDocumentBodies(
+      supabase,
+      slice.map((r) => r.id),
+    );
+    for (const row of slice) {
+      const body = bodies.get(row.id) ?? null;
+      if (!body || body.trim().length === 0) continue;
+      out.push({ ...row, body });
+      if (limit > 0 && out.length >= limit) return out;
+    }
+  }
+  return out;
 }
 
 interface ClassificationTemporalRef {
@@ -623,10 +661,9 @@ export async function runBatchReclassifyJob(
     let entitiesQuery = supabase
       .from('source_documents')
       .select(
-        'id, extracted_text, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
+        'id, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
       )
       .not('classified_at', 'is', null)
-      .not('extracted_text', 'is', null)
       .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(500);
@@ -674,26 +711,23 @@ export async function runBatchReclassifyJob(
         }
       }
 
-      const entitiesFiltered = (items as ContentRow[])
-        .filter((item) => {
-          if (!item.extracted_text || item.extracted_text.trim().length === 0)
-            return false;
-          // ID-131 {131.17}: candidates now come directly from
-          // source_documents, so item.id IS the id entity_mentions.
-          // source_document_id points at — no separate FK-column comparison
-          // needed (pre-repoint this compared a distinct
-          // content_items.source_document_id column; ID-131.30
-          // G-EXTRACT-CONSUMER-SWEEP-3).
-          return !mentionedSet.has(item.id);
-        })
+      const entitiesFiltered = (items as CandidateRow[])
+        // ID-131 {131.17}: candidates now come directly from
+        // source_documents, so item.id IS the id entity_mentions.
+        // source_document_id points at — no separate FK-column comparison
+        // needed (pre-repoint this compared a distinct
+        // content_items.source_document_id column; ID-131.30
+        // G-EXTRACT-CONSUMER-SWEEP-3).
+        .filter((item) => !mentionedSet.has(item.id))
         .sort(
           (a, b) =>
             contentTypeSortKey(a.content_type) -
             contentTypeSortKey(b.content_type),
         );
 
-      candidates =
-        limit > 0 ? entitiesFiltered.slice(0, limit) : entitiesFiltered;
+      // Bodyless rows are dropped here (id-392: body-presence is now a
+      // composed-body property, not a column filter).
+      candidates = await attachBodiesUpTo(supabase, entitiesFiltered, limit);
     }
   } else {
     // Normal reclassification mode: active (non-archived) items.
@@ -702,9 +736,8 @@ export async function runBatchReclassifyJob(
     let reclassQuery = supabase
       .from('source_documents')
       .select(
-        'id, extracted_text, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
+        'id, original_filename, filename, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, extraction_metadata',
       )
-      .not('extracted_text', 'is', null)
       .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(5000);
@@ -722,10 +755,8 @@ export async function runBatchReclassifyJob(
     if (!items || items.length === 0) {
       candidates = [];
     } else {
-      const filtered = (items as ContentRow[])
+      const filtered = (items as CandidateRow[])
         .filter((item) => {
-          if (!item.extracted_text || item.extracted_text.trim().length === 0)
-            return false;
           if (force) return true;
           if (!item.classified_at) return true;
           if (
@@ -742,7 +773,9 @@ export async function runBatchReclassifyJob(
             contentTypeSortKey(b.content_type),
         );
 
-      candidates = limit > 0 ? filtered.slice(0, limit) : filtered;
+      // Bodyless rows are dropped here (id-392: body-presence is now a
+      // composed-body property, not a column filter).
+      candidates = await attachBodiesUpTo(supabase, filtered, limit);
     }
   }
 
@@ -803,7 +836,7 @@ export async function runBatchReclassifyJob(
 
     try {
       // Prepare content for classification (truncate at 5000 chars).
-      const plainText = stripMarkdown(item.extracted_text!);
+      const plainText = stripMarkdown(item.body!);
       const contentForClassification = plainText.slice(0, 5000);
       const itemTitle = item.original_filename ?? item.filename;
 

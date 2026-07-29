@@ -71,6 +71,19 @@ vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
   };
 });
 
+// id-392 M6 retarget: the document BODY is composed from content_chunks /
+// reference_items via @/lib/source-documents/body — source_documents
+// .extracted_text is legacy (permanently NULL on the pipeline path) and no
+// longer selected. Mocked at the module boundary, matching this file's
+// existing mock idiom.
+const { mockFetchSourceDocumentBody } = vi.hoisted(() => ({
+  mockFetchSourceDocumentBody: vi.fn(),
+}));
+
+vi.mock('@/lib/source-documents/body', () => ({
+  fetchSourceDocumentBody: mockFetchSourceDocumentBody,
+}));
+
 // Import after mocks
 import {
   classifyContent,
@@ -218,18 +231,24 @@ describe('classifyContent — entity extraction', () => {
       },
     );
 
-    // Default: item exists and has content. ID-131 {131.17} G-IMS-DELETE
+    // Default: the composed document body resolves via the mocked
+    // @/lib/source-documents/body boundary (id-392 M6 retarget).
+    mockFetchSourceDocumentBody.mockResolvedValue(
+      '<p>Acme Ltd holds ISO27001 and Cyber Essentials Plus.</p>',
+    );
+
+    // Default: item exists. ID-131 {131.17} G-IMS-DELETE
     // KEEP-list: classifyContent re-pointed off content_items onto
     // source_documents — `ITEM_ID` (the fetch key) IS the source_documents
     // id directly (no separate source_document_id FK column — entity_mentions/
     // entity_relationships storage keys off this same id post-repoint).
+    // The body is NOT part of this row (composed from content_chunks /
+    // reference_items — id-392).
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
         original_filename: 'Security Certs',
         filename: 'security-certs.md',
-        extracted_text:
-          '<p>Acme Ltd holds ISO27001 and Cyber Essentials Plus.</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,
@@ -990,7 +1009,6 @@ describe('classifyContent — entity extraction', () => {
           id: ITEM_ID,
           original_filename: 'Security Certs',
           filename: 'security-certs.md',
-          extracted_text: '<p>Some content</p>',
           content_type: 'article',
           classified_at: '2026-03-01T00:00:00Z',
           primary_domain: 'SECURITY & COMPLIANCE',
@@ -1019,6 +1037,33 @@ describe('classifyContent — entity extraction', () => {
       expect(result.relationships).toBeUndefined();
       // Claude should not have been called
       expect(mockCreate).not.toHaveBeenCalled();
+      // id-392: the cached early-return is served WITHOUT re-reading the
+      // composed document body.
+      expect(mockFetchSourceDocumentBody).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('bodyless documents are rejected (id-392 composed body)', () => {
+    it('rejects a document with no chunked or reference body with a 400 "no content" error', async () => {
+      // No content_chunks and no reference_items body resolve for this doc —
+      // exactly the state a legacy extracted_text-less row used to be in.
+      mockFetchSourceDocumentBody.mockResolvedValue(null);
+
+      await expect(
+        classifyContent({
+          supabase: mockSupabase as never,
+          itemId: ITEM_ID,
+          force: true,
+          userId: USER_ID,
+        }),
+      ).rejects.toMatchObject({
+        name: 'AIServiceError',
+        status: 400,
+        message: 'Content item has no content to classify',
+      });
+
+      // No Claude call is made for a bodyless document.
+      expect(mockCreate).not.toHaveBeenCalled();
     });
   });
 });
@@ -1039,12 +1084,16 @@ describe('classifyContent — coerceSubtopic call-site wiring', () => {
     vi.clearAllMocks();
     mockSupabase = createMockSupabaseClient();
 
+    // id-392: composed body via the mocked module boundary.
+    mockFetchSourceDocumentBody.mockResolvedValue(
+      '<p>Some content about security.</p>',
+    );
+
     mockSupabase._chain.single.mockResolvedValue({
       data: {
         id: ITEM_ID,
         original_filename: 'Test Item',
         filename: 'test-item.md',
-        extracted_text: '<p>Some content about security.</p>',
         content_type: 'article',
         classified_at: null,
         primary_domain: null,

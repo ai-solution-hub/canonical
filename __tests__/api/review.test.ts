@@ -130,6 +130,12 @@ describe('GET /api/review/queue', () => {
     // embedded record_lifecycle!inner facet (row.record_lifecycle[0]), not
     // flat on the row. `title` in the response is derived from
     // suggested_title ?? filename, not a flat `title` column.
+    //
+    // id-392 M6: `source_documents.extracted_text` is permanently NULL on
+    // the pipeline path and is no longer selected — each item's `content` is
+    // the composed document body (content_chunks.content ordered by
+    // position, joined with blank lines; reference_items.body fallback) via
+    // fetchSourceDocumentBodies.
     const mockItems = [
       {
         id: VALID_UUID,
@@ -147,7 +153,6 @@ describe('GET /api/review/queue', () => {
         source_url: 'https://example.com',
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',
-        extracted_text: 'Some content',
         created_at: '2026-01-01T00:00:00Z',
         record_lifecycle: [
           {
@@ -166,15 +171,36 @@ describe('GET /api/review/queue', () => {
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => {
         thenCallCount++;
+        // 1: source_documents queue query
         if (thenCallCount === 1) {
           return resolve({ data: mockItems, error: null, count: 1 });
         }
+        // 2: verified count, 3: flagged count (progress bar)
         if (thenCallCount === 2) {
           return resolve({ data: null, error: null, count: 5 });
         }
         if (thenCallCount === 3) {
           return resolve({ data: null, error: null, count: 2 });
         }
+        // 4: content_chunks body leg (fetchSourceDocumentBodies)
+        if (thenCallCount === 4) {
+          return resolve({
+            data: [
+              {
+                source_document_id: VALID_UUID,
+                content: 'First chunk of the extracted body.',
+                position: 0,
+              },
+              {
+                source_document_id: VALID_UUID,
+                content: 'Second chunk of the extracted body.',
+                position: 1,
+              },
+            ],
+            error: null,
+          });
+        }
+        // 5+: fetchLastReviewedDates (verification_history)
         return resolve({ data: [], error: null, count: 0 });
       },
     );
@@ -189,6 +215,12 @@ describe('GET /api/review/queue', () => {
     expect(json.items[0].id).toBe(VALID_UUID);
     expect(json.items[0].title).toBe('Test Item');
     expect(json.items[0].primary_domain).toBe('Technology');
+    // The item's content is the blank-line-joined chunk composition — NOT
+    // the legacy extracted_text column (permanently NULL on the pipeline
+    // path, no longer read).
+    expect(json.items[0].content).toBe(
+      'First chunk of the extracted body.\n\nSecond chunk of the extracted body.',
+    );
     expect(json.total).toBe(1);
     expect(json.verified_count).toBe(5);
     expect(json.flagged_count).toBe(2);
@@ -223,7 +255,6 @@ describe('GET /api/review/queue', () => {
         source_url: 'https://example.com',
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',
-        extracted_text: 'Some content',
         created_at: '2026-01-01T00:00:00Z',
         record_lifecycle: [
           {
@@ -246,7 +277,7 @@ describe('GET /api/review/queue', () => {
         if (thenCallCount === 1) {
           return resolve({ data: mockFlaggedDocIds, error: null });
         }
-        // 2: content_items filtered by source_document_id
+        // 2: source_documents filtered by the flagged ids
         if (thenCallCount === 2) {
           return resolve({ data: mockItems, error: null, count: 1 });
         }
@@ -257,7 +288,9 @@ describe('GET /api/review/queue', () => {
         if (thenCallCount === 4) {
           return resolve({ data: null, error: null, count: 2 });
         }
-        // 5: fetchLastReviewedDates (verification_history)
+        // 5+: content_chunks + reference_items body legs (both empty — a
+        // bodyless doc; id-392 M6) and fetchLastReviewedDates
+        // (verification_history)
         return resolve({ data: [], error: null, count: 0 });
       },
     );
@@ -271,6 +304,9 @@ describe('GET /api/review/queue', () => {
     const json = await res.json();
     expect(json.items).toHaveLength(1);
     expect(json.items[0].id).toBe(VALID_UUID);
+    // A document with no content_chunks and no reference_items body has no
+    // composable body — content is null, never the legacy extracted_text.
+    expect(json.items[0].content).toBeNull();
     expect(json.total).toBe(1);
 
     // ID-131 {131.19}: content_items is dying — every content_item was

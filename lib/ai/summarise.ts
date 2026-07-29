@@ -13,6 +13,7 @@ import { toJson } from '@/lib/validation/jsonb';
 import type { SummaryData } from '@/types/content';
 import { AIServiceError } from '@/lib/ai/errors';
 import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
+import { fetchSourceDocumentBody } from '@/lib/source-documents/body';
 import { logger } from '@/lib/logger';
 
 // ──────────────────────────────────────────
@@ -192,14 +193,14 @@ export async function generateSummary(
 
   // Fetch the source document. ID-131 {131.17} G-IMS-DELETE KEEP-list:
   // re-pointed off content_items onto source_documents (M3 gave SD the
-  // classification family, incl. summary/summary_data). `content`/`title`
-  // have no SD column of the same name — extracted_text /
-  // original_filename+filename are the nearest analogs (matches the
-  // established idiom elsewhere in this Subtask's file set).
+  // classification family, incl. summary/summary_data). `title` has no SD
+  // column of the same name — original_filename+filename are the nearest
+  // analogs. The document BODY is composed from content_chunks /
+  // reference_items (id-392 M6 retarget), not a source_documents column.
   const { data: item, error: fetchError } = await supabase
     .from('source_documents')
     .select(
-      'id, extracted_text, original_filename, filename, suggested_title, content_type, summary, primary_domain, summary_data',
+      'id, original_filename, filename, suggested_title, content_type, summary, primary_domain, summary_data',
     )
     .eq('id', itemId)
     .single();
@@ -216,7 +217,8 @@ export async function generateSummary(
     );
   }
 
-  if (!item.extracted_text?.trim()) {
+  const body = await fetchSourceDocumentBody(supabase, itemId);
+  if (!body?.trim()) {
     throw new AIServiceError('Content item has no content to summarise', 400);
   }
 
@@ -227,7 +229,7 @@ export async function generateSummary(
 
   // Call the pure AI function
   const { summaryData } = await callSummaryAI({
-    content: item.extracted_text,
+    content: body,
     title: displayTitle,
     contentType,
     domain,

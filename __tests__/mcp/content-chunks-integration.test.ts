@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => {
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
     is: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockReturnThis(),
@@ -115,6 +117,8 @@ function resetSupabaseMocks() {
     'order',
     'limit',
     'eq',
+    'in',
+    'range',
     'is',
     'single',
     'maybeSingle',
@@ -149,10 +153,12 @@ describe('get (single) chunks fetch', () => {
     const handler = mockServer.getHandler('get')!;
 
     // ID-131 (G-MCP-REPOINT): `get` (single) now reads source_documents —
-    // `suggested_title` is the sole display name (no more `title` column),
-    // `extracted_text` replaces `content`. `freshness` moved to the
-    // record_lifecycle facet (separate join, mocked below); `priority` has
-    // no home (always null in the response regardless of what's mocked).
+    // `suggested_title` is the sole display name (no more `title` column).
+    // `content` is the body COMPOSED from content_chunks.content (fallback
+    // reference_items.body) via fetchSourceDocumentBody — id-392 M6 retarget;
+    // extracted_text is legacy and no longer selected. `freshness` moved to
+    // the record_lifecycle facet (separate join, mocked below); `priority`
+    // has no home (always null in the response regardless of what's mocked).
     const itemRow = {
       id: 'item-123',
       suggested_title: 'Fire Safety Policy',
@@ -163,7 +169,6 @@ describe('get (single) chunks fetch', () => {
       ai_keywords: ['fire', 'safety'],
       classification_confidence: 0.9,
       source_url: null,
-      extracted_text: 'Full markdown content.',
       created_at: '2026-01-15T10:00:00Z',
       updated_at: '2026-02-01T10:00:00Z',
     };
@@ -211,7 +216,22 @@ describe('get (single) chunks fetch', () => {
           error: null,
         }),
     );
-    // 3. content_chunks.select...order() — the chunks
+    // 3. content_chunks.select...in().order().order().range() — the body
+    //    (fetchSourceDocumentBody chunk leg, id-392)
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: 'item-123',
+              content: 'Full markdown content.',
+              position: 0,
+            },
+          ],
+          error: null,
+        }),
+    );
+    // 4. content_chunks.select...order() — the section-metadata chunks
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: chunkRows, error: null }),
@@ -235,6 +255,8 @@ describe('get (single) chunks fetch', () => {
       string,
       unknown
     >;
+    // id-392: the body is the composed chunk content, not a column read.
+    expect(singleItem.content).toBe('Full markdown content.');
     const chunks = singleItem.chunks as Array<Record<string, unknown>>;
     expect(chunks).toHaveLength(3);
     expect(chunks[0].id).toBe('chunk-a');
@@ -260,7 +282,6 @@ describe('get (single) chunks fetch', () => {
       ai_keywords: null,
       classification_confidence: null,
       source_url: null,
-      extracted_text: 'Body emitted by the cocoindex pipeline.',
       created_at: null,
       updated_at: null,
     };
@@ -287,7 +308,21 @@ describe('get (single) chunks fetch', () => {
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
-    // 3. content_chunks.select...order() — the cocoindex chunk
+    // 3. content_chunks body read (fetchSourceDocumentBody chunk leg, id-392)
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: 'item-cc',
+              content: 'Body emitted by the cocoindex pipeline.',
+              position: 0,
+            },
+          ],
+          error: null,
+        }),
+    );
+    // 4. content_chunks.select...order() — the cocoindex section chunk
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: chunkRows, error: null }),
@@ -328,7 +363,6 @@ describe('get (single) chunks fetch', () => {
       ai_keywords: null,
       classification_confidence: null,
       source_url: null,
-      extracted_text: 'Body text.',
       created_at: null,
       updated_at: null,
     };
@@ -342,7 +376,21 @@ describe('get (single) chunks fetch', () => {
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
     );
-    // 3. content_chunks.select...order() — degraded
+    // 3. content_chunks body read (fetchSourceDocumentBody chunk leg, id-392)
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: 'item-456',
+              content: 'Body text.',
+              position: 0,
+            },
+          ],
+          error: null,
+        }),
+    );
+    // 4. content_chunks.select...order() — section-metadata fetch degraded
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
@@ -359,6 +407,9 @@ describe('get (single) chunks fetch', () => {
     expect(result.isError).toBeUndefined();
     // Item detail still renders
     expect(result.content[0].text).toContain('# Standalone Item');
+    // ...including the chunk-composed body (id-392) — the degraded
+    // section-metadata fetch must not take the body down with it.
+    expect(result.content[0].text).toContain('Body text.');
     // No Document Sections section when chunks are empty
     expect(result.content[0].text).not.toContain('## Document Sections');
 

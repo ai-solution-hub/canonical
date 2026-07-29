@@ -14,6 +14,10 @@
  * B-INV-33: `get` preserves the two-step list/preview → verbatim retrieval —
  *           a single `id` returns the verbatim item with chunks; `ids` returns
  *           a batch list/preview (no chunks).
+ * id-392 (M6): document bodies are composed from content_chunks /
+ *           reference_items (fetchSourceDocumentBodies) — also guards the
+ *           update tool refusing a `content` edit on a source document
+ *           rather than silently discarding it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -115,11 +119,14 @@ describe('ID-71.10 content tool consolidation', () => {
       const itemRow = {
         id: ID_1,
         suggested_title: 'Single Item',
-        extracted_text: 'verbatim body',
       };
-      // ID-131 (G-MCP-REPOINT): three thenable queries — source_documents
-      // .single(), record_lifecycle .maybeSingle() (freshness/governance
-      // join), content_chunks .order().
+      // ID-131 (G-MCP-REPOINT) + id-392 (M6 retarget): four thenable
+      // queries — source_documents .single(), record_lifecycle .maybeSingle()
+      // (freshness/governance join), the content_chunks BODY read
+      // (fetchSourceDocumentBody: .in().order().order().range()) — the
+      // verbatim body is composed from chunk content, extracted_text is
+      // legacy and never selected — then content_chunks .order() (section
+      // metadata).
       const single = vi.fn().mockResolvedValue({ data: itemRow, error: null });
       const chainSingle = {
         select: vi.fn().mockReturnThis(),
@@ -131,6 +138,17 @@ describe('ID-71.10 content tool consolidation', () => {
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       };
+      const chainBody = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({
+          data: [
+            { source_document_id: ID_1, content: 'verbatim body', position: 0 },
+          ],
+          error: null,
+        }),
+      };
       const chainChunks = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -140,6 +158,7 @@ describe('ID-71.10 content tool consolidation', () => {
         .fn()
         .mockReturnValueOnce(chainSingle)
         .mockReturnValueOnce(chainLifecycle)
+        .mockReturnValueOnce(chainBody)
         .mockReturnValueOnce(chainChunks);
       mockCreateMcpClient.mockReturnValue({ from });
 
@@ -149,28 +168,50 @@ describe('ID-71.10 content tool consolidation', () => {
       expect(result.structuredContent!.mode).toBe('single');
       const item = result.structuredContent!.item as Record<string, unknown>;
       expect(item.id).toBe(ID_1);
+      // id-392: the verbatim body comes from the composed chunk content.
+      expect(item.content).toBe('verbatim body');
       expect(item.chunks).toEqual([]);
     });
 
     it('ids array returns mode=batch list/preview without a single item (B-INV-33 list step)', async () => {
-      const inResult = vi.fn().mockResolvedValue({
-        data: [
-          { id: ID_1, title: 'A', content: 'a' },
-          { id: ID_2, title: 'B', content: 'b' },
-        ],
-        error: null,
-      });
-      // ID-131 (G-MCP-REPOINT): the batch path also does a second
-      // record_lifecycle lookup (`.eq().eq().in()`) for freshness/governance
-      // enrichment — the same chain object serves both calls; its `.in()`
-      // resolving the batch rows again is harmless (no `source_document_id`
-      // key on them, so the enrichment loop is a no-op for this fixture).
-      const chain = {
+      // ID-131 (G-MCP-REPOINT) + id-392 (M6 retarget): three queries —
+      // source_documents .in() (the rows), the content_chunks BODY read
+      // (fetchSourceDocumentBodies: .in().order().order().range()) that
+      // composes each preview's `content`, then the record_lifecycle
+      // freshness/governance enrichment (`.eq().in()`).
+      const chainDocs = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockResolvedValue({
+          data: [
+            { id: ID_1, suggested_title: 'A' },
+            { id: ID_2, suggested_title: 'B' },
+          ],
+          error: null,
+        }),
+      };
+      const chainBody = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({
+          data: [
+            { source_document_id: ID_1, content: 'a', position: 0 },
+            { source_document_id: ID_2, content: 'b', position: 0 },
+          ],
+          error: null,
+        }),
+      };
+      const chainLifecycle = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        in: inResult,
+        in: vi.fn().mockResolvedValue({ data: [], error: null }),
       };
-      mockCreateMcpClient.mockReturnValue({ from: vi.fn(() => chain) });
+      const from = vi
+        .fn()
+        .mockReturnValueOnce(chainDocs)
+        .mockReturnValueOnce(chainBody)
+        .mockReturnValueOnce(chainLifecycle);
+      mockCreateMcpClient.mockReturnValue({ from });
 
       const result = await mockServer.getHandler('get')!(
         { ids: [ID_1, ID_2] },
@@ -181,8 +222,13 @@ describe('ID-71.10 content tool consolidation', () => {
       expect(result.structuredContent!.mode).toBe('batch');
       expect(result.structuredContent!.item).toBeNull();
       expect(result.structuredContent!.count).toBe(2);
-      // Batch path queries content_items.in(...) — never content_chunks.
-      expect(chain.in).toHaveBeenCalled();
+      // Batch path queries source_documents.in(...).
+      expect(chainDocs.in).toHaveBeenCalled();
+      // id-392: each preview's content is the composed chunk body.
+      const items = result.structuredContent!.items as Array<
+        Record<string, unknown>
+      >;
+      expect(items.map((i) => i.content)).toEqual(['a', 'b']);
     });
   });
 
@@ -227,6 +273,37 @@ describe('ID-71.10 content tool consolidation', () => {
 
       expect(result.isError).toBeUndefined();
       expect(result.structuredContent!.action).toBe('assign_content_owner');
+    });
+  });
+
+  describe('update_content_item — document body is chunk-composed (id-392 M6)', () => {
+    it('rejects a `content` update on a source document as unsupported instead of silently discarding it', async () => {
+      // The document body lives in content_chunks / reference_items; the old
+      // `extracted_text` target is a column nothing reads. Accepting the
+      // write would silently discard the edit, so the tool must refuse it.
+      const chainOwner = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi
+          .fn()
+          .mockResolvedValue({ data: { id: ID_1 }, error: null }),
+      };
+      const from = vi.fn().mockReturnValueOnce(chainOwner);
+      mockCreateMcpClient.mockReturnValue({ from });
+
+      const result = await mockServer.getHandler('update_content_item')!(
+        { id: ID_1, fields: { content: 'edited body' } },
+        extra,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        'Unsupported for this source document: content',
+      );
+      // Nothing was written — the only DB touch was the owner-kind
+      // resolution read against source_documents.
+      expect(from).toHaveBeenCalledTimes(1);
+      expect(from).toHaveBeenCalledWith('source_documents');
     });
   });
 });
