@@ -15,6 +15,7 @@ import {
   UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
 import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
+import { fetchSourceDocumentBodies } from '@/lib/source-documents/body';
 import type { ReviewQueueItem, ReviewQueueResponse } from '@/types/review';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -46,9 +47,10 @@ export const maxDuration = 30;
 //     always null; `user_tags` always []; `metadata` always null.
 //   - `quality_score` always null (no facet/SD column — see the {131.19}
 //     quality-score cron journal for the fuller finding).
-//   - `content` now reads `source_documents.extracted_text` (a real,
-//     semantically-matching SD column) rather than the dead content_items
-//     literal `content` column.
+//   - `content` is the composed document body (content_chunks /
+//     reference_items via fetchSourceDocumentBodies — id-392 M6 retarget;
+//     `source_documents.extracted_text` is permanently NULL on the pipeline
+//     path and is no longer read).
 //   - the `quality_score_asc` sort option is a no-op (falls back to the
 //     default `created_at` order) — there is no column left to sort by.
 //   - `source_file` filtering is a documented no-op — content_items.source_file
@@ -78,7 +80,6 @@ interface SourceDocumentReviewRow {
   source_url: string | null;
   publication_status: string;
   updated_at: string | null;
-  extracted_text: string | null;
   record_lifecycle: Array<{
     verified_at: string | null;
     verified_by: string | null;
@@ -91,7 +92,7 @@ interface SourceDocumentReviewRow {
 
 /** Columns needed by mapToReviewQueueItem — excludes large/unused fields */
 const REVIEW_COLUMNS =
-  'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, extracted_text, record_lifecycle!inner(verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days)';
+  'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, record_lifecycle!inner(verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days)';
 
 export const GET = defineRoute(
   ReviewQueueResponseSchema,
@@ -388,7 +389,13 @@ export const GET = defineRoute(
       // "last reviewed" display. verification_history is source_document_id-keyed
       // (ID-131 {131.29}) — items with no backing source document are excluded
       // and simply show no last-reviewed date.
-      const mappedItems = items.map(mapToReviewQueueItem);
+      const bodies = await fetchSourceDocumentBodies(
+        supabase,
+        items.map((i) => i.id),
+      );
+      const mappedItems = items.map((row) =>
+        mapToReviewQueueItem(row, bodies.get(row.id) ?? null),
+      );
       const sourceDocumentIds = mappedItems
         .map((i) => i.source_document_id)
         .filter((id): id is string => Boolean(id));
@@ -560,7 +567,13 @@ async function handleFlaggedQuery(
   // "last reviewed" display. verification_history is source_document_id-keyed
   // (ID-131 {131.29}) — items with no backing source document are excluded
   // and simply show no last-reviewed date.
-  const mappedItems = items.map(mapToReviewQueueItem);
+  const bodies = await fetchSourceDocumentBodies(
+    supabase,
+    items.map((i) => i.id),
+  );
+  const mappedItems = items.map((row) =>
+    mapToReviewQueueItem(row, bodies.get(row.id) ?? null),
+  );
   const flaggedSourceDocumentIds = mappedItems
     .map((i) => i.source_document_id)
     .filter((id): id is string => Boolean(id));
@@ -641,7 +654,7 @@ async function handlePublicationReviewQuery(
   let query = supabase
     .from('source_documents')
     .select(
-      'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, extracted_text',
+      'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at',
       { count: 'exact' },
     )
     .eq('publication_status', 'in_review')
@@ -682,8 +695,15 @@ async function handlePublicationReviewQuery(
   // can render. verified_count + flagged_count are not load-bearing for
   // tab 6 (the tab is orthogonal to verification state) but we surface
   // them as 0 to keep the response shape stable.
+  const bodies = await fetchSourceDocumentBodies(
+    supabase,
+    items.map((i) => i.id),
+  );
   const mappedItems = items.map((row) =>
-    mapToReviewQueueItem({ ...row, record_lifecycle: [] }),
+    mapToReviewQueueItem(
+      { ...row, record_lifecycle: [] },
+      bodies.get(row.id) ?? null,
+    ),
   );
   // verification_history is source_document_id-keyed (ID-131 {131.29}) — items
   // with no backing source document are excluded and simply show no
@@ -767,7 +787,12 @@ async function fetchLastReviewedDates(
  * ensuring consistent shape. ID-131 {131.19}: content_items is dying — see
  * the file header for the full column-provenance + degradation notes.
  */
-function mapToReviewQueueItem(row: SourceDocumentReviewRow): ReviewQueueItem {
+function mapToReviewQueueItem(
+  row: SourceDocumentReviewRow,
+  // Composed document body (content_chunks / reference_items — id-392 M6
+  // retarget); callers batch-fetch via fetchSourceDocumentBodies.
+  content: string | null,
+): ReviewQueueItem {
   const facet = row.record_lifecycle[0];
   return {
     id: row.id,
@@ -794,7 +819,7 @@ function mapToReviewQueueItem(row: SourceDocumentReviewRow): ReviewQueueItem {
     priority: null,
     user_tags: [],
     metadata: null,
-    content: row.extracted_text ?? null,
+    content,
     source_url: row.source_url ?? null,
     verified_at: facet?.verified_at ?? null,
     verified_by: facet?.verified_by ?? null,

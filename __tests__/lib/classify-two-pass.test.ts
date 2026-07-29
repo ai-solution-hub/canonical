@@ -81,6 +81,19 @@ vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
   };
 });
 
+// id-392 M6 retarget: the document BODY is composed from content_chunks /
+// reference_items via @/lib/source-documents/body — source_documents
+// .extracted_text is legacy (permanently NULL on the pipeline path) and no
+// longer selected. Mocked at the module boundary, matching this file's
+// existing mock idiom.
+const { mockFetchSourceDocumentBody } = vi.hoisted(() => ({
+  mockFetchSourceDocumentBody: vi.fn(),
+}));
+
+vi.mock('@/lib/source-documents/body', () => ({
+  fetchSourceDocumentBody: mockFetchSourceDocumentBody,
+}));
+
 // Import after mocks
 import {
   classifyContent,
@@ -187,6 +200,12 @@ function createPass2Response(validatedEntities: ValidatedEntity[]) {
 }
 
 function setupMockSupabase(supabase: MockSupabaseClient) {
+  // id-392 M6 retarget: the composed document body resolves via the mocked
+  // @/lib/source-documents/body boundary (not a source_documents column).
+  mockFetchSourceDocumentBody.mockResolvedValue(
+    'ISO 27001 certification for Acme Corp. Encryption is important.',
+  );
+
   // Source document fetch (single() terminator). ID-131 {131.17}
   // G-IMS-DELETE KEEP-list: classifyContent re-pointed off content_items
   // onto source_documents — `ITEM_ID` (the fetch key) IS the source_documents
@@ -197,8 +216,6 @@ function setupMockSupabase(supabase: MockSupabaseClient) {
       id: ITEM_ID,
       original_filename: 'Test Content',
       filename: 'test-content.md',
-      extracted_text:
-        'ISO 27001 certification for Acme Corp. Encryption is important.',
       content_type: 'q_a_pair',
       classified_at: null,
       primary_domain: null,

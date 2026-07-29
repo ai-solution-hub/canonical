@@ -10,6 +10,7 @@ import { extractToolResult } from '@/lib/ai-parse';
 import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 import { generateEmbedding, MAX_EMBEDDING_CHARS } from '@/lib/ai/embed';
 import { stripMarkdown } from '@/lib/content/strip-markdown';
+import { fetchSourceDocumentBody } from '@/lib/source-documents/body';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entities/entity-dedup';
@@ -1386,13 +1387,15 @@ export async function classifyContent(
   // resolve a SEPARATE `source_document_id` FK column off content_items
   // (ID-131.26 value-provenance fix); post-repoint that indirection
   // collapses to an identity (itemId IS the source_documents id), so no
-  // second FK column is selected. `content`/`title` have no SD column of the
-  // same name — extracted_text / original_filename+filename are the nearest
-  // analogs; `metadata` -> `extraction_metadata` (nearest generic JSONB col).
+  // second FK column is selected. `title` has no SD column of the same name —
+  // original_filename+filename are the nearest analogs; `metadata` ->
+  // `extraction_metadata` (nearest generic JSONB col). The document BODY is
+  // composed from content_chunks / reference_items (id-392 M6 retarget), not
+  // a source_documents column.
   const { data: item, error: fetchError } = await supabase
     .from('source_documents')
     .select(
-      'id, original_filename, filename, extracted_text, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, extraction_metadata',
+      'id, original_filename, filename, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, summary, suggested_title, classification_confidence, classification_reasoning, extraction_metadata',
     )
     .eq('id', itemId)
     .single();
@@ -1419,7 +1422,8 @@ export async function classifyContent(
     };
   }
 
-  if (!item.extracted_text?.trim()) {
+  const body = await fetchSourceDocumentBody(supabase, itemId);
+  if (!body?.trim()) {
     throw new AIServiceError('Content item has no content to classify', 400);
   }
 
@@ -1448,7 +1452,7 @@ export async function classifyContent(
   const prompt = await buildClassificationPrompt(taxonomyStr);
 
   // Prepare content for classification (truncate at 5000 chars)
-  const plainText = stripMarkdown(item.extracted_text);
+  const plainText = stripMarkdown(body);
   const contentForClassification = plainText.slice(0, 5000);
 
   // Call Claude API

@@ -34,6 +34,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
+import { fetchSourceDocumentBody } from '@/lib/source-documents/body';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
@@ -107,11 +108,11 @@ export async function registerResources(server: McpServer): Promise<void> {
           : variables.id;
         // ID-131 (G-MCP-REPOINT): source_documents + record_lifecycle facet
         // join (freshness — source_document owner axis, BI-18/20). `content`
-        // now reads `extracted_text`.
+        // is the composed body (content_chunks / reference_items — id-392).
         const { data: sd, error } = await supabase
           .from('source_documents')
           .select(
-            'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, extracted_text, created_at, updated_at',
+            'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, created_at, updated_at',
           )
           .eq('id', itemId)
           .single();
@@ -140,7 +141,7 @@ export async function registerResources(server: McpServer): Promise<void> {
 
         const item = {
           ...sd,
-          content: sd.extracted_text,
+          content: await fetchSourceDocumentBody(supabase, sd.id!),
           freshness: lifecycleRow?.freshness ?? null,
         };
 

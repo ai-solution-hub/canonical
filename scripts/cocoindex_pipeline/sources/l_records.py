@@ -417,6 +417,11 @@ _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY = (
     "AND publication_status = 'published' ORDER BY id"
 )
 
+# id-392 NOTE: `extracted_text` is a documented residual here — permanently
+# NULL on the pipeline path (the body lives in content_chunks). It stays in
+# the payload so pre-pivot rows keep their evidence text for the producer;
+# retargeting this source to compose chunk bodies is pipeline-rebase-charter
+# scope.
 _SOURCE_DOCUMENT_COLUMNS = (
     "id, filename, logical_path, primary_domain, primary_subtopic, "
     "secondary_domain, secondary_subtopic, content_type, summary, "

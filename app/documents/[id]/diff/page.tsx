@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { sb, tryQuery } from '@/lib/supabase/safe';
 import { resolveUserDisplayNames } from '@/lib/users/display-names';
 import { sourceDocumentRevisionToUnified } from '@/lib/diff/adapters/source-document-revision';
+import { fetchSourceDocumentBodies } from '@/lib/source-documents/body';
 import { UnifiedDiffContainer } from '@/components/diff/unified-diff-container';
 import type { Tables } from '@/supabase/types/database.types';
 import type { UnifiedDiff } from '@/lib/diff/unified-revision';
@@ -28,9 +29,11 @@ import type { UnifiedDiff } from '@/lib/diff/unified-revision';
  * `UnifiedDiffContainer` / `BinaryDiffPane` — this page wires data only.
  */
 
-/** Columns the diff surface needs from a source_documents row. */
+/** Columns the diff surface needs from a source_documents row. The text leg
+ * is the composed body (content_chunks / reference_items — id-392), fetched
+ * separately via fetchSourceDocumentBodies. */
 const SOURCE_DOC_COLUMNS =
-  'id, filename, version, parent_id, storage_path, mime_type, extracted_text, uploaded_by, created_at';
+  'id, filename, version, parent_id, storage_path, mime_type, uploaded_by, created_at';
 
 type DiffDocRow = Pick<
   Tables<'source_documents'>,
@@ -40,7 +43,6 @@ type DiffDocRow = Pick<
   | 'parent_id'
   | 'storage_path'
   | 'mime_type'
-  | 'extracted_text'
   | 'uploaded_by'
   | 'created_at'
 >;
@@ -171,6 +173,13 @@ export default async function DocumentDiffPage({
     [...resolved.entries()].map(([id, info]) => [id, info.display_name]),
   );
 
+  // Each version row composes its OWN body (its own content_chunks /
+  // reference_items) — one batch fetch covers both sides (id-392).
+  const bodies = await fetchSourceDocumentBodies(supabase, [
+    olderRow.id,
+    newerRow.id,
+  ]);
+
   // Project both rows into the unified revision abstraction. The OLDER and NEWER
   // sides are distinct source_documents rows, so each carries its OWN recordId
   // (its own source_documents.id) — the binary leg mints two distinct URLs.
@@ -179,11 +188,13 @@ export default async function DocumentDiffPage({
       olderRow as Tables<'source_documents'>,
       olderRow.id,
       displayNames,
+      bodies.get(olderRow.id) ?? null,
     ),
     newer: sourceDocumentRevisionToUnified(
       newerRow as Tables<'source_documents'>,
       newerRow.id,
       displayNames,
+      bodies.get(newerRow.id) ?? null,
     ),
   };
 

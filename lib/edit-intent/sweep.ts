@@ -117,6 +117,12 @@ export interface RunSweepResult {
  *      adapter `writeBackFileFirst`. The DB leg UPDATEs
  *      `source_documents.extracted_text` to the new bytes (ID-131 {131.17}
  *      re-point off `content_items.content`).
+ *      id-392 NOTE: extracted_text is now a DOCUMENTED RESIDUAL — production
+ *      readers were retargeted to the composed body (content_chunks /
+ *      reference_items) and this sweep is one of the two remaining writers
+ *      (with the seed scripts). A proper retarget of the DB leg means
+ *      re-chunking the edited body — pipeline-rebase-charter scope, not
+ *      done here; the file leg (the real source of truth) is unaffected.
  *
  * ID-131 FIX-SLICE (S447, BI-34): the DB leg used to ALSO INSERT a
  * `content_history` snapshot (sweep-id + prior bytes) so the match was

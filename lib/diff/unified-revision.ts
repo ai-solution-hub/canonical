@@ -112,7 +112,8 @@ export interface UnifiedRevision {
    * The diffable text projection:
    * - content_item   → content_history.content
    * - qa_pair        → q_a_pair_history.answer_standard
-   * - source_document → source_documents.extracted_text (binary-leg text fallback)
+   * - source_document → composed body: content_chunks.content by position, or
+   *   reference_items.body on the URL route (binary-leg text fallback, id-392)
    */
   text: string;
   /**

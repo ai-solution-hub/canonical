@@ -161,6 +161,14 @@ async function seedInReviewItems(
     .delete()
     .like('filename', `${SEED_PREFIX} ${testTag}%`);
 
+  // id-392 M6 retarget: `source_documents.extracted_text` is legacy
+  // (permanently NULL on the pipeline path) and reader surfaces compose the
+  // document body from `content_chunks.content` via
+  // lib/source-documents/body.ts — the seed body is therefore written as a
+  // position-0 content_chunks row per doc (below), not as extracted_text.
+  // Dropping the extracted_text write is safe here: row identity is the
+  // filename prefix and `content_hash` is a literal tag, neither derived
+  // from the body text.
   const titles: string[] = [];
   const inserts: Record<string, unknown>[] = [];
   for (let i = 0; i < count; i++) {
@@ -168,7 +176,6 @@ async function seedInReviewItems(
     titles.push(title);
     inserts.push({
       filename: title,
-      extracted_text: `E2E publication-bulk-action seed body for ${title}.`,
       summary: `E2E summary for ${title}`,
       content_type: 'article',
       primary_domain: 'Service Delivery',
@@ -208,6 +215,23 @@ async function seedInReviewItems(
       `In_review seed insert returned ${ids.length} rows, expected ${count}`,
     );
   }
+
+  // Reader-visible body per doc (id-392 — see the comment above the insert
+  // loop): one position-0 content_chunks row carrying the same body text
+  // the extracted_text column used to hold. No separate cleanup needed:
+  // `content_chunks_source_document_id_fkey` is ON DELETE CASCADE
+  // (20260628200000_id131_extract_reparent.sql), so both `cleanupSeed` and
+  // the best-effort pre-clear above take the chunks with the parent rows.
+  await svc
+    .from('content_chunks')
+    .insert(
+      titles.map((title, i) => ({
+        source_document_id: ids[i]!,
+        content: `E2E publication-bulk-action seed body for ${title}.`,
+        position: 0,
+      })),
+    )
+    .throwOnError();
 
   // Content ownership lives on the `record_lifecycle` facet post ID-131
   // {131.6} M1a. We UPDATE rather than INSERT: the {131.38} FACET-MINT
@@ -249,7 +273,9 @@ async function seedInReviewItems(
  * The `record_lifecycle` facet rows the seed owns need no separate delete:
  * `record_lifecycle_source_document_id_fkey` is `ON DELETE CASCADE`
  * (20260628190000_id131_record_lifecycle_facet.sql), so dropping the
- * source_documents rows takes the facet rows with them.
+ * source_documents rows takes the facet rows with them. Likewise the
+ * seeded body chunks: `content_chunks_source_document_id_fkey` is
+ * `ON DELETE CASCADE` (20260628200000_id131_extract_reparent.sql).
  */
 async function cleanupSeed(testTag: string): Promise<void> {
   const svc = createServiceClient();

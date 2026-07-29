@@ -433,10 +433,16 @@ export interface EvalItem {
  * exercised against this item (update_content_item, delete_content_item,
  * assign, classify_content, etc.) resolve a plain id against
  * `source_documents` first (lib/mcp/tools/content.ts ownerKind resolution),
- * so a source_documents row is the correct target. `title`/`content` have no
- * source_documents column — `suggested_title`/`extracted_text` are the M6
- * successors (BI-11); `platform` has no successor and is dropped from the
- * write (no MCP write tool or read path depends on it).
+ * so a source_documents row is the correct target. `title` has no
+ * source_documents column — `suggested_title` is the M6 successor (BI-11).
+ * The item BODY is staged as a single position-0 `content_chunks` row
+ * (id-392 M6 retarget): `source_documents.extracted_text` is legacy —
+ * permanently NULL on the pipeline path and read by nothing — and every MCP
+ * read surface now composes the body from `content_chunks.content` (fallback
+ * `reference_items.body`) via fetchSourceDocumentBodies, so the chunk row is
+ * what makes the eval item's content visible to the checks. `platform` has
+ * no successor and is dropped from the write (no MCP write tool or read path
+ * depends on it).
  */
 export async function createEvalItem(
   supabase: SupabaseClient,
@@ -448,7 +454,6 @@ export async function createEvalItem(
     .from('source_documents')
     .insert({
       suggested_title: EVAL_TITLE,
-      extracted_text: EVAL_CONTENT,
       content_type: 'note',
       captured_date: new Date().toISOString(),
       // NOT NULL, no default (see the comment on EVAL_FILENAME above).
@@ -467,6 +472,24 @@ export async function createEvalItem(
     );
   }
 
+  // The document body — a single position-0 chunk, matching how the pipeline
+  // stages content and how fetchSourceDocumentBodies recomposes it (id-392).
+  // `content`/`position` are the only NOT NULL columns without defaults
+  // besides the FK (baseline + 20260628200000_id131_extract_reparent.sql).
+  const { error: chunkError } = await supabase.from('content_chunks').insert({
+    source_document_id: data.id,
+    content: EVAL_CONTENT,
+    position: 0,
+  });
+  if (chunkError) {
+    // Don't leave a bodyless eval doc behind — the content-read checks
+    // depend on the chunk row existing.
+    await supabase.from('source_documents').delete().eq('id', data.id);
+    throw new Error(
+      `Failed to create eval item body chunk: ${chunkError.message}`,
+    );
+  }
+
   return { id: data.id, title: data.suggested_title ?? EVAL_TITLE };
 }
 
@@ -476,7 +499,10 @@ export async function createEvalItem(
  * `citations.cited_source_document_id` and `record_lifecycle.source_document_id`
  * both cascade on source_documents delete (ON DELETE CASCADE — 20260628191703
  * / 20260628190000), so the explicit citations delete below is defensive, not
- * load-bearing. `content_history` was dropped at M6 with no successor
+ * load-bearing. `content_chunks.source_document_id` also cascades (ON DELETE
+ * CASCADE — 20260628200000_id131_extract_reparent.sql), so the position-0
+ * body chunk staged by createEvalItem is removed with the doc — no explicit
+ * chunk delete needed. `content_history` was dropped at M6 with no successor
  * audit-trail table (BI-34, per lib/mcp/tools/governance.ts and content.ts's
  * retired-write comments) — there is nothing left to clean up there.
  */

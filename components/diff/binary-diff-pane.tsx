@@ -20,8 +20,8 @@
  * exposes no onError prop — it renders its OWN internal "unable to display"
  * panel on load failure (still never blank), so it does not route through the
  * unified fallback notice. In every case the text line-diff summary (the
- * extracted_text comparison) is ALWAYS rendered alongside, so the user always
- * sees what changed.
+ * composed-body comparison, id-392) is ALWAYS rendered alongside, so the user
+ * always sees what changed.
  *
  * Read-only (INV-17/18): NO apply / dismiss / accept affordances (the legacy
  * re-ingest review workflow is RETIRED). No AI labelling (INV-20). Workspace

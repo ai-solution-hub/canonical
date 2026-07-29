@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => {
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    range: vi.fn().mockReturnThis(),
     single: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -97,17 +99,25 @@ describe('delete_content_item', () => {
     const handler = mockServer.getHandler('delete_content_item')!;
 
     // 1. Mock fetch item — ID-131 (G-MCP-REPOINT): resolves against
-    // source_documents first (suggested_title/extracted_text replace the
-    // old title/content columns).
+    // source_documents first (suggested_title replaces the old title
+    // column; the body is no longer a column read — id-392).
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: {
             id: '1',
             suggested_title: 'T',
-            extracted_text: 'C',
             archived_at: null,
           },
+          error: null,
+        }),
+    );
+    // 1b. Composed-body preview read (fetchSourceDocumentBody chunk leg,
+    // id-392) — one chunk row supplies the item content.
+    mocks.chainMethods.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ source_document_id: '1', content: 'C', position: 0 }],
           error: null,
         }),
     );
@@ -131,14 +141,16 @@ describe('delete_content_item', () => {
   it('returns informational message if already archived', async () => {
     const handler = mockServer.getHandler('delete_content_item')!;
 
-    // 1. Mock fetch item (already archived)
+    // 1. Mock fetch item (already archived). The composed-body reads that
+    // follow (content_chunks then reference_items — id-392) fall through to
+    // the default `then` (data: null) — a bodyless doc, which must not stop
+    // the already-archived short-circuit.
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
           data: {
             id: '1',
             suggested_title: 'T',
-            extracted_text: null,
             archived_at: '2026-01-01',
           },
           error: null,
@@ -169,11 +181,13 @@ describe('delete_content_item', () => {
     const handler = mockServer.getHandler('delete_content_item')!;
     mocks.getMcpUserRole.mockResolvedValueOnce('admin');
 
-    // 1. Mock fetch item
+    // 1. Mock fetch item. The composed-body reads that follow
+    // (content_chunks then reference_items — id-392) fall through to the
+    // default `then` (data: null) — a bodyless doc still deletes.
     mocks.chainMethods.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({
-          data: { id: '1', suggested_title: 'T', extracted_text: null },
+          data: { id: '1', suggested_title: 'T' },
           error: null,
         }),
     );

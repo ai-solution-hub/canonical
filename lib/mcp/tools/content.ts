@@ -14,6 +14,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { resolveContentOwnerId } from '@/lib/auth/owner-default';
 import { sb, tryQuery } from '@/lib/supabase/safe';
+import {
+  fetchSourceDocumentBodies,
+  fetchSourceDocumentBody,
+} from '@/lib/source-documents/body';
 import { logBestEffortWarn } from '@/lib/supabase/telemetry';
 import { recordPipelineRun } from '@/lib/pipeline/record-run';
 import type { PipelineRunStatus } from '@/lib/pipeline/record-run';
@@ -62,7 +66,8 @@ import { logger } from '@/lib/logger';
 // moved to the `record_lifecycle` facet (source_document owner axis,
 // BI-18/20) — joined in a second query. `title` (BI-11) and `priority`
 // (BI-11, IMS-vestige) have no source_documents successor and are always
-// null; `content` now reads `extracted_text`.
+// null; `content` is the composed body (content_chunks / reference_items
+// via fetchSourceDocumentBodies — id-392 M6 retarget).
 async function fetchAndFormatContentItems(
   supabase: ReturnType<typeof createMcpClient>,
   itemIds: string[],
@@ -74,13 +79,18 @@ async function fetchAndFormatContentItems(
   const { data: rows, error } = await supabase
     .from('source_documents')
     .select(
-      'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, extracted_text, created_at, updated_at',
+      'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, created_at, updated_at',
     )
     .in('id', itemIds);
 
   if (error) {
     throw new Error(`Batch fetch failed: ${error.message}`);
   }
+
+  const bodies = await fetchSourceDocumentBodies(
+    supabase,
+    (rows ?? []).map((r) => r.id).filter((id): id is string => !!id),
+  );
 
   const foundIds = new Set((rows ?? []).map((r) => r.id));
   const notFound = itemIds.filter((id) => !foundIds.has(id));
@@ -116,7 +126,7 @@ async function fetchAndFormatContentItems(
   }
 
   const items: ContentItemDetail[] = (rows ?? []).map((item) => {
-    let content = item.extracted_text as string | null;
+    let content = (item.id ? bodies.get(item.id) : null) ?? null;
     if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
       content =
         content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
@@ -259,7 +269,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const { data: item, error } = await supabase
           .from('source_documents')
           .select(
-            'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, extracted_text, created_at, updated_at',
+            'id, suggested_title, content_type, primary_domain, primary_subtopic, summary, ai_keywords, classification_confidence, source_url, created_at, updated_at',
           )
           .eq('id', args.id!)
           .single();
@@ -303,7 +313,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           freshness: lifecycle?.freshness ?? null,
           classification_confidence: item.classification_confidence,
           source_url: item.source_url,
-          content: item.extracted_text,
+          content: await fetchSourceDocumentBody(supabase, item.id!),
           created_at: item.created_at,
           updated_at: item.updated_at,
           governance_review_status: lifecycle?.governance_review_status ?? null,
@@ -1044,11 +1054,14 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // `suggested_title` survives) — content-drift: it is folded into
         // `suggested_title` for a source_document owner. `priority`
         // (IMS-vestige, BI-11) has no home on either table and is always
-        // rejected as unsupported.
+        // rejected as unsupported. `content` is RETIRED for source_document
+        // owners (id-392): the document body lives in content_chunks /
+        // reference_items, and the old `extracted_text` target is a column
+        // nothing reads any more — accepting the write would silently
+        // discard the edit.
         const SOURCE_DOC_FIELD_MAP: Partial<Record<string, string>> = {
           title: 'suggested_title',
           suggested_title: 'suggested_title',
-          content: 'extracted_text',
           primary_domain: 'primary_domain',
           primary_subtopic: 'primary_subtopic',
         };

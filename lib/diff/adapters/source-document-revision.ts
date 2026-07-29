@@ -7,9 +7,12 @@
  * no diff-storage write. Callers supply a pre-fetched row (Tables<'source_documents'>)
  * and a resolved display-name map so the adapter can apply the labelFor pattern.
  *
- * Text projection: source_documents.extracted_text (the binary-leg text fallback
- * source — OQ-117-3 resolved: extracted_text is legacy, used only as the binary-leg
- * text fallback in INV-6; the canonical-markdown depth uses content_history).
+ * Text projection: the composed document body — content_chunks.content ordered
+ * by position (or reference_items.body on the URL route), supplied by the
+ * caller via `bodyText` (id-392 M6 retarget; the legacy
+ * source_documents.extracted_text column is permanently NULL on the pipeline
+ * path and is no longer read — OQ-117-3's binary-leg text fallback now reads
+ * the composed body; the canonical-markdown depth still uses content_history).
  *
  * Binary leg: binary.storagePath = storage_path, binary.mimeType = mime_type.
  * Present only when both storage_path and mime_type are non-null.
@@ -50,19 +53,24 @@ type SourceDocumentRow = Tables<'source_documents'>;
  *                       this (e.g. via useDisplayNames on the client, or a
  *                       profiles lookup on the server). The adapter applies the
  *                       standard labelFor fallback rules against this map.
+ * @param bodyText     - The composed document body for THIS row's version
+ *                       (fetchSourceDocumentBodies — the adapter stays a pure
+ *                       mapper, so the caller fetches it).
  */
 export function sourceDocumentRevisionToUnified(
   row: SourceDocumentRow,
   documentId: string,
   displayNames: ReadonlyMap<string, string>,
+  bodyText: string | null,
 ): UnifiedRevision {
   return {
     recordKind: 'source_document',
     recordId: documentId,
     version: row.version,
-    // Text projection: extracted_text is the binary-leg text fallback (INV-6).
-    // Null coalesces to empty string so the diff engine always has a diffable string.
-    text: row.extracted_text ?? '',
+    // Text projection: the composed body is the binary-leg text fallback
+    // (INV-6, id-392). Null coalesces to empty string so the diff engine
+    // always has a diffable string.
+    text: bodyText ?? '',
     // Provenance synthesis per OQ-117-4 (TECH §4):
     // initial_ingest = the document's first version with no predecessor.
     // reingest = any subsequent upload (version > 1, or parent_id signals a chain link).

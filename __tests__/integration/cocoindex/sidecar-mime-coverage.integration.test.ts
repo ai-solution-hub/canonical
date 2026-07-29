@@ -17,10 +17,19 @@
  *
  * Test strategy:
  *   Drop one fixture per MIME type into the source-binding location, then
- *   poll Supabase for the resulting `source_documents` rows (ID-131.19 M6
- *   retirement: content_items DROPPED at M6). Each row MUST have non-empty
- *   `extracted_text` — empty content proves the extractor was not invoked
- *   OR the extractor failed silently (broken Inv-7).
+ *   poll Supabase for the resulting `source_documents` row (ID-131.19 M6
+ *   retirement: content_items DROPPED at M6) and its `content_chunks` rows.
+ *   Each document MUST land at least one chunk with non-empty `content` —
+ *   no chunks / empty content proves the extractor was not invoked OR the
+ *   extractor failed silently (broken Inv-7).
+ *
+ *   id-392 M6 retarget: the extraction-proof assertion home is
+ *   `content_chunks.content`, NOT `source_documents.extracted_text` — the
+ *   pipeline writes the extracted body to `content_chunks` (ordered by
+ *   `position`) and leaves `extracted_text` permanently NULL, so the prior
+ *   extracted_text poll could never land. The poll idiom mirrors
+ *   chunking.integration.test.ts (pollContentItemsFor →
+ *   pollContentChunksFor).
  *
  * HTML is NOT a file-corpus MIME (ID-75 WP-D / ID-112.7): a `.html` file
  * staged into the localfs corpus fails LOUDLY (LocalfsHtmlRetiredError);
@@ -42,14 +51,21 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
-import { stageFixture } from './_helpers/fixture-staging';
+import {
+  pollContentChunksFor,
+  pollContentItemsFor,
+  stageFixture,
+} from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+// The poll helpers (pollContentItemsFor/pollContentChunksFor) require REAL
+// live-DB credentials (they throw on the setup.ts dummies), so gate on the
+// tighter check — mirrors chunking.integration.test.ts.
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
@@ -115,7 +131,9 @@ afterAll(async () => {
   if (seededContentIds.length === 0) return;
   const client = await createLiveServiceClient();
   // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
-  // holds source_documents.id values (see pollContentItemsFor's M6 retarget).
+  // holds source_documents.id values. The chunk rows asserted below need no
+  // separate delete: content_chunks_source_document_id_fkey is ON DELETE
+  // CASCADE (20260628200000_id131_extract_reparent.sql).
   await client.from('source_documents').delete().in('id', seededContentIds);
 }, 30_000);
 
@@ -124,42 +142,34 @@ describe.skipIf(!ENABLED)(
   () => {
     for (const mime of MIME_SET) {
       it(
-        `lands a source_documents row with non-empty extracted_text for ${mime.kind.toUpperCase()} MIME`,
+        `lands non-empty content_chunks rows for ${mime.kind.toUpperCase()} MIME`,
         async () => {
-          const client = await createLiveServiceClient();
+          // Wait for the pipeline to land the source_documents row for
+          // this MIME's fixture (filename carries the per-kind prefix).
+          const items = await pollContentItemsFor(
+            `${TEST_PREFIX}-${mime.kind}`,
+            { timeoutMs: POLL_TIMEOUT_MS },
+          );
+          expect(items.length).toBe(1);
+          const parent = items[0]!;
+          seededContentIds.push(parent.id);
 
-          const deadline = Date.now() + POLL_TIMEOUT_MS;
-          let landedRow: { id: string; extracted_text: string } | null = null;
-
-          while (Date.now() < deadline) {
-            // ID-131.19 M6 retirement: content_items DROPPED at M6;
-            // source_documents.filename replaces title, extracted_text
-            // replaces content_text.
-            const { data } = await client
-              .from('source_documents')
-              .select('id, extracted_text')
-              .ilike('filename', `${TEST_PREFIX}-${mime.kind}%`)
-              .limit(1);
-
-            if (data && data.length > 0 && data[0]!.extracted_text) {
-              landedRow = {
-                id: data[0]!.id as string,
-                extracted_text: data[0]!.extracted_text as string,
-              };
-              seededContentIds.push(landedRow.id);
-              break;
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 3_000));
+          // Inv-7 verifiability (id-392 assertion home): the extracted body
+          // lives in content_chunks.content, ordered by position. At least
+          // one chunk with non-empty content proves the extractor ran and
+          // produced text for this MIME; no chunks / whitespace-only
+          // content proves it wasn't invoked or failed silently.
+          const chunks = await pollContentChunksFor(parent.id, {
+            timeoutMs: POLL_TIMEOUT_MS,
+          });
+          expect(chunks.length).toBeGreaterThan(0);
+          for (const chunk of chunks) {
+            expect(chunk.content.trim().length).toBeGreaterThan(0);
           }
-
-          // Inv-7 verifiability: each MIME fixture MUST land a row with
-          // non-empty content. Empty / null content proves the extractor
-          // wasn't invoked or failed silently.
-          expect(landedRow).not.toBeNull();
-          expect(landedRow!.extracted_text.length).toBeGreaterThan(0);
         },
-        POLL_TIMEOUT_MS + 30_000,
+        // Two sequential polls (row, then chunks), each bounded by
+        // POLL_TIMEOUT_MS.
+        POLL_TIMEOUT_MS * 2 + 30_000,
       );
     }
   },

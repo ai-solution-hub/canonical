@@ -339,6 +339,52 @@ async function verifyPipelineUserShape(
 const PUBLICATION_REVIEW_FIXTURE_TITLE =
   '[E2E-PUB-REVIEW-FIXTURE] Awaiting publication test row';
 
+// The reader-visible document body. id-392 M6 retarget:
+// `source_documents.extracted_text` is legacy (permanently NULL on the
+// pipeline path) and reader surfaces now compose the body from
+// `content_chunks.content` via lib/source-documents/body.ts — so the body
+// is seeded as a position-0 content_chunks row, NOT as extracted_text.
+// (Dropping the extracted_text write is safe: fixture identity is the
+// deterministic `filename` lookup and `content_hash` is a literal, neither
+// derived from this text.)
+const PUBLICATION_REVIEW_FIXTURE_BODY =
+  'Q: E2E fixture question?\nA: This is the E2E fixture row used by review-publication-tab.spec.ts.';
+
+/**
+ * Ensure the fixture row has its reader-visible body chunk. Idempotent —
+ * environments seeded before the id-392 retarget already carry the
+ * source_documents row (with a now-dead extracted_text body) but no chunk,
+ * so this runs for BOTH the created and already-exists branches.
+ */
+async function ensurePublicationReviewFixtureChunk(
+  client: SupabaseServiceClient,
+  sourceDocumentId: string,
+): Promise<void> {
+  const { data: existingChunk, error: chunkLookupErr } = await client
+    .from('content_chunks')
+    .select('id')
+    .eq('source_document_id', sourceDocumentId)
+    .limit(1)
+    .maybeSingle();
+  if (chunkLookupErr) {
+    throw new Error(
+      `publication-review fixture chunk lookup failed: ${chunkLookupErr.message}`,
+    );
+  }
+  if (existingChunk) return;
+
+  const { error: chunkInsertErr } = await client.from('content_chunks').insert({
+    source_document_id: sourceDocumentId,
+    content: PUBLICATION_REVIEW_FIXTURE_BODY,
+    position: 0,
+  });
+  if (chunkInsertErr) {
+    throw new Error(
+      `publication-review fixture chunk insert failed: ${chunkInsertErr.message}`,
+    );
+  }
+}
+
 /**
  * Seed (or verify) the single deterministic publication-review fixture
  * source_documents row used by e2e/tests/review-publication-tab.spec.ts.
@@ -368,7 +414,9 @@ export async function seedPublicationReviewFixture(
   if (existing) {
     // Step 2: return existing id WITHOUT touching publication_status.
     // The test's afterEach resets the column — re-seeding mid-test
-    // would race that reset.
+    // would race that reset. The body chunk IS ensured (append-only,
+    // no mutable-column touch) so pre-id-392 environments gain it.
+    await ensurePublicationReviewFixtureChunk(client, existing.id);
     return { id: existing.id, action: 'already-exists' };
   }
 
@@ -376,6 +424,8 @@ export async function seedPublicationReviewFixture(
   // file_size/mime_type/storage_path are NOT NULL on source_documents
   // (no upstream file — filled with synthetic-fixture placeholders,
   // mirroring the publication-bulk-action.e2e.spec.ts precedent).
+  // The document body is seeded as a content_chunks row below (id-392 —
+  // readers compose from chunks; extracted_text is legacy and left NULL).
   const { data: created, error: insertErr } = await client
     .from('source_documents')
     .insert({
@@ -384,8 +434,6 @@ export async function seedPublicationReviewFixture(
       primary_domain: 'Technical Capability',
       summary:
         'E2E fixture row — exercises the awaiting-publication tab Approve + visibility-gating flow.',
-      extracted_text:
-        'Q: E2E fixture question?\nA: This is the E2E fixture row used by review-publication-tab.spec.ts.',
       publication_status: 'in_review',
       mime_type: 'text/plain',
       file_size: 1,
@@ -403,6 +451,8 @@ export async function seedPublicationReviewFixture(
       `publication-review fixture insert failed: ${insertErr?.message ?? 'no row returned'}`,
     );
   }
+
+  await ensurePublicationReviewFixtureChunk(client, created.id);
 
   return { id: created.id, action: 'created' };
 }
