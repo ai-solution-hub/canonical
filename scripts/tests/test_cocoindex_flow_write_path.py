@@ -1096,9 +1096,12 @@ class TestIngestFileRelationshipWritePath:
 
         run_op_id = uuid.uuid4()
         triples = [self._rel(flow, "ACME Ltd", "holds", "ISO 9001")]
-        er, _ = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
+        er, sd = self._ingest_once(flow, triples, tmp_path, run_op_id, monkeypatch)
 
-        rel_path = (tmp_path / "rel-doc.md").as_posix()
+        # id-398 (F4): the seed scope is the STORED source_document_id — NOT
+        # rel_path — so byte-identical re-stagings upsert-absorb (id-396 TECH
+        # §4 D1; the registry-keyed contract ingest_once had from day one).
+        source_document_id = sd[0]["id"]
         # Endpoints are canonicalised via the SAME chain the write site uses —
         # do not hardcode the canonical form (the resolve-alias chain is more
         # than a lowercase).
@@ -1106,11 +1109,11 @@ class TestIngestFileRelationshipWritePath:
         target_c = canonicalise_for_relationship("ISO 9001")
         expected = uuid.uuid5(
             flow._KH_PIPELINE_DOC_NS,  # type: ignore[attr-defined]
-            f"er:{rel_path}:{source_c}:holds:{target_c}",
+            f"er:{source_document_id}:{source_c}:holds:{target_c}",
         )
         assert er.rows[0]["id"] == expected, (
             "entity_relationships PK must be a deterministic uuid5 on the "
-            "canonical (rel_path, source, predicate, target) natural key"
+            "canonical (source_document_id, source, predicate, target) natural key"
         )
 
     def test_empty_extractor_declares_zero_relationship_rows(
@@ -3018,3 +3021,163 @@ class TestHolderStampWiring:
         assert any("holder_derivation_failed" in w for w in warnings), (
             "the R4 fail-fast must be logged via the Inv-15 wrapper"
         )
+
+
+# ── id-398 (F4) — em:/er: PKs registry-keyed on source_document_id ────────────
+
+
+class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
+    """Byte-identical re-stagings upsert-absorb (id-398; id-396 TECH §4 D1).
+
+    Document identity is content-hash-first (DR-024): the SAME bytes staged at
+    a NEW rel_path resolve to the STORED source_documents row. The em:/er: PKs
+    must therefore be seeded on the STORED ``source_document_id`` — NEVER
+    ``rel_path`` — so a re-staged doc's declares compute the SAME ids and land
+    as idempotent ON CONFLICT (id) upserts. The pre-fix rel_path seed minted
+    FRESH ids for the SAME natural-key unique tuples, so the constraints
+    raised UniqueViolationError instead (census #40: 423 collisions — 278 er +
+    145 em — every staged fixture starved, nightly hard-down).
+    """
+
+    _MARKDOWN = "# Same\n\nByte-identical body staged twice."
+
+    @classmethod
+    def _ingest(
+        cls,
+        flow: object,
+        tmp_path: Path,
+        filename: str,
+        run_op_id: "uuid.UUID",
+        fixed_sd_id: "uuid.UUID",
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        from scripts.cocoindex_pipeline.extraction import (
+            EntityMentionExtraction,
+            RelationshipExtraction,
+        )
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        async def _fake_convert(file: object) -> str:
+            return cls._MARKDOWN
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return [
+                EntityMentionExtraction(
+                    entity_type="organisation",
+                    entity_name="ACME Ltd",
+                    source_span_start=0,
+                    source_span_end=8,
+                    mention_confidence=0.9,
+                )
+            ]
+
+        async def _fake_relationships(content_text: str):
+            return [
+                RelationshipExtraction(
+                    source="ACME Ltd", relationship="holds", target="ISO 9001"
+                )
+            ]
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        # Simulate the DR-024 hash-first resolver HIT: byte-identical bytes at
+        # ANY rel_path resolve to the SAME stored source_documents id — exactly
+        # what `public.resolve_or_mint_source_identity` returns for re-staged
+        # bytes. (The resolver's own behaviour has its own coverage; this
+        # harness pins what the DECLARE sites do with the resolved identity.)
+        async def _fixed_identity(**kwargs: object) -> "uuid.UUID":
+            return fixed_sd_id
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+        monkeypatch.setattr(flow, "_resolve_source_identity", _fixed_identity)
+
+        src = tmp_path / filename
+        src.write_text(cls._MARKDOWN)
+        fake_file = _FakeFile(src)
+
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        er = _FakeTarget("entity_relationships")
+
+        _wire_pool(flow, monkeypatch)
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=run_op_id):
+                await flow.ingest_file(  # type: ignore[attr-defined]
+                    fake_file, qa, sd, em, None, er
+                )
+
+        asyncio.run(_exercise())
+        return em, er
+
+    def test_restaged_bytes_at_new_rel_path_yield_identical_em_er_pks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        fixed_sd_id = uuid.uuid4()
+
+        # Run N and run N+1: SAME bytes, DIFFERENT rel_path (the nightly's
+        # re-staging shape), hash-resolving to the SAME stored identity.
+        em_a, er_a = self._ingest(
+            flow, tmp_path, "staged-run-1.md", uuid.uuid4(), fixed_sd_id, monkeypatch
+        )
+        em_b, er_b = self._ingest(
+            flow, tmp_path, "staged-run-2.md", uuid.uuid4(), fixed_sd_id, monkeypatch
+        )
+
+        assert em_a.rows and er_a.rows and em_b.rows and er_b.rows
+        assert em_a.rows[0]["id"] == em_b.rows[0]["id"], (
+            "entity_mentions PK must be identical for byte-identical re-stagings "
+            "(upsert-absorb, id-396 TECH §4 D1) — a rel_path-seeded PK re-declares "
+            "the same natural-key tuple under a fresh id (census #40 collision class)"
+        )
+        assert er_a.rows[0]["id"] == er_b.rows[0]["id"], (
+            "entity_relationships PK must be identical for byte-identical "
+            "re-stagings (upsert-absorb, id-396 TECH §4 D1)"
+        )
+
+    def test_em_er_pks_seed_on_source_document_id_not_rel_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.canonicalisation import (
+            canonicalise_entity_name,
+            canonicalise_for_relationship,
+        )
+
+        fixed_sd_id = uuid.uuid4()
+        em, er = self._ingest(
+            flow, tmp_path, "seed-pin.md", uuid.uuid4(), fixed_sd_id, monkeypatch
+        )
+        rel_path = (tmp_path / "seed-pin.md").as_posix()
+        ns = flow._KH_PIPELINE_DOC_NS  # type: ignore[attr-defined]
+
+        em_canonical = canonicalise_entity_name("ACME Ltd", "organisation")
+        assert em.rows[0]["id"] == uuid.uuid5(
+            ns, f"em:{fixed_sd_id}:{em_canonical}:organisation"
+        ), "em PK must seed on the STORED source_document_id (registry-keyed)"
+        assert em.rows[0]["id"] != uuid.uuid5(
+            ns, f"em:{rel_path}:{em_canonical}:organisation"
+        ), "em PK must NOT seed on rel_path (the F4 gap)"
+
+        source_c = canonicalise_for_relationship("ACME Ltd")
+        target_c = canonicalise_for_relationship("ISO 9001")
+        assert er.rows[0]["id"] == uuid.uuid5(
+            ns, f"er:{fixed_sd_id}:{source_c}:holds:{target_c}"
+        ), "er PK must seed on the STORED source_document_id (registry-keyed)"
+        assert er.rows[0]["id"] != uuid.uuid5(
+            ns, f"er:{rel_path}:{source_c}:holds:{target_c}"
+        ), "er PK must NOT seed on rel_path (the F4 gap)"

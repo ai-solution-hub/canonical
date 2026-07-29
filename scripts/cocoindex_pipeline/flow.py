@@ -2349,6 +2349,14 @@ async def _ingest_content_branch(
     # unique constraint raised UniqueViolationError; the natural-key PK both
     # collapses the duplicates and keeps re-ingest idempotent.
     #
+    # id-398 (F4, id-396 TECH §4 D1): the PK is registry-keyed on the STORED
+    # `source_document_id` — NEVER `rel_path` — matching `ingest_once`. Document
+    # identity is content-hash-first (DR-024), so byte-identical re-stagings
+    # resolve to the same source_documents row; a rel_path-seeded PK re-declared
+    # the same natural-key tuple under a NEW id (census #40: 423
+    # UniqueViolationErrors, lane hard-down). Seeding on source_document_id makes
+    # re-declares hit ON CONFLICT (id) and upsert-absorb.
+    #
     # ── Holder-rule attribution (ID-101 §{101.8}, PC-5) ──────────────────────
     # Derive per-cert holder metadata ONCE per doc from the SAME raw mentions +
     # the {101.7} `relationships` list (reused, NOT re-extracted). The result is
@@ -2407,7 +2415,7 @@ async def _ingest_content_branch(
             row={
                 "id": uuid.uuid5(
                     _KH_PIPELINE_DOC_NS,
-                    f"em:{rel_path}:{per_doc_canonical}:{entity_type}",
+                    f"em:{source_document_id}:{per_doc_canonical}:{entity_type}",
                 ),
                 # ID-131 {131.8} M2 (BI-14): mentions parent the source_documents
                 # record directly (re-parented off content_items).
@@ -2443,7 +2451,10 @@ async def _ingest_content_branch(
     # Per-doc DEDUP on the canonical (source_c, relationship_type, target_c)
     # natural key keeps re-ingest idempotent AND collapses LLM-emitted duplicates;
     # the deterministic uuid5 PK is seeded on that same natural key (NOT op_id —
-    # Inv-4 idempotency: the same triple re-ingests to the same row).
+    # Inv-4 idempotency: the same triple re-ingests to the same row), scoped by
+    # the STORED `source_document_id` (id-398 / id-396 TECH §4 D1 — see the
+    # entity_mentions comment above; rel_path scoping re-declared the same
+    # unique tuple under a new id on byte-identical re-staging).
     #
     # `confidence` is a flat 1.0 — the raw extractor triples carry no per-triple
     # confidence (Inv-16 parity with the legacy TS writer, which inserts a flat
@@ -2481,7 +2492,7 @@ async def _ingest_content_branch(
                 _er_dedup[key] = {
                     "id": uuid.uuid5(
                         _KH_PIPELINE_DOC_NS,
-                        f"er:{rel_path}:{source_c}:{predicate}:{target_c}",
+                        f"er:{source_document_id}:{source_c}:{predicate}:{target_c}",
                     ),
                     "source_entity": source_c,
                     "relationship_type": predicate,
@@ -2952,9 +2963,10 @@ async def _upsert_source_document(
 # (`chunk:{sd}:{position}`, `em:{sd}:{canonical}:{type}`,
 # `er:{sd}:{source}:{predicate}:{target}`, `qa:{sd}:{idx}`) — NEVER `rel_path`.
 # This deliberately starts the em:/er: seeds registry-keyed from day one on
-# THIS path, closing the F4 rel_path-keyed gap the {138.16} audit noted as an
-# accepted, out-of-scope gap for the ENGINE content branch only (this one-shot
-# path is not one of those engine paths).
+# THIS path. The F4 rel_path-keyed gap the {138.16} audit noted for the ENGINE
+# content branch is now ALSO closed (id-398) — both paths seed em:/er: on the
+# stored `source_document_id`, so the same document yields the same derived-row
+# PKs whichever path ingested it.
 #
 # Caller contract: `coco.use_context(DB_CTX)` and the `@coco.fn(memo=True)`
 # extractors this function awaits (`extract_classification` et al.) all
