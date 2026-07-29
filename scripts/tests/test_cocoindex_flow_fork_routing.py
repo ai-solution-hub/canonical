@@ -296,3 +296,119 @@ class TestContentBranchIsTheOnlyBranch:
         # flow_source_path is NOT manifest-related (S297 BUG-A rel_path
         # normalisation) and must survive this retirement (the #1 trap).
         assert "flow_source_path" in params
+
+
+class TestUnansweredQuestionRoutingGate:
+    """id-370 (S511 board D6 — Option 1, DR-014 confirmed in force): the walk
+    declares ``q_a_extractions`` rows ONLY for answered pairs.
+
+    A blank form (state i — questions, no answers) extracts qa_pairs whose
+    ``answer_text`` is None/blank — a SANCTIONED extraction result (prompts.py
+    "OR null"; ``QAPair.answer_text: str | None``, both unchanged by id-370) —
+    but ``q_a_extractions`` feeds the answered-pairs-only promotion funnel, so
+    those pairs must mint NO row. Answered pairs (state ii — the one-time
+    bid-library walk) flow unchanged. The gate mirrors the promotion-candidates
+    RPC's branch-3 predicate (``extracted_answer_text IS NOT NULL AND
+    trim(...) <> ''``), restored onto branch 1 by the companion migration
+    (20260729185524_id370)."""
+
+    @staticmethod
+    def _drive_with_qa_pairs(
+        monkeypatch: pytest.MonkeyPatch, qa_pairs: list[dict]
+    ) -> tuple[object, dict]:
+        """Drive one real ``ingest_file`` whose ``extract_qa_form`` seam
+        returns the given pairs (re-stubbed AFTER ``_observe_path_a_seams``
+        installs its empty-pairs default, same monkeypatch idiom)."""
+        flow = _flow_module()
+        _observe_path_a_seams(flow, monkeypatch)
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": qa_pairs}
+
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+
+        fake_file = _FakeFile("acme/blank-itt.md", data=b"# Form\n\nquestions")
+        return flow, _drive_ingest(flow, fake_file)
+
+    def test_blank_form_mints_no_q_a_extraction_rows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """State (i): questions with a None-or-blank answer_text declare
+        NOTHING onto q_a_extractions — while the document itself still lands
+        its content rows (the gate is on the funnel declare, not the walk)."""
+        _flow, out = self._drive_with_qa_pairs(
+            monkeypatch,
+            [
+                # answer_text key absent entirely → _field returns None.
+                {"question_text": "Describe your quality assurance process."},
+                # Explicit None — the prompt's sanctioned "OR null" shape.
+                {
+                    "question_text": "Provide your insurance certificate.",
+                    "answer_text": None,
+                },
+                # Whitespace-only — trim-empty, the RPC-predicate mirror case.
+                {
+                    "question_text": "Confirm acceptance of the terms.",
+                    "answer_text": "   ",
+                },
+            ],
+        )
+        assert out["qa"].rows == [], (
+            "a blank form's unanswered questions must mint ZERO "
+            "q_a_extractions rows (id-370 Option 1 — they are permanently "
+            "unpromotable and have no authoring path out)"
+        )
+        # The document still walks as content — only the funnel declare gates.
+        assert len(out["sd"].rows) == 1
+        assert len(out["cc"].rows) == 1
+
+    def test_answered_pairs_still_declare(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """State (ii) regression guard: the one-time bid-library walk
+        (completed forms — answered pairs) flows unchanged through the gate."""
+        _flow, out = self._drive_with_qa_pairs(
+            monkeypatch,
+            [
+                {
+                    "question_text": "What is the maximum contract value?",
+                    "answer_text": "The maximum contract value is £5m.",
+                },
+            ],
+        )
+        assert len(out["qa"].rows) == 1
+        assert (
+            out["qa"].rows[0]["extracted_answer_text"]
+            == "The maximum contract value is £5m."
+        )
+
+    def test_mixed_document_preserves_answered_pair_pk_identity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The gate SKIPS unanswered pairs without re-indexing the answered
+        ones: the enumerate idx feeding the uuid5 PK
+        (``qa:{source_document_id}:{idx}``) is preserved, so a re-walk of a
+        mixed document UPSERTs the same row it minted before the gate landed
+        rather than re-keying it (the pre-filter-vs-skip trap)."""
+        flow, out = self._drive_with_qa_pairs(
+            monkeypatch,
+            [
+                {"question_text": "Unanswered lead question.", "answer_text": None},
+                {
+                    "question_text": "What is X?",
+                    "answer_text": "X is Y.",
+                },
+            ],
+        )
+        assert len(out["qa"].rows) == 1
+        row = out["qa"].rows[0]
+        sd_id = row["source_document_id"]
+        # idx 1 (its position in the FULL extraction list), NOT idx 0 (its
+        # position in a filtered answered-only list).
+        assert row["id"] == uuid.uuid5(
+            flow._KH_PIPELINE_DOC_NS, f"qa:{sd_id}:1"
+        ), (
+            "the answered pair must keep its original enumerate idx in the "
+            "uuid5 PK — filtering before enumerate would re-key every "
+            "answered pair that follows an unanswered one"
+        )
