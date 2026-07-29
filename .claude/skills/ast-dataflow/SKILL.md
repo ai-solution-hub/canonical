@@ -185,6 +185,9 @@ bun run ast-dataflow column-writes \
 Finds `.insert()`, `.update()`, `.upsert()` call chains writing the named
 column. Companion to `column-reads`.
 
+**Caveat until id-377 {377.6} G8 lands:** counts are table-level, not
+column-level — open every site before acting.
+
 **Use when:** pre-column-rename impact, write-path audits, verifying no
 direct writes bypass `sb()` wrappers.
 
