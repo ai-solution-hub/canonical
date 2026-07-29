@@ -87,6 +87,10 @@ which is the correct scope for migration-safety analysis. For refactor work, run
 `ast-dataflow callers` on the symbol being refactored to find all call sites that the
 type-checker resolves — a superset of what GitNexus indexes.
 
+**Caveat on `column-writes` until id-377 {377.6} G8 lands:** its counts are
+table-level, not column-level — open every site before treating the result as
+migration-safety scope.
+
 If steps (a)–(c) return no relevant symbols, note the result inline in the Context section
 with the literal: `gitnexus orientation: no existing symbols match — greenfield surface`
 
