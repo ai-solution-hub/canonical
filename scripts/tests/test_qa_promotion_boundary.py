@@ -52,9 +52,10 @@ Grep sweep (ast-dataflow does not cover Python — `.ast-dataflow/CLAUDE.md`):
     `f"...:{source_document_id}:..."` (:2174, :2349, :2395, :2716) —
     registry-keyed, NOT `rel_path`-keyed. `sd:` (:1994, :3360) stays
     `rel_path`-derived (the M2 resolver's first-admission MINT formula only).
-    `em:`/`er:` seeds (:2504, :2569) are STILL `f"em:{rel_path}:..."` /
-    `f"er:{rel_path}:..."` — the known F4 gap (rebuildable derived rows;
-    out of scope for this Subtask, noted per the dispatch brief).
+    `em:`/`er:` seeds are `f"em:{source_document_id}:..."` /
+    `f"er:{source_document_id}:..."` — the F4 gap closed by id-398
+    (registry-keyed re-seed; regression-pinned in
+    test_cocoindex_flow_write_path.py TestF4EmErPksRegistryKeyedOnSourceDocumentId).
 
 The ONLY writer of `q_a_pairs` in the whole application is the TS promotion
 path, audited for completeness (out of this Python suite's reach, cited for
