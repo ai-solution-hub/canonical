@@ -136,9 +136,12 @@ tenacity==9.1.4
 tiktoken>=0.7.0
 # sqlglot: SQL parser backing tools/ast_dataflow_py column-reads/column-writes
 # (cross-language column lineage — Python-side raw-SQL statements over the same
-# tables the TS ast-dataflow tool covers). OPTIONAL at runtime: the tool
-# degrades to a word-boundary regex fallback (confidence 'indirect') when
-# sqlglot is not importable; installing it upgrades SQL hits to 'exact'.
+# tables the TS ast-dataflow tool covers). OPTIONAL only for the per-column
+# queries (they degrade to a word-boundary regex fallback at 'indirect'
+# confidence); REQUIRED for the wiring-census surfaces (id-399 {399.2}) —
+# `ast-dataflow-py schema-uses` emits NO SQL rows without it (envelope
+# `sqlglot: false`), and scripts/census/pg_evidence.py refuses to run at all
+# (no regex fallback by design: census verdicts must never silently degrade).
 sqlglot>=26.0.0
 
 # Testing

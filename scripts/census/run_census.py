@@ -61,6 +61,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NoReturn
 
 # R8-protected columns (initiative 12): NEVER blind-drop, whatever the
 # verdict — they are the future source-binding register shape.
@@ -92,7 +93,7 @@ def run(cmd: list[str], cwd: Path, capture: bool = True) -> subprocess.Completed
     )
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(f"[census] FAIL — {message}", file=sys.stderr)
     raise SystemExit(1)
 

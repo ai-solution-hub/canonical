@@ -92,17 +92,17 @@ SIDECAR_SOURCE = "pg-census"
 
 CAVEAT_SAMPLE_CAP = 20
 
-try:  # REQUIRED — no regex fallback (census {399.2} discipline).
+try:  # REQUIRED — no regex fallback (census {399.2} discipline). A missing
+    # sqlglot is a broken census environment and must fail at import time,
+    # loudly, before any evidence is produced.
     import sqlglot
     import sqlglot.expressions as exp
     from sqlglot.optimizer.scope import traverse_scope
-
-    HAVE_SQLGLOT = True
-except ImportError:  # pragma: no cover — exercised only in broken envs
-    sqlglot = None  # type: ignore[assignment]
-    exp = None  # type: ignore[assignment]
-    traverse_scope = None  # type: ignore[assignment]
-    HAVE_SQLGLOT = False
+except ImportError as _import_err:  # pragma: no cover — broken envs only
+    raise SystemExit(
+        "pg_evidence: sqlglot is REQUIRED (no regex fallback — census "
+        "{399.2} discipline). Install it: pip install -r requirements.txt"
+    ) from _import_err
 
 # The read-only pg_proc dump query for --live-json. json_agg output shape:
 # [{"schema": ..., "name": ..., "body_md5": ..., "prosrc": ...}, ...]
@@ -1070,14 +1070,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.emit_live_sql:
         print(LIVE_PG_PROC_SQL)
         return 0
-
-    if not HAVE_SQLGLOT:
-        print(
-            "pg_evidence: sqlglot is REQUIRED (no regex fallback — census "
-            "{399.2} discipline). Install it: pip install -r requirements.txt",
-            file=sys.stderr,
-        )
-        return 2
 
     started = time.monotonic()
     repo_root = args.repo_root or find_repo_root(Path.cwd())
