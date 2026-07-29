@@ -137,6 +137,10 @@ export default defineConfig({
     port: Number(process.env.PLAYWRIGHT_WEB_SERVER_PORT ?? 3000),
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
+    // Playwright discards webServer stdout by default, which swallowed the
+    // server-side 401 diagnostics 5b90cab7 added — pipe it so route errors
+    // (pino writes to stdout) reach the shard log.
+    stdout: 'pipe',
   },
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',

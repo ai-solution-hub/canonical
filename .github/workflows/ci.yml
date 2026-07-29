@@ -986,6 +986,17 @@ jobs:
             echo "Mode: skip ($SKIP_FLAGS)"
           fi
 
+          # TEMPORARY (S509): the direct ANTHROPIC_API_KEY repo secret is dead
+          # (401 authentication_error), so FC-61/62 — the only live-LLM checks
+          # in l4 — fail on every full-mode run, blocking ci-summary/merge on
+          # a credential, not a code, defect. Force --skip-ai on l4 until the
+          # key is rotated (then remove this block; the 61 non-AI checks stay
+          # live either way). FC-61/62 remain fully exercised by eval-nightly.
+          if [ "$LAYER" = "l4" ]; then
+            SKIP_FLAGS="--skip-ai"
+            echo "Mode override: l4 forced --skip-ai (dead ANTHROPIC_API_KEY, S509)"
+          fi
+
           case "$LAYER" in
             l1) bun run test:mcp-eval $SKIP_FLAGS ;;
             l3) bun run test:mcp-eval:rq $SKIP_FLAGS ;;
