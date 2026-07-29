@@ -312,8 +312,19 @@ smoke; unknown tables/columns are structured errors (`unknown_table` /
 `unknown_column`). `--report <path>` additionally writes a Markdown report
 (unwired-first, evidence + caveats); no writes without the flag. Full
 807-column sweep runs in ~7 s. Blind to: RPC SQL bodies, `api.*` views,
-external PostgREST consumers, the Python pipeline — pair with
-`ast-dataflow-py` for cross-language column sweeps.
+external PostgREST consumers — and the Python pipeline UNLESS you merge
+its evidence sidecar: `--evidence <sidecar.json>` (repeatable) folds
+external evidence rows into the verdicts. Cross-language verdict recipe:
+
+```bash
+bun run ast-dataflow-py schema-uses --exclude-tests > /tmp/py-evidence.json
+bun run ast-dataflow schema-coverage --evidence /tmp/py-evidence.json --report out.md
+```
+
+Merged sidecars are listed in `caveats.mergedEvidence`; sidecar rows naming
+unknown tables/columns land in `caveats.evidenceUnknownTables` (loud, never
+dropped). Declaration-only evidence (method `table-schema`) is indirect by
+design — it can make a column `undecidable`, never `wired`.
 
 **Use when:** built-not-wired audits, pre-migration column-retirement
 candidates, "is anything actually using this table?", owner-facing schema
@@ -326,14 +337,30 @@ hygiene reports.
 `bun run ast-dataflow-py column-reads|column-writes --table X --column Y
 [--exclude-tests]` (wraps `tools/ast_dataflow_py/cli.py`) answers the same
 column question for the Python pipeline corpus (`scripts/`), which reaches the
-SAME Postgres tables through raw asyncpg SQL strings and supabase-py `.from_()`
-chains that the TS tool cannot see. Same JSON envelope; rows carry
-`source: "sql" | "supabase-py"`. SQL statements parse via sqlglot when
-installed (`exact` confidence) and degrade to a regex fallback (`indirect`)
-when not — check the `sqlglot` boolean in the response. For a full
-cross-language sweep of a column, run BOTH the TS and Python queries.
-Python symbol queries (callers/references) are deliberately not duplicated
-here — use GitNexus (which indexes `scripts/**.py`) or jedi/pyright.
+SAME Postgres tables through THREE surfaces the TS tool cannot see: raw
+asyncpg SQL strings, supabase-py `.from_()` chains, and the cocoindex
+DECLARATIVE write path (`TableSchema` consts bound by `mount_table_target`,
+written via `declare_row` — flow.py's primary write mechanism). Same JSON
+envelope; rows carry `source: "sql" | "supabase-py" | "declarative"`.
+Declarative semantics: `method: "declare_row"` rows are write evidence
+(exact for literal payload keys, incl. the dedup-map `row=<var>` fallback at
+indirect); `method: "table-schema"` rows are declaration INTENT only —
+always indirect, because flow.py declares columns it deliberately never
+populates. SQL statements parse via sqlglot when installed (`exact`
+confidence) and degrade to a regex fallback (`indirect`) when not — check
+the `sqlglot` boolean in the response. SQL passed by module-constant name
+(`conn.fetch(_SQL_FOO)`, the l_records convention) and f-strings over such
+constants resolve to their exact text; only locally-assembled SQL stays
+invisible (caveated in `schema-uses`).
+
+`bun run ast-dataflow-py schema-uses [--exclude-tests]` is the bulk sweep:
+one corpus walk, no --table/--column, emitting every attributable evidence
+row as the v1 evidence sidecar (`{schemaVersion, source, rows, caveats}`)
+for `schema-coverage --evidence`. Caveats report what was skipped loudly:
+rpc payloads (table-blind), unparsed/dynamic SQL, unattributable
+declare_row sites. Python symbol queries (callers/references) are
+deliberately not duplicated here — use GitNexus (which indexes
+`scripts/**.py`) or jedi/pyright.
 
 ## Cross-tool patterns
 
