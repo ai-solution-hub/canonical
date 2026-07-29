@@ -307,6 +307,23 @@ class TestSchemaUsesSweep:
         # The conditional tuple-assign sites stay dynamic — caveated, small.
         assert caveats.sql_sites_unresolved_dynamic <= 5
 
+    def test_stored_proc_from_source_never_emits_empty_table(self, tmp_path):
+        # Live-caught defect (S510): `SELECT ... FROM public.some_proc(...)`
+        # yields a NAMELESS sqlglot Table node; rows with table="" violated
+        # the sidecar contract and failed the TS consumer's row validation.
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "proc.py").write_text(
+            "async def mint(conn):\n"
+            "    return await conn.fetchrow(\n"
+            '        "SELECT source_document_id, was_minted "\n'
+            '        "FROM public.resolve_or_mint_source_identity($1, $2)"\n'
+            "    )\n"
+        )
+        rows, caveats = scan_schema_uses(tmp_path, ["pkg"])
+        assert all(r.table.strip() for r in rows)
+        assert caveats.sql_function_source_sites == 1
+
     def test_cli_schema_uses_emits_sidecar(self, capsys):
         exit_code = cli_main(
             ["schema-uses", "--exclude-tests", "--root", str(REPO_ROOT)]
