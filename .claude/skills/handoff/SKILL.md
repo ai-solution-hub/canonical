@@ -256,6 +256,15 @@ NON-binding deltas: schema/process changes, gotchas, strategic options. Omit if 
 {Paste the output of `bash scripts/session-close-report.sh` — branch/HEAD,
 orphaned worktrees, open PRs + CI, index freshness.}
 
+## Parallel lanes & shared state
+
+{What OTHER live lanes hold that this prompt's reader could clobber or be
+blocked by — the generator does not emit these; capture them by hand (Step 4b):
+foreign uncommitted files in the docs-site checkout (name the owning lane;
+"do not commit/clobber"); mempalace health (writer-lock holders, daemon state,
+repair owed?); any live session/Intent workspace holding a shared singleton.
+Omit only when all three are verified clean.}
+
 ## Pre-reqs (Liam)
 
 {Only items needing Liam action before the next session starts. Omit if none.}
@@ -273,6 +282,19 @@ bash scripts/session-close-report.sh
 
 It emits branch/HEAD, named worktrees, unregistered Intent workspace checkouts,
 open PRs + CI (`gh-axi`), and index freshness.
+
+**Then capture the shared-state facts the generator cannot see** (they feed the
+prompt's *Parallel lanes & shared state* section — the S511 start proved a fresh
+session needs them and cannot derive them from the ledger):
+
+```bash
+git -C "$KH_PRIVATE_DOCS_DIR" status --short   # foreign lanes' uncommitted files
+mempalace daemon status; mempalace repair-status 2>&1 | grep -m1 status
+ps aux | grep -E 'mempalace-mcp' | grep -v grep | wc -l   # live peer writers
+```
+
+Uncommitted docs-site files from another lane are that lane's property — name
+them in the prompt so the next session neither commits nor clobbers them.
 
 ---
 
