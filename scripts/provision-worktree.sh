@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Augment PATH for non-interactive shell environments — Intent's setup-script
+# runner, Claude Code hooks, and agent shells don't source ~/.zshrc, so
+# /opt/homebrew/bin (Homebrew Python, jq, git, etc.) and ~/.bun/bin are
+# absent by default on macOS. Export before any tool checks below.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.bun/bin:$PATH"
+
 # scripts/provision-worktree.sh — seed a freshly-created git worktree with the
 # symlinks + copies that native Claude-Code worktree creation performs, driven
 # by the SAME single source of truth: .claude/settings.json
