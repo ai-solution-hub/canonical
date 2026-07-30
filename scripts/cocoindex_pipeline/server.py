@@ -47,6 +47,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import threading
@@ -106,23 +107,97 @@ _logger = logging.getLogger(__name__)
 # check flag the container when the pipeline is actually down.
 #
 # See docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md §7.5.
+#
+# id-379 {379.3} — the Event carries a REASON slot alongside it. Before this,
+# `mark_worker_crashed()` took no argument and `/health` hardcoded one literal,
+# so every lifespan-entry failure produced a byte-identical 503 body: the
+# {101.10} `entity_aliases` fail-closed gate and the asyncpg gaierror boot crash
+# were indistinguishable over HTTP, and settling a live crash cause needed a
+# container boot log instead of one request. The worker thread now records WHY
+# it died and `/health` returns that.
+#
+# Thread-safety: the reason is written by the worker thread and read by the
+# aiohttp event loop, so it lives under a lock (same shape as _WALK_REGISTRY).
+# The Event stays the liveness source of truth — the reason is a diagnostic
+# payload hanging off it, and a crash recorded without one still reads as
+# crashed via the fallback literal below.
 
 _WORKER_CRASHED = threading.Event()
+_WORKER_CRASH_REASON_LOCK = threading.Lock()
+_WORKER_CRASH_REASON: str | None = None
+
+# Wire-compatible fallback: the exact body /health returned for every crash
+# before {379.3}. Used when a crash is flagged with no reason.
+_WORKER_CRASH_REASON_FALLBACK = "cocoindex worker thread crashed"
+
+# `/health` is UNAUTHENTICATED and Traefik-exposed (unlike /walk-status, which
+# is bearer-gated because it leaks run identifiers), so an exception string
+# reaching it is public. Bound it: strip URL credentials (a DSN in an asyncpg
+# connection error is the documented crash class) and API-key-shaped tokens,
+# then cap the length.
+_CRASH_REASON_MAX_CHARS = 400
+_CRASH_REASON_REDACTIONS: "tuple[tuple[re.Pattern[str], str], ...]" = (
+    # postgresql://user:secret@host/db -> postgresql://***:***@host/db
+    (re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/:@]+:[^\s/@]+@"), r"\1***:***@"),
+    # sk-ant-…, sk-… provider keys
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{8,}"), "sk-***"),
+)
 
 
-def mark_worker_crashed() -> None:
-    """Flag the cocoindex worker as crashed (set by the worker thread on death)."""
+def redact_crash_reason(text: str) -> str:
+    """Make an exception string safe to serve from the public /health route."""
+    for pattern, replacement in _CRASH_REASON_REDACTIONS:
+        text = pattern.sub(replacement, text)
+    text = " ".join(text.split())
+    if len(text) > _CRASH_REASON_MAX_CHARS:
+        text = text[:_CRASH_REASON_MAX_CHARS] + "…"
+    return text
+
+
+def describe_crash(exc: BaseException) -> str:
+    """Render a caught exception as a redacted, bounded one-line reason.
+
+    Keeps the exception TYPE even when the message is empty — the type alone
+    already separates a fail-closed `RuntimeError` from an asyncpg
+    `OSError`/gaierror, which is the whole point of the reason channel.
+    """
+    message = str(exc).strip()
+    rendered = f"{type(exc).__name__}: {message}" if message else type(exc).__name__
+    return redact_crash_reason(rendered)
+
+
+def mark_worker_crashed(reason: str | None = None) -> None:
+    """Flag the cocoindex worker as crashed (set by the worker thread on death).
+
+    `reason` is the diagnostic string `/health` serves back — pass
+    `describe_crash(exc)` from a crash boundary. Omitting it keeps the
+    pre-{379.3} generic body rather than losing the crash signal.
+    """
+    global _WORKER_CRASH_REASON  # noqa: PLW0603 — module-level worker state, mirrors _WORKER_CRASHED
+    with _WORKER_CRASH_REASON_LOCK:
+        _WORKER_CRASH_REASON = reason or None
+    # Set the Event LAST: a reader that sees "crashed" then always sees the
+    # reason that belongs to it, never an empty slot mid-write.
     _WORKER_CRASHED.set()
 
 
 def reset_worker_state() -> None:
-    """Clear the crash flag — used by tests and at a fresh worker (re)start."""
+    """Clear the crash flag + reason — used by tests and at a fresh worker (re)start."""
+    global _WORKER_CRASH_REASON  # noqa: PLW0603 — module-level worker state, mirrors _WORKER_CRASHED
     _WORKER_CRASHED.clear()
+    with _WORKER_CRASH_REASON_LOCK:
+        _WORKER_CRASH_REASON = None
 
 
 def worker_is_healthy() -> bool:
     """True while the cocoindex worker thread has not signalled a crash."""
     return not _WORKER_CRASHED.is_set()
+
+
+def worker_crash_reason() -> str:
+    """Why the worker died, as served by /health (falls back to the generic literal)."""
+    with _WORKER_CRASH_REASON_LOCK:
+        return _WORKER_CRASH_REASON or _WORKER_CRASH_REASON_FALLBACK
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -357,11 +432,17 @@ async def _health_handler(request: web.Request) -> web.Response:  # noqa: ARG001
     §7.5). Returns 503 when the worker has crashed so a health/liveness check
     flags the container — a healthy container now means the pipeline is
     actually up, not merely that the HTTP thread survived.
+
+    The 503 `reason` carries the ACTUAL failure captured at the crash boundary
+    (id-379 {379.3}), so distinct boot failures are distinguishable over HTTP —
+    one request diagnoses a dead host instead of needing a container boot log.
+    Falls back to the pre-{379.3} generic literal when a crash was flagged
+    without a reason, so the body shape never changes.
     """
     if worker_is_healthy():
         return web.json_response({"status": "ok"})
     return web.json_response(
-        {"status": "error", "reason": "cocoindex worker thread crashed"},
+        {"status": "error", "reason": worker_crash_reason()},
         status=503,
     )
 
@@ -1634,7 +1715,9 @@ def start_cocoindex_thread() -> threading.Thread:
 
     Crash wiring preserved (ID-49.8): a failure ENTERING the lifespan (e.g. the
     asyncpg gaierror boot crash) flags the worker crashed so /health returns
-    503 and a health check marks the container unhealthy (audit §7.5).
+    503 and a health check marks the container unhealthy (audit §7.5). The
+    caught exception rides along into the flag (id-379 {379.3}), so the 503
+    body names WHICH lifespan-entry failure this was.
 
     Returns the thread so callers can join in tests.
     """
@@ -1653,12 +1736,20 @@ def start_cocoindex_thread() -> threading.Thread:
         )
         try:
             coco.start_blocking()
-        except Exception:  # noqa: BLE001 — top-level boundary, must log + reraise
+        except Exception as exc:  # noqa: BLE001 — top-level boundary, must log + reraise
             # ID-49.8: flag the worker as crashed so /health returns non-200 and
             # a health check marks the container unhealthy (audit §7.5). The daemon
             # thread dies after this; the crash flag is the only signal the
             # aiohttp /health handler has to observe the dead environment.
-            mark_worker_crashed()
+            #
+            # id-379 {379.3}: carry the caught exception into the flag so
+            # /health names WHICH lifespan-entry failure this was. The log line
+            # below keeps the full traceback (the reason is a bounded,
+            # credential-redacted one-liner for the public route).
+            mark_worker_crashed(
+                "cocoindex worker thread crashed entering the lifespan "
+                f"(coco.start_blocking): {describe_crash(exc)}"
+            )
             _logger.exception("cocoindex background thread crashed")
             raise
 

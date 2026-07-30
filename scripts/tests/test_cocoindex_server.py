@@ -558,6 +558,185 @@ class TestWorkerLiveness:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# §3b-2 — the 503 body names the crash (id-379 {379.3})
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def _crash_worker_at_boot(exc: BaseException) -> str:
+    """Drive a REAL lifespan-entry crash and return the /health 503 `reason`.
+
+    Boots the worker exactly as production does (`start_cocoindex_thread()`)
+    with `coco.start_blocking()` raising `exc`, then reads the reason back off
+    the public `GET /health` route — the same one-request diagnosis an operator
+    curling a dead host performs. Callers own `reset_worker_state()`.
+    """
+    from scripts.cocoindex_pipeline import server as server_mod
+
+    _reset_cocoindex_app_registry()
+    with patch.object(server_mod.coco, "start_blocking", side_effect=exc):
+        thread = server_mod.start_cocoindex_thread()
+        thread.join(timeout=2.0)
+
+    status, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+    assert status == 503, (
+        "a crashed lifespan-entry boot must make /health 503 before the "
+        "reason channel means anything"
+    )
+    return body["reason"]
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+class TestCrashReasonOnHealth:
+    """id-379 {379.3} — /health's 503 body must say WHY the worker died.
+
+    Before this, `mark_worker_crashed()` took no argument and the handler
+    hardcoded one literal, so EVERY lifespan-entry failure produced a
+    byte-identical body: a fail-closed config gate and an asyncpg boot crash
+    were indistinguishable over HTTP, and settling the live crash cause on both
+    platform hosts needed a container boot log rather than one request.
+
+    The intentional daemon-thread crashes emit
+    PytestUnhandledThreadExceptionWarning under pytest 9.x — suppressed with a
+    class-SCOPED filterwarnings marker, never globally (ID-49.7 folded
+    finding 1).
+    """
+
+    def test_reason_names_the_boot_failure(self) -> None:
+        """The 503 body reports the exception that actually killed the worker."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("entity_aliases generation is client-scoped")
+            )
+            assert "RuntimeError" in reason, (
+                f"the 503 reason must name the exception type; got: {reason!r}"
+            )
+            assert "entity_aliases generation is client-scoped" in reason, (
+                f"the 503 reason must carry the exception message; got: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_two_boot_failures_are_distinguishable_over_http(self) -> None:
+        """The D2 defect itself: two different crashes must not read alike.
+
+        This is the assertion that was impossible to satisfy before {379.3} —
+        the two bodies were byte-identical.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            fail_closed = _crash_worker_at_boot(
+                RuntimeError("entity_aliases fail-closed for client 'default'")
+            )
+            server_mod.reset_worker_state()
+            dns_failure = _crash_worker_at_boot(
+                OSError("[Errno -2] Name or service not known")
+            )
+
+            assert fail_closed != dns_failure, (
+                "distinct boot failures must produce distinct /health bodies — "
+                f"both read {fail_closed!r}"
+            )
+            assert "Name or service not known" in dns_failure
+            assert "fail-closed" in fail_closed
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_dsn_credentials(self) -> None:
+        """/health is unauthenticated and internet-exposed — a DSN password in
+        the caught exception must never be served from it.
+
+        The documented crash class (asyncpg connection failure) is exactly the
+        one whose message can carry a connection string.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                OSError(
+                    "could not connect to "
+                    "postgresql://kh_writer:hunter2-actual-secret@db.internal:5432/kh"
+                )
+            )
+            assert "hunter2-actual-secret" not in reason, (
+                f"/health leaked a DSN password: {reason!r}"
+            )
+            # Redaction must not cost the diagnosis — the host and the failure
+            # are still legible.
+            assert "db.internal" in reason, (
+                f"redaction destroyed the diagnostic value: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_is_length_bounded(self) -> None:
+        """A pathological exception message cannot turn /health into a firehose."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(RuntimeError("x" * 50_000))
+            assert len(reason) < 1_000, (
+                f"/health reason must stay bounded; got {len(reason)} chars"
+            )
+            assert "RuntimeError" in reason, (
+                "truncation must keep the exception type — the most diagnostic part"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_falls_back_to_the_generic_literal(self) -> None:
+        """A crash flagged with NO reason keeps the pre-{379.3} body verbatim.
+
+        The reason channel is additive: an unadorned `mark_worker_crashed()`
+        (any call site that has no exception to hand) must still produce a
+        well-formed 503, not an empty or missing reason.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            server_mod.mark_worker_crashed()
+            status, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+            assert status == 503
+            assert body == {
+                "status": "error",
+                "reason": "cocoindex worker thread crashed",
+            }
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reset_clears_a_stale_reason(self) -> None:
+        """A recovered-then-recrashed worker must not report the OLD cause.
+
+        `reset_worker_state()` runs at a fresh worker (re)start; if it cleared
+        the flag but not the reason, the next reasonless crash would serve a
+        stale diagnosis — worse than the generic literal, because it reads as
+        specific.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            first = _crash_worker_at_boot(RuntimeError("the first cause"))
+            assert "the first cause" in first
+
+            server_mod.reset_worker_state()
+            server_mod.mark_worker_crashed()
+            _, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+            assert "the first cause" not in body["reason"], (
+                f"a stale crash reason survived reset: {body['reason']!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # §3c — Lifespan-only boot end-to-end: no walk on boot (ID-83 / bl-221)
 # ──────────────────────────────────────────────────────────────────────────
 
