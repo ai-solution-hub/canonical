@@ -460,13 +460,25 @@ export async function GET(request: NextRequest) {
 
     // 7. Log to pipeline_runs via the S152B WP4 helper (Sentry + Q-36 fix).
     // Note: `total_updated` rides inside `result` because
-    // `recordPipelineRun()` exposes no `itemsUpdated` parameter — NOT
-    // because the column is absent. `pipeline_runs.items_updated` does
-    // exist (integer DEFAULT 0) and this cron wrote it directly until the
-    // write was routed through the helper, whose params never carried it.
-    // Corrected under id-402: the column is unwired, not retired; wiring
-    // the helper param is the open finding. Do not cite this comment as
-    // evidence that the column does not exist.
+    // `recordPipelineRun()` exposes no `itemsUpdated` parameter.
+    //
+    // The previous comment here justified that by claiming `pipeline_runs`
+    // has no `items_updated` column. That claim is FALSE — the column
+    // exists. Corrected under id-402 (S516) so it stops being cited as
+    // evidence the column is absent.
+    //
+    // Whether this number BELONGS in the column is a different question,
+    // and it is OPEN. OQ-Q24-A is closed RETAIN for the table
+    // (`phase-b-prerequisite-2b-cocoindex-operational.md` §2.4 Rec 1), but
+    // that ruling fixes the retained shape as "stable shape per
+    // `recordPipelineRun()`" and §2.3 enumerates the roll-up as status /
+    // started_at / completed_at / progress / pipeline_name / items_created
+    // — `items_updated` is not in it, and §2.3 routes richer per-run
+    // counters to `progress` JSONB or CocoInsight instead. No ratified doc
+    // names a writer for it either.
+    //
+    // So do NOT add the helper param, and do NOT drop the column, on the
+    // strength of this comment. id-402 carries it as an owner decision.
     const durationMs = Date.now() - startTime;
     const hadFailures = failedFetches.length > 0 || failedUpdates.length > 0;
     const errorSummary = hadFailures
