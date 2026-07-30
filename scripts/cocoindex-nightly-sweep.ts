@@ -30,7 +30,12 @@
  *
  * Guards (the cleanup-stale-test-artifacts idiom):
  *   - ALLOW_COCOINDEX_NIGHTLY_SWEEP=1 required;
- *   - refuses the production project ref.
+ *   - FAIL-CLOSED target allowlist (PR #156 review): KH_SWEEP_EXPECTED_PROJECT_REF
+ *     is REQUIRED and SUPABASE_URL must contain it — an unset expectation is
+ *     a refusal, never a pass (the nightly passes the staging ref via
+ *     secrets.PLATFORM_PROJECT_REF);
+ *   - refuses the production project ref (defence-in-depth, subsumed by the
+ *     allowlist).
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -88,6 +93,30 @@ if (!supabaseUrl || !serviceRoleKey) {
   );
   process.exit(2);
 }
+// Fail-closed target allowlist (PR #156 review): the sweep REQUIRES an
+// explicit expected-target project ref and refuses unless SUPABASE_URL
+// contains it. The former PROD_PROJECT_REF-only denylist failed OPEN when
+// that env was unset; an unset expectation is now a refusal, never a pass.
+const expectedRef = process.env.KH_SWEEP_EXPECTED_PROJECT_REF;
+if (!expectedRef) {
+  console.error(
+    'Refusing sweep: KH_SWEEP_EXPECTED_PROJECT_REF is unset. Set it to the ' +
+      'project ref this sweep is EXPECTED to target (the Platform staging ' +
+      'ref — non-secret; the nightly passes secrets.PLATFORM_PROJECT_REF). ' +
+      'The guard fails CLOSED without it.',
+  );
+  process.exit(2);
+}
+if (!supabaseUrl.includes(expectedRef)) {
+  console.error(
+    'Refusing sweep: SUPABASE_URL does not contain the expected project ref ' +
+      `(KH_SWEEP_EXPECTED_PROJECT_REF=${expectedRef}) — the sweep is pointed ` +
+      'at a project it was not told to target.',
+  );
+  process.exit(2);
+}
+// Defence-in-depth prod denylist (subsumed by the allowlist above; kept
+// because it is trivial and catches a mis-set expectation).
 const prodRef = process.env.PROD_PROJECT_REF;
 if (prodRef && supabaseUrl.includes(prodRef)) {
   console.error(

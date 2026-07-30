@@ -416,6 +416,13 @@ jobs:
       - name: Pre-run sweep (fixture-prefixed rows only — D1/NM-6)
         env:
           ALLOW_COCOINDEX_NIGHTLY_SWEEP: "1"
+          # Fail-closed target allowlist (PR #156 review): the sweep script
+          # REFUSES to run unless SUPABASE_URL contains this expected ref.
+          # PLATFORM_PROJECT_REF is the Platform staging project (non-secret
+          # value; stored as a repo secret per the existing ci.yml /
+          # supabase-advisors.yml convention) — the same project
+          # vars.SUPABASE_URL points at.
+          KH_SWEEP_EXPECTED_PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
         run: bun run scripts/cocoindex-nightly-sweep.ts
 
       - name: Setup the Cloud Native Buildpacks `pack` CLI
@@ -757,27 +764,6 @@ jobs:
             --exclude '**/stage-5-failure-non-destructive.integration.test.ts' \
             2>&1 | tee /tmp/cocoindex-nightly.log
 
-      # id-400 (HARNESS §4 — NM-8 census read gate). A run's census numbers
-      # are readable only when: (i) ZERO UniqueViolations in the sidecar log
-      # (the F4 identity-split signature — grepped here); (ii) the staged
-      # fixture population matches the driver manifest (the census-gate
-      # script — exactly one source_documents row per verify_driver dest
-      # path); (iii) the same-bytes population is green at the write path
-      # (evidenced inside the Vitest verdict itself — chunking C-31 /
-      # idempotency-memo-hit). Gate failure fails the RUN, so a census
-      # reader never ingests numbers from an unreadable run.
-      - name: Census read gate (NM-8)
-        if: always()
-        run: |
-          set -euo pipefail
-          UNIQUE_VIOLATIONS="$(docker logs cocoindex-sidecar 2>&1 | grep -c "UniqueViolation" || true)"
-          echo "sidecar UniqueViolation occurrences: ${UNIQUE_VIOLATIONS}"
-          if [ "${UNIQUE_VIOLATIONS}" -gt 0 ]; then
-            echo "NM-8 GATE FAIL: ${UNIQUE_VIOLATIONS} UniqueViolation(s) in the sidecar log — census unreadable for this run" >&2
-            exit 1
-          fi
-          bun run scripts/cocoindex-census-gate.ts
-
       - name: Log runner verdict
         if: always()
         env:
@@ -824,6 +810,37 @@ jobs:
             sleep 5
           done
           echo "::warning::sidecar still mid-walk after 120s (starts=${STARTS}, terminals=${DONES}) — stopping anyway; the {138.9} lease may stay orphaned on the shared Staging project for up to its 1h TTL (id-382). The NEXT queued run's walk step will starve against it."
+
+      # id-400 (HARNESS §4 — NM-8 census read gate). A run's census numbers
+      # are readable only when: (i) ZERO UniqueViolations in the sidecar log
+      # (the F4 identity-split signature — grepped here); (ii) the staged
+      # fixture population matches the driver manifest (the census-gate
+      # script — exactly one source_documents row per verify_driver dest
+      # path); (iii) the same-bytes population is green at the write path
+      # (evidenced inside the Vitest verdict itself — chunking C-31 /
+      # idempotency-memo-hit). Gate failure fails the RUN, so a census
+      # reader never ingests numbers from an unreadable run.
+      # Positioned AFTER the quiesce step (PR #156 review): the gate must
+      # never sample a non-quiesced sidecar — a mid-walk log read could miss
+      # a UniqueViolation the in-flight pass is about to emit. `if: always()`
+      # keeps it running on test failure; a docker-logs read failure fails
+      # the gate CLOSED (an unreadable log is an unverifiable census).
+      - name: Census read gate (NM-8)
+        if: always()
+        run: |
+          set -euo pipefail
+          SIDECAR_LOG="$(mktemp)"
+          if ! docker logs cocoindex-sidecar > "$SIDECAR_LOG" 2>&1; then
+            echo "NM-8 GATE FAIL: docker logs cocoindex-sidecar failed — the sidecar log is unreadable, so census readability cannot be verified" >&2
+            exit 1
+          fi
+          UNIQUE_VIOLATIONS="$(grep -c "UniqueViolation" "$SIDECAR_LOG" || true)"
+          echo "sidecar UniqueViolation occurrences: ${UNIQUE_VIOLATIONS}"
+          if [ "${UNIQUE_VIOLATIONS}" -gt 0 ]; then
+            echo "NM-8 GATE FAIL: ${UNIQUE_VIOLATIONS} UniqueViolation(s) in the sidecar log — census unreadable for this run" >&2
+            exit 1
+          fi
+          bun run scripts/cocoindex-census-gate.ts
 
       - name: Surface pipeline-run webhook failures (post-walk)
         # flow.py logs NOTHING on a successful emission — only the unset-env
