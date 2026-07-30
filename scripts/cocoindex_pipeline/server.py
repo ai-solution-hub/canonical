@@ -132,10 +132,55 @@ _WORKER_CRASH_REASON_FALLBACK = "cocoindex worker thread crashed"
 
 # `/health` is UNAUTHENTICATED and Traefik-exposed (unlike /walk-status, which
 # is bearer-gated because it leaks run identifiers), so an exception string
-# reaching it is public. Bound it: strip URL credentials (a DSN in an asyncpg
-# connection error is the documented crash class) and API-key-shaped tokens,
-# then cap the length.
+# reaching it is public. `docker-compose.production.yaml` justifies that
+# exposure as "liveness only — no data", and this module is what has to keep
+# that true now that the 503 body carries an exception message.
+#
+# TWO PASSES, and the ORDER MATTERS.
+#
+#   1. BY VALUE (primary). Substitute out the actual values of the container's
+#      sensitive env vars. This is a denylist of NAMES, not of message shapes,
+#      so it holds regardless of how a library chooses to phrase an error.
+#   2. BY SHAPE (backstop). Catches credentials that never came from our own
+#      environment — a third-party DSN, a key echoed from a remote response.
+#
+# Pass 1 exists because pass 2 alone provably failed. PR #159 review found the
+# `{101.10}` fail-closed gate in `flow.py` raising
+# `RuntimeError("[PIPELINE_CLIENT_ORG=<value>] fail-closed …")` — a real, live
+# crash class on client deployments, whose value is neither a URL credential
+# nor an `sk-` key, so both shape patterns pass it straight through to an
+# unauthenticated caller. The repo anonymises clients deliberately (the hosts
+# are named `ca-client-pipeline`, and a guard hook blocks client names in
+# filenames and commands); a 503 body must not undo that.
+#
+# Shape-matching a secret is guessing its format. Matching its value is not.
 _CRASH_REASON_MAX_CHARS = 400
+
+# Env vars whose VALUES must never appear in a public response. Names only —
+# values are read at redaction time and never logged or stored.
+_SENSITIVE_ENV_VARS: "tuple[str, ...]" = (
+    # Literal, not an import: `holder_rule.CLIENT_ORG_ENV_VAR` is the
+    # definition, but this module boots the container and must not grow an
+    # import edge for one constant. Identifies the client — an anonymisation
+    # concern rather than a secret, and the reason this pass exists.
+    "PIPELINE_CLIENT_ORG",
+    "COCOINDEX_DB_DSN",
+    "COCOINDEX_DB",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "CRON_SECRET",
+    "PIPELINE_TRIGGER_SECRET",
+    "EXTRACT_API_TOKEN",
+    "SENTRY_AUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "PIPELINE_RUN_WEBHOOK_URL",
+)
+
+# Below this length a value is too generic to substitute safely — a 1-2 char
+# env value would blank out unrelated text and destroy the diagnostic.
+_MIN_REDACTABLE_VALUE_CHARS = 4
+
 _CRASH_REASON_REDACTIONS: "tuple[tuple[re.Pattern[str], str], ...]" = (
     # postgresql://user:secret@host/db -> postgresql://***:***@host/db
     (re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/:@]+:[^\s/@]+@"), r"\1***:***@"),
@@ -144,8 +189,32 @@ _CRASH_REASON_REDACTIONS: "tuple[tuple[re.Pattern[str], str], ...]" = (
 )
 
 
+def _redact_env_values(text: str) -> str:
+    """Substitute out the live values of `_SENSITIVE_ENV_VARS`.
+
+    Longest value first, so a value that contains another (a DSN embedding a
+    password) is replaced whole rather than leaving a mangled remainder.
+    """
+    values = {
+        value
+        for name in _SENSITIVE_ENV_VARS
+        if len(value := os.environ.get(name, "").strip())
+        >= _MIN_REDACTABLE_VALUE_CHARS
+    }
+    for value in sorted(values, key=len, reverse=True):
+        text = text.replace(value, "***")
+    return text
+
+
 def redact_crash_reason(text: str) -> str:
-    """Make an exception string safe to serve from the public /health route."""
+    """Make an exception string safe to serve from the public /health route.
+
+    By-value first, then by-shape, then collapse and cap. Redaction runs before
+    truncation so a credential beyond the cap is still removed rather than
+    merely hidden — and a caller cannot lengthen the message to push a secret
+    past the boundary.
+    """
+    text = _redact_env_values(text)
     for pattern, replacement in _CRASH_REASON_REDACTIONS:
         text = pattern.sub(replacement, text)
     text = " ".join(text.split())

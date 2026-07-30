@@ -674,6 +674,115 @@ class TestCrashReasonOnHealth:
         finally:
             server_mod.reset_worker_state()
 
+    def test_reason_never_names_the_client(self, monkeypatch) -> None:
+        """The `{101.10}` fail-closed gate must not publish the client's name.
+
+        THE REGRESSION THIS PINS (found in PR #159 review). `flow.py`'s
+        `{101.10}` gate raises
+        `RuntimeError("[PIPELINE_CLIENT_ORG=<value>] fail-closed …")` from
+        inside the lifespan, so its text reaches `/health` verbatim. That value
+        is neither a URL credential nor an `sk-` key, so BOTH shape patterns
+        pass it through — and `/health` is unauthenticated and Traefik-pinned
+        on the client host (`REQUIRED_TRAEFIK_PATHS`), so any caller could read
+        which organisation the deployment belongs to.
+
+        That matters beyond secrecy: the repo anonymises clients deliberately
+        (hosts are `ca-client-pipeline`, and a guard hook blocks client names in
+        filenames and commands). A 503 body must not undo it.
+
+        Reverting `_redact_env_values` fails this test.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        org = "Acme Widgets Holdings Ltd"
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", org)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(
+                    f"[PIPELINE_CLIENT_ORG={org!r}] fail-closed ({{101.10}}): "
+                    "entity_aliases table has zero provenance='client' rows."
+                )
+            )
+            assert org not in reason, (
+                f"/health named the client organisation: {reason!r}"
+            )
+            # The whole point of the reason channel survives: an operator can
+            # still tell this fail-closed gate from an asyncpg boot crash.
+            assert "RuntimeError" in reason and "entity_aliases" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_secrets_of_any_shape(self, monkeypatch) -> None:
+        """Redaction is by VALUE, so it does not depend on guessing a format.
+
+        Shape matching provably missed the case above. These are credential
+        forms the two regexes also do not cover — a libpq keyword/value DSN and
+        a Supabase service-role key — which by-value redaction catches because
+        the container's own env is the source of truth.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        service_key = "sb_secret_zzz9QaaBBccDDeeFFggHHiiJJ"
+        libpq_dsn = "host=db.internal user=kh_writer password=pw/with@slash dbname=kh"
+        monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", service_key)
+        monkeypatch.setenv("COCOINDEX_DB_DSN", libpq_dsn)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(f"boot failed: {libpq_dsn} (auth {service_key})")
+            )
+            assert service_key not in reason, f"/health leaked a service key: {reason!r}"
+            assert "pw/with@slash" not in reason, (
+                f"/health leaked a libpq DSN password: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_short_env_values_do_not_blank_the_reason(self, monkeypatch) -> None:
+        """A 1-2 character env value must not be substituted out.
+
+        Guards the redaction against destroying itself: without the minimum
+        length, an env var set to something like "x" would replace every "x" in
+        the message and leave an unreadable body.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "x")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(RuntimeError("connection refused to host"))
+            assert "connection refused to host" in reason, (
+                f"a short env value corrupted the reason: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_provider_api_keys(self) -> None:
+        """The `sk-` shape backstop is exercised.
+
+        Covers a key that did NOT come from this container's env — the case
+        by-value redaction cannot reach, which is why the shape pass is kept.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("upstream rejected sk-ant-api03-NOTAREALKEY0123456789")
+            )
+            assert "NOTAREALKEY" not in reason, (
+                f"/health leaked a provider API key: {reason!r}"
+            )
+            assert "sk-***" in reason
+        finally:
+            server_mod.reset_worker_state()
+
     def test_reason_is_length_bounded(self) -> None:
         """A pathological exception message cannot turn /health into a firehose."""
         from scripts.cocoindex_pipeline import server as server_mod
