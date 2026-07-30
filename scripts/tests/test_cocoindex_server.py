@@ -802,6 +802,66 @@ class TestCrashReasonOnHealth:
         finally:
             server_mod.reset_worker_state()
 
+    @pytest.mark.parametrize(
+        "org",
+        [
+            "Acme & Co.",  # trailing '.'  — \b fails here
+            "Acme (UK)",  # trailing ')'  — \b fails here
+            "+Group",  # leading '+'   — \b fails here
+            "O'Brien Ltd",  # internal apostrophe
+            "Müller GmbH",  # non-ASCII
+            "BP",  # 2 chars, alphanumeric edges
+        ],
+    )
+    def test_client_names_of_any_shape_are_redacted(self, monkeypatch, org) -> None:
+        """Punctuation at either edge must not defeat the identity match.
+
+        A `\\b`-anchored pattern asserts a word/non-word transition, so on a
+        value whose first or last character is ALREADY non-word it asserts the
+        opposite of what is wanted and fails to match entirely. `Acme & Co.`,
+        `Acme (UK)` and `+Group` each leaked verbatim through exactly that bug
+        (PR #159, third pass) — ordinary UK company-name shapes.
+
+        The pattern now anchors an edge only when that edge is alphanumeric.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", org)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(f"[PIPELINE_CLIENT_ORG={org!r}] fail-closed: zero rows")
+            )
+            assert org not in reason, f"/health leaked the client name: {reason!r}"
+            assert "fail-closed" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_identity_match_does_not_over_redact(self, monkeypatch) -> None:
+        """A short org name must not swallow longer words that contain it.
+
+        The edge anchoring exists for exactly this: with `PIPELINE_CLIENT_ORG`
+        set to `BP`, an unanchored literal replace would corrupt `BPX` and
+        `BPCL` too, degrading the diagnostic for no security gain.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "BP")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("host BPX unreachable, BPCL timed out, BP configured")
+            )
+            assert "BPX" in reason and "BPCL" in reason, (
+                f"over-redacted unrelated tokens: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
     def test_container_paths_are_not_redacted(self, monkeypatch) -> None:
         """`COCOINDEX_DB` is a container path, not a secret — keep it legible.
 

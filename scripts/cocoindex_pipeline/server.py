@@ -220,14 +220,32 @@ def _dsn_password_variants(dsn: str) -> "set[str]":
     return variants
 
 
+def _identity_pattern(value: str) -> str:
+    """Edge-anchored literal match for an identity value.
+
+    NOT `\\b{value}\\b`. `\\b` sits between a word and a non-word character, so
+    on a value whose FIRST or LAST character is already non-word it asserts the
+    opposite of what is wanted and the match fails outright. Real company names
+    routinely end in punctuation — `Acme & Co.`, `Acme (UK)` — and every one of
+    them leaked straight through a `\\b`-anchored pattern (PR #159, third pass).
+
+    Anchor each edge only when that edge is alphanumeric, where the boundary is
+    doing real work (stopping `BP` matching inside `BPX`). Where the edge is
+    punctuation there is nothing to disambiguate, so match literally.
+    """
+    lead = r"(?<!\w)" if value[:1].isalnum() else ""
+    trail = r"(?!\w)" if value[-1:].isalnum() else ""
+    return lead + re.escape(value) + trail
+
+
 def _redact_env_values(text: str) -> str:
     """Substitute out the live values of the sensitive + identity env vars.
 
     Secrets are matched byte-exact (longest first, so a value containing
     another — a DSN embedding its own password — is replaced whole rather than
-    leaving a mangled remainder). Identity values are matched on word
-    boundaries and exempt from the length floor, so a 2-character org name is
-    still removed without shredding unrelated text.
+    leaving a mangled remainder). Identity values are exempt from the length
+    floor and edge-anchored, so a 2-character org name is still removed without
+    shredding unrelated text.
     """
     values: "set[str]" = set()
     for name in _SENSITIVE_ENV_VARS:
@@ -242,7 +260,7 @@ def _redact_env_values(text: str) -> str:
     for name in _IDENTITY_ENV_VARS:
         value = os.environ.get(name, "").strip()
         if value:
-            text = re.sub(rf"\b{re.escape(value)}\b", "***", text)
+            text = re.sub(_identity_pattern(value), "***", text)
     return text
 
 
