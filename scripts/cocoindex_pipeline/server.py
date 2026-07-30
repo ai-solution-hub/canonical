@@ -247,12 +247,16 @@ def _redact_env_values(text: str) -> str:
     floor and edge-anchored, so a 2-character org name is still removed without
     shredding unrelated text.
     """
-    values: "set[str]" = set()
-    for name in _SENSITIVE_ENV_VARS:
-        value = os.environ.get(name, "").strip()
-        if len(value) >= _MIN_REDACTABLE_VALUE_CHARS:
-            values.add(value)
-    values |= _dsn_password_variants(os.environ.get("COCOINDEX_DB_DSN", "").strip())
+    candidates: "set[str]" = {
+        os.environ.get(name, "").strip() for name in _SENSITIVE_ENV_VARS
+    }
+    # The DSN password must clear the SAME floor. Unioning it in unfloored was a
+    # side door around the guard (PR #159, fourth pass): a 2-character password
+    # turned "database unavailable" into "dat***ase unavail***le", and the
+    # `unquote` variant makes it worse — `%78` decodes to a bare `x`, which is
+    # shorter and far more generic than what is actually stored.
+    candidates |= _dsn_password_variants(os.environ.get("COCOINDEX_DB_DSN", "").strip())
+    values = {v for v in candidates if len(v) >= _MIN_REDACTABLE_VALUE_CHARS}
 
     for value in sorted(values, key=len, reverse=True):
         text = text.replace(value, "***")

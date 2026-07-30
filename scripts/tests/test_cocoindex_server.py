@@ -840,6 +840,68 @@ class TestCrashReasonOnHealth:
         finally:
             server_mod.reset_worker_state()
 
+    def test_dsn_password_is_redacted_in_any_spelling(self, monkeypatch) -> None:
+        """The DSN password is removed even when the DSN is not echoed whole.
+
+        Byte-exact matching only catches the full connection string. A library
+        that reports the password alone, or reformats the DSN, would slip past
+        it — so the password is pulled out with `urlsplit` and covered in both
+        its stored and percent-decoded spellings.
+
+        This is what closed 5 of the 14 adversarial cases in review, and until
+        now nothing pinned it: stubbing the extractor to return an empty set
+        failed no test at all.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv(
+            "COCOINDEX_DB_DSN",
+            "postgresql://kh_writer:s3cret%2Dpassphrase@db.internal:5432/kh",
+        )
+
+        server_mod.reset_worker_state()
+        try:
+            # The password alone — no scheme, no userinfo for the regex to grip.
+            reason = _crash_worker_at_boot(
+                RuntimeError("auth rejected for password s3cret%2Dpassphrase")
+            )
+            assert "s3cret" not in reason, (
+                f"/health leaked a bare DSN password: {reason!r}"
+            )
+
+            # And its decoded spelling, which is what a library is likelier to print.
+            reason = _crash_worker_at_boot(
+                RuntimeError("auth rejected for password s3cret-passphrase")
+            )
+            assert "s3cret" not in reason, (
+                f"/health leaked the decoded DSN password: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_a_short_dsn_password_does_not_blank_the_reason(self, monkeypatch) -> None:
+        """A 2-char DSN password must clear the same floor as any other secret.
+
+        Unioning the password variants in WITHOUT the floor was a side door
+        around the guard: `postgresql://u:ab@host/db` turned "database
+        unavailable" into "dat***ase unavail***le". The decoded variant is the
+        sharper case — `%78` decodes to a bare `x`.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("COCOINDEX_DB_DSN", "postgresql://u:%78@db.internal:5432/kh")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("database unavailable: connection refused by proxy host")
+            )
+            assert "database unavailable: connection refused by proxy host" in reason, (
+                f"a short DSN password corrupted the reason: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
     def test_identity_match_does_not_over_redact(self, monkeypatch) -> None:
         """A short org name must not swallow longer words that contain it.
 
