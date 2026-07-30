@@ -3552,6 +3552,63 @@ class TestWalkStatusRegistry:
         assert entry["opId"] == str(walk_op)
         assert entry["fullReprocess"] is False
 
+    def test_idle_pass_without_begin_flow_run_is_not_attributed_a_stale_op_id(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """PR #156 review (id-400): the FlowRunContext holder retains the
+        PREVIOUS walk's run context (it is never cleared), so a pass that
+        never reaches `begin_flow_run` (e.g. an idle-mode early return) must
+        complete with opId None — never the stale previous walk's op_id."""
+        import uuid as uuid_mod
+
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+        server_mod.reset_walk_state()
+        server_mod.reset_walk_registry()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        flow = _patched_walk_app()
+
+        # A PREVIOUS walk's run context is still in the holder.
+        stale_op = uuid_mod.uuid4()
+        FLOW_RUN_CONTEXT.begin_flow_run(op_id=stale_op)
+
+        def _fake_update_blocking(**kwargs: object) -> None:
+            # Idle-mode pass: app_main returns early, never publishing a
+            # fresh run context (no begin_flow_run call).
+            return None
+
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", side_effect=_fake_update_blocking
+        ):
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status == 202
+        request_id = body["requestId"]
+        _wait_for_lock_release(server_mod)
+
+        import time as time_mod
+
+        deadline = time_mod.monotonic() + 2.0
+        entry = server_mod.walk_registry_entry(request_id)
+        while (
+            entry is not None
+            and entry.get("status") != "completed"
+            and time_mod.monotonic() < deadline
+        ):
+            time_mod.sleep(0.01)
+            entry = server_mod.walk_registry_entry(request_id)
+
+        assert entry is not None
+        assert entry["status"] == "completed"
+        # The stale op_id from the previous walk is NOT attributed.
+        assert entry.get("opId") is None
+
     def test_walk_status_route_serves_entry_with_bearer(
         self,
         aiohttp_app: web.Application,

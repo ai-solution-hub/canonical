@@ -913,6 +913,24 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
     try:
         from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
+        # id-400 (NM-5) + PR #156 review: SNAPSHOT the holder's op_id BEFORE
+        # the walk. The FlowRunContext holder retains the LAST walk's run
+        # context by design (it is never cleared — engine fix), so a pass
+        # that never reaches `begin_flow_run` (e.g. an idle-mode early
+        # return) would otherwise be attributed the PREVIOUS walk's op_id.
+        # Attribution is honest only when the holder's op_id CHANGED across
+        # this pass. Lazy import mirrors the KH_PIPELINE_APP import above
+        # (module-top flow imports are deliberately avoided — ContextKey
+        # registration side-effect, see module NOTE).
+        pre_walk_op_id: str | None = None
+        try:
+            from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+            if FLOW_RUN_CONTEXT.op_id is not None:
+                pre_walk_op_id = str(FLOW_RUN_CONTEXT.op_id)
+        except Exception:  # noqa: BLE001 — attribution is best-effort
+            pre_walk_op_id = None
+
         _walk_registry_update(request_id, status="running")
         _logger.info(
             "/walk starting pull-sync + one-shot update_blocking(live=False, "
@@ -923,18 +941,22 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
         asyncio.run(
             _pull_sync_then_walk(KH_PIPELINE_APP, full_reprocess, request_id)
         )
-        # id-400 (NM-5): attribute the completed pass to the op_id `app_main`
-        # minted — the FlowRunContext holder retains the LAST walk's run
-        # context by design (engine fix), and walks are single-flight, so
-        # this read is race-free. Lazy import mirrors the KH_PIPELINE_APP
-        # import above (module-top flow imports are deliberately avoided —
-        # ContextKey registration side-effect, see module NOTE).
+        # Attribute the completed pass to the op_id `app_main` minted for IT:
+        # only a holder value that DIFFERS from the pre-walk snapshot belongs
+        # to this pass (op_ids are per-walk UUIDs — a real walk always
+        # changes it; an unchanged value means no `begin_flow_run` ran, so
+        # there is nothing honest to attribute). Walks are single-flight, so
+        # this read is race-free.
         walk_op_id: str | None = None
         try:
             from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
 
-            if FLOW_RUN_CONTEXT.op_id is not None:
-                walk_op_id = str(FLOW_RUN_CONTEXT.op_id)
+            post_walk_op_id = FLOW_RUN_CONTEXT.op_id
+            if (
+                post_walk_op_id is not None
+                and str(post_walk_op_id) != pre_walk_op_id
+            ):
+                walk_op_id = str(post_walk_op_id)
         except Exception:  # noqa: BLE001 — attribution is best-effort
             walk_op_id = None
         _walk_registry_update(request_id, status="completed", opId=walk_op_id)

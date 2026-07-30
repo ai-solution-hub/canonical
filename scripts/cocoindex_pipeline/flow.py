@@ -3712,9 +3712,12 @@ async def ingest_url(
     flushed).
 
     Run-context resolution mirrors `ingest_file` (id-400): PREFER the
-    ContextKey-provided `FlowRunContext` holder (survives the daemon-thread
-    dispatch, invisible to the memo fingerprint), FALL BACK to the ContextVars
-    for in-task unit-test callers under `bind_flow_meta`. The re-bind makes
+    task-scoped ContextVars (an in-task caller's explicit `bind_flow_meta` /
+    `bind_*_counter` scope is the most specific binding), FALL BACK to the
+    ContextKey-provided `FlowRunContext` holder `app_main` publishes each walk
+    (the production path — on the `_LoopRunner` daemon thread the ContextVars
+    are structurally unset, so the holder always resolves there; it is
+    invisible to the memo fingerprint by construction). The re-bind makes
     `extraction.py`'s in-task reads (retry / taxonomy recorders) see the run
     context on THIS daemon thread.
     """
