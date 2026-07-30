@@ -24,6 +24,12 @@ ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-
 
 Read these documents in parallel to load context. **Load anchor first** — `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/platform-context.md` (current operational facts: four-DB topology, deploy hosts, key anchors; follow relevant progressive-disclosure pointers for depth).
 
+**Read its `## Evidence precedence — docs outrank code` section in full, and treat it as binding for the session.** It is not background: the reference set, runbooks, `platform-direction.md`, the OKF doctrine and `corpus-reframe-review.html` were deliberately corrected so the platform has a north star **because the codebase is known to be inaccurate**. Ratified docs are the authority; code is evidence of what exists, never of what is correct.
+
+Then open the **Key context anchors** table and read every anchor whose ground the session's task touches — these are mandatory for a task on that ground, not optional depth. For any corpus, source-lifecycle, ingestion, fixture or naming work that means `corpus-reframe-review.html` (R1/R2) and `reference/entity-glossary.md` **before** forming a verdict.
+
+**This is the S515 failure, and it is cheap to repeat.** That session read this anchor, treated the pointers as optional, derived four verdicts from the codebase instead, and had all four overturned by the owner — a spec "retired" on assertion-level evidence while carrying retired concepts, a module kept because many callers imported it (only one was migrated), columns judged live-or-dead from rows in an internal dev DB, and a ratified design declared non-existent because grep missed it. Each looked like diligence. Carry the precedence rule into **every sub-agent dispatch brief** too: a brief citing only task files, specs and code reproduces the codebase's errors.
+
 ### 2a: Memory recall
 
 Run recall via `mempalace_search` / `mempalace_kg_query` per the `recall-grounding` skill, **seeded with the continuation-prompt-named task ids and titles**. Search **without** a `wing` filter and filter client-side.
