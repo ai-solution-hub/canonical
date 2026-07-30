@@ -459,10 +459,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 7. Log to pipeline_runs via the S152B WP4 helper (Sentry + Q-36 fix).
-    // Note: `items_updated` is stored inside `result` because the
-    // pipeline_runs table does not have an `items_updated` column —
-    // the previous code was passing a non-existent field that Supabase
-    // silently dropped.
+    // Note: `total_updated` rides inside `result` because
+    // `recordPipelineRun()` exposes no `itemsUpdated` parameter — NOT
+    // because the column is absent. `pipeline_runs.items_updated` does
+    // exist (integer DEFAULT 0) and this cron wrote it directly until the
+    // write was routed through the helper, whose params never carried it.
+    // Corrected under id-402: the column is unwired, not retired; wiring
+    // the helper param is the open finding. Do not cite this comment as
+    // evidence that the column does not exist.
     const durationMs = Date.now() - startTime;
     const hadFailures = failedFetches.length > 0 || failedUpdates.length > 0;
     const errorSummary = hadFailures
