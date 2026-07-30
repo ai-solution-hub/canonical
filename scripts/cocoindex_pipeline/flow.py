@@ -2439,6 +2439,31 @@ async def _ingest_content_branch(
         ):
             _em_dedup[key] = mention
 
+    # ── id-400 Inv-9 RESHAPE: curation-pinned rows the walk may never UPDATE.
+    # Preload this document's pinned mentions (admin-curated via the entities
+    # merge route). Best-effort read (mirrors the holder-derivation posture
+    # above): a pin-read fault is LOGGED and the declares proceed unpinned —
+    # a lookup fault must never abort the doc. NOTE the failure mode is
+    # honest-but-degraded: without the pin map a full_reprocess re-declare
+    # would clobber curated values, so the warning is the audit trail.
+    _pinned_by_id: dict[Any, dict[str, Any]] = {}
+    try:
+        _pinned_by_id = await _fetch_curation_pinned_mentions(source_document_id)
+    except Exception as exc:  # noqa: BLE001 — best-effort pin preload
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.curation_pin_read_failed",
+                    "rel_path": rel_path,
+                    "error": _redact_error_message(str(exc)),
+                }
+            )
+        )
+
+    # Two-pass declare plan (id-400): build candidate rows first, then
+    # reconcile against the pin map before any declare_row fires, so a pinned
+    # row is ALWAYS declared verbatim and never raced by a fresh candidate.
+    _em_declares: list[dict[str, Any]] = []
     for (per_doc_canonical, entity_type), mention in _em_dedup.items():
         # Inv-5 [RATIFIED-S241] stamp ({66.16}): the EntityMentionExtraction
         # carries the flow op_id + this row's content_item_id (explicit kwargs —
@@ -2446,17 +2471,39 @@ async def _ingest_content_branch(
         mention = _stamp_if_model(
             mention, op_id=op_id, source_document_id=source_document_id
         )
+        row_id = uuid.uuid5(
+            _KH_PIPELINE_DOC_NS,
+            f"em:{source_document_id}:{per_doc_canonical}:{entity_type}",
+        )
+        pinned = _pinned_by_id.pop(row_id, None)
+        if pinned is not None:
+            # Pin carry-forward: re-declare the STORED row verbatim — the
+            # walk changes NOTHING on a curated row (canonical_name keeps the
+            # admin-merged value; metadata keeps the pin; op_id keeps the
+            # last-materially-changed stamp — no re-stamp even under
+            # full_reprocess).
+            _em_declares.append(
+                {
+                    "id": row_id,
+                    "source_document_id": source_document_id,
+                    "entity_type": pinned["entity_type"],
+                    "entity_name": pinned["entity_name"],
+                    "canonical_name": pinned["canonical_name"],
+                    "confidence": pinned["confidence"],
+                    "context_snippet": pinned["context_snippet"],
+                    "metadata": pinned["metadata"],
+                    "op_id": pinned["op_id"],
+                }
+            )
+            continue
         context_snippet = extract_entity_context(content_text, mention.entity_name)
         # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
         # are PRESERVED, holder keys are added (never overwriting a span key).
         # Non-cert / no-signal mentions resolve to {} so only span keys remain.
         holder_md = _holder_by_mention_id.get((per_doc_canonical, entity_type), {})
-        em_target.declare_row(
-            row={
-                "id": uuid.uuid5(
-                    _KH_PIPELINE_DOC_NS,
-                    f"em:{source_document_id}:{per_doc_canonical}:{entity_type}",
-                ),
+        _em_declares.append(
+            {
+                "id": row_id,
                 # ID-131 {131.8} M2 (BI-14): mentions parent the source_documents
                 # record directly (re-parented off content_items).
                 "source_document_id": source_document_id,
@@ -2473,6 +2520,52 @@ async def _ingest_content_branch(
                 "op_id": op_id,
             }
         )
+
+    # Unconsumed pinned rows: the re-extraction produced no candidate with the
+    # pinned row's id (e.g. tier variance changed the per-doc canonical). The
+    # pinned row must SURVIVE the walk regardless — re-declare it verbatim so
+    # the engine's declared-state reconciliation cannot orphan-clean it. If a
+    # fresh candidate holds the pinned row's NATURAL key
+    # (canonical_name, entity_type) under a different id, the PIN WINS: the
+    # candidate is dropped (declaring both would collide on
+    # UNIQUE(canonical_name, entity_type, source_document_id)).
+    if _pinned_by_id:
+        _declared_natural_keys = {
+            (d["canonical_name"], d["entity_type"]) for d in _em_declares
+        }
+        for pinned in _pinned_by_id.values():
+            pin_key = (pinned["canonical_name"], pinned["entity_type"])
+            if pin_key in _declared_natural_keys:
+                _em_declares = [
+                    d
+                    for d in _em_declares
+                    if (d["canonical_name"], d["entity_type"]) != pin_key
+                ]
+                _logger.info(
+                    json.dumps(
+                        {
+                            "event": "cocoindex.ingest.curation_pin_won_natural_key",
+                            "rel_path": rel_path,
+                            "entity_type": pinned["entity_type"],
+                        }
+                    )
+                )
+            _em_declares.append(
+                {
+                    "id": pinned["id"],
+                    "source_document_id": source_document_id,
+                    "entity_type": pinned["entity_type"],
+                    "entity_name": pinned["entity_name"],
+                    "canonical_name": pinned["canonical_name"],
+                    "confidence": pinned["confidence"],
+                    "context_snippet": pinned["context_snippet"],
+                    "metadata": pinned["metadata"],
+                    "op_id": pinned["op_id"],
+                }
+            )
+
+    for _em_row in _em_declares:
+        em_target.declare_row(row=_em_row)
         _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
 
     # ── Stage 5 substrate: entity_relationships rows (ID-101 §{101.7}) ────────
@@ -2738,6 +2831,52 @@ async def _reconcile_feed_article_backlinks(pool: Any) -> int:
             await _backlink_feed_articles(ri["id"], tuple(raw_urls))
             linked += len(raw_urls)
     return linked
+
+
+async def _fetch_curation_pinned_mentions(
+    source_document_id: "uuid.UUID",
+) -> "dict[uuid.UUID, dict[str, Any]]":
+    """Read this document's curation-pinned `entity_mentions` rows (id-400).
+
+    Inv-9 RESHAPE (curation pinning, TRIAGE §3.1.4): rows an admin curated
+    (`metadata.curation_pinned = true`, stamped by the entities merge route)
+    may NEVER be updated by the walk. The em-declare loop in
+    `_ingest_content_branch` consults this map so a re-extraction (byte
+    change or `full_reprocess`) re-declares a pinned row VERBATIM — stored
+    canonical_name / entity_name / confidence / context_snippet / metadata /
+    op_id — instead of clobbering the curated values with fresh per-doc
+    canonicals. Keyed by row id (the registry-keyed uuid5 the declare loop
+    recomputes deterministically).
+
+    Same env-scope DB_CTX raw-pool read pattern as `_upsert_source_document`.
+    `metadata` decodes to dict via the pool jsonb codec; a str (codec-less
+    test pools) is json-parsed defensively.
+    """
+    pool = coco.use_context(DB_CTX)
+    rows = await pool.fetch(
+        "SELECT id, entity_type, entity_name, canonical_name, confidence, "
+        "       context_snippet, metadata, op_id "
+        "FROM public.entity_mentions "
+        "WHERE source_document_id = $1 "
+        "AND (metadata->>'curation_pinned') = 'true'",
+        source_document_id,
+    )
+    pinned: dict[uuid.UUID, dict[str, Any]] = {}
+    for row in rows:
+        metadata = row["metadata"]
+        if isinstance(metadata, str):
+            metadata = json.loads(metadata)
+        pinned[row["id"]] = {
+            "id": row["id"],
+            "entity_type": row["entity_type"],
+            "entity_name": row["entity_name"],
+            "canonical_name": row["canonical_name"],
+            "confidence": row["confidence"],
+            "context_snippet": row["context_snippet"],
+            "metadata": metadata,
+            "op_id": row["op_id"],
+        }
+    return pinned
 
 
 async def _resolve_source_identity(

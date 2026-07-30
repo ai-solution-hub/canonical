@@ -20,6 +20,10 @@ const EntityMergeResponseSchema = z.object({
   entity_type: z.string(),
   mentions_updated: z.number(),
   duplicates_removed: z.number(),
+  // id-400 (Inv-9 RESHAPE — curation pinning): surviving target rows stamped
+  // `metadata.curation_pinned = true` post-merge; the ingestion walk may
+  // never UPDATE/DELETE a pinned row (stage_5.py + flow.py honour the pin).
+  mentions_pinned: z.number(),
 });
 
 export const POST = defineRoute(
@@ -72,12 +76,47 @@ export const POST = defineRoute(
         );
       }
 
+      // id-400 (Inv-9 RESHAPE — curation pinning, TRIAGE §3.1.4): stamp the
+      // surviving target rows `metadata.curation_pinned = true` so the
+      // ingestion walk can never revert this merge — census #41 failure #1
+      // (admin merge reverted on a later walk) is the live symptom this
+      // closes. The pipeline honours the pin at three sites: the Stage-5
+      // write-back domain + cross-op survivor rule (stage_5.py) and the
+      // em-declare carry-forward (flow.py). Best-effort: the merge itself
+      // already committed atomically via the RPC; a pin-stamp fault is
+      // reported through `mentions_pinned` (fewer than expected / 0), never
+      // a 500 that would misreport the committed merge as failed.
+      let mentionsPinned = 0;
+      try {
+        const { data: pinRows, error: pinReadError } = await serviceClient
+          .from('entity_mentions')
+          .select('id, metadata')
+          .eq('canonical_name', result.target)
+          .eq('entity_type', result.entity_type);
+        if (!pinReadError && Array.isArray(pinRows)) {
+          for (const row of pinRows) {
+            const existing =
+              row.metadata && typeof row.metadata === 'object'
+                ? (row.metadata as Record<string, unknown>)
+                : {};
+            const { error: pinWriteError } = await serviceClient
+              .from('entity_mentions')
+              .update({ metadata: { ...existing, curation_pinned: true } })
+              .eq('id', row.id);
+            if (!pinWriteError) mentionsPinned += 1;
+          }
+        }
+      } catch {
+        // best-effort — surfaced via mentions_pinned below
+      }
+
       return NextResponse.json({
         merged: result.merged,
         target: result.target,
         entity_type: result.entity_type,
         mentions_updated: result.mentions_updated,
         duplicates_removed: result.duplicates_removed,
+        mentions_pinned: mentionsPinned,
       });
     } catch (err) {
       return NextResponse.json(

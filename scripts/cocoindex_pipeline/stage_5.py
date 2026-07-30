@@ -112,11 +112,21 @@ async def _select_run_entity_mentions(
     canonicals in the SAME document resolved to one value. `confidence` is
     SELECTed so the survivor of a collision group is the highest-confidence row
     (mirroring `delete_duplicate_entity_mentions`).
+
+    id-400 (Inv-9 RESHAPE — curation pinning): CURATION-PINNED rows
+    (`metadata.curation_pinned = true`, stamped by the admin merge route) are
+    EXCLUDED from the write-back domain entirely — the walk may never UPDATE
+    or DELETE a curated row, even when a `full_reprocess` legitimately
+    re-stamped its op_id back into this run's scope. Their canonical names
+    still reach the resolver as PINNED existing seeds via the op-agnostic
+    roster read (`_select_existing_canonical_roster`), so new mentions chain
+    UNDER a curated canonical; the curated row itself is untouchable.
     """
     return await db_pool.fetch(
         "SELECT id, canonical_name, entity_type, source_document_id, confidence "
         "FROM public.entity_mentions "
-        "WHERE op_id = $1",
+        "WHERE op_id = $1 "
+        "AND (metadata->>'curation_pinned') IS DISTINCT FROM 'true'",
         op_id,
     )
 
@@ -178,15 +188,19 @@ async def _select_prior_op_key_holders(
     to write).
 
     At most ONE row can hold each key (the UNIQUE constraint), so the result
-    has at most `len(keys)` rows. Returns `id`, the key columns, and
-    `confidence` so the caller can extend the deterministic survivor rule
-    (highest confidence, then smallest id) across ops.
+    has at most `len(keys)` rows. Returns `id`, the key columns, `confidence`
+    so the caller can extend the deterministic survivor rule (highest
+    confidence, then smallest id) across ops, and `curation_pinned` (id-400 —
+    Inv-9 RESHAPE) so a curated key-holder wins UNCONDITIONALLY: the walk may
+    never UPDATE or DELETE a curation-pinned row, whatever the confidence
+    ranking says.
     """
     if not keys:
         return []
     return await db_pool.fetch(
         "SELECT em.id, em.canonical_name, em.entity_type, em.source_document_id, "
-        "       em.confidence "
+        "       em.confidence, "
+        "       ((em.metadata->>'curation_pinned') = 'true') AS curation_pinned "
         "FROM public.entity_mentions em "
         "JOIN unnest($1::text[], $2::text[], $3::uuid[]) "
         "  AS k(canonical_name, entity_type, source_document_id) "
@@ -442,6 +456,14 @@ async def _run_stage_5_resolution(
             if prior is None:
                 updates.append((row_id, resolved))
                 continue
+            # id-400 (Inv-9 RESHAPE — curation pinning): a curation-pinned
+            # key-holder wins UNCONDITIONALLY — the walk may never DELETE a
+            # curated row, whatever the confidence ranking says. The
+            # current-op survivor collapses into it (op-scoped DELETE — the
+            # row belongs to this run, so Inv-5's write scope is untouched).
+            if prior.get("curation_pinned"):
+                deletes.append(row_id)
+                continue
             prior_conf = prior["confidence"]
             current_rank = (-(conf if conf is not None else -1.0), row_id)
             prior_rank = (
@@ -480,10 +502,14 @@ async def _run_stage_5_resolution(
                     # asserts the foreign-op/NULL-op provenance at the DB (a
                     # current-op id can never match), keeping the predicate
                     # honest about what it touches.
+                    # id-400 defence-in-depth: the pin predicate is re-asserted
+                    # AT the DELETE — a curation-pinned row is undeletable here
+                    # even if the selection logic above ever regresses.
                     await conn.execute(
                         "DELETE FROM public.entity_mentions "
                         "WHERE id = ANY($1::uuid[]) "
-                        "AND op_id IS DISTINCT FROM $2",
+                        "AND op_id IS DISTINCT FROM $2 "
+                        "AND (metadata->>'curation_pinned') IS DISTINCT FROM 'true'",
                         cross_op_deletes,
                         meta.op_id,
                     )
