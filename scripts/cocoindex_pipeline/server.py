@@ -56,6 +56,7 @@ import uuid
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import unquote, urlsplit
 
 # `asyncpg` + `writer_fence` are plain, side-effect-free imports (no cocoindex
 # ContextKey registration risk — `writer_fence.py` imports NO cocoindex symbol
@@ -158,16 +159,16 @@ _CRASH_REASON_MAX_CHARS = 400
 
 # Env vars whose VALUES must never appear in a public response. Names only —
 # values are read at redaction time and never logged or stored.
+#
+# Deliberately ABSENT: `COCOINDEX_DB` (a container-internal path, and redacting
+# it destroys a documented crash class — the "Permission denied (os error 13)
+# initialising the LMDB engine store at …" case in
+# `docker-compose.production.yaml` {66.9}) and `SUPABASE_PUBLISHABLE_KEY`
+# (public by design; it ships to browsers). Redacting a non-secret is pure
+# diagnostic loss.
 _SENSITIVE_ENV_VARS: "tuple[str, ...]" = (
-    # Literal, not an import: `holder_rule.CLIENT_ORG_ENV_VAR` is the
-    # definition, but this module boots the container and must not grow an
-    # import edge for one constant. Identifies the client — an anonymisation
-    # concern rather than a secret, and the reason this pass exists.
-    "PIPELINE_CLIENT_ORG",
     "COCOINDEX_DB_DSN",
-    "COCOINDEX_DB",
     "SUPABASE_SERVICE_ROLE_KEY",
-    "SUPABASE_PUBLISHABLE_KEY",
     "CRON_SECRET",
     "PIPELINE_TRIGGER_SECRET",
     "EXTRACT_API_TOKEN",
@@ -177,8 +178,20 @@ _SENSITIVE_ENV_VARS: "tuple[str, ...]" = (
     "PIPELINE_RUN_WEBHOOK_URL",
 )
 
+# Identity vars: not secrets, but they deanonymise the deployment. Held apart
+# because they are exempt from the length floor below — real trading names are
+# routinely 2-3 characters ("BP", "IBM"), which is precisely the range a
+# generic floor would wave through.
+#
+# Literal, not an import: `holder_rule.CLIENT_ORG_ENV_VAR` is the definition,
+# but this module boots the container and must not grow an import edge for one
+# constant.
+_IDENTITY_ENV_VARS: "tuple[str, ...]" = ("PIPELINE_CLIENT_ORG",)
+
 # Below this length a value is too generic to substitute safely — a 1-2 char
-# env value would blank out unrelated text and destroy the diagnostic.
+# env value would blank out unrelated text and destroy the diagnostic. Applies
+# to `_SENSITIVE_ENV_VARS` only; every entry there is a long secret, so the
+# floor costs nothing. Identity vars use word-boundary matching instead.
 _MIN_REDACTABLE_VALUE_CHARS = 4
 
 _CRASH_REASON_REDACTIONS: "tuple[tuple[re.Pattern[str], str], ...]" = (
@@ -189,20 +202,47 @@ _CRASH_REASON_REDACTIONS: "tuple[tuple[re.Pattern[str], str], ...]" = (
 )
 
 
-def _redact_env_values(text: str) -> str:
-    """Substitute out the live values of `_SENSITIVE_ENV_VARS`.
+def _dsn_password_variants(dsn: str) -> "set[str]":
+    """Passwords embedded in a DSN, as they might appear in an error message.
 
-    Longest value first, so a value that contains another (a DSN embedding a
-    password) is replaced whole rather than leaving a mangled remainder.
+    Byte-exact substitution only catches the DSN echoed WHOLE. A library that
+    reports just the password, or reformats the DSN, would slip through — so
+    pull the password out and cover its encoded and decoded spellings too.
     """
-    values = {
-        value
-        for name in _SENSITIVE_ENV_VARS
-        if len(value := os.environ.get(name, "").strip())
-        >= _MIN_REDACTABLE_VALUE_CHARS
-    }
+    variants: "set[str]" = set()
+    try:
+        password = urlsplit(dsn).password
+    except ValueError:
+        return variants
+    if password:
+        variants.add(password)
+        variants.add(unquote(password))
+    return variants
+
+
+def _redact_env_values(text: str) -> str:
+    """Substitute out the live values of the sensitive + identity env vars.
+
+    Secrets are matched byte-exact (longest first, so a value containing
+    another — a DSN embedding its own password — is replaced whole rather than
+    leaving a mangled remainder). Identity values are matched on word
+    boundaries and exempt from the length floor, so a 2-character org name is
+    still removed without shredding unrelated text.
+    """
+    values: "set[str]" = set()
+    for name in _SENSITIVE_ENV_VARS:
+        value = os.environ.get(name, "").strip()
+        if len(value) >= _MIN_REDACTABLE_VALUE_CHARS:
+            values.add(value)
+    values |= _dsn_password_variants(os.environ.get("COCOINDEX_DB_DSN", "").strip())
+
     for value in sorted(values, key=len, reverse=True):
         text = text.replace(value, "***")
+
+    for name in _IDENTITY_ENV_VARS:
+        value = os.environ.get(name, "").strip()
+        if value:
+            text = re.sub(rf"\b{re.escape(value)}\b", "***", text)
     return text
 
 

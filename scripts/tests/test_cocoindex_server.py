@@ -743,22 +743,86 @@ class TestCrashReasonOnHealth:
         finally:
             server_mod.reset_worker_state()
 
-    def test_short_env_values_do_not_blank_the_reason(self, monkeypatch) -> None:
-        """A 1-2 character env value must not be substituted out.
+    def test_short_secret_values_do_not_blank_the_reason(self, monkeypatch) -> None:
+        """A 1-2 character SECRET value must not be substituted out.
 
-        Guards the redaction against destroying itself: without the minimum
-        length, an env var set to something like "x" would replace every "x" in
-        the message and leave an unreadable body.
+        Guards the redaction against destroying itself: without the length
+        floor, a secret env var set to something like "x" would replace every
+        "x" in the message and leave an unreadable body.
+
+        The assertion message must CONTAIN the short value, or this test cannot
+        fail — an earlier version used a message with no "x" in it and passed
+        even with the floor removed (PR #159 re-review).
         """
         from scripts.cocoindex_pipeline import server as server_mod
 
-        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "x")
+        monkeypatch.setenv("CRON_SECRET", "x")
 
         server_mod.reset_worker_state()
         try:
-            reason = _crash_worker_at_boot(RuntimeError("connection refused to host"))
-            assert "connection refused to host" in reason, (
+            reason = _crash_worker_at_boot(
+                RuntimeError("max retries exceeded connecting to host")
+            )
+            assert "max retries exceeded connecting to host" in reason, (
                 f"a short env value corrupted the reason: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_a_short_client_name_is_still_redacted(self, monkeypatch) -> None:
+        """A 2-3 character org name must NOT slip under the length floor.
+
+        The floor exists for secrets, all of which are long. Client trading
+        names are routinely 2-3 characters ("BP", "IBM"), which is exactly the
+        range a blanket floor waves through — so identity vars are exempt from
+        it and matched on word boundaries instead.
+
+        Without that exemption this is the original PR #159 leak, reopened for
+        every short-named client.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "BP")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(
+                    "[PIPELINE_CLIENT_ORG='BP'] fail-closed: "
+                    "entity_aliases table has zero provenance='client' rows"
+                )
+            )
+            assert "'BP'" not in reason, (
+                f"/health named a short-named client: {reason!r}"
+            )
+            # Word-boundary matching, so the diagnosis survives intact.
+            assert "entity_aliases" in reason and "fail-closed" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_container_paths_are_not_redacted(self, monkeypatch) -> None:
+        """`COCOINDEX_DB` is a container path, not a secret — keep it legible.
+
+        The LMDB permission-denied boot failure is a documented crash class
+        ({66.9} in docker-compose.production.yaml); redacting the path it names
+        is pure diagnostic loss with no security gain.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("COCOINDEX_DB", "/cocoindex-state/lmdb")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                OSError(
+                    "Permission denied (os error 13) initialising the LMDB "
+                    "engine store at /cocoindex-state/lmdb"
+                )
+            )
+            assert "/cocoindex-state/lmdb" in reason, (
+                f"redaction ate a documented crash class: {reason!r}"
             )
         finally:
             server_mod.reset_worker_state()

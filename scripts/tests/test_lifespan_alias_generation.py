@@ -106,6 +106,42 @@ def test_configured_client_zero_client_rows_raises(
     )
 
 
+def test_gate_message_never_carries_the_client_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fail-closed RuntimeError must not name the configured client.
+
+    WHY THIS IS PINNED HERE AND NOT ONLY AT `/health`. This exception
+    propagates out of `kh_pipeline_lifespan` to `GET /health`, which is
+    unauthenticated and Traefik-exposed on the client host. `server.py`
+    redacts crash reasons before serving them, but that is a BACKSTOP — and a
+    backstop hides the regression it absorbs, so re-adding the value here would
+    otherwise fail no test at all (PR #159 re-review found exactly that gap).
+
+    The org name belongs in the container log, which is private. It must not be
+    in the message, which is not. The repo anonymises clients deliberately —
+    hosts are `ca-client-pipeline`, and a guard hook blocks client names in
+    filenames and commands.
+    """
+    org = "Acme Holdings Limited"
+    monkeypatch.setenv(CLIENT_ORG_ENV_VAR, org)
+
+    pool = _FakePool([_make_row("ISO Certification", "ISO 27001", "core")])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(_generate_client_alias_snapshot(pool))
+
+    message = str(exc_info.value)
+    assert org not in message, (
+        f"the fail-closed message leaked the client name: {message!r}"
+    )
+    # The diagnosis must survive the removal — an operator still learns which
+    # gate fired and what to do about it.
+    assert "fail-closed" in message and "entity_aliases" in message, (
+        f"removing the name destroyed the diagnosis: {message!r}"
+    )
+
+
 def test_configured_client_empty_table_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
