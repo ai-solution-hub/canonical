@@ -77,17 +77,16 @@
 --   * local `supabase/migrations/` max = 20260729210500
 --   * Platform staging remote      max = 20260729210500
 -- APPLIED TO BOTH PLATFORM DBs (S515, owner directive — supersedes this
--- migration's original "prod deferred" note):
---   * Platform staging rbwqewalexrzgxtvcqrh — applied via `supabase db push`.
---   * Platform prod    zjqbrdctesqvouboziae — applied via the Supabase MCP
---     DDL path, because SUPABASE_DB_PASSWORD is not present in the shell or
---     .env.local, so the CLI `link` + `db push` route would have prompted.
---     That path stamps its own version, so the ledger row was then corrected
---     from 20260730162813 to THIS file's 20260730150743 — both DBs and the
---     filename now agree, and a later `db push` will not re-apply it.
--- Post-apply parity verified: both DBs 111 migrations, max 20260730150743;
--- both functions prosecdef=false with anon=false / authenticated=true /
--- service_role=true (DR-035's born-locked trigger held on prod unaided).
+-- migration's original "prod deferred" note). Both applied with
+-- `supabase link --project-ref <ref>` + `supabase db push`, the sanctioned route:
+--   * Platform staging rbwqewalexrzgxtvcqrh
+--   * Platform prod    zjqbrdctesqvouboziae
+-- Post-apply parity verified on BOTH: 111 migrations, max 20260730150743, and
+-- schema_migrations.statements byte-identical (11 statements, md5
+-- 6889a44bcd0ee94ea1f47568285c9b83) so replay and squash reconstruct the same
+-- SQL in either environment. Both functions prosecdef=false with anon=false /
+-- authenticated=true / service_role=true — DR-035's born-locked trigger held on
+-- prod unaided.
 --
 -- UK English throughout (DD/MM/YYYY). Authored 30/07/2026 (S515).
 
