@@ -11,9 +11,16 @@
  *   bun run scripts/generate-taxonomy-snapshot.ts
  *
  * All blocks run on in-repo files committed to this repository, so the whole
- * suite stays live in the default `bun run test` (Inv-30-compliant: no
- * KH_PRIVATE_DOCS_DIR dependency). The Canonical-Taxonomy-vs-DB-Snapshot block
+ * suite stays live in the default `bun run test` — it has no
+ * KH_PRIVATE_DOCS_DIR dependency. The Canonical-Taxonomy-vs-DB-Snapshot block
  * parses the same generated artefact the classification prompt is built from.
+ *
+ * (This property was previously cited as "Inv-30-compliant". That citation was
+ * an orphan: no register defines an Inv-30 meaning "no private-docs dependency".
+ * The two live Inv-30s are id-9's docubot direct-write invariant and id-62's
+ * corpus-volume invariant — the latter declared MOOT in
+ * `specs/id-62-fixture-staging-infra/P4-RECONCILIATION.md:144`. Number retired,
+ * behaviour kept, by the S515 id-402 citation-hygiene sweep.)
  *
  * Run: bun run test -- __tests__/validation/taxonomy-consistency.test.ts
  */
@@ -68,9 +75,9 @@ const SNAPSHOT_EXISTS = existsSync(SNAPSHOT_PATH);
 const PROMPT_EXISTS = existsSync(CANONICAL_PATH);
 
 // The canonical-taxonomy-vs-snapshot parity check runs by default: both the
-// generated artefact and the snapshot fixture are in-repo, so this is
-// Inv-30-compliant (no KH_PRIVATE_DOCS_DIR dependency). It only skips if one of
-// the in-repo files is genuinely absent.
+// generated artefact and the snapshot fixture are in-repo, so it carries no
+// KH_PRIVATE_DOCS_DIR dependency (see the file header on the retired "Inv-30"
+// citation). It only skips if one of the in-repo files is genuinely absent.
 const RUN_PROMPT_PARITY = SNAPSHOT_EXISTS && PROMPT_EXISTS;
 const describePromptParity = RUN_PROMPT_PARITY ? describe : describe.skip;
 

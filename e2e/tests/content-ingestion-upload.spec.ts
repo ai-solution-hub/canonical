@@ -14,6 +14,25 @@
  * so this leg is now fully synchronous and safely exercisable end-to-end in
  * CI (no worker dependency).
  *
+ * D4 LANE BOUNDARY (id-396 `[D4 RATIFIED S511 (amended)]`, restated by
+ * id-401 S515 — do not re-import corpus→rows proof into this file):
+ *   This spec proves APP BEHAVIOUR around a programmatically-manufactured
+ *   state: one deterministic committed fixture file driven through the real
+ *   admission gate. Proving corpus→rows — that ingesting the corpus produces
+ *   the right rows — belongs to the INGESTION lane and its harness, never
+ *   here. Do not grow corpus-file walks or lane-harness assertions into this
+ *   spec; if that is what you need, you are in the wrong lane.
+ *
+ * id-401 (S515) AC-1/AC-2 VERDICT — RETAINED UNCHANGED, NOT RETIRED.
+ *   The S509 charter-board S8 verdict ("retire and replace, based on target
+ *   model") predates the {131.24} re-authoring below. Re-verified assertion by
+ *   assertion on `main` at S515: every assertion binds the LIVE target surface
+ *   (binding-admission gate → Storage PUT → admission-minted
+ *   `source_documents`), zero bind retired substrate, and the two
+ *   `content_items` mentions above are prose documenting the retirement. No
+ *   `extracted_text` read anywhere. The retire-and-replace verdict was already
+ *   discharged by {131.24}; this spec needed no rewrite.
+ *
  * VERIFIED AGAINST PRODUCTION:
  *   - Admission endpoint is `POST /api/ingest/folder-drop`, multipart
  *     (`file` + optional `retention_class`), gated

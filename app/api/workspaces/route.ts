@@ -137,8 +137,14 @@ export const POST = defineRoute(
       const { name, description, color, icon, type } = parsed.data;
 
       // Post-T2: discriminator is `application_type_id`, not the dropped `type`
-      // text column. Map the legacy 'bid' input alias to the 'procurement'
-      // application_types row (Q-OQR1-02 umbrella rename).
+      // text column.
+      //
+      // (A legacy 'bid' -> 'procurement' alias mapping was described here but
+      // never existed in the code below: `WorkspaceCreateBodySchema.type` is
+      // `z.enum(getValidTypeValues())` and `lib/workspace-types.ts` returns six
+      // keys, none of them 'bid', so a 'bid' input is rejected at validation and
+      // never reaches this point. Stale comment removed by the S515 id-402
+      // sweep — {377.6} inbox class (c).)
       //
       // 'kb_section' was retired at T2 (no rows in either env). If clients still
       // send it, reject loudly — the legacy default has no replacement seat and

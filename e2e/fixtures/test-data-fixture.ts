@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type -- Playwright fixture API requires {} for test-scoped type parameter */
 import { test as base } from '@playwright/test';
+import type { Tables } from '@/supabase/types/database.types';
 import { createServiceClient } from './supabase';
 import {
   FRESHNESS_OFFSETS,
@@ -33,6 +34,27 @@ import precomputedEmbeddings from './embeddings.json';
  * block below for the full q_a_pairs/source_documents re-point and what
  * lost its destination entirely (read marks; the feed-article <-> document
  * link).
+ *
+ * id-401 (S515) — id-396 `[D4 RATIFIED S511 (amended)]` e2e BODY RULE:
+ * every seeded `source_documents` row carries a position-0 `content_chunks`
+ * body. Before this fix the seeder wrote NO body for any of its 12 documents,
+ * so every reader composing through `lib/source-documents/body.ts` (which
+ * reads `content_chunks.content` ordered by `position` — `extracted_text` is
+ * permanently NULL post id-392) saw `null`. The shapes in `test-data.ts`
+ * already carried the body text in `ContentItemShape.content`; the
+ * `source_documents` insert simply dropped it on the floor. Bodies are now
+ * written via `seedDocumentBodies` at BOTH document-insert sites.
+ *
+ * DEFERRED HALF of D4 — see `seedDocumentBodies` for the full note: the rule
+ * also says bodies should be "sourced from manifest corpus files, OR declared
+ * body-less in the manifest". That manifest does not exist yet (id-396 TECH §1
+ * specifies `docs/testing/corpus-manifest.json` + a
+ * `__tests__/validation/corpus-manifest.test.ts` guard; neither is in the
+ * repo). Bodies therefore come from the shapes for now.
+ *
+ * D4 LANE BOUNDARY: this fixture manufactures programmatic states for e2e to
+ * assert app behaviour against. Proving corpus→rows is the INGESTION lane's
+ * job, not this file's — do not grow full corpus-driven seeding in here.
  */
 
 /**
@@ -115,6 +137,67 @@ export interface WorkerData {
   prefix: string;
   /** Indices of content items that have pre-computed embeddings. */
   embeddedItemIndices: readonly number[];
+}
+
+/**
+ * Write the reader-visible document body for freshly-seeded
+ * `source_documents` rows — one position-0 `content_chunks` row each.
+ *
+ * id-396 `[D4 RATIFIED S511 (amended)]`, implemented under id-401 (S515).
+ * Matches the id-392 M6 worked precedent verbatim
+ * (`e2e/tests/publication-bulk-action.e2e.spec.ts`,
+ * `scripts/seed-e2e-users.ts` `ensurePublicationReviewFixtureChunk`):
+ * `source_documents.extracted_text` is legacy and permanently NULL on the
+ * pipeline path, so every reader composes the body from
+ * `content_chunks.content` ordered by `position` via
+ * `lib/source-documents/body.ts`. A seeded document with no chunk row reads
+ * back as a body-less document.
+ *
+ * No teardown step is needed: `content_chunks_source_document_id_fkey` is
+ * ON DELETE CASCADE (`20260628200000_id131_extract_reparent.sql`), so the
+ * existing by-id `source_documents` delete in this fixture's teardown takes
+ * the chunks with it.
+ *
+ * DEFERRED — the manifest half of D4. The rule reads "sourced from manifest
+ * corpus files, OR declared body-less in the manifest". id-396 TECH §1
+ * specifies that manifest as `docs/testing/corpus-manifest.json` with a
+ * `__tests__/validation/corpus-manifest.test.ts` conformance guard, but
+ * NEITHER EXISTS IN THE REPO (verified S515, id-401 AC-4: repo-wide grep for
+ * `corpus-manifest`/`corpusManifest`/`CORPUS_MANIFEST` returns zero hits).
+ * Bodies are therefore sourced from the shapes in `test-data.ts`, which
+ * already carry authored body text. When the manifest lands, re-point these
+ * bodies at the corpus files it registers and declare any deliberately
+ * body-less fixture there. Building the manifest was explicitly OUT of
+ * id-401's scope — it is an id-396 artefact, and inventing its contract
+ * mid-lane is the scope creep the D4 lane boundary exists to prevent.
+ *
+ * SUPABASE-WRAPPER EXCEPTION (documented, PR #158 review). The repo guideline
+ * routes Supabase access through `sb()` / `tryQuery()` from
+ * `@/lib/supabase/safe`. This file does not, and this write deliberately
+ * matches it: the whole `e2e/` tree is wrapper-free (zero imports of
+ * `lib/supabase/safe`), and this fixture alone holds 20 `.throwOnError()`
+ * chains on a `createServiceClient()`. Converting one of them would leave the
+ * file internally inconsistent without closing the class. The guideline exists
+ * to stop a silently-dropped `error` channel; `.throwOnError()` is the
+ * fail-loud form and satisfies that intent — a seed failure aborts the worker's
+ * setup rather than yielding a half-seeded fixture. Migrating `e2e/` to the
+ * wrapper wholesale is its own change.
+ */
+async function seedDocumentBodies(
+  supabase: ReturnType<typeof createServiceClient>,
+  bodies: { sourceDocumentId: string; body: string }[],
+): Promise<void> {
+  if (bodies.length === 0) return;
+  await supabase
+    .from('content_chunks')
+    .insert(
+      bodies.map(({ sourceDocumentId, body }) => ({
+        source_document_id: sourceDocumentId,
+        content: body,
+        position: 0,
+      })),
+    )
+    .throwOnError();
 }
 
 /**
@@ -266,6 +349,24 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           itemIds[sdShapeEntries[i]!.index] = row.id;
           sourceDocumentIds.push(row.id);
         });
+
+        // id-401 / id-396 D4 body rule: give each seeded document its
+        // reader-visible position-0 `content_chunks` body. `shape.content`
+        // is the body text these fixtures have always carried — the insert
+        // above drops it (no `source_documents` column holds it post-M6),
+        // which is exactly why these rows read back body-less before this
+        // fix. Reuses the same `sdRows[i] -> sdShapeEntries[i]` pairing the
+        // `itemIds` mapping above already depends on, so no new ordering
+        // assumption is introduced.
+        await seedDocumentBodies(
+          supabase,
+          (sdRows ?? []).map(
+            (row: Pick<Tables<'source_documents'>, 'id'>, i: number) => ({
+              sourceDocumentId: row.id,
+              body: sdShapeEntries[i]!.shape.content,
+            }),
+          ),
+        );
       }
 
       // --- Restore the freshness/lifecycle axis on `record_lifecycle` ---
@@ -739,6 +840,23 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const intelItemIds = (intelItems ?? []).map((i: { id: string }) => i.id);
       sourceDocumentIds.push(...intelItemIds);
+
+      // id-401 / id-396 D4 body rule — SECOND document-insert site. Feed
+      // articles carry no long-form body of their own, so the AI summary is
+      // the document body here (these rows exist so `intelItemIds` and the
+      // teardown stay meaningful; no live spec reads their prose). Without
+      // this they were the other half of the body-less seed population.
+      await seedDocumentBodies(
+        supabase,
+        (intelItems ?? []).map(
+          (row: Pick<Tables<'source_documents'>, 'id'>, i: number) => ({
+            sourceDocumentId: row.id,
+            body:
+              passedArticleShapes[i]!.ai_summary ??
+              `${prefix} ${passedArticleShapes[i]!.title}`,
+          }),
+        ),
+      );
       // These land on the trigger-minted default of `freshness = 'fresh'`.
       seededFreshnessCounts.fresh += intelItemIds.length;
 
@@ -797,12 +915,15 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // cleanup now targets `q_a_pairs` + `source_documents` (+ their
       // `record_embeddings` rows — polymorphic, no FK cascade).
       //
-      // No explicit step for `feed_prompts` or `record_lifecycle`: both have
-      // real ON DELETE CASCADE FKs (`feed_prompts.workspace_id` ->
-      // `workspaces`, reaped by the prefix sweep in step 5;
-      // `record_lifecycle.source_document_id` -> `source_documents`, reaped
-      // by the by-id delete in the same step). Adding redundant deletes here
-      // would only widen the teardown's blast radius.
+      // No explicit step for `feed_prompts`, `record_lifecycle` or
+      // `content_chunks`: all three have real ON DELETE CASCADE FKs
+      // (`feed_prompts.workspace_id` -> `workspaces`, reaped by the prefix
+      // sweep in step 5; `record_lifecycle.source_document_id` and
+      // `content_chunks.source_document_id` -> `source_documents`, reaped by
+      // the by-id delete in the same step — the latter per
+      // `content_chunks_source_document_id_fkey`,
+      // `20260628200000_id131_extract_reparent.sql`). Adding redundant
+      // deletes here would only widen the teardown's blast radius.
 
       // 1. Notifications (by ID)
       if (notificationIds.length > 0) {
