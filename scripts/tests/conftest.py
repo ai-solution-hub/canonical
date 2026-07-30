@@ -299,6 +299,28 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         )
 
 
+@pytest.fixture(autouse=True)
+def _reset_flow_run_context():
+    """id-400 test isolation: clear the FlowRunContext holder between tests.
+
+    `app_main` publishes the walk's run context on the module-singleton
+    `FLOW_RUN_CONTEXT` and deliberately never clears it (live-mode contract).
+    In the shared pytest process that lifetime leaks a prior test's op_id /
+    counters into later tests, so reset after every test. Resolution order in
+    `ingest_file` / `ingest_url` is ContextVar-first, so bound in-task callers
+    are immune regardless — this fixture guards the UNBOUND-caller error path
+    (a test asserting the no-run-context RuntimeError must not be masked by a
+    stale holder).
+    """
+    yield
+    try:
+        from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+        FLOW_RUN_CONTEXT.reset()
+    except Exception:  # pragma: no cover — flow_context import stubbed away
+        pass
+
+
 @pytest.fixture(scope="session")
 def taxonomy_from_snapshot():
     """Load taxonomy from committed snapshot file.

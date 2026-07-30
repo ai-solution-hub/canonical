@@ -495,48 +495,59 @@ class TestAppMainBodyContainsBindRetryCounterWrapper:
     """
 
     def test_app_main_source_contains_bind_retry_counter_call(self) -> None:
-        """`app_main()` must thread the per-flow `_FlowRetryCounter` onto
-        `ingest_file`.
+        """`app_main()` must publish the per-flow `_FlowRetryCounter` on the
+        FlowRunContext holder (id-400 / D-397-A Option C).
 
-        ID-66.19 reality: cocoindex runs the per-item `ingest_file` on its own
-        `_LoopRunner` daemon thread, which does NOT inherit `app_main`'s
-        ContextVar bindings — so binding the retry counter around `mount_each`
-        bound it on the WRONG thread and the tenacity `before_sleep` hook in
-        extraction.py read None. `app_main` now threads it as
-        `flow_retry_counter=flow_retry_counter` via `functools.partial`, and
-        `ingest_file` RE-BINDS it locally on the daemon thread."""
+        ID-66.19 reality (unchanged): cocoindex runs the per-item `ingest_file`
+        on its own `_LoopRunner` daemon thread, which does NOT inherit
+        `app_main`'s ContextVar bindings. The pre-id-400 channel (an explicit
+        `flow_retry_counter=` kwarg on the memoised component) made the counter
+        a MEMO INPUT — its mutable pickled state busted the outer memo across
+        walks ({75.17}/bl-239 class). `app_main` now publishes the counter via
+        `resolve_flow_run_context().begin_flow_run(retry_counter=...)` and
+        `ingest_file` resolves + RE-BINDS it locally on the daemon thread."""
         source = inspect.getsource(flow.app_main)
-        assert "flow_retry_counter=flow_retry_counter" in source, (
-            "app_main() must thread `flow_retry_counter=flow_retry_counter` onto "
-            "ingest_file (via functools.partial) so the per-flow `_FlowRetryCounter` "
-            "crosses the cocoindex daemon-thread boundary and ingest_file can "
-            "re-bind it for the tenacity before_sleep hook in extraction.py. "
-            "Without it, production retries fire but the observability counter is "
-            "never updated — `pipeline_runs.result.retry_count` emits 0."
+        assert "resolve_flow_run_context().begin_flow_run(" in source, (
+            "app_main() must publish the run context on the FlowRunContext "
+            "holder (id-400) so it crosses the cocoindex daemon-thread "
+            "boundary WITHOUT entering the memoised component's fingerprint."
+        )
+        assert "retry_counter=flow_retry_counter" in source, (
+            "app_main() must publish `retry_counter=flow_retry_counter` on the "
+            "FlowRunContext holder so the per-flow `_FlowRetryCounter` reaches "
+            "ingest_file's daemon-thread re-bind for the tenacity before_sleep "
+            "hook in extraction.py. Without it, production retries fire but "
+            "the observability counter is never updated — "
+            "`pipeline_runs.result.retry_count` emits 0."
         )
 
     def test_app_main_source_uses_async_with_for_binding(self) -> None:
-        """`app_main()` threads the run context onto `ingest_file` via a NAMED
-        per-item closure (ID-66.19 + {66.16}: NOT `functools.partial`, which has
-        no `__name__`/`__qualname__` and crashes cocoindex `mount_each`), and
-        `ingest_file` re-binds the retry counter on the daemon thread via an
-        `async with` — the bind point moved off app_main's wrong thread into
-        ingest_file's correct (daemon) thread."""
+        """`app_main()` mounts a NAMED per-item closure (ID-66.19 + {66.16}:
+        NOT `functools.partial`, which has no `__name__`/`__qualname__` and
+        crashes cocoindex `mount_each`), the closure does NOT forward the run
+        context as kwargs (id-400 — kwargs are memo inputs), and `ingest_file`
+        re-binds the retry counter on the daemon thread via an `async with` —
+        the bind point stays inside ingest_file's correct (daemon) thread."""
         app_main_source = inspect.getsource(flow.app_main)
         assert "async def bound_ingest_file(" in app_main_source, (
-            "app_main() must thread the run context onto a NAMED per-item closure "
+            "app_main() must mount a NAMED per-item closure "
             "(not functools.partial — a partial has no __name__/__qualname__ and "
-            "crashes cocoindex mount_each, {66.16}) so the context crosses the "
-            "cocoindex daemon-thread boundary."
+            "crashes cocoindex mount_each, {66.16})."
         )
-        assert "flow_retry_counter=" in app_main_source, (
-            "the closure must forward flow_retry_counter into ingest_file."
+        assert "flow_retry_counter=flow_retry_counter" not in app_main_source, (
+            "id-400 regression: the closure must NOT forward the run context "
+            "as kwargs into the memoised ingest_file — kwargs are memo inputs "
+            "and bust the cross-walk memo ({75.17}/bl-239; D-397-A Option C)."
         )
         ingest_source = inspect.getsource(flow.ingest_file)
         assert "bind_retry_counter(" in ingest_source, (
             "ingest_file must RE-BIND the retry counter locally on the daemon "
             "thread (ID-66.19 caveat) so extraction.py's before_sleep hook reads "
             "it; the contextvar token-reset on exit stays exception-safe."
+        )
+        assert "resolve_flow_run_context()" in ingest_source, (
+            "ingest_file must resolve the run context from the FlowRunContext "
+            "holder (id-400) — the memo-invisible channel."
         )
 
     def test_flow_retry_counter_instantiated_once_in_app_main(self) -> None:

@@ -139,12 +139,14 @@ from scripts.cocoindex_pipeline.holder_rule import (
 from scripts.cocoindex_pipeline.extraction import ANTHROPIC_MODEL  # noqa: F401 — re-export, single source of truth
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
+    FLOW_RUN_CONTEXT,  # id-400 — the module-singleton FlowRunContext holder
     FlowRunMeta,
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
     bind_taxonomy_miss_counter,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it lazily
+    resolve_flow_run_context,
 )
 
 # ID-75 WP-C — URL-source substrate ({75.7}/{75.8} leaf modules). `UrlItem` is
@@ -988,6 +990,36 @@ def _build_db_ctx() -> "coco.ContextKey[asyncpg.Pool]":
 DB_CTX: coco.ContextKey[asyncpg.Pool] = _build_db_ctx()
 
 
+def _build_flow_run_ctx() -> "coco.ContextKey[Any]":
+    """Build (or reuse) the FLOW_RUN_CTX ContextKey defensively (id-400).
+
+    Built HERE (not imported from flow_context) for the same reason DB_CTX is:
+    flow.py is the module test harnesses reload against the REAL cocoindex
+    after stub-backed suites ran (`_reload_real_flow_module`), and the
+    lifespan below must `builder.provide(...)` a REAL `coco.ContextKey` —
+    flow_context stays import-cached with whatever `cocoindex` binding it saw
+    first. The engine's ContextProvider stores/reads by the `_key` STRING, so
+    this key and flow_context's `FLOW_RUN_CTX` (same string, possibly rebuilt
+    via `__new__` on the duplicate-registration ValueError) are equivalent
+    handles. `detect_change` stays False: the run context must never enter a
+    memo fingerprint — that is the whole point of the channel (D-397-A
+    Option C).
+    """
+    key_str = "kh_pipeline_flow_run_ctx"
+    try:
+        return coco.ContextKey(key_str)
+    except ValueError:
+        ck: coco.ContextKey[Any] = coco.ContextKey.__new__(  # type: ignore[assignment]
+            coco.ContextKey
+        )
+        ck._key = key_str  # type: ignore[attr-defined]
+        ck._detect_change = False  # type: ignore[attr-defined]
+        return ck
+
+
+FLOW_RUN_CTX: "coco.ContextKey[Any]" = _build_flow_run_ctx()
+
+
 # ── Stage-4 embedding (ID-49.2) ──────────────────────────────────────────────
 # OQ-B REVERSAL (S272, confirmed by Liam — sequencing doc §2.5 wins over the
 # older S265 ledger text): use the CocoIndex-shipped LiteLLMEmbedder, NOT a
@@ -1700,11 +1732,6 @@ async def ingest_file(
     er_target: Any = None,
     re_target: Any = None,
     *,
-    flow_op_id: "uuid.UUID | None" = None,
-    flow_stage_counter: Any = None,
-    flow_retry_counter: Any = None,
-    flow_taxonomy_miss_counter: Any = None,
-    flow_memo_heal_counter: Any = None,
     flow_source_path: Any = None,
 ) -> None:
     """Ingest ONE source file: convert → extract → declare rows on each target.
@@ -1759,46 +1786,46 @@ async def ingest_file(
     chaining, which is fictional in 1.0.3), and each row lands via
     `TableTarget.declare_row(row=...)` (Stage 6).
 
-    `op_id` is a PLAIN ROW FIELD. ID-66.19 threads it (and the per-flow
-    counters + the source path) as EXPLICIT keyword args
-    (`flow_op_id` / `flow_stage_counter` / `flow_retry_counter` /
-    `flow_taxonomy_miss_counter` / `flow_memo_heal_counter` (ID-127.33) /
-    `flow_source_path`) bound onto the component via a named closure in
-    `app_main`, NOT via `contextvars` propagation. cocoindex 1.0.3 runs this
-    per-item component on its OWN `_LoopRunner` daemon thread (a separate
-    event loop), which does NOT copy the binder task's `ContextVar` snapshot
-    across the dispatch boundary — so reads of `current_flow_meta()` /
-    `current_stage_counter()` here would return the ContextVar DEFAULT
-    (`None`) and the flow would land ZERO rows. The closure's captured cells live
-    on the function object, so they cross the daemon-thread boundary intact.
-    The keyword args DEFAULT to None so the existing in-task unit-test callers
-    (which `await ingest_file(...)` inside a `bind_flow_meta` scope) keep working
-    via the ContextVar fallback below.
+    `op_id` is a PLAIN ROW FIELD. id-400 (D-397-A Option C): the run context
+    (op_id + the per-flow observability counters) is resolved INSIDE this
+    body via `flow_context.resolve_flow_run_context()` — the ContextKey-
+    provided `FlowRunContext` holder `app_main` publishes each walk — and is
+    deliberately NOT a parameter of this memoised component. The prior
+    ID-66.19 shape threaded them as explicit kwargs via a named closure in
+    `app_main`; that channel made them MEMO INPUTS (the engine fingerprints
+    all args + kwargs), so the fresh per-walk op_id busted the outer memo on
+    every walk and `_upsert_source_document` re-stamped every row — the
+    {75.17}/bl-239 finding, ruled a defect of the CHANNEL (TRIAGE §3.1). The
+    holder crosses the `_LoopRunner` daemon-thread boundary (module/env
+    scope, not `contextvars`), so the ID-66.19 thread constraint stays
+    honoured. In-task unit-test callers keep working via the ContextVar
+    fallback below (`bind_flow_meta` et al.).
 
-    CAVEAT (ID-66.19): `extraction.py`'s `stamp_extraction_base` + the
-    retry / taxonomy-miss / memo-heal recorders read `current_flow_meta()` /
-    `current_retry_counter()` / `current_taxonomy_miss_counter()` /
-    `current_memo_heal_counter()` INSIDE the per-item extractor calls, which
-    run on the SAME daemon thread as this body. So once the explicit args
-    arrive we RE-BIND those ContextVars LOCALLY around the body (Option A
-    moves the BIND POINT from `app_main`'s wrong thread into this correct
-    thread). `stage_counter` is read directly from the passed args (only this
-    body reads it), so it needs no re-bind.
+    CAVEAT (ID-66.19, mechanism unchanged): `extraction.py`'s
+    `stamp_extraction_base` + the retry / taxonomy-miss / memo-heal recorders
+    read `current_flow_meta()` / `current_retry_counter()` /
+    `current_taxonomy_miss_counter()` / `current_memo_heal_counter()` INSIDE
+    the per-item extractor calls, which run on the SAME daemon thread as this
+    body. So once the holder values arrive we RE-BIND those ContextVars
+    LOCALLY around the body. `stage_counter` is read directly (only this body
+    reads it), so it needs no re-bind.
 
     `content_text_hash` is OMITTED (GENERATED ALWAYS column). `embedding` is now
     a real text-embedding-3-large vector(1024) computed from content_text via
     `embed_content_text()` (Stage 4 — ID-49.2); per-row upsert logging (28.25) is
     still deferred and wired in a later subtask.
 
-    @coco.fn(memo=True): {75.17} real-engine probe CORRECTION to the earlier
-    Inv-11 framing (the same correction applied to `ingest_url`) — the memo
-    fingerprint ALSO covers the `flow_op_id` kwarg, and `app_main` mints a fresh
-    op_id per walk, so across walks this component RE-RUNS for every enumerated
-    item (cheaply: the inner conversion/extraction memos — `_docling_to_markdown`,
-    the `embed_content_text` / classification seams — memo-hit on unchanged
-    content). A true memo-hit happens only WITHIN one walk / op_id, never across
-    walks (RESEARCH.md §R4). The inner memos are what protect the LLM seams from
-    re-running on unchanged bytes.
+    @coco.fn(memo=True): id-400 restores the S265 cross-walk memo contract
+    (the same fix applied to `ingest_url`). With the run context OFF the
+    kwargs, the fingerprint covers only stable inputs (file identity/bytes,
+    target handles via their `__coco_memo_key__`, the stable
+    `flow_source_path`) — so an UNCHANGED item memo-HITS on every later walk
+    and its rows keep their last-materially-changed op_id. A changed item (or
+    a `full_reprocess` walk, which bypasses memos) re-runs this body and
+    stamps the CURRENT walk's op_id. The inner conversion/extraction memos
+    (`_docling_to_markdown`, the `embed_content_text` / classification seams)
+    still protect the LLM seams independently. Executable contract:
+    `scripts/tests/test_file_branch_memo_fingerprint.py`.
     """
     import contextlib
 
@@ -1808,56 +1835,69 @@ async def ingest_file(
     # `__package__`-relative `import_module` indirection is retired).
     from scripts.cocoindex_pipeline import flow_context as flow_context_module
 
-    # ID-66.19 — resolve the run context. PREFER the explicit args (threaded via
-    # the named closure in app_main — these survive the daemon-thread dispatch).
-    # FALL BACK to the ContextVars for the existing in-task unit-test callers
-    # that drive ingest_file inside an `async with bind_flow_meta(...)` scope.
-    op_id = flow_op_id
-    if op_id is None:
-        meta = flow_context_module.current_flow_meta()
-        op_id = None if meta is None else meta.op_id
+    # id-400 (D-397-A Option C) — resolve the run context. PREFER the
+    # task-scoped ContextVars (an in-task caller's explicit
+    # `bind_flow_meta` / `bind_*_counter` scope is the most specific
+    # binding); FALL BACK to the ContextKey-provided FlowRunContext holder
+    # `app_main` publishes each walk (the production path — on the
+    # `_LoopRunner` daemon thread the ContextVars are structurally unset, so
+    # the holder always resolves there; it is invisible to the memo
+    # fingerprint by construction).
+    run_ctx = flow_context_module.resolve_flow_run_context()
+    meta = flow_context_module.current_flow_meta()
+    op_id = meta.op_id if meta is not None else run_ctx.op_id
     if op_id is None:
         raise RuntimeError(
-            "ingest_file invoked without a run op_id — app_main must pass "
-            "`flow_op_id=` (via the named closure) or wrap the in-task caller in "
+            "ingest_file invoked without a run op_id — app_main must publish "
+            "the run context (`FLOW_RUN_CONTEXT.begin_flow_run(op_id=...)`) or "
+            "the in-task caller must wrap in "
             "`async with bind_flow_meta(op_id=...)`."
         )
 
-    # Inv-17 stage observability (ID-55.2): the per-flow stage counter, threaded
-    # explicitly as `flow_stage_counter` (ID-66.19) or read from the ContextVar
-    # for in-task callers. `app_main` folds it into `stage_counts` at flow end
-    # (mirrors the embedding/entity_resolution folds). When neither is supplied
-    # `_bump` is a silent no-op — the row still lands; only observability is
-    # skipped (graceful-degradation contract shared with the retry counter).
-    stage_counter = flow_stage_counter
+    # Inv-17 stage observability (ID-55.2): the per-flow stage counter, read
+    # from the ContextVar (in-task callers) or the holder (id-400 production
+    # path). `app_main` folds it into `stage_counts` at flow end (mirrors the
+    # embedding/entity_resolution folds). When neither is supplied `_bump` is
+    # a silent no-op — the row still lands; only observability is skipped
+    # (graceful-degradation contract shared with the retry counter).
+    stage_counter = flow_context_module.current_stage_counter()
     if stage_counter is None:
-        stage_counter = flow_context_module.current_stage_counter()
+        stage_counter = run_ctx.stage_counter
 
     # CAVEAT (ID-66.19): RE-BIND flow_meta / retry_counter / taxonomy_miss_counter
     # LOCALLY on THIS (daemon) thread so `extraction.py`'s in-task reads
     # (`stamp_extraction_base` / the retry `before_sleep` hook / the
     # `_surface_out_of_taxonomy_classification` validator) see the run context.
-    # The explicit args are the bind SOURCE; if they were not supplied (in-task
-    # unit-test callers) the bindings are already active on this same task, so we
-    # enter no-op `nullcontext`s to avoid double-binding/clobbering.
+    # The holder values are the bind SOURCE, and ONLY for slots the in-task
+    # caller did not already bind (already-active bindings on this same task
+    # enter no-op `nullcontext`s — no double-binding/clobbering).
     rebind_meta: Any = contextlib.nullcontext()
-    if flow_op_id is not None:
-        rebind_meta = flow_context_module.bind_flow_meta(op_id=flow_op_id)
+    if meta is None:
+        rebind_meta = flow_context_module.bind_flow_meta(op_id=op_id)
     rebind_retry: Any = contextlib.nullcontext()
-    if flow_retry_counter is not None:
-        rebind_retry = flow_context_module.bind_retry_counter(flow_retry_counter)
+    if (
+        flow_context_module.current_retry_counter() is None
+        and run_ctx.retry_counter is not None
+    ):
+        rebind_retry = flow_context_module.bind_retry_counter(run_ctx.retry_counter)
     rebind_taxonomy: Any = contextlib.nullcontext()
-    if flow_taxonomy_miss_counter is not None:
+    if (
+        flow_context_module.current_taxonomy_miss_counter() is None
+        and run_ctx.taxonomy_miss_counter is not None
+    ):
         rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
-            flow_taxonomy_miss_counter
+            run_ctx.taxonomy_miss_counter
         )
     # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
     # taxonomy-miss above — `extraction.py`'s `extract_with_memo_self_heal`
     # reads `current_memo_heal_counter()` in-task, on this same thread.
     rebind_memo_heal: Any = contextlib.nullcontext()
-    if flow_memo_heal_counter is not None:
+    if (
+        flow_context_module.current_memo_heal_counter() is None
+        and run_ctx.memo_heal_counter is not None
+    ):
         rebind_memo_heal = flow_context_module.bind_memo_heal_counter(
-            flow_memo_heal_counter
+            run_ctx.memo_heal_counter
         )
 
     async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
@@ -2647,6 +2687,57 @@ async def _backlink_feed_articles(
             reference_item_id,
             list(ledger_urls),
         )
+
+
+async def _reconcile_feed_article_backlinks(pool: Any) -> int:
+    """Flow-scope backlink convergence pass (id-400 — D-7 successor mechanism).
+
+    Pre-id-400, a walk-1 FK-deferred backlink (`_ingest_url_body` step 7)
+    converged because the per-walk `flow_op_id` kwarg busted the `ingest_url`
+    memo and walk 2 re-ran the item against the now-flushed ri row. With the
+    run context off the memo fingerprint (D-397-A Option C), an unchanged
+    (url, epoch) item memo-HITS on walk 2 — so the deferral would never land.
+    This post-pass owns convergence instead: it runs in `app_main` AFTER
+    `url_handle.ready()` (per-item declares are flushed by then — the same
+    ordering guarantee Stage-5's `entity_mentions` reads rely on), finds
+    passed-but-unlinked `feed_articles` rows, normalises their raw
+    `external_url` (the BI-8 grouping rule), and backlinks each group whose
+    normalised URL has a landed `reference_items` row via the SAME
+    `_backlink_feed_articles` UPDATE the per-item step 7 uses.
+
+    Bounded + idempotent: reads only `reference_item_id IS NULL` rows; a row
+    linked by the in-component step 7 is never re-read. Returns the number of
+    ledger rows linked (observability).
+    """
+    from scripts.cocoindex_pipeline.url_normalise import (  # noqa: PLC0415 — lazy, mirrors url_source
+        normalise_url,
+    )
+
+    rows = await pool.fetch(
+        "SELECT external_url FROM public.feed_articles "
+        "WHERE passed AND reference_item_id IS NULL"
+    )
+    if not rows:
+        return 0
+
+    raw_by_norm: dict[str, list[str]] = {}
+    for row in rows:
+        raw_by_norm.setdefault(
+            normalise_url(row["external_url"]), []
+        ).append(row["external_url"])
+
+    ri_rows = await pool.fetch(
+        "SELECT id, source_url FROM public.reference_items "
+        "WHERE source_url = ANY($1::text[])",
+        list(raw_by_norm.keys()),
+    )
+    linked = 0
+    for ri in ri_rows:
+        raw_urls = raw_by_norm.get(ri["source_url"])
+        if raw_urls:
+            await _backlink_feed_articles(ri["id"], tuple(raw_urls))
+            linked += len(raw_urls)
+    return linked
 
 
 async def _resolve_source_identity(
@@ -3458,12 +3549,6 @@ async def ingest_url(
     ri_target: Any,
     sd_target: Any,
     re_target: Any = None,
-    *,
-    flow_op_id: "uuid.UUID | None" = None,
-    flow_stage_counter: Any = None,
-    flow_retry_counter: Any = None,
-    flow_taxonomy_miss_counter: Any = None,
-    flow_memo_heal_counter: Any = None,
 ) -> None:
     """Ingest ONE passed URL: fetch → extract → declare the sd+ri pair.
 
@@ -3478,17 +3563,18 @@ async def ingest_url(
     fingerprints a frozen dataclass on module, qualname and field VALUES, so
     the scalar-positional fallback is not needed. `content_epoch` rides the
     item (D-4): a bumped epoch re-fetches via the item-level (url, epoch) memo.
-    {75.17} real-engine probe CORRECTION to the earlier Inv-11 framing:
-    the memo fingerprint ALSO covers the `flow_op_id` kwarg, and `app_main`
-    mints a fresh op_id per walk — so across walks this component RE-RUNS for
-    every enumerated item (cheaply: the item-level memo hits on an unchanged
-    epoch). The step-7/8 backlink deferral depends on exactly this re-run
-    (convergence by walk 2); a true memo-hit happens only within one walk /
-    op_id.
+    id-400 (D-397-A Option C): the run context is OFF the kwargs (see
+    `ingest_file` — the {75.17} per-walk-op_id memo bust is fixed), so an
+    unchanged (url, epoch) item memo-HITS across walks and its sd/ri rows keep
+    their last-materially-changed op_id (S265 restored). The step-7/8 backlink
+    deferral NO LONGER converges via a walk-2 re-run — the flow-scope
+    `_reconcile_feed_article_backlinks` post-pass in `app_main` now owns that
+    convergence (runs after `url_handle.ready()`, when the walk's ri rows are
+    flushed).
 
-    Run-context resolution mirrors `ingest_file` (ID-66.19): PREFER the
-    explicit `flow_*` kwargs threaded via the named closure in `app_main`
-    (which survive the daemon-thread dispatch), FALL BACK to the ContextVars
+    Run-context resolution mirrors `ingest_file` (id-400): PREFER the
+    ContextKey-provided `FlowRunContext` holder (survives the daemon-thread
+    dispatch, invisible to the memo fingerprint), FALL BACK to the ContextVars
     for in-task unit-test callers under `bind_flow_meta`. The re-bind makes
     `extraction.py`'s in-task reads (retry / taxonomy recorders) see the run
     context on THIS daemon thread.
@@ -3497,38 +3583,48 @@ async def ingest_url(
 
     from scripts.cocoindex_pipeline import flow_context as flow_context_module
 
-    op_id = flow_op_id
-    if op_id is None:
-        meta = flow_context_module.current_flow_meta()
-        op_id = None if meta is None else meta.op_id
+    # id-400: ContextVar-first resolution, holder fallback — see ingest_file.
+    run_ctx = flow_context_module.resolve_flow_run_context()
+    meta = flow_context_module.current_flow_meta()
+    op_id = meta.op_id if meta is not None else run_ctx.op_id
     if op_id is None:
         raise RuntimeError(
-            "ingest_url invoked without a run op_id — app_main must pass "
-            "`flow_op_id=` (via the named closure) or wrap the in-task caller "
-            "in `async with bind_flow_meta(op_id=...)`."
+            "ingest_url invoked without a run op_id — app_main must publish "
+            "the run context (`FLOW_RUN_CONTEXT.begin_flow_run(op_id=...)`) or "
+            "the in-task caller must wrap in "
+            "`async with bind_flow_meta(op_id=...)`."
         )
 
-    stage_counter = flow_stage_counter
+    stage_counter = flow_context_module.current_stage_counter()
     if stage_counter is None:
-        stage_counter = flow_context_module.current_stage_counter()
+        stage_counter = run_ctx.stage_counter
 
     rebind_meta: Any = contextlib.nullcontext()
-    if flow_op_id is not None:
-        rebind_meta = flow_context_module.bind_flow_meta(op_id=flow_op_id)
+    if meta is None:
+        rebind_meta = flow_context_module.bind_flow_meta(op_id=op_id)
     rebind_retry: Any = contextlib.nullcontext()
-    if flow_retry_counter is not None:
-        rebind_retry = flow_context_module.bind_retry_counter(flow_retry_counter)
+    if (
+        flow_context_module.current_retry_counter() is None
+        and run_ctx.retry_counter is not None
+    ):
+        rebind_retry = flow_context_module.bind_retry_counter(run_ctx.retry_counter)
     rebind_taxonomy: Any = contextlib.nullcontext()
-    if flow_taxonomy_miss_counter is not None:
+    if (
+        flow_context_module.current_taxonomy_miss_counter() is None
+        and run_ctx.taxonomy_miss_counter is not None
+    ):
         rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
-            flow_taxonomy_miss_counter
+            run_ctx.taxonomy_miss_counter
         )
     # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
     # taxonomy-miss above.
     rebind_memo_heal: Any = contextlib.nullcontext()
-    if flow_memo_heal_counter is not None:
+    if (
+        flow_context_module.current_memo_heal_counter() is None
+        and run_ctx.memo_heal_counter is not None
+    ):
         rebind_memo_heal = flow_context_module.bind_memo_heal_counter(
-            flow_memo_heal_counter
+            run_ctx.memo_heal_counter
         )
 
     async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
@@ -3772,11 +3868,12 @@ async def _ingest_url_body(
     # item COMPLETE — a raise would route into the BI-19 per-item containment,
     # whose faulted-item contract DISCARDS the declared sd/ri rows ({75.16}
     # probe), so every subsequent walk would re-hit the same race (zero
-    # convergence — the S319 defect). Walk 2 re-runs this component (the
-    # per-walk `flow_op_id` kwarg busts the `@coco.fn(memo=True)` fingerprint
-    # — real-engine probed at {75.17}; the item-level (url, epoch) memo
-    # keeps the re-run cheap) and the backlink then lands against the ri row
-    # flushed at the end of walk 1. ANY other error — including a
+    # convergence — the S319 defect). id-400: convergence is now owned by the
+    # flow-scope `_reconcile_feed_article_backlinks` post-pass in `app_main`
+    # (runs after `url_handle.ready()`, when this walk's ri declares are
+    # flushed) — the pre-id-400 mechanism (walk-2 re-run via the memo-busting
+    # per-walk `flow_op_id` kwarg) is retired by D-397-A Option C: unchanged
+    # items memo-skip across walks now. ANY other error — including a
     # ForeignKeyViolation on a DIFFERENT constraint — still raises into the
     # containment tally.
     try:
@@ -3904,6 +4001,23 @@ async def app_main() -> None:
     # `memoHeals` — burn observability is the explicit owner guardrail.
     flow_memo_heal_counter = _FlowMemoHealCounter()
 
+    # id-400 (D-397-A Option C): publish the walk's run context on the
+    # ContextKey-provided FlowRunContext holder. `ingest_file` / `ingest_url`
+    # resolve it INSIDE their memoised bodies (invisible to the memo
+    # fingerprint — the S265 restoration), replacing the retired ID-66.19
+    # closure-kwarg threading. Deliberately NOT cleared at walk end: live-mode
+    # (`update_blocking(live=True)`) fs-watch re-runs per-item components
+    # AFTER app_main returns and must still see this walk's context (the same
+    # lifetime the closure cells used to have). Walks are single-flight
+    # (server.py /walk lock), so no concurrent writer exists.
+    resolve_flow_run_context().begin_flow_run(
+        op_id=run_op_id,
+        stage_counter=flow_stage_counter,
+        retry_counter=flow_retry_counter,
+        taxonomy_miss_counter=flow_taxonomy_miss_counter,
+        memo_heal_counter=flow_memo_heal_counter,
+    )
+
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
     await _emit_pipeline_run_webhook(
@@ -4019,21 +4133,16 @@ async def app_main() -> None:
         # (Stage 6). Extra args (ci/qa/sd targets) are passed positionally after
         # the item value per the mount_each signature.
         #
-        # ID-66.19 — thread the run context onto `ingest_file` as EXPLICIT
-        # keyword args via a named closure (NOT `contextvars`; and NOT
-        # `functools.partial` — see the {66.16} note below). cocoindex
-        # 1.0.3 does NOT run the per-item component inline on this binding
-        # asyncio task — it schedules it on its OWN `_LoopRunner` daemon thread
-        # (a separate event loop) which does NOT copy this task's `ContextVar`
-        # snapshot across the dispatch boundary. So the previous five
-        # `async with bind_*` CMs wrapping `mount_each` bound the context on the
-        # WRONG thread: inside `ingest_file` every `current_*()` read returned
-        # the ContextVar default (None) → `current_flow_meta()` None → 0 rows;
-        # `current_stage_counter()` None → stage_counts stuck at 0. This was
-        # invisible to the unit suite (every flow test mocks `mount_each`, so
-        # `ingest_file` ran inline on the test's own task with ContextVars
-        # intact); the engine-level daemon-thread dispatch was exercised by NO
-        # test until `test_cocoindex_flow_live_ingest.py` (S291).
+        # id-400 (D-397-A Option C) — the run context is NO LONGER threaded
+        # onto `ingest_file` here. The ID-66.19 closure-kwarg channel made
+        # op_id + counters MEMO INPUTS (the engine fingerprints all args +
+        # kwargs), busting the outer memo every walk ({75.17}/bl-239).
+        # `ingest_file` now resolves the run context inside its body from the
+        # FlowRunContext holder published above — which crosses the
+        # `_LoopRunner` daemon-thread boundary (env/module scope, NOT
+        # `contextvars`, so the ID-66.19 thread constraint stays honoured)
+        # and never enters the fingerprint. The named-closure shape survives
+        # purely for per-item containment + the pinned component subpath.
         #
         # `functools.partial` is INCOMPATIBLE with cocoindex 1.0.3 `mount_each`:
         # the engine derives the per-item ComponentSubpath from `Symbol(fn.__name__)`
@@ -4044,15 +4153,14 @@ async def app_main() -> None:
         # boundary, NOT the unit suite — whose `mount_each` stub modelled the
         # daemon-thread dispatch but not these attribute contracts.
         #
-        # Use a NAMED nested coroutine instead: it has a real `__name__` +
-        # `__qualname__` + a clean signature, and its CLOSURE CELLS carry the run
-        # context (op_id / counters) across the daemon-thread boundary exactly
-        # as the partial's captured args did — so Option A still holds: the
-        # BIND POINT stays inside the per-item callable (flow_meta / retry_counter /
-        # taxonomy_miss_counter are RE-BOUND locally on the worker thread, where
-        # `extraction.py` reads those ContextVars in-task; stage_counter is read
-        # directly from the passed args), NOT on this binder task whose
-        # ContextVars the engine does not propagate.
+        # Use a NAMED nested coroutine: it has a real `__name__` +
+        # `__qualname__` + a clean signature. Option A still holds under
+        # id-400: the BIND POINT stays inside the per-item callable
+        # (flow_meta / retry_counter / taxonomy_miss_counter are RE-BOUND
+        # locally on the worker thread from the holder, where `extraction.py`
+        # reads those ContextVars in-task; stage_counter is read directly from
+        # the holder), NOT on this binder task whose ContextVars the engine
+        # does not propagate.
         # ID-80.9 (80.2 §B.4): per-item containment at the mount_each
         # boundary. An UNEXPECTED escape from one file's branch is contained
         # and attributed (per-branch tally + ingest_item stage error), NOT
@@ -4066,11 +4174,6 @@ async def app_main() -> None:
                 return await ingest_file(
                     file,
                     *targets,
-                    flow_op_id=run_op_id,
-                    flow_stage_counter=flow_stage_counter,
-                    flow_retry_counter=flow_retry_counter,
-                    flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
-                    flow_memo_heal_counter=flow_memo_heal_counter,
                     flow_source_path=source_path,
                 )
             except Exception as exc:  # noqa: BLE001 — per-item containment
@@ -4120,10 +4223,10 @@ async def app_main() -> None:
         # above: `functools.partial` is PROHIBITED (the engine derives the
         # ComponentSubpath from `fn.__name__` AND builds
         # `ComponentProcessorInfo(fn.__qualname__)` — a partial has neither
-        # and crashes the `_LoopRunner` worker at live boot, {66.16}). The
-        # closure cells carry the run context (op_id / counters) across the
-        # daemon-thread dispatch boundary; `ingest_url` RE-BINDS the
-        # ContextVars locally on the worker thread.
+        # and crashes the `_LoopRunner` worker at live boot, {66.16}).
+        # id-400: the run context is resolved from the FlowRunContext holder
+        # inside `ingest_url` (memo-invisible channel); `ingest_url` RE-BINDS
+        # the ContextVars locally on the worker thread.
         #
         # BI-19 per-item containment at the mount boundary (the ID-80.9
         # pattern at bound_ingest_file): an UNEXPECTED escape from one URL's
@@ -4134,15 +4237,7 @@ async def app_main() -> None:
         # walk's enumeration re-runs it: log + skip + retry-on-a-later-walk.
         async def bound_ingest_url(item, *targets):
             try:
-                return await ingest_url(
-                    item,
-                    *targets,
-                    flow_op_id=run_op_id,
-                    flow_stage_counter=flow_stage_counter,
-                    flow_retry_counter=flow_retry_counter,
-                    flow_taxonomy_miss_counter=flow_taxonomy_miss_counter,
-                    flow_memo_heal_counter=flow_memo_heal_counter,
-                )
+                return await ingest_url(item, *targets)
             except Exception as exc:  # noqa: BLE001 — per-item containment
                 flow_item_failure_counter.increment("url")
                 _emit_stage_error_log(
@@ -4170,6 +4265,38 @@ async def app_main() -> None:
             re_target,
         )
         await url_handle.ready()
+
+        # ── Stage 1b epilogue: backlink convergence (id-400) ───────────────
+        # The per-item step-7 backlink FK-defers on a walk-1 race (the ri row
+        # flushes only after its component returns). Pre-id-400 convergence
+        # relied on the memo-busting per-walk op_id kwarg re-running the item
+        # on walk 2 — retired by D-397-A Option C (unchanged items now
+        # memo-skip). This flow-scope pass owns convergence: by this point the
+        # walk's ri declares are flushed (the same post-`ready()` guarantee
+        # Stage-5's entity_mentions reads rely on), so any passed-but-unlinked
+        # ledger row whose reference landed THIS walk backlinks now.
+        # CONTAINED best-effort (mirrors the producer-trigger post-pass): a
+        # reconcile fault must never fail the walk whose writes already landed.
+        try:
+            backlinked = await _reconcile_feed_article_backlinks(
+                coco.use_context(DB_CTX)
+            )
+            if backlinked:
+                _logger.info(
+                    json.dumps(
+                        {
+                            "event": "cocoindex.url_backlink_reconciled",
+                            "op_id": str(run_op_id),
+                            "linked_count": backlinked,
+                        }
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001 — best-effort post-pass
+            _logger.warning(
+                "cocoindex.url_backlink_reconcile.failed op_id=%s: %s",
+                run_op_id,
+                exc,
+            )
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` computes a text-embedding-3-large vector(1024) PER CHUNK
@@ -4589,6 +4716,11 @@ async def kh_pipeline_lifespan(builder: coco.EnvironmentBuilder):
     )
     try:
         builder.provide(DB_CTX, pool)
+        # id-400 (D-397-A Option C): provide the run-context holder under its
+        # ContextKey (detect_change=False — invisible to memo fingerprints).
+        # The provided value IS the module singleton, so the singleton
+        # fallback in `resolve_flow_run_context()` resolves the same object.
+        builder.provide(FLOW_RUN_CTX, FLOW_RUN_CONTEXT)
         await _generate_client_alias_snapshot(pool)
         yield
     finally:

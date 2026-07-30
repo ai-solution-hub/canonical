@@ -227,16 +227,29 @@ def _ingest(
     reference-item embedding dual-write is skipped (guard), so the existing
     sd+ri callers stay untouched.
     """
-    from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+    from scripts.cocoindex_pipeline.flow_context import (
+        bind_flow_meta,
+        bind_stage_counter,
+    )
 
     ri = _FakeTarget("reference_items")
     sd = _FakeTarget("source_documents")
 
     async def _exercise() -> None:
+        # id-400 (D-397-A Option C): the flow_* kwargs are retired from the
+        # memoised component signature — the run context arrives via the
+        # ContextVar fallbacks (bind_flow_meta / bind_stage_counter) for
+        # in-task callers like this helper.
         async with bind_flow_meta(op_id=op_id or uuid.uuid4()):
-            await flow.ingest_url(  # type: ignore[attr-defined]
-                item, ri, sd, re_target, flow_stage_counter=stage_counter
-            )
+            if stage_counter is not None:
+                async with bind_stage_counter(stage_counter):  # type: ignore[arg-type]
+                    await flow.ingest_url(  # type: ignore[attr-defined]
+                        item, ri, sd, re_target
+                    )
+            else:
+                await flow.ingest_url(  # type: ignore[attr-defined]
+                    item, ri, sd, re_target
+                )
 
     asyncio.run(_exercise())
     return ri, sd
