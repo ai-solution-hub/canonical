@@ -248,6 +248,13 @@ const SURFACE_RPCS: readonly string[] = [
   'list_public_tables',
   'merge_entities',
   'merge_item_metadata',
+  // id-405 (20260730150743_id405_pin_entity_mentions_rpc.sql): the merge
+  // route's curation-pin RPC. Its api.* INVOKER wrapper ships hand-authored in
+  // that migration (DR-032 — a public-only fn would 404 through DB_OPTION);
+  // listing it here is what stops that wrapper becoming a permanent side
+  // channel outside the generator's purview (the id138 lesson above), so the
+  // next whole-surface regen reproduces it unchanged.
+  'pin_entity_mentions',
   'q_a_extractions_promotion_candidates',
   'reap_stuck_jobs',
   'recalculate_all_freshness',

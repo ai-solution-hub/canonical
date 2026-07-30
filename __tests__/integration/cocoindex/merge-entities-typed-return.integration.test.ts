@@ -23,6 +23,14 @@
  *      duplicate row is gone. The counts AGREEING with the real row deltas is
  *      what proves the UPDATE×3 + DELETE ran atomically inside the RPC.
  *
+ * id-405 extends the same fixture onto `pin_entity_mentions` (migration
+ * 20260730150743), the curation-pin RPC the merge route calls next: its return
+ * value is what the route reports as `mentions_pinned`, so it must equal the
+ * rows actually carrying `metadata.curation_pinned` afterwards. This fixture is
+ * the sharp case — the survivors' RAW entity_type stays 'organisation'/
+ * 'certification' while the merged type is 'framework', so a pin predicate on
+ * the base column matches nothing at all.
+ *
  * Fixture (single synthetic source_documents parent per group — ID-131
  * migration 20260628200000_id131_extract_reparent.sql added
  * entity_mentions_source_document_id_fkey onto source_documents, so CI_1/CI_2
@@ -241,6 +249,71 @@ describe.skipIf(!ENABLED)(
       // Neither source name survives on the relationship rows.
       expect(repointed!.some((r) => r.source_entity === SRC_A)).toBe(false);
       expect(repointed!.some((r) => r.target_entity === SRC_B)).toBe(false);
+
+      // ---- id-405: the curation pin over the same merge winner -----------
+      // The merge route stamps `metadata.curation_pinned` on the survivors so a
+      // later ingestion walk cannot revert this merge (id-400 Inv-9). The count
+      // the RPC returns is what the route reports as `mentions_pinned`, so it
+      // has to equal the rows that are actually pinned in the DB.
+      //
+      // This fixture is precisely the case the old per-row loop got wrong: the
+      // survivors' RAW entity_type is still 'organisation'/'certification'
+      // (merge_entities writes entity_type_override and never rewrites the base
+      // column), so matching the base column against the merged type 'framework'
+      // pins ZERO of the 2 survivors while reporting success.
+      const { data: pinned, error: pinErr } = await client.rpc(
+        'pin_entity_mentions',
+        { p_canonical_name: TARGET, p_entity_type: MERGED_TYPE },
+      );
+      expect(pinErr).toBeNull();
+      expect(pinned).toBe(2);
+
+      const { data: pinnedRows, error: pinReadErr } = await client
+        .from('entity_mentions')
+        .select('id, entity_type, metadata')
+        .eq('canonical_name', TARGET);
+      expect(pinReadErr).toBeNull();
+      // Every surviving row carries the marker — the returned count is not an
+      // estimate over a partially-written set.
+      expect(pinnedRows!).toHaveLength(2);
+      expect(
+        pinnedRows!.every(
+          (m) =>
+            (m.metadata as Record<string, unknown> | null)?.curation_pinned ===
+            true,
+        ),
+      ).toBe(true);
+      // ...and their RAW type never matched the merged type, which is what
+      // makes this fixture the regression guard it is.
+      expect(pinnedRows!.some((m) => m.entity_type === MERGED_TYPE)).toBe(
+        false,
+      );
     }, 120_000);
+
+    it('pins nothing, and says so, for a pair that does not exist', async () => {
+      // The honest-zero case the route must distinguish from a failed pin: a
+      // clean 0 with NO error, not an exception.
+      const client = await createLiveServiceClient();
+      const { data: pinned, error } = await client.rpc('pin_entity_mentions', {
+        p_canonical_name: `${TOKEN}absent`,
+        p_entity_type: MERGED_TYPE,
+      });
+      expect(error).toBeNull();
+      expect(pinned).toBe(0);
+    }, 30_000);
+
+    it('raises rather than silently pinning nothing on a degenerate pair', async () => {
+      // An empty canonical name would match no rows and look identical to an
+      // honest zero, so the RPC fails loud instead (mirrors merge_entities'
+      // input validation). The route surfaces this as `mentions_pin_error`.
+      const client = await createLiveServiceClient();
+      const { data: pinned, error } = await client.rpc('pin_entity_mentions', {
+        p_canonical_name: '',
+        p_entity_type: MERGED_TYPE,
+      });
+      expect(error).not.toBeNull();
+      expect(error!.message).toContain('Canonical name must not be empty');
+      expect(pinned).toBeNull();
+    }, 30_000);
   },
 );

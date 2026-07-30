@@ -3955,6 +3955,10 @@ export type Database = {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
       }
+      pin_entity_mentions: {
+        Args: { p_canonical_name: string; p_entity_type: string }
+        Returns: number
+      }
       q_a_extractions_promotion_candidates: {
         Args: never
         Returns: Database["public"]["Tables"]["q_a_extractions"]["Row"][]
@@ -8477,6 +8481,10 @@ export type Database = {
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
+      }
+      pin_entity_mentions: {
+        Args: { p_canonical_name: string; p_entity_type: string }
+        Returns: number
       }
       q_a_extractions_promotion_candidates: {
         Args: never
