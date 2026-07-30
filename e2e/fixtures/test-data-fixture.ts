@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type -- Playwright fixture API requires {} for test-scoped type parameter */
 import { test as base } from '@playwright/test';
+import type { Tables } from '@/supabase/types/database.types';
 import { createServiceClient } from './supabase';
 import {
   FRESHNESS_OFFSETS,
@@ -169,6 +170,18 @@ export interface WorkerData {
  * body-less fixture there. Building the manifest was explicitly OUT of
  * id-401's scope — it is an id-396 artefact, and inventing its contract
  * mid-lane is the scope creep the D4 lane boundary exists to prevent.
+ *
+ * SUPABASE-WRAPPER EXCEPTION (documented, PR #158 review). The repo guideline
+ * routes Supabase access through `sb()` / `tryQuery()` from
+ * `@/lib/supabase/safe`. This file does not, and this write deliberately
+ * matches it: the whole `e2e/` tree is wrapper-free (zero imports of
+ * `lib/supabase/safe`), and this fixture alone holds 20 `.throwOnError()`
+ * chains on a `createServiceClient()`. Converting one of them would leave the
+ * file internally inconsistent without closing the class. The guideline exists
+ * to stop a silently-dropped `error` channel; `.throwOnError()` is the
+ * fail-loud form and satisfies that intent — a seed failure aborts the worker's
+ * setup rather than yielding a half-seeded fixture. Migrating `e2e/` to the
+ * wrapper wholesale is its own change.
  */
 async function seedDocumentBodies(
   supabase: ReturnType<typeof createServiceClient>,
@@ -347,10 +360,12 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         // assumption is introduced.
         await seedDocumentBodies(
           supabase,
-          (sdRows ?? []).map((row: { id: string }, i: number) => ({
-            sourceDocumentId: row.id,
-            body: sdShapeEntries[i]!.shape.content,
-          })),
+          (sdRows ?? []).map(
+            (row: Pick<Tables<'source_documents'>, 'id'>, i: number) => ({
+              sourceDocumentId: row.id,
+              body: sdShapeEntries[i]!.shape.content,
+            }),
+          ),
         );
       }
 
@@ -833,12 +848,14 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // this they were the other half of the body-less seed population.
       await seedDocumentBodies(
         supabase,
-        (intelItems ?? []).map((row: { id: string }, i: number) => ({
-          sourceDocumentId: row.id,
-          body:
-            passedArticleShapes[i]!.ai_summary ??
-            `${prefix} ${passedArticleShapes[i]!.title}`,
-        })),
+        (intelItems ?? []).map(
+          (row: Pick<Tables<'source_documents'>, 'id'>, i: number) => ({
+            sourceDocumentId: row.id,
+            body:
+              passedArticleShapes[i]!.ai_summary ??
+              `${prefix} ${passedArticleShapes[i]!.title}`,
+          }),
+        ),
       );
       // These land on the trigger-minted default of `freshness = 'fresh'`.
       seededFreshnessCounts.fresh += intelItemIds.length;
