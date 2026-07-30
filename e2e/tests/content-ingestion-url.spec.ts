@@ -14,24 +14,36 @@
  *   assertions in this suite (content_items landing + layer/topic suggestions
  *   + /item/<id> read round-trip) asserted the now-dead content_items shape.
  *
- * SKIP RATIONALE (bl-119):
- *   This suite is skipped pending the full reference-contract E2E suite,
- *   which is Orchestrator-flagged out of {110.8} scope. The blocker is the
- *   READ side: there is currently no user-facing route/page that renders a
- *   `reference_items` row (only the ingest route touches the table), so the
- *   create → read round-trip that the WP2 spec mandates (browse visibility /
- *   item detail) cannot be exercised end-to-end yet. Re-pointing only the
- *   create + DB-state + dedup assertions would land a partial test that no
- *   longer maps every failure mode to a browser-observable assertion (the
- *   WP2 "no trivial checks, every assertion maps to a failure mode" bar).
+ * id-401 (S515) AC-1/AC-3 VERDICT — RETAINED UNCHANGED, NOT RETIRED.
+ *   The S509 charter-board S8 verdict ("retire and replace, based on target
+ *   model") predates the {110.6}/{110.8} re-point above and the {111.11}
+ *   un-skip below. Re-verified assertion by assertion on `main` at S515: every
+ *   assertion binds the LIVE reference-layer contract, zero bind retired
+ *   substrate, and all ten `content_items` mentions in this file are prose
+ *   (grep `expect.*content_items` → no match). Only the header was stale, and
+ *   is corrected here: the dead SKIP RATIONALE became SKIP HISTORY, and the
+ *   failure-mode table no longer claims a "content_items COUNT === 0"
+ *   assertion the body has not carried since {131.19} M6.
  *
- *   The assertions below are authored against the CURRENT reference contract
- *   (not the dead content_items shape) so that when the reference read
- *   surface ships, the suite can be un-skipped with the read round-trip added
- *   back. CI stays green: the suite is cleanly skipped, never asserting the
- *   dead shape.
+ * D4 LANE BOUNDARY (id-396 `[D4 RATIFIED S511 (amended)]`, restated by
+ * id-401 S515 — do not re-import corpus→rows proof into this file):
+ *   This spec proves APP BEHAVIOUR around a programmatically-manufactured
+ *   state. Proving corpus→rows — that ingesting the corpus produces the right
+ *   rows — belongs to the INGESTION lane and its harness, never here. If you
+ *   find yourself reaching for corpus files or lane-harness assertions in this
+ *   spec, you are in the wrong lane.
  *
- * USER FLOW (target, once the reference read surface exists):
+ * SKIP HISTORY (bl-119 — DISCHARGED, this suite RUNS):
+ *   This suite was formerly `describe.skip`-ed pending a reference READ
+ *   surface: at {110.8} no user-facing route rendered a `reference_items` row,
+ *   so the create → read round-trip the WP2 spec mandates could not be
+ *   exercised. That blocker is gone — {111.7} shipped `/reference/[id]`,
+ *   {111.8} the success-card "View reference" link, and {111.10} the
+ *   `/reference` browse — and the suite was UN-SKIPPED at {111.11} (S382,
+ *   commit `86611487`) with the round-trip restored at step 5b below.
+ *   Retained only so the bl-119 trail stays readable; there is no live skip.
+ *
+ * USER FLOW:
  *   1. As admin (authenticatedPage), navigate to `/item/new`.
  *   2. Click the "Import from URL" tab.
  *   3. Fill the URL input with the canary URL `https://example.com` (stable
@@ -40,19 +52,32 @@
  *      fetch is server-side and Playwright cannot intercept it.
  *   4. Click "Import" and wait for the `/api/ingest/url` POST response.
  *   5. Assert the reduced reference contract on the response body.
- *   6. DB-side: a `reference_items` row exists for the normalised URL; NO
- *      `content_items` row exists for it; a `source_documents` row links to
- *      the reference (atomic pair from `reference_ingest`).
- *   7. Re-submit the same URL → `{ url_already_exists: true, existing_item }`
+ *   6. DB-side: a `reference_items` row exists for the normalised URL with the
+ *      extracted body, and a `source_documents` row links to it (the atomic
+ *      evidence pair from `reference_ingest`).
+ *   7. Follow the success card's "View reference" link to `/reference/<id>`
+ *      and assert the landed reference renders verbatim (title + body).
+ *   8. Re-submit the same URL → `{ url_already_exists: true, existing_item }`
  *      and exactly ONE `reference_items` row (no duplicate).
  *
  * EXPECTED FAILURE MODES (each maps to >= 1 assertion below):
  *   - Route returns 200 without inserting a reference row → caught by the
  *     `reference_items` existence assertion.
- *   - Route regresses to writing `content_items` → caught by the
- *     content_items COUNT === 0 assertion.
+ *   - Route regresses toward the retired content_items-era contract (infers a
+ *     layer / suggests a topic / reports a dedup verdict) → caught by the four
+ *     `not.toHaveProperty` guards on the response body. KEEP THESE: they are a
+ *     LIVE regression fence on the reduced reference contract, not
+ *     content_items-era debris to be cleaned up. There is deliberately NO
+ *     "content_items COUNT === 0" assertion — {131.19} M6 DROPPED the table,
+ *     so the schema itself now enforces that invariant and a query against it
+ *     would error on a nonexistent relation (see step 5 in the body).
  *   - Extraction silently fails / stores empty body → caught by the non-empty
  *     + sentinel substring assertion on `reference_items.body`.
+ *   - The evidence pair is not written atomically (reference lands without its
+ *     document) → caught by the `source_document_id` + `source_documents`
+ *     lookup assertions.
+ *   - The landed reference is not readable (broken read surface) → caught by
+ *     the `/reference/<id>` round-trip assertions on the h1 + body sentinel.
  *   - Dedup regresses and creates duplicate references on re-submit → caught
  *     by the `reference_items` count === 1 assertion.
  *   - `source_url` not persisted (link-back UX) → caught by the source_url
@@ -149,6 +174,12 @@ test.describe('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () =
     expect(ingestBody.id).toBeTruthy();
     expect(ingestBody.source_url).toBeTruthy();
     // The reference path runs NO dedup — no (misleading) dedup_status (bl-314).
+    //
+    // id-401 (S515) AC-3 adjudication — KEEP ALL FOUR. These name
+    // content_items-era fields, but they are NOT dead prose: they are the live
+    // regression fence proving the reduced reference contract has not regrown
+    // the retired shape. Deleting them as "content_items cleanup" would remove
+    // the only assertions covering that failure mode.
     expect(ingestBody).not.toHaveProperty('dedup_status');
     expect(ingestBody).not.toHaveProperty('suggested_layer');
     expect(ingestBody).not.toHaveProperty('content_type');
