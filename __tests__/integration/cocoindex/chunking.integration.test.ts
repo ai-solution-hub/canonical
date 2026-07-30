@@ -38,6 +38,7 @@ import {
 import {
   assertOpIdRoundTrip,
   readStageCount,
+  runWalk,
   UUID_V4_REGEX,
 } from './test-helpers';
 
@@ -70,18 +71,22 @@ const seededContentIds: string[] = [];
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // Stage all four fixtures up front so the pipeline processes them in
-  // parallel; each case polls for its own prefix.
+  // id-400 (W2, HARNESS §2): stage all four fixtures as ONE batch (a single
+  // staging event), then ONE awaited walk absorbs them — the 10 s pump is
+  // deleted, so the walk is requested + awaited here, and each case polls
+  // for its own prefix knowing the absorbing walk has COMPLETED.
   await Promise.all([
     stageFixture({
       fixturePath: SHORT_FIXTURE,
       destPath: `chunking-c10/${SHORT_PREFIX}.md`,
       titlePrefix: SHORT_PREFIX,
+      walk: false,
     }),
     stageFixture({
       fixturePath: LONG_FIXTURE,
       destPath: `chunking-c11/${LONG_PREFIX}.md`,
       titlePrefix: LONG_PREFIX,
+      walk: false,
     }),
     // C-31 first-ingest: the memo no-op case snapshots THIS run's op_id +
     // embedding, then re-stages identical bytes in the test body to prove the
@@ -91,14 +96,17 @@ beforeAll(async () => {
       fixturePath: LONG_FIXTURE,
       destPath: `chunking-c31/${MEMO_PREFIX}.md`,
       titlePrefix: MEMO_PREFIX,
+      walk: false,
     }),
     stageFixture({
       fixturePath: LONG_FIXTURE,
       destPath: `chunking-c13/${ROUNDTRIP_PREFIX}.md`,
       titlePrefix: ROUNDTRIP_PREFIX,
+      walk: false,
     }),
   ]);
-}, 60_000);
+  await runWalk();
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -243,13 +251,18 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
       // Re-stage the IDENTICAL bytes under the same dest path → cocoindex's
       // content-hash memo (@coco.fn(memo=True)) skips the whole ingest_file
       // component, so the chunk rows are NOT re-declared (C-31, TECH §2.7).
+      // id-400: this memo-skip is now REAL across walks (the engine fix took
+      // the run context off the memoised kwargs — pre-fix, every walk re-ran
+      // the component and this test's op_id half was a moving-target read).
+      // Same-bytes staging is the hash-identity population's reserved shape
+      // (id-396/TECH.md:79-83). The staging's awaited walk (W2 default) IS
+      // the observe-and-skip pass — completed before the re-read below.
       await stageFixture({
         fixturePath: LONG_FIXTURE,
         destPath: `chunking-c31/${MEMO_PREFIX}.md`,
         titlePrefix: MEMO_PREFIX,
       });
 
-      // Give the watch loop time to observe-and-skip, then re-read.
       const after = await pollContentChunksFor(parent.id, {
         timeoutMs: POLL_TIMEOUT_MS,
         minRows: before.length,
@@ -271,7 +284,8 @@ describe.skipIf(!ENABLED)('cocoindex chunking stage', () => {
         expect(afterRow!.embedding).toEqual(beforeEmbeddings.get(a.id));
       }
     },
-    POLL_TIMEOUT_MS + 120_000,
+    // id-400: budget covers the mid-test staging's AWAITED walk (W2).
+    POLL_TIMEOUT_MS + 420_000,
   );
 
   it(

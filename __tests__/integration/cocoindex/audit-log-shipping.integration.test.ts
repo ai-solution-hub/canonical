@@ -85,7 +85,7 @@ beforeAll(async () => {
     destPath: `inv-13/${TEST_PREFIX}.md`,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -151,23 +151,28 @@ describe.skipIf(!ENABLED)(
       // Probe for audit_log table existence. At v1 the table is intentionally
       // absent per RLS-PATTERN P-5 [DEFERRED-v1.1]; this test skips cleanly
       // until v1.1 lands.
-      const { error: probeError } = await client
+      const { count: probeCount, error: probeError } = await client
         .from('audit_log')
         .select('id', { count: 'exact', head: true })
         .limit(0);
 
-      // If audit_log table does not exist (v1 environment), skip the
-      // assertion cleanly. The PostgREST error code for an unknown
-      // relation is PGRST106 or PGRST116 depending on the surface
-      // (table not in schema cache); the test treats ANY error here as
-      // "table absent, skip v1.1 assertion".
-      if (probeError) {
-        // V1 environment — audit_log table not yet populated. The v1
-        // substrate test above covers Inv-13. Skip the v1.1 assertion
-        // by passing trivially.
-        // (Defensive: leave a notable assertion so test output records
-        // this branch was taken.)
-        expect(probeError.message.length).toBeGreaterThan(0);
+      // id-400 (OQ-397-4 dead-test fix, census #41 #2): the table-absent
+      // guard must ALSO treat a null count as absence. A `head: true`
+      // request against a MISSING table does NOT reliably surface a truthy
+      // `error` through supabase-js (no response body to parse — observed
+      // live in the 2026-07-28 nightly: `error` null AND `count` null),
+      // while an existing table always yields a numeric exact count (0 for
+      // empty). The probeError-only guard fell through on exactly that
+      // shape and failed the FUTURE assertion below against a table that
+      // does not exist (TRIAGE §3.7 — the invariant is FUTURE; the test
+      // must guard, not fail). Guard ported verbatim from the sibling
+      // memo-hit-pipeline-run probe.
+      if (probeError || probeCount === null) {
+        // V1 environment — audit_log table absent (zero migrations). The
+        // v1 substrate test above covers Inv-13; v1.1 activates this
+        // assertion. (Defensive: leave a notable assertion so test output
+        // records this branch was taken.)
+        expect(probeError === null || probeError.message.length > 0).toBe(true);
         return;
       }
 

@@ -78,7 +78,7 @@ beforeAll(async () => {
     destPath: `inv-4/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

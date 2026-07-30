@@ -81,7 +81,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-3 — cross-document dedup resolves surface variants to one canonical',

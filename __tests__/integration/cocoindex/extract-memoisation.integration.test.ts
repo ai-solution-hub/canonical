@@ -155,7 +155,7 @@ afterAll(async () => {
   // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
   // holds source_documents.id values.
   await client.from('source_documents').delete().in('id', seededContentIds);
-}, 30_000);
+}, 600_000);
 
 // ---------------------------------------------------------------------------
 // The test — Inv-21 memo-hit determinism on re-ingest.

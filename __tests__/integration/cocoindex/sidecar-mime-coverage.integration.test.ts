@@ -58,6 +58,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -110,9 +111,10 @@ const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // Drop one fixture per MIME kind via the fixture-staging endpoint.
-  // Fire-and-forget (each `it` below polls for its own row) — the dest
-  // filename embeds `${TEST_PREFIX}-${mime.kind}` so each MIME's poll
+  // id-400 (W2, HARNESS §2): drop one fixture per MIME kind as ONE batch,
+  // then ONE awaited walk absorbs them (the pump is deleted — each `it`
+  // below polls for its own row knowing the absorbing walk completed). The
+  // dest filename embeds `${TEST_PREFIX}-${mime.kind}` so each MIME's poll
   // (`ilike filename '${TEST_PREFIX}-${mime.kind}%'`) matches only its own
   // fixture.
   await Promise.all(
@@ -121,10 +123,12 @@ beforeAll(async () => {
         fixturePath: mime.fixturePath,
         destPath: `inv-7/${TEST_PREFIX}-${mime.kind}${mime.fileSuffix}`,
         titlePrefix: TEST_PREFIX,
+        walk: false,
       }),
     ),
   );
-}, 30_000);
+  await runWalk();
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

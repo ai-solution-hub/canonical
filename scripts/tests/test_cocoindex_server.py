@@ -3462,3 +3462,204 @@ class TestForcedProducerAppSingleton:
 
         server_mod.reset_forced_producer_app_cache()
         assert server_mod._FORCED_PRODUCER_APP is None
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# id-400 (NM-5) — walk registry + GET /walk-status/{request_id}
+# ──────────────────────────────────────────────────────────────────────────
+
+
+async def _exercise_walk_status(
+    aiohttp_app: web.Application,
+    request_id: str,
+    *,
+    bearer: str | None = _WALK_PIPELINE_TRIGGER_SECRET,
+) -> tuple[int, dict]:
+    """Invoke GET /walk-status/{request_id} in-process (route resolve)."""
+    headers: dict[str, str] = {}
+    if bearer is not None:
+        headers["Authorization"] = f"Bearer {bearer}"
+    request = make_mocked_request(
+        "GET", f"/walk-status/{request_id}", headers=headers, app=aiohttp_app
+    )
+    match_info = await aiohttp_app.router.resolve(request)
+    # make_mocked_request never populates request.match_info (the server's
+    # dispatch normally does) — attach the resolved match so the handler's
+    # `request.match_info["request_id"]` read sees the path param.
+    request._match_info = match_info  # type: ignore[attr-defined]
+    resp = await match_info.handler(request)
+    return resp.status, json.loads(resp.body)
+
+
+class TestWalkStatusRegistry:
+    """id-400 NM-5: the walk registry is the harness's attribution substrate —
+    `awaitWalk` binds a test to ITS walk's op_id via `/walk-status`, replacing
+    every status-blind "latest row" read (HARNESS.md §3)."""
+
+    def test_registry_records_accepted_then_completed_with_op_id(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A successful walk transitions accepted → running → completed and
+        carries the op_id read back from the FlowRunContext holder (the
+        id-400 engine-fix channel — the holder retains the last walk's run
+        context by design)."""
+        import uuid as uuid_mod
+
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+        server_mod.reset_walk_state()
+        server_mod.reset_walk_registry()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        flow = _patched_walk_app()
+
+        walk_op = uuid_mod.uuid4()
+
+        def _fake_update_blocking(**kwargs: object) -> None:
+            # Simulate app_main publishing the walk's run context.
+            FLOW_RUN_CONTEXT.begin_flow_run(op_id=walk_op)
+
+        with patch.object(
+            flow.KH_PIPELINE_APP, "update_blocking", side_effect=_fake_update_blocking
+        ):
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status == 202
+        request_id = body["requestId"]
+        _wait_for_lock_release(server_mod)
+
+        # The worker thread transitions the entry after update_blocking —
+        # bounded wait for the terminal write.
+        import time as time_mod
+
+        deadline = time_mod.monotonic() + 2.0
+        entry = server_mod.walk_registry_entry(request_id)
+        while (
+            entry is not None
+            and entry.get("status") != "completed"
+            and time_mod.monotonic() < deadline
+        ):
+            time_mod.sleep(0.01)
+            entry = server_mod.walk_registry_entry(request_id)
+
+        assert entry is not None
+        assert entry["status"] == "completed"
+        assert entry["opId"] == str(walk_op)
+        assert entry["fullReprocess"] is False
+
+    def test_walk_status_route_serves_entry_with_bearer(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_registry()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        server_mod._walk_registry_update(
+            "req-abc", status="completed", opId="op-1", fullReprocess=False
+        )
+        status, body = asyncio.run(_exercise_walk_status(aiohttp_app, "req-abc"))
+        assert status == 200
+        assert body["requestId"] == "req-abc"
+        assert body["status"] == "completed"
+        assert body["opId"] == "op-1"
+
+    def test_walk_status_401_wrong_bearer_and_503_unset(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_registry()
+        server_mod._walk_registry_update("req-x", status="accepted")
+
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        status, _ = asyncio.run(
+            _exercise_walk_status(aiohttp_app, "req-x", bearer="wrong")
+        )
+        assert status == 401
+
+        monkeypatch.delenv("PIPELINE_TRIGGER_SECRET", raising=False)
+        status, _ = asyncio.run(_exercise_walk_status(aiohttp_app, "req-x"))
+        assert status == 503
+
+    def test_walk_status_404_unknown_request_id(
+        self,
+        aiohttp_app: web.Application,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_registry()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        status, body = asyncio.run(
+            _exercise_walk_status(aiohttp_app, "never-registered")
+        )
+        assert status == 404
+        assert "unknown walk requestId" in body["error"]
+
+    def test_registry_is_bounded_oldest_evicted(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_walk_registry()
+        for i in range(server_mod._WALK_REGISTRY_MAX + 5):
+            server_mod._walk_registry_update(f"req-{i}", status="accepted")
+        assert server_mod.walk_registry_entry("req-0") is None
+        assert (
+            server_mod.walk_registry_entry(
+                f"req-{server_mod._WALK_REGISTRY_MAX + 4}"
+            )
+            is not None
+        )
+        server_mod.reset_walk_registry()
+
+    def test_fence_busy_marks_terminal_fence_busy_status(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A fence-busy pass is a TERMINAL registry status — awaitWalk's
+        re-request loop keys off it (the walk never ran; no op_id)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline.writer_fence import WriterFenceBusyError
+
+        server_mod.reset_walk_state()
+        server_mod.reset_walk_registry()
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("PIPELINE_TRIGGER_SECRET", _WALK_PIPELINE_TRIGGER_SECRET)
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        _patched_walk_app()
+
+        async def _busy(*args: object, **kwargs: object) -> None:
+            raise WriterFenceBusyError("lease held elsewhere")
+
+        with patch.object(server_mod, "_pull_sync_then_walk", side_effect=_busy):
+            status, body = asyncio.run(_exercise_walk(aiohttp_app))
+        assert status == 202
+        request_id = body["requestId"]
+        _wait_for_lock_release(server_mod)
+
+        import time as time_mod
+
+        deadline = time_mod.monotonic() + 2.0
+        entry = server_mod.walk_registry_entry(request_id)
+        while (
+            entry is not None
+            and entry.get("status") not in {"fence_busy", "failed", "completed"}
+            and time_mod.monotonic() < deadline
+        ):
+            time_mod.sleep(0.01)
+            entry = server_mod.walk_registry_entry(request_id)
+
+        assert entry is not None
+        assert entry["status"] == "fence_busy"
+        assert entry.get("opId") is None

@@ -51,6 +51,8 @@ import {
   hasRealLiveDbCredentials,
 } from '../../helpers/supabase-client';
 
+import { runWalk, type WalkResult } from './walk';
+
 // ---------------------------------------------------------------------------
 // stageFixture
 // ---------------------------------------------------------------------------
@@ -76,6 +78,16 @@ export interface StageFixtureArgs {
    * `filename` (post-ID-131.19 M6 retarget — was `content_items.title`).
    */
   titlePrefix: string;
+  /**
+   * id-400 (W2, HARNESS §2): stage → request `/walk` → await completion is
+   * the DEFAULT staging sequence — the 10 s background pump is deleted, so a
+   * staged fixture is only ever absorbed by a walk the test itself requested
+   * (and can attribute). Pass `walk: false` for the rare stage-only caller
+   * (e.g. batching several stages before ONE shared walk).
+   */
+  walk?: boolean;
+  /** Walk budget override (ms) — forwarded to `runWalk`. */
+  walkTimeoutMs?: number;
 }
 
 export interface StageFixtureResult {
@@ -90,6 +102,13 @@ export interface StageFixtureResult {
    * service does not emit one.
    */
   requestId?: string;
+  /**
+   * id-400 (W2/NM-5): the awaited walk that absorbed this staging — the
+   * test's ATTRIBUTION ANCHOR (`walk.opId` is the run that processed the
+   * fixture; bind op_id assertions to it, never to "latest row"). Absent
+   * only when the caller passed `walk: false`.
+   */
+  walk?: WalkResult;
 }
 
 /**
@@ -150,9 +169,20 @@ export async function stageFixture(
     requestId?: string;
   };
 
+  // id-400 (W2, HARNESS §2): stage → request /walk → await completion. With
+  // the pump deleted this awaited walk is the ONLY thing that absorbs the
+  // fixture; its result is the caller's attribution anchor. Walks are
+  // corpus-wide and memo-cheap post-id-400 (unchanged items scan+skip), so
+  // one walk per staging is bounded at the mock-tier corpus size.
+  let walk: WalkResult | undefined;
+  if (args.walk !== false) {
+    walk = await runWalk({ timeoutMs: args.walkTimeoutMs });
+  }
+
   return {
     destPath: body.destPath ?? args.destPath,
     requestId: body.requestId,
+    walk,
   };
 }
 

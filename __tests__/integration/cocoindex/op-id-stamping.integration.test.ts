@@ -84,7 +84,7 @@ beforeAll(async () => {
     destPath: `inv-11-12/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -92,10 +92,9 @@ afterAll(async () => {
     titlePrefix: TEST_PREFIX,
     contentIds: seededContentIds,
   });
-  if (seededRunIds.length > 0) {
-    const client = await createLiveServiceClient();
-    await client.from('pipeline_runs').delete().in('id', seededRunIds);
-  }
+  // id-400 (HARNESS §4): pipeline_runs TELEMETRY ACCUMULATES BY DESIGN —
+  // census comparability requires history; the former seededRunIds deletion
+  // is retired (no telemetry sweep, ever).
 }, 30_000);
 
 describe.skipIf(!ENABLED)(
@@ -196,9 +195,17 @@ describe.skipIf(!ENABLED)(
         seededRunIds.push(run.id as string);
 
         // Round-trip metadata: started_at populated; ended_at populated
-        // for terminal statuses (succeeded / failed).
+        // for terminal statuses. id-400 [SV] fix: the enum is
+        // in_progress|completed|completed_with_errors|failed — the former
+        // 'succeeded' arm was DEAD (matched nothing), so terminal
+        // `completed` runs silently skipped this check (census #41 #13's
+        // vocabulary half).
         expect(run.started_at).not.toBeNull();
-        if (run.status === 'succeeded' || run.status === 'failed') {
+        if (
+          run.status === 'completed' ||
+          run.status === 'completed_with_errors' ||
+          run.status === 'failed'
+        ) {
           expect(run.ended_at).not.toBeNull();
         }
       }

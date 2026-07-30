@@ -85,7 +85,7 @@ afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: W1_PREFIX, contentIds: seededContentIds });
   await dropFixture({ titlePrefix: W2_PREFIX, contentIds: seededContentIds });
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-21 — Stage-5 does not merge entities across workspace boundaries',

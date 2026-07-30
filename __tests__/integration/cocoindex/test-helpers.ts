@@ -50,6 +50,16 @@ import {
   type StageFixtureResult,
 } from './_helpers/fixture-staging';
 
+// id-400 (W2/NM-5): re-export the walk primitives so tests get them from the
+// same helper surface as the rest of the run-observation contract.
+export {
+  awaitWalk,
+  requestWalk,
+  runWalk,
+  type WalkHandle,
+  type WalkResult,
+} from './_helpers/walk';
+
 // ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------
@@ -286,49 +296,48 @@ export async function assertOpIdRoundTrip(opId: string): Promise<string> {
 }
 
 /**
- * Read `pipeline_runs.result.stage_counts.entity_resolution` for a given op_id.
- * Returns `undefined` when the run row, the `result` JSONB, the `stage_counts`
- * dict, or the `entity_resolution` key is absent — callers distinguish
+ * id-400 (NM-5): the terminal statuses a run-read may filter on. The
+ * status-BLIND read shape is RETIRED (HARNESS §3) — a status-free
+ * `.eq('op_id', …).maybeSingle()` resolves the `in_progress` row whose
+ * stage_counts is all zeros (census #41 failure #3's mechanism), so every
+ * stage-count read now declares which terminal state it binds to.
+ * Vocabulary note ([SV]): the enum is
+ * `in_progress | completed | completed_with_errors | failed` — there is no
+ * `'succeeded'` (the census #15/#18 dead filter).
+ */
+export type PipelineRunReadStatus =
+  | 'completed'
+  | 'completed_with_errors'
+  | 'failed';
+
+/**
+ * Read `pipeline_runs.result.stage_counts.entity_resolution` for a given
+ * op_id, STATUS-FILTERED (id-400 NM-5 — default `'completed'`). Returns
+ * `undefined` when no row with that op_id+status exists (e.g. the run is
+ * still `in_progress`), when the `result` JSONB / `stage_counts` dict is
+ * absent, or when the `entity_resolution` key is absent — callers distinguish
  * "counter present and zero" (`0`) from "counter absent" (`undefined`).
  */
 export async function readEntityResolutionStageCount(
   opId: string,
+  status: PipelineRunReadStatus = 'completed',
 ): Promise<number | undefined> {
-  if (!hasRealLiveDbCredentials()) {
-    throw new Error(
-      'readEntityResolutionStageCount: live DB credentials are not real (or absent). Gate the caller first.',
-    );
-  }
-  const client = await createLiveServiceClient();
-  const { data: run, error } = await client
-    .from('pipeline_runs')
-    .select('result')
-    .eq('op_id', opId)
-    .maybeSingle();
-  if (error) {
-    throw new Error(
-      `readEntityResolutionStageCount: query failed — ${error.message ?? String(error)}`,
-    );
-  }
-  const result = (run?.result as Record<string, unknown> | null) ?? null;
-  const stageCounts =
-    (result?.stage_counts as Record<string, unknown> | undefined) ?? undefined;
-  const value = stageCounts?.entity_resolution;
-  return typeof value === 'number' ? value : undefined;
+  return readStageCount(opId, 'entity_resolution', status);
 }
 
 /**
- * Read `pipeline_runs.result.stage_counts.<stage>` for a given op_id — the
- * generic analogue of `readEntityResolutionStageCount`. Returns `undefined`
- * when the run row, the `result` JSONB, the `stage_counts` dict, or the named
- * stage key is absent, so callers can distinguish "counter present and zero"
- * (`0`) from "counter absent" (`undefined`). Used by the ID-56.9 chunking-stage
- * rollup assertion to verify the `chunking` counter is elevated into the
- * pipeline_runs rollup (Inv-11, mirrors the {53.14} entity_resolution wire).
+ * Read `pipeline_runs.result.stage_counts.<stage>` for a given op_id,
+ * STATUS-FILTERED (id-400 NM-5 — default `'completed'`; the status-blind
+ * shape is retired). Returns `undefined` when no row with that op_id+status
+ * exists, when the `result` JSONB / `stage_counts` dict is absent, or when
+ * the named stage key is absent, so callers can distinguish "counter present
+ * and zero" (`0`) from "counter absent / run not terminal" (`undefined`).
+ * Used by the ID-56.9 chunking-stage rollup assertion (Inv-11).
  */
 export async function readStageCount(
   opId: string,
   stage: string,
+  status: PipelineRunReadStatus = 'completed',
 ): Promise<number | undefined> {
   if (!hasRealLiveDbCredentials()) {
     throw new Error(
@@ -340,6 +349,7 @@ export async function readStageCount(
     .from('pipeline_runs')
     .select('result')
     .eq('op_id', opId)
+    .eq('status', status)
     .maybeSingle();
   if (error) {
     throw new Error(
