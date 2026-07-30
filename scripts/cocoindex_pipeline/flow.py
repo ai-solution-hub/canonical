@@ -4813,13 +4813,29 @@ async def _generate_client_alias_snapshot(pool: "asyncpg.Pool") -> None:  # type
     if client_org:
         client_rows = [r for r in rows if r["provenance"] == "client"]
         if not client_rows:
+            # The org NAME goes to the log, never into the exception message.
+            # This RuntimeError propagates out of `kh_pipeline_lifespan` to
+            # `/health`, which is unauthenticated and Traefik-exposed, so any
+            # value interpolated here is served to the public. `server.py`
+            # redacts as a backstop, but the value must not be here in the
+            # first place — the repo anonymises clients deliberately (hosts are
+            # `ca-client-pipeline`, and a guard hook blocks client names in
+            # filenames and commands). Container logs are private; the 503 body
+            # is not. Found in PR #159 review.
+            _logger.error(
+                "%s fail-closed ({101.10}): configured client %r has zero "
+                "provenance='client' rows in entity_aliases",
+                CLIENT_ORG_ENV_VAR,
+                client_org,
+            )
             raise RuntimeError(
-                f"[{CLIENT_ORG_ENV_VAR}={client_org!r}] fail-closed ({'{101.10}'}): "
+                f"[{CLIENT_ORG_ENV_VAR} set] fail-closed ({'{101.10}'}): "
                 "entity_aliases table has zero provenance='client' rows. "
                 "Refusing to deploy with baseline-only canonicalisation for a "
                 "configured client — alias data is required for correct holder "
                 "self-attribution. Populate entity_aliases with client-provenance "
-                "rows for this client before deploying."
+                "rows for this client before deploying. (The configured value is "
+                "in the container log, not in this message.)"
             )
 
     prime_alias_cache_from_db_rows(rows)

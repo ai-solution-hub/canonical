@@ -558,6 +558,480 @@ class TestWorkerLiveness:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# §3b-2 — the 503 body names the crash (id-379 {379.3})
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def _crash_worker_at_boot(exc: BaseException) -> str:
+    """Drive a REAL lifespan-entry crash and return the /health 503 `reason`.
+
+    Boots the worker exactly as production does (`start_cocoindex_thread()`)
+    with `coco.start_blocking()` raising `exc`, then reads the reason back off
+    the public `GET /health` route — the same one-request diagnosis an operator
+    curling a dead host performs. Callers own `reset_worker_state()`.
+    """
+    from scripts.cocoindex_pipeline import server as server_mod
+
+    _reset_cocoindex_app_registry()
+    with patch.object(server_mod.coco, "start_blocking", side_effect=exc):
+        thread = server_mod.start_cocoindex_thread()
+        thread.join(timeout=2.0)
+
+    status, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+    assert status == 503, (
+        "a crashed lifespan-entry boot must make /health 503 before the "
+        "reason channel means anything"
+    )
+    return body["reason"]
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+class TestCrashReasonOnHealth:
+    """id-379 {379.3} — /health's 503 body must say WHY the worker died.
+
+    Before this, `mark_worker_crashed()` took no argument and the handler
+    hardcoded one literal, so EVERY lifespan-entry failure produced a
+    byte-identical body: a fail-closed config gate and an asyncpg boot crash
+    were indistinguishable over HTTP, and settling the live crash cause on both
+    platform hosts needed a container boot log rather than one request.
+
+    The intentional daemon-thread crashes emit
+    PytestUnhandledThreadExceptionWarning under pytest 9.x — suppressed with a
+    class-SCOPED filterwarnings marker, never globally (ID-49.7 folded
+    finding 1).
+    """
+
+    def test_reason_names_the_boot_failure(self) -> None:
+        """The 503 body reports the exception that actually killed the worker."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("entity_aliases generation is client-scoped")
+            )
+            assert "RuntimeError" in reason, (
+                f"the 503 reason must name the exception type; got: {reason!r}"
+            )
+            assert "entity_aliases generation is client-scoped" in reason, (
+                f"the 503 reason must carry the exception message; got: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_two_boot_failures_are_distinguishable_over_http(self) -> None:
+        """The D2 defect itself: two different crashes must not read alike.
+
+        This is the assertion that was impossible to satisfy before {379.3} —
+        the two bodies were byte-identical.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            fail_closed = _crash_worker_at_boot(
+                RuntimeError("entity_aliases fail-closed for client 'default'")
+            )
+            server_mod.reset_worker_state()
+            dns_failure = _crash_worker_at_boot(
+                OSError("[Errno -2] Name or service not known")
+            )
+
+            assert fail_closed != dns_failure, (
+                "distinct boot failures must produce distinct /health bodies — "
+                f"both read {fail_closed!r}"
+            )
+            assert "Name or service not known" in dns_failure
+            assert "fail-closed" in fail_closed
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_dsn_credentials(self) -> None:
+        """/health is unauthenticated and internet-exposed — a DSN password in
+        the caught exception must never be served from it.
+
+        The documented crash class (asyncpg connection failure) is exactly the
+        one whose message can carry a connection string.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                OSError(
+                    "could not connect to "
+                    "postgresql://kh_writer:hunter2-actual-secret@db.internal:5432/kh"
+                )
+            )
+            assert "hunter2-actual-secret" not in reason, (
+                f"/health leaked a DSN password: {reason!r}"
+            )
+            # Redaction must not cost the diagnosis — the host and the failure
+            # are still legible.
+            assert "db.internal" in reason, (
+                f"redaction destroyed the diagnostic value: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_never_names_the_client(self, monkeypatch) -> None:
+        """The `{101.10}` fail-closed gate must not publish the client's name.
+
+        THE REGRESSION THIS PINS (found in PR #159 review). `flow.py`'s
+        `{101.10}` gate raises
+        `RuntimeError("[PIPELINE_CLIENT_ORG=<value>] fail-closed …")` from
+        inside the lifespan, so its text reaches `/health` verbatim. That value
+        is neither a URL credential nor an `sk-` key, so BOTH shape patterns
+        pass it through — and `/health` is unauthenticated and Traefik-pinned
+        on the client host (`REQUIRED_TRAEFIK_PATHS`), so any caller could read
+        which organisation the deployment belongs to.
+
+        That matters beyond secrecy: the repo anonymises clients deliberately
+        (hosts are `ca-client-pipeline`, and a guard hook blocks client names in
+        filenames and commands). A 503 body must not undo it.
+
+        Reverting `_redact_env_values` fails this test.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        org = "Acme Widgets Holdings Ltd"
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", org)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(
+                    f"[PIPELINE_CLIENT_ORG={org!r}] fail-closed ({{101.10}}): "
+                    "entity_aliases table has zero provenance='client' rows."
+                )
+            )
+            assert org not in reason, (
+                f"/health named the client organisation: {reason!r}"
+            )
+            # The whole point of the reason channel survives: an operator can
+            # still tell this fail-closed gate from an asyncpg boot crash.
+            assert "RuntimeError" in reason and "entity_aliases" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_secrets_of_any_shape(self, monkeypatch) -> None:
+        """Redaction is by VALUE, so it does not depend on guessing a format.
+
+        Shape matching provably missed the case above. These are credential
+        forms the two regexes also do not cover — a libpq keyword/value DSN and
+        a Supabase service-role key — which by-value redaction catches because
+        the container's own env is the source of truth.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        service_key = "sb_secret_zzz9QaaBBccDDeeFFggHHiiJJ"
+        libpq_dsn = "host=db.internal user=kh_writer password=pw/with@slash dbname=kh"
+        monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", service_key)
+        monkeypatch.setenv("COCOINDEX_DB_DSN", libpq_dsn)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(f"boot failed: {libpq_dsn} (auth {service_key})")
+            )
+            assert service_key not in reason, f"/health leaked a service key: {reason!r}"
+            assert "pw/with@slash" not in reason, (
+                f"/health leaked a libpq DSN password: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_short_secret_values_do_not_blank_the_reason(self, monkeypatch) -> None:
+        """A 1-2 character SECRET value must not be substituted out.
+
+        Guards the redaction against destroying itself: without the length
+        floor, a secret env var set to something like "x" would replace every
+        "x" in the message and leave an unreadable body.
+
+        The assertion message must CONTAIN the short value, or this test cannot
+        fail — an earlier version used a message with no "x" in it and passed
+        even with the floor removed (PR #159 re-review).
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("CRON_SECRET", "x")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("max retries exceeded connecting to host")
+            )
+            assert "max retries exceeded connecting to host" in reason, (
+                f"a short env value corrupted the reason: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_a_short_client_name_is_still_redacted(self, monkeypatch) -> None:
+        """A 2-3 character org name must NOT slip under the length floor.
+
+        The floor exists for secrets, all of which are long. Client trading
+        names are routinely 2-3 characters ("BP", "IBM"), which is exactly the
+        range a blanket floor waves through — so identity vars are exempt from
+        it and matched on word boundaries instead.
+
+        Without that exemption this is the original PR #159 leak, reopened for
+        every short-named client.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "BP")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(
+                    "[PIPELINE_CLIENT_ORG='BP'] fail-closed: "
+                    "entity_aliases table has zero provenance='client' rows"
+                )
+            )
+            assert "'BP'" not in reason, (
+                f"/health named a short-named client: {reason!r}"
+            )
+            # Word-boundary matching, so the diagnosis survives intact.
+            assert "entity_aliases" in reason and "fail-closed" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    @pytest.mark.parametrize(
+        "org",
+        [
+            "Acme & Co.",  # trailing '.'  — \b fails here
+            "Acme (UK)",  # trailing ')'  — \b fails here
+            "+Group",  # leading '+'   — \b fails here
+            "O'Brien Ltd",  # internal apostrophe
+            "Müller GmbH",  # non-ASCII
+            "BP",  # 2 chars, alphanumeric edges
+        ],
+    )
+    def test_client_names_of_any_shape_are_redacted(self, monkeypatch, org) -> None:
+        """Punctuation at either edge must not defeat the identity match.
+
+        A `\\b`-anchored pattern asserts a word/non-word transition, so on a
+        value whose first or last character is ALREADY non-word it asserts the
+        opposite of what is wanted and fails to match entirely. `Acme & Co.`,
+        `Acme (UK)` and `+Group` each leaked verbatim through exactly that bug
+        (PR #159, third pass) — ordinary UK company-name shapes.
+
+        The pattern now anchors an edge only when that edge is alphanumeric.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", org)
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError(f"[PIPELINE_CLIENT_ORG={org!r}] fail-closed: zero rows")
+            )
+            assert org not in reason, f"/health leaked the client name: {reason!r}"
+            assert "fail-closed" in reason, (
+                f"redaction destroyed the diagnosis: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_dsn_password_is_redacted_in_any_spelling(self, monkeypatch) -> None:
+        """The DSN password is removed even when the DSN is not echoed whole.
+
+        Byte-exact matching only catches the full connection string. A library
+        that reports the password alone, or reformats the DSN, would slip past
+        it — so the password is pulled out with `urlsplit` and covered in both
+        its stored and percent-decoded spellings.
+
+        This is what closed 5 of the 14 adversarial cases in review, and until
+        now nothing pinned it: stubbing the extractor to return an empty set
+        failed no test at all.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv(
+            "COCOINDEX_DB_DSN",
+            "postgresql://kh_writer:s3cret%2Dpassphrase@db.internal:5432/kh",
+        )
+
+        server_mod.reset_worker_state()
+        try:
+            # The password alone — no scheme, no userinfo for the regex to grip.
+            reason = _crash_worker_at_boot(
+                RuntimeError("auth rejected for password s3cret%2Dpassphrase")
+            )
+            assert "s3cret" not in reason, (
+                f"/health leaked a bare DSN password: {reason!r}"
+            )
+
+            # And its decoded spelling, which is what a library is likelier to print.
+            reason = _crash_worker_at_boot(
+                RuntimeError("auth rejected for password s3cret-passphrase")
+            )
+            assert "s3cret" not in reason, (
+                f"/health leaked the decoded DSN password: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_a_short_dsn_password_does_not_blank_the_reason(self, monkeypatch) -> None:
+        """A 2-char DSN password must clear the same floor as any other secret.
+
+        Unioning the password variants in WITHOUT the floor was a side door
+        around the guard: `postgresql://u:ab@host/db` turned "database
+        unavailable" into "dat***ase unavail***le". The decoded variant is the
+        sharper case — `%78` decodes to a bare `x`.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("COCOINDEX_DB_DSN", "postgresql://u:%78@db.internal:5432/kh")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("database unavailable: connection refused by proxy host")
+            )
+            assert "database unavailable: connection refused by proxy host" in reason, (
+                f"a short DSN password corrupted the reason: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_identity_match_does_not_over_redact(self, monkeypatch) -> None:
+        """A short org name must not swallow longer words that contain it.
+
+        The edge anchoring exists for exactly this: with `PIPELINE_CLIENT_ORG`
+        set to `BP`, an unanchored literal replace would corrupt `BPX` and
+        `BPCL` too, degrading the diagnostic for no security gain.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("PIPELINE_CLIENT_ORG", "BP")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("host BPX unreachable, BPCL timed out, BP configured")
+            )
+            assert "BPX" in reason and "BPCL" in reason, (
+                f"over-redacted unrelated tokens: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_container_paths_are_not_redacted(self, monkeypatch) -> None:
+        """`COCOINDEX_DB` is a container path, not a secret — keep it legible.
+
+        The LMDB permission-denied boot failure is a documented crash class
+        ({66.9} in docker-compose.production.yaml); redacting the path it names
+        is pure diagnostic loss with no security gain.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        monkeypatch.setenv("COCOINDEX_DB", "/cocoindex-state/lmdb")
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                OSError(
+                    "Permission denied (os error 13) initialising the LMDB "
+                    "engine store at /cocoindex-state/lmdb"
+                )
+            )
+            assert "/cocoindex-state/lmdb" in reason, (
+                f"redaction ate a documented crash class: {reason!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_redacts_provider_api_keys(self) -> None:
+        """The `sk-` shape backstop is exercised.
+
+        Covers a key that did NOT come from this container's env — the case
+        by-value redaction cannot reach, which is why the shape pass is kept.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(
+                RuntimeError("upstream rejected sk-ant-api03-NOTAREALKEY0123456789")
+            )
+            assert "NOTAREALKEY" not in reason, (
+                f"/health leaked a provider API key: {reason!r}"
+            )
+            assert "sk-***" in reason
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_is_length_bounded(self) -> None:
+        """A pathological exception message cannot turn /health into a firehose."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            reason = _crash_worker_at_boot(RuntimeError("x" * 50_000))
+            assert len(reason) < 1_000, (
+                f"/health reason must stay bounded; got {len(reason)} chars"
+            )
+            assert "RuntimeError" in reason, (
+                "truncation must keep the exception type — the most diagnostic part"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reason_falls_back_to_the_generic_literal(self) -> None:
+        """A crash flagged with NO reason keeps the pre-{379.3} body verbatim.
+
+        The reason channel is additive: an unadorned `mark_worker_crashed()`
+        (any call site that has no exception to hand) must still produce a
+        well-formed 503, not an empty or missing reason.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            server_mod.mark_worker_crashed()
+            status, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+            assert status == 503
+            assert body == {
+                "status": "error",
+                "reason": "cocoindex worker thread crashed",
+            }
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_reset_clears_a_stale_reason(self) -> None:
+        """A recovered-then-recrashed worker must not report the OLD cause.
+
+        `reset_worker_state()` runs at a fresh worker (re)start; if it cleared
+        the flag but not the reason, the next reasonless crash would serve a
+        stale diagnosis — worse than the generic literal, because it reads as
+        specific.
+        """
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            first = _crash_worker_at_boot(RuntimeError("the first cause"))
+            assert "the first cause" in first
+
+            server_mod.reset_worker_state()
+            server_mod.mark_worker_crashed()
+            _, body, _ = asyncio.run(_exercise_health(server_mod.build_app()))
+            assert "the first cause" not in body["reason"], (
+                f"a stale crash reason survived reset: {body['reason']!r}"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # §3c — Lifespan-only boot end-to-end: no walk on boot (ID-83 / bl-221)
 # ──────────────────────────────────────────────────────────────────────────
 
