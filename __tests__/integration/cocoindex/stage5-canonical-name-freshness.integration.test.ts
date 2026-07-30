@@ -113,7 +113,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'C-54 — canonical_name post-completion read-contract, stability, and Inv-7 op_id re-stamp',

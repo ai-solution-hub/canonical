@@ -78,7 +78,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-11 — stage_counts.entity_resolution equals the count of changed rows',

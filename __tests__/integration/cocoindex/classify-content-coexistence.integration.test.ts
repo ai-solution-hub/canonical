@@ -140,7 +140,7 @@ afterAll(async () => {
       .eq('id', nullOpContentItemId);
   }
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-8 — Stage-5 never overwrites a NULL-op_id classifyContent row',

@@ -90,14 +90,14 @@ beforeAll(async () => {
     destPath: `inv-3/${TEST_PREFIX}.md`,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   const client = await createLiveServiceClient();
-  if (seededRunIds.length > 0) {
-    await client.from('pipeline_runs').delete().in('id', seededRunIds);
-  }
+  // id-400 (HARNESS §4): pipeline_runs TELEMETRY ACCUMULATES BY DESIGN —
+  // census comparability requires history; the former seededRunIds deletion
+  // is retired (no telemetry sweep, ever).
   if (seededContentIds.length > 0) {
     // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
     // holds source_documents.id values.
@@ -130,12 +130,19 @@ describe.skipIf(!ENABLED)(
           if (items && items.length > 0 && items[0]!.op_id) {
             const opId = items[0]!.op_id as string;
             seededContentIds.push(items[0]!.id as string);
-            const { data: runs } = await client
+            // id-400 [SV] fix (census #41 #18): the enum is
+            // in_progress|completed|completed_with_errors|failed — the
+            // former `.eq('status', 'succeeded')` filter matched NOTHING,
+            // so this poll always timed out. Status-honest terminal filter:
+            const { data: runs, error: runsError } = await client
               .from('pipeline_runs')
               .select('id, result, status')
               .eq('op_id', opId)
-              .eq('status', 'succeeded')
+              .in('status', ['completed', 'completed_with_errors'])
               .limit(1);
+            // Error-channel discipline: a failed read must surface, not
+            // degrade into a generic poll timeout.
+            expect(runsError).toBeNull();
 
             if (runs && runs.length > 0) {
               pipelineRunId = runs[0]!.id as string;

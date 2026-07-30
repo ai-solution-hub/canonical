@@ -88,7 +88,7 @@ afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
   await cleanupAliasMap(seededAliases.map((a) => a.id));
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-10 — Stage-5 preloads the legacy entity_aliases map before resolve_entities',

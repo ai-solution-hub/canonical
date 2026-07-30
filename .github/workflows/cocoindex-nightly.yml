@@ -22,7 +22,10 @@
 # memo-hit-pipeline-run) — their beforeAll hooks previously contained only
 # `FUTURE:` prose with no actual fixture-staging call; each now calls
 # `stageFixture(...)` against a real checked-in fixture so the test's
-# existing poll/assert body has something to observe. The bl-195
+# existing poll/assert body has something to observe. (id-400 postscript:
+# that pass fixed the STAGING half only — several assertion bodies remained
+# written against shapes the producer never emits; the id-397 triage ruled
+# them and the id-400 W2 port rebuilt them — see TRIAGE.md §4.) The bl-195
 # items_created no-op assertion is absorbed by memo-hit-pipeline-run's
 # landed Inv-15/16 coverage (row-count-delta + audit_log-silence checks) —
 # C-31 already carries that correlation load, so no separate items_created
@@ -399,6 +402,29 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # id-400 (HARNESS §1 step 1 — D1 pre-run sweep, NM-6 asserted).
+      # Deletes ONLY fixture-prefixed rows (VERIFY-* + the declared per-test
+      # dest/filename prefix families) so the lane starts from a known
+      # fixture population and census run-over-run deltas are signal
+      # (HARNESS §4). The script's NM-6 scope guard re-verifies every
+      # candidate row against the declared manifest BEFORE any delete and
+      # FAILS THE RUN on a single mismatch — showcase/platform content is
+      # never sweep-eligible (S511 D1 owner amendment). Runs before the
+      # ~9-min image build (a sweep failure must not burn the build) and
+      # before the sidecar exists (cannot race a walk). pipeline_runs is
+      # never touched (telemetry accumulates by design).
+      - name: Pre-run sweep (fixture-prefixed rows only — D1/NM-6)
+        env:
+          ALLOW_COCOINDEX_NIGHTLY_SWEEP: "1"
+          # Fail-closed target allowlist (PR #156 review): the sweep script
+          # REFUSES to run unless SUPABASE_URL contains this expected ref.
+          # PLATFORM_PROJECT_REF is the Platform staging project (non-secret
+          # value; stored as a repo secret per the existing ci.yml /
+          # supabase-advisors.yml convention) — the same project
+          # vars.SUPABASE_URL points at.
+          KH_SWEEP_EXPECTED_PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
+        run: bun run scripts/cocoindex-nightly-sweep.ts
+
       - name: Setup the Cloud Native Buildpacks `pack` CLI
         uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned, matches onprem-deploy.yml)
 
@@ -706,27 +732,16 @@ jobs:
             sleep 10
           done
 
-      - name: Start walk pump (background)
-        # Tier-1/Tier-2 files stage their OWN fixtures in beforeAll DURING the
-        # Vitest run (under ID-83/bl-221 nothing walks those stages unless we
-        # keep issuing /walk) — mirrors live-verify.sh step 5. Each pass is
-        # incremental; unchanged files memo-hit and burn nothing.
-        #
-        # ID-128.3 cadence: 30s -> 10s (owner-ratified). A staging poll's
-        # 120s budget (_helpers/fixture-staging.ts DEFAULT_TIMEOUT_MS) got at
-        # most ~4 walk attempts at 30s, each of which can lose the {138.9}
-        # writer-fence race on the SHARED Staging project; at 10s it gets
-        # ~12. Incremental passes memo-hit, so the extra POSTs are cheap.
-        run: |
-          set -euo pipefail
-          (
-            while true; do
-              sleep 10
-              curl -s -o /dev/null -X POST -H "Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}" \
-                "http://localhost:${COCOINDEX_PORT}/walk" || true
-            done
-          ) &
-          echo $! > "${RUNNER_TEMP}/walk-pump.pid"
+      # id-400 (HARNESS §2 — OQ-397-3 RULED W2): the 10 s background walk
+      # pump is DELETED. It was the direct mechanism behind the op_id
+      # moving-target failure class (TRIAGE §4: #3, #13, #15, #18) — an
+      # uncontracted re-stamper racing every read. Under W2, EVERY walk a
+      # test needs is explicit, awaited, and attributable: stageFixture's
+      # default sequence is stage → POST /walk → awaitWalk (via the
+      # /walk-status registry — the NM-5 primitives in
+      # __tests__/integration/cocoindex/_helpers/walk.ts), and NM-4
+      # contracts the model: no background re-walk during the assertion
+      # pass; every walk is requested, awaited, and attributable.
 
       - name: Run cocoindex Vitest go-live tier
         # File selection + --exclude list copied VERBATIM from live-verify.sh
@@ -762,22 +777,23 @@ jobs:
           fi
           echo "Outcome: $COCOINDEX_OUTCOME"
 
-      - name: Stop walk pump
-        if: always()
-        run: |
-          if [ -f "${RUNNER_TEMP}/walk-pump.pid" ]; then
-            kill "$(cat "${RUNNER_TEMP}/walk-pump.pid")" 2>/dev/null || true
-          fi
+      # id-400: the "Stop walk pump" teardown step is retired with the pump
+      # (W2 — no background walk process exists to kill). The {138.9}
+      # quiesce step below still guards the teardown boundary: with no pump
+      # it converges immediately unless a test-requested walk is mid-pass.
 
       - name: Quiesce in-flight walk before teardown ({138.9} lease shadow)
-        # A pump-driven walk may still hold the {138.9} DB-side writer-fence
-        # lease when this job tears down. docker-stopping the sidecar
+        # id-400 (W2): with the pump deleted, only a TEST-REQUESTED walk can
+        # still hold the {138.9} DB-side writer-fence lease when this job
+        # tears down (awaited walks normally complete inside the Vitest run;
+        # a killed/timed-out test is the residual case). docker-stopping the
+        # sidecar
         # MID-PASS orphans that lease for its full server-side TTL (1h,
         # writer_fence.py DEFAULT_LEASE_TTL_SECONDS) on the SHARED Staging
         # project — proven S507: run 30390422726 starved for its entire
         # 30-min walk window inside the shadow of run 30388008506's
-        # teardown-orphaned lease (acquired 19:49:39 by the final pump walk,
-        # container stopped seconds later, never released — the id-382
+        # teardown-orphaned lease (acquired by that run's final pump-era
+        # walk, container stopped seconds later, never released — the id-382
         # release-on-cancel gap, live). Wait (bounded) until every started
         # walk has reached a terminal log line, so the lease is released by
         # normal pass completion before the container stops.
@@ -795,6 +811,37 @@ jobs:
           done
           echo "::warning::sidecar still mid-walk after 120s (starts=${STARTS}, terminals=${DONES}) — stopping anyway; the {138.9} lease may stay orphaned on the shared Staging project for up to its 1h TTL (id-382). The NEXT queued run's walk step will starve against it."
 
+      # id-400 (HARNESS §4 — NM-8 census read gate). A run's census numbers
+      # are readable only when: (i) ZERO UniqueViolations in the sidecar log
+      # (the F4 identity-split signature — grepped here); (ii) the staged
+      # fixture population matches the driver manifest (the census-gate
+      # script — exactly one source_documents row per verify_driver dest
+      # path); (iii) the same-bytes population is green at the write path
+      # (evidenced inside the Vitest verdict itself — chunking C-31 /
+      # idempotency-memo-hit). Gate failure fails the RUN, so a census
+      # reader never ingests numbers from an unreadable run.
+      # Positioned AFTER the quiesce step (PR #156 review): the gate must
+      # never sample a non-quiesced sidecar — a mid-walk log read could miss
+      # a UniqueViolation the in-flight pass is about to emit. `if: always()`
+      # keeps it running on test failure; a docker-logs read failure fails
+      # the gate CLOSED (an unreadable log is an unverifiable census).
+      - name: Census read gate (NM-8)
+        if: always()
+        run: |
+          set -euo pipefail
+          SIDECAR_LOG="$(mktemp)"
+          if ! docker logs cocoindex-sidecar > "$SIDECAR_LOG" 2>&1; then
+            echo "NM-8 GATE FAIL: docker logs cocoindex-sidecar failed — the sidecar log is unreadable, so census readability cannot be verified" >&2
+            exit 1
+          fi
+          UNIQUE_VIOLATIONS="$(grep -c "UniqueViolation" "$SIDECAR_LOG" || true)"
+          echo "sidecar UniqueViolation occurrences: ${UNIQUE_VIOLATIONS}"
+          if [ "${UNIQUE_VIOLATIONS}" -gt 0 ]; then
+            echo "NM-8 GATE FAIL: ${UNIQUE_VIOLATIONS} UniqueViolation(s) in the sidecar log — census unreadable for this run" >&2
+            exit 1
+          fi
+          bun run scripts/cocoindex-census-gate.ts
+
       - name: Surface pipeline-run webhook failures (post-walk)
         # flow.py logs NOTHING on a successful emission — only the unset-env
         # skip warning, "pipeline-run webhook returned HTTP <code>" (bearer
@@ -803,8 +850,8 @@ jobs:
         # stated external dependency in the header). All three are best-effort
         # and do NOT fail the walk, so without this step a broken round-trip
         # looks exactly like a healthy one until the polling cases time out.
-        # Covers the whole run (initial walk + every pump-driven walk during
-        # Vitest), hence its position after the pump is stopped.
+        # Covers the whole run (initial walk + every test-requested W2 walk
+        # during Vitest — id-400), hence its position after the quiesce.
         if: always()
         run: |
           set -euo pipefail

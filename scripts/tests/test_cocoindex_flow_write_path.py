@@ -2660,17 +2660,18 @@ class TestWorkspacePathFixes:
         pool = _wire_pool(flow, monkeypatch)
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                fake_file,
-                qa,
-                sd,
-                em,
-                None,
-                None,
-                None,
-                flow_op_id=uuid.uuid4(),
-                flow_source_path=source_root,
-            )
+            # id-400: run context via bind_flow_meta (kwarg channel retired).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(
+                    fake_file,
+                    qa,
+                    sd,
+                    em,
+                    None,
+                    None,
+                    None,
+                    flow_source_path=source_root,
+                )
 
         asyncio.run(_exercise())
 
@@ -2782,9 +2783,11 @@ class TestWorkspacePathFixes:
         em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                _FakeFile(src), qa, sd, em, None, None, flow_op_id=uuid.uuid4()
-            )
+            # id-400: run context arrives via bind_flow_meta (the in-task
+            # ContextVar fallback) — the flow_op_id kwarg is retired from the
+            # memoised component signature (D-397-A Option C).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -2892,9 +2895,11 @@ class TestHolderStampWiring:
         em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                _FakeFile(src), qa, sd, em, None, None, flow_op_id=uuid.uuid4()
-            )
+            # id-400: run context arrives via bind_flow_meta (the in-task
+            # ContextVar fallback) — the flow_op_id kwarg is retired from the
+            # memoised component signature (D-397-A Option C).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -2933,9 +2938,11 @@ class TestHolderStampWiring:
         em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                _FakeFile(src), qa, sd, em, None, None, flow_op_id=uuid.uuid4()
-            )
+            # id-400: run context arrives via bind_flow_meta (the in-task
+            # ContextVar fallback) — the flow_op_id kwarg is retired from the
+            # memoised component signature (D-397-A Option C).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -2970,9 +2977,11 @@ class TestHolderStampWiring:
         em = _FakeTarget("entity_mentions")
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                _FakeFile(src), qa, sd, em, None, None, flow_op_id=uuid.uuid4()
-            )
+            # id-400: run context arrives via bind_flow_meta (the in-task
+            # ContextVar fallback) — the flow_op_id kwarg is retired from the
+            # memoised component signature (D-397-A Option C).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         asyncio.run(_exercise())
 
@@ -3006,9 +3015,11 @@ class TestHolderStampWiring:
         monkeypatch.setattr(flow._logger, "warning", lambda msg: warnings.append(msg))
 
         async def _exercise() -> None:
-            await flow.ingest_file(
-                _FakeFile(src), qa, sd, em, None, None, flow_op_id=uuid.uuid4()
-            )
+            # id-400: run context arrives via bind_flow_meta (the in-task
+            # ContextVar fallback) — the flow_op_id kwarg is retired from the
+            # memoised component signature (D-397-A Option C).
+            async with flow.bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
 
         # Must NOT raise — the R4 fault is swallowed by the Inv-15 wrapper.
         asyncio.run(_exercise())

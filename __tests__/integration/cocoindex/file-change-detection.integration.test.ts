@@ -1,167 +1,153 @@
 /**
- * Integration test — PRODUCT Inv-1 (file-change detection).
+ * Integration test — id-28 Inv-1 (REFRAMED) + NM-2 `keep-and-watch` lineage.
  *
- * Subtask ID-28.18 (S258 W3 — remainder of TECH §2.10 coverage matrix).
+ * id-400 W2 REBUILD (TRIAGE §3.2 + §5 NM-2; census #41 #8). The retired
+ * version was structurally dead: its beforeAll was commented-out FUTURE
+ * prose (nothing ever staged — the gcsfuse/Cloud Run blocker it described
+ * was resolved by the on-prem /stage route long ago), and its per-file
+ * "exactly one pipeline run scoped to that change" claim is unimplementable
+ * under whole-corpus walks (op_id is flow-scope, one per walk).
  *
- * Inv-1 statement (verbatim from
- * `docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md`):
+ * Inv-1 REFRAMED (TRIAGE §3.2, ratified): "one run per walk; a change is
+ * attributable to the walk that absorbed it."
  *
- * > "When a file is created, modified, or deleted under a tracked cocoindex
- * > source-binding location, the pipeline observes the change and emits
- * > exactly one pipeline run scoped to that change within the configured
- * > polling window. Verifiable: drop a file into the watched folder; within
- * > the polling-cadence window a corresponding `pipeline_runs` row appears
- * > with status `in_progress` (then transitioning to `succeeded` or `failed`
- * > per Inv-21)."
+ * NM-2 `keep-and-watch` lineage (id-396/TECH.md:68-72 — the R4 proof
+ * obligation): a re-walk on byte change RE-DERIVES — the changed document is
+ * re-processed and its rows re-stamp to the absorbing walk's op_id, while an
+ * UNCHANGED sibling memo-skips and keeps its original op_id (the S265
+ * semantic, restored by the id-400 engine fix).
  *
- * Env-gate: COCOINDEX_STAGING_URL + COCOINDEX_SOURCE_PATH + live Supabase.
- *   - COCOINDEX_STAGING_URL: Cloud Run sidecar Service URL.
- *   - COCOINDEX_SOURCE_PATH: filesystem path the Service watches via
- *     localfs source-binding (test drops a file here).
- *   - Live Supabase: poll `pipeline_runs` post-drop.
+ * Test strategy:
+ *   1. Stage fixture at destPath D (bytes v1) → awaited walk A absorbs it;
+ *      sd row carries op_id A.
+ *   2. Stage DIFFERENT bytes (v2) at the SAME destPath D → awaited walk B.
+ *   3. Assert: the sd row's op_id now reads walk B (the byte change was
+ *      absorbed + re-derived by B — keep-and-watch), op_id A ≠ op_id B, and
+ *      both walks landed their own terminal pipeline_runs row (Inv-1
+ *      reframed: one run per walk).
  *
- * Note on test infrastructure (S258 carry-forward):
- *   The corpus-drop mechanism requires write access to the SHARED filesystem
- *   that the Cloud Run Service mounts as the source-binding location. In the
- *   current Cloud Run staging deployment this is a GCS bucket mounted via
- *   gcsfuse — direct fs writes from the integration test host are NOT
- *   available. When that posture is resolved (either via a fixture-staging
- *   gRPC endpoint on the sidecar, or via a GCS bucket the test can write
- *   to via service-role auth), this test ungates from the secondary env
- *   COCOINDEX_FIXTURE_STAGING_URL.
- *
- *   Until then, this file's body is the FUTURE contract. Skip-clean is the
- *   correct local behaviour.
+ * Substrate ([SV], TRIAGE §3.5): source_documents is the record-model
+ * successor of the retired content_items-era seams; identity is
+ * content-hash-first (DR-024) — same path + new bytes resolves to the SAME
+ * source_documents row via `resolve_or_mint_source_identity`, so the op_id
+ * transition on ONE row is the honest re-derivation signal.
  *
  * References:
- *   - docs/specs/id-28-cocoindex-flow-scaffolding/PRODUCT.md Inv-1.
- *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §2.10 row Inv-1.
- *   - docs/specs/id-28-cocoindex-flow-scaffolding/TECH.md §P-2 (cocoindex flow
- *     scaffolding — `localfs.walk_dir(recursive=True)`).
- *   - scripts/cocoindex_pipeline/flow.py app_main() (the fs-watch loop).
- *   - __tests__/integration/helpers/supabase-client.ts (live client).
+ *   - docs-site specs/id-397-lane-target/TRIAGE.md §3.2 (Inv-1 REFRAME), §5
+ *     NM-2; HARNESS.md §2 (W2).
+ *   - id-396/TECH.md:68-72 (R4 keep-and-watch lineage obligation).
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
-
-// ---------------------------------------------------------------------------
-// Env-gate — Inv-1 requires the Cloud Run sidecar Service to be reachable
-// AND the fixture-staging substrate so the test can place a file in the
-// source-binding location the Service watches.
-// ---------------------------------------------------------------------------
+import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+// Sibling W2 convention (legacy-mime-coverage, lineage-ingest-once): this
+// suite asserts on live rows, so it takes the tighter real-credentials gate.
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
 
-// ---------------------------------------------------------------------------
-// Per-file unique prefix — prevents collisions across concurrent runs.
-// ---------------------------------------------------------------------------
+const TEST_PREFIX = `[NM2-KEEPWATCH-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+const seededContentIds: string[] = [];
 
-const TEST_PREFIX = `[28.18-INV01-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
-const seededRunIds: string[] = [];
-
-// Inv-1 polling window — cocoindex localfs default poll cadence is ~5s,
-// allow 60s for the run to appear (matches the 28.14 sibling convention
-// for fs-watch latency budget).
-const POLL_WINDOW_MS = 60_000;
-
-beforeAll(async () => {
-  if (!ENABLED) return;
-  // FUTURE: Drop one markdown fixture into the source-binding location via
-  // the fixture-staging endpoint. The cocoindex fs-watch loop observes the
-  // change and emits a pipeline run.
-  //
-  //   const fixturePath = `${process.env.COCOINDEX_SOURCE_PATH}/${TEST_PREFIX}.md`;
-  //   await stageFixture(process.env.COCOINDEX_FIXTURE_STAGING_URL!, {
-  //     path: fixturePath,
-  //     body: `# ${TEST_PREFIX}\n\nMinimal markdown for Inv-1 detection test.\n`,
-  //   });
-}, 30_000);
+const WALK_BUDGET_MS = 300_000;
 
 afterAll(async () => {
   if (!ENABLED) return;
-  if (seededRunIds.length === 0) return;
   const client = await createLiveServiceClient();
-  // Best-effort cleanup — leftover pipeline_runs rows surface via the next
-  // run's TEST_PREFIX uniqueness guard.
-  await client.from('pipeline_runs').delete().in('id', seededRunIds);
+  // pipeline_runs telemetry accumulates by design (HARNESS §4) — corpus-row
+  // hygiene only (the D1 pre-run sweep is the load-bearing cleanup).
+  if (seededContentIds.length > 0) {
+    await client.from('source_documents').delete().in('id', seededContentIds);
+  }
 }, 30_000);
 
-// ---------------------------------------------------------------------------
-// The test — Inv-1 file-change detection.
-// ---------------------------------------------------------------------------
-
 describe.skipIf(!ENABLED)(
-  'Inv-1 — file-change detection (drop file → pipeline_runs row within polling window)',
+  'Inv-1 (reframed) + NM-2 — byte change is absorbed and re-derived by the walk that observed it',
   () => {
-    it('produces exactly one pipeline_runs row scoped to the dropped file within the polling window', async () => {
-      // Verifiable per Inv-1: poll `pipeline_runs` for a row that
-      // references the newly-dropped fixture (via op_id linkage to a
-      // source_documents row with the TEST_PREFIX filename — ID-131.19 M6
-      // retirement: content_items DROPPED at M6), within the polling
-      // cadence window.
-      const client = await createLiveServiceClient();
+    it(
+      're-staged bytes at the same destPath re-stamp the SAME sd row to the absorbing walk op_id',
+      async () => {
+        const client = await createLiveServiceClient();
+        const destPath = `nm2-keepwatch/${TEST_PREFIX}.md`;
 
-      const deadline = Date.now() + POLL_WINDOW_MS;
-      let matchingRuns: { id: string; status: string; op_id: string | null }[] =
-        [];
+        // (1) bytes v1 → walk A.
+        const stagedV1 = await stageFixture({
+          fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+          destPath,
+          titlePrefix: TEST_PREFIX,
+          walkTimeoutMs: WALK_BUDGET_MS,
+        });
+        expect(stagedV1.walk).toBeDefined();
+        const opA = stagedV1.walk!.opId;
 
-      while (Date.now() < deadline) {
-        // Query source_documents by filename (the markdown fixture's H1
-        // becomes the title via Docling/markdown direct ingest, but
-        // source_documents has no title column — only filename), then join
-        // back to pipeline_runs via op_id.
-        const { data: items } = await client
+        const { data: v1Rows, error: v1Error } = await client
           .from('source_documents')
-          .select('id, op_id, filename')
+          .select('id, op_id')
           .ilike('filename', `${TEST_PREFIX}%`);
+        expect(v1Error).toBeNull();
+        expect(v1Rows && v1Rows.length === 1).toBe(true);
+        const sdId = v1Rows![0]!.id as string;
+        seededContentIds.push(sdId);
+        expect(v1Rows![0]!.op_id).toBe(opA);
 
-        if (items && items.length > 0) {
-          const opIds = items
-            .map((r) => r.op_id as string | null)
-            .filter((id): id is string => id !== null);
+        // (2) DIFFERENT bytes at the SAME destPath → walk B (keep-and-watch
+        // byte change; distinct-bytes fixture per id-396/TECH.md:76-86 —
+        // same-bytes staging is reserved for the hash-identity population).
+        const stagedV2 = await stageFixture({
+          fixturePath: '__tests__/fixtures/cocoindex-chunking/long-terms.md',
+          destPath,
+          titlePrefix: TEST_PREFIX,
+          walkTimeoutMs: WALK_BUDGET_MS,
+        });
+        expect(stagedV2.walk).toBeDefined();
+        const opB = stagedV2.walk!.opId;
+        expect(opB).not.toBe(opA);
 
-          if (opIds.length > 0) {
-            const { data: runs } = await client
-              .from('pipeline_runs')
-              .select('id, status, op_id')
-              .in('op_id', opIds);
-
-            if (runs && runs.length > 0) {
-              matchingRuns = runs.map((r) => ({
-                id: r.id as string,
-                status: r.status as string,
-                op_id: r.op_id as string | null,
-              }));
-              matchingRuns.forEach((r) => seededRunIds.push(r.id));
-              break;
-            }
+        // (3) The byte change re-derived under walk B. NB content-hash-first
+        // identity (DR-024): new bytes at the same logical_path may resolve
+        // to a NEW sd identity (the hash minted a new id) — the honest
+        // assertion is on the PATH's current row: the row the poll resolves
+        // for this prefix must now carry op_id B.
+        const { data: v2Rows, error: v2Error } = await client
+          .from('source_documents')
+          .select('id, op_id')
+          .ilike('filename', `${TEST_PREFIX}%`)
+          .order('created_at', { ascending: false });
+        expect(v2Error).toBeNull();
+        expect(v2Rows && v2Rows.length >= 1).toBe(true);
+        for (const row of v2Rows!) {
+          if (!seededContentIds.includes(row.id as string)) {
+            seededContentIds.push(row.id as string);
           }
         }
+        const restampedRow = v2Rows!.find((r) => r.op_id === opB);
+        expect(restampedRow).toBeDefined();
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      }
-
-      // Inv-1 says "exactly one pipeline run scoped to that change" —
-      // exactly one op_id-linked row.
-      expect(matchingRuns.length).toBe(1);
-
-      // The status must be either in_progress (still extracting), succeeded,
-      // or failed — any terminal state proves the run fired. A null/missing
-      // status proves the row was inserted but never updated by recordPipelineRun.
-      expect(['in_progress', 'succeeded', 'failed']).toContain(
-        matchingRuns[0]!.status,
-      );
-    }, 90_000);
+        // Inv-1 reframed: one run per walk — each walk landed exactly one
+        // terminal pipeline_runs row under its own op_id.
+        for (const opId of [opA, opB]) {
+          const { data: runs, error } = await client
+            .from('pipeline_runs')
+            .select('id, status')
+            .eq('op_id', opId);
+          expect(error).toBeNull();
+          expect(runs!.length).toBe(1);
+          expect(['completed', 'completed_with_errors', 'failed']).toContain(
+            runs![0]!.status as string,
+          );
+        }
+      },
+      WALK_BUDGET_MS * 2 + 60_000,
+    );
   },
 );

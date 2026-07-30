@@ -58,7 +58,7 @@ beforeAll(async () => {
   //     path: `${process.env.COCOINDEX_SOURCE_PATH}${NESTED_SUFFIX}`,
   //     body: `# ${TEST_PREFIX}\n\nNested fixture for Inv-5.\n`,
   //   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

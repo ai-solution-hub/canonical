@@ -70,7 +70,7 @@ beforeAll(async () => {
     destPath: DEST,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

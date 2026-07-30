@@ -22,7 +22,8 @@ from __future__ import annotations
 import contextvars
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncIterator, Protocol
+from collections.abc import AsyncGenerator
+from typing import Protocol
 from uuid import UUID
 
 import cocoindex as coco
@@ -86,7 +87,7 @@ async def bind_flow_meta(
     *,
     op_id: UUID,
     source_document_id: UUID | None = None,
-) -> AsyncIterator[FlowRunMeta]:
+) -> AsyncGenerator[FlowRunMeta]:
     """Bind FLOW_META_CTX for the duration of the wrapped async block.
 
     Token-based reset on exit — safe against nesting + exceptions.
@@ -133,7 +134,7 @@ _retry_counter_var: contextvars.ContextVar[RetryCounterProtocol | None] = (
 @asynccontextmanager
 async def bind_retry_counter(
     counter: RetryCounterProtocol,
-) -> AsyncIterator[RetryCounterProtocol]:
+) -> AsyncGenerator[RetryCounterProtocol]:
     """Bind a retry counter for the duration of the wrapped async block."""
     token = _retry_counter_var.set(counter)
     try:
@@ -186,7 +187,7 @@ _stage_counter_var: contextvars.ContextVar[StageCounterProtocol | None] = (
 @asynccontextmanager
 async def bind_stage_counter(
     counter: StageCounterProtocol,
-) -> AsyncIterator[StageCounterProtocol]:
+) -> AsyncGenerator[StageCounterProtocol]:
     """Bind a stage counter for the duration of the wrapped async block."""
     token = _stage_counter_var.set(counter)
     try:
@@ -240,7 +241,7 @@ _taxonomy_miss_counter_var: contextvars.ContextVar[TaxonomyMissCounter | None] =
 @asynccontextmanager
 async def bind_taxonomy_miss_counter(
     counter: TaxonomyMissCounter,
-) -> AsyncIterator[TaxonomyMissCounter]:
+) -> AsyncGenerator[TaxonomyMissCounter]:
     """Bind a taxonomy-miss counter for the duration of the wrapped async block.
 
     Token-based reset on exit — safe against nesting + exceptions, mirroring
@@ -256,6 +257,116 @@ async def bind_taxonomy_miss_counter(
 def current_taxonomy_miss_counter() -> TaxonomyMissCounter | None:
     """Return the currently-bound taxonomy-miss counter, or None if no binding."""
     return _taxonomy_miss_counter_var.get()
+
+
+# ── Context-passed run context (id-400 / D-397-A Option C) ──────────────────
+#
+# The S265 op_id semantic ("a no-op re-ingest does NOT re-stamp op_id; a
+# full_reprocess DOES") requires the per-walk run context to stay OUT of the
+# memoised components' call fingerprints. The engine's memo fingerprint covers
+# function inputs + code only; `ContextKey` values default to
+# `detect_change=False` — "resources not affecting computation" — and are
+# invisible to the fingerprint (cocoindex skill,
+# `references/api_reference.md:176-179`). Passing `flow_op_id` (and the
+# per-walk observability counters, which pickle their MUTABLE state into the
+# fingerprint) as kwargs therefore busted the outer memo on every walk — the
+# {75.17}/bl-239 finding. The fix: `app_main` publishes the run context on
+# this holder each walk; `ingest_file` / `ingest_url` resolve it INSIDE the
+# memoised body via `resolve_flow_run_context()`. Unchanged items memo-skip
+# every walk; rows keep their last-materially-changed op_id; `full_reprocess`
+# still re-runs (the engine bypasses memos) and re-stamps — S265 restored.
+#
+# The holder is provided under `FLOW_RUN_CTX` by `kh_pipeline_lifespan`
+# (engine-idiomatic channel); `resolve_flow_run_context()` falls back to the
+# module singleton for in-task callers and stubbed-engine unit tests. Both
+# paths resolve the SAME object in production. The holder is deliberately
+# NEVER cleared at walk end: under live mode (`update_blocking(live=True)`)
+# per-item components re-run on fs events AFTER `app_main` returned and must
+# still see the last walk's run context (mirrors the retired closure-cell
+# lifetime).
+
+
+@dataclass
+class FlowRunContext:
+    """Mutable per-process holder for the current walk's run context.
+
+    `app_main` calls `begin_flow_run(...)` once per walk (walks are
+    single-flight — server.py's /walk lock — so no concurrent writers).
+    Readers on the `_LoopRunner` daemon threads see plain attribute reads
+    (safe: set-before-mount, never mutated mid-walk).
+    """
+
+    op_id: UUID | None = None
+    stage_counter: object | None = None
+    retry_counter: object | None = None
+    taxonomy_miss_counter: object | None = None
+    memo_heal_counter: object | None = None
+
+    def begin_flow_run(
+        self,
+        *,
+        op_id: UUID,
+        stage_counter: object | None = None,
+        retry_counter: object | None = None,
+        taxonomy_miss_counter: object | None = None,
+        memo_heal_counter: object | None = None,
+    ) -> None:
+        self.op_id = op_id
+        self.stage_counter = stage_counter
+        self.retry_counter = retry_counter
+        self.taxonomy_miss_counter = taxonomy_miss_counter
+        self.memo_heal_counter = memo_heal_counter
+
+    def reset(self) -> None:
+        """Test hygiene only — production never clears (live-mode contract)."""
+        self.op_id = None
+        self.stage_counter = None
+        self.retry_counter = None
+        self.taxonomy_miss_counter = None
+        self.memo_heal_counter = None
+
+
+def _build_flow_run_ctx() -> "coco.ContextKey[FlowRunContext]":
+    """Build (or reuse) the FLOW_RUN_CTX ContextKey defensively.
+
+    Same dual-package-path hazard + `__new__` rebuild as
+    `_build_flow_meta_ctx` above. `detect_change` stays False (the default):
+    the run context must NEVER enter a memo fingerprint — that is the whole
+    point of this channel.
+    """
+    key_str = "kh_pipeline_flow_run_ctx"
+    try:
+        return coco.ContextKey(key_str)
+    except ValueError:
+        ck = coco.ContextKey.__new__(coco.ContextKey)
+        ck._key = key_str  # type: ignore[attr-defined]
+        ck._detect_change = False  # type: ignore[attr-defined]
+        return ck
+
+
+FLOW_RUN_CTX: "coco.ContextKey[FlowRunContext]" = _build_flow_run_ctx()
+
+# Module singleton — the SAME object `kh_pipeline_lifespan` provides under
+# FLOW_RUN_CTX. Fallback for in-task callers / stubbed-engine unit tests.
+FLOW_RUN_CONTEXT = FlowRunContext()
+
+
+def resolve_flow_run_context() -> FlowRunContext:
+    """Resolve the current FlowRunContext — context first, singleton fallback.
+
+    Prefers the engine channel (`coco.use_context(FLOW_RUN_CTX)`); any failure
+    (no active environment, in-task caller) OR a non-FlowRunContext return
+    (unit suites stub `cocoindex` with MagicMocks — a mock `use_context`
+    returns a mock, which must not poison the resolution) falls back to the
+    module singleton.
+    """
+    try:
+        value = coco.use_context(FLOW_RUN_CTX)
+    except Exception:
+        return FLOW_RUN_CONTEXT
+    if isinstance(value, FlowRunContext):
+        return value
+    return FLOW_RUN_CONTEXT
 
 
 # Memo-heal-counter binding (ID-127.33 — self-healing memo, S457 ratification).
@@ -300,7 +411,7 @@ _memo_heal_counter_var: contextvars.ContextVar[MemoHealCounter | None] = (
 @asynccontextmanager
 async def bind_memo_heal_counter(
     counter: MemoHealCounter,
-) -> AsyncIterator[MemoHealCounter]:
+) -> AsyncGenerator[MemoHealCounter]:
     """Bind a memo-heal counter for the duration of the wrapped async block.
 
     Token-based reset on exit — safe against nesting + exceptions, mirroring

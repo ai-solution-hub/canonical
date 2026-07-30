@@ -52,6 +52,7 @@ import sys
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable
 
@@ -154,6 +155,54 @@ def reset_walk_state() -> None:
             # Released from a thread that did not acquire it (test teardown) —
             # tolerate, the goal is simply a clean unlocked state.
             pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Walk request registry (id-400 — NM-5 run-observation substrate)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# HARNESS.md §3 (id-397, RATIFIED W2): `awaitWalk(handle)` is "the only
+# sanctioned way a test learns an op_id" — the requested walk must be
+# ATTRIBUTABLE. The registry maps each accepted `/walk` requestId to its
+# lifecycle status and, on completion, the op_id `app_main` minted for that
+# pass (read back from the FlowRunContext holder, which retains the last
+# walk's run context by design — id-400 engine fix). `GET /walk-status/{id}`
+# (bearer-gated like /walk) serves it to the harness so tests bind
+# assertions to THEIR walk's op_id instead of "latest row" reads.
+#
+# Bounded: entries beyond _WALK_REGISTRY_MAX are evicted oldest-first (the
+# registry is observability, not a ledger — pipeline_runs is the ledger).
+# Thread-safety: mutated from the handler (event loop) and the walk worker
+# thread under _WALK_REGISTRY_LOCK.
+
+_WALK_REGISTRY: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+_WALK_REGISTRY_LOCK = threading.Lock()
+_WALK_REGISTRY_MAX = 50
+
+
+def _walk_registry_update(request_id: str, **fields: Any) -> None:
+    """Upsert one walk registry entry (bounded, oldest-evicted)."""
+    with _WALK_REGISTRY_LOCK:
+        entry = _WALK_REGISTRY.get(request_id)
+        if entry is None:
+            entry = {"requestId": request_id}
+            _WALK_REGISTRY[request_id] = entry
+            while len(_WALK_REGISTRY) > _WALK_REGISTRY_MAX:
+                _WALK_REGISTRY.popitem(last=False)
+        entry.update(fields)
+
+
+def walk_registry_entry(request_id: str) -> "dict[str, Any] | None":
+    """Return a COPY of one registry entry, or None (test + handler surface)."""
+    with _WALK_REGISTRY_LOCK:
+        entry = _WALK_REGISTRY.get(request_id)
+        return dict(entry) if entry is not None else None
+
+
+def reset_walk_registry() -> None:
+    """Clear the walk registry — test-only clean-slate helper."""
+    with _WALK_REGISTRY_LOCK:
+        _WALK_REGISTRY.clear()
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -864,6 +913,25 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
     try:
         from scripts.cocoindex_pipeline.flow import KH_PIPELINE_APP
 
+        # id-400 (NM-5) + PR #156 review: SNAPSHOT the holder's op_id BEFORE
+        # the walk. The FlowRunContext holder retains the LAST walk's run
+        # context by design (it is never cleared — engine fix), so a pass
+        # that never reaches `begin_flow_run` (e.g. an idle-mode early
+        # return) would otherwise be attributed the PREVIOUS walk's op_id.
+        # Attribution is honest only when the holder's op_id CHANGED across
+        # this pass. Lazy import mirrors the KH_PIPELINE_APP import above
+        # (module-top flow imports are deliberately avoided — ContextKey
+        # registration side-effect, see module NOTE).
+        pre_walk_op_id: str | None = None
+        try:
+            from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+            if FLOW_RUN_CONTEXT.op_id is not None:
+                pre_walk_op_id = str(FLOW_RUN_CONTEXT.op_id)
+        except Exception:  # noqa: BLE001 — attribution is best-effort
+            pre_walk_op_id = None
+
+        _walk_registry_update(request_id, status="running")
         _logger.info(
             "/walk starting pull-sync + one-shot update_blocking(live=False, "
             "full_reprocess=%s, requestId=%s)",
@@ -873,12 +941,34 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
         asyncio.run(
             _pull_sync_then_walk(KH_PIPELINE_APP, full_reprocess, request_id)
         )
-        _logger.info("/walk completed (requestId=%s)", request_id)
+        # Attribute the completed pass to the op_id `app_main` minted for IT:
+        # only a holder value that DIFFERS from the pre-walk snapshot belongs
+        # to this pass (op_ids are per-walk UUIDs — a real walk always
+        # changes it; an unchanged value means no `begin_flow_run` ran, so
+        # there is nothing honest to attribute). Walks are single-flight, so
+        # this read is race-free.
+        walk_op_id: str | None = None
+        try:
+            from scripts.cocoindex_pipeline.flow_context import FLOW_RUN_CONTEXT
+
+            post_walk_op_id = FLOW_RUN_CONTEXT.op_id
+            if (
+                post_walk_op_id is not None
+                and str(post_walk_op_id) != pre_walk_op_id
+            ):
+                walk_op_id = str(post_walk_op_id)
+        except Exception:  # noqa: BLE001 — attribution is best-effort
+            walk_op_id = None
+        _walk_registry_update(request_id, status="completed", opId=walk_op_id)
+        _logger.info(
+            "/walk completed (requestId=%s, opId=%s)", request_id, walk_op_id
+        )
     except WriterFenceBusyError as exc:
         # Busy is a NORMAL, expected outcome (writer_fence.py) — another
         # writer holds the lease, so THIS pass aborts without ever calling
         # `update_blocking` (the P5 guard). A later /walk signal can retry.
         # Logged at WARNING (not `.exception`) — this is not a fault.
+        _walk_registry_update(request_id, status="fence_busy")
         _logger.warning(
             "/walk pull-sync fence busy — pass skipped, no walk ran "
             "(requestId=%s): %s",
@@ -888,6 +978,7 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
     except Exception:  # noqa: BLE001 — top-level worker boundary, must log
         # A walk failure is logged but does NOT mark the worker crashed (see
         # docstring): the long-lived env is still healthy; only this pass failed.
+        _walk_registry_update(request_id, status="failed")
         _logger.exception("/walk update_blocking failed (requestId=%s)", request_id)
     finally:
         # Release the single-flight guard regardless of outcome so a failed walk
@@ -998,6 +1089,11 @@ async def _walk_handler(request: web.Request) -> web.Response:
     try:
         full_reprocess = await _read_full_reprocess_flag(request)
         request_id = uuid.uuid4().hex
+        # id-400 (NM-5): register BEFORE the thread starts so a fast worker
+        # can only ever transition an existing entry (no accepted/running race).
+        _walk_registry_update(
+            request_id, status="accepted", fullReprocess=full_reprocess
+        )
         thread = threading.Thread(
             target=_run_walk,
             args=(full_reprocess, request_id),
@@ -1022,6 +1118,44 @@ async def _walk_handler(request: web.Request) -> web.Response:
         },
         status=202,
     )
+
+
+async def _walk_status_handler(request: web.Request) -> web.Response:
+    """GET /walk-status/{request_id} — one walk's lifecycle + op_id (id-400).
+
+    NM-5 run-observation substrate (HARNESS.md §3): the harness's
+    `awaitWalk(handle)` polls this route until the requested walk reaches a
+    terminal registry status (`completed` / `failed` / `fence_busy`), then
+    binds its assertions to the returned `opId` — "the only sanctioned way a
+    test learns an op_id". Bearer-gated with the SAME
+    `PIPELINE_TRIGGER_SECRET` as /walk (the registry leaks run identifiers,
+    so it gets the same door). Unknown requestId → 404 (evicted or never
+    accepted — the registry is bounded observability, not a ledger).
+    """
+    pipeline_trigger_secret = os.environ.get("PIPELINE_TRIGGER_SECRET")
+    if not pipeline_trigger_secret:
+        return web.json_response(
+            {
+                "error": (
+                    "PIPELINE_TRIGGER_SECRET is unset — /walk-status auth "
+                    "unavailable"
+                )
+            },
+            status=503,
+        )
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header != f"Bearer {pipeline_trigger_secret}":
+        return web.json_response(
+            {"error": "missing or invalid bearer token"}, status=401
+        )
+
+    request_id = request.match_info.get("request_id", "")
+    entry = walk_registry_entry(request_id)
+    if entry is None:
+        return web.json_response(
+            {"error": f"unknown walk requestId: {request_id}"}, status=404
+        )
+    return web.json_response(entry)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1448,6 +1582,8 @@ def build_app() -> web.Application:
     app.router.add_get("/health", _health_handler)
     app.router.add_post("/stage", _stage_handler)
     app.router.add_post("/walk", _walk_handler)
+    # id-400 (NM-5): walk attribution surface — see _walk_status_handler.
+    app.router.add_get("/walk-status/{request_id}", _walk_status_handler)
     app.router.add_post("/extract", _extract_handler)
     app.router.add_post("/producer-run", _producer_run_handler)
     return app

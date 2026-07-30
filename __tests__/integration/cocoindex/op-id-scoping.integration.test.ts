@@ -62,7 +62,7 @@ beforeAll(async () => {
     destPath: `inv-5/${RUN_A_PREFIX}.xlsx`,
     titlePrefix: RUN_A_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

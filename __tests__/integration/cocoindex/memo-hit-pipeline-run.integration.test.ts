@@ -18,21 +18,21 @@
  * Inv-15 verifiability: ingest a file twice unchanged; audit_log row count
  * for that row is the same after the second run as after the first.
  *
- * Inv-16 verifiability: trigger N pipeline invocations; pipeline_runs row
- * count increments by exactly N.
+ * Inv-16 verifiability: trigger N pipeline invocations; each lands exactly
+ * ONE terminal pipeline_runs row under its own op_id (N walks → N rows).
  *
- * Test strategy (composed):
- *   1. Drop a fixture (first ingest fires → first pipeline_runs row).
- *   2. Wait for ingest to settle.
- *   3. Capture pipeline_runs row count + audit_log row count for the
- *      content_item.
- *   4. Trigger a second poll cycle on the unchanged file (memo-hit).
- *   5. Wait for the second poll to settle.
- *   6. Inv-16 check: pipeline_runs row count incremented by exactly 1
- *      (one new row for the second invocation, even though the body
- *      short-circuited at memo-hit).
- *   7. Inv-15 check: audit_log row count for the content_item is
- *      UNCHANGED — the memo-hit path performed no UPDATE.
+ * Test strategy (id-400 W2 rebuild — OQ-397-4, census #41 #10):
+ *   1. Stage a fixture; stageFixture's awaited walk is walk A (the run
+ *      that absorbed it — the attribution anchor).
+ *   2. Inv-16: request + await walk B over the UNCHANGED corpus (memo-skip
+ *      pass). Assert one terminal pipeline_runs row per op_id for BOTH
+ *      walks, and — the restored S265 rider — the fixture's
+ *      source_documents.op_id still reads walk A (no-op re-ingest does NOT
+ *      re-stamp; the retired version's `result.context.file_path` filter
+ *      matched a JSONB path no producer writes, so Inv-16 had never been
+ *      honestly proven).
+ *   3. Inv-15 check: audit_log row count for the source_documents row is
+ *      UNCHANGED — the memo-skip path performed no UPDATE.
  *
  * Env-gate: COCOINDEX_STAGING_URL + COCOINDEX_FIXTURE_STAGING_URL +
  * live Supabase. Skip-clean locally.
@@ -57,6 +57,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { runWalk } from './_helpers/walk';
 import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -69,147 +70,102 @@ const ENABLED =
 
 const TEST_PREFIX = `[28.18-INV15_16-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
-const seededRunIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 120_000;
-const POLL_CYCLE_WAIT_MS = 15_000;
+
+// id-400 (W2/NM-5): the awaited walk from staging is walk A — the run that
+// absorbed the fixture. The Inv-16 test requests walk B itself.
+let walkA: { opId: string } | null = null;
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // First ingest — the walk pump's subsequent poll cycles on this UNCHANGED
-  // file are what exercise the Inv-16 memo-hit +1-row assertion below.
-  await stageFixture({
+  // First ingest — walk A (awaited by stageFixture; the 10 s pump that used
+  // to re-poll this file is DELETED — HARNESS §2 W2).
+  const staged = await stageFixture({
     fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
     destPath: `inv-15-16/${TEST_PREFIX}.md`,
     titlePrefix: TEST_PREFIX,
   });
-}, 30_000);
+  walkA = staged.walk ? { opId: staged.walk.opId } : null;
+}, 330_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   const client = await createLiveServiceClient();
-  if (seededRunIds.length > 0) {
-    await client.from('pipeline_runs').delete().in('id', seededRunIds);
-  }
+  // id-400 (HARNESS §4): pipeline_runs TELEMETRY ACCUMULATES BY DESIGN — the
+  // former seededRunIds deletion is retired (no telemetry sweep, ever).
   if (seededContentIds.length > 0) {
     // ID-131.19 M6 retirement: content_items DROPPED at M6;
     // source_documents replaces it as the seeded-row cleanup target.
     await client.from('source_documents').delete().in('id', seededContentIds);
   }
-}, 30_000);
+}, 600_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-15 + Inv-16 — memo-hit pipeline_runs landing AND audit-log silence on no-op',
   () => {
     it(
-      'Inv-16: re-poll of unchanged fixture produces +1 pipeline_runs row (memo-hit invocation still counts)',
+      'Inv-16: a memo-skip walk over the unchanged fixture still lands its own pipeline_runs row, and the fixture keeps walk A op_id (S265)',
       async () => {
+        // id-400 REBUILD (OQ-397-4, census #41 #10): the retired version
+        // filtered pipeline_runs on `result.context.file_path` — a JSONB
+        // path NO producer writes (the record route composes result from
+        // stage_counts/extractor_version/… only), so its beforeCount was
+        // structurally 0 and Inv-16 had NEVER been honestly proven. The W2
+        // rebuild binds to attributable walks instead:
+        //   walk A — staged the fixture (beforeAll's awaited walk);
+        //   walk B — requested HERE over the UNCHANGED corpus (memo-skip).
+        // Inv-16's honest form under the corpus-reframe model: EVERY
+        // invocation lands exactly ONE terminal pipeline_runs row keyed by
+        // its own op_id — N walks → N rows (accumulation is designed,
+        // id-396/TECH.md:106) — including the invocation whose per-item
+        // work was entirely memo-skipped. The S265 rider (restored by the
+        // id-400 engine fix; census #10's op_id half is now an honest
+        // detector): the no-op walk does NOT re-stamp the fixture's op_id.
         const client = await createLiveServiceClient();
+        expect(walkA).not.toBeNull();
 
-        // Wait for first ingest to land.
-        const firstIngestDeadline = Date.now() + POLL_TIMEOUT_MS;
-        let contentItem: { id: string; op_id: string } | null = null;
+        // The fixture's sd row landed under walk A.
+        const { data, error: sdReadError } = await client
+          .from('source_documents')
+          .select('id, op_id')
+          .ilike('filename', `${TEST_PREFIX}%`)
+          .limit(1);
+        expect(sdReadError).toBeNull();
+        expect(data && data.length > 0).toBe(true);
+        seededContentIds.push(data![0]!.id as string);
+        expect(data![0]!.op_id).toBe(walkA!.opId);
 
-        while (Date.now() < firstIngestDeadline) {
-          // ID-131.19 M6 retirement: content_items DROPPED at M6;
-          // source_documents.filename replaces content_items.title.
-          const { data } = await client
-            .from('source_documents')
-            .select('id, op_id')
-            .ilike('filename', `${TEST_PREFIX}%`)
-            .limit(1);
+        // Walk B — unchanged corpus, requested + awaited by THIS test.
+        const walkB = await runWalk();
+        expect(walkB.opId).not.toBe(walkA!.opId);
 
-          if (data && data.length > 0 && data[0]!.op_id) {
-            contentItem = {
-              id: data[0]!.id as string,
-              op_id: data[0]!.op_id as string,
-            };
-            seededContentIds.push(contentItem.id);
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        // One terminal row per invocation, each under its own op_id.
+        for (const opId of [walkA!.opId, walkB.opId]) {
+          const { data: runs, error } = await client
+            .from('pipeline_runs')
+            .select('id, status')
+            .eq('op_id', opId)
+            .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME);
+          expect(error).toBeNull();
+          expect(runs).not.toBeNull();
+          expect(runs!.length).toBe(1);
+          expect(['completed', 'completed_with_errors', 'failed']).toContain(
+            runs![0]!.status as string,
+          );
         }
 
-        expect(contentItem).not.toBeNull();
-
-        // Capture pipeline_runs count for THIS content's lineage. We can't
-        // use the source_document_id directly (pipeline_runs doesn't
-        // reference source_documents by FK; it stores the op_id). Instead
-        // query by the
-        // pipeline_name=KH_CANONICAL_PIPELINE_NAME + a time window covering the
-        // test prefix's lifetime — but that's noisy.
-        //
-        // A cleaner approach: use the workspace_id / file_path metadata
-        // landing on pipeline_runs.result to scope. The result.context.
-        // file_path (or equivalent) should match the test fixture's path
-        // suffix. Per the recordPipelineRun helper this lands in
-        // pipeline_runs.result.context.
-        //
-        // Fallback (used here): count rows with the first run's op_id (one
-        // row) AND any subsequent rows whose op_id resolves to a row with
-        // a fixture-suffix file_path. For Inv-16 the strict assertion is
-        // simpler — count rows by file_path stamped in result.context.
-        const { data: runsBefore } = await client
-          .from('pipeline_runs')
-          .select('id, op_id, result')
-          .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME);
-
-        const beforeCount =
-          runsBefore?.filter((r) => {
-            const result = r.result as Record<string, unknown> | null;
-            const context = (result?.context ?? null) as Record<
-              string,
-              unknown
-            > | null;
-            const filePath = (context?.file_path ?? '') as string;
-            return filePath.includes(TEST_PREFIX);
-          }).length ?? 0;
-
-        expect(beforeCount).toBeGreaterThanOrEqual(1);
-
-        // Trigger second poll cycle on the unchanged file. Wait one
-        // polling-cadence window.
-        await new Promise((resolve) => setTimeout(resolve, POLL_CYCLE_WAIT_MS));
-
-        const { data: runsAfter } = await client
-          .from('pipeline_runs')
-          .select('id, op_id, result')
-          .eq('pipeline_name', KH_CANONICAL_PIPELINE_NAME);
-
-        const afterCount =
-          runsAfter?.filter((r) => {
-            const result = r.result as Record<string, unknown> | null;
-            const context = (result?.context ?? null) as Record<
-              string,
-              unknown
-            > | null;
-            const filePath = (context?.file_path ?? '') as string;
-            return filePath.includes(TEST_PREFIX);
-          }).length ?? 0;
-
-        // Inv-16 verifiability: every invocation (including memo-hit polls)
-        // produces +1 row. The exact delta depends on how many poll cycles
-        // fired in the wait window — assert ≥ +1 (the floor) since the
-        // test's poll-cycle wait may overlap multiple cocoindex polls.
-        expect(afterCount).toBeGreaterThanOrEqual(beforeCount + 1);
-
-        // Track the new rows for cleanup.
-        const newRunIds =
-          runsAfter
-            ?.filter((r) => {
-              const result = r.result as Record<string, unknown> | null;
-              const context = (result?.context ?? null) as Record<
-                string,
-                unknown
-              > | null;
-              const filePath = (context?.file_path ?? '') as string;
-              return filePath.includes(TEST_PREFIX);
-            })
-            .map((r) => r.id as string) ?? [];
-        newRunIds.forEach((id) => seededRunIds.push(id));
+        // S265 restored: the memo-skip walk B did NOT re-stamp the row.
+        const { data: after, error: afterError } = await client
+          .from('source_documents')
+          .select('op_id')
+          .ilike('filename', `${TEST_PREFIX}%`)
+          .limit(1);
+        expect(afterError).toBeNull();
+        expect(after && after.length > 0).toBe(true);
+        expect(after![0]!.op_id).toBe(walkA!.opId);
       },
-      POLL_TIMEOUT_MS + 60_000,
+      POLL_TIMEOUT_MS + 360_000,
     );
 
     it('Inv-15: memo-hit cycle produces no new audit_log rows for the content_item (v1.1 substrate)', async () => {

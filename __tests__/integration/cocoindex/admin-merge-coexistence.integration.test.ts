@@ -71,7 +71,7 @@ beforeAll(async () => {
     destPath: `inv-9/${RUN_A_PREFIX}.xlsx`,
     titlePrefix: RUN_A_PREFIX,
   });
-}, 30_000);
+}, 600_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -147,7 +147,8 @@ describe.skipIf(!ENABLED)(
         expect(row!.canonical_name).toBe(ADMIN_CANONICAL);
         expect(row!.op_id).toBe(opIdA);
       },
-      POLL_TIMEOUT_MS * 2 + 30_000,
+      // id-400: budget covers the mid-test staging's AWAITED walk (W2).
+      POLL_TIMEOUT_MS * 2 + 360_000,
     );
   },
 );
