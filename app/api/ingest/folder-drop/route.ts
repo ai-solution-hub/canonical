@@ -131,6 +131,11 @@ export const POST = withRequestContext(
         titlePrefix: '',
         contentType: file.type || undefined,
         supabase: auth.supabase,
+        // id-407: the acting user is unambiguous here — this route is
+        // gated on an authenticated admin/editor and the upload IS their
+        // action, so their id is the uploader `source_documents.uploaded_by`
+        // has always been read for and never written with.
+        uploadedBy: auth.user.id,
         ...(retentionClass ? { retentionClass } : {}),
       });
 

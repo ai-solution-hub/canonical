@@ -2905,6 +2905,14 @@ async def _resolve_source_identity(
     The migration is authored-not-applied, so at runtime the fn exists only
     post-GO; a mocked unit test stubs the pool `fetchrow` to return the id.
     Returns the stored/minted `source_document_id`.
+
+    id-407 — the SQL resolver is SECURITY DEFINER and mints WITHOUT an actor,
+    so `source_documents.uploaded_by` is left NULL on every row this walk
+    mints. That is deliberate: the walk has no acting user (see
+    `_upsert_source_document`'s docstring for the full decision). The TS upload
+    leg calls the SAME resolver and then stamps the uploader caller-side
+    (`lib/upload/folder-drop.ts` -> `lib/source-documents/uploader-attribution.ts`),
+    which is why the shared resolver itself needs no change.
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:
@@ -3059,6 +3067,27 @@ async def _upsert_source_document(
     raw-pool jsonb precedent on this SAME `DB_CTX` pool (this call does NOT
     go through the pool-`init` jsonb codec registered for the
     engine-declared `entity_mentions`/`q_a_extractions` targets).
+
+    id-407 — `uploaded_by` IS DELIBERATELY ABSENT, from BOTH the column list
+    and the ON CONFLICT SET list. It is a decision, not an oversight, and
+    both halves matter:
+
+      * absent from the INSERT: this is the WALK. It admits whatever bytes
+        are on the corpus volume, with no acting user anywhere in the call
+        chain. The readers of `uploaded_by` define NULL as `'System'`
+        (`lib/diff/adapters/source-document-revision.ts`), which is exactly
+        what a walk-admitted row is. Inventing an actor — a service-account
+        uuid, the last human to touch the folder — would be a fabrication;
+      * absent from the SET list: a re-walk of a file that a HUMAN admitted
+        through the front door (`lib/upload/folder-drop.ts`, which stamps
+        the uploader on mint) must not clobber that attribution back to
+        NULL. The two paths converge on the SAME uuid5 id by the
+        SEED-CONTRACT, so the re-walk conflict is the normal case, not an
+        edge one.
+
+    A future sweep that finds this column read-but-not-written HERE should
+    read that as correct-by-design and stop, rather than re-deriving the
+    S507 retire verdict id-407 overturned.
     """
     pool = coco.use_context(DB_CTX)
     async with pool.acquire() as conn:

@@ -66,6 +66,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 import { logger } from '@/lib/logger';
+import { attributeUploader } from '@/lib/source-documents/uploader-attribution';
 import { sb } from '@/lib/supabase/safe';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
@@ -74,9 +75,21 @@ import {
 } from '@/lib/corpus/writer-fence';
 import type { Database } from '@/supabase/types/database.types';
 
-/** Which leg of the admission flow failed — surfaced on the thrown error. */
+/**
+ * Which leg of the admission flow failed — surfaced on the thrown error.
+ *
+ * `attribution` (id-407) is the `uploaded_by` stamp that follows a fresh
+ * mint. It is a distinct stage because the bytes and the identity have both
+ * landed by then, so an operator reading the log needs to know the failure
+ * is provenance-only, not a lost upload.
+ */
 /** @public */
-export type FolderDropStage = 'destPath' | 'put' | 'identity' | 'fence';
+export type FolderDropStage =
+  | 'destPath'
+  | 'put'
+  | 'identity'
+  | 'fence'
+  | 'attribution';
 
 /**
  * Retention classes assignable at the binding-admission gate (DR-025),
@@ -172,6 +185,19 @@ export interface StageAndWalkInput {
    * supply one.
    */
   retentionClass?: RetentionClass;
+  /**
+   * The acting user's id, stamped onto `source_documents.uploaded_by` when
+   * (and only when) THIS call mints the row (id-407).
+   *
+   * Both live callers supply it — the UI route passes `auth.user.id`, the
+   * MCP `create_content_item` source-less branch passes
+   * `getMcpUserId(extra.authInfo)`. It stays optional because the admission
+   * primitive itself does not require a human: a caller with no acting user
+   * omits it and the row is left NULL, which the diff adapter renders as
+   * `'System'` — a deliberate value, not an omission (see
+   * `lib/source-documents/uploader-attribution.ts`).
+   */
+  uploadedBy?: string | null;
   /**
    * Supabase client for the Storage PUT + identity RPC + writer fence.
    * OPTIONAL — see the module header's "`stageAndWalk` name kept" note. The
@@ -304,6 +330,10 @@ interface ResolveOrMintRow {
  * Idempotent: re-uploading the SAME bytes (any destPath) resolves to the
  * SAME `sourceDocumentId` with `wasMinted: false` (content_hash-first, R(id)).
  *
+ * `input.uploadedBy` (id-407) is stamped onto `source_documents.uploaded_by`
+ * on the MINT path only, inside the same fence hold — so an idempotent
+ * re-upload never re-attributes a row that already has an admitter.
+ *
  * Throws a `FolderDropError` on any failure — a missing/unprovisioned corpus
  * bucket is NOT a graceful idle-mode fallback here (contrast `write-back.ts`
  * `CorpusBucketUnavailableError`): a brand-new upload with no bucket to land
@@ -383,6 +413,39 @@ export async function stageAndWalk(
         if (!row) {
           throw new Error('resolve_or_mint_source_identity returned no rows');
         }
+
+        // ── Uploader attribution (id-407) ───────────────────────────────────
+        // The M2 resolver is SECURITY DEFINER and mints without an actor, so
+        // the acting user is stamped here, inside the SAME fence hold, on the
+        // MINT path only.
+        //
+        // Mint-only is the point: on a `was_minted: false` resolve this
+        // request converged onto a row that already exists — either an
+        // earlier human's admission (whose credit must stand) or a
+        // system walk's (whose honest label is 'System'). Re-stamping either
+        // would rewrite provenance, and DR-093 rules out backfilling
+        // historical rows.
+        //
+        // Residual, accepted: if this stamp fails transiently the caller's
+        // retry takes the resolve branch and skips it, leaving the row
+        // labelled 'System'. That is a cosmetic degrade, no worse than the
+        // pre-id-407 state for that one row, and it is LOUD — the throw
+        // below surfaces it rather than letting it pass unremarked.
+        if (input.uploadedBy && row.was_minted) {
+          try {
+            await attributeUploader(
+              supabase,
+              row.source_document_id,
+              input.uploadedBy,
+            );
+          } catch (err) {
+            throw new FolderDropError(
+              'attribution',
+              `uploader attribution failed for "${destPath}" — the bytes and the source_documents row landed, but the upload is unattributed`,
+              { detail: err instanceof Error ? err.message : String(err) },
+            );
+          }
+        }
         return row;
       },
       'upload',
@@ -413,6 +476,10 @@ export async function stageAndWalk(
       sourceFile,
       sourceDocumentId: resolved.source_document_id,
       wasMinted: resolved.was_minted,
+      // id-407: which actor the row was attributed to on a mint, so an
+      // unattributed admission is visible in the log rather than only in
+      // the (previously always-'System') UI label.
+      uploadedBy: resolved.was_minted ? (input.uploadedBy ?? null) : undefined,
     },
     `[folder-drop] admitted upload — Storage PUT + source_documents ${
       resolved.was_minted ? 'minted' : 'resolved'

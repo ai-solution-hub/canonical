@@ -51,6 +51,7 @@ const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 const mockSupabase = createMockSupabaseClient();
 
 const SOURCE_DOCUMENT_ID = '22222222-2222-4222-8222-222222222222';
+const UPLOADER_USER_ID = '33333333-3333-4333-8333-333333333333';
 
 function authoriseAs(role: 'admin' | 'editor') {
   getAuthorisedClientMock.mockResolvedValue({
@@ -139,6 +140,30 @@ describe('POST /api/ingest/folder-drop', () => {
     // (undefined is not forwarded as an explicit override).
     expect(stageAndWalkMocks.stageAndWalk.mock.calls[0][0]).not.toHaveProperty(
       'retentionClass',
+    );
+  });
+
+  // id-407 — the acting user is unambiguous at this route (it is gated on an
+  // authenticated admin/editor and the upload IS their action), so the
+  // admitted document must carry their id rather than the 'System' fallback
+  // every reader of `source_documents.uploaded_by` used to resolve.
+  it('attributes the admitted document to the authenticated uploader', async () => {
+    getAuthorisedClientMock.mockResolvedValue({
+      success: true,
+      user: { id: UPLOADER_USER_ID } as never,
+      supabase: mockSupabase as never,
+      role: 'editor',
+    });
+    const file = createMockFile({ name: 'report.pdf', content: 'bytes' });
+    const req = createMockUploadRequest({
+      path: '/api/ingest/folder-drop',
+      file,
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(202);
+    expect(stageAndWalkMocks.stageAndWalk).toHaveBeenCalledWith(
+      expect.objectContaining({ uploadedBy: UPLOADER_USER_ID }),
     );
   });
 

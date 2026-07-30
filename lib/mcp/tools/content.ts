@@ -733,6 +733,26 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             };
           }
 
+          // id-407: attribute the synthetic source_documents row the RPC just
+          // minted to the calling user — same decision, and same fill-once
+          // `already_existed` gate, as app/api/ingest/url/route.ts (see that
+          // route for the full reasoning). Degrades into `warnings` because
+          // the evidence pair is already committed; only the provenance label
+          // falls back to 'System'.
+          if (row.already_existed === false && row.source_document_id) {
+            try {
+              const { attributeUploader } =
+                await import('@/lib/source-documents/uploader-attribution');
+              await attributeUploader(supabase, row.source_document_id, userId);
+            } catch (error) {
+              warnings.push('Uploader attribution failed');
+              logger.error(
+                { err: error, sourceDocumentId: row.source_document_id },
+                'MCP create_content_item (url) uploader attribution failed',
+              );
+            }
+          }
+
           // S205 WP-A2 / AC2.3 — record the run (service-role client bypasses
           // the admin-only pipeline_runs_insert RLS policy, OPS-40 parity).
           const pipelineStatus: PipelineRunStatus =
@@ -823,6 +843,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           // header's own "OPTIONAL input field for exactly this reason"
           // note.
           supabase,
+          // id-407: an agent call is still an authenticated user's action —
+          // `checkMcpRole` gated it above and `getMcpUserId` is the same id
+          // the pipeline_runs audit attributes the create to. Attribute the
+          // admitted document to that user, not to 'System'.
+          uploadedBy: userId,
         });
 
         // S205 WP-A2 / AC2.3 — record the run on the success path (service-role
