@@ -1,9 +1,8 @@
 ---
 name: start-session
-description:
-  Bootstraps a Canonical (Formerly Knowledge Hub) session:
-    loads context, and presents the session plan from the continuation prompt. Use at the
-    start of every new session.
+description: >-
+  Bootstraps a Canonical (Formerly Knowledge Hub) session: loads context, and presents the
+  session plan from the continuation prompt. Use at the start of every new session.
 allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
 ---
 
