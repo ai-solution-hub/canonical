@@ -108,11 +108,12 @@ describe.skipIf(!ENABLED)(
 
         // The contained faults are OBSERVABLE: this walk's run row tallies
         // ≥ 2 content-branch item failures (one per legacy file).
-        const { data: run } = await client
+        const { data: run, error: runError } = await client
           .from('pipeline_runs')
           .select('result')
           .eq('op_id', walk.opId)
           .maybeSingle();
+        expect(runError).toBeNull();
         expect(run).not.toBeNull();
         const result = (run!.result ?? null) as Record<string, unknown> | null;
         const itemFailures =
@@ -124,10 +125,11 @@ describe.skipIf(!ENABLED)(
         // No-partial-writes: neither legacy item landed ANY sd row (the
         // adapter raises before the first write; a faulted item's declared
         // rows are discarded — {75.16}).
-        const { data: sdRows } = await client
+        const { data: sdRows, error: sdError } = await client
           .from('source_documents')
           .select('id')
           .ilike('filename', `${TEST_PREFIX}%`);
+        expect(sdError).toBeNull();
         expect(sdRows ?? []).toHaveLength(0);
       },
       WALK_BUDGET_MS + 120_000,

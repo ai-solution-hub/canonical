@@ -35,10 +35,10 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { runWalk } from './_helpers/walk';
 import {
   assertOpIdRoundTrip,
   readStageCount,
-  runWalk,
   UUID_V4_REGEX,
 } from './test-helpers';
 

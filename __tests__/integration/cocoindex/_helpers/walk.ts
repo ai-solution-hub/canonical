@@ -235,7 +235,14 @@ export async function awaitWalk(
           .eq('status', 'in_progress')
           .gt('started_at', startedAt)
           .limit(1);
-        if (!newerError && newer && newer.length > 0) {
+        if (newerError) {
+          throw new Error(
+            `awaitWalk: NM-4 quiescence probe failed — pipeline_runs read ` +
+              `errored (${newerError.message}); cannot verify no newer walk ` +
+              'is in flight',
+          );
+        }
+        if (newer && newer.length > 0) {
           throw new Error(
             `awaitWalk: a NEWER walk is in flight (op_id ${String(
               (newer[0] as { op_id?: string }).op_id,

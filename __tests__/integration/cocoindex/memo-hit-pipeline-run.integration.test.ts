@@ -57,7 +57,8 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
-import { KH_CANONICAL_PIPELINE_NAME, runWalk } from './test-helpers';
+import { runWalk } from './_helpers/walk';
+import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -125,11 +126,12 @@ describe.skipIf(!ENABLED)(
         expect(walkA).not.toBeNull();
 
         // The fixture's sd row landed under walk A.
-        const { data } = await client
+        const { data, error: sdReadError } = await client
           .from('source_documents')
           .select('id, op_id')
           .ilike('filename', `${TEST_PREFIX}%`)
           .limit(1);
+        expect(sdReadError).toBeNull();
         expect(data && data.length > 0).toBe(true);
         seededContentIds.push(data![0]!.id as string);
         expect(data![0]!.op_id).toBe(walkA!.opId);
@@ -154,11 +156,13 @@ describe.skipIf(!ENABLED)(
         }
 
         // S265 restored: the memo-skip walk B did NOT re-stamp the row.
-        const { data: after } = await client
+        const { data: after, error: afterError } = await client
           .from('source_documents')
           .select('op_id')
           .ilike('filename', `${TEST_PREFIX}%`)
           .limit(1);
+        expect(afterError).toBeNull();
+        expect(after && after.length > 0).toBe(true);
         expect(after![0]!.op_id).toBe(walkA!.opId);
       },
       POLL_TIMEOUT_MS + 360_000,

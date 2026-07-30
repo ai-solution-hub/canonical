@@ -42,14 +42,16 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   createLiveServiceClient,
-  hasLiveDbCredentials,
+  hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
-const HAS_LIVE_DB = hasLiveDbCredentials();
+// Sibling W2 convention (legacy-mime-coverage, lineage-ingest-once): this
+// suite asserts on live rows, so it takes the tighter real-credentials gate.
+const HAS_LIVE_DB = hasRealLiveDbCredentials();
 
 const ENABLED =
   HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING && HAS_LIVE_DB;
@@ -88,10 +90,11 @@ describe.skipIf(!ENABLED)(
         expect(stagedV1.walk).toBeDefined();
         const opA = stagedV1.walk!.opId;
 
-        const { data: v1Rows } = await client
+        const { data: v1Rows, error: v1Error } = await client
           .from('source_documents')
           .select('id, op_id')
           .ilike('filename', `${TEST_PREFIX}%`);
+        expect(v1Error).toBeNull();
         expect(v1Rows && v1Rows.length === 1).toBe(true);
         const sdId = v1Rows![0]!.id as string;
         seededContentIds.push(sdId);
@@ -115,11 +118,12 @@ describe.skipIf(!ENABLED)(
         // to a NEW sd identity (the hash minted a new id) — the honest
         // assertion is on the PATH's current row: the row the poll resolves
         // for this prefix must now carry op_id B.
-        const { data: v2Rows } = await client
+        const { data: v2Rows, error: v2Error } = await client
           .from('source_documents')
           .select('id, op_id')
           .ilike('filename', `${TEST_PREFIX}%`)
           .order('created_at', { ascending: false });
+        expect(v2Error).toBeNull();
         expect(v2Rows && v2Rows.length >= 1).toBe(true);
         for (const row of v2Rows!) {
           if (!seededContentIds.includes(row.id as string)) {

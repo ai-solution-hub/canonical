@@ -50,16 +50,6 @@ import {
   type StageFixtureResult,
 } from './_helpers/fixture-staging';
 
-// id-400 (W2/NM-5): re-export the walk primitives so tests get them from the
-// same helper surface as the rest of the run-observation contract.
-export {
-  awaitWalk,
-  requestWalk,
-  runWalk,
-  type WalkHandle,
-  type WalkResult,
-} from './_helpers/walk';
-
 // ---------------------------------------------------------------------------
 // Shared constants
 // ---------------------------------------------------------------------------

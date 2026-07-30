@@ -132,21 +132,23 @@ describe.skipIf(!ENABLED)(
 
         // Substrate note ([SV], TRIAGE §3.5): source_documents.filename is
         // the successor of the retired content_items.title seam.
-        const { data: items } = await client
+        const { data: items, error: itemsError } = await client
           .from('source_documents')
           .select('id, op_id')
           .ilike('filename', `${TEST_PREFIX}%`)
           .limit(1);
+        expect(itemsError).toBeNull();
         if (items && items.length > 0) {
           seededContentIds.push(items[0]!.id as string);
         }
 
-        const { data: runs } = await client
+        const { data: runs, error: runsError } = await client
           .from('pipeline_runs')
           .select('id, result, status')
           .eq('op_id', stagedWalkOpId!)
           .in('status', ['completed', 'completed_with_errors'])
           .limit(1);
+        expect(runsError).toBeNull();
         expect(runs && runs.length > 0).toBe(true);
         const pipelineRunResult = runs![0]!.result as Record<
           string,

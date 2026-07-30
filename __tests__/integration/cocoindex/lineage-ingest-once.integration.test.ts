@@ -105,18 +105,20 @@ describe.skipIf(!ENABLED)(
         // SURVIVAL: the sd row + every derived chunk row still exist with
         // the SAME identities, and the lineage keeps walk A's op_id (S265:
         // a no-op re-ingest does NOT re-stamp).
-        const { data: sdAfterB } = await client
+        const { data: sdAfterB, error: sdAfterBError } = await client
           .from('source_documents')
           .select('id, op_id')
           .eq('id', sdId)
           .maybeSingle();
+        expect(sdAfterBError).toBeNull();
         expect(sdAfterB).not.toBeNull();
         expect(sdAfterB!.op_id).toBe(opA);
 
-        const { data: chunksAfterB } = await client
+        const { data: chunksAfterB, error: chunksAfterBError } = await client
           .from('content_chunks')
           .select('id, op_id')
           .eq('source_document_id', sdId);
+        expect(chunksAfterBError).toBeNull();
         expect(chunksAfterB).not.toBeNull();
         expect(chunksAfterB!.map((c) => c.id as string).sort()).toEqual(
           chunkIdsAfterA,

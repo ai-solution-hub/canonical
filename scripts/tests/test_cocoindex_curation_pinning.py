@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import json
 import uuid
 from pathlib import Path
 
@@ -227,7 +226,8 @@ def test_pinned_rows_excluded_from_run_domain_never_updated(
     pool = _PinProbePool(run_rows=[], pinned_holder={})
 
     class _Counter:
-        def increment(self, stage: str) -> None: ...
+        def increment(self, stage: str) -> None:
+            pass
 
         def get(self, stage: str) -> int:
             return 0

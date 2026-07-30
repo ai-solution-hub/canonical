@@ -134,12 +134,15 @@ describe.skipIf(!ENABLED)(
             // in_progress|completed|completed_with_errors|failed — the
             // former `.eq('status', 'succeeded')` filter matched NOTHING,
             // so this poll always timed out. Status-honest terminal filter:
-            const { data: runs } = await client
+            const { data: runs, error: runsError } = await client
               .from('pipeline_runs')
               .select('id, result, status')
               .eq('op_id', opId)
               .in('status', ['completed', 'completed_with_errors'])
               .limit(1);
+            // Error-channel discipline: a failed read must surface, not
+            // degrade into a generic poll timeout.
+            expect(runsError).toBeNull();
 
             if (runs && runs.length > 0) {
               pipelineRunId = runs[0]!.id as string;
