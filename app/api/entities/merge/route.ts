@@ -5,7 +5,9 @@ import {
   rateLimitResponse,
 } from '@/lib/auth/client';
 import { safeErrorMessage } from '@/lib/error';
+import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { tryQuery } from '@/lib/supabase/safe';
 import { createServiceClient } from '@/lib/supabase/server';
 import { parseBody } from '@/lib/validation';
 import { EntityMergeBodySchema } from '@/lib/validation/schemas';
@@ -24,6 +26,10 @@ const EntityMergeResponseSchema = z.object({
   // `metadata.curation_pinned = true` post-merge; the ingestion walk may
   // never UPDATE/DELETE a pinned row (stage_5.py + flow.py honour the pin).
   mentions_pinned: z.number(),
+  // Present ONLY when the post-merge pin step faulted (read or one/more
+  // writes failed). Distinguishes "pin step failed" from an honest
+  // "0 mentions to pin" — the merge itself has already committed either way.
+  mentions_pin_error: z.string().optional(),
 });
 
 export const POST = defineRoute(
@@ -82,32 +88,65 @@ export const POST = defineRoute(
       // (admin merge reverted on a later walk) is the live symptom this
       // closes. The pipeline honours the pin at three sites: the Stage-5
       // write-back domain + cross-op survivor rule (stage_5.py) and the
-      // em-declare carry-forward (flow.py). Best-effort: the merge itself
-      // already committed atomically via the RPC; a pin-stamp fault is
-      // reported through `mentions_pinned` (fewer than expected / 0), never
-      // a 500 that would misreport the committed merge as failed.
+      // em-declare carry-forward (flow.py). The merge itself has already
+      // committed atomically via the RPC, so a pin-stamp fault never 500s
+      // (that would misreport the committed merge as failed) — it is logged
+      // and surfaced explicitly via `mentions_pin_error`, distinguishing
+      // "pin step failed" from an honest "0 mentions to pin".
+      //
+      // Accepted follow-up (PR #156 review): collapse the read + per-row
+      // UPDATE loop into ONE set-based UPDATE via an RPC using jsonb_set
+      // (metadata = jsonb_set(coalesce(metadata,'{}'), '{curation_pinned}',
+      // 'true') WHERE canonical_name/entity_type match). Deferred because the
+      // migration-serial gate binds this PR — per-row UPDATEs stay for now,
+      // with the read explicitly bounded below.
+      const PIN_READ_CAP = 1000;
       let mentionsPinned = 0;
-      try {
-        const { data: pinRows, error: pinReadError } = await serviceClient
+      let mentionsPinError: string | undefined;
+      const pinRead = await tryQuery(
+        serviceClient
           .from('entity_mentions')
           .select('id, metadata')
           .eq('canonical_name', result.target)
-          .eq('entity_type', result.entity_type);
-        if (!pinReadError && Array.isArray(pinRows)) {
-          for (const row of pinRows) {
-            const existing =
-              row.metadata && typeof row.metadata === 'object'
-                ? (row.metadata as Record<string, unknown>)
-                : {};
-            const { error: pinWriteError } = await serviceClient
+          .eq('entity_type', result.entity_type)
+          .limit(PIN_READ_CAP),
+        'entity_mentions.curationPinRead',
+      );
+      if (!pinRead.ok) {
+        logger.error(
+          { err: pinRead.error, target: result.target },
+          'entities/merge: curation-pin read failed after committed merge — surviving rows are UNPINNED and a later walk may revert the merge',
+        );
+        mentionsPinError = safeErrorMessage(
+          pinRead.error,
+          'Pin step failed: could not read surviving mentions',
+        );
+      } else {
+        for (const row of pinRead.data ?? []) {
+          const existing =
+            row.metadata && typeof row.metadata === 'object'
+              ? (row.metadata as Record<string, unknown>)
+              : {};
+          const pinWrite = await tryQuery(
+            serviceClient
               .from('entity_mentions')
               .update({ metadata: { ...existing, curation_pinned: true } })
-              .eq('id', row.id);
-            if (!pinWriteError) mentionsPinned += 1;
+              .eq('id', row.id),
+            'entity_mentions.curationPinWrite',
+          );
+          if (pinWrite.ok) {
+            mentionsPinned += 1;
+          } else {
+            logger.error(
+              { err: pinWrite.error, mentionId: row.id, target: result.target },
+              'entities/merge: curation-pin write failed — this mention is UNPINNED and a later walk may revert it',
+            );
+            mentionsPinError ??= safeErrorMessage(
+              pinWrite.error,
+              'Pin step failed: one or more mentions could not be pinned',
+            );
           }
         }
-      } catch {
-        // best-effort — surfaced via mentions_pinned below
       }
 
       return NextResponse.json({
@@ -117,6 +156,9 @@ export const POST = defineRoute(
         mentions_updated: result.mentions_updated,
         duplicates_removed: result.duplicates_removed,
         mentions_pinned: mentionsPinned,
+        ...(mentionsPinError !== undefined
+          ? { mentions_pin_error: mentionsPinError }
+          : {}),
       });
     } catch (err) {
       return NextResponse.json(
