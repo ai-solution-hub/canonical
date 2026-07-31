@@ -95,10 +95,8 @@ async function buildQueueServers() {
   const { registerReviewTools } = await import('@/lib/mcp/tools/review');
   const { registerGovernanceTools } =
     await import('@/lib/mcp/tools/governance');
-  const { registerDashboardTools } = await import('@/lib/mcp/tools/dashboard');
   await registerReviewTools(server);
   await registerGovernanceTools(server);
-  await registerDashboardTools(server);
   return mockServer;
 }
 

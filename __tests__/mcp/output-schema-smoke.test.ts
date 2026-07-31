@@ -9,7 +9,6 @@
  *   2. search_content_chunks  — ChunkSearchResponseSchema
  *   3. get_governance_queue   — GovernanceQueueResponseSchema
  *   4. review_governance_item — GovernanceReviewActionResultSchema
- *   5. get_change_report      — ChangeReportDataSchema
  *
  * Test philosophy: assertions exercise the exported Zod schemas through their
  * `.safeParse()` public API — the same pathway the MCP SDK uses at runtime.
@@ -26,7 +25,6 @@ import {
   GovernanceQueueResponseSchema,
   GovernanceReviewActionResultSchema,
 } from '@/lib/mcp/formatters/governance';
-import { ChangeReportDataSchema } from '@/lib/mcp/formatters/change-report';
 
 // ---------------------------------------------------------------------------
 // Fixture factories — minimal valid objects for each schema
@@ -126,40 +124,6 @@ function makeGovernanceReviewResult(
     new_status: 'approved',
     reviewer_id: 'e1f2a3b4-c5d6-7890-ef12-34567890abcd',
     notes: null,
-    ...overrides,
-  };
-}
-
-function makeChangeReportData(
-  overrides: Partial<z.infer<typeof ChangeReportDataSchema>> = {},
-): z.infer<typeof ChangeReportDataSchema> {
-  return {
-    period_days: 7,
-    start_date: '2026-05-11T00:00:00.000Z',
-    end_date: '2026-05-18T00:00:00.000Z',
-    domain: null,
-    keywords: null,
-    additions: {
-      count: 2,
-      items: [
-        {
-          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-          title: 'New Policy Document',
-          primary_domain: 'compliance',
-          content_type: 'policy',
-          date: '2026-05-15T10:00:00.000Z',
-        },
-        {
-          id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
-          title: null,
-          primary_domain: null,
-          content_type: null,
-          date: '2026-05-14T09:00:00.000Z',
-        },
-      ],
-    },
-    updates: { count: 0, items: [] },
-    removals: { count: 0, items: [] },
     ...overrides,
   };
 }
@@ -407,83 +371,6 @@ describe('GovernanceReviewActionResultSchema (review_governance_item outputSchem
     const bad: any = { ...makeGovernanceReviewResult() };
     delete bad.item_id;
     const result = GovernanceReviewActionResultSchema.safeParse(bad);
-    expect(result.success).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. get_change_report — ChangeReportDataSchema
-// ---------------------------------------------------------------------------
-
-describe('ChangeReportDataSchema (get_change_report outputSchema)', () => {
-  it('accepts a valid change report payload', () => {
-    const result = ChangeReportDataSchema.safeParse(makeChangeReportData());
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a report with domain and keyword filters set', () => {
-    const result = ChangeReportDataSchema.safeParse(
-      makeChangeReportData({
-        domain: 'compliance',
-        keywords: ['GDPR', 'retention'],
-      }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a report where all three buckets contain items', () => {
-    const item = {
-      id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      title: 'Policy Update',
-      primary_domain: 'compliance',
-      content_type: 'policy',
-      date: '2026-05-15T10:00:00.000Z',
-    };
-    const result = ChangeReportDataSchema.safeParse(
-      makeChangeReportData({
-        additions: { count: 1, items: [item] },
-        updates: { count: 1, items: [item] },
-        removals: { count: 1, items: [item] },
-      }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a ChangeReportItem with nullable fields set to null', () => {
-    const result = ChangeReportDataSchema.safeParse(
-      makeChangeReportData({
-        additions: {
-          count: 1,
-          items: [
-            {
-              id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-              title: null,
-              primary_domain: null,
-              content_type: null,
-              date: '2026-05-15T10:00:00.000Z',
-            },
-          ],
-        },
-      }),
-    );
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects a payload where period_days is not a number', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bad: any = { ...makeChangeReportData(), period_days: 'seven' };
-    const result = ChangeReportDataSchema.safeParse(bad);
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].path).toContain('period_days');
-    }
-  });
-
-  it('rejects a payload where an additions item is missing the date field', () => {
-    const bad = makeChangeReportData();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (bad.additions.items[0] as any).date;
-    const result = ChangeReportDataSchema.safeParse(bad);
     expect(result.success).toBe(false);
   });
 });

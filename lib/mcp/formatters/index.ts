@@ -17,27 +17,6 @@ export {
   formatChunkSearchResults,
 } from './search';
 export {
-  type ContentItemDetail,
-  formatContentItem,
-  type CreatedItem,
-  formatCreatedItem,
-  type UpdatedItemResult,
-  formatUpdatedItem,
-  type BatchContentItemsResult,
-  formatBatchContentItems,
-  type ContentItemChunk,
-  formatContentItemChunks,
-} from './content';
-export {
-  formatActiveProcurements,
-  type FreshnessReport,
-  formatReorientation,
-  type ExposureResolution,
-  type ExposureLayer,
-  type WhereAreWeExposedData,
-  formatWhereAreWeExposed,
-} from './dashboard';
-export {
   type ProcurementQuestionSummary,
   type ProcurementSection,
   type ProcurementDetail,
@@ -50,12 +29,14 @@ export {
   formatContentEffectiveness,
 } from './procurements';
 export {
-  type CoverageGapResult,
-  formatCoverageGaps,
-  type AuditItem,
-  type AuditResult,
-  formatAuditResult,
-} from './quality';
+  formatActiveProcurements,
+  type FreshnessReport,
+  formatReorientation,
+  type ExposureResolution,
+  type ExposureLayer,
+  type WhereAreWeExposedData,
+  formatWhereAreWeExposed,
+} from './dashboard';
 export {
   type EntitySummaryResult,
   type EntityRelationship,
@@ -99,8 +80,3 @@ export {
   formatProcurementDashboard,
 } from './apps';
 export { formatIntelligenceSummary } from './intelligence';
-export {
-  type ChangeReportItem,
-  type ChangeReportData,
-  formatChangeReport,
-} from './change-report';
