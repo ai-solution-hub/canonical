@@ -9,6 +9,7 @@ import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { attributeUploader } from '@/lib/source-documents/uploader-attribution';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
@@ -304,6 +305,49 @@ export const POST = withRequestContext(
           { error: 'Failed to create reference item' },
           { status: 500 },
         );
+      }
+
+      // 11b. Attribute the synthetic source_documents row to the requesting
+      // user (id-407 — DECIDED, not defaulted).
+      //
+      // `reference_ingest` mints an sd row as the provenance shell for the
+      // reference (storage_path = source_url; no bytes were uploaded), and it
+      // is SECURITY DEFINER so it cannot stamp the actor itself without a
+      // migration. NULL would have been a defensible reading — nobody
+      // "uploaded" anything — but it is the WRONG one here:
+      //
+      //   * this RPC is the seam for the MANUAL single-URL import. Both live
+      //     callers (this route and lib/mcp/tools/content.ts) are gated on an
+      //     authenticated admin/editor and always have a real acting user;
+      //   * the AUTOMATED feed path does not come through here at all — it
+      //     mints its sd rows in the Python walk
+      //     (`scripts/cocoindex_pipeline/flow.py::_upsert_source_document`),
+      //     which deliberately leaves `uploaded_by` NULL. So "which writer
+      //     ran" already carries the system-vs-human distinction, and
+      //     nulling here would erase it rather than express it;
+      //   * `hybrid_search` projects this column as `created_by`, and for a
+      //     hand-imported URL the honest answer to "who put this in the
+      //     corpus" is the person who imported it — not 'System'.
+      //
+      // Gated on `already_existed === false` for the same fill-once reason
+      // the upload leg gates on `was_minted`: a repeat URL returns the prior
+      // row untouched, and that row keeps its original importer.
+      //
+      // Degrades into `warnings` rather than failing: the RPC has already
+      // committed the sd+ri evidence pair, so the reference is real and
+      // correct — only the provenance label falls back to 'System'. That
+      // matches this route's existing partial-failure doctrine (classification
+      // and embedding failures warn the same way) and is visible, not silent.
+      if (row.already_existed === false && row.source_document_id) {
+        try {
+          await attributeUploader(supabase, row.source_document_id, user.id);
+        } catch (err) {
+          warnings.push('Uploader attribution failed');
+          logger.error(
+            { err, sourceDocumentId: row.source_document_id, op: 'ingest_url' },
+            'reference_ingest source_documents row left unattributed',
+          );
+        }
       }
 
       // 12. Reduced response (TECH §3.1–§3.3) — no content_type / suggested_layer

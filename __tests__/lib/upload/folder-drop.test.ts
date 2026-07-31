@@ -75,6 +75,7 @@ import {
 import { CORPUS_BUCKET } from '@/lib/edit-intent/write-back';
 
 const SOURCE_DOCUMENT_ID = '22222222-2222-4222-8222-222222222222';
+const ACTING_USER_ID = '33333333-3333-4333-8333-333333333333';
 
 /** The shape `createMockSupabaseClient()` wires `storage.from()` to resolve to. */
 function bucket(client: MockSupabaseClient) {
@@ -365,6 +366,100 @@ describe('stageAndWalk', () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  // ── id-407: uploader attribution at the admission boundary ──────────────
+  // `source_documents.uploaded_by` was read by the search RPCs (aliased as
+  // `created_by`), the version-chain RPC and the diff page — and written by
+  // nothing, so every uploaded document was labelled 'System'. The M2
+  // resolver is SECURITY DEFINER and mints without an actor, so the stamp
+  // happens here. These tests assert the written VALUE, the mint-only gate,
+  // and that a failed stamp is loud.
+  describe('uploader attribution (id-407)', () => {
+    /** The `.update()` payload for the source_documents attribution write. */
+    function attributionUpdates(): unknown[] {
+      return mockSupabase._chain.update.mock.calls.map((c) => c[0]);
+    }
+
+    it('records who uploaded a newly admitted document', async () => {
+      await stageAndWalk({
+        ...input,
+        uploadedBy: ACTING_USER_ID,
+        supabase: asClient(),
+      });
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
+      expect(attributionUpdates()).toEqual([{ uploaded_by: ACTING_USER_ID }]);
+      expect(mockSupabase._chain.eq).toHaveBeenCalledWith(
+        'id',
+        SOURCE_DOCUMENT_ID,
+      );
+    });
+
+    it('leaves the document unattributed when the caller has no acting user', async () => {
+      // NULL is a deliberate value on this column — the diff adapter maps it
+      // to 'System'. A caller with no human behind it must not invent one.
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      expect(attributionUpdates()).toEqual([]);
+    });
+
+    it('does not re-attribute a document that was already admitted', async () => {
+      // Content_hash-first resolve: this upload converged onto an existing
+      // row. Its original admitter — human or the system walk — keeps the
+      // credit, and DR-093 rules out backfilling it.
+      mockSupabase.rpc.mockImplementation((name: string) => {
+        if (name === 'resolve_or_mint_source_identity') {
+          return Promise.resolve({
+            data: [
+              { source_document_id: SOURCE_DOCUMENT_ID, was_minted: false },
+            ],
+            error: null,
+          });
+        }
+        return Promise.resolve({ data: true, error: null });
+      });
+
+      const result = await stageAndWalk({
+        ...input,
+        uploadedBy: ACTING_USER_ID,
+        supabase: asClient(),
+      });
+
+      expect(result.wasMinted).toBe(false);
+      expect(attributionUpdates()).toEqual([]);
+    });
+
+    it('fails the admission loudly when the attribution write fails', async () => {
+      // No silent failure (module header): an unattributed upload is the
+      // exact defect id-407 closes, so it must not pass unremarked.
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) =>
+          resolve({
+            data: null,
+            error: { message: 'permission denied for table source_documents' },
+            count: null,
+          }),
+      );
+
+      let err: FolderDropError | undefined;
+      try {
+        await stageAndWalk({
+          ...input,
+          uploadedBy: ACTING_USER_ID,
+          supabase: asClient(),
+        });
+      } catch (e) {
+        err = e as FolderDropError;
+      }
+
+      expect(err).toBeInstanceOf(FolderDropError);
+      expect(err?.stage).toBe('attribution');
+      // The message must tell an operator the bytes and the row DID land —
+      // this is a provenance failure, not a lost upload.
+      expect(err?.message).toMatch(/unattributed/);
+      expect(err?.detail).toMatch(/permission denied/);
+    });
   });
 
   describe('re-walk nudge (mirrors write-back.ts nudgeCorpusRewalk; ID-127.18 — legacy CRON_SECRET fallback retired per PLAN §6 step 6 / S457)', () => {
