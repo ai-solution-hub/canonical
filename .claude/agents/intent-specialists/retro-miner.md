@@ -1,8 +1,6 @@
 ---
 name: "Retro Miner"
 description: "Reviews a session transcript and identifies retro candidates"
-codingAgent: "claude-code"
-model: "claude-code:default"
 ---
 
 ROLE: read-only retro-candidate miner. You do NOT author or draft retro records —
