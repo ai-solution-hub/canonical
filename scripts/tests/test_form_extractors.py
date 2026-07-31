@@ -36,8 +36,8 @@ from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extr
 # Fixture path — committed symlinks to the canonical corpus files.
 # ──────────────────────────────────────────────────────────────────────────
 
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
-_EFA_XLSX_PATH = _FIXTURE_DIR / "evaluation-matrix-itt-vol8.xlsx"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction" / "templates"
+_EFA_XLSX_PATH = _FIXTURE_DIR / "itt-services-efa" / "evaluation-matrix-itt-vol8.xlsx"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -144,8 +144,8 @@ class TestSharedModels:
 #
 # Real-behaviour tests (per ``docs/reference/testing/test-philosophy.md``): the
 # extractor reads the actual EFA fixture, NO mocks of openpyxl internals.
-# The fixture lives under ``scripts/tests/fixtures/form-extraction`` as a
-# symlink to ``docs/testing/test-data/templates/itt-services-efa/...``.
+# The fixture lives under ``/Users/liamj/Documents/development/canonical/scripts/
+# tests/fixtures/form-extraction/templates/itt-services-efa/...``.
 # ══════════════════════════════════════════════════════════════════════════
 
 
@@ -153,9 +153,7 @@ class TestSharedModels:
 def efa_xlsx_bytes() -> bytes:
     """Raw bytes for the EFA evaluation-matrix XLSX fixture."""
     assert _EFA_XLSX_PATH.exists(), (
-        f"corpus fixture missing — {_EFA_XLSX_PATH} should symlink to "
-        f"docs/testing/test-data/templates/itt-services-efa/"
-        f"evaluation-matrix-itt-vol8.xlsx"
+        f"corpus fixture missing"
     )
     return _EFA_XLSX_PATH.read_bytes()
 
@@ -434,16 +432,14 @@ class TestXlsxDedupScope:
 # (authored Q/A + placeholder grids).
 # ──────────────────────────────────────────────────────────────────────────
 
-_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood.docx"
+_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood" / "itt-services-charnwood.docx"
 
 
 @pytest.fixture(scope="module")
 def charnwood_docx_bytes() -> bytes:
     """Raw bytes for the Charnwood DOCX fixture (real corpus file)."""
     assert _CHARNWOOD_DOCX_PATH.exists(), (
-        f"corpus fixture missing — {_CHARNWOOD_DOCX_PATH} should symlink to "
-        f"docs/testing/test-data/templates/itt-services-charnwood/"
-        f"ITT Services.docx"
+        f"corpus fixture missing"
     )
     return _CHARNWOOD_DOCX_PATH.read_bytes()
 
@@ -868,9 +864,9 @@ class TestDR058UnseenRealFormsRegressionGate:
     """Real-corpus regression gate, measured against the owner-provided
     forms the id-52 archetypes never saw."""
 
-    _ANNEX_2_PATH = _FIXTURE_DIR / "annex_2_supplier_response.docx"
-    _ANNEX_3_PATH = _FIXTURE_DIR / "annex_3_pricing_approach.xlsx"
-    _CSP_PATH = _FIXTURE_DIR / "Cloud Security Principles Checklist V5_3.xlsx"
+    _ANNEX_2_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_2_supplier_response.docx"
+    _ANNEX_3_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_3_pricing_approach.xlsx"
+    _CSP_PATH = _FIXTURE_DIR / "rfp-british-council" / "Cloud Security Principles Checklist V5_3.xlsx"
 
     def test_annex_2_docx_yields_nonzero_fields(self) -> None:
         """British Council annex_2 supplier-response DOCX — measured ZERO
@@ -880,9 +876,7 @@ class TestDR058UnseenRealFormsRegressionGate:
         followed by trailing blank paragraphs after a "Supplier Response:"
         label — the shape-3 rule-3 cell-internal-trailing-blank detector."""
         assert self._ANNEX_2_PATH.exists(), (
-            f"fixture missing — {self._ANNEX_2_PATH} should symlink to "
-            f"docs/testing/test-data/templates/rfp-british-council/"
-            f"annex_2_supplier_response.docx"
+            f"fixture missing"
         )
         raw = self._ANNEX_2_PATH.read_bytes()
         form = asyncio.run(docx_extract(raw, "annex_2_supplier_response.docx"))
@@ -904,9 +898,7 @@ class TestDR058UnseenRealFormsRegressionGate:
         signature; each role row pairs a labelled Role cell with its
         unfilled Day Rate cell (a bare numeric zero default)."""
         assert self._ANNEX_3_PATH.exists(), (
-            f"fixture missing — {self._ANNEX_3_PATH} should symlink to "
-            f"docs/testing/test-data/templates/rfp-british-council/"
-            f"annex_3_pricing_approach.xlsx"
+            f"fixture missing"
         )
         raw = self._ANNEX_3_PATH.read_bytes()
         form = asyncio.run(xlsx_extract(raw, "annex_3_pricing_approach.xlsx"))
@@ -929,9 +921,7 @@ class TestDR058UnseenRealFormsRegressionGate:
         archetype-claimed, so shape 3 never runs on it — a drift here would
         mean the archetype dispatch order broke)."""
         assert self._CSP_PATH.exists(), (
-            f"fixture missing — {self._CSP_PATH} should symlink to "
-            f"docs/testing/test-data/templates/csp-cloud-security-principles/"
-            f"Cloud Security Principles Checklist V5_3.xlsx"
+            f"fixture missing"
         )
         raw = self._CSP_PATH.read_bytes()
         form = asyncio.run(

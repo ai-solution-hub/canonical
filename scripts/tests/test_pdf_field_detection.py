@@ -34,8 +34,8 @@ from scripts.cocoindex_pipeline.form_extractors.pdf import (
     detect_pdf_fields,
 )
 
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction"
-_SQ_PDF_PATH = _FIXTURE_DIR / "standard-selection-questionnaire-ppn-03-24.pdf"
+_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction" / "templates"
+_SQ_PDF_PATH = _FIXTURE_DIR / "sq-standard-selection-questionnaire" / "standard-selection-questionnaire-ppn-03-24.pdf"
 _CORRUPT_PDF_PATH = _FIXTURE_DIR / "corrupt.pdf"
 
 _MEASURED_FIELD_COUNT = 198
