@@ -57,9 +57,9 @@ const POLL_TIMEOUT_MS = 120_000;
 // contains neither surface form, so the W1/W2 variant rows this test needs
 // could never exist. The entity-variants md pair embeds one form each.
 const FIXTURE_PATH_W1 =
-  'docs/testing/test-data/entity-variants/certification-variant-space.md';
+  'scripts/tests/fixtures/entity-variants/certification-variant-space.md';
 const FIXTURE_PATH_W2 =
-  'docs/testing/test-data/entity-variants/certification-variant-nospace.md';
+  'scripts/tests/fixtures/entity-variants/certification-variant-nospace.md';
 
 const VARIANT_W1 = 'ISO 27001';
 const VARIANT_W2 = 'ISO27001';

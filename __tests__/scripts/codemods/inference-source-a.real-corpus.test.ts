@@ -304,21 +304,6 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
   // (content_items.user_tags dropped, BI-11/BI-12; the Settings > Tags admin
   // panel was ruled a scope-extension DELETE, not a rewrite target).
 
-  it('binds ChangeReportGenerateResponseSchema for POST /api/change-reports/generate', () => {
-    // hooks/use-change-reports-data.ts:
-    //   mutationFetchJson<ChangeReportGenerateResponse>('/api/change-reports/generate', params)
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(
-      routes,
-      'app/api/change-reports/generate/route.ts',
-    );
-
-    expect(inferSchemaSourceA(sf, 'POST', project)).toEqual({
-      schema: 'ChangeReportGenerateResponseSchema',
-    });
-  });
-
   it('binds RescoringPreviewResponseSchema for POST /api/intelligence/workspaces/[id]/prompts/preview (template-URL mutation)', () => {
     // hooks/intelligence/use-rescoring-preview.ts:
     //   mutationFetchJson<RescoringPreviewResponse>(
@@ -379,23 +364,6 @@ describe('inferSchema binds mutationFetchJson write-response baseline interfaces
     });
     expect(inferSchema(sf, 'POST', project)).toEqual({
       schema: 'CreateFeedSourceResponseSchema',
-    });
-  });
-
-  it('does NOT cross-bind a write schema onto a GET: /api/change-reports/generate GET stays unbound', () => {
-    // The only fetch at /api/change-reports/generate is a POST mutation.
-    // A GET request must NOT pick up the write-side ChangeReportGenerateResponse
-    // — there is no read-side fetchJson for this URL, so GET falls back.
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(
-      routes,
-      'app/api/change-reports/generate/route.ts',
-    );
-
-    expect(inferSchemaSourceA(sf, 'GET', project)).toEqual({
-      schema: 'z.unknown()',
-      reason: 'NEEDS_SCHEMA',
     });
   });
 

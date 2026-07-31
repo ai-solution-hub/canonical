@@ -93,19 +93,19 @@ const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
       kind: 'pdf',
       fileSuffix: '.pdf',
       fixturePath:
-        'docs/testing/test-data/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+        'scripts/tests/fixtures/form-extraction/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
     },
     {
       kind: 'docx',
       fileSuffix: '.docx',
       fixturePath:
-        'docs/testing/test-data/templates/rfp-british-council/annex_2_supplier_response.docx',
+        'scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_2_supplier_response.docx',
     },
     {
       kind: 'xlsx',
       fileSuffix: '.xlsx',
       fixturePath:
-        'docs/testing/test-data/templates/rfp-british-council/annex_3_pricing_approach.xlsx',
+        'scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_3_pricing_approach.xlsx',
     },
   ];
 

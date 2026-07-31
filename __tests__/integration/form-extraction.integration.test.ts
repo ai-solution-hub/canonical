@@ -44,7 +44,7 @@ const POLL_TIMEOUT_MS = 120_000;
 
 // Corpus fixture — committed symlink under scripts/tests/fixtures.
 const EFA_XLSX =
-  'scripts/tests/fixtures/form-extraction/evaluation-matrix-itt-vol8.xlsx';
+  'scripts/tests/fixtures/form-extraction/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx';
 
 // An arbitrary staging subfolder for this fixture. ID-127.37 (DR-038/056/061)
 // retired the folder→workspace manifest premise entirely — this prefix no

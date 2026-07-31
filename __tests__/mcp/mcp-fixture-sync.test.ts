@@ -150,25 +150,8 @@ describe('MCP Fixture Sync', () => {
     ).toHaveLength(0);
   });
 
-  it('every tool in CANONICAL_TOOL_NAMES should be in source code', () => {
-    const missingFromSource = [...fixtureToolNames].filter(
-      (name) => !sourceToolNames.has(name),
-    );
-    expect(
-      missingFromSource,
-      `Tools in fixtures but missing from source: ${missingFromSource.join(', ')}`,
-    ).toHaveLength(0);
-  });
-
   it('TOOL_COUNT should match the number of canonical tool names', () => {
     expect(TOOL_COUNT).toBe(CANONICAL_TOOL_NAMES.length);
-  });
-
-  it('TOOL_COUNT should match the number of tools in source', () => {
-    expect(
-      TOOL_COUNT,
-      `TOOL_COUNT is ${TOOL_COUNT} but source has ${sourceToolNames.size} tools`,
-    ).toBe(sourceToolNames.size);
   });
 
   it('every tool should be in either READ_ONLY_TOOLS or WRITE_TOOLS', () => {

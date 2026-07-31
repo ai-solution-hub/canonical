@@ -84,9 +84,9 @@ const POLL_TIMEOUT_MS = 180_000;
 // contains neither surface form, making the corpus unsatisfiable for any
 // extractor. Doc A carries 'ISO 27001', doc B carries 'ISO27001'.
 const FIXTURE_PATH_A =
-  'docs/testing/test-data/entity-variants/certification-variant-space.md';
+  'scripts/tests/fixtures/entity-variants/certification-variant-space.md';
 const FIXTURE_PATH_B =
-  'docs/testing/test-data/entity-variants/certification-variant-nospace.md';
+  'scripts/tests/fixtures/entity-variants/certification-variant-nospace.md';
 
 // The two surface variants of the SAME entity Stage-5 should dedup across docs
 // (mirrors the cross-document-dedup sibling corpus).

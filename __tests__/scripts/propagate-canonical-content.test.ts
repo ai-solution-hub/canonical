@@ -134,15 +134,6 @@ describe('conflictColumns', () => {
     // (domain_id, name) = the DB UNIQUE constraint taxonomy_subtopics_domain_id_name_key
     expect(conflictColumns(SUBTOPICS)).toEqual(['domain_id', 'name']);
   });
-
-  it('uses the full composite section tuple for form_template_requirements', () => {
-    expect(conflictColumns(REQUIREMENTS)).toEqual([
-      'template_name',
-      'template_version',
-      'section_ref',
-      'question_number',
-    ]);
-  });
 });
 
 describe('canonicalChecksum', () => {

@@ -99,7 +99,7 @@ beforeAll(async () => {
   // directory uses) — the `it` body below polls for the landed row itself.
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+      'scripts/tests/fixtures/form-extraction/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
     destPath: `inv-10/${TEST_PREFIX}.pdf`,
     titlePrefix: TEST_PREFIX,
   });

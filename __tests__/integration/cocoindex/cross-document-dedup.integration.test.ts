@@ -66,13 +66,13 @@ beforeAll(async () => {
   // (the F4 hash-collapse gap never triggers).
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/entity-variants/certification-variant-space.md',
+      'scripts/tests/fixtures/entity-variants/certification-variant-space.md',
     destPath: `inv-3-dedup/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
     fixturePath:
-      'docs/testing/test-data/entity-variants/certification-variant-nospace.md',
+      'scripts/tests/fixtures/entity-variants/certification-variant-nospace.md',
     destPath: `inv-3-dedup/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });

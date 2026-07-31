@@ -57,7 +57,7 @@ const seededContentIds: string[] = [];
 const POLL_TIMEOUT_MS = 120_000;
 
 const FIXTURE_PATH =
-  'docs/testing/test-data/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
+  'scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
 
 beforeAll(async () => {
   if (!ENABLED) return;
