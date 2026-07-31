@@ -432,7 +432,7 @@ class TestXlsxDedupScope:
 # (authored Q/A + placeholder grids).
 # ──────────────────────────────────────────────────────────────────────────
 
-_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood" / "itt-services-charnwood.docx"
+_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood" / "ITT Services.docx"
 
 
 @pytest.fixture(scope="module")
@@ -866,7 +866,7 @@ class TestDR058UnseenRealFormsRegressionGate:
 
     _ANNEX_2_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_2_supplier_response.docx"
     _ANNEX_3_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_3_pricing_approach.xlsx"
-    _CSP_PATH = _FIXTURE_DIR / "rfp-british-council" / "Cloud Security Principles Checklist V5_3.xlsx"
+    _CSP_PATH = _FIXTURE_DIR / "csp-cloud-security-principles" / "Cloud Security Principles Checklist V5_3.xlsx"
 
     def test_annex_2_docx_yields_nonzero_fields(self) -> None:
         """British Council annex_2 supplier-response DOCX — measured ZERO

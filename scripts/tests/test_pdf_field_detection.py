@@ -36,7 +36,7 @@ from scripts.cocoindex_pipeline.form_extractors.pdf import (
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction" / "templates"
 _SQ_PDF_PATH = _FIXTURE_DIR / "sq-standard-selection-questionnaire" / "standard-selection-questionnaire-ppn-03-24.pdf"
-_CORRUPT_PDF_PATH = _FIXTURE_DIR / "corrupt.pdf"
+_CORRUPT_PDF_PATH = _FIXTURE_DIR.parent / "corrupt.pdf"
 
 _MEASURED_FIELD_COUNT = 198
 _MEASURED_TX_COUNT = 141
