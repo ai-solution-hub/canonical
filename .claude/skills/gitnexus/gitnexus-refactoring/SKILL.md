@@ -32,9 +32,6 @@ description: "Use when the user wants to rename, extract, split, move, or restru
 - [ ] rename({symbol_name: "oldName", new_name: "newName", dry_run: true}) — preview all edits
 - [ ] Review graph edits (high confidence) and ast_search edits (review carefully)
 - [ ] If satisfied: rename({..., dry_run: false}) — apply edits
-      **NEVER from a worktree** — non-dry-run mutations apply to the indexed MAIN
-      checkout, not your cwd. In a worktree, use Edit locally or route the rename to
-      the parent session on `main`.
 - [ ] detect_changes() — verify only expected files changed
 - [ ] Run tests for affected processes
 ```
