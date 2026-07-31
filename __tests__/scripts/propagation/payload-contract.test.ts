@@ -16,7 +16,7 @@ describe('PAYLOAD_CONTRACT (PI-18 canonical-content propagation)', () => {
       'layer_vocabulary',
       'application_types',
       'form_types',
-      'form_template_requirements',
+      'form_requirement_templates',
       'reference_items',
     ]);
   });
@@ -80,7 +80,6 @@ describe('PAYLOAD_CONTRACT (PI-18 canonical-content propagation)', () => {
   it('excludes client-provenance tables from the payload set', () => {
     const tables = new Set(PAYLOAD_CONTRACT.map((e) => e.table));
     for (const excluded of [
-      'content_items',
       'guides',
       'entity_mentions',
       'q_a_pairs',

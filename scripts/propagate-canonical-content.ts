@@ -422,7 +422,7 @@ async function tombstoneDeleteAbsent(
     return Array.isArray(data) ? data.length : 0;
   }
 
-  // Composite stableKey (v1: only form_template_requirements). A NOT-IN over a
+  // Composite stableKey (v1: only form_requirement_templates). A NOT-IN over a
   // synthesised identity is not expressible in PostgREST, so fetch target rows
   // and delete those whose composite identity is absent from the source set.
   const { data: targetData, error: targetErr } = await target

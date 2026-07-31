@@ -206,7 +206,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
   // create_review_assignment (admin-only)
   //
   // Wraps POST /api/review/assignments. Computes the matching item_count via
-  // a head-count query over content_items with the supplied filters, inserts
+  // a head-count query over source_documents with the supplied filters, inserts
   // the assignment with assigned_by = caller_user_id, then best-effort
   // dispatches a notification to the assignee.
   // -------------------------------------------------------------------------
@@ -216,7 +216,7 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
     {
       title: 'Create Review Assignment',
       description:
-        'Assign content items to a reviewer based on filter criteria. Computes the matching item count automatically from the current content_items state. Notifies the assignee (best-effort — notification failures do not abort assignment creation). Admin role required.',
+        'Assign source documents to a reviewer based on filter criteria. Computes the matching item count automatically from the current source_documents state. Notifies the assignee (best-effort — notification failures do not abort assignment creation). Admin role required.',
       inputSchema: {
         reviewer_id: z
           .string()

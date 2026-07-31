@@ -17,7 +17,7 @@
  *
  * CLIENT-PROVENANCE TABLES ARE EXPLICITLY EXCLUDED. The worker pushes the
  * platform-curated baseline only; it NEVER propagates client data
- * (content_items, guides, entity_mentions, q_a_pairs, form_responses,
+ * (guides, entity_mentions, q_a_pairs, form_responses,
  * source_documents, ...). These do not appear in this contract by construction.
  *
  * Spec: PLAN.md §"D-2 PI-18 worker mechanism" points 2 + 4 (id-95-per-client-topology).
@@ -69,7 +69,7 @@ export interface PayloadTableContract {
  *  - taxonomy_domains before taxonomy_subtopics (subtopics.domain_id -> domains).
  *  - layer_vocabulary / application_types / form_types are independent text/uuid
  *    natural-key tables with no inbound remap dependency among the payload set.
- *  - form_template_requirements after form_types (its template_type FK is by TEXT
+ *  - form_requirement_templates after form_types (its template_type FK is by TEXT
  *    `key` -> form_types(key), which is stable across DBs, so NO uuid remap; order
  *    kept for clarity / referential safety).
  *  - reference_items last (independent natural key `source_url`).
@@ -125,7 +125,7 @@ export const PAYLOAD_CONTRACT: readonly PayloadTableContract[] = [
     tombstone: 'delete-absent',
   },
   {
-    table: 'form_template_requirements',
+    table: 'form_requirement_templates',
     // Unique section: (template_name, template_version, section_ref, question_number).
     // template_type is an FK to form_types(key) BY TEXT KEY -> stable, NO uuid remap.
     stableKey: [

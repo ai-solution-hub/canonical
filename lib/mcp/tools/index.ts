@@ -7,7 +7,6 @@
  * addition — see scripts/mcp-eval/fixtures.ts, drift-guarded by
  * mcp-fixture-sync.test.ts):
  *   - search.ts     (2): find_duplicates, find
- *   - content.ts    (5): get, create_content_item, update_content_item, assign, get_document_versions
  *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
  *   - question-matches.ts (1): get_question_matches
  *   - dashboard.ts  (2): get_reorientation, where_are_we_exposed
@@ -34,7 +33,6 @@
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerSearchTools } from './search';
-import { registerContentTools } from './content';
 import { registerProcurementTools } from './procurement';
 import { registerQuestionMatchTools } from './question-matches';
 import { registerDashboardTools } from './dashboard';
@@ -53,7 +51,7 @@ import { registerWorkspaceTools } from './workspaces';
 
 export async function registerTools(server: McpServer): Promise<void> {
   // Registration order determines tool discovery order in MCP clients.
-  // Preserve the original ordering: search, dashboard, bids, content,
+  // Preserve the original ordering: search, dashboard, procurement,
   // reorientation, quality, AI, entities, templates, apps, governance.
   // Review tools (S180 P0-23) register after governance so review/governance
   // tools appear together in client discovery. question-matches (ID-145
@@ -64,7 +62,6 @@ export async function registerTools(server: McpServer): Promise<void> {
   await registerDashboardTools(server);
   await registerProcurementTools(server);
   await registerQuestionMatchTools(server);
-  await registerContentTools(server);
   await registerQualityTools(server);
   await registerAITools(server);
   await registerEntityTools(server);

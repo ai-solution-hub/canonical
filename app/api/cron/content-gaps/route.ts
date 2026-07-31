@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
 
     // List current templates.
-    // {145.6} W1c: `form_template_requirements` → `form_requirement_templates`.
     const { data: templates, error: templateError } = await supabase
       .from('form_requirement_templates')
       .select('template_name, template_version')
