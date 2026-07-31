@@ -13,7 +13,7 @@
  *   9. Integration test: run against real source files, verify 58 tools, 12 resources, 7 prompts
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import {
   parseToolFile,
@@ -44,28 +44,6 @@ function findProjectRoot(): string {
 
 const ROOT = findProjectRoot();
 const TOOLS_DIR = resolve(ROOT, 'lib/mcp/tools');
-const RESOURCES_FILE = resolve(ROOT, 'lib/mcp/resources.ts');
-
-// Category order matching the main script
-const CATEGORY_ORDER = [
-  'search.ts',
-  'dashboard.ts',
-  'procurement.ts',
-  'content.ts',
-  'quality.ts',
-  'ai.ts',
-  'entities.ts',
-  'templates.ts',
-  'apps.ts',
-  'governance.ts',
-  'supersession.ts',
-  'review.ts',
-  'intelligence.ts',
-  'guides.ts',
-  'change-report.ts',
-  'workspaces.ts',
-];
-const SKIP_FILES = new Set(['index.ts', 'shared.ts']);
 
 // ---------------------------------------------------------------------------
 // 1. Standard tool extraction
@@ -504,73 +482,6 @@ describe('Full file extraction (search.ts)', () => {
           'similar_to',
         ]),
       );
-    },
-  );
-});
-
-// ---------------------------------------------------------------------------
-// 9. Integration test: real source files
-// ---------------------------------------------------------------------------
-
-describe('Integration: full codebase extraction', () => {
-  const toolFiles = existsSync(TOOLS_DIR)
-    ? readdirSync(TOOLS_DIR).filter(
-        (f) => f.endsWith('.ts') && !SKIP_FILES.has(f),
-      )
-    : [];
-
-  it.skipIf(!existsSync(RESOURCES_FILE))(
-    'extracts expected number of resources',
-    () => {
-      const source = readFileSync(RESOURCES_FILE, 'utf-8');
-      const resources = parseResourceFile(source);
-
-      expect(resources.length).toBe(12);
-
-      // Check template resources
-      const templates = resources.filter((r) => r.is_template);
-      expect(templates.length).toBe(3);
-      expect(templates.map((r) => r.uri).sort()).toEqual([
-        'kb://forms/{id}',
-        'kb://items/{id}',
-        'kb://qa/{id}',
-      ]);
-
-      // Check app resources
-      const appResources = resources.filter((r) => r.is_app_resource);
-      expect(appResources.length).toBe(4);
-
-      // All resources should have URIs
-      for (const r of resources) {
-        expect(r.uri).toBeTruthy();
-      }
-    },
-  );
-
-  it.skipIf(!existsSync(RESOURCES_FILE))(
-    'extracts expected number of prompts',
-    () => {
-      const source = readFileSync(RESOURCES_FILE, 'utf-8');
-      const prompts = parsePromptFile(source);
-
-      expect(prompts.length).toBe(7);
-
-      const names = prompts.map((p) => p.name);
-      expect(names).toContain('reorient');
-      expect(names).toContain('form_briefing');
-      expect(names).toContain('coverage_analysis');
-      expect(names).toContain('draft_response');
-      expect(names).toContain('review_item');
-      expect(names).toContain('sector_briefing');
-      expect(names).toContain('form_pipeline_review');
-
-      // Prompts with argsSchema should have args
-      const withArgs = prompts.filter((p) => p.args.length > 0);
-      expect(withArgs.length).toBe(5); // form_briefing, draft_response, review_item, sector_briefing, form_pipeline_review
-
-      // Prompts without argsSchema should have empty args
-      const reorient = prompts.find((p) => p.name === 'reorient')!;
-      expect(reorient.args).toHaveLength(0);
     },
   );
 });

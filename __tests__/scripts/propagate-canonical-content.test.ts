@@ -117,9 +117,6 @@ const SUBTOPICS = PAYLOAD_CONTRACT.find(
 const LAYER_VOCAB = PAYLOAD_CONTRACT.find(
   (c) => c.table === 'layer_vocabulary',
 )!;
-const REQUIREMENTS = PAYLOAD_CONTRACT.find(
-  (c) => c.table === 'form_template_requirements',
-)!;
 const REFERENCE_ITEMS = PAYLOAD_CONTRACT.find(
   (c) => c.table === 'reference_items',
 )!;
