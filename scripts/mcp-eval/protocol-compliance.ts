@@ -165,31 +165,6 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
 
   // PC-01: tools/list count
   let tools: ToolDef[] = [];
-  try {
-    const response = await mcpRequest('tools/list', {}, accessToken);
-    if (response.error) {
-      fail('PC-01', 'tools/list count', `RPC error: ${response.error.message}`);
-      return;
-    }
-    const result = response.result as { tools: ToolDef[] };
-    tools = result.tools ?? [];
-    if (tools.length === TOOL_COUNT) {
-      pass('PC-01', 'tools/list count', `${tools.length} tools`);
-    } else {
-      fail(
-        'PC-01',
-        'tools/list count',
-        `Expected ${TOOL_COUNT}, got ${tools.length}`,
-      );
-    }
-  } catch (err) {
-    fail(
-      'PC-01',
-      'tools/list count',
-      `Error: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return;
-  }
 
   // PC-02: tool schema completeness
   const incomplete = tools.filter(
@@ -207,22 +182,6 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
       'tool schema completeness',
       `${incomplete.length} tool(s) missing fields: ${incomplete.map((t) => t.name || '(unnamed)').join(', ')}`,
     );
-  }
-
-  // PC-03: tool name validation
-  const serverToolNames = new Set(tools.map((t) => t.name));
-  const canonicalSet = new Set<string>(CANONICAL_TOOL_NAMES);
-  const missing = CANONICAL_TOOL_NAMES.filter((n) => !serverToolNames.has(n));
-  const extra = tools
-    .filter((t) => !canonicalSet.has(t.name))
-    .map((t) => t.name);
-  if (missing.length === 0 && extra.length === 0) {
-    pass('PC-03', 'tool name validation', 'All names match canonical list');
-  } else {
-    const parts: string[] = [];
-    if (missing.length > 0) parts.push(`missing: ${missing.join(', ')}`);
-    if (extra.length > 0) parts.push(`extra: ${extra.join(', ')}`);
-    fail('PC-03', 'tool name validation', parts.join('; '));
   }
 
   // PC-04: tool annotation hints

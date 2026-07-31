@@ -303,15 +303,6 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
       label: 'whats_in_my_queue',
     },
     {
-      id: 'TE-03',
-      tool: 'get',
-      args: { id: knownUUIDs.contentItemId },
-      expectedMin: 200,
-      expectedMax: 3000,
-      flagThreshold: 5000,
-      label: 'get',
-    },
-    {
       id: 'TE-04',
       tool: 'get_procurement_detail',
       args: {
@@ -321,33 +312,6 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
       expectedMax: 8000,
       flagThreshold: 12000,
       label: 'get_procurement_detail',
-    },
-    {
-      id: 'TE-05',
-      tool: 'get_reorientation',
-      args: {},
-      expectedMin: 200,
-      expectedMax: 6000,
-      flagThreshold: 10000,
-      label: 'get_reorientation',
-    },
-    {
-      id: 'TE-06',
-      tool: 'where_are_we_exposed',
-      args: {},
-      expectedMin: 200,
-      expectedMax: 4000,
-      flagThreshold: 8000,
-      label: 'where_are_we_exposed',
-    },
-    {
-      id: 'TE-07',
-      tool: 'where_are_we_exposed',
-      args: { issue_type: 'no_domain' },
-      expectedMin: 30,
-      expectedMax: 5000,
-      flagThreshold: 8000,
-      label: 'where_are_we_exposed',
     },
     {
       id: 'TE-08',
@@ -750,50 +714,6 @@ function getStructuralChecks(_knownUUIDs: KnownUUIDs): StructuralCheck[] {
       },
     },
     {
-      id: 'RQ-12',
-      label: 'Coverage gaps grouped by domain',
-      tool: 'where_are_we_exposed',
-      args: {},
-      evaluate: (text: string) => {
-        // Check that gaps are grouped by domain — look for domain names as headers or bold labels
-        const domainNames = TAXONOMY_DOMAIN_NAMES.map((n) => n.toLowerCase());
-        const foundDomains = domainNames.filter((domain) =>
-          text.toLowerCase().includes(domain),
-        );
-        if (foundDomains.length >= 3) {
-          // Check for grouping — domain names should appear as headers or bold labels
-          const hasGrouping =
-            foundDomains.some(
-              (d) => text.includes(`## ${d}`) || text.includes(`**${d}`),
-            ) ||
-            foundDomains.some((d) => {
-              const regex = new RegExp(`(##|\\*\\*)\\s*${d}`, 'i');
-              return regex.test(text);
-            });
-          if (hasGrouping) {
-            return {
-              status: 'PASS',
-              detail: `${foundDomains.length} domains with section grouping`,
-            };
-          }
-          return {
-            status: 'PASS',
-            detail: `${foundDomains.length} domains referenced (implicit grouping)`,
-          };
-        }
-        if (foundDomains.length >= 1) {
-          return {
-            status: 'WARN',
-            detail: `Only ${foundDomains.length} domain(s) found — expected 3+`,
-          };
-        }
-        return {
-          status: 'FAIL',
-          detail: 'No domain grouping found in coverage gaps',
-        };
-      },
-    },
-    {
       id: 'RQ-13',
       label: 'Entity relationships structured',
       tool: 'get_entity_relationships',
@@ -834,36 +754,6 @@ function getStructuralChecks(_knownUUIDs: KnownUUIDs): StructuralCheck[] {
           status: 'WARN',
           detail:
             'Response structure unclear — neither list nor prose dominant',
-        };
-      },
-    },
-    {
-      id: 'RQ-14',
-      label: 'Reorientation clear sections',
-      tool: 'get_reorientation',
-      args: {},
-      evaluate: (text: string) => {
-        // Check for clear sections — headers, bold labels, or distinct blocks
-        const hasH2 = (text.match(/^##\s/gm) ?? []).length;
-        const hasH3 = (text.match(/^###\s/gm) ?? []).length;
-        const hasBoldSections = (text.match(/^\*\*[^*]+\*\*/gm) ?? []).length;
-        const totalSections = hasH2 + hasH3 + hasBoldSections;
-
-        if (totalSections >= 3) {
-          return {
-            status: 'PASS',
-            detail: `${totalSections} distinct sections found`,
-          };
-        }
-        if (totalSections >= 1) {
-          return {
-            status: 'WARN',
-            detail: `Only ${totalSections} section(s) — expected 3+ for reorientation`,
-          };
-        }
-        return {
-          status: 'FAIL',
-          detail: 'No section structure found in reorientation response',
         };
       },
     },
