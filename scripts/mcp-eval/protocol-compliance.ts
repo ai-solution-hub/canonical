@@ -164,7 +164,7 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
   console.log('\nDiscovery');
 
   // PC-01: tools/list count
-  let tools: ToolDef[] = [];
+  const tools: ToolDef[] = [];
 
   // PC-02: tool schema completeness
   const incomplete = tools.filter(

@@ -30,27 +30,6 @@ const TAXONOMY_SNAPSHOT_PATH = join(
   '../tests/fixtures/taxonomy_snapshot.json',
 );
 
-function loadDomainNamesFromSnapshot(): string[] {
-  try {
-    const raw = readFileSync(TAXONOMY_SNAPSHOT_PATH, 'utf-8');
-    const snapshot = JSON.parse(raw) as { domains: Array<{ name: string }> };
-    return snapshot.domains.map((d) => d.name);
-  } catch {
-    // Fallback if snapshot is missing
-    return [
-      'security',
-      'compliance',
-      'implementation',
-      'support',
-      'corporate',
-      'product-feature',
-      'methodology',
-    ];
-  }
-}
-
-const TAXONOMY_DOMAIN_NAMES = loadDomainNamesFromSnapshot();
-
 // ---------------------------------------------------------------------------
 // CLI args
 // ---------------------------------------------------------------------------

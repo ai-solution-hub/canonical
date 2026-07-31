@@ -22,11 +22,9 @@ import {
   type KnownUUIDs,
   type EvalItem,
 } from './fixtures.js';
-import { createScriptClient } from '@/scripts/lib/supabase-script-client';
 import {
   HEADLESS_COMPLETE_SET,
   HEADLESS_COMPLETE_OUTCOMES,
-  FOUR_LAYER_ORDER,
 } from './headless-complete-set.js';
 import {
   PROPOSE_WRITE_TOOLS,
@@ -41,12 +39,10 @@ import {
   guardWriteBack,
   netNewWriteBackRefusedAtSurface,
   allSanctionedDestinationsAllowed,
-  deliverPilotPush,
   NET_NEW_SOURCE_SYSTEM_PROBE,
   PILOT_CONSUMPTION_OUTPUT,
   PUSH_MECHANISM,
 } from './dual-runtime-connectivity-set.js';
-import type { PushDelivery, PushTransport } from '@/lib/mcp/push-channel';
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -283,27 +279,6 @@ function extractUUID(text: string): string | null {
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   );
   return match ? match[0] : null;
-}
-
-/**
- * Service-role client for FC-60/65 reference-layer verification + cleanup.
- * `reference_items` is write-policy-free by design (ID-75 BI-16 — all writes
- * route through the `reference_ingest` SECURITY DEFINER RPC), so no RLS
- * policy permits a normal authenticated client to DELETE it. Mirrors the
- * `createScriptClient` + SUPABASE_SERVICE_ROLE_KEY idiom already used by
- * scripts/mcp-eval/seed-fixtures.ts.
- */
-function getReferenceCleanupClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (required for FC-60/65 reference_items verification/cleanup)',
-    );
-  }
-  return createScriptClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 }
 
 // ---------------------------------------------------------------------------
