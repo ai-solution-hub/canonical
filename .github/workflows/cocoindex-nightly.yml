@@ -333,7 +333,7 @@ jobs:
       # (graceful degrade, S507). The fixture corpus is the platform's own
       # default-branding corpus, so the platform organisationName is the
       # correct self-vs-supplier anchor (S508 owner call).
-      PIPELINE_CLIENT_ORG: "Canonical"
+      PIPELINE_CLIENT_ORG: ${{ vars.PIPELINE_CLIENT_ORG }}
       # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2) — the
       # same credential the deployed producer uses (id-387 regime map).
       PRODUCER_AUTH_TOKEN: ${{ secrets.PRODUCER_AUTH_TOKEN }}
@@ -654,8 +654,8 @@ jobs:
         # copied in. `/.` copies CONTENTS (idempotent on re-run).
         run: |
           set -euo pipefail
-          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/docs/testing"
-          docker cp "docs/testing/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/docs/testing"
+          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/scripts/tests/fixtures/form-extraction"
+          docker cp "scripts/tests/fixtures/form-extraction/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/scripts/tests/fixtures/form-extraction"
 
       - name: Stage fixture set (verify_driver, loopback POST /stage)
         # A non-zero driver exit fails HERE, before /walk and before Vitest —
