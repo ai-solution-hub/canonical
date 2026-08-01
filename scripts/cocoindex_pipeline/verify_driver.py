@@ -101,7 +101,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
                 "scripts/tests/fixtures/form-extraction/templates/itt-services-efa/"
                 "evaluation-matrix-itt-vol8.xlsx"
             ),
-            dest_path="verify/itt-services-efa-evaluation-matrix-itt-vol8.xlsx",
+            dest_path="verify/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
             title_prefix="VERIFY-ITT-EFA",
         ),
         FixtureTuple(
@@ -110,7 +110,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
                 "sq-standard-selection-questionnaire/"
                 "standard-selection-questionnaire-ppn-03-24.pdf"
             ),
-            dest_path="verify/sq-standard-selection-questionnaire-ppn-03-24.pdf",
+            dest_path="verify/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
             title_prefix="VERIFY-SQ-SSQ",
         ),
         FixtureTuple(
@@ -118,7 +118,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
                 "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/"
                 "annex_2_supplier_response.docx"
             ),
-            dest_path="verify/rfp-british-council-annex_2_supplier_response.docx",
+            dest_path="verify/rfp-british-council/annex_2_supplier_response.docx",
             title_prefix="VERIFY-RFP-BC",
         ),
     ),
