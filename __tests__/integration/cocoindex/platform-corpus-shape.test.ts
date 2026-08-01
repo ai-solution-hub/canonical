@@ -71,10 +71,25 @@ const PDF_FILES = ['content/synthetic-capability-statement.pdf'] as const;
 
 const DOCX_FILES = ['content/synthetic-sector-intel.docx'] as const;
 
-/** Recursively list every file under `dir`, returning POSIX relative paths. */
+/**
+ * Recursively list every file under `dir`, returning POSIX relative paths.
+ *
+ * Dotfiles are skipped. The corpus is defined by what is COMMITTED, and every
+ * dotfile that lands here is gitignored local noise — in practice macOS's
+ * `.DS_Store`, which Finder writes into any directory a human browses. Without
+ * this skip the suite is green in CI and red on a Mac checkout, which is the
+ * worst split: it trains a local red into background noise, and this file is
+ * the guard id-406 generalises across all four fixture trees (multiplying the
+ * false red by four).
+ *
+ * A stronger version reads `git ls-files` rather than the filesystem, so the
+ * guard asserts about tracked content directly instead of approximating it.
+ * That belongs with id-406's generalisation, not here.
+ */
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
       out.push(...walk(abs));
