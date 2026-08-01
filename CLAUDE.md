@@ -42,7 +42,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Auth:** `getAuthorisedClient()` returns `{ success: boolean }` — check`auth.success`, route failures via the `authFailureResponse(auth)` helper.
 - **Data fetching:** TanStack Query exclusively (keys/fetchers in `lib/query/`).
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
-- **Content review vs governance review:** `/review` = content quality;`/api/governance/review` = freshness/ownership. Separate workflows.
+- **Review and governance are ONE concern** (owner ruling, S521): curation and governance of the ingested + extracted corpus. They are still split across two surfaces — `/review` and `/api/governance/review` — but that split is an artefact of the original IMS fork and of the retired `content_items` functionality (DR-034), not an architectural boundary. Treat a change to either as touching the same concern. This line previously asserted they were "separate workflows"; that framing was wrong and kept being re-taught. `content_items` still appears in `types/content.ts` / `types/review.ts` while the cocoindex suite asserts it is structurally absent — half-repointed, per DR-104.
 - Guard hooks enforce: no unquoted heredocs containing `!`, no client names in filenames/commands (private denylist), sentinel-gated `.claude/{agents,skills}` edits.
 - The Read-tool deny on `supabase/types/database.types.ts` in `.claude/settings.json` is deliberate (DR-022, re-homed S504): the generated file is huge and generated — query types via `Tables<'x'>` or `sed`-range reads, and never "fix" the deny.
 
