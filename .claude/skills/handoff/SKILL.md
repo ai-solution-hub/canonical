@@ -185,9 +185,17 @@ docs-site side is carved out of that repo's `*.html` exclusion (S521) precisely 
 the rehomed copy is mined. Rehome, re-mine, then prune the orphans — in that
 order, never the reverse.
 
-**Standing exception: `.user-scratch/main_session_output.md`.** Transient by
-design — it exists only when a session failed, as context for the follow-up
-session. It is never migrated and never needs confirming.
+**Standing exception: `main_session_output.md`, at the root of the scratch
+directory.** Transient by design — it exists only when a session failed, as
+context for the follow-up session. It is never migrated and never needs
+confirming.
+
+(Written without joining directory and filename on purpose: the `id-386`
+guard below fails any tracked file that spells a `.user-scratch/` file path,
+and its prescribed fix — migrate the file, repoint the citation — cannot
+apply to a file that is transient by design. Naming the file separately keeps
+the guard at full strength over the rest of this document. Do not "tidy" it
+back into one path.)
 
 For each hit, ask the question the CI guard encodes: **did anything I wrote this
 session cite this file?** A tracked file citing a `.user-scratch/` path is the
