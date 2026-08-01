@@ -96,8 +96,8 @@ export const POST = withRequestContext(
       }
 
       // ID-131.24 (G-UPLOAD-GATE, DR-025): an optional retention_class form
-      // field lets the caller pick the binding-admission class; omitted ->
-      // stageAndWalk's own keep_and_watch default applies.
+      // field lets the caller pick the class assigned at the binding gate;
+      // omitted -> stageAndWalk's own keep_and_watch default applies.
       const retentionClassRaw = formData.get('retention_class');
       let retentionClass: 'keep_and_watch' | 'ingest_once' | undefined;
       if (retentionClassRaw !== null) {

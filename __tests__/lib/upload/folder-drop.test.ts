@@ -205,7 +205,7 @@ describe('stageAndWalk', () => {
     );
   });
 
-  // ID-131.24 (G-UPLOAD-GATE, DR-025): the binding-admission gate assigns a
+  // ID-131.24 (G-UPLOAD-GATE, DR-025): the binding gate assigns a
   // caller-supplied retention_class instead of always hard-coding
   // keep_and_watch — the app-side upload path (rebound onto this leg) lets
   // an editor pick keep_and_watch vs ingest_once at admission time.

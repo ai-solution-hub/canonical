@@ -3,7 +3,7 @@
 // ID-131.24 (G-UPLOAD-GATE, DR-025) rework: the pre-existing hook drove the
 // old synchronous /api/upload pipeline (extract -> embed -> classify ->
 // summarise -> content_items row). That pipeline is retired — the app-side
-// upload now rides the binding-admission gate (lib/upload/folder-drop.ts
+// upload now rides the binding gate (lib/upload/folder-drop.ts
 // `stageAndWalk`, ID-138 {138.13}): gate-pass -> Storage PUT -> an
 // admission-minted `source_documents` row, with NO content_items row and no
 // synchronous classification/embedding/summary to track. This hook is
