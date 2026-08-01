@@ -1,0 +1,35 @@
+# Dependency overrides for the cocoindex pipeline image lock (id-413 / W1, S523).
+#
+# COMPILE-TIME INPUT ONLY — this file is never shipped into the build context.
+# The pruned buildpacks context copies requirements.lock (as requirements.txt);
+# see the BUILD WIRING note in requirements.lock's header. This file exists so a
+# future `uv pip compile` regen reproduces the same closure.
+#
+# Regenerate the lock with:
+#   uv pip compile requirements.txt --python 3.13 \
+#     --override requirements.overrides.txt -o requirements.lock
+#
+# WHY: `commonforms` pulls BOTH `ultralytics` and `rfdetr`->`supervision`, and all
+# three declare `opencv-python` (the FULL, X11-linked variant). That put
+# opencv-python==5.0.0.93 in the closure alongside the intended
+# opencv-python-headless==4.13.0.92, so which distribution satisfied `import cv2`
+# was resolution-order-dependent — and when the full variant won, docling's
+# always-on layout model (docling-ibm-models) failed with
+# `ImportError: libxcb.so.1: cannot open shared object file` on EVERY PDF convert
+# in the buildpacks image (gcr.io/buildpacks/builder:google-22 has no X11 libs).
+# 69 occurrences in a single nightly run; 0 of 73 source_documents were .pdf.
+#
+# The marker below is never true on any platform, so the transitive requirement is
+# dropped from the resolution entirely. `ultralytics` and `supervision` only ever
+# `import cv2`, which opencv-python-headless supplies — they do not need the full
+# variant's X11-linked GUI functions (cv2.imshow et al.), which the pipeline never
+# calls.
+#
+# REJECTED ALTERNATIVE (owner decision, recorded so it is not re-litigated):
+# apt-installing `libxcb1` into the image. Buildpacks cannot add apt layers
+# cleanly, and the owner's ruling is to go headless rather than carry an X11
+# closure into a server-side document pipeline. If the sidecar later moves to a
+# purpose-built Dockerfile (a decision gated on id-404 / W4's LibreOffice
+# `soffice` question, NOT on this task), that does not reopen this: headless
+# remains correct there too.
+opencv-python ; sys_platform == "never-headless-only-see-id-413"
