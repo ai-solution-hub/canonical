@@ -5,7 +5,7 @@
  * `POST /api/upload`, deleted under {131.24} (G-UPLOAD-GATE) along with its
  * `upload-review-step` testid and the synchronous extract/embed/classify/
  * summarise pipeline that landed a `content_items` row. There is now ONE
- * binding-admission gate (`lib/upload/folder-drop.ts` `stageAndWalk`,
+ * binding gate (`lib/upload/folder-drop.ts` `stageAndWalk`,
  * ID-138 {138.13}): gate-pass -> Storage PUT (`corpus` bucket) -> an
  * admission-minted `source_documents` row via the `resolve_or_mint_
  * source_identity` M2 resolver (content_hash-first). NO `content_items` row
@@ -23,15 +23,26 @@
  *   here. Do not grow corpus-file walks or lane-harness assertions into this
  *   spec; if that is what you need, you are in the wrong lane.
  *
- * id-401 (S515) AC-1/AC-2 VERDICT — RETAINED UNCHANGED, NOT RETIRED.
- *   The S509 charter-board S8 verdict ("retire and replace, based on target
- *   model") predates the {131.24} re-authoring below. Re-verified assertion by
- *   assertion on `main` at S515: every assertion binds the LIVE target surface
- *   (binding-admission gate → Storage PUT → admission-minted
- *   `source_documents`), zero bind retired substrate, and the two
- *   `content_items` mentions above are prose documenting the retirement. No
- *   `extracted_text` read anywhere. The retire-and-replace verdict was already
- *   discharged by {131.24}; this spec needed no rewrite.
+ * id-401 (S515) AC-1/AC-2 VERDICT — OVERTURNED by the owner; corrected here
+ * under id-408 (S522). Do not restore the "needed no rewrite" reading.
+ *   The S515 pass concluded "RETAINED UNCHANGED, NOT RETIRED" from a codebase
+ *   read: every assertion binds a live table, therefore the spec matches the
+ *   target model. That inference is invalid — **an assertion can bind a live
+ *   table while its spec asserts a dead model** — and the S509 charter-board
+ *   S8 verdict said "retire and replace, based on TARGET MODEL", which only a
+ *   model-level read discharges.
+ *   What the S515 pass got right, and which was never sufficient on its own:
+ *   the assertions do bind the live surface (binding gate → Storage PUT →
+ *   admission-minted `source_documents`), zero bind retired substrate, the
+ *   `content_items` mentions above are prose documenting the retirement, and
+ *   no `extracted_text` is read anywhere.
+ *   What was wrong was the VOCABULARY, corrected under id-408 against
+ *   `corpus-reframe-review.html` R1/R2 + DR-025: the light front door this
+ *   spec exercises is the **binding gate** (connect a source, assign its
+ *   retention class). The authoritative gate is **knowledge admission**
+ *   (promotion + dedup review + confidence) — a separate gate this spec does
+ *   not exercise and must not claim to. The former "binding-admission gate"
+ *   compound fused the two and is retired.
  *
  * VERIFIED AGAINST PRODUCTION:
  *   - Admission endpoint is `POST /api/ingest/folder-drop`, multipart
@@ -153,7 +164,7 @@ async function deleteAdmittedSource(item: AdmittedSource): Promise<void> {
   await svc.from('source_documents').delete().eq('id', item.sourceDocumentId);
 }
 
-test.describe('Content ingestion -- 8.0.4 file upload (binding-admission gate)', () => {
+test.describe('Source binding -- 8.0.4 file upload (binding gate)', () => {
   const created: AdmittedSource[] = [];
 
   test.afterEach(async () => {

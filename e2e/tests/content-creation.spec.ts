@@ -17,8 +17,8 @@ import { isMobileViewport } from '../helpers/responsive';
  *
  * Each tab's own content is covered by its dedicated spec —
  * `content-ingestion-url.spec.ts` (URL tab), `content-ingestion-upload.spec.ts`
- * + `content-ingestion-folder-drop.spec.ts` (Upload tab, gated
- * binding-admission flow). THIS spec is scoped to the page shell: tab
+ * + `content-ingestion-folder-drop.spec.ts` (Upload tab, the
+ * binding-gate flow). THIS spec is scoped to the page shell: tab
  * structure, role gating, and `?tab=` deep-linking/redirect routing —
  * it does not re-test any individual tab's internals.
  *

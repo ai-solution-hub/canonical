@@ -14,16 +14,26 @@
  *   assertions in this suite (content_items landing + layer/topic suggestions
  *   + /item/<id> read round-trip) asserted the now-dead content_items shape.
  *
- * id-401 (S515) AC-1/AC-3 VERDICT — RETAINED UNCHANGED, NOT RETIRED.
- *   The S509 charter-board S8 verdict ("retire and replace, based on target
- *   model") predates the {110.6}/{110.8} re-point above and the {111.11}
- *   un-skip below. Re-verified assertion by assertion on `main` at S515: every
- *   assertion binds the LIVE reference-layer contract, zero bind retired
- *   substrate, and all ten `content_items` mentions in this file are prose
- *   (grep `expect.*content_items` → no match). Only the header was stale, and
- *   is corrected here: the dead SKIP RATIONALE became SKIP HISTORY, and the
- *   failure-mode table no longer claims a "content_items COUNT === 0"
- *   assertion the body has not carried since {131.19} M6.
+ * id-401 (S515) AC-1/AC-3 VERDICT — OVERTURNED by the owner; corrected here
+ * under id-408 (S522). Do not restore the "only the header was stale" reading.
+ *   The S515 pass concluded "RETAINED UNCHANGED, NOT RETIRED" from a codebase
+ *   read: every assertion binds a live table, therefore the spec matches the
+ *   target model. That inference is invalid — **an assertion can bind a live
+ *   table while its spec asserts a dead model** — and the S509 charter-board
+ *   S8 verdict said "retire and replace, based on TARGET MODEL", which only a
+ *   model-level read discharges.
+ *   What the S515 pass got right, and which was never sufficient on its own:
+ *   every assertion binds the LIVE reference-layer contract, zero bind retired
+ *   substrate, and the `content_items` mentions in this file are all prose
+ *   (grep `expect.*content_items` → no match outside this comment). The dead
+ *   SKIP RATIONALE became SKIP HISTORY at S515, and the failure-mode table no
+ *   longer claims a "content_items COUNT === 0" assertion the body has not
+ *   carried since {131.19} M6 — both of those corrections stand.
+ *   What the S515 pass did NOT check was the MODEL this spec's prose asserts.
+ *   Under `corpus-reframe-review.html` R1 + DR-025 a pasted URL is an evidence
+ *   stream bound to the platform, not content admitted to a canonical content
+ *   store — the re-point note above already says exactly that, and the
+ *   `test.describe` name was re-framed to match under id-408.
  *
  * D4 LANE BOUNDARY (id-396 `[D4 RATIFIED S511 (amended)]`, restated by
  * id-401 S515 — do not re-import corpus→rows proof into this file):
@@ -129,7 +139,7 @@ async function deleteReferenceByUrl(url: string): Promise<void> {
 // ID-111.8 success-card "View reference" link + ID-111.10 /reference browse),
 // so the create → read round-trip the SKIP RATIONALE blocked on is exercised
 // below (step 5b). Discharges bl-119.
-test.describe('Content ingestion -- 8.0.5 URL ingestion (reference layer)', () => {
+test.describe('Source binding -- 8.0.5 URL ingestion (reference layer)', () => {
   test.beforeEach(async () => {
     await deleteReferenceByUrl(TARGET_URL);
   });

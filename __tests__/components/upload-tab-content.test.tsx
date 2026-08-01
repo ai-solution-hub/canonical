@@ -2,7 +2,7 @@
  * UploadTabContent Component Tests
  *
  * ID-131.24 (G-UPLOAD-GATE, DR-025) rework: the tab now drives ONE
- * binding-admission gate (no content_items row, no folder-drop stage/poll
+ * binding gate (no content_items row, no folder-drop stage/poll
  * transport, no review/layer/classification UI — that whole surface was
  * retired alongside the content_items pipeline). Covers: the retention-class
  * picker, the connect action + admission-result rendering, cross-method

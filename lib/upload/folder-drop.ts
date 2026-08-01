@@ -92,7 +92,7 @@ export type FolderDropStage =
   | 'attribution';
 
 /**
- * Retention classes assignable at the binding-admission gate (DR-025),
+ * Retention classes assignable at the binding gate (DR-025),
  * mirroring the `source_documents_retention_class_check` DB constraint
  * verbatim. `keep_and_watch` (re-walked on future syncs) and `ingest_once`
  * (extracted once, never re-walked) both apply to an actual bytes upload —
@@ -101,6 +101,14 @@ export type FolderDropStage =
  * `cadence` columns, not by an uploaded object) and are never assigned by
  * this leg; kept here only so the type stays a single source of truth
  * mirroring the DB CHECK.
+ *
+ * VOCABULARY (`corpus-reframe-review.html` R2 + DR-025, swept at id-408):
+ * this is the LIGHT gate — connect a source, assign its retention class.
+ * The AUTHORITATIVE gate is knowledge admission (promotion + dedup review
+ * + confidence), which this module never reaches. Converge on the two
+ * reference usages rather than coining a third term:
+ * `lib/query/fetchers.ts` for "binding gate",
+ * `lib/q-a-pairs/promote-corpus.ts` for "knowledge-admission gate".
  */
 /** @public */
 export type RetentionClass =

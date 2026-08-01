@@ -9,7 +9,7 @@
  *     Q&A batch-authoring route (`app/api/q-a-pairs/batch/route.ts`), gated
  *     `getAuthorisedClient(['admin', 'editor'])` same as the old items route.
  *   - `POST /api/ingest/folder-drop` (ID-138 {138.13}, ID-131.24 G-UPLOAD-GATE)
- *     — the single binding-admission gate that now backs the Upload tab,
+ *     — the single binding gate that now backs the Upload tab,
  *     also gated `getAuthorisedClient(['admin', 'editor'])`.
  * Neither `q_a_pairs` nor `source_documents` carries a `created_by`/
  * `uploaded_by` column (ownership lives at the `record_lifecycle` governance

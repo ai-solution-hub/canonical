@@ -8,7 +8,7 @@
  * `content_items`). That whole transport is retired —
  * `components/create-content/upload-tab-content.tsx`'s header comment
  * confirms BOTH the old synchronous `/api/upload` pipeline AND the async
- * stage-then-poll flow were replaced by ONE binding-admission gate
+ * stage-then-poll flow were replaced by ONE binding gate
  * (`POST /api/ingest/folder-drop`, ID-138 {138.13}) that resolves
  * synchronously — there is no more poll loop to test.
  *
@@ -37,7 +37,7 @@
 
 import { test, expect } from '../fixtures';
 
-test.describe('Content ingestion -- folder-drop UI mechanics (Upload tab)', () => {
+test.describe('Source binding -- folder-drop UI mechanics (Upload tab)', () => {
   test('keeps the default "Keep & watch" retention class and surfaces a per-file admission failure without blocking a later success', async ({
     authenticatedPage: page,
   }) => {

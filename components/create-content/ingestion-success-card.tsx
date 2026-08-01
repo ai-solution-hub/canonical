@@ -40,7 +40,12 @@ export interface IngestionSuccessCardProps {
 }
 
 /**
- * Success card shown after content ingestion completes.
+ * Success card shown after a pasted URL is bound as evidence.
+ *
+ * DR-025/R1 framing: this confirms a SOURCE BINDING, not an admission to a
+ * canonical content store. A manual URL lands in the reference layer as
+ * evidence; authority is earned later at the knowledge-admission gate
+ * (promotion), never here.
  *
  * Always renders the `reference` variant (ID-110 manual-URL imports landing
  * in reference_items) — it omits the contentType badge and any /item/<id>

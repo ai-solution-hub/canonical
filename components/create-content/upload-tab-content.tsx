@@ -4,7 +4,7 @@
 // separate transports — the synchronous /api/upload content_items pipeline
 // (Upload button) and a distinct folder-drop stage-then-poll flow (Stage &
 // ingest button, polling content_items via source_file). Both are retired.
-// There is now ONE binding-admission gate (lib/upload/folder-drop.ts
+// There is now ONE binding gate (lib/upload/folder-drop.ts
 // `stageAndWalk`, ID-138 {138.13}): gate-pass -> Storage PUT -> an
 // admission-minted `source_documents` row, with NO content_items row. The
 // UI reflects DR-025's framing — this is "connect a source" + assign a
