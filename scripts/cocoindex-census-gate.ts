@@ -34,9 +34,9 @@ for (const envFile of ['.env.local', '.env']) {
  * a drift here fails loudly at the gate, which is the point).
  */
 const DRIVER_MANIFEST_DEST_PATHS = [
-  'verify/itt-services-efa-evaluation-matrix-itt-vol8.xlsx',
-  'verify/sq-standard-selection-questionnaire-ppn-03-24.pdf',
-  'verify/rfp-british-council-annex_2_supplier_response.docx',
+  'verify/evaluation-matrix-itt-vol8.xlsx',
+  'verify/standard-selection-questionnaire-ppn-03-24.pdf',
+  'verify/annex_2_supplier_response.docx',
 ] as const;
 
 const supabaseUrl =
