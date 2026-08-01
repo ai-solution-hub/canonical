@@ -150,12 +150,13 @@ prompt's *Session Carry* so the next session lands it.
 
 ## Step 2d — Scratch migrate-or-confirm gate
 
-`.user-scratch/` is gitignored. Anything left there at session close is invisible
-to a fresh clone and to every other machine. S506 measured the cost: of ~101
-`.user-scratch/` paths cited across the docs-site, **33 no longer existed** — the
-evidence had already been lost, silently, one deletion at a time.
+`.user-scratch/` **and `.lavish/`** are gitignored. Anything left in either at
+session close is invisible to a fresh clone and to every other machine. S506
+measured the cost: of ~101 `.user-scratch/` paths cited across the docs-site,
+**33 no longer existed** — the evidence had already been lost, silently, one
+deletion at a time.
 
-So each file this session created or modified in `.user-scratch/` leaves the
+So each file this session created or modified in either directory leaves the
 session in one of two states, never a third:
 
 - **migrated** to a tracked home — a spec's `notes/` (working artefact for a
@@ -166,8 +167,27 @@ List the candidates (substitute the session's own start time; `-mtime -1` is the
 fallback when it is not to hand):
 
 ```bash
-find .user-scratch -type f -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_Store'
+find .user-scratch .lavish -type f -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_Store'
 ```
+
+**`.lavish/` boards migrate to the docs-site `reports/` as `s<NNN>-<slug>.html`**,
+session-prefixed. They are decision and OQ surfaces — among the densest
+ratification records the project produces — so "confirmed as scratch" is the rare
+disposition here, not the default. S521 found twelve boards still sitting in
+`canonical/.lavish` months after the sessions that made them; four had been
+rehomed under session-prefixed names and eight had not, so a filename-exact check
+under-reports. **Compare by content hash, not by name.**
+
+Migrating a board is what makes it *recallable*: the palace mines
+`canonical/.lavish` only via `--include-ignored`, and once a board is rehomed the
+`canonical/.lavish` drawers become orphans pointing at a deleted path. The
+docs-site side is carved out of that repo's `*.html` exclusion (S521) precisely so
+the rehomed copy is mined. Rehome, re-mine, then prune the orphans — in that
+order, never the reverse.
+
+**Standing exception: `.user-scratch/main_session_output.md`.** Transient by
+design — it exists only when a session failed, as context for the follow-up
+session. It is never migrated and never needs confirming.
 
 For each hit, ask the question the CI guard encodes: **did anything I wrote this
 session cite this file?** A tracked file citing a `.user-scratch/` path is the
