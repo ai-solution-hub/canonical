@@ -4,11 +4,31 @@
 # ~76 cases across ~40-42 files under __tests__/integration/cocoindex/ +
 # form-extraction{,-rls}.integration.test.ts skip in CI today because
 # COCOINDEX_STAGING_URL / COCOINDEX_FIXTURE_STAGING_URL / COCOINDEX_SOURCE_PATH
-# are unset everywhere except the on-prem B1 operator hook
-# (deploy/onprem/verify/live-verify.sh, READ-ONLY reference for this lane —
-# see S403-coverage-audit.md gap (2) HIGH). This lane provisions the same
-# three env vars in an ephemeral GH-Actions-hosted sidecar so those cases
-# execute somewhere automated, off the PR critical path.
+# are unset everywhere except this lane. It provisions the three env vars in
+# an ephemeral GH-Actions-hosted sidecar so those cases execute somewhere
+# automated, off the PR critical path (S403-coverage-audit.md gap (2) HIGH).
+#
+# THIS FILE IS THE SOURCE OF TRUTH for the stage → walk → Vitest sequence
+# (id-412, S525). It used to declare itself a READ-ONLY verbatim copy of the
+# on-prem operator hook `deploy/onprem/verify/live-verify.sh` at nine points.
+# That declaration was the defect, not a guardrail: it froze the copy, made
+# reconciliation nobody's job, and carried the operator script's `docs/testing`
+# corpus choice into a lane whose whole purpose is dogfooding the Platform
+# corpus — which is why this lane had never walked that corpus at all.
+#
+# The operator script was DELETED at S525. It had been unrunnable since the
+# fixture relocation (`b9c55abf`/`90cc3b03`/`eb9ccac9`): its step 0b hard-died
+# on the absent `docs/testing`, so the "manual against-a-live-box entry point"
+# it was preserved as had not worked for months and nobody hit it. It had also
+# drifted three ways this file did not track — a 9-item Vitest exclude list vs
+# this file's 1, a background walk pump this lane deleted at id-400 (W2), and a
+# `verify_driver.py` sibling deleted at S524 (id-46 {46.12}). Same class as
+# that sibling: host-side operator tooling with no automated caller, rotting
+# silently behind a comment that told readers not to touch it.
+#
+# The manual path is now a `workflow_dispatch` of this workflow. If an
+# against-a-live-B1-box hook is ever needed again, write it as a thin wrapper
+# that CALLS these steps — never as a second copy of them.
 #
 # ID-128.3 second pass (this commit): wired COCOINDEX_DB_DSN to the existing
 # STAGING_SUPABASE_DB_URL secret (no new secret minted — operator OQ
@@ -42,11 +62,12 @@
 # `update_blocking()` processes the whole watched corpus per invocation, not
 # one file at a time) — deliberately out of scope for a "keep the diff
 # MINIMAL" pass, and doubly so with a parallel id-132 session possibly
-# touching pipeline files concurrently. The `--exclude` list below is
-# copied VERBATIM from live-verify.sh's current Vitest step (READ-ONLY;
-# this workflow does not edit that script) — live-verify.sh's OWN list
-# still excludes all 9 and is a tracked residual (not touched this pass;
-# outside this file's ownership boundary).
+# touching pipeline files concurrently. The `--exclude` list below is this
+# file's OWN defer ledger — one entry, stage-5-failure-non-destructive. The
+# other 8 landed as real tests when the bl-227 stubs were built out. (Until
+# S525 this comment claimed the list was "copied VERBATIM" from the operator
+# script and then named an 8-item exception in the same sentence; the script
+# is deleted and the claim with it.)
 #
 # The v1.1 `audit_log` table remains unbuilt — audit-log-shipping and
 # memo-hit-pipeline-run both probe for the table's existence and skip their
@@ -124,10 +145,9 @@
 # container has no PostgREST in front of it), so a standalone throwaway
 # Postgres is NOT provisioned here. No separate "fixture-staging" service
 # exists either — `/stage` is a route on the SAME sidecar server.py exposes
-# `/health` and `/walk` on (empirically confirmed by reading server.py +
-# live-verify.sh, which sets COCOINDEX_FIXTURE_STAGING_URL to the identical
-# value as COCOINDEX_STAGING_URL) — both nightly env vars below point at the
-# one running container.
+# `/health` and `/walk` on (empirically confirmed by reading server.py) — so
+# COCOINDEX_FIXTURE_STAGING_URL and COCOINDEX_STAGING_URL take the identical
+# value and both nightly env vars below point at the one running container.
 #
 # RESOLVED (was OPEN QUESTION / KNOWN GAP): COCOINDEX_DB_DSN does not need a
 # separately-minted secret. Operator OQ ratified (S455 pickup): the GitHub
@@ -145,7 +165,7 @@
 #     PIPELINE_TRIGGER_SECRET (the ONLY bearer /walk accepts since ID-127.18
 #     retired the CRON_SECRET dual-accept fallback — see scripts/
 #     cocoindex_pipeline/server.py's /walk auth block; both curl calls below
-#     send this, matching deploy/onprem/verify/live-verify.sh),
+#     send this),
 #     TEST_USER_{1,2,3}_PASSWORD, STAGING_SUPABASE_DB_URL (sources
 #     COCOINDEX_DB_DSN below — no new secret),
 #     PIPELINE_RUN_WEBHOOK_URL (the `pipeline_runs` round-trip — see the
@@ -847,10 +867,12 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────
 
       - name: Stage fixture set (verify_driver, loopback POST /stage)
-        # A non-zero driver exit fails HERE, before /walk and before Vitest —
-        # mirrors live-verify.sh step 1 / ID-62 {62.9}. The buildpack image's
-        # exec PATH omits the buildpack layers (a bare `python3` 127s), so
-        # every docker exec below injects the same env live-verify.sh does.
+        # A non-zero driver exit fails HERE, before /walk and before Vitest
+        # (ID-62 {62.9}). The buildpack image's exec PATH omits the buildpack
+        # layers (a bare `python3` 127s), so every docker exec below injects
+        # PYTHONUSERBASE + PATH explicitly. id-416 retires this env block with
+        # the Dockerfile move (DR-119) — it is a CNB artefact, not a
+        # requirement.
         run: |
           set -euo pipefail
           docker exec \
@@ -861,9 +883,11 @@ jobs:
 
       - name:
           Trigger corpus walk (bearer-gated POST /walk) and wait for completion
-        # Port is published to the host, so a plain host-side curl suffices
-        # (no docker-exec-python3-urllib indirection needed, unlike
-        # live-verify.sh's unpublished-port B1 topology).
+        # Port is published to the host, so a plain host-side curl suffices —
+        # no docker-exec-python3-urllib indirection needed. (The deleted B1
+        # operator hook needed that indirection because the compose stack
+        # publishes no host port for the sidecar; if a live-box hook is ever
+        # rewritten, that is the one topology difference it must handle.)
         #
         # ID-128.3 calibration (this pass, see header): retries on a
         # fence-busy skip instead of waiting on a dead requestId, and the
@@ -933,13 +957,14 @@ jobs:
       # pass; every walk is requested, awaited, and attributable.
 
       - name: Run cocoindex Vitest go-live tier
-        # File selection + --exclude list copied VERBATIM from live-verify.sh
-        # (READ-ONLY reference — see header), MODULO the 8 bl-227 stubs
-        # landed this pass (ID-128.3 second pass) — live-verify.sh's own list
-        # still excludes all 9 (tracked residual, out of this file's
-        # ownership). Only stage-5-failure-non-destructive remains excluded
-        # here (see header — needs a scoped server.py directive not yet
-        # built).
+        # File selection + --exclude list are OWNED HERE (id-412, S525 — see
+        # header). Only stage-5-failure-non-destructive remains excluded: the
+        # `?failStage5=` destPath directive it needs is not implemented by the
+        # live /stage route ({62.5}), so Stage-5 never fails and its
+        # assertions cannot pass. Every other formerly-deferred file now runs.
+        #
+        # Adding an --exclude here is declaring a test unverified. Say why, in
+        # this comment, at the same time.
         id: cocoindex_vitest
         env:
           COCOINDEX_STAGING_URL: "http://localhost:8080"
