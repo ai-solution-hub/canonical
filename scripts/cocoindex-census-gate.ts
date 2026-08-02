@@ -19,6 +19,10 @@ import { resolve } from 'node:path';
 
 import { config as loadDotenv } from 'dotenv';
 
+import {
+  loadCorpusManifest,
+  verifyDriverDestPaths,
+} from '@/lib/corpus/fixture-manifest';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
 for (const envFile of ['.env.local', '.env']) {
@@ -29,15 +33,24 @@ for (const envFile of ['.env.local', '.env']) {
 }
 
 /**
- * Mirror of scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS
- * `templates` dest paths (the driver's own contract test pins that list;
- * a drift here fails loudly at the gate, which is the point).
+ * The dest paths `scripts/cocoindex_pipeline/verify_driver.py`
+ * FIXTURE_SETS['templates'] stages, sourced from the corpus fixture manifest
+ * (id-406 / DR-118) rather than duplicated here.
+ *
+ * This used to be a hardcoded three-element array — and a hardcoded TypeScript
+ * array named `DRIVER_MANIFEST_…` *was* the fixture manifest, just
+ * un-externalised: no SHA, no `fixture_class`, no `staging_mode`, no declared
+ * consumers. Against three bare strings a walk-loss failure reads only as
+ * "2 failures"; against the manifest it is attributable — which fixture class
+ * was expected to stage, and which consumers are now uncovered.
+ *
+ * Sourcing it from the manifest also means the census gate and
+ * `__tests__/validation/corpus-manifest.test.ts` read the SAME file, so the two
+ * lists can no longer drift apart. The manifest guard enforces that every
+ * `verify-driver` entry declares a `verify_dest` in the flat `verify/<basename>`
+ * scheme (`c64be60b`).
  */
-const DRIVER_MANIFEST_DEST_PATHS = [
-  'verify/evaluation-matrix-itt-vol8.xlsx',
-  'verify/standard-selection-questionnaire-ppn-03-24.pdf',
-  'verify/annex_2_supplier_response.docx',
-] as const;
+const DRIVER_MANIFEST_DEST_PATHS = verifyDriverDestPaths(loadCorpusManifest());
 
 const supabaseUrl =
   process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
