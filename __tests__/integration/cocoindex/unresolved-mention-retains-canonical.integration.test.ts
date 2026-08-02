@@ -31,6 +31,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
+
+// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
+// This file asserts unresolved entity canonical retention — plane 1, the cocoindex walk — but stages a
+// blank extraction FORM, which is a plane-2 input with no prose to extract.
+// All 16 CSP-staging tests measured the same way; none exercise form-field
+// extraction. id-412 repoints the PATH only (its Surfaces line reserves
+// assertions for id-415); flipping this to a CONTENT fixture changes what the
+// body observes, so the fixture swap and the assertion repair land together
+// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
+import { FORM_TEMPLATE } from './_helpers/fixtures';
+
 import {
   dropFixture,
   pollContentItemsFor,
@@ -58,8 +69,7 @@ const POLL_TIMEOUT_MS = 120_000;
 beforeAll(async () => {
   if (!ENABLED) return;
   await stageFixture({
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
+    fixturePath: FORM_TEMPLATE.cspChecklistXlsx,
     destPath: `inv-20/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });

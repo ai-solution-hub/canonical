@@ -43,6 +43,17 @@ import {
 } from './_helpers/fixture-staging';
 import { pollEntityMentionsFor } from './test-helpers';
 
+
+// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
+// This file asserts per-doc entity canonicalisation — plane 1, the cocoindex walk — but stages a
+// blank extraction FORM, which is a plane-2 input with no prose to extract.
+// All 16 CSP-staging tests measured the same way; none exercise form-field
+// extraction. id-412 repoints the PATH only (its Surfaces line reserves
+// assertions for id-415); flipping this to a CONTENT fixture changes what the
+// body observes, so the fixture swap and the assertion repair land together
+// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
+import { FORM_TEMPLATE } from './_helpers/fixtures';
+
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
 const HAS_FIXTURE_STAGING = Boolean(process.env.COCOINDEX_FIXTURE_STAGING_URL);
@@ -56,8 +67,7 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 120_000;
 
-const FIXTURE_PATH =
-  'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx';
+const FIXTURE_PATH = FORM_TEMPLATE.cspChecklistXlsx;
 
 beforeAll(async () => {
   if (!ENABLED) return;

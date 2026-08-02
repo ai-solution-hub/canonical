@@ -43,6 +43,17 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+
+// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
+// This file asserts op_id memoisation across re-ingest — plane 1, the cocoindex walk — but stages a
+// blank extraction FORM, which is a plane-2 input with no prose to extract.
+// All 16 CSP-staging tests measured the same way; none exercise form-field
+// extraction. id-412 repoints the PATH only (its Surfaces line reserves
+// assertions for id-415); flipping this to a CONTENT fixture changes what the
+// body observes, so the fixture swap and the assertion repair land together
+// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
+import { FORM_TEMPLATE } from './_helpers/fixtures';
+
 import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
@@ -73,8 +84,7 @@ beforeAll(async () => {
   // triggering the second pass — see the `it` body for the second-pass
   // poll cadence.
   await stageFixture({
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
+    fixturePath: FORM_TEMPLATE.cspChecklistXlsx,
     destPath: `inv-4/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
