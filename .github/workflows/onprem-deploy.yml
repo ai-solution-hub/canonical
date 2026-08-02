@@ -393,6 +393,17 @@ jobs:
           docker pull "${IMAGE}:${TAG}"
           ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${IMAGE}:${TAG}")"
           echo "Base image user (restored after the root apt-get layer): '${ORIG_USER:-cnb}'"
+          # ⚠ THIS LAYER IS DUPLICATED IN cocoindex-nightly.yml (the two RUN
+          # instructions below are byte-identical there). Any edit here MUST be
+          # made there in the SAME commit. The rule exists because the drift
+          # already happened: from the nightly's creation (2026-07-08) until
+          # S524 that lane ran bare `pack build` and stopped, so it exercised an
+          # image missing git, openssh-client and both LibreOffice packages —
+          # for ~4 weeks, while claiming in its own header to replicate this
+          # recipe. Unification (one shared composite action; the nightly
+          # pulling the published image rather than rebuilding) is owner-approved
+          # and owned by id-416, together with the buildpacks -> Dockerfile move
+          # that deletes this heredoc.
           WORKDIR="$(mktemp -d)"
           # NB: an UNQUOTED heredoc delimiter is required for ${IMAGE}/${TAG}/
           # ${ORIG_USER} substitution below, which also means a trailing

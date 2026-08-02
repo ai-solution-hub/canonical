@@ -54,9 +54,11 @@
 # absent, so landing both tests does NOT require building the table.
 #
 # Sidecar provisioning: this lane BUILDS the cocoindex image locally via the
-# SAME Cloud Native Buildpacks recipe onprem-deploy.yml uses (pruned context =
-# scripts/ + requirements.lock, builder gcr.io/buildpacks/builder:google-22,
-# GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server) but WITHOUT
+# same recipe onprem-deploy.yml uses — `pack build` (pruned context = scripts/
+# + requirements.lock, builder gcr.io/buildpacks/builder:google-22,
+# GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server) FOLLOWED BY
+# the post-`pack` `docker build` layer that bakes git, openssh-client,
+# LibreOffice and the ID-413 opencv-headless enforcement — but WITHOUT
 # `--publish` / `--cache-image` — those are registry-backed (onprem-deploy.yml
 # comment: "requires --publish; there is no persistent local volume across
 # runners") and this lane has no need to publish anywhere. Dropping --publish
@@ -66,12 +68,25 @@
 # build onprem-deploy.yml's comment documents (Docling + cocoindex Rust wheel
 # + ML layer) — acceptable for an off-peak, non-blocking, once-nightly lane;
 # a registry-backed --cache-image is a follow-up if the cold build proves a
-# problem. This ALSO decouples the lane from onprem-deploy.yml's per-commit
-# ghcr.io publish cadence — there is no ":latest" tag (only content-addressed
-# "sha-<sha>" tags, see onprem-deploy.yml env.TAG), so a checked-out commit
-# with no pipeline-relevant diff since the last push may have no matching
-# ghcr.io tag at all; building fresh here sidesteps that resolution problem
-# entirely.
+# problem.
+#
+# THE "SAME RECIPE" CLAIM WAS FALSE UNTIL S524 and is worth stating plainly,
+# because it is the shape of defect this lane exists to catch and carried for
+# ~4 weeks undetected: the post-`pack` layer above was applied ONLY by
+# onprem-deploy.yml, so this lane exercised an image missing four packages the
+# deployed one carries. Parity restored S524 by duplicating the layer; the
+# duplication is interim (see the build step's own comment) and id-416 owns
+# the unification.
+#
+# WHY BUILD RATHER THAN PULL, and why that is also interim: there is no
+# ":latest" tag (only content-addressed "sha-<sha>" tags, see
+# onprem-deploy.yml env.TAG) and onprem-deploy's detect-changes job gates the
+# publish, so a checked-out commit with no pipeline-relevant diff may have no
+# matching ghcr.io tag at all. Building fresh sidesteps that resolution
+# problem — at the cost of the lane never testing the artefact that actually
+# ships. The target (owner-approved S524, id-416) is a moving `:main` tag for
+# the lane to pull, with the deploy composes still pinning `sha-` for
+# rollback, and a local build kept only as the branch-dispatch fallback.
 #
 # Corpus: reuses the EXISTING docs/testing/test-data fixture corpus (the same
 # one live-verify.sh docker-cp's onto B1) — no new fixture dir added this
@@ -450,35 +465,42 @@ jobs:
             --env "GOOGLE_PYTHON_VERSION=3.13.13"
           echo "Built ${COCOINDEX_IMAGE_TAG} (local daemon only, not pushed)"
 
-          # ID-413 (W1) opencv-headless enforcement — MIRRORS the post-`pack`
-          # layer in onprem-deploy.yml, where the full rationale lives. Short
-          # version: the buildpack installs requirements.lock with no
-          # `--no-deps`, so pip re-resolves `ultralytics` / `supervision` and
-          # reinstates the FULL X11-linked `opencv-python` whatever the lock
-          # says — which is why every PDF convert failed with
-          # `libxcb.so.1: cannot open shared object file`. Removing the line
-          # from the lock does not fix the image on its own.
+          # POST-`pack` LAYER — byte-for-byte the same two RUN instructions
+          # onprem-deploy.yml applies to the image it publishes. The full
+          # rationale for BOTH lives there; do not let the two drift.
           #
-          # WHY THIS IS DUPLICATED RATHER THAN INHERITED, and it is a real
-          # defect worth fixing (routed to id-412): this lane does NOT build
-          # the same image the platform deploys. onprem-deploy.yml re-publishes
-          # its `pack build` output through a post-`pack` apt layer that bakes
-          # `git`, `openssh-client` and LibreOffice (`soffice`); this lane runs
-          # bare `pack build` and stops. So the nightly has been exercising an
-          # image missing three baked dependencies the deployed one carries —
-          # directly at odds with the lane's dogfooding purpose. Only the
-          # ID-413 opencv step is mirrored here (that is this task's scope);
-          # full parity is id-412's call, and the RESEARCH.md claim that this
-          # lane "replicates the SAME recipe" is corrected in its S523 section.
+          # S524 (id-412 recipe parity): until this session the lane stopped at
+          # bare `pack build`, while onprem-deploy.yml pulled its published
+          # image back and re-published it through an apt layer baking `git`,
+          # `openssh-client`, `libreoffice-writer` and `libreoffice-calc`. The
+          # nightly was therefore exercising an image missing FOUR packages the
+          # deployed one carries — a lane whose entire purpose is dogfooding the
+          # deployed artefact, testing something else. LibreOffice in particular
+          # is not incidental: `soffice` is the DR-059 / ID-145 {145.31}
+          # convert-on-upload bridge for legacy `.doc` / `.xls`, so its absence
+          # here silently hid that whole path from the lane.
+          #
+          # THIS IS A DUPLICATE AND THAT IS THE INTERIM STATE, NOT THE TARGET.
+          # Two copies of a recipe drift — this lane is the proof, and the
+          # duplication is deliberate only because unifying it properly means
+          # touching the live deploy path. The target is one shared build
+          # (composite action or reusable workflow) called by both, with the
+          # nightly PULLING the published image whenever a matching tag exists
+          # and building only as a branch-dispatch fallback. Owner-approved
+          # S524; owned by id-416 alongside the buildpacks -> Dockerfile move,
+          # which retires this heredoc entirely. Until then: any edit to either
+          # copy MUST be made to both, in the same commit.
           ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${COCOINDEX_IMAGE_TAG}")"
           WORKDIR="$(mktemp -d)"
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${COCOINDEX_IMAGE_TAG}
+          USER root
+          RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
           USER ${ORIG_USER:-cnb}
           RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
           DOCKERFILE
           docker build -t "${COCOINDEX_IMAGE_TAG}" "${WORKDIR}"
-          echo "Applied ID-413 opencv-headless layer to ${COCOINDEX_IMAGE_TAG}"
+          echo "Applied the post-pack layer to ${COCOINDEX_IMAGE_TAG}: git + openssh-client + LibreOffice (soffice) + ID-413 opencv-headless — same two RUNs as onprem-deploy.yml."
 
       - name: Prepare host-side corpus bind-mount dir
         # The bind-mount source dir on the RUNNER — the handful of tests that
