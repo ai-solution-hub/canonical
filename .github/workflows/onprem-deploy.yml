@@ -400,11 +400,66 @@ jobs:
           # preserved literally) — so the RUN instruction is written as one
           # line rather than a visually-multi-line one that would silently
           # collapse anyway.
+          # ID-413 (W1) opencv-headless enforcement — the SECOND RUN below.
+          # Removing `opencv-python` from requirements.lock is necessary but NOT
+          # sufficient, and this is the non-obvious half. The buildpack installs
+          # the lock with `pip install --requirement` and NO `--no-deps`
+          # (GoogleCloudPlatform/buildpacks, pkg/python/python.go
+          # basePipInstallArgs), so pip re-resolves every pinned package's own
+          # metadata — and `ultralytics` declares `opencv-python>=4.6.0` while
+          # `supervision` declares `opencv-python>=4.5.5.64`. Both arrive via
+          # `commonforms` (the {145.11} PDF Plane-2 field detector) and neither
+          # can be dropped, so the FULL X11-linked variant is reinstated at build
+          # time whatever the lock says. Proven S523 by dry-run resolve of the
+          # lock's own pins. Both distributions write the same site-packages
+          # `cv2/`, so with --force-reinstall the winner was install-order
+          # dependent — which is how EVERY PDF convert came to fail with
+          # `libxcb.so.1: cannot open shared object file` (69 contained per-item
+          # drops in one nightly run; 0 of 73 source_documents were .pdf).
+          #
+          # THE TWO NON-OBVIOUS PARTS, both established empirically against a
+          # local buildpack build (S523) after a first attempt failed in CI:
+          #
+          # (a) `python3` is NOT on PATH in a `docker build` RUN. A CNB image
+          #     puts it there via the launcher at RUN-time, not as image-level
+          #     ENV — PATH here is only
+          #     `/cnb/process:/cnb/lifecycle:/usr/local/sbin:...`, so a bare
+          #     `python3` exits 127. It is discovered from /layers instead.
+          # (b) App dependencies do NOT live in the runtime layer. They are in
+          #     `google.python.pip`, a SEPARATE layer only added to sys.path by
+          #     the launcher. A plain `pip uninstall` here inspects the runtime
+          #     layer, reports "not installed", exits 0 — and removes nothing.
+          #     So the app layer's site-packages is discovered and targeted
+          #     directly.
+          #
+          # Hence: remove BOTH opencv dist-info dirs plus the `cv2/` package and
+          # the `.libs` sidecars they share, then reinstall headless with
+          # `--target` so it is the sole provider. Removing both dist-infos
+          # first is what makes this idempotent and re-runnable; `cv2/` is
+          # deleted because the two distributions overwrite each other in one
+          # directory, which is the root of the install-order nondeterminism.
+          # It runs AS THE APP USER, not root — that layer is cnb-owned and
+          # root-owned files in it would break imports at runtime.
+          #
+          # The trailing `import cv2` is ID-413 AC-2 executed at BUILD TIME on
+          # every build, inside the X11-free image — the same fail-the-build
+          # smoke-test idiom as `soffice --headless --version` / `ssh -V` above,
+          # and a permanent guard rather than a one-off manual check. The
+          # metadata assertion is exact-match because `opencv-python` is a
+          # prefix of `opencv-python-headless`.
+          #
+          # NOT `PIP_NO_DEPS=1` on `pack build` (considered, rejected S523): it
+          # presumes requirements.lock is the closure that ships, and it is not
+          # — the lock carries no nvidia-*/CUDA packages because it is compiled
+          # on macOS, so pip's build-time backfill is currently load-bearing for
+          # torch on linux-x86_64. Disabling deps would ship torch incomplete.
+          # Making the lock a real Linux closure is tracked separately.
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${IMAGE}:${TAG}
           USER root
           RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
           USER ${ORIG_USER:-cnb}
+          RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
           DOCKERFILE
           docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
           docker push "${IMAGE}:${TAG}"

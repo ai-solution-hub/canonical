@@ -1,11 +1,26 @@
 # Cocoindex pipeline image — fully-resolved transitive closure ({127.22}, S438).
 #
 # GENERATED FILE — do not hand-edit. Regenerate with:
-#   uv pip compile requirements.txt --python 3.13 -o requirements.lock
+#   uv pip compile requirements.txt --python 3.13 \
+#     --override requirements.overrides.txt -o requirements.lock
 # (--python 3.13 matches the image's GOOGLE_PYTHON_VERSION=3.13.13 pin in
 # .github/workflows/onprem-deploy.yml; requires network access to PyPI. `uv`
 # overwrites this header comment block on every regen — it is restored by
 # hand immediately after, per the {145.13} regen below; keep doing so.)
+#
+# --override IS LOAD-BEARING, NOT OPTIONAL (id-413 / W1, S523). Dropping it
+# re-pulls the full X11-linked `opencv-python` alongside the intended
+# `opencv-python-headless` (ultralytics + rfdetr->supervision all declare it),
+# which is what broke EVERY PDF convert with `libxcb.so.1: cannot open shared
+# object file` — 69 drops in one nightly run, 0 of 73 source_documents .pdf.
+# Rationale + the rejected apt-install alternative: requirements.overrides.txt.
+#
+# COMPILE IN PLACE, over the existing requirements.lock — do NOT compile to a
+# new path and move it. uv takes version preferences from the existing output
+# file; without them every unpinned transitive floats to latest (a from-scratch
+# run at S523 drifted torch 2.12.1->2.13.0, docling-core 2.85->2.89 and
+# docling-parse 7.4->7.8 — exactly the class of float-drift this lock exists to
+# stop, per the docling 2.107->2.108 libxcb regression noted below).
 #
 # requirements.txt remains the human-edited source of direct dependencies +
 # their rationale comments. This lock pins the FULL transitive closure so
@@ -325,7 +340,6 @@ numpy==2.5.0
     #   ml-dtypes
     #   onnx
     #   onnxruntime
-    #   opencv-python
     #   opencv-python-headless
     #   pandas
     #   rfdetr
@@ -350,10 +364,6 @@ openai==2.21.0
     # via
     #   -r requirements.txt
     #   litellm
-opencv-python==5.0.0.93
-    # via
-    #   supervision
-    #   ultralytics
 opencv-python-headless==4.13.0.92
     # via -r requirements.txt
 openpyxl==3.1.5
@@ -529,7 +539,9 @@ requests==2.33.0
     #   tiktoken
     #   ultralytics
 rfdetr==1.8.3
-    # via commonforms
+    # via
+    #   -r requirements.txt
+    #   commonforms
 rich==15.0.0
     # via
     #   cocoindex
