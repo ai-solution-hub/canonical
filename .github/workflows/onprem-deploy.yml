@@ -417,13 +417,29 @@ jobs:
           # `libxcb.so.1: cannot open shared object file` (69 contained per-item
           # drops in one nightly run; 0 of 73 source_documents were .pdf).
           #
-          # Uninstall-then-force-reinstall makes headless the unambiguous last
-          # writer: the uninstall removes `cv2/` files headless also claims, and
-          # the reinstall restores them. `pip uninstall` on an absent package
-          # warns and exits 0, so this stays idempotent if the transitive pull
-          # ever disappears upstream. It runs AS THE APP USER, not root —
-          # site-packages lives in a cnb-owned buildpack layer and root-owned
-          # files there would break imports at runtime.
+          # THE TWO NON-OBVIOUS PARTS, both established empirically against a
+          # local buildpack build (S523) after a first attempt failed in CI:
+          #
+          # (a) `python3` is NOT on PATH in a `docker build` RUN. A CNB image
+          #     puts it there via the launcher at RUN-time, not as image-level
+          #     ENV — PATH here is only
+          #     `/cnb/process:/cnb/lifecycle:/usr/local/sbin:...`, so a bare
+          #     `python3` exits 127. It is discovered from /layers instead.
+          # (b) App dependencies do NOT live in the runtime layer. They are in
+          #     `google.python.pip`, a SEPARATE layer only added to sys.path by
+          #     the launcher. A plain `pip uninstall` here inspects the runtime
+          #     layer, reports "not installed", exits 0 — and removes nothing.
+          #     So the app layer's site-packages is discovered and targeted
+          #     directly.
+          #
+          # Hence: remove BOTH opencv dist-info dirs plus the `cv2/` package and
+          # the `.libs` sidecars they share, then reinstall headless with
+          # `--target` so it is the sole provider. Removing both dist-infos
+          # first is what makes this idempotent and re-runnable; `cv2/` is
+          # deleted because the two distributions overwrite each other in one
+          # directory, which is the root of the install-order nondeterminism.
+          # It runs AS THE APP USER, not root — that layer is cnb-owned and
+          # root-owned files in it would break imports at runtime.
           #
           # The trailing `import cv2` is ID-413 AC-2 executed at BUILD TIME on
           # every build, inside the X11-free image — the same fail-the-build
@@ -443,7 +459,7 @@ jobs:
           USER root
           RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
           USER ${ORIG_USER:-cnb}
-          RUN python3 -m pip uninstall -y opencv-python && python3 -m pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92 && python3 -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless, no libxcb):', cv2.__file__)"
+          RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
           DOCKERFILE
           docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
           docker push "${IMAGE}:${TAG}"

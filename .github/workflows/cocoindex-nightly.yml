@@ -475,7 +475,7 @@ jobs:
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${COCOINDEX_IMAGE_TAG}
           USER ${ORIG_USER:-cnb}
-          RUN python3 -m pip uninstall -y opencv-python && python3 -m pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92 && python3 -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless, no libxcb):', cv2.__file__)"
+          RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
           DOCKERFILE
           docker build -t "${COCOINDEX_IMAGE_TAG}" "${WORKDIR}"
           echo "Applied ID-413 opencv-headless layer to ${COCOINDEX_IMAGE_TAG}"
