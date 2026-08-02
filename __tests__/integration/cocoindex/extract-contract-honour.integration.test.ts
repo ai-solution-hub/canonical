@@ -60,7 +60,6 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-
 // PLANE MISMATCH — id-415's work list (measured by id-412, S524).
 // This file asserts classification + q_a_form extraction shape — plane 1, the cocoindex walk — but stages a
 // blank extraction FORM, which is a plane-2 input with no prose to extract.

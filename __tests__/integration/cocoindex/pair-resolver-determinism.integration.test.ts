@@ -46,7 +46,6 @@ import {
 } from './_helpers/fixture-staging';
 import { pollEntityMentionsFor } from './test-helpers';
 
-
 // PLANE MISMATCH — id-415's work list (measured by id-412, S524).
 // This file asserts canonical pair-resolver determinism — plane 1, the cocoindex walk — but stages a
 // blank extraction FORM, which is a plane-2 input with no prose to extract.
