@@ -9,10 +9,17 @@
  * (evidenced inside the Vitest verdict — chunking C-31 / idempotency), and
  * (iii) the STAGED-FIXTURE POPULATION MATCHES THE MANIFEST — this script.
  *
- * The manifest of record is verify_driver.py FIXTURE_SETS `templates`
- * (the `staging_mode: verify-driver` set): each dest path must resolve to
- * EXACTLY ONE source_documents row post-run. Fewer ⇒ staging/walk loss;
- * more ⇒ identity split (the F4 class). Exit 1 fails the gate.
+ * The manifest of record is `docs/reference/testing/corpus-manifest.json`
+ * (id-406 / DR-118) — its `staging_mode: verify-driver` entries. It USED to be
+ * verify_driver.py FIXTURE_SETS `templates`, mirrored here by hand; that mirror
+ * is gone. verify_driver.py still holds the staging tuples (it does the
+ * staging), but it is no longer the source of truth for WHICH fixtures are in
+ * the set, and `__tests__/validation/corpus-manifest.test.ts` asserts the two
+ * agree in both directions — so the three lists cannot drift apart.
+ *
+ * Each dest path must resolve to EXACTLY ONE source_documents row post-run.
+ * Fewer ⇒ staging/walk loss; more ⇒ identity split (the F4 class). Exit 1
+ * fails the gate.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';

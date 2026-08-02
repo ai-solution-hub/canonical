@@ -45,12 +45,15 @@ import precomputedEmbeddings from './embeddings.json';
  * `source_documents` insert simply dropped it on the floor. Bodies are now
  * written via `seedDocumentBodies` at BOTH document-insert sites.
  *
- * DEFERRED HALF of D4 — see `seedDocumentBodies` for the full note: the rule
+ * DEFERRED HALF of D4 — see `seedDocumentBodies` for the full note. The rule
  * also says bodies should be "sourced from manifest corpus files, OR declared
- * body-less in the manifest". That manifest does not exist yet (id-396 TECH §1
- * specifies `docs/testing/corpus-manifest.json` + a
- * `__tests__/validation/corpus-manifest.test.ts` guard; neither is in the
- * repo). Bodies therefore come from the shapes for now.
+ * body-less in the manifest". **The manifest now EXISTS** (id-406, S523):
+ * `docs/reference/testing/corpus-manifest.json` — DR-118, not the spec's dead
+ * `docs/testing/` path — with its guard at
+ * `__tests__/validation/corpus-manifest.test.ts`. So the "declared body-less"
+ * half is expressible for the first time. Bodies still come from the shapes
+ * here; re-pointing them is a deliberate follow-up, not an oversight (see
+ * `seedDocumentBodies`).
  *
  * D4 LANE BOUNDARY: this fixture manufactures programmatic states for e2e to
  * assert app behaviour against. Proving corpus→rows is the INGESTION lane's
@@ -158,18 +161,26 @@ export interface WorkerData {
  * existing by-id `source_documents` delete in this fixture's teardown takes
  * the chunks with it.
  *
- * DEFERRED — the manifest half of D4. The rule reads "sourced from manifest
- * corpus files, OR declared body-less in the manifest". id-396 TECH §1
- * specifies that manifest as `docs/testing/corpus-manifest.json` with a
- * `__tests__/validation/corpus-manifest.test.ts` conformance guard, but
- * NEITHER EXISTS IN THE REPO (verified S515, id-401 AC-4: repo-wide grep for
- * `corpus-manifest`/`corpusManifest`/`CORPUS_MANIFEST` returns zero hits).
- * Bodies are therefore sourced from the shapes in `test-data.ts`, which
- * already carry authored body text. When the manifest lands, re-point these
- * bodies at the corpus files it registers and declare any deliberately
- * body-less fixture there. Building the manifest was explicitly OUT of
- * id-401's scope — it is an id-396 artefact, and inventing its contract
- * mid-lane is the scope creep the D4 lane boundary exists to prevent.
+ * THE MANIFEST HALF OF D4 — the manifest LANDED at S523 (id-406). Until then
+ * this note said the manifest and its guard did not exist, and pointed at the
+ * path id-396 TECH §1 specified under the old `docs/testing/` tree; both halves
+ * of that are now false and that tree is gone. The register is
+ * `docs/reference/testing/corpus-manifest.json` (DR-118), its guard is
+ * `__tests__/validation/corpus-manifest.test.ts`, and the loader is
+ * `lib/corpus/fixture-manifest.ts`.
+ *
+ * What that unblocks: D4 reads "sourced from manifest corpus files, OR
+ * declared body-less in the manifest". The second half is now EXPRESSIBLE —
+ * an entry can carry that declaration and the guard can enforce it. id-401
+ * could only ship the enforceable half in S515 for want of exactly this.
+ *
+ * What has NOT been done, deliberately: these bodies still come from the
+ * shapes in `test-data.ts`, which already carry authored body text.
+ * Re-pointing them at registered corpus files is a behavioural change to the
+ * e2e seed and belongs to a lane that can prove the resulting states still
+ * assert what the specs expect — not to the task that built the register. The
+ * D4 LANE BOUNDARY below still governs: proving corpus->rows is the INGESTION
+ * lane's job.
  *
  * SUPABASE-WRAPPER EXCEPTION (documented, PR #158 review). The repo guideline
  * routes Supabase access through `sb()` / `tryQuery()` from

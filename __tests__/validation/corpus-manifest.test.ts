@@ -263,6 +263,60 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
         expect(f.verify_dest).toBe(`verify/${f.path.split('/').pop()}`);
       }
     });
+
+    /**
+     * THE THIRD COPY. Retiring `cocoindex-census-gate.ts`'s hardcoded
+     * `DRIVER_MANIFEST_DEST_PATHS` unified two lists — but `verify_driver.py`
+     * FIXTURE_SETS['templates'] is a third, and it is the one that actually
+     * stages the files. Without this assertion, "the lists cannot drift apart"
+     * is true of two of three, which is how the original duplication arose.
+     *
+     * Parsed rather than imported because it is Python. Deliberately strict: if
+     * the parse finds nothing the test FAILS instead of silently comparing an
+     * empty set — a guard that expects N and accepts 0 is the failure mode this
+     * whole task exists to remove.
+     */
+    it('verify_driver.py FIXTURE_SETS agrees with the manifest', () => {
+      const src = readFileSync(
+        join(REPO_ROOT, 'scripts/cocoindex_pipeline/verify_driver.py'),
+        'utf8',
+      );
+      const templates = src.match(
+        /"templates":\s*\(([\s\S]*?)\n\s{4}\),?\n\}/,
+      )?.[1];
+      expect(
+        templates,
+        'FIXTURE_SETS["templates"] block not found',
+      ).toBeTruthy();
+
+      const driverDests = [
+        ...(templates ?? '').matchAll(/dest_path="([^"]+)"/g),
+      ].map((m) => m[1]);
+      expect(
+        driverDests.length,
+        'parsed zero dest_path entries — the parse broke, not the data',
+      ).toBeGreaterThan(0);
+
+      expect(driverDests.sort()).toEqual(
+        verifyDriverDestPaths(manifest).sort(),
+      );
+    });
+
+    it('verify_driver.py stages exactly the fixtures the manifest marks verify-driver', () => {
+      const src = readFileSync(
+        join(REPO_ROOT, 'scripts/cocoindex_pipeline/verify_driver.py'),
+        'utf8',
+      );
+      // fixture_path values are line-wrapped string concatenations; rejoin them.
+      const driverPaths = [
+        ...src.matchAll(/fixture_path=\(([\s\S]*?)\),/g),
+      ].map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((s) => s[1]).join(''));
+      expect(driverPaths.length).toBeGreaterThan(0);
+      const declared = manifest.fixtures
+        .filter((f) => f.staging_mode === 'verify-driver')
+        .map((f) => f.path);
+      expect(driverPaths.sort()).toEqual(declared.sort());
+    });
   });
 
   describe('Platform-corpus invariants carried over UNCHANGED', () => {
