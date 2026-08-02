@@ -33,10 +33,27 @@ from scripts.cocoindex_pipeline.form_extractors.shared import (
 from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extract
 
 # ──────────────────────────────────────────────────────────────────────────
-# Fixture path — committed symlinks to the canonical corpus files.
+# Fixture path — the DR-117 form-templates tree.
+#
+# These are PLANE-2 fixtures: blank extraction forms consumed by the
+# commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/
+# (reached in production via scripts/bid_worker.py, NOT via the cocoindex
+# walk). A Plane-1 test asserting extraction or entity_mentions wants a
+# Platform-corpus CONTENT document instead — see
+# __tests__/integration/cocoindex/_helpers/fixtures.ts for that split.
+#
+# Built segment-wise rather than as a path string, which is why the id-412
+# consumer census missed this file and its sibling
+# test_pdf_field_detection.py on the first pass: a grep for the old path
+# string cannot see either. If this tree moves again, grep for the SEGMENTS.
 # ──────────────────────────────────────────────────────────────────────────
 
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction" / "templates"
+_FIXTURE_DIR = (
+    Path(__file__).parent.parent
+    / "cocoindex_pipeline"
+    / "fixtures"
+    / "form-templates"
+)
 _EFA_XLSX_PATH = _FIXTURE_DIR / "itt-services-efa" / "evaluation-matrix-itt-vol8.xlsx"
 
 

@@ -115,19 +115,19 @@ const FIXTURES: ReadonlyArray<{
   {
     kind: 'classification',
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destSuffix: 'classification.xlsx',
   },
   {
     kind: 'q_a_form',
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Services.docx',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Services.docx',
     destSuffix: 'q_a_form.docx',
   },
   {
     kind: 'entity_mention',
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
     destSuffix: 'entity_mention.doc',
   },
 ];

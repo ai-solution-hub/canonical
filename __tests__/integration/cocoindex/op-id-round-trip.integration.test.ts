@@ -56,7 +56,7 @@ beforeAll(async () => {
   if (!ENABLED) return;
   await stageFixture({
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-6/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });

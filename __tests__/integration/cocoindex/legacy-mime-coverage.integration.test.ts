@@ -50,13 +50,13 @@ const LEGACY_FIXTURES = [
   {
     kind: 'xls' as const,
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Evaluation Matrix.xls',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls',
     destPath: `nm3-legacy/${TEST_PREFIX}-legacy.xls`,
   },
   {
     kind: 'doc' as const,
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_onlinetdcops.doc',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_onlinetdcops.doc',
     destPath: `nm3-legacy/${TEST_PREFIX}-legacy.doc`,
   },
 ];

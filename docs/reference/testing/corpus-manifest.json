@@ -10,9 +10,9 @@
     },
     {
       "id": "form-templates",
-      "root": "scripts/tests/fixtures/form-extraction/templates",
+      "root": "scripts/cocoindex_pipeline/fixtures/form-templates",
       "synthetic": false,
-      "notes": "Real product form inputs (blank extraction forms, NOT content documents). Staged on demand by the tests that genuinely exercise form extraction. DR-117 ratifies a move to scripts/cocoindex_pipeline/fixtures/form-templates/; id-412 performs it and repoints these path values."
+      "notes": "Real product form inputs (blank extraction forms, NOT content documents) plus the malformed/ negative fixture. PLANE 2: consumed by the commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/, reached in production via scripts/bid_worker.py \u2014 NOT by the cocoindex walk. Staged on demand by the tests that genuinely exercise form extraction. Relocated here by id-412 at S524 per DR-117."
     },
     {
       "id": "cocoindex-chunking",
@@ -215,7 +215,7 @@
     },
     {
       "id": "form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
       "tree": "form-templates",
       "format": "xlsx",
       "sha256": "d167a45bd9ab729815a4d102fc30527af623f401ffd902321ae3484a0797e68b",
@@ -245,7 +245,7 @@
     },
     {
       "id": "form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
       "tree": "form-templates",
       "format": "xls",
       "sha256": "55861ade947684c1adc180096c5047275a06367fcc6f015db8f68e3d93deffb1",
@@ -259,7 +259,7 @@
     },
     {
       "id": "form-templates/itt-services-charnwood/ITT Services.docx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Services.docx",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Services.docx",
       "tree": "form-templates",
       "format": "docx",
       "sha256": "9f3bb8f7ad6156d860c5debcc5223c55d751163794a0934f1c88f9d2bf7faa3b",
@@ -274,7 +274,7 @@
     },
     {
       "id": "form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
       "tree": "form-templates",
       "format": "xlsx",
       "sha256": "aeb6ae2a532ec41d9755c5fd374aebc292b6a7ab180aeb2119e957df1b804f26",
@@ -292,8 +292,22 @@
       "verify_dest": "verify/evaluation-matrix-itt-vol8.xlsx"
     },
     {
+      "id": "form-templates/malformed/corrupt.pdf",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/malformed/corrupt.pdf",
+      "tree": "form-templates",
+      "format": "pdf",
+      "sha256": "60d69ae6ac7ad02a99825dcc5fb11df13a04e49f52bcdba76b53c236df5de807",
+      "bytes": 79,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "never-staged",
+      "consumers": [
+        "scripts/tests/test_pdf_field_detection.py"
+      ],
+      "notes": "Deliberately malformed PDF \u2014 the negative fixture for detect_pdf_fields' typed-error path (Inv-17). Registered by id-412 at S524: it was TRACKED but sat one level ABOVE the declared tree root, so the register's completeness check and the orphan rule both looked straight past it. It was also reached via `_FIXTURE_DIR.parent / 'corrupt.pdf'`, anchoring it to whatever directory happened to sit above the templates tree; the consumer now names it explicitly."
+    },
+    {
       "id": "form-templates/rfp-british-council/annex_2_supplier_response.docx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_2_supplier_response.docx",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/annex_2_supplier_response.docx",
       "tree": "form-templates",
       "format": "docx",
       "sha256": "cabf649c5986a69903f831e7ea5e05a909d7afe55b54168916fb0300d9da35d7",
@@ -310,7 +324,7 @@
     },
     {
       "id": "form-templates/rfp-british-council/annex_3_pricing_approach.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_3_pricing_approach.xlsx",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/annex_3_pricing_approach.xlsx",
       "tree": "form-templates",
       "format": "xlsx",
       "sha256": "23fcf79d79ce6077b90b9a852d52b8daf0f6e0828f3a4a3964565ebd1bd241cc",
@@ -325,7 +339,7 @@
     },
     {
       "id": "form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
       "tree": "form-templates",
       "format": "doc",
       "sha256": "05804ff4b485f248061803b9d90c3062a997b85d3f7700aa1bfaf7ff46da6442",
@@ -339,7 +353,7 @@
     },
     {
       "id": "form-templates/rfp-british-council/rfp_onlinetdcops.doc",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_onlinetdcops.doc",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_onlinetdcops.doc",
       "tree": "form-templates",
       "format": "doc",
       "sha256": "d536faa9afec42e85ebb4b0a25dfaca19b9d1c4d3bfb11af1294451f5ae1a958",
@@ -353,7 +367,7 @@
     },
     {
       "id": "form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
-      "path": "scripts/tests/fixtures/form-extraction/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
+      "path": "scripts/cocoindex_pipeline/fixtures/form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
       "tree": "form-templates",
       "format": "pdf",
       "sha256": "a512ddde67ba6b2850b289d930f8a2883b8c432e97953d29b2894e2814e5db73",

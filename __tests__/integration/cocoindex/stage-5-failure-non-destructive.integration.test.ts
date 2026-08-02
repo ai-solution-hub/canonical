@@ -80,7 +80,7 @@ beforeAll(async () => {
   // entity_mentions rows (Stage-5 fails AFTER they are committed).
   await injectStage5Failure({
     fixturePath:
-      'scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
+      'scripts/cocoindex_pipeline/fixtures/form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx',
     destPath: `inv-12/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
     failMode: 'embedder',

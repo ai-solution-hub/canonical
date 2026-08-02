@@ -706,8 +706,8 @@ jobs:
         # copied in. `/.` copies CONTENTS (idempotent on re-run).
         run: |
           set -euo pipefail
-          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/scripts/tests/fixtures/form-extraction"
-          docker cp "scripts/tests/fixtures/form-extraction/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/scripts/tests/fixtures/form-extraction"
+          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/scripts/cocoindex_pipeline/fixtures/form-templates"
+          docker cp "scripts/cocoindex_pipeline/fixtures/form-templates/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/scripts/cocoindex_pipeline/fixtures/form-templates"
 
       - name: Stage fixture set (verify_driver, loopback POST /stage)
         # A non-zero driver exit fails HERE, before /walk and before Vitest —

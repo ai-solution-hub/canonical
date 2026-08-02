@@ -106,7 +106,7 @@ const seededContentIds: string[] = [];
 // similarly; if it does not yield `q_a_extractions` rows, the fixture choice
 // (not the memo-hit contract below) is the thing to revisit.
 const FIXTURE_PATH =
-  'scripts/tests/fixtures/form-extraction/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx';
+  'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx';
 const DEST_PATH = `inv-21/${TEST_PREFIX}.xlsx`;
 
 // ---------------------------------------------------------------------------

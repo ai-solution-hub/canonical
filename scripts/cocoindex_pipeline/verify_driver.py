@@ -2,7 +2,7 @@
 
 Drives the live-verification corpus-seed half of ID-62: reads a fixed list of
 `(fixture_path, dest_path, title_prefix)` tuples (fixtures live under the repo
-checkout's `scripts/tests/fixtures/form-extraction/**`) and POSTs each one as
+checkout's `scripts/cocoindex_pipeline/fixtures/form-templates/**`) and POSTs each one as
 `multipart/form-data` to the running cocoindex sidecar's bearer-FREE
 `POST /stage` route (`scripts/cocoindex_pipeline/server.py::_stage_handler`).
 
@@ -98,7 +98,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
     "templates": (
         FixtureTuple(
             fixture_path=(
-                "scripts/tests/fixtures/form-extraction/templates/itt-services-efa/"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-efa/"
                 "evaluation-matrix-itt-vol8.xlsx"
             ),
             dest_path="verify/evaluation-matrix-itt-vol8.xlsx",
@@ -106,7 +106,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/tests/fixtures/form-extraction/templates/"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/"
                 "sq-standard-selection-questionnaire/"
                 "standard-selection-questionnaire-ppn-03-24.pdf"
             ),
@@ -115,7 +115,7 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/"
                 "annex_2_supplier_response.docx"
             ),
             dest_path="verify/annex_2_supplier_response.docx",

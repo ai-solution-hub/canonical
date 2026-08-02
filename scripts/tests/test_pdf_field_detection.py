@@ -34,9 +34,22 @@ from scripts.cocoindex_pipeline.form_extractors.pdf import (
     detect_pdf_fields,
 )
 
-_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "form-extraction" / "templates"
+# DR-117 form-templates tree (Plane-2 fixtures — see test_form_extractors.py's
+# note on why a path-string grep cannot find this construction).
+_FIXTURE_DIR = (
+    Path(__file__).parent.parent
+    / "cocoindex_pipeline"
+    / "fixtures"
+    / "form-templates"
+)
 _SQ_PDF_PATH = _FIXTURE_DIR / "sq-standard-selection-questionnaire" / "standard-selection-questionnaire-ppn-03-24.pdf"
-_CORRUPT_PDF_PATH = _FIXTURE_DIR.parent / "corrupt.pdf"
+# Explicit, not `_FIXTURE_DIR.parent / "corrupt.pdf"`. The old form anchored a
+# tracked fixture to whatever directory happened to sit above the templates
+# tree, so this relocation would have silently re-pointed it at the pipeline's
+# whole fixtures root. corrupt.pdf now lives INSIDE the declared tree, which
+# also brings it under the id-406 manifest's completeness check — it had been
+# sitting one level above the registered root, invisible to every guard.
+_CORRUPT_PDF_PATH = _FIXTURE_DIR / "malformed" / "corrupt.pdf"
 
 _MEASURED_FIELD_COUNT = 198
 _MEASURED_TX_COUNT = 141

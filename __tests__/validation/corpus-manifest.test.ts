@@ -244,9 +244,23 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
     });
 
     it('form templates are staged, never walked', () => {
+      // `never-staged` admitted by id-412 (S524) when malformed/corrupt.pdf
+      // joined this tree. It is read straight off disk by pytest and is never
+      // staged into any corpus — further from "corpus content" than the two
+      // staged modes, not closer, so it honours this assertion's intent. The
+      // list stays an explicit allowlist rather than becoming
+      // "anything but walked-baseline": the invariant being protected is that
+      // a blank extraction form can never become the walked baseline, and an
+      // allowlist makes a new staging_mode value fail here for a ruling
+      // instead of silently passing.
       const offenders = manifest.fixtures
         .filter((f) => f.tree === 'form-templates')
-        .filter((f) => !['per-test', 'verify-driver'].includes(f.staging_mode))
+        .filter(
+          (f) =>
+            !['per-test', 'verify-driver', 'never-staged'].includes(
+              f.staging_mode,
+            ),
+        )
         .map((f) => `${f.id} (${f.staging_mode})`);
       expect(
         offenders,
