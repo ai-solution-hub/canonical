@@ -3,11 +3,17 @@
  *
  * Subtask ID-62.10 (S319 — URL-mode verify driver companion).
  *
- * THE single row-assertion surface for the URL landing set (ID-62 Inv-22 —
- * the URL-mode verify driver at deploy/onprem/verify/verify_driver.py does
- * NOT re-implement row assertions; it seeds the ledger row, POSTs /walk,
- * exit-codes the landing round-trip, and re-walks for the idempotency
- * leg). This file asserts the EVIDENCE PAIR the walk must land — explicitly
+ * SELF-DRIVING SINCE S524 (id-46 {46.12}). This file used to assert against
+ * state seeded by a separate host-side Python tool
+ * (deploy/onprem/verify/verify_driver.py), which an operator had to remember
+ * to run first — so the suite skipped on every automated run and the URL
+ * landing path was proven exactly once, manually, at S319. The driver had no
+ * runtime caller and was deleted; its seed step is now
+ * `_helpers/url-landing-seed.ts` and its walk step is `runWalk()`, both
+ * invoked from this file's beforeAll. The landing poll and idempotency
+ * assertions were always this file's job (ID-62 Inv-22) and are unchanged.
+ *
+ * This file asserts the EVIDENCE PAIR the walk must land — explicitly
  * NOT a content_items landing (the pre-O4 framing is superseded):
  *
  *   1. source_documents row at id = uuid5(NS, 'sd:' + normalisedUrl) with
@@ -24,29 +30,27 @@
  *      content_item_id IS NULL. TWO-WALK TIMING ({75.17}): the in-component
  *      backlink write races the engine's post-return ri_target flush, so
  *      walk 1 defers it (structured cocoindex.url_backlink_deferred log)
- *      and the backlink CONVERGES on walk 2 — this assertion is valid only
- *      after the driver's second-walk leg (never run the driver with
- *      --skip-second-walk before asserting 4).
+ *      and the backlink CONVERGES on walk 2 — which is why beforeAll runs
+ *      TWO walks, not one. Dropping the second walk invalidates 4 and 5.
  *   5. Idempotency (post-second-walk): row counts unchanged (exactly one
  *      sd, exactly one ri, zero ci) and PKs unchanged (the deterministic
  *      uuid5 ids ARE the PK-stability proof).
  *
  * Env-gate (live assertions): real Supabase service-role credentials
- * (Inv-27 — reachable from anywhere) AND COCOINDEX_URL_VERIFY_URL set to
- * the proof URL the driver seeded. The explicit URL gate keeps this file
- * skip-clean off-host AND in the CI integration job (which has live staging
- * creds but no driver run to assert against). The uuid5-derivation suite at
- * the top is pure and runs everywhere (typed-shape coverage off-host).
+ * (Inv-27 — reachable from anywhere) AND the walk env the sidecar needs
+ * (COCOINDEX_STAGING_URL + PIPELINE_TRIGGER_SECRET). Both are set by the
+ * nightly job, so this suite now RUNS there; it stays skip-clean off-host
+ * and in the PR integration job, which has live staging creds but no
+ * sidecar to walk. The uuid5-derivation suite at the top is pure and runs
+ * everywhere (typed-shape coverage off-host).
  *
- * Operator sequence (B1 host):
- *   1. python3 -m deploy.onprem.verify.verify_driver   (exit 0 required)
- *   2. COCOINDEX_URL_VERIFY_URL=<same URL> bun x vitest run \
- *        --config vitest.integration.config.ts \
- *        __tests__/integration/cocoindex/url-landing-set.integration.test.ts
+ * COCOINDEX_URL_VERIFY_URL overrides the proof URL; it is no longer the gate.
  *
  * References:
  *   - the ID-75 URL-cocoindex spec, TECH.md §5 (landing-set contract).
- *   - docs/specs/id-62-fixture-staging-infra/TECH.md Inv-21/22/23/27.
+ *   - docs/specs/id-62-fixture-staging-infra/TECH.md Inv-22/23/27. (Inv-21's
+ *     "one primitive, two parameterisations" framing described two files
+ *     that shared no code; retired S524 with the second file.)
  *   - scripts/cocoindex_pipeline/flow.py (_KH_PIPELINE_DOC_NS + uuid5 mint).
  *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
@@ -59,6 +63,11 @@ import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
+import {
+  DEFAULT_PROOF_URL,
+  seedUrlLandingLedgerRow,
+} from './_helpers/url-landing-seed';
+import { runWalk } from './_helpers/walk';
 
 // content-extractor routes telemetry through @/lib/logger and constructs a
 // global rate limiter at import time — mock both so the import stays light
@@ -148,20 +157,36 @@ describe('uuid5 id derivation parity (flow.py mint mirror)', () => {
 // Live landing-set suite — gated on live creds + the explicit proof URL
 // ---------------------------------------------------------------------------
 
-const PROOF_URL = process.env.COCOINDEX_URL_VERIFY_URL ?? '';
+const PROOF_URL = process.env.COCOINDEX_URL_VERIFY_URL ?? DEFAULT_PROOF_URL;
 const HAS_LIVE_DB = hasRealLiveDbCredentials();
-const ENABLED = HAS_LIVE_DB && Boolean(PROOF_URL);
+/** The sidecar the walk legs need — set by the nightly job, absent elsewhere. */
+const HAS_WALK_ENV = Boolean(
+  (process.env.COCOINDEX_STAGING_URL ??
+    process.env.COCOINDEX_FIXTURE_STAGING_URL) &&
+  process.env.PIPELINE_TRIGGER_SECRET,
+);
+const ENABLED = HAS_LIVE_DB && HAS_WALK_ENV;
 
 describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
-  const normalised = PROOF_URL ? normaliseUrl(PROOF_URL) : '';
-  const sdId = normalised ? sdIdFor(normalised) : '';
-  const riId = normalised ? riIdFor(normalised) : '';
+  const normalised = normaliseUrl(PROOF_URL);
+  const sdId = sdIdFor(normalised);
+  const riId = riIdFor(normalised);
 
   let client: Awaited<ReturnType<typeof createLiveServiceClient>>;
 
+  // Seed → walk → walk. The second walk is NOT belt-and-braces: {75.17}'s
+  // backlink defers on walk 1 by design and converges on walk 2, so §5.4 and
+  // §5.5 below are only meaningful after it.
+  //
+  // Budget: two walks at the helper's 300s default, plus the seed. The
+  // per-hook budget must exceed the walks it awaits — the inverted-budget
+  // defect W6/id-415 is fixing elsewhere in this suite.
   beforeAll(async () => {
     client = await createLiveServiceClient();
-  });
+    await seedUrlLandingLedgerRow(client, normalised);
+    await runWalk();
+    await runWalk();
+  }, 660_000);
 
   it('lands the source_documents half of the evidence pair (§5.1)', async () => {
     const { data, error } = await client

@@ -53,14 +53,18 @@
 #   KH_REPO_DIR=/opt/knowledge-hub deploy/onprem/verify/live-verify.sh
 #
 # URL-MODE LEG (ID-62 {62.10} — NOT part of this script's sequence): the URL
-# landing-set proof is the SIBLING host-side driver
-# deploy/onprem/verify/verify_driver.py (seed gate-passed feed_articles row →
-# POST {worker}/walk → sd landing-row poll → second-walk idempotency
-# leg), followed by the Vitest landing-set file
-# __tests__/integration/cocoindex/url-landing-set.integration.test.ts. It
-# targets the STAGING worker (COCOINDEX_WORKER_URL) + staging Supabase — not
-# this script's in-container stack. Operator command: see that driver's
-# module docstring.
+# landing-set proof is now SELF-DRIVING and needs no operator step. It lives
+# entirely in __tests__/integration/cocoindex/url-landing-set.integration.test.ts,
+# whose beforeAll seeds the gate-passed feed_articles row
+# (_helpers/url-landing-seed.ts) and runs the two walks the {75.17} backlink
+# convergence requires, then asserts the landing set.
+#
+# The sibling host-side driver that used to do the seeding
+# (deploy/onprem/verify/verify_driver.py) was DELETED at S524 (id-46 {46.12},
+# owner finding S521): 626 lines with no runtime caller, executed manually
+# exactly once at S319, which meant the proof it existed to produce ran in no
+# automated lane. The suite now runs in the cocoindex nightly like every other
+# file in that directory.
 #
 # Tunables (env):
 #   KH_REPO_DIR              repo checkout the Vitest step runs from (REQUIRED)
