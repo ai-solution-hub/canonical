@@ -207,57 +207,14 @@ describe('INV-S runtime drift-catch — strict schema rejects a renamed declared
 });
 
 // ── Contract 3: depth-cap artifacts resolved to real types ──────────────────
-
-describe('INV-S depth-cap elimination — deep members resolve to real types', () => {
-  function getSchema(name: string): z.ZodTypeAny {
-    return (schemas as Record<string, unknown>)[name] as z.ZodTypeAny;
-  }
-
-  it('ChangeReportGenerateResponseSchema deep top_items members are typed, not z.unknown()', () => {
-    const schema = getSchema('ChangeReportGenerateResponseSchema');
-    expect(schema, 'ChangeReportGenerateResponseSchema exported').toBeDefined();
-
-    // A deeply-nested top_items entry with a NON-string content_type must be
-    // REJECTED — under the old depth-cap z.unknown() it would have been
-    // accepted (content_type: z.unknown()).
-    const payloadWithBadContentType = {
-      digest: {
-        id: 'r1',
-        frequency: 'weekly',
-        period_start: '2026-05-01',
-        period_end: '2026-05-08',
-        item_count: 1,
-        domain_summaries: [
-          {
-            domain: 'procurement',
-            item_count: 1,
-            summary: 's',
-            top_items: [
-              {
-                id: 'i1',
-                title: 't1',
-                content_type: 12345, // NOT a string — must be rejected now
-              },
-            ],
-            key_themes: [],
-          },
-        ],
-        narrative_summary: null,
-        generated_at: '2026-05-08T00:00:00.000Z',
-        generated_by: 'system',
-        tokens_used: null,
-        created_at: '2026-05-08T00:00:00.000Z',
-      },
-    };
-    expect(schema.safeParse(payloadWithBadContentType).success).toBe(false);
-
-    // The same payload with a STRING content_type is accepted.
-    const goodPayload = structuredClone(payloadWithBadContentType);
-    (
-      goodPayload.digest.domain_summaries[0].top_items[0] as {
-        content_type: unknown;
-      }
-    ).content_type = 'guide';
-    expect(schema.safeParse(goodPayload).success).toBe(true);
-  });
-});
+//
+// RETIRED at S525. This contract had exactly one case —
+// ChangeReportGenerateResponseSchema's `top_items[].content_type` proving it
+// resolved to z.string() rather than the old depth-cap z.unknown(). The
+// schema was deleted as an unused export (knip) once `types/change-reports.ts`
+// went at 082ea92f with the change-report feature, so the case has no subject.
+//
+// The INVARIANT it guarded is NOT retired — Contract 1's static guard above
+// still fails any new un-allow-listed `z.unknown()` in lib/validation/
+// schemas.ts, which is what would reintroduce a depth cap. If a future schema
+// needs a deep-member proof, add a case here against a LIVE schema.
