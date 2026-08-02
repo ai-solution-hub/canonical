@@ -17,8 +17,10 @@
 #         ──>  <repo-parent>/local-fs-platform/corpus      (byte-identical)
 #       The external local-fs-platform/corpus is a DERIVED copy (RATIFY-1); it
 #       is never the source of truth. rsync --delete makes the dest a byte-exact
-#       mirror (extras such as stray .DS_Store placeholders are pruned), and a
-#       post-sync `diff -r` self-check fails loud if the copy is not identical.
+#       mirror of the vendored tree, .DS_Store excluded on BOTH sides (see the
+#       rsync call for why that exclusion is load-bearing rather than cosmetic),
+#       and a post-sync `diff -r` self-check fails loud if the copy is not
+#       identical.
 #
 #     Hop B (runs ON the deploy host — staged onto the named volume):
 #       derived copy  ──docker cp──>  /cocoindex-state/corpus
@@ -119,17 +121,30 @@ log "   →   derived  ${DEST}"
 mkdir -p "$DEST"
 
 # Trailing-slash form: copy the CONTENTS of the source into DEST. --delete prunes
-# any extras (e.g. stray .DS_Store) so DEST becomes a byte-exact mirror; --archive
-# preserves the bytes. Re-runs are no-op deltas (idempotent — no nesting/drift).
-rsync --archive --delete "${VENDORED_SRC}/" "${DEST}/" \
+# extras that exist in DEST but not in SRC, so DEST becomes a byte-exact mirror;
+# --archive preserves the bytes. Re-runs are no-op deltas (idempotent — no
+# nesting/drift).
+#
+# .DS_Store is EXCLUDED, not merely "pruned" (id-412, S524 — corrected against a
+# measured run). This comment previously claimed --delete pruned "extras such as
+# stray .DS_Store placeholders". It does not: --delete only removes files present
+# in DEST and absent from SRC. A .DS_Store sitting IN the vendored tree — which is
+# what macOS Finder leaves behind, and it is untracked so no checkout guarantees
+# its absence — was copied faithfully into the corpus, where the walk would try to
+# ingest it as a document and fail extension routing. Harmless in CI (a fresh
+# clone has none); a live hazard on the deploy host, where this script is the
+# production corpus bridge and an operator's checkout is exactly where one comes
+# from. The diff self-check below carries the same exclusion so the two agree.
+rsync --archive --delete --exclude '.DS_Store' "${VENDORED_SRC}/" "${DEST}/" \
   || die "rsync of the vendored corpus failed"
 
-# Self-check: the derived copy MUST be byte-identical to the vendored source.
-if ! diff -r "$VENDORED_SRC" "$DEST" >/dev/null; then
-  diff -r "$VENDORED_SRC" "$DEST" >&2 || true
+# Self-check: the derived copy MUST be byte-identical to the vendored source,
+# modulo the .DS_Store exclusion above (-x takes a basename pattern).
+if ! diff -r -x '.DS_Store' "$VENDORED_SRC" "$DEST" >/dev/null; then
+  diff -r -x '.DS_Store' "$VENDORED_SRC" "$DEST" >&2 || true
   die "post-sync diff is non-empty — derived copy is NOT byte-identical to the vendored source"
 fi
-log "Hop A OK — derived copy is byte-identical (diff -r empty)."
+log "Hop A OK — derived copy is byte-identical (diff -r empty, .DS_Store excluded)."
 
 # ── Hop B — documented by default; executed only with --on-prem ──────────────
 if [[ "$PRINT_HOP_B" -eq 1 ]]; then

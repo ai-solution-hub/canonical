@@ -88,14 +88,27 @@
 # the lane to pull, with the deploy composes still pinning `sha-` for
 # rollback, and a local build kept only as the branch-dispatch fallback.
 #
-# Corpus: reuses the EXISTING docs/testing/test-data fixture corpus (the same
-# one live-verify.sh docker-cp's onto B1) — no new fixture dir added this
-# pass. Seeded into the sidecar container the same way live-verify.sh does
-# (docker cp into <app-dir>/docs/testing), then staged into the watched corpus
-# path via `python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures
-# templates` (loopback POST /stage inside the container) and ingested via a
-# bearer-gated POST /walk — the exact stage -> walk -> assert sequence
-# live-verify.sh documents (ID-62 / bl-221).
+# Corpus (REWRITTEN S524, id-412 W3 — the previous text described a tree that
+# had already been deleted). Two distinct things, and conflating them is the
+# defect this lane carried from its creation until S524:
+#
+#   WALKED BASELINE — the vendored synthetic Platform corpus at
+#     scripts/cocoindex_pipeline/fixtures/platform-corpus/, seeded onto the
+#     bind-mount source dir by deploy/onprem/sync-platform-corpus.sh before the
+#     container starts. Content documents. This is what the lane exists to
+#     dogfood, and until S524 it was NEVER SEEDED AT ALL.
+#
+#   STAGED PER TEST — form-extraction templates (DR-117:
+#     scripts/cocoindex_pipeline/fixtures/form-templates/), pushed in on demand
+#     through the loopback POST /stage route by
+#     `python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures templates`
+#     and by each test's own stageFixture() call, AFTER boot.
+#
+# Both are then ingested by one bearer-gated POST /walk (the stage -> walk ->
+# assert sequence of ID-62 / bl-221). The old text here said the lane "reuses
+# the EXISTING docs/testing/test-data fixture corpus" — that tree moved at
+# b9c55abf/90cc3b03/eb9ccac9 and the sentence survived the move, which is a
+# fair summary of how the wrong-corpus defect stayed invisible for so long.
 #
 # Postgres: the sidecar's OWN write target is COCOINDEX_DB_DSN, a fully-formed
 # Supabase pooler DSN (postgresql://postgres.<ref>:<password>@aws-<n>-
@@ -523,6 +536,84 @@ jobs:
           chmod -R 0777 "${RUNNER_TEMP}/cocoindex-state"
           echo "COCOINDEX_HOST_STATE_PATH=${RUNNER_TEMP}/cocoindex-state" >> "$GITHUB_ENV"
           echo "COCOINDEX_HOST_SOURCE_PATH=${RUNNER_TEMP}/cocoindex-state/corpus" >> "$GITHUB_ENV"
+
+      - name:
+          Seed the WALKED BASELINE — the vendored Platform corpus (id-412 W3)
+        # ─────────────────────────────────────────────────────────────────────
+        # THE WALKED BASELINE. Everything ingested by the `/walk` below that is
+        # not explicitly staged by a test comes from here, and here is the
+        # vendored synthetic Platform corpus:
+        #
+        #     scripts/cocoindex_pipeline/fixtures/platform-corpus/
+        #
+        # Until S524 this lane seeded NOTHING as its baseline. It `docker cp`d
+        # form-extraction fixtures into the app dir as source bytes for
+        # verify_driver, and walked only what individual tests happened to
+        # stage — so "the walked corpus" and "the Platform corpus" had never
+        # once been the same thing, in a lane whose stated purpose is to
+        # dogfood the Platform E2E path. Owner ruling S522: the corpus was not
+        # in the wrong directory, it was THE WRONG CORPUS.
+        #
+        # MECHANISM — the established one, invoked, not re-implemented (AC-1).
+        # deploy/onprem/sync-platform-corpus.sh (ID-134 {134.4}) is the
+        # ratified vendored -> deployed bridge and it is CALLED here rather
+        # than copied, so this lane cannot drift from the on-prem path the way
+        # it drifted from onprem-deploy.yml's image recipe.
+        #
+        # Its two hops map onto this topology exactly, which is why no third
+        # mechanism is needed:
+        #
+        #   Hop A  vendored tree -> derived copy at --dest.
+        #          --dest is a documented flag; we point it straight at the
+        #          bind-mount source dir. rsync --archive --delete makes the
+        #          dest byte-exact, with .DS_Store EXCLUDED, then the script's
+        #          own `diff -r` self-check fails loud if the copy is not
+        #          identical.
+        #
+        #          That exclusion was ADDED at S524 and is not cosmetic. The
+        #          script's own comment claimed --delete already "pruned" stray
+        #          .DS_Store placeholders; a measured run disproved it — --delete
+        #          removes files present in DEST and absent from SRC, so a
+        #          .DS_Store sitting IN the vendored tree (untracked, and exactly
+        #          what Finder leaves on an operator's checkout) was copied into
+        #          the corpus and would be walked as a document. Latent here (a
+        #          CI clone has none) and live on the deploy host, where this
+        #          same script is the production corpus bridge.
+        #
+        #   Hop B  derived copy -> the container's /cocoindex-state/corpus.
+        #          On-prem this is a `docker cp` onto a named volume. HERE THE
+        #          BIND MOUNT IS HOP B: `-v ${COCOINDEX_HOST_STATE_PATH}:/cocoindex-state`
+        #          below means the container reads these very bytes at
+        #          COCOINDEX_CONTAINER_SOURCE_PATH. Copying them in again would
+        #          be the bespoke third mechanism AC-1 forbids.
+        #
+        # WALKED BASELINE vs STAGED PER TEST — the distinction AC-2 requires be
+        # explicit rather than implied by step ordering:
+        #   * THIS step, before the container starts, populates the baseline.
+        #     Content documents. Ingested by the supervised /walk.
+        #   * The "Stage fixture set" step and each test's own stageFixture()
+        #     call add per-test inputs ON DEMAND, via the /stage HTTP route,
+        #     after boot. Form templates belong ONLY there.
+        # A file placed here is corpus. A file staged there is a test input.
+        # They are not interchangeable and the tests that confused them are
+        # id-415's work list.
+        run: |
+          set -euo pipefail
+          deploy/onprem/sync-platform-corpus.sh --dest "${RUNNER_TEMP}/cocoindex-state/corpus"
+          # 0777 again: the sync ran as the runner user, but the sidecar runs
+          # as cnb and writes the {62.6} manifest seed into this dir at boot.
+          chmod -R 0777 "${RUNNER_TEMP}/cocoindex-state/corpus"
+          echo "Walked baseline seeded from the vendored Platform corpus:"
+          find "${RUNNER_TEMP}/cocoindex-state/corpus" -type f | sed "s|${RUNNER_TEMP}/cocoindex-state/corpus/|  |" | sort
+          # Assert a non-empty baseline rather than trusting the copy. A silent
+          # zero here would reproduce the exact defect this step exists to fix,
+          # and it would look like a green lane.
+          SEEDED="$(find "${RUNNER_TEMP}/cocoindex-state/corpus" -type f | wc -l | tr -d ' ')"
+          echo "walked-baseline file count: ${SEEDED}"
+          if [ "${SEEDED}" -lt 1 ]; then
+            echo "::error::the walked baseline is EMPTY — the Platform corpus did not reach ${RUNNER_TEMP}/cocoindex-state/corpus" >&2
+            exit 1
+          fi
 
       - name: Start mock LLM container (id-389 tier-1 — the default tier)
         # SAME just-built image, second container, running mock_llm.py via the
