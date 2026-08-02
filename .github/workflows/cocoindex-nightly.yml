@@ -459,8 +459,30 @@ jobs:
       - name: Build cocoindex sidecar image (local — no publish, see header)
         # Pruned context mirrors onprem-deploy.yml's IMAGE HYGIENE step
         # exactly: scripts/ + requirements.lock (renamed requirements.txt,
-        # the LOCKED transitive closure, {127.22}/S438) — nothing else, so
-        # the image never carries the Next.js app / docs / .claude / tests.
+        # the LOCKED transitive closure, {127.22}/S438).
+        #
+        # WHAT THE IMAGE ACTUALLY CARRIES (F2, corrected S524 — the previous
+        # sentence claimed "nothing else, so the image never carries the
+        # Next.js app / docs / .claude / tests"). The first half is true: no
+        # Next.js app, no docs, no .claude. The TESTS clause is false and has
+        # been since the fixtures moved under scripts/. The context is
+        # `cp -R scripts` — the WHOLE tree, with no .gcloudignore /
+        # project.toml / .slugignore narrowing it — so the image ships
+        # scripts/tests/ in full. Measured on a real build of this exact
+        # context: 87 test_*.py, 209 files, 9.2 MB under scripts/tests, in a
+        # 16 MB app dir. (The task file said "99 Python test files"; the
+        # measured figure is 87 test_*.py / 89 .py.)
+        #
+        # The comment is corrected rather than the context narrowed, on an
+        # owner ruling (S524). Narrowing is an image-SHAPE change to the live
+        # deploy path (platform staging + prod + the client boxes all pull
+        # this image, and bid-worker-platform runs it via a command: override),
+        # and it interacts with F1 below: narrowing would make the form-fixture
+        # docker cp NECESSARY again, so the two cannot be decided in sequence.
+        # id-416 rewrites the build context wholesale for the Dockerfile move;
+        # "should the test suite ship in the sidecar image?" is settled there,
+        # once, with both halves in view.
+        #
         # No --publish / --cache-image (registry-backed, not needed here —
         # see header) — `pack build` without --publish loads straight into
         # this runner's local Docker daemon for the `docker run` step below.
@@ -790,15 +812,39 @@ jobs:
               ;;
           esac
 
-      - name: Seed fixture corpus into the container (docker cp)
-        # Mirrors live-verify.sh step 0b exactly: the buildpack image ships
-        # ONLY scripts/ + requirements.txt, so the committed
-        # docs/testing/test-data corpus verify_driver reads from must be
-        # copied in. `/.` copies CONTENTS (idempotent on re-run).
-        run: |
-          set -euo pipefail
-          docker exec cocoindex-sidecar mkdir -p "${COCOINDEX_APP_DIR}/scripts/cocoindex_pipeline/fixtures/form-templates"
-          docker cp "scripts/cocoindex_pipeline/fixtures/form-templates/." "cocoindex-sidecar:${COCOINDEX_APP_DIR}/scripts/cocoindex_pipeline/fixtures/form-templates"
+      # ─────────────────────────────────────────────────────────────────────
+      # DELETED S524 (id-412, F1): "Seed fixture corpus into the container
+      # (docker cp)". It copied the form-extraction fixtures into the app dir
+      # so verify_driver could read them, on the premise — stated in its own
+      # comment — that "the buildpack image ships ONLY scripts/ +
+      # requirements.txt". That premise stopped being a reason the moment the
+      # fixtures moved under scripts/: they are now IN scripts/, the build
+      # context is `cp -R scripts` (the whole tree), so they ship in the image
+      # already, at the very path the step copied them to.
+      #
+      # Verified against a real image, not inferred — the AC required exactly
+      # that, and the probe images left over from id-413 turned out to be
+      # minimal reproductions rather than the pipeline image, so they proved
+      # nothing. A `pack build` of this workflow's own pruned context
+      # (scripts/ + requirements.lock as requirements.txt, same builder) gives:
+      #
+      #   /workspace                     <- CNB app dir == COCOINDEX_APP_DIR
+      #   /workspace/scripts/cocoindex_pipeline/fixtures/form-templates/
+      #                                  <- all 10 templates, present
+      #   /workspace/scripts/cocoindex_pipeline/fixtures/platform-corpus/
+      #                                  <- all 11 corpus files, present
+      #
+      # The step was copying files that were already there, to where they
+      # already were. The step's comment also still named docs/testing — a
+      # tree deleted three commits before the step was last touched.
+      #
+      # NOTE for id-416: this deletion is coupled to the F2 build-context
+      # decision. If the context is ever narrowed to exclude scripts/tests/
+      # (or narrowed at all in a way that drops the fixtures), THIS STEP MUST
+      # COME BACK. The same measurement shows the image currently carries 87
+      # test_*.py files / 209 files / 9.2 MB under scripts/tests — which is
+      # what F2's comment now describes honestly instead of denying.
+      # ─────────────────────────────────────────────────────────────────────
 
       - name: Stage fixture set (verify_driver, loopback POST /stage)
         # A non-zero driver exit fails HERE, before /walk and before Vitest —

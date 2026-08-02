@@ -30,13 +30,13 @@
       "id": "extraction",
       "root": "scripts/tests/fixtures/extraction",
       "synthetic": false,
-      "notes": "HTML/expected-text parity pairs, predating the internal-KH -> cocoindex pivot. Read directly by pytest and the TS parity test. id-412 reconciles this tree with scripts/fixtures/."
+      "notes": "HTML/expected-text parity pairs. Read directly by pytest and the TS parity test. NOT MERGED with scripts/fixtures/ (id-412 reconciliation, S524): the overlap is a DELIBERATE, documented copy, not pivot-era residue. platform-feed-seed-article.html duplicates procurement_guide.html's content and says why in its own header \u2014 'copied rather than referenced in-place so this file's identity is owned by the seed, not by the extraction test suite (moving/renaming the test fixture must not silently rot this seed's URL)'. That reasoning is correct and survives the cocoindex pivot; merging the trees would couple a served artefact to a test fixture and reintroduce exactly the rot it prevents. The earlier note here called this 'duplication that predates the pivot' \u2014 that characterisation was wrong."
     },
     {
       "id": "platform-feed-seeds",
       "root": "scripts/fixtures",
       "synthetic": false,
-      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched."
+      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched. NOT RELOCATED by id-412 (S524) and the reason is load-bearing: this tree's repo PATH IS A LIVE URL. Both files are served over HTTPS from raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/... so the Coolify pipeline container, which cannot see this repo's filesystem, can fetch them like any other feed article (bl-372). The path is baked into FEED_SOURCE_SEED.url, FEED_ARTICLE_SEED.externalUrl, the atom entry's <link href>, AND the landed feed_articles.external_url rows the seeder matches on. Moving the tree is a coordinated URL migration with a merge-to-main ordering dependency and a DB backfill, not a file move \u2014 out of proportion to id-412 and unsafe to do casually. Both files carry an explicit DO NOT MOVE OR RENAME banner."
     }
   ],
   "fixtures": [
