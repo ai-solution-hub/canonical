@@ -41,309 +41,6 @@
   ],
   "fixtures": [
     {
-      "id": "platform-corpus/content/synthetic-capability-statement.pdf",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-capability-statement.pdf",
-      "tree": "platform-corpus",
-      "format": "pdf",
-      "sha256": "b4a67a36eb1ff7bd50316dadf8804961db7ab66a64a4ee245dda175db265ae6c",
-      "bytes": 20780,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts",
-        "scripts/tests/test_cocoindex_memo_self_heal.py",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-company-overview.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-company-overview.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "f62056cedbb3e55500a5567b8620cc18d5296872c1478f21639626b88ac265e8",
-      "bytes": 2391,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-compliance-certifications.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-compliance-certifications.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "e6b1dbac6b82491db59d7a042b8df37bdb51938b14fa884a688e2e7e27b189ea",
-      "bytes": 2439,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-methodology.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-methodology.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "7ae014333839a33811f1429a393f6f7eeeeecaa559925f30be7ad4adbf5ba99f",
-      "bytes": 2583,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-named-client-engagements.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-named-client-engagements.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "9923e49e90bd5c6ff3f7e492336c825aa890183f0531bfb3e71f016384d264ee",
-      "bytes": 3683,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-product-catalogue.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-product-catalogue.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "c69254c7c26a0ed54698ef2f18183a4178120b39f729b891007ad8d6b1e708cf",
-      "bytes": 2361,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-sector-intel.docx",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-sector-intel.docx",
-      "tree": "platform-corpus",
-      "format": "docx",
-      "sha256": "1d25a52fa303f5e119255f3b2d84d8a9c72dfd25a1966156ba338fc34ba2a4db",
-      "bytes": 4465,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/content/synthetic-team-structure.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-team-structure.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "0aaac9d6d05f5eaf31d9f0edeb85c88d55c77b030548c7d1534371658f6470c2",
-      "bytes": 2326,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/edge/synthetic-sparse-edge.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/edge/synthetic-sparse-edge.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "4f85631899cb4ca37cff3d65fbff1debb28ede8b938806a6ba7399bdadca1b1d",
-      "bytes": 68,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/qa/synthetic-qa-pairs.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/qa/synthetic-qa-pairs.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "abef1dd8f8656873a2e22e2cb2ee5e56a6bcb38b81633a8244aac970a030b04e",
-      "bytes": 2103,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
-      "tree": "form-templates",
-      "format": "xlsx",
-      "sha256": "d167a45bd9ab729815a4d102fc30527af623f401ffd902321ae3484a0797e68b",
-      "bytes": 34387,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts",
-        "__tests__/integration/cocoindex/classify-content-coexistence.integration.test.ts",
-        "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts",
-        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
-        "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts",
-        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-round-trip.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-scoping.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-stamping.integration.test.ts",
-        "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts",
-        "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-failure-non-destructive.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-op-id-memo.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-row-counter.integration.test.ts",
-        "__tests__/integration/cocoindex/unresolved-mention-retains-canonical.integration.test.ts",
-        "scripts/tests/test_form_extractors.py"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
-      "tree": "form-templates",
-      "format": "xls",
-      "sha256": "55861ade947684c1adc180096c5047275a06367fcc6f015db8f68e3d93deffb1",
-      "bytes": 339968,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/legacy-mime-coverage.integration.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/itt-services-charnwood/ITT Services.docx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Services.docx",
-      "tree": "form-templates",
-      "format": "docx",
-      "sha256": "9f3bb8f7ad6156d860c5debcc5223c55d751163794a0934f1c88f9d2bf7faa3b",
-      "bytes": 222371,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
-        "scripts/tests/test_form_extractors.py"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
-      "tree": "form-templates",
-      "format": "xlsx",
-      "sha256": "aeb6ae2a532ec41d9755c5fd374aebc292b6a7ab180aeb2119e957df1b804f26",
-      "bytes": 41990,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "verify-driver",
-      "consumers": [
-        "__tests__/integration/cocoindex/extract-memoisation.integration.test.ts",
-        "__tests__/integration/form-extraction.integration.test.ts",
-        "scripts/cocoindex_pipeline/form_extractors/xlsx.py",
-        "scripts/cocoindex_pipeline/verify_driver.py",
-        "scripts/tests/test_form_extractors.py"
-      ],
-      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
-      "verify_dest": "verify/evaluation-matrix-itt-vol8.xlsx"
-    },
-    {
-      "id": "form-templates/rfp-british-council/annex_2_supplier_response.docx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_2_supplier_response.docx",
-      "tree": "form-templates",
-      "format": "docx",
-      "sha256": "cabf649c5986a69903f831e7ea5e05a909d7afe55b54168916fb0300d9da35d7",
-      "bytes": 47959,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "verify-driver",
-      "consumers": [
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
-        "scripts/cocoindex_pipeline/verify_driver.py",
-        "scripts/tests/test_form_extractors.py"
-      ],
-      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
-      "verify_dest": "verify/annex_2_supplier_response.docx"
-    },
-    {
-      "id": "form-templates/rfp-british-council/annex_3_pricing_approach.xlsx",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_3_pricing_approach.xlsx",
-      "tree": "form-templates",
-      "format": "xlsx",
-      "sha256": "23fcf79d79ce6077b90b9a852d52b8daf0f6e0828f3a4a3964565ebd1bd241cc",
-      "bytes": 27565,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
-        "scripts/tests/test_form_extractors.py"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
-      "tree": "form-templates",
-      "format": "doc",
-      "sha256": "05804ff4b485f248061803b9d90c3062a997b85d3f7700aa1bfaf7ff46da6442",
-      "bytes": 140800,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/rfp-british-council/rfp_onlinetdcops.doc",
-      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_onlinetdcops.doc",
-      "tree": "form-templates",
-      "format": "doc",
-      "sha256": "d536faa9afec42e85ebb4b0a25dfaca19b9d1c4d3bfb11af1294451f5ae1a958",
-      "bytes": 258560,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/legacy-mime-coverage.integration.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
-      "path": "scripts/tests/fixtures/form-extraction/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
-      "tree": "form-templates",
-      "format": "pdf",
-      "sha256": "a512ddde67ba6b2850b289d930f8a2883b8c432e97953d29b2894e2814e5db73",
-      "bytes": 510231,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "verify-driver",
-      "consumers": [
-        "__tests__/integration/cocoindex/sidecar-cold-start.integration.test.ts",
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
-        "scripts/cocoindex_pipeline/verify_driver.py",
-        "scripts/seed-id145-w1f-exemplar.ts",
-        "scripts/tests/test_pdf_field_detection.py"
-      ],
-      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
-      "verify_dest": "verify/standard-selection-questionnaire-ppn-03-24.pdf"
-    },
-    {
       "id": "cocoindex-chunking/long-terms.md",
       "path": "__tests__/fixtures/cocoindex-chunking/long-terms.md",
       "tree": "cocoindex-chunking",
@@ -513,6 +210,323 @@
         "scripts/tests/test_cocoindex_url_write_path.py",
         "scripts/tests/test_extract.py",
         "scripts/tests/test_extract_parity.py"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
+      "path": "scripts/tests/fixtures/form-extraction/templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx",
+      "tree": "form-templates",
+      "format": "xlsx",
+      "sha256": "d167a45bd9ab729815a4d102fc30527af623f401ffd902321ae3484a0797e68b",
+      "bytes": 34387,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts",
+        "__tests__/integration/cocoindex/classify-content-coexistence.integration.test.ts",
+        "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts",
+        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
+        "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts",
+        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts",
+        "__tests__/integration/cocoindex/op-id-round-trip.integration.test.ts",
+        "__tests__/integration/cocoindex/op-id-scoping.integration.test.ts",
+        "__tests__/integration/cocoindex/op-id-stamping.integration.test.ts",
+        "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts",
+        "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-failure-non-destructive.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-op-id-memo.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-row-counter.integration.test.ts",
+        "__tests__/integration/cocoindex/unresolved-mention-retains-canonical.integration.test.ts",
+        "scripts/tests/test_form_extractors.py"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
+      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
+      "tree": "form-templates",
+      "format": "xls",
+      "sha256": "55861ade947684c1adc180096c5047275a06367fcc6f015db8f68e3d93deffb1",
+      "bytes": 339968,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/legacy-mime-coverage.integration.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/itt-services-charnwood/ITT Services.docx",
+      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-charnwood/ITT Services.docx",
+      "tree": "form-templates",
+      "format": "docx",
+      "sha256": "9f3bb8f7ad6156d860c5debcc5223c55d751163794a0934f1c88f9d2bf7faa3b",
+      "bytes": 222371,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
+        "scripts/tests/test_form_extractors.py"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
+      "path": "scripts/tests/fixtures/form-extraction/templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx",
+      "tree": "form-templates",
+      "format": "xlsx",
+      "sha256": "aeb6ae2a532ec41d9755c5fd374aebc292b6a7ab180aeb2119e957df1b804f26",
+      "bytes": 41990,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "verify-driver",
+      "consumers": [
+        "__tests__/integration/cocoindex/extract-memoisation.integration.test.ts",
+        "__tests__/integration/form-extraction.integration.test.ts",
+        "scripts/cocoindex_pipeline/form_extractors/xlsx.py",
+        "scripts/cocoindex_pipeline/verify_driver.py",
+        "scripts/tests/test_form_extractors.py"
+      ],
+      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "verify_dest": "verify/evaluation-matrix-itt-vol8.xlsx"
+    },
+    {
+      "id": "form-templates/rfp-british-council/annex_2_supplier_response.docx",
+      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_2_supplier_response.docx",
+      "tree": "form-templates",
+      "format": "docx",
+      "sha256": "cabf649c5986a69903f831e7ea5e05a909d7afe55b54168916fb0300d9da35d7",
+      "bytes": 47959,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "verify-driver",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
+        "scripts/cocoindex_pipeline/verify_driver.py",
+        "scripts/tests/test_form_extractors.py"
+      ],
+      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "verify_dest": "verify/annex_2_supplier_response.docx"
+    },
+    {
+      "id": "form-templates/rfp-british-council/annex_3_pricing_approach.xlsx",
+      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/annex_3_pricing_approach.xlsx",
+      "tree": "form-templates",
+      "format": "xlsx",
+      "sha256": "23fcf79d79ce6077b90b9a852d52b8daf0f6e0828f3a4a3964565ebd1bd241cc",
+      "bytes": 27565,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
+        "scripts/tests/test_form_extractors.py"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
+      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_-_learning_partners_osch.doc",
+      "tree": "form-templates",
+      "format": "doc",
+      "sha256": "05804ff4b485f248061803b9d90c3062a997b85d3f7700aa1bfaf7ff46da6442",
+      "bytes": 140800,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/rfp-british-council/rfp_onlinetdcops.doc",
+      "path": "scripts/tests/fixtures/form-extraction/templates/rfp-british-council/rfp_onlinetdcops.doc",
+      "tree": "form-templates",
+      "format": "doc",
+      "sha256": "d536faa9afec42e85ebb4b0a25dfaca19b9d1c4d3bfb11af1294451f5ae1a958",
+      "bytes": 258560,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/legacy-mime-coverage.integration.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
+      "path": "scripts/tests/fixtures/form-extraction/templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf",
+      "tree": "form-templates",
+      "format": "pdf",
+      "sha256": "a512ddde67ba6b2850b289d930f8a2883b8c432e97953d29b2894e2814e5db73",
+      "bytes": 510231,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "verify-driver",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-cold-start.integration.test.ts",
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
+        "scripts/cocoindex_pipeline/verify_driver.py",
+        "scripts/seed-id145-w1f-exemplar.ts",
+        "scripts/tests/test_pdf_field_detection.py"
+      ],
+      "notes": "Staged by scripts/cocoindex_pipeline/verify_driver.py FIXTURE_SETS['templates']; scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "verify_dest": "verify/standard-selection-questionnaire-ppn-03-24.pdf"
+    },
+    {
+      "id": "platform-corpus/content/synthetic-capability-statement.pdf",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-capability-statement.pdf",
+      "tree": "platform-corpus",
+      "format": "pdf",
+      "sha256": "b4a67a36eb1ff7bd50316dadf8804961db7ab66a64a4ee245dda175db265ae6c",
+      "bytes": 20780,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts",
+        "scripts/tests/test_cocoindex_memo_self_heal.py",
+        "scripts/verify-platform-promotion-gate.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-company-overview.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-company-overview.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "f62056cedbb3e55500a5567b8620cc18d5296872c1478f21639626b88ac265e8",
+      "bytes": 2391,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-compliance-certifications.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-compliance-certifications.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "e6b1dbac6b82491db59d7a042b8df37bdb51938b14fa884a688e2e7e27b189ea",
+      "bytes": 2439,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-methodology.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-methodology.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "7ae014333839a33811f1429a393f6f7eeeeecaa559925f30be7ad4adbf5ba99f",
+      "bytes": 2583,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts",
+        "scripts/verify-platform-promotion-gate.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-named-client-engagements.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-named-client-engagements.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "9923e49e90bd5c6ff3f7e492336c825aa890183f0531bfb3e71f016384d264ee",
+      "bytes": 3683,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-product-catalogue.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-product-catalogue.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "c69254c7c26a0ed54698ef2f18183a4178120b39f729b891007ad8d6b1e708cf",
+      "bytes": 2361,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-sector-intel.docx",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-sector-intel.docx",
+      "tree": "platform-corpus",
+      "format": "docx",
+      "sha256": "1d25a52fa303f5e119255f3b2d84d8a9c72dfd25a1966156ba338fc34ba2a4db",
+      "bytes": 4465,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts",
+        "scripts/verify-platform-promotion-gate.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/content/synthetic-sector-spend.xlsx",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-sector-spend.xlsx",
+      "tree": "platform-corpus",
+      "format": "xlsx",
+      "sha256": "b34af1dc7fd77ea09fa938b7de6331d05214cbd48d5df23d3dfac08078810e74",
+      "bytes": 6791,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": "id-412 (W6/W8): the Platform corpus had .pdf, .docx and .md but NO .xlsx, so ~16 tests staged a blank CSP extraction FORM as their content document. This is the content-side XLSX they repoint to \u2014 a synthetic sector-spend workbook (two sheets: a figures table plus a prose methodology sheet), NOT a form. Docling extracts it to 4238 chars of table markdown. Owner ruling S524 moved this fixture from id-415 to id-412: the repoint cannot land before the fixture exists."
+    },
+    {
+      "id": "platform-corpus/content/synthetic-team-structure.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-team-structure.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "0aaac9d6d05f5eaf31d9f0edeb85c88d55c77b030548c7d1534371658f6470c2",
+      "bytes": 2326,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/edge/synthetic-sparse-edge.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/edge/synthetic-sparse-edge.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "4f85631899cb4ca37cff3d65fbff1debb28ede8b938806a6ba7399bdadca1b1d",
+      "bytes": 68,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts",
+        "scripts/verify-platform-promotion-gate.ts"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "platform-corpus/qa/synthetic-qa-pairs.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/qa/synthetic-qa-pairs.md",
+      "tree": "platform-corpus",
+      "format": "md",
+      "sha256": "abef1dd8f8656873a2e22e2cb2ee5e56a6bcb38b81633a8244aac970a030b04e",
+      "bytes": 2103,
+      "fixture_class": "vendored-read-only",
+      "staging_mode": "walked-baseline",
+      "consumers": [
+        "__tests__/validation/corpus-manifest.test.ts",
+        "scripts/verify-platform-promotion-gate.ts"
       ],
       "notes": ""
     },
