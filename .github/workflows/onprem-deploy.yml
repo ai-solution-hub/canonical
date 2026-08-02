@@ -400,11 +400,50 @@ jobs:
           # preserved literally) — so the RUN instruction is written as one
           # line rather than a visually-multi-line one that would silently
           # collapse anyway.
+          # ID-413 (W1) opencv-headless enforcement — the SECOND RUN below.
+          # Removing `opencv-python` from requirements.lock is necessary but NOT
+          # sufficient, and this is the non-obvious half. The buildpack installs
+          # the lock with `pip install --requirement` and NO `--no-deps`
+          # (GoogleCloudPlatform/buildpacks, pkg/python/python.go
+          # basePipInstallArgs), so pip re-resolves every pinned package's own
+          # metadata — and `ultralytics` declares `opencv-python>=4.6.0` while
+          # `supervision` declares `opencv-python>=4.5.5.64`. Both arrive via
+          # `commonforms` (the {145.11} PDF Plane-2 field detector) and neither
+          # can be dropped, so the FULL X11-linked variant is reinstated at build
+          # time whatever the lock says. Proven S523 by dry-run resolve of the
+          # lock's own pins. Both distributions write the same site-packages
+          # `cv2/`, so with --force-reinstall the winner was install-order
+          # dependent — which is how EVERY PDF convert came to fail with
+          # `libxcb.so.1: cannot open shared object file` (69 contained per-item
+          # drops in one nightly run; 0 of 73 source_documents were .pdf).
+          #
+          # Uninstall-then-force-reinstall makes headless the unambiguous last
+          # writer: the uninstall removes `cv2/` files headless also claims, and
+          # the reinstall restores them. `pip uninstall` on an absent package
+          # warns and exits 0, so this stays idempotent if the transitive pull
+          # ever disappears upstream. It runs AS THE APP USER, not root —
+          # site-packages lives in a cnb-owned buildpack layer and root-owned
+          # files there would break imports at runtime.
+          #
+          # The trailing `import cv2` is ID-413 AC-2 executed at BUILD TIME on
+          # every build, inside the X11-free image — the same fail-the-build
+          # smoke-test idiom as `soffice --headless --version` / `ssh -V` above,
+          # and a permanent guard rather than a one-off manual check. The
+          # metadata assertion is exact-match because `opencv-python` is a
+          # prefix of `opencv-python-headless`.
+          #
+          # NOT `PIP_NO_DEPS=1` on `pack build` (considered, rejected S523): it
+          # presumes requirements.lock is the closure that ships, and it is not
+          # — the lock carries no nvidia-*/CUDA packages because it is compiled
+          # on macOS, so pip's build-time backfill is currently load-bearing for
+          # torch on linux-x86_64. Disabling deps would ship torch incomplete.
+          # Making the lock a real Linux closure is tracked separately.
           cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
           FROM ${IMAGE}:${TAG}
           USER root
           RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
           USER ${ORIG_USER:-cnb}
+          RUN python3 -m pip uninstall -y opencv-python && python3 -m pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92 && python3 -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless, no libxcb):', cv2.__file__)"
           DOCKERFILE
           docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
           docker push "${IMAGE}:${TAG}"

@@ -450,6 +450,36 @@ jobs:
             --env "GOOGLE_PYTHON_VERSION=3.13.13"
           echo "Built ${COCOINDEX_IMAGE_TAG} (local daemon only, not pushed)"
 
+          # ID-413 (W1) opencv-headless enforcement — MIRRORS the post-`pack`
+          # layer in onprem-deploy.yml, where the full rationale lives. Short
+          # version: the buildpack installs requirements.lock with no
+          # `--no-deps`, so pip re-resolves `ultralytics` / `supervision` and
+          # reinstates the FULL X11-linked `opencv-python` whatever the lock
+          # says — which is why every PDF convert failed with
+          # `libxcb.so.1: cannot open shared object file`. Removing the line
+          # from the lock does not fix the image on its own.
+          #
+          # WHY THIS IS DUPLICATED RATHER THAN INHERITED, and it is a real
+          # defect worth fixing (routed to id-412): this lane does NOT build
+          # the same image the platform deploys. onprem-deploy.yml re-publishes
+          # its `pack build` output through a post-`pack` apt layer that bakes
+          # `git`, `openssh-client` and LibreOffice (`soffice`); this lane runs
+          # bare `pack build` and stops. So the nightly has been exercising an
+          # image missing three baked dependencies the deployed one carries —
+          # directly at odds with the lane's dogfooding purpose. Only the
+          # ID-413 opencv step is mirrored here (that is this task's scope);
+          # full parity is id-412's call, and the RESEARCH.md claim that this
+          # lane "replicates the SAME recipe" is corrected in its S523 section.
+          ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${COCOINDEX_IMAGE_TAG}")"
+          WORKDIR="$(mktemp -d)"
+          cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
+          FROM ${COCOINDEX_IMAGE_TAG}
+          USER ${ORIG_USER:-cnb}
+          RUN python3 -m pip uninstall -y opencv-python && python3 -m pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92 && python3 -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless, no libxcb):', cv2.__file__)"
+          DOCKERFILE
+          docker build -t "${COCOINDEX_IMAGE_TAG}" "${WORKDIR}"
+          echo "Applied ID-413 opencv-headless layer to ${COCOINDEX_IMAGE_TAG}"
+
       - name: Prepare host-side corpus bind-mount dir
         # The bind-mount source dir on the RUNNER — the handful of tests that
         # write directly against COCOINDEX_SOURCE_PATH (not via the /stage
