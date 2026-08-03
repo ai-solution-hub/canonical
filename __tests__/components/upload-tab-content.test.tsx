@@ -5,10 +5,13 @@
  * binding gate (no content_items row, no folder-drop stage/poll
  * transport, no review/layer/classification UI — that whole surface was
  * retired alongside the content_items pipeline). Covers: the retention-class
- * picker, the connect action + admission-result rendering, cross-method
- * links (including the {131.18}-orphaned "write it manually" link removal),
- * and the Q&A preview/batch sub-flow (unchanged, still fed by
- * `detectedQAPairs`/`sourceDocumentId` props).
+ * picker, the connect action + admission-result rendering, and cross-method
+ * links (including the {131.18}-orphaned "write it manually" link removal).
+ *
+ * id-417 second deletion wave (S529): the Q&A detection preview/batch
+ * sub-flow is gone from this tab along with `lib/quality/qa-detection.ts`
+ * and the `detectedQAPairs`/`sourceDocumentId` props that fed it — no case
+ * below ever exercised it. Batch Q&A review lives in the Batch tab now.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -32,10 +35,6 @@ vi.mock('@/components/create-content/file-upload', () => ({
   FileUpload: ({ files }: { files: unknown[] }) => (
     <div data-testid="file-upload">FileUpload ({files.length} files)</div>
   ),
-}));
-
-vi.mock('@/components/qa/qa-preview-list', () => ({
-  QAPreviewList: () => <div data-testid="qa-preview-list">QAPreviewList</div>,
 }));
 
 vi.mock('@/components/content/claude-prompt-button', () => ({
