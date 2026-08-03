@@ -13,7 +13,6 @@ import {
   ShieldAlert,
   FileText,
   Bell,
-  LayoutGrid,
   FileQuestion,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -86,7 +85,6 @@ const TYPE_ICONS: Record<AttentionItem['type'], LucideIcon> = {
   expiring_certification: Shield,
   expiring_content_date: Clock,
   source_document_change: FileText,
-  coverage_gap: LayoutGrid,
   taxonomy_coverage: FileQuestion,
   unread_notifications: Bell,
 };

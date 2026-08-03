@@ -79,8 +79,8 @@ function makeTestItems(): AttentionItem[] {
     makeItem({
       id: 'info-1',
       severity: 'info',
-      type: 'coverage_gap',
-      title: '3 coverage gaps identified',
+      type: 'taxonomy_coverage',
+      title: '3 unclassified items',
       role_visibility: ['admin', 'editor'],
     }),
   ];
@@ -117,7 +117,7 @@ describe('UnifiedAttentionSection', () => {
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
       expect(
-        screen.getByText('3 coverage gaps identified'),
+        screen.getByText('3 unclassified items'),
       ).toBeInTheDocument();
     });
 
@@ -163,7 +163,7 @@ describe('UnifiedAttentionSection', () => {
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
       expect(
-        screen.getByText('3 coverage gaps identified'),
+        screen.getByText('3 unclassified items'),
       ).toBeInTheDocument();
     });
 
@@ -184,7 +184,7 @@ describe('UnifiedAttentionSection', () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByText('10 unverified items')).not.toBeInTheDocument();
       expect(
-        screen.queryByText('3 coverage gaps identified'),
+        screen.queryByText('3 unclassified items'),
       ).not.toBeInTheDocument();
     });
 

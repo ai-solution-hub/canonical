@@ -36,7 +36,6 @@ export interface AttentionItem {
     | 'expiring_certification'
     | 'expiring_content_date'
     | 'source_document_change'
-    | 'coverage_gap'
     | 'taxonomy_coverage'
     | 'unread_notifications';
 
@@ -87,14 +86,6 @@ export interface AttentionSourceData {
   expiring_cert_count: number;
   expiring_content_date_count: number;
   unread_notification_count: number;
-  // coverage_gap_count RETIRED (ID-131.19 S450 Wave 1 Fix 1) — the
-  // content_items-era "active taxonomy_subtopics with zero content" concept
-  // has no home post content_items retirement (DR-034: coverage feature
-  // retired, retain template-completion coverage + governance signals
-  // only). produceCoverageGapItems removed alongside; 'coverage_gap' stays
-  // in AttentionItem['type'] as an unreachable-but-harmless union member so
-  // lib/mcp/tools/review.ts's FACET_BY_TYPE (untouched — out of this
-  // Subtask's file-ownership boundary) needs no edit.
   /**
    * Count of non-archived content_items whose taxonomy classification is
    * incomplete — `primary_domain = 'unclassified'` OR

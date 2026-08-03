@@ -150,7 +150,6 @@ const baseDashboardData = {
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
-    coverage_gap_count: 0,
     unclassified_count: 0,
   },
   active_forms: [],

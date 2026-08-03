@@ -60,7 +60,6 @@ const FACET_BY_TYPE: Record<string, 'content_quality' | 'governance'> = {
   stale_content: 'content_quality',
   expired_content: 'content_quality',
   unverified_content: 'content_quality',
-  coverage_gap: 'content_quality',
   taxonomy_coverage: 'content_quality',
   expiring_content_date: 'content_quality',
   expiring_certification: 'content_quality',

@@ -648,8 +648,7 @@ describe('buildAttentionItems', () => {
     const items = buildAttentionItems(data);
     // governance(1) + expired(1) + stale(1) + quality(1) + unverified(1) +
     // cert(1) + content_date(1) + notifications(1) +
-    // taxonomy_coverage(1) = 9. coverage_gap RETIRED (ID-131.19 S450 Wave 1
-    // Fix 1, DR-034) — no longer contributes an item.
+    // taxonomy_coverage(1) = 9.
     expect(items.length).toBe(9);
     // First should be critical (governance)
     expect(items[0].severity).toBe('critical');
@@ -684,9 +683,6 @@ describe('buildAttentionItems', () => {
     expect(types.has('expiring_certification')).toBe(true);
     expect(types.has('expiring_content_date')).toBe(true);
     expect(types.has('unread_notifications')).toBe(true);
-    // coverage_gap RETIRED (ID-131.19 S450 Wave 1 Fix 1, DR-034) — never
-    // produced now, regardless of any coverage-shaped input.
-    expect(types.has('coverage_gap')).toBe(false);
     expect(types.has('taxonomy_coverage')).toBe(true);
   });
 

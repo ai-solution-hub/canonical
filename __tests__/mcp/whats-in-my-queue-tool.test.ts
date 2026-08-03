@@ -37,7 +37,6 @@ const mocks = vi.hoisted(() => {
       expiring_cert_count: 0,
       expiring_content_date_count: 0,
       unread_notification_count: 0,
-      coverage_gap_count: 5,
       unclassified_count: 2,
     },
     active_forms: [],
