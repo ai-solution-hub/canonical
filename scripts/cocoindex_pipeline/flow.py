@@ -4816,9 +4816,10 @@ async def _generate_client_alias_snapshot(pool: "asyncpg.Pool") -> None:  # type
     This is faithful to the {101.9} "DB-free at runtime, snapshot-backed" design
     — the snapshot is the in-memory cache, not a file.
 
-    The existing file-based ``_load_db_entity_aliases()`` /
-    ``_ENTITY_ALIASES_SNAPSHOT_PATH`` loader remains as the dev/test fallback when
-    this lifespan path does not run (e.g. a fresh checkout with no live pool).
+    When this lifespan path does not run (e.g. a fresh checkout with no live
+    pool) nothing primes the cache and resolution is baseline-only. The former
+    file-based ``_load_db_entity_aliases()`` fallback was retired with its
+    generator under id-417 B2 / DR-121.
 
     Separated from the lifespan body to keep testability: pytest can call this
     directly with a fake pool without standing up the full cocoindex lifespan.

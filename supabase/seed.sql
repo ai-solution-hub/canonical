@@ -270,25 +270,20 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ======================================================================
--- §3  Reference data (via staging-reference-refresh workflow)
+-- §3  Reference data
 -- ======================================================================
--- Pure lookup tables (taxonomy_domains, taxonomy_subtopics, layer_vocabulary,
--- entity_aliases, template_requirements, taxonomy_sync_state) are populated
--- by the staging-reference-refresh workflow after branch reset.
--- Tables with user-referencing data use deterministic fixtures above instead.
+-- id-417 C6/B2: the weekly staging-reference-refresh workflow that used to
+-- populate these lookup tables from Platform prod is RETIRED. §4 below is now
+-- the sole source of the reference baseline (taxonomy_domains,
+-- taxonomy_subtopics, layer_vocabulary, entity_aliases, taxonomy_sync_state),
+-- so a fresh/reset DB always has the client-agnostic ontology CI depends on.
+-- Tables with user-referencing data use the deterministic fixtures above.
 --
 -- POST-RESET SEQUENCE:
 --   1. Branch reset (runs migrations + this seed.sql)
 --   2. bun run seed:e2e-users  (creates 3 test auth accounts + roles)
---   3. Dispatch staging-reference-refresh workflow (populates 6 lookup tables)
 --
--- See docs/runbooks/staging-refresh.md for full procedure.
---
--- NOTE: §4 below now seeds the CORE/BASELINE subset of the reference lookup
--- tables (taxonomy_domains, taxonomy_subtopics, layer_vocabulary,
--- entity_aliases, taxonomy_sync_state) directly, so a fresh/reset DB always has
--- the client-agnostic ontology that CI depends on. The staging-reference-refresh
--- workflow still layers any client-provenance rows on top post-reset.
+-- See the staging-refresh runbook in the private docs-site for full procedure.
 
 -- ======================================================================
 -- §4  Core ontology reference data (baseline/core provenance only — NO client data; see ID/bl platform-seed)

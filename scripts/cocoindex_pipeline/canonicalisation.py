@@ -11,10 +11,8 @@ pipeline-produced canonicals match the established canonicalisation contract.
 
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
-from pathlib import Path
 
 _ISO_SLASH_RE = re.compile(r"\biso\s*/\s*iec\s+", re.IGNORECASE)
 _ISO_TIGHT_RE = re.compile(r"\biso\s*(\d{4,5})\b", re.IGNORECASE)
@@ -119,22 +117,16 @@ _ABBREVIATIONS: dict[str, str] = {
 # DB-alias resolution ({101.9}, follow-up CLOSED): the TS resolveAlias() also
 # consults the entity_aliases DB table, merged OVER this baseline (DB wins on
 # conflict — loadAliases() in entity-aliases.ts:50-83). This port mirrors that
-# via a POINT-OF-USE snapshot (entity_aliases_snapshot.json) loaded once and
-# cached at module scope by `_get_alias_map()` — the SAME relative-path idiom
-# the taxonomy snapshot uses (extraction.py:79-94). Without resolution, a
-# client's SHORT name in source text (e.g. "Acme") is NOT resolved to its full
+# by priming the module-scope cache from the live DB rows at lifespan boot
+# ({101.10}, `prime_alias_cache_from_db_rows`). Without resolution, a client's
+# SHORT name in source text (e.g. "Acme") is NOT resolved to its full
 # registered canonical ("Acme Holdings Limited"), so the holder self-match in
 # holder_rule.py:187 FAILS and the client's OWN certification is mis-stamped
 # holder='supplier' against a phantom supplier bearing the client's short name.
 #
-# PI-15 (ID-95): the snapshot carries client-provenance rows, so it is NEVER
-# committed — it is gitignored and GENERATED AT POINT OF USE (pipeline
-# deploy/startup) against the target client DB by
-# `scripts/generate-entity-aliases-snapshot.ts` (fail-closed generation wiring
-# is a follow-up; mechanics home {95.3}/ID-71). On a fresh checkout / CI the
-# file is ABSENT and the loader degrades gracefully to baseline-only (the
-# pipeline must still run); real client aliases exist only at runtime after
-# generation.
+# Client aliases exist only at runtime, after the lifespan primes the cache. On
+# a fresh checkout / CI nothing primes it and resolution is baseline-only (the
+# pipeline must still run).
 _BASELINE_ALIASES: dict[str, str] = {
     "ISO Certification": "ISO 27001",
     "Iso Certifications": "ISO 27001",
@@ -271,77 +263,51 @@ def _rel_canonicalise(name: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# DB-alias snapshot loading ({101.9}). Mirrors the taxonomy-snapshot LOAD idiom
-# (extraction.py:79-94). The fixture is generated from the live entity_aliases
-# table (is_active = true rows) by scripts/generate-entity-aliases-snapshot.ts
-# — gitignored + generated at point of use (PI-15), NOT committed; absent on a
-# fresh checkout (loader then degrades to baseline-only).
-# Keyed by the RAW `alias` column — matching the TS oracle exactly
-# (entity-aliases.ts:72 `cachedAliases[row.alias] = row.canonical`), so a
-# relationship endpoint resolves only when _rel_canonicalise(name) equals the
-# raw alias string.
+# DB-alias resolution ({101.9}). The merged map is baseline overlaid by the
+# live `entity_aliases` rows, keyed by the RAW `alias` column — matching the TS
+# oracle exactly (entity-aliases.ts:72 `cachedAliases[row.alias] = row.canonical`),
+# so a relationship endpoint resolves only when _rel_canonicalise(name) equals
+# the raw alias string.
+#
+# The DB rows arrive via `prime_alias_cache_from_db_rows()`, called once at
+# pipeline lifespan boot ({101.10}, flow.py `_generate_client_alias_snapshot`).
+# Until it is primed, resolution is baseline-only.
+#
+# id-417 B2 / DR-121: the intermediate `entity_aliases_snapshot.json` file and
+# its `_load_db_entity_aliases()` reader are RETIRED along with the
+# TypeScript generator that was their only writer. DR-121: "either wire the
+# generator into deploy or delete generator + loader branch" — the generator
+# could not be wired, since onprem-deploy.yml packages only `scripts/**/*.py`,
+# so the file branch was unreachable in production by construction.
 # ──────────────────────────────────────────────────────────────────────────
 
-_ENTITY_ALIASES_SNAPSHOT_PATH = (
-    Path(__file__).parent.parent / "tests" / "fixtures" / "entity_aliases_snapshot.json"
-)
-
-# Merged alias map cache (baseline overlaid by DB snapshot). Built lazily once
-# per process by `_get_alias_map()`; reset in tests via `reset_alias_cache()`.
+# Merged alias map cache (baseline overlaid by live DB rows). Installed by
+# `prime_alias_cache_from_db_rows()`; reset in tests via `reset_alias_cache()`.
 _MERGED_ALIASES_CACHE: dict[str, str] | None = None
 
 
-def _load_db_entity_aliases() -> dict[str, str]:
-    """Read the DB alias rows from the point-of-use snapshot fixture.
-
-    The snapshot is gitignored + generated at deploy (PI-15) — NOT committed, so
-    it is ABSENT on a fresh checkout / CI and this returns ``{}`` (baseline-only).
-    Returns a ``{alias: canonical}`` map keyed by the RAW ``alias`` column
-    (TS parity, entity-aliases.ts:72). A missing/empty/malformed snapshot
-    degrades gracefully to an empty map (baseline-only) — the pipeline must
-    still run, mirroring the TS loadAliases() fallback (entity-aliases.ts:63-79).
-    Pure + DB-free at runtime (snapshot-backed). Patched in tests.
-    """
-    try:
-        with _ENTITY_ALIASES_SNAPSHOT_PATH.open(encoding="utf-8") as fh:
-            snapshot = json.load(fh)
-    except (OSError, ValueError):
-        # Missing file or malformed JSON → baseline-only.
-        return {}
-    rows = snapshot.get("aliases") if isinstance(snapshot, dict) else None
-    if not isinstance(rows, list):
-        return {}
-    out: dict[str, str] = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        alias = row.get("alias")
-        canonical = row.get("canonical")
-        if isinstance(alias, str) and isinstance(canonical, str) and alias and canonical:
-            out[alias] = canonical
-    return out
-
-
 def _get_alias_map() -> dict[str, str]:
-    """Return the merged alias map: ``_BASELINE_ALIASES`` overlaid by the DB
-    snapshot (DB wins on conflict — loadAliases() merge order, entity-aliases.ts:71-73).
+    """Return the merged alias map.
 
-    Loaded once and cached at module scope (load-once, like the TS in-memory
-    cache). Deterministic + DB-free at runtime.
+    The cache is installed by ``prime_alias_cache_from_db_rows()`` at lifespan
+    boot ({101.10}), where the live ``entity_aliases`` rows are overlaid on
+    ``_BASELINE_ALIASES`` (DB wins on conflict — loadAliases() merge order,
+    entity-aliases.ts:71-73). Before priming — a fresh checkout, CI, or any
+    process with no live pool — resolution is baseline-only.
+
+    Deterministic + DB-free at runtime.
     """
     global _MERGED_ALIASES_CACHE
     if _MERGED_ALIASES_CACHE is None:
-        merged: dict[str, str] = dict(_BASELINE_ALIASES)
-        merged.update(_load_db_entity_aliases())  # DB wins on conflict.
-        _MERGED_ALIASES_CACHE = merged
+        _MERGED_ALIASES_CACHE = dict(_BASELINE_ALIASES)
     return _MERGED_ALIASES_CACHE
 
 
 def reset_alias_cache() -> None:
-    """Clear the merged-alias cache so the next resolve reloads the snapshot.
+    """Clear the merged-alias cache so the next resolve falls back to baseline.
 
     Mirrors clearAliasCache() (entity-aliases.ts:100). Used by tests; the
-    pipeline itself loads once per process.
+    pipeline itself primes once per process at lifespan boot.
     """
     global _MERGED_ALIASES_CACHE
     _MERGED_ALIASES_CACHE = None
@@ -353,23 +319,20 @@ def prime_alias_cache_from_db_rows(rows: list) -> None:
     Called by the pipeline lifespan ({101.10}) with the rows fetched directly
     from ``public.entity_aliases WHERE is_active = true`` (including the
     ``provenance`` column). Mirrors the ``_get_alias_map()`` merge order:
-    ``_BASELINE_ALIASES`` first, then DB rows ``.update()`` on top so DB wins
-    on conflict — identical to the ``_load_db_entity_aliases()`` snapshot-file
-    path but without the intermediate JSON file at runtime.
+    ``_BASELINE_ALIASES`` first, then DB rows on top so DB wins on conflict.
 
     Keyed by the RAW ``alias`` column (TS parity: entity-aliases.ts:72
     ``cachedAliases[row.alias] = row.canonical``).
 
-    Replaces any previously cached map (including one built by
-    ``_get_alias_map()`` from the snapshot file). Safe to call once at
+    Replaces any previously cached map (including the baseline-only map
+    ``_get_alias_map()`` installs before priming). Safe to call once at
     lifespan boot; subsequent resolves read the cached map DB-free.
 
     Args:
         rows: List of record-like objects (asyncpg Records or dicts) each
             exposing ``row["alias"]``, ``row["canonical"]``, and
             ``row["provenance"]``.  Rows with non-string or empty alias /
-            canonical are silently skipped (mirrors ``_load_db_entity_aliases``
-            robustness contract).
+            canonical are silently skipped.
     """
     global _MERGED_ALIASES_CACHE
     merged: dict[str, str] = dict(_BASELINE_ALIASES)
@@ -385,14 +348,13 @@ def prime_alias_cache_from_db_rows(rows: list) -> None:
 
 
 def _rel_resolve_alias(canonical_name: str) -> str:
-    """Port of resolveAlias() (entity-aliases.ts:92), DB-snapshot-aware.
+    """Port of resolveAlias() (entity-aliases.ts:92), DB-alias-aware.
 
     Returns ``map[name] ?? name`` against the merged map (baseline overlaid by
-    the committed DB-alias snapshot, DB wins on conflict). This closes the
-    {101.9} follow-up: the TS oracle resolves client-specific DB aliases (e.g. a
-    short client name → its full registered canonical) and this port now matches
-    by reading the snapshot fixture. Falls back to baseline-only when the
-    snapshot is absent/empty/malformed.
+    the live DB aliases, DB wins on conflict). This closes the {101.9}
+    follow-up: the TS oracle resolves client-specific DB aliases (e.g. a short
+    client name → its full registered canonical) and this port now matches once
+    the lifespan has primed the cache. Falls back to baseline-only before then.
     """
     return _get_alias_map().get(canonical_name, canonical_name)
 

@@ -86,8 +86,7 @@
       "staging_mode": "never-staged",
       "consumers": [
         "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts",
-        "scripts/generate-purge-path-inventory.ts"
+        "lib/eval/fixtures.ts"
       ],
       "notes": ""
     },
@@ -115,8 +114,7 @@
       "staging_mode": "never-staged",
       "consumers": [
         "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts",
-        "scripts/generate-purge-path-inventory.ts"
+        "lib/eval/fixtures.ts"
       ],
       "notes": ""
     },
@@ -131,8 +129,7 @@
       "staging_mode": "never-staged",
       "consumers": [
         "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts",
-        "scripts/generate-purge-path-inventory.ts"
+        "lib/eval/fixtures.ts"
       ],
       "notes": ""
     },
@@ -147,8 +144,7 @@
       "staging_mode": "never-staged",
       "consumers": [
         "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts",
-        "scripts/generate-purge-path-inventory.ts"
+        "lib/eval/fixtures.ts"
       ],
       "notes": ""
     },

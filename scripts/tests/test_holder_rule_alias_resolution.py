@@ -10,20 +10,19 @@ FAILED — ``client_org_lower`` is the full registered form — and the client's
 OWN certification was mis-stamped ``holder='supplier'`` with the client's own
 short name as the phantom ``supplier_name`` instead of ``holder='self'``.
 
-THE FIX (Option A): give the Python relationship canonicaliser DB-alias
-resolution via a POINT-OF-USE snapshot fixture (gitignored + generated at
-deploy per ID-95 PI-15 — NEVER committed; client-provenance rows must not enter
-the repo). ``_BASELINE_ALIASES`` is overlaid by the DB snapshot
-(DB wins on conflict). The TS oracle keys the DB map by the RAW ``alias`` column
-(``entity-aliases.ts:72`` ``cachedAliases[row.alias] = row.canonical``), so a
-relationship endpoint resolves only when ``_rel_canonicalise(name)`` equals the
-raw alias string — these tests mirror that exact keying.
+THE FIX: give the Python relationship canonicaliser DB-alias resolution.
+``_BASELINE_ALIASES`` is overlaid by the live ``entity_aliases`` rows, primed
+into the module cache at pipeline lifespan boot ({101.10}) by
+``prime_alias_cache_from_db_rows()`` — DB wins on conflict. The TS oracle keys
+the DB map by the RAW ``alias`` column (``entity-aliases.ts:72``
+``cachedAliases[row.alias] = row.canonical``), so a relationship endpoint
+resolves only when ``_rel_canonicalise(name)`` equals the raw alias string —
+these tests mirror that exact keying.
 
 All client identities here are SYNTHETIC and de-identified — NEVER the real
-client name. The synthetic snapshot is injected deterministically by
-monkeypatching the loader; these tests do NOT depend on the (gitignored,
-point-of-use) ``entity_aliases_snapshot.json`` fixture — they pass on a fresh
-checkout where that file is absent and the loader degrades to baseline-only.
+client name. They are primed through the same seam production uses, so these
+tests depend on no fixture file and pass on a fresh checkout, where nothing
+primes the cache and resolution is baseline-only.
 """
 
 from __future__ import annotations
@@ -65,29 +64,34 @@ def _key(entity_name: str, entity_type: str = "certification") -> tuple[str, str
     return (canonicalise_entity_name(entity_name, entity_type), entity_type)
 
 
-@pytest.fixture()
-def _inject_synthetic_aliases(monkeypatch: pytest.MonkeyPatch):
-    """Point the module-level DB-alias loader at the synthetic map + reset cache.
+def _as_rows(aliases: dict[str, str]) -> list[dict[str, str]]:
+    """Shape a {alias: canonical} map as `entity_aliases` rows."""
+    return [
+        {"alias": alias, "canonical": canonical, "provenance": "client"}
+        for alias, canonical in aliases.items()
+    ]
 
-    Mirrors how the loader reads the committed snapshot, but injects the
-    synthetic rows directly so the test never depends on the real fixture.
+
+@pytest.fixture()
+def _inject_synthetic_aliases():
+    """Prime the alias cache with the synthetic DB rows.
+
+    Uses the production seam — `prime_alias_cache_from_db_rows()`, which the
+    pipeline lifespan calls at boot ({101.10}) — so the test exercises the same
+    merge path production does.
     """
-    monkeypatch.setattr(
-        canon, "_load_db_entity_aliases", lambda: dict(_SYNTHETIC_DB_ALIASES)
-    )
-    canon.reset_alias_cache()
+    canon.prime_alias_cache_from_db_rows(_as_rows(_SYNTHETIC_DB_ALIASES))
     yield
     canon.reset_alias_cache()
 
 
 @pytest.fixture()
-def _baseline_only(monkeypatch: pytest.MonkeyPatch):
-    """Force baseline-only resolution (empty DB snapshot) + reset cache.
+def _baseline_only():
+    """Force baseline-only resolution (no DB rows) + reset cache.
 
     Proves the existing _BASELINE_ALIASES behaviour is unchanged and the RED
     pre-fix state for the synthetic short-name case.
     """
-    monkeypatch.setattr(canon, "_load_db_entity_aliases", lambda: {})
     canon.reset_alias_cache()
     yield
     canon.reset_alias_cache()
@@ -189,11 +193,8 @@ def test_db_wins_on_conflict_with_baseline() -> None:
         # Override the baseline "ISO Certification" → "ISO 27001" mapping.
         return {"ISO Certification": "ISO 9001"}
 
-    mp = pytest.MonkeyPatch()
-    mp.setattr(canon, "_load_db_entity_aliases", _conflicting)
-    canon.reset_alias_cache()
+    canon.prime_alias_cache_from_db_rows(_as_rows(_conflicting()))
     try:
         assert canonicalise_for_relationship("ISO Certification") == "iso 9001"
     finally:
-        mp.undo()
         canon.reset_alias_cache()

@@ -58,7 +58,7 @@ loadEnvFile(join(PROJECT_ROOT, '.env'));
 // ── De-ID redaction (PC-31 / PI-1) ──
 //
 // Resolves the canonical identity denylist at runtime (same priority order as
-// sweep-identity-relocation.ts / generate-purge-path-inventory.ts):
+// sweep-identity-relocation.ts):
 //   1. KH_CLIENT_NAME_DENYLIST env var — JSON content (primary; CI secret)
 //   2. KH_PRIVATE_DOCS_DIR/ops/identity-denylist.json — local dev fallback
 //   3. Sibling checkout: <main-checkout-parent>/knowledge-hub-docs-site/ops/identity-denylist.json
