@@ -52,7 +52,6 @@ import { ItemCitationOverlay } from '@/components/procurement/item-citation-over
 import { ProcurementWorkflowBadge } from '@/components/procurement/procurement-workflow-indicator';
 import { ProcurementExportMenu } from '@/components/procurement/procurement-export-menu';
 import { ReadinessBadge } from '@/components/procurement/readiness-checklist';
-import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 import { ProcurementOutcomeDialog } from '@/components/procurement/procurement-outcome';
 import { KBIntegrationReview } from '@/components/procurement/kb-integration-review';
 import { QuestionReview } from '@/components/procurement/question-review';
@@ -440,12 +439,6 @@ export default function ProcurementDetailPage({
                 fetchQuestions();
                 fetchProcurement();
               }}
-            />
-            <CostEstimateDialog
-              open={showCostEstimate}
-              onOpenChange={setShowCostEstimate}
-              procurementId={id}
-              onProceed={handleDraftAll}
             />
             {/* {145.47} — fill-slot review + citation overlay pair with the
                 question/drafting surfaces (both PDF-only, DR-064). */}

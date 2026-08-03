@@ -5,7 +5,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/shell/theme-provider';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { KeyboardShortcutsProvider } from '@/components/shell/keyboard-shortcuts-provider';
-import { ReadMarksProvider } from '@/contexts/read-marks-context';
 import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
@@ -65,7 +64,6 @@ export default async function RootLayout({
             <ClientFeaturesProvider>
               <TaxonomyProvider>
                 <LayerVocabularyProvider>
-                  <ReadMarksProvider>
                     <TooltipProvider>
                       <a href="#main-content" className="skip-link">
                         Skip to main content
@@ -83,7 +81,6 @@ export default async function RootLayout({
                         }}
                       />
                     </TooltipProvider>
-                  </ReadMarksProvider>
                 </LayerVocabularyProvider>
               </TaxonomyProvider>
             </ClientFeaturesProvider>

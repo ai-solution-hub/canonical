@@ -3,17 +3,13 @@ import { BRANDING } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/server';
 import { SearchBar } from '@/components/browse/search-bar';
 import { ActiveProcurementsSection } from '@/components/dashboard/active-procurement-section';
-import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
 import { UnifiedAttentionSection } from '@/components/dashboard/unified-attention-section';
-import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
 import { deriveIsKBEmpty, deriveIsFirstLogin } from '@/lib/dashboard-signals';
 import { buildAttentionItems } from '@/lib/attention';
-import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { DashboardFirstRunCard } from '@/components/dashboard/dashboard-first-run-card';
-import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import { WarningsBanner } from '@/components/dashboard/warnings-banner';
 import { McpSetupNudge } from '@/components/shell/mcp-setup-nudge';
 import { PipelineRunsPanel } from '@/components/intelligence/pipeline-runs-panel';
@@ -233,16 +229,6 @@ async function DashboardContent() {
         />
       </div>
 
-      {/* Reorient Me — personalised briefing. Suppress the one-liner only
-          when the first-run card above is actually rendered; viewers must
-          still see the welcome copy inside ReorientSection (spec §4.8). */}
-      <div className="mt-6">
-        <ReorientSection
-          data={reorientData}
-          hideFirstLoginMessage={showFirstRunCard}
-        />
-      </div>
-
       {/* Two-column layout: Unified Attention + Active Procurements */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
         <UnifiedAttentionSection
@@ -251,33 +237,6 @@ async function DashboardContent() {
         />
         <ActiveProcurementsSection bids={unified.active_forms} />
       </div>
-
-      {/* Content Performance — aggregate win-rate analytics (suppressed when KB empty) */}
-      {!isKBEmpty && (
-        <div className="mt-6">
-          <ContentPerformanceSection />
-        </div>
-      )}
-
-      {/* QuickStatsStrip — content health at a glance (suppressed when KB empty) */}
-      {!isKBEmpty && (
-        <div className="mt-6">
-          <QuickStatsStrip
-            freshness={unified.freshness_summary}
-            activeProcurementCount={unified.active_forms.length}
-            unreadNotificationCount={
-              unified.attention_sources.unread_notification_count
-            }
-          />
-        </div>
-      )}
-
-      {/* Compliance Status (suppressed when KB empty) */}
-      {!isKBEmpty && (
-        <div className="mt-6">
-          <ComplianceStatusSection />
-        </div>
-      )}
 
       {/* Pipeline runs (admin-only, S152B WP4) — passive 24h health glance
           paired with Sentry alerting in `lib/pipeline/record-run.ts`.

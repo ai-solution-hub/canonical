@@ -18,7 +18,6 @@ import { QuestionNavigator } from '@/components/procurement/question-navigator';
 import { ResponseEditor } from '@/components/procurement/response-editor';
 import { StreamingAnswerPreview } from '@/components/procurement/streaming-answer-preview';
 import { CitationPanel } from '@/components/content/citation-panel';
-import { QualityScore } from '@/components/shared/quality-score';
 import { ResponseActions } from '@/components/procurement/response-actions';
 import { StreamingPhaseIndicator } from '@/components/shared/streaming-phase-indicator';
 import { ContentLibraryDrawer } from '@/components/content/content-library-drawer';
@@ -675,11 +674,6 @@ export default function ProcurementSessionPage({
                 }
                 onEditorReady={onEditorReady}
               />
-
-              {/* Quality score */}
-              {response?.quality_check && (
-                <QualityScore quality={response.quality_check} />
-              )}
 
               {/* Citations */}
               {response && (
