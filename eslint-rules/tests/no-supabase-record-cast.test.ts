@@ -180,7 +180,7 @@ ruleTester.run('no-supabase-record-cast', rule as never, {
       errors: [{ messageId: 'recordCast' }],
     },
 
-    // ---- Shape F1: for...of loop variable cast (lib/topic-inference.ts:177 pattern) ----
+    // ---- Shape F1: for...of loop variable cast ----
     // `for (const item of items)` where items = data from Supabase; cast on the loop var
     {
       code: `
@@ -207,7 +207,7 @@ ruleTester.run('no-supabase-record-cast', rule as never, {
       errors: [{ messageId: 'recordCast' }],
     },
 
-    // ---- Shape F2: array callback parameter cast (.filter) (lib/topic-inference.ts:309 pattern) ----
+    // ---- Shape F2: array callback parameter cast (.filter) ----
     {
       code: `
         async function f(supabase: any, domain: any) {
@@ -232,7 +232,7 @@ ruleTester.run('no-supabase-record-cast', rule as never, {
       errors: [{ messageId: 'recordCast' }],
     },
 
-    // ---- Shape F3: candidate[0] direct element access cast (lib/topic-inference.ts:322 pattern) ----
+    // ---- Shape F3: candidate[0] direct element access cast ----
     {
       code: `
         async function f(supabase: any, domain: any) {
