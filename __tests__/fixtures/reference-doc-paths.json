@@ -60,7 +60,6 @@
       "app/api/admin/content-dedup/near-duplicates/[pairId]/confirm-unique/route.ts",
       "app/api/admin/content-dedup/near-duplicates/[pairId]/merge/route.ts",
       "app/api/content-owners/bulk-assign/route.ts",
-      "app/api/cron/classification-quality/route.ts",
       "app/api/cron/freshness-transitions/route.ts",
       "app/api/cron/quality-score/route.ts",
       "app/api/governance/review/route.ts",

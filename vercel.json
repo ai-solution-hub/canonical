@@ -47,7 +47,6 @@
     "app/api/bids/[id]/responses/draft/*": { "maxDuration": 120 },
     "app/api/bids/[id]/responses/draft-all/*": { "maxDuration": 120 },
     "app/api/bids/[id]/responses/[rId]/regenerate/*": { "maxDuration": 120 },
-    "app/api/cron/classification-quality/*": { "maxDuration": 120 },
     "app/api/cron/content-gaps/*": { "maxDuration": 30 },
     "app/api/cron/quality-score/*": { "maxDuration": 50 },
     "app/api/cron/intelligence-poll/*": { "maxDuration": 120 },
