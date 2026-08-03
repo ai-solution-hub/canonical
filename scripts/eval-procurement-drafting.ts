@@ -23,7 +23,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolveEvalFixture } from '../lib/eval/fixtures';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { assertEnvFlag } from '@/scripts/lib/script-env';
 import { rougeL } from '../lib/eval/metrics';
 import type { Database } from '@/supabase/types/database.types';
 import {
@@ -114,16 +114,6 @@ function parseEnvFlag(argv: string[]): string {
   return '';
 }
 
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/eval-procurement-drafting.ts --env=prod`,
-    );
-    process.exit(1);
-  }
-}
-
 // ── DB Access ───────────────────────────────────────────────────────
 
 function createServiceClient(env: string) {
@@ -135,7 +125,7 @@ function createServiceClient(env: string) {
     process.exit(1);
   }
 
-  assertEnvFlag(env, url);
+  assertEnvFlag(env, url, 'scripts/eval-procurement-drafting.ts --env=prod');
 
   return createScriptClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

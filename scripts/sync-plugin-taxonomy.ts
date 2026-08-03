@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { assertEnvFlag } from '@/scripts/lib/script-env';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
 
 const PROJECT_ROOT = join(__dirname, '..');
@@ -54,16 +54,6 @@ function parseEnvFlag(argv: string[]): string {
   return '';
 }
 
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/sync-plugin-taxonomy.ts --env=prod`,
-    );
-    process.exit(1);
-  }
-}
-
 async function fetchTaxonomyFromDB(
   env: string,
 ): Promise<Map<string, { slug: string; desc: string }[]>> {
@@ -76,7 +66,7 @@ async function fetchTaxonomyFromDB(
     process.exit(1);
   }
 
-  assertEnvFlag(env, supabaseUrl);
+  assertEnvFlag(env, supabaseUrl, 'scripts/sync-plugin-taxonomy.ts --env=prod');
 
   const supabase = createScriptClient(supabaseUrl, supabaseKey);
 

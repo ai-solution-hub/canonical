@@ -37,7 +37,7 @@
 
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { assertEnvFlag } from '@/scripts/lib/script-env';
 import { parseArgs } from 'util';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
@@ -216,18 +216,6 @@ export function parseCli(argv: string[]): CliArgs {
   };
 }
 
-// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
-
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/quality-gate.ts --env=prod`,
-    );
-    process.exit(1);
-  }
-}
-
 const HELP_TEXT = `
 bun run scripts/quality-gate.ts
 
@@ -339,7 +327,7 @@ export function createSb(env = ''): {
     );
   }
 
-  assertEnvFlag(env, url);
+  assertEnvFlag(env, url, 'scripts/quality-gate.ts --env=prod');
 
   const workspaceId = extractProjectId(url);
   const sb = createScriptClient(url, key, {

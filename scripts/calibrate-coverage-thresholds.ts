@@ -12,7 +12,7 @@
 
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { createScriptClient } from '@/scripts/lib/supabase-script-client';
-import { prodProjectRef } from '@/scripts/lib/project-refs';
+import { assertEnvFlag } from '@/scripts/lib/script-env';
 import { loadScriptEnv } from '@/scripts/lib/load-script-env';
 import type { Database } from '@/supabase/types/database.types';
 
@@ -83,18 +83,6 @@ Options:
   }
 
   return { templateName, min, max, step, env };
-}
-
-// ── --env=prod opt-in (WP-S5.3 D-21 F-1) ──────────────────────────────────
-
-function assertEnvFlag(env: string, url: string | undefined): void {
-  if (env === 'prod' && !(url ?? '').includes(prodProjectRef())) {
-    console.error(
-      `--env=prod set but SUPABASE_URL does not include '${prodProjectRef()}'.\n` +
-        `Run: SUPABASE_URL=<prod-url> SUPABASE_SERVICE_ROLE_KEY=<key> bun run scripts/calibrate-coverage-thresholds.ts --env=prod`,
-    );
-    process.exit(1);
-  }
 }
 
 // ── Data fetching (standalone, no Next.js path aliases) ──
@@ -206,7 +194,11 @@ async function main() {
     process.exit(1);
   }
 
-  assertEnvFlag(env, supabaseUrl);
+  assertEnvFlag(
+    env,
+    supabaseUrl,
+    'scripts/calibrate-coverage-thresholds.ts --env=prod',
+  );
 
   const supabase = createScriptClient(supabaseUrl, supabaseKey);
 
