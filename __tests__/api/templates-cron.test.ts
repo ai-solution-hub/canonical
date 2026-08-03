@@ -21,9 +21,6 @@ const {
   mockGetExistingNotificationIds,
   mockClassifyContent,
   mockSimilarity,
-  mockFetchTemplateRequirements,
-  mockFetchContentForMatching,
-  mockComputeTemplateCoverage,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -33,9 +30,6 @@ const {
   mockGetExistingNotificationIds: vi.fn(),
   mockClassifyContent: vi.fn(),
   mockSimilarity: vi.fn(),
-  mockFetchTemplateRequirements: vi.fn(),
-  mockFetchContentForMatching: vi.fn(),
-  mockComputeTemplateCoverage: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -69,12 +63,6 @@ vi.mock('@/lib/domains/procurement/form-templating/template-auto-map', () => ({
   similarity: mockSimilarity,
 }));
 
-vi.mock('@/lib/domains/procurement/form-templating/template-coverage', () => ({
-  fetchTemplateRequirements: mockFetchTemplateRequirements,
-  fetchContentForMatching: mockFetchContentForMatching,
-  computeTemplateCoverage: mockComputeTemplateCoverage,
-}));
-
 // Import route handlers AFTER all vi.mock() calls
 const { POST: autoMapPost } =
   await import('@/app/api/procurement/[id]/templates/[templateId]/auto-map/route');
@@ -87,12 +75,8 @@ const { POST: bulkUpdatePost } =
   await import('@/app/api/procurement/[id]/fields/bulk-update/route');
 const { POST: fillPost } =
   await import('@/app/api/procurement/[id]/templates/[templateId]/fill/route');
-const { PATCH: subtopicPatch } =
-  await import('@/app/api/taxonomy/subtopics/[id]/route');
 const { GET: freshnessGet } =
   await import('@/app/api/cron/freshness-transitions/route');
-const { GET: contentGapsGet } =
-  await import('@/app/api/cron/content-gaps/route');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -185,17 +169,6 @@ beforeEach(() => {
     primary_subtopic: 'Standards',
     classification_confidence: 0.9,
   });
-  mockFetchTemplateRequirements.mockResolvedValue([]);
-  mockFetchContentForMatching.mockResolvedValue([]);
-  mockComputeTemplateCoverage.mockReturnValue({
-    total_requirements: 0,
-    strong_count: 0,
-    partial_count: 0,
-    gap_count: 0,
-    score: 100,
-    sections: [],
-  });
-
   // NOTE: Do NOT set a default configureRole() here. Each test must
   // call configureRole() / configureUnauthenticated() explicitly so
   // that the queued .single() calls are consumed in the correct order.
@@ -961,138 +934,6 @@ describe('POST /api/bids/:id/templates/:templateId/fill', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PATCH /api/taxonomy/subtopics/:id
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('PATCH /api/taxonomy/subtopics/:id', () => {
-  const params = createTestParams({ id: VALID_UUID });
-
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: { name: 'Updated Name' },
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 403 for editor role (admin only)', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: { name: 'Updated Name' },
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 for invalid UUID', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    const badParams = createTestParams({ id: 'bad-id' });
-
-    const req = createTestRequest('/api/taxonomy/subtopics/bad-id', {
-      method: 'PATCH',
-      body: { name: 'Updated Name' },
-    });
-
-    const res = await subtopicPatch(req, { params: badParams });
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toMatch(/Invalid subtopic ID/);
-  });
-
-  it('returns 400 when no update fields provided', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: {},
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toBe('No fields to update');
-  });
-
-  it('returns 409 for unique constraint violation (23505)', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    // Supabase update returns unique constraint error
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Duplicate key', code: '23505' },
-    });
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: { name: 'Existing Name' },
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(409);
-
-    const body = await res.json();
-    expect(body.error).toMatch(/already exists/);
-  });
-
-  it('returns 404 when subtopic not found (PGRST116)', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'No rows found', code: 'PGRST116' },
-    });
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: { name: 'New Name' },
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(404);
-
-    const body = await res.json();
-    expect(body.error).toBe('Subtopic not found');
-  });
-
-  it('returns 200 with updated subtopic data on success', async () => {
-    configureRole(mockSupabase, 'admin');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: {
-        id: VALID_UUID,
-        domain_id: VALID_UUID_2,
-        name: 'Updated Name',
-        display_order: 1,
-        is_active: true,
-      },
-      error: null,
-    });
-
-    const req = createTestRequest(`/api/taxonomy/subtopics/${VALID_UUID}`, {
-      method: 'PATCH',
-      body: { name: 'Updated Name' },
-    });
-
-    const res = await subtopicPatch(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.name).toBe('Updated Name');
-    expect(body.id).toBe(VALID_UUID);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
 // GET /api/cron/freshness-transitions
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1290,198 +1131,7 @@ describe('GET /api/cron/freshness-transitions', () => {
 // escalation 2 (DR-034 owner ruling) — the content_items-era coverage
 // feature (matrix/summary/routes/cron) is retired, not re-pointed. Its
 // describe block, and the vercel.json cron registration, were removed in
-// the same commit. GET /api/cron/content-gaps below is unrelated — it runs
-// on the already-repointed (q_a_pairs/reference_items) template-completion
-// coverage engine, not content_items, and survives untouched.
-
-// ═══════════════════════════════════════════════════════════════════════════
-// GET /api/cron/content-gaps
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('GET /api/cron/content-gaps', () => {
-  it('returns 401 when cron auth fails', async () => {
-    mockVerifyCronAuth.mockReturnValue(false);
-
-    const req = cronRequest('/api/cron/content-gaps');
-    const res = await contentGapsGet(req);
-
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 200 with zero templates when none are current', async () => {
-    // No templates
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    const req = cronRequest('/api/cron/content-gaps');
-    const res = await contentGapsGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.templates_analysed).toBe(0);
-    expect(body.total_requirements).toBe(0);
-  });
-
-  it('returns 500 when template query fails', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: null, error: { message: 'DB error' } }),
-    );
-
-    const req = cronRequest('/api/cron/content-gaps');
-    const res = await contentGapsGet(req);
-
-    expect(res.status).toBe(500);
-  });
-
-  it('analyses templates and identifies new and resolved gaps', async () => {
-    // Templates exist
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              template_name: 'PQQ v1',
-              template_version: '1.0',
-              is_current: true,
-            },
-          ],
-          error: null,
-        }),
-    );
-
-    // Previous run with one old gap (req-old) that is now resolved
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: {
-        result: {
-          snapshots: [
-            {
-              template: 'PQQ v1',
-              version: '1.0',
-              snapshot_date: '2026-03-07',
-              gaps: ['req-old'],
-              coverage_score: 70,
-            },
-          ],
-          consecutive_gap_counts: { 'req-old': 2 },
-        },
-      },
-      error: null,
-    });
-
-    // fetchContentForMatching
-    mockFetchContentForMatching.mockResolvedValue([
-      {
-        id: 'content-1',
-        primary_domain: 'Engineering',
-        primary_subtopic: 'Standards',
-      },
-    ]);
-
-    // fetchTemplateRequirements
-    mockFetchTemplateRequirements.mockResolvedValue([
-      { template_type: 'psq', requirement_id: 'req-1', section: 'S1' },
-    ]);
-
-    // computeTemplateCoverage — req-new is a gap, req-old is no longer present (resolved)
-    mockComputeTemplateCoverage.mockReturnValue({
-      total_requirements: 5,
-      strong_count: 3,
-      partial_count: 1,
-      gap_count: 1,
-      score: 70,
-      sections: [
-        {
-          section: 'S1',
-          requirements: [
-            { requirement_id: 'req-new', coverage_status: 'gap' },
-            { requirement_id: 'req-2', coverage_status: 'strong' },
-          ],
-        },
-      ],
-    });
-
-    mockGetUsersByRole.mockResolvedValue(['admin-1']);
-    mockGetExistingNotificationIds.mockResolvedValue(new Set());
-    mockCreateBulkNotifications.mockResolvedValue({ count: 1, error: null });
-
-    const req = cronRequest('/api/cron/content-gaps');
-    const res = await contentGapsGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.templates_analysed).toBe(1);
-    expect(body.total_requirements).toBe(5);
-    expect(body.gaps['PQQ v1']).toBeDefined();
-    expect(body.gaps['PQQ v1'].new_gaps).toBe(1);
-    // req-old was in previous gaps but not in current gaps, so it's resolved
-    expect(body.gaps['PQQ v1'].resolved_gaps).toBe(1);
-  });
-
-  it('tracks consecutive gap counts and detects persistent gaps after 3 weeks', async () => {
-    // Templates
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            { template_name: 'ITT', template_version: '2.0', is_current: true },
-          ],
-          error: null,
-        }),
-    );
-
-    // Previous run with req-persist at 2 consecutive weeks
-    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
-      data: {
-        result: {
-          snapshots: [
-            {
-              template: 'ITT',
-              version: '2.0',
-              snapshot_date: '2026-03-07',
-              gaps: ['req-persist'],
-              coverage_score: 80,
-            },
-          ],
-          consecutive_gap_counts: { 'req-persist': 2 },
-        },
-      },
-      error: null,
-    });
-
-    mockFetchContentForMatching.mockResolvedValue([]);
-
-    mockFetchTemplateRequirements.mockResolvedValue([
-      { template_type: 'itt', requirement_id: 'req-persist', section: 'S1' },
-    ]);
-
-    // req-persist is still a gap (3rd consecutive week = persistent)
-    mockComputeTemplateCoverage.mockReturnValue({
-      total_requirements: 1,
-      strong_count: 0,
-      partial_count: 0,
-      gap_count: 1,
-      score: 0,
-      sections: [
-        {
-          section: 'S1',
-          requirements: [
-            { requirement_id: 'req-persist', coverage_status: 'gap' },
-          ],
-        },
-      ],
-    });
-
-    mockGetUsersByRole.mockResolvedValue(['admin-1']);
-    mockGetExistingNotificationIds.mockResolvedValue(new Set());
-    mockCreateBulkNotifications.mockResolvedValue({ count: 2, error: null });
-
-    const req = cronRequest('/api/cron/content-gaps');
-    const res = await contentGapsGet(req);
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.gaps['ITT'].persistent_gaps).toBe(1);
-  });
-});
+// the same commit.
+//
+// GET /api/cron/content-gaps was retired with its route in the id-417
+// second deletion wave (1a752b48d); its describe block went with it.
