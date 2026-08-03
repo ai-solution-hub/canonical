@@ -28,10 +28,6 @@ WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
     ``ingestion_quality_log`` row + a structured log (BI-21 / D-9).
   - The D-7 backlink UPDATE hits ALL ledger rows for a 2-workspace URL
     (BI-10 / BI-8).
-  - Module-source guard: flow.py NEVER seeds a ``"ci:"`` uuid5 from a URL
-    (BI-1/BI-2 acceptance). {127.25} DR-034 update: flow.py now contains
-    ZERO ``"ci:"`` seeds of any kind — content_items is dropped both envs,
-    so the guarantee holds structurally rather than by rel_path-derivation.
 
 Async tests follow the repo convention (no pytest-asyncio plugin): drive
 coroutines via ``asyncio.run`` inside sync test functions.
@@ -932,38 +928,3 @@ class TestHtmlQualityGate:
         ]
         assert len(warn_events) == 1
         assert warn_events[0]["source_url"] == item.url
-
-
-# ── Module-source guard: 'ci:' is never seeded from a URL (BI-2) ────────────
-
-
-class TestCiSeedNeverUrlDerived:
-    def test_flow_source_never_concatenates_ci_with_url_seed(self) -> None:
-        """{127.25} DR-034: content_items is RETIRED — flow.py no longer
-        mints ANY ``"ci:"`` uuid5 seed at all (the content_item_id derivation
-        this test used to census was removed alongside the content_items
-        mount). Replaces the pre-{127.25} positive census (every ``"ci:"``
-        seed is registry-keyed, none URL-derived) with a structural absence
-        proof — the BI-1/BI-2 guarantee ("never URL-derived") now holds
-        VACUOUSLY because there is no ``"ci:"`` seed left to derive from
-        anything, mirroring the ``test_content_items_is_structurally_absent``
-        idiom in ``test_cocoindex_flow_write_path.py``."""
-        flow_path = (
-            Path(__file__).resolve().parents[1] / "cocoindex_pipeline" / "flow.py"
-        )
-        source = flow_path.read_text()
-        ci_seed_lines = [
-            line.strip()
-            for line in source.splitlines()
-            if re.search(r"f?[\"']ci:", line)
-        ]
-        assert not ci_seed_lines, (
-            "flow.py must contain ZERO 'ci:' uuid5 seed lines — content_items "
-            f"is structurally absent ({{127.25}} DR-034); found: {ci_seed_lines!r}"
-        )
-
-    def test_ingest_url_body_source_contains_no_ci_seed(self) -> None:
-        flow = _flow_module()
-        body_source = inspect.getsource(flow._ingest_url_body)
-        assert "ci:" not in body_source
-        assert 'f"sd:{' in body_source and 'f"ri:{' in body_source

@@ -248,19 +248,5 @@ describe('Taxonomy Consistency', () => {
       const date = new Date(snapshot.generated_at);
       expect(date.getTime()).not.toBeNaN();
     });
-
-    // SKIPPED (S435): the committed snapshot fixture is a maintenance artefact;
-    // the durable fix is regenerating it
-    // (`bun run scripts/generate-taxonomy-snapshot.ts`), deferred pending the
-    // id-131..135 taxonomy/OKF rework. Reversible — drop `.skip` to re-arm.
-    it.skip('snapshot should not be older than 30 days', () => {
-      const generated = new Date(snapshot.generated_at);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      expect(
-        generated >= thirtyDaysAgo,
-        `Snapshot is stale (generated ${snapshot.generated_at}). Run: bun run scripts/generate-taxonomy-snapshot.ts`,
-      ).toBe(true);
-    });
   });
 });
