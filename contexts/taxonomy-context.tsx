@@ -4,12 +4,67 @@ import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient, hasBrowserSession } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/query-keys';
-import {
-  formatSubtopic as formatSubtopicUtil,
-  formatDomainName as formatDomainNameUtil,
-  FALLBACK_COLOUR_MAP,
-} from '@/lib/taxonomy/taxonomy-format';
 import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
+
+// ---------------------------------------------------------------------------
+// Display formatting
+//
+// Inlined from the retired lib/taxonomy/taxonomy-format module (id-417). The
+// formatting requirement is still live: DomainBadge and the batch-create
+// classification picker read these off the context, and a taxonomy row whose
+// display_name is null would otherwise render its raw kebab-case slug. Its
+// other two consumers (the settings domain-card and taxonomy-dialogs) went
+// with the taxonomy admin CRUD, so this is now the only consumer and the
+// helpers live here rather than as a shared module.
+// ---------------------------------------------------------------------------
+
+/** Words rendered fully uppercase rather than title-cased. */
+const ABBREVIATIONS = new Set([
+  'ai',
+  'ux',
+  'gtd',
+  'llms',
+  'roi',
+  'api',
+  'css',
+  'html',
+  'url',
+  'crm',
+  'sla',
+  'iso',
+]);
+
+/** kebab-case slug to Title Case, with known abbreviations uppercased. */
+function titleCaseSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((word) =>
+      ABBREVIATIONS.has(word.toLowerCase())
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(' ');
+}
+
+/**
+ * Colour key for domains whose row carries no explicit `colour`. Every value
+ * here is one of the seven `--domain-*` token families defined in
+ * app/styles/domain-tokens.css; unknown domains fall through to `corporate`.
+ */
+const FALLBACK_COLOUR_MAP: Record<string, string> = {
+  security: 'security',
+  compliance: 'compliance',
+  implementation: 'implementation',
+  support: 'support',
+  corporate: 'corporate',
+  'product-feature': 'product',
+  methodology: 'methodology',
+  'safeguarding-child-protection': 'security',
+  'safeguarding-adults': 'security',
+  'multi-academy-trusts': 'corporate',
+  education: 'implementation',
+  'products-services': 'product',
+};
 
 interface TaxonomyContextValue {
   /** All active taxonomy domains, ordered by display_order */
@@ -169,7 +224,7 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     (subtopic: string): string => {
       const record = subtopicByName.get(subtopic);
       if (record?.display_name) return record.display_name;
-      return formatSubtopicUtil(subtopic);
+      return titleCaseSlug(subtopic);
     },
     [subtopicByName],
   );
@@ -178,7 +233,7 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     (domain: string): string => {
       const domainRecord = domainByName.get(domain);
       if (domainRecord?.display_name) return domainRecord.display_name;
-      return formatDomainNameUtil(domain);
+      return titleCaseSlug(domain);
     },
     [domainByName],
   );
