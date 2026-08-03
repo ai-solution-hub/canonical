@@ -24,17 +24,21 @@
  *      non-empty extracted body, embedding NOT NULL,
  *      source_document_id = the sd id, ingestion_source = 'rss_feed', and
  *      published_at round-tripping the seeded ledger value.
- *   3. ZERO content_items rows at uuid5(NS, 'ci:' + normalisedUrl) OR with
- *      source_url = the URL.
- *   4. feed_articles backlink: reference_item_id = the ri id AND
- *      content_item_id IS NULL. TWO-WALK TIMING ({75.17}): the in-component
- *      backlink write races the engine's post-return ri_target flush, so
- *      walk 1 defers it (structured cocoindex.url_backlink_deferred log)
- *      and the backlink CONVERGES on walk 2 — which is why beforeAll runs
- *      TWO walks, not one. Dropping the second walk invalidates 4 and 5.
+ *   3. (retired) The "ZERO content_items rows" leg went with the table:
+ *      ID-131 M6 dropped content_items outright, so there is no longer
+ *      anything to count. See the tombstone comment further down.
+ *   4. feed_articles backlink: reference_item_id = the ri id. The companion
+ *      "AND content_item_id IS NULL" leg went with the COLUMN — ID-131 M6
+ *      dropped feed_articles.content_item_id
+ *      (20260706110000_id131_drops.sql STEP 4). TWO-WALK TIMING ({75.17}):
+ *      the in-component backlink write races the engine's post-return
+ *      ri_target flush, so walk 1 defers it (structured
+ *      cocoindex.url_backlink_deferred log) and the backlink CONVERGES on
+ *      walk 2 — which is why beforeAll runs TWO walks, not one. Dropping
+ *      the second walk invalidates 4 and 5.
  *   5. Idempotency (post-second-walk): row counts unchanged (exactly one
- *      sd, exactly one ri, zero ci) and PKs unchanged (the deterministic
- *      uuid5 ids ARE the PK-stability proof).
+ *      sd, exactly one ri) and PKs unchanged (the deterministic uuid5 ids
+ *      ARE the PK-stability proof).
  *
  * Env-gate (live assertions): real Supabase service-role credentials
  * (Inv-27 — reachable from anywhere) AND the walk env the sidecar needs
@@ -268,20 +272,24 @@ describe.skipIf(!ENABLED)('URL landing set (ID-75 TECH §5)', () => {
   // `source_documents`, since there is no destination table for a
   // "this table has zero rows" assertion once the table itself is gone.
 
-  it('backlinks every ledger row to the ri id with content_item_id NULL (§5.4)', async () => {
+  it('backlinks every ledger row to the ri id (§5.4)', async () => {
     // {75.17} two-walk contract: walk 1 ALWAYS defers this backlink (the
     // engine flushes the ri row only after the component returns); it lands
     // on walk 2's re-run. The driver's second-walk leg ran before this
     // suite, so the converged state is asserted here.
+    //
+    // The companion `content_item_id IS NULL` assertion is gone with the
+    // column: ID-131 M6 dropped feed_articles.content_item_id
+    // (20260706110000_id131_drops.sql STEP 4), so selecting it errored the
+    // whole query rather than testing anything.
     const { data, error } = await client
       .from('feed_articles')
-      .select('id, reference_item_id, content_item_id, passed')
+      .select('id, reference_item_id, passed')
       .eq('external_url', normalised);
     expect(error).toBeNull();
     expect(data!.length).toBeGreaterThanOrEqual(1);
     for (const row of data!) {
       expect(row.reference_item_id).toBe(riId);
-      expect(row.content_item_id).toBeNull();
     }
   });
 
