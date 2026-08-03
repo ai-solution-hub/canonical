@@ -16,13 +16,11 @@ const {
   mockCookies,
   mockCheckRateLimit,
   mockGenerateEmbedding,
-  mockExtractStructuredContent,
   mockGetUserById,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
-  mockExtractStructuredContent: vi.fn(),
   mockGetUserById: vi.fn(),
 }));
 
@@ -47,10 +45,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
   };
 });
 
-vi.mock('@/lib/ai/extract-content', () => ({
-  extractStructuredContent: mockExtractStructuredContent,
-}));
-
 // Import routes AFTER mocks are registered
 const { GET: entitiesGet } = await import('@/app/api/entities/route');
 const { POST: entitiesMergePost } =
@@ -60,7 +54,6 @@ const { POST: entitiesSplitPost } =
 const { PATCH: entityTypePatch } =
   await import('@/app/api/entities/[canonical_name]/type/route');
 const { POST: embedPost } = await import('@/app/api/embed/route');
-const { POST: extractPost } = await import('@/app/api/extract/route');
 const { GET: suggestionsGet } =
   await import('@/app/api/search/suggestions/route');
 const { POST: displayNamesPost } =
@@ -139,12 +132,6 @@ beforeEach(() => {
 
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
-  mockExtractStructuredContent.mockResolvedValue({
-    result: { extracted: true },
-    model: 'claude-sonnet-4-5',
-    tokens_used: 100,
-    cost: 0.002,
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -730,90 +717,6 @@ describe('POST /api/embed', () => {
     });
     const res = await embedPost(req);
     expect(res.status).toBe(500);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// POST /api/extract
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('POST /api/extract', () => {
-  const validExtractBody = {
-    itemId: VALID_UUID,
-    schema: { name: 'string', age: 'number' },
-  };
-
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const req = createTestRequest('/api/extract', {
-      method: 'POST',
-      body: validExtractBody,
-    });
-    const res = await extractPost(req);
-    expect(res.status).toBe(401);
-  });
-
-  it('returns 403 for viewer role (requires editor+)', async () => {
-    configureRole(mockSupabase, 'viewer');
-
-    const req = createTestRequest('/api/extract', {
-      method: 'POST',
-      body: validExtractBody,
-    });
-    const res = await extractPost(req);
-    expect(res.status).toBe(403);
-  });
-
-  it('returns 400 for invalid body (missing itemId)', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const req = createTestRequest('/api/extract', {
-      method: 'POST',
-      body: { schema: { name: 'string' } },
-    });
-    const res = await extractPost(req);
-    expect(res.status).toBe(400);
-  });
-
-  it('returns AIServiceError status when extraction fails with domain error', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const { AIServiceError } = await import('@/lib/ai/errors');
-    mockExtractStructuredContent.mockRejectedValueOnce(
-      new AIServiceError('Content item not found', 404),
-    );
-
-    const req = createTestRequest('/api/extract', {
-      method: 'POST',
-      body: validExtractBody,
-    });
-    const res = await extractPost(req);
-    expect(res.status).toBe(404);
-
-    const body = await res.json();
-    expect(body.error).toBe('Content item not found');
-  });
-
-  it('returns 200 with extraction result on success', async () => {
-    configureRole(mockSupabase, 'editor');
-    const extractResult = {
-      result: { name: 'Test', age: 25 },
-      model: 'claude-sonnet-4-5',
-      tokens_used: 120,
-      cost: 0.0024,
-    };
-    mockExtractStructuredContent.mockResolvedValueOnce(extractResult);
-
-    const req = createTestRequest('/api/extract', {
-      method: 'POST',
-      body: validExtractBody,
-    });
-    const res = await extractPost(req);
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body).toEqual(extractResult);
   });
 });
 
