@@ -110,8 +110,12 @@ output.jsonl
 *-session-output.json
 /docs/database/
 
-# MemPalace
-mempalace.yaml
+# MemPalace (mempalace.yaml is tracked — id-411 {411.1d}; the rest is ignored)
+# The rooms config is an authored design artefact, not machine-local state: it
+# encodes DR-113/DR-114/DR-116 and the measured router mechanics in comments,
+# and the docs-site equivalent has always been tracked. It can never pollute the
+# palace either way — `mempalace.yaml` and `entities.json` are both in the
+# miner's SKIP_FILENAMES, so neither is ever mined.
 entities.json
 
 # GitNexus (CLAUDE.md is tracked; the rest of the directory is ignored)

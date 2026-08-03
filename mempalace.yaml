@@ -1,0 +1,256 @@
+wing: wing_canonical
+
+# S527 — room routing for the canonical CODE repo (id-411 {411.1}).
+# Supersedes the S521 draft REJECTED on review (reports/s521-rooms-draft-review.md).
+#
+# DESIGN RULE (DR-116): every room is keyed on a directory NAME, matched at any
+# depth via DR-114's priority pre-pass — never on a path POSITION. The room is
+# hashed into the drawer id (DR-113), so a layer-keyed room (`lib`, `app`,
+# `components`) would force a full delete-then-re-mine every time the domain
+# migration moves code between layers.
+#
+# ── ROUTER MECHANICS THIS CONFIG IS BUILT AGAINST ────────────────────────────
+# Read at source in miner.py and exercised by importing the real detect_room,
+# not by modelling it (DR-116; the S521 draft's 18/18 assertions tested a router
+# that did not exist).
+#
+#  P0  iterates ROOMS in declaration order, testing each against every dir part.
+#      Declaration order therefore beats path depth. `exclude_paths` skips only
+#      that room and continues the loop (miner.py:598-600).
+#  P1  depth-ordered walk, outermost part wins. Unreachable in practice here:
+#      every room is `priority: true`, so P0 decides or nothing does.
+#  P2  matches the FILENAME against a room NAME only — never a keyword.
+#  P3  raw content.count() of every `keywords + [name]` over the first 2000
+#      chars; fires BEFORE `general` and cannot be disabled. Ties resolve by
+#      declaration order.
+#  P4  `general`, reached only when every room scores exactly zero.
+#
+# M1  matching is separator-bounded TOKEN SETS, not equality (miner.py:529-549).
+# M2  short names are P3 magnets — count("ci") hits citation/decision/specific.
+# M3  a compound matches only SINGLE-TOKEN dir parts equal to one of its tokens.
+#     Compound-vs-compound never matches unless byte-identical, even when the
+#     token sets are equal: `cocoindex-pipeline` does NOT match the dir
+#     `cocoindex_pipeline`. M3 is what bounds the M1/M2 trick below.
+#
+# The trick used throughout: replace a bare high-frequency keyword with a
+# compound that still reaches the same single-token dir at P0 while scoring ~0
+# at P3. `supabase-migrations` reaches both `supabase/` and `migrations/`;
+# `governance-review` reaches both `governance/` and `review/`;
+# `provenance-register` reaches `provenance/`. Measured effect: P3 routing fell
+# from 14.1% of files to 4.0%, and `db-schema` went from 121 substring-routed
+# files to zero.
+#
+# What P3 cannot be driven below: room NAMES that are also ordinary prose
+# (`procurement`, `tests`, `knowledge`). `tests` is structural — by M3 only the
+# bare token `tests` reaches the `__tests__/` dir, so the room cannot be
+# compounded. That residue is stated in the id-411 progress note, not hidden.
+
+rooms:
+  # ── DEV WORKFLOW ──────────────────────────────────────────────────────────
+  # Declared FIRST (review change 6). Ten nested `.claude/` dirs exist —
+  # components/, e2e/, lib/mcp/, lib/okf/, supabase/, app/api/ and more carry
+  # their own — and any later declaration scatters that surface across rooms.
+  # `.claude/plugins/**` is carved out so third-party plugin code reaches
+  # `agent-tooling` rather than filing as our own dev workflow.
+  - name: workflow
+    description: Dev lifecycle — skills, agents, hooks, design-sync
+    priority: true
+    keywords: [.claude, .dev-workflow, .design-sync, workflow-evaluation]
+    exclude_paths:
+      - ".claude/plugins/*"
+      - ".claude/plugins/**"
+
+  # ── DOMAINS ───────────────────────────────────────────────────────────────
+  # The six ratified `application_types` (reference/entity-glossary.md). Rooms
+  # for the four with no code yet cost nothing until they match, and route
+  # correctly on the day that code lands — no config change, no re-mine.
+  #
+  # `product-service-guides` is the domain-migration name (owner ruling, S527):
+  # canonical data on a client's products and services, serving sales, training
+  # and marketing alike. Two names are needed and neither is redundant — by M3
+  # the room name reaches only the plural `guides/` (lib/guides, app/api/guides)
+  # while the keyword `product_guide` reaches the singular `guide/` (app/guide,
+  # components/guide) via its `guide` token. Bare `guide` is NOT used: it also
+  # drags in `gitnexus-guide/`, which is dev tooling.
+  - { name: procurement, priority: true }
+  - { name: intelligence, priority: true }
+  - { name: sales-proposal, priority: true, keywords: [sales_proposal] }
+  - { name: product-service-guides, priority: true, keywords: [product_guide] }
+  - {
+      name: competitor-research,
+      priority: true,
+      keywords: [competitor_research],
+    }
+  - {
+      name: training-onboarding,
+      priority: true,
+      keywords: [training_onboarding],
+    }
+
+  # ── AGENT TOOLING ─────────────────────────────────────────────────────────
+  # id-71's surface: MCP tools + resources + prompts + MCP Apps + plugin
+  # commands + the eval harness. Declared BEFORE `knowledge` (review change 4)
+  # so `.claude/plugins/knowledge-hub/` files as tooling, not as knowledge, and
+  # before `ingest-pipeline` so `deploy/coolify/goose-pilot/**` reaches this
+  # room at P0 (id-71 {71.26}, DR-044) without needing a carve-out there.
+  #
+  # NOT named `ai-tooling`, against the S521 review's recommendation. Under M1
+  # that name matches the bare dir part `ai`, capturing `lib/ai/**` (29 files) —
+  # which is platform runtime AI (classify / embed / extract-content /
+  # grounding / summarise, the Anthropic client path, and the runtime prompt
+  # assets in lib/ai/skills/), not agent tooling. The review treated that
+  # capture as a feature of M1; it is the same mis-file class as `proposals`
+  # swallowing the R2 gate. `agent-tooling` matches no bare dir part and does
+  # all its work through keywords.
+  #
+  # Never `ai` (P3 magnet: email, detail, available, main, chain) and never
+  # `claude` (collides with `.claude` under M1). `eval/` is reached through the
+  # compound `mcp-eval`, which scores ~0 where a bare `eval` would count every
+  # "evaluate" and "evaluation". By M3 each compound `mcp-*` dir needs its own
+  # exact keyword — `mcp-server` alone would not reach `mcp-apps/`.
+  - name: agent-tooling
+    description: MCP server, MCP Apps, plugin commands, eval harness, goose
+    priority: true
+    keywords:
+      [mcp-server, mcp-apps, mcp-eval, mcp-builder, plugins, goose-pilot]
+
+  # ── INGEST PIPELINE ───────────────────────────────────────────────────────
+  # `deploy/` belongs here, not with CI (review change 3, and the owner's own
+  # instinct which S521 wrongly argued him out of): `deployment-architecture.md`
+  # lists the compose files beside `scripts/cocoindex_pipeline/server.py`.
+  #
+  # Named `ingest-pipeline`, not `pipeline`: the bare name counted "pipeline" in
+  # prose and substring-routed 44 files. The compound still reaches the `pipeline/`
+  # and `data/` dirs at P0 (the latter matters — DR-121 moves runtime assets to
+  # scripts/cocoindex_pipeline/data/) while scoring ~0 at P3.
+  #
+  # M3 caught a defect here during projection and is worth recording: the first
+  # draft used `cocoindex-flow`, which reaches the bare `cocoindex/` dir but NOT
+  # the compound `cocoindex_pipeline/` — it silently lost 95 files. The keyword
+  # that works is the exact compound `cocoindex_pipeline`, which by M1 also
+  # reaches `cocoindex/` and `pipeline/` through its own two tokens. One keyword,
+  # three dirs. `cocoindex-chunking/` and `pipeline-runs/` are compounds and
+  # still need their own exact keywords.
+  #
+  # Deliberately narrow: pre-cocoindex code under `scripts/` falls through to
+  # `general` rather than being camouflaged by a room implying it belongs.
+  # That residue IS the id-46 triage worklist.
+  - name: ingest-pipeline
+    description: CocoIndex ingestion pipeline and its deployment
+    priority: true
+    keywords:
+      [
+        cocoindex_pipeline,
+        cocoindex-chunking,
+        pipeline-runs,
+        deploy-onprem,
+        coolify-deploy,
+      ]
+
+  # ── KNOWLEDGE LAYER ───────────────────────────────────────────────────────
+  # Corpus-level, shared ACROSS applications, per the entity-glossary
+  # containment chain. NOT domains — siblings of `procurement` here would
+  # re-encode the workspace tier DR-038 retired.
+  #
+  # `okf` sits here rather than as a domain (owner ruling, S521): the OKF
+  # three-layer model is the substrate traversed in order to act, under all six
+  # application types, not beside them.
+  #
+  # `review` + `governance` are ONE concern, and the authority is the SCHEMA,
+  # not a DR: `record_lifecycle` (ID-131 {131.6},
+  # 20260628190000_id131_record_lifecycle_facet.sql) names its first axis
+  # "Review/Governance axis", spanning {source_document, q_a_pair}. The
+  # genuinely separate axis is freshness/expiry/review-cadence, which is
+  # source_document-only (D7). DR-034 does NOT support this merge — it retires
+  # the content_items-era coverage feature while explicitly RETAINING
+  # governance — and DR-041 is a navigation ruling that makes no claim about
+  # concern boundaries. Both were mis-cited in S521 before the schema settled
+  # it. One keyword, `governance-review`, now reaches both dirs at P3 cost ~0.
+  #
+  # `coverage` is dropped (review change 8): dirs named exactly `coverage` are
+  # in SKIP_DIRS (palace.py:44) and are never mined at all.
+  #
+  # `bundle` is dropped as redundant — `okf-bundle` already reaches `okf/`, and
+  # `okf-prototype-bundle/` needs its own exact keyword by M3.
+  #
+  # `docs/reference/testing/` is carved out: those are the test standards
+  # (DR-118's corpus manifest lives there), not the reference-library feature.
+  # Excluded files continue the P0 loop and land in `tests` via `testing`.
+  - name: knowledge
+    description: Corpus, OKF, ontology, provenance, review/governance, extraction
+    priority: true
+    keywords:
+      [
+        okf-bundle,
+        okf-prototype-bundle,
+        ontology-sync,
+        q-a-pairs,
+        provenance-register,
+        reference-library,
+        canonical-taxonomy,
+        governance-review,
+        corpus-search,
+        promotion-gate,
+        entity-management,
+        entity-extraction,
+      ]
+    exclude_paths:
+      - "docs/reference/testing/*"
+      - "docs/reference/testing/**"
+
+  # ── DB SCHEMA ─────────────────────────────────────────────────────────────
+  # Renamed from `data` (review change 7). The name matches no dir part; that
+  # is the point — `data` counted *database* and *metadata* at P3 and became a
+  # magnet. One compound keyword reaches both `supabase/` and `migrations/` at
+  # P0 and scores ~0 at P3. Measured: 121 substring-routed files became 0.
+  - name: db-schema
+    description: Supabase schema, migrations, generated types
+    priority: true
+    keywords: [supabase-migrations]
+
+  # ── PLATFORM CI ───────────────────────────────────────────────────────────
+  # Renamed from `ci` (review change 7): count("ci") hit citation, decision,
+  # specific, efficiency. `ci-cd` keeps the P0 match on a `ci/` dir while
+  # scoring ~0 at P3. `deploy` has moved to `ingest-pipeline` (change 3).
+  - name: ci-cd
+    description: GitHub Actions and platform CI
+    priority: true
+    keywords: [.github]
+
+  # ── KIND ──────────────────────────────────────────────────────────────────
+  # Declared LAST among priority rooms so a domain always wins over kind:
+  # __tests__/components/procurement/ routes to `procurement`, not `tests`.
+  # `testing` picks up docs/reference/testing/ carved out of `knowledge` above.
+  #
+  # This room cannot be compounded away from its P3 cost. By M3 only the bare
+  # token `tests` reaches the `__tests__/` dir — `unit-tests` does not — so the
+  # ~30 files that mention "tests" in their first 2000 chars and match no room
+  # by path will land here. Accepted, and measured, rather than hidden.
+  #
+  # KNOWN LIMITATION — scripts/tests/ (review change 9). The 89 Python pipeline
+  # tests file as `tests`, not `ingest-pipeline`. `cocoindex` appears in 34 of
+  # their FILENAMES and in no path part, and P0/P1 see directory parts only
+  # while P2 matches the filename against a room NAME only. Domain-over-kind
+  # therefore cannot fire there — this is structural, not a config choice, and
+  # the only config fix would be adding `scripts` to `ingest-pipeline`, which
+  # would swallow all 348 files under scripts/ and bury the id-46 worklist.
+  # It resolves for free when cocoindex leaves scripts/ (agreed S521, deferred
+  # to the id-46 pre-cocoindex retirement): the new path will say cocoindex,
+  # and P0 declaration order puts `ingest-pipeline` ahead of `tests`.
+  - name: tests
+    description: Test suites and test standards
+    priority: true
+    keywords: [__tests__, e2e, testing]
+
+# NOTE: no `ui` room. `components`/`hooks`/`contexts` are layer names — exactly
+# what the domain migration invalidates — so rooming them would buy the re-mine
+# this design exists to avoid. Those files fall to `general`, which is honest.
+
+# Machine dumps inside the deliberately-mined .user-scratch surface (runbook
+# mempalace-repair.md §10.4 owner ruling): keep the prose context, drop the
+# generated data files that flood the embedding space (§10.3 class).
+exclude_patterns:
+  - .user-scratch/**/*.csv
+  - .user-scratch/**/*.log
+  - .user-scratch/orphan-tests-with-heuristics.json
+  - .user-scratch/schema-coverage-*.md
