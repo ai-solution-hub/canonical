@@ -54,7 +54,7 @@ pypandoc_binary>=1.13
 # Floor pinned to CocoIndex's own requirement (>=1.1.0): litellm's loose
 # `python-dotenv>=0.2.0` would otherwise let a resolver pick a version below
 # CocoIndex's floor and break the Stage-4 LiteLLMEmbedder import path (ID-49.2).
-python-dotenv>=1.1.0
+python-dotenv>=1.2.2
 
 # Supabase client (bid worker)
 supabase>=2.0.0
