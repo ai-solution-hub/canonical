@@ -8,8 +8,8 @@ import { describe, it, expect } from 'vitest';
 import { PROVENANCE_TABS } from '@/components/provenance/tab-ids';
 
 describe('PROVENANCE_TABS', () => {
-  it('has exactly 5 entries', () => {
-    expect(PROVENANCE_TABS).toHaveLength(5);
+  it('has exactly 4 entries', () => {
+    expect(PROVENANCE_TABS).toHaveLength(4);
   });
 
   it('has no duplicate IDs', () => {
@@ -25,10 +25,10 @@ describe('PROVENANCE_TABS', () => {
     expect(defaults[0].id).toBe('pipeline-health');
   });
 
-  it('marks cost and disputes as stubs', () => {
+  it('marks cost as a stub', () => {
     const stubs = PROVENANCE_TABS.filter((t) => 'stub' in t && t.stub === true);
     const stubIds = stubs.map((t) => t.id);
-    expect(stubIds).toEqual(expect.arrayContaining(['cost', 'disputes']));
-    expect(stubs).toHaveLength(2);
+    expect(stubIds).toEqual(expect.arrayContaining(['cost']));
+    expect(stubs).toHaveLength(1);
   });
 });

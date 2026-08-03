@@ -7,7 +7,6 @@ export const PROVENANCE_TABS = [
   { id: 'pipeline-health', label: 'Pipeline Health', default: true },
   { id: 'audit', label: 'Audit', default: false },
   { id: 'cost', label: 'Cost', default: false, stub: true },
-  { id: 'disputes', label: 'Disputes', default: false, stub: true },
 ] as const;
 
 export type ProvenanceTabId = (typeof PROVENANCE_TABS)[number]['id'];

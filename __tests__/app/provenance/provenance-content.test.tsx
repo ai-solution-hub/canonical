@@ -60,12 +60,6 @@ vi.mock('@/components/provenance/cost-tab-stub', () => ({
   default: () => <div data-testid="cost-tab-stub">Cost stub content</div>,
 }));
 
-vi.mock('@/components/provenance/disputes-tab-stub', () => ({
-  default: () => (
-    <div data-testid="disputes-tab-stub">Disputes stub content</div>
-  ),
-}));
-
 import { ProvenanceContent } from '@/app/provenance/provenance-content';
 import { PROVENANCE_TABS } from '@/components/provenance/tab-ids';
 

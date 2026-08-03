@@ -85,11 +85,6 @@ const CostTabStub = dynamic(
   { loading: () => <TabSkeleton /> },
 );
 
-const DisputesTabStub = dynamic(
-  () => import('@/components/provenance/disputes-tab-stub'),
-  { loading: () => <TabSkeleton /> },
-);
-
 // ---------------------------------------------------------------------------
 // Tab content mapping
 // ---------------------------------------------------------------------------
@@ -99,7 +94,6 @@ const TAB_COMPONENTS: Record<ProvenanceTabId, React.ComponentType> = {
   'pipeline-health': PipelineHealthTab,
   audit: AuditTab,
   cost: CostTabStub,
-  disputes: DisputesTabStub,
 };
 
 // ---------------------------------------------------------------------------
