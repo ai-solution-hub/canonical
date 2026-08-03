@@ -107,21 +107,17 @@ export const GET = defineRoute(
             expected_layer: row.expected_layer,
             subtopic_filter: row.subtopic_filter,
             is_required: row.is_required,
+            // Permanently empty. get_guide_content used to LEFT JOIN
+            // content_items, which ID-131 M6 dropped with no successor
+            // carrying a per-row `layer` assignment; the RPC was rewritten by
+            // 20260707210000_fix_get_guide_content_content_items_residue.sql
+            // to return NULL for every content_* column by construction. The
+            // "push a row when content_id is truthy" branch that used to sit
+            // here could therefore never fire, so it is gone. The key itself
+            // stays so the response shape and its consumers
+            // (components/guide/guide-section.tsx) are unchanged; restoring
+            // per-item content matching is an open product/schema decision.
             content_items: [],
-          });
-        }
-
-        // Only add content items if there is one (LEFT JOIN may produce NULLs)
-        if (row.content_id) {
-          sectionsMap.get(row.section_id)!.content_items.push({
-            content_id: row.content_id,
-            content_title: row.content_title,
-            content_type: row.content_type,
-            content_layer: row.content_layer,
-            content_brief: row.content_brief,
-            content_freshness: row.content_freshness,
-            content_verified_at: row.content_verified_at,
-            content_captured_date: row.content_captured_date,
           });
         }
       }

@@ -358,7 +358,15 @@ describe('GET /api/guides/[slug]', () => {
       error: null,
     });
 
-    // RPC call returns section rows
+    // RPC call returns section rows.
+    //
+    // Every content_* column is NULL because that is what the real RPC
+    // returns: ID-131 M6 dropped content_items, and
+    // 20260707210000_fix_get_guide_content_content_items_residue.sql
+    // rewrote get_guide_content to select NULL::<type> for all eight
+    // content_* columns by construction. This mock used to hand sec-1 a
+    // populated content_id, which asserted a grouping branch the live RPC
+    // could never trigger.
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [
         {
@@ -369,14 +377,14 @@ describe('GET /api/guides/[slug]', () => {
           expected_layer: 'sales_brief',
           subtopic_filter: null,
           is_required: true,
-          content_id: 'item-1',
-          content_title: 'SCP Overview',
-          content_type: 'article',
-          content_layer: 'sales_brief',
-          content_brief: 'Overview of SCP sector',
-          content_freshness: 'fresh',
+          content_id: null,
+          content_title: null,
+          content_type: null,
+          content_layer: null,
+          content_brief: null,
+          content_freshness: null,
           content_verified_at: null,
-          content_captured_date: '2026-01-01T00:00:00Z',
+          content_captured_date: null,
         },
         {
           section_id: 'sec-2',
@@ -408,9 +416,12 @@ describe('GET /api/guides/[slug]', () => {
     const body = await res.json();
     expect(body.guide.slug).toBe('scp-sector');
     expect(body.sections).toHaveLength(2);
+    // Grouped by section_id and ordered by section_order — the behaviour
+    // this route still owns.
     expect(body.sections[0].section_name).toBe('Sector Overview');
-    expect(body.sections[0].content_items).toHaveLength(1);
     expect(body.sections[1].section_name).toBe('Key Roles & Personas');
+    // Always empty: no successor table carries per-row content matching.
+    expect(body.sections[0].content_items).toHaveLength(0);
     expect(body.sections[1].content_items).toHaveLength(0);
   });
 });
