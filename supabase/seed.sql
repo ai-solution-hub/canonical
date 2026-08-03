@@ -270,7 +270,7 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ======================================================================
--- §3  Reference data
+-- §3  Reference data (seeded directly by §4)
 -- ======================================================================
 -- id-417 C6/B2: the weekly staging-reference-refresh workflow that used to
 -- populate these lookup tables from Platform prod is RETIRED. §4 below is now
@@ -278,12 +278,16 @@ ON CONFLICT (id) DO NOTHING;
 -- taxonomy_subtopics, layer_vocabulary, entity_aliases, taxonomy_sync_state),
 -- so a fresh/reset DB always has the client-agnostic ontology CI depends on.
 -- Tables with user-referencing data use the deterministic fixtures above.
+-- form_requirement_templates is populated by ingest, not by seed.
 --
 -- POST-RESET SEQUENCE:
 --   1. Branch reset (runs migrations + this seed.sql)
 --   2. bun run seed:e2e-users  (creates 3 test auth accounts + roles)
 --
 -- See the staging-refresh runbook in the private docs-site for full procedure.
+--
+-- Measured at retirement (S529): prod carried no reference rows that §4 does not
+-- already seed, while its DELETE step wiped staging-only rows every Monday.
 
 -- ======================================================================
 -- §4  Core ontology reference data (baseline/core provenance only — NO client data; see ID/bl platform-seed)
