@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-07T14:45:24.859Z",
+  "generated_at": "2026-08-03T21:21:29.317Z",
   "domains": [
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
@@ -344,10 +344,6 @@
     "reference"
   ],
   "form_types": [
-    {
-      "key": "bid",
-      "label": "Bid"
-    },
     {
       "key": "checklist",
       "label": "Checklist"

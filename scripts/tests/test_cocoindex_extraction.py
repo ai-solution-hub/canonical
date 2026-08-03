@@ -288,7 +288,11 @@ class TestQAFormVariant:
 
     def test_question_text_min_length(self, base_fields: dict) -> None:
         """QAPair.question_text MUST be non-empty."""
-        form_meta = FormMetadata(form_type="bid", form_format="md")
+        # `itt` is incidental fixture data — the subject is question_text
+        # length. It was `bid` until id-417 A4; `bid` was reclassified to
+        # `itt` and deleted from form_types by
+        # 20260712065000_id145_bi8_retire_bid_creation_label.sql.
+        form_meta = FormMetadata(form_type="itt", form_format="md")
         with pytest.raises(ValidationError):
             QAFormExtraction(
                 **base_fields,

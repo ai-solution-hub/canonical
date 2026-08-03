@@ -153,12 +153,6 @@
       "status": "active",
       "baseline_values": [
         {
-          "key": "bid",
-          "label": "Bid",
-          "provenance": "core",
-          "applicable_application_types": ["procurement"]
-        },
-        {
           "key": "rfp",
           "label": "RFP (Request For Proposal)",
           "provenance": "core",
