@@ -86,7 +86,7 @@ SELECT '['||w.string_value||'/'||r.string_value||'] '||
 FROM embedding_fulltext_search f
 JOIN embedding_metadata r ON r.id = f.rowid AND r.key = 'room'
 JOIN embedding_metadata w ON w.id = f.rowid AND w.key = 'wing'
-WHERE f.string_value MATCH '<seed terms: task id OR DR-NNN OR topic>'
+WHERE f.string_value MATCH '"id-145" OR "DR-104" OR "okf"'
   AND f.string_value NOT LIKE 'CHECKPOINT:%'
   AND f.string_value NOT LIKE '%Base directory for this skill%'
   AND NOT EXISTS (SELECT 1 FROM embedding_metadata t
@@ -101,6 +101,12 @@ implementation).
 
 Constraints on this read (non-negotiable):
 
+- **Double-quote every MATCH term — including the seeds you substitute in.**
+  FTS5 reads `-` as a column filter, so a bare hyphenated seed fails:
+  `MATCH 'id-145 OR okf'` → `Error: stepping, no such column: 145`. Quoted
+  (`MATCH '"id-145" OR "okf"'`) it returns normally. This bites exactly when the
+  fallback is needed — the seeds are task ids and `DR-NNN`s, and MCP recall is
+  already down. Verified S528; flagged unfixed in three prior retros before that.
 - **Lock-free only** — `mode=ro&immutable=1`, WAL sqlite read. NEVER open a
   chromadb writer and NEVER route through a mempalace CLI write in this path.
 - **No `wing` filter** — `mempalace_search` with a `wing` filter errors

@@ -61,12 +61,15 @@ Run recall via `mempalace_search` / `mempalace_kg_query` per the `recall-groundi
 `wing` filter and filter client-side.
 
 **Fail open:** if the palace errors, use the lock-free FTS; run it manually with your seed
-terms:
+terms. **Double-quote every term** — FTS5 reads `-` as a column filter, so a bare
+hyphenated seed fails with `no such column: 145`, which is exactly the seed shape this
+fallback exists for:
 
 ```bash
 sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
   "SELECT substr(replace(string_value, char(10),' '),1,200) FROM embedding_fulltext_search
-   WHERE string_value MATCH '<id-145 OR okf OR …>' AND string_value NOT LIKE 'CHECKPOINT:%'
+   WHERE string_value MATCH '\"id-145\" OR \"okf\" OR \"DR-104\"'
+     AND string_value NOT LIKE 'CHECKPOINT:%'
    ORDER BY rowid DESC LIMIT 8"
 ```
 
