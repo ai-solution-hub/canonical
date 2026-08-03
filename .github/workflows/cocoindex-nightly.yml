@@ -454,7 +454,7 @@ jobs:
         run: bun run scripts/cocoindex-nightly-sweep.ts
 
       - name: Setup the Cloud Native Buildpacks `pack` CLI
-        uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned, matches onprem-deploy.yml)
+        uses: buildpacks/github-actions/setup-pack@96703334b4d689ea01dce353220c651e294e3261 # v5.12.3 (pinned, matches onprem-deploy.yml)
 
       - name: Build cocoindex sidecar image (local — no publish, see header)
         # Pruned context mirrors onprem-deploy.yml's IMAGE HYGIENE step
