@@ -76,28 +76,15 @@ interface SchemaCase {
   invalid: unknown;
 }
 
+// RETIRED at S525 (see the baseline-count comment below for the full ruling):
+//   'types/change-reports.ts' group / ChangeReportGenerateResponseSchema —
+//   the declaring file was deleted at 082ea92f with the change-report feature.
+//   'components/review/publication-review-action-bar.tsx' group /
+//   PatchResponseSchema — never imported by that component; its call site
+//   moved to mutationBulkPublicationAction().
+//   MutationResultSchema (was in the 'hooks/* (general)' group) —
+//   hooks/use-tags-data.ts deleted at 16a6794f6 (ID-131.17).
 const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
-  'types/change-reports.ts (renamed from types/digest.ts)': [
-    {
-      schema: 'ChangeReportGenerateResponseSchema',
-      valid: {
-        digest: {
-          id: 'r1',
-          frequency: 'weekly',
-          period_start: '2026-05-01',
-          period_end: '2026-05-08',
-          item_count: 3,
-          domain_summaries: [],
-          narrative_summary: null,
-          generated_at: '2026-05-08T00:00:00.000Z',
-          generated_by: 'system',
-          tokens_used: null,
-          created_at: '2026-05-08T00:00:00.000Z',
-        },
-      },
-      invalid: { digest: 'not-an-object' },
-    },
-  ],
   'types/intelligence-refinement.ts': [
     {
       schema: 'RescoringPreviewResponseSchema',
@@ -336,28 +323,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
       schema: 'NotificationsResponseSchema',
       valid: { notifications: [], unreadCount: 0 },
       invalid: { notifications: {}, unreadCount: 0 },
-    },
-    {
-      schema: 'MutationResultSchema',
-      valid: { affected: 3 },
-      invalid: { affected: 'three' },
-    },
-  ],
-  'components/review/publication-review-action-bar.tsx': [
-    {
-      schema: 'PatchResponseSchema',
-      valid: {
-        success: true,
-        previousStatus: 'in_review',
-        newStatus: 'published',
-        transition: 'approve',
-      },
-      invalid: {
-        success: 'yes',
-        previousStatus: 'in_review',
-        newStatus: 'published',
-        transition: 'approve',
-      },
     },
   ],
   'hooks/procurement/use-procurement-readiness.ts (renamed from hooks/bid/use-bid-readiness.ts)':
@@ -824,7 +789,21 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
     // retired under ID-131.19 fix-Executor escalation 2 (DR-034 owner
     // ruling) alongside the rest of the content_items-era coverage feature
     // — the hook (and its sole fetcher call site) no longer exists.
-    expect(baseline.length).toBe(35);
+    // Was 35; 3 entries retired at S525 (id-412 session) when knip flagged
+    // their schemas as unused exports and the deletion was confirmed correct:
+    // every remaining referrer was a test, and each interface's DECLARING
+    // site no longer declares it —
+    //   ChangeReportGenerateResponse  types/change-reports.ts deleted at
+    //                                 082ea92f (change-report retirement);
+    //   MutationResult                hooks/use-tags-data.ts deleted at
+    //                                 16a6794f6 (ID-131.17 IMS surface);
+    //   PatchResponse                 declaration dropped from the surviving
+    //                                 publication-review-action-bar.tsx when
+    //                                 its call site moved to
+    //                                 mutationBulkPublicationAction(); it was
+    //                                 never imported there (git log -S empty).
+    // The baseline is the register those removals should have updated.
+    expect(baseline.length).toBe(32);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {

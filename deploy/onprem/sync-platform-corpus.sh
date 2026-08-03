@@ -33,7 +33,8 @@
 #       docker-compose.platform.yaml ~L133, default empty) and a supervised
 #       POST /walk ingests it (GREENFIELD runbook step 7b pattern).
 #
-# IDEMPOTENCE (mirrors live-verify.sh step 0b):
+# IDEMPOTENCE (this script owns the pattern; the live-verify.sh step 0b it
+# used to cite was deleted at S525 — id-412):
 #   The `docker cp <src>/. <c>:<dst>` form copies the CONTENTS of <src> into
 #   <dst>, so re-runs overwrite in place. A bare `docker cp <src> <c>:<dst>`
 #   would NEST a second corpus/ level on re-run — do NOT "simplify" this form.
@@ -104,7 +105,7 @@ print_hop_b() {
   printf '%s\n' \
     '# ── Hop B — stage the derived copy onto the on-prem named volume ─────────────' \
     '# Run ON the deploy host (needs the docker daemon + the platform container).' \
-    "# Mirrors live-verify.sh step 0b's docker-cp shape (the '/.' CONTENTS form)." \
+    "# The '/.' CONTENTS form is load-bearing — see IDEMPOTENCE in this file's header." \
     "docker exec ${COCOINDEX_CONTAINER} mkdir -p ${COCOINDEX_CORPUS_DIR}" \
     "docker cp \"${DEST}/.\" \"${COCOINDEX_CONTAINER}:${COCOINDEX_CORPUS_DIR}\"" \
     '# Then point the engine at it and trigger one supervised walk:' \

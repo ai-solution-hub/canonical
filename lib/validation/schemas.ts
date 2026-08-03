@@ -43,16 +43,6 @@ for (const word of DOMAIN_UNCOUNTABLES) {
 // ──────────────────────────────────────────
 
 /**
- * Canonical bare-digit id format (post-15.4 migration; formerly shared with
- * the ledger schemas' Task.id / BacklogItem.id, retired {165.13}). "ID-N" is
- * a prose convention only — JSON storage is always bare-digit.
- *
- * Roadmap ids use dotted-decimal positional ids (e.g. "9.2", "12.15.3") and
- * are NOT covered by this regex.
- */
-export const BARE_ID_REGEX = /^\d+$/;
-
-/**
  * Closed enumeration of valid `content_items.content_type` values.
  *
  * Re-exported from the markdown ontology register
@@ -2425,65 +2415,6 @@ export type PublicationBulkActionBody = z.infer<
 // ALLOW: .loose @ PipelineRunRow.progress — index-signature ([k: string]: unknown)
 // ALLOW: z.unknown @ PipelineRunRow.result — unknown (unknown)
 
-/** R-WP17 ResponseSchema for `ChangeReportGenerateResponse` (types/change-reports.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const ChangeReportGenerateResponseSchema = z.object({
-  digest: z.object({
-    id: z.string(),
-    frequency: z.string(),
-    period_start: z.string(),
-    period_end: z.string(),
-    item_count: z.number(),
-    domain_summaries: z.array(
-      z.object({
-        domain: z.string(),
-        item_count: z.number(),
-        summary: z.string(),
-        top_items: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            content_type: z.string().optional(),
-            why_notable: z.string().optional(),
-            summary: z.string().nullable().optional(),
-          }),
-        ),
-        key_themes: z.array(z.string()),
-      }),
-    ),
-    narrative_summary: z.string().nullable(),
-    generated_at: z.string(),
-    generated_by: z.string(),
-    tokens_used: z.number().nullable(),
-    item_ids: z.array(z.string()).optional(),
-    filters: z
-      .object({
-        domain: z.string().optional(),
-        keywords: z.array(z.string()).optional(),
-        date_from: z.string().optional(),
-        date_to: z.string().optional(),
-      })
-      .nullable()
-      .optional(),
-    governance_summary: z
-      .object({
-        items_modified: z.number(),
-        items_verified: z.number(),
-        items_flagged: z.number(),
-        freshness_breakdown: z
-          .object({
-            fresh: z.number(),
-            aging: z.number(),
-            stale: z.number(),
-            expired: z.number(),
-          })
-          .optional(),
-      })
-      .nullable()
-      .optional(),
-    created_at: z.string(),
-  }),
-});
-
 /** R-WP17 ResponseSchema for `RescoringPreviewResponse` (types/intelligence-refinement.ts). Generated; strict per INV-S (TECH §3.1a). */
 export const RescoringPreviewResponseSchema = z.object({
   samples: z.number(),
@@ -2744,19 +2675,6 @@ export const NotificationsResponseSchema = z.object({
     }),
   ),
   unreadCount: z.number(),
-});
-
-/** R-WP17 ResponseSchema for `MutationResult` (hooks/use-tags-data.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const MutationResultSchema = z.object({
-  affected: z.number(),
-});
-
-/** R-WP17 ResponseSchema for `PatchResponse` (components/review/publication-review-action-bar.tsx). Generated; strict per INV-S (TECH §3.1a). */
-export const PatchResponseSchema = z.object({
-  success: z.boolean(),
-  previousStatus: z.string(),
-  newStatus: z.string(),
-  transition: z.string(),
 });
 
 /** R-WP17 ResponseSchema for `ReadinessData` (hooks/procurement/use-procurement-readiness.ts). Generated; strict per INV-S (TECH §3.1a). */
@@ -3205,59 +3123,6 @@ export const EntityCoOccurrenceResponseSchema = z
         .loose(),
     ),
     total: z.number(),
-  })
-  .loose();
-
-/**
- * ResponseSchema for `POST /api/items/batch-review` (defect-B5 fix). Returns
- * `{ updated }` — the count of items whose governance_review_status changed.
- * The 32.20 codemod wrongly bound `PatchResponseSchema`
- * (`{ success, previousStatus, newStatus, transition }`).
- */
-export const BatchReviewResponseSchema = z
-  .object({
-    updated: z.number(),
-  })
-  .loose();
-
-/**
- * ResponseSchema for `POST /api/items/batch-workspaces` (defect-B5 fix).
- * Returns `{ assignments }`, a `Record<string, string[]>` grouping
- * content-item ids to their workspace ids. The 32.20 codemod wrongly bound
- * `PatchResponseSchema`.
- */
-export const BatchWorkspacesResponseSchema = z
-  .object({
-    assignments: z.record(z.string(), z.array(z.string())),
-  })
-  .loose();
-
-/**
- * ResponseSchema for `PATCH /api/items/[id]` (defect-B5 fix). The handler is
- * polymorphic: every 2xx branch returns `{ success: true, ... }`, with the
- * remaining fields varying by branch — status-transition
- * (`previousStatus`/`newStatus`/`transition`), supersession-clear
- * (`superseded_by`/`dedup_status`), supersession-set (`old_item`/`new_item`),
- * or a plain `{ success: true }` (+ optional `warnings`) via
- * `warningsEnvelope`. `success` is the genuine shared invariant; `.loose()`
- * admits the legitimate per-branch sibling fields (NOT a masked mismatch). The
- * 32.20 codemod bound `PatchResponseSchema`, which forced
- * `previousStatus`/`newStatus`/`transition` on every branch.
- */
-export const ItemPatchResponseSchema = z
-  .object({
-    success: z.boolean(),
-  })
-  .loose();
-
-/**
- * ResponseSchema for `DELETE /api/items/[id]` (defect-B5 fix). Returns
- * `{ deleted, id }`. The 32.20 codemod bound `PatchResponseSchema`.
- */
-export const ItemDeleteResponseSchema = z
-  .object({
-    deleted: z.boolean(),
-    id: z.string(),
   })
   .loose();
 // ──────────────────────────────────────────

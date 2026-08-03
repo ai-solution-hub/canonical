@@ -31,6 +31,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -57,9 +58,6 @@ function trackedFiles(root: string): string[] {
 }
 
 function sha256(absPath: string): string {
-  // node:crypto via require-less import keeps this file dependency-light.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { createHash } = require('node:crypto') as typeof import('node:crypto');
   return createHash('sha256').update(readFileSync(absPath)).digest('hex');
 }
 

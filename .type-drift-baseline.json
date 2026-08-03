@@ -1,11 +1,5 @@
 [
   {
-    "interface": "ChangeReportGenerateResponse",
-    "declaredAt": {
-      "file": "types/change-reports.ts"
-    }
-  },
-  {
     "interface": "RescoringPreviewResponse",
     "declaredAt": {
       "file": "types/intelligence-refinement.ts"
@@ -81,18 +75,6 @@
     "interface": "NotificationsResponse",
     "declaredAt": {
       "file": "hooks/use-notifications.ts"
-    }
-  },
-  {
-    "interface": "MutationResult",
-    "declaredAt": {
-      "file": "hooks/use-tags-data.ts"
-    }
-  },
-  {
-    "interface": "PatchResponse",
-    "declaredAt": {
-      "file": "components/review/publication-review-action-bar.tsx"
     }
   },
   {
