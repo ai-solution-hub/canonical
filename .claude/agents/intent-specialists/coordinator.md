@@ -57,6 +57,9 @@ what files/areas are in scope (and what is not)
 ## Inputs
 links to relevant notes/spec sections. you can use ws-block references.
 
+## Grounding (REQUIRED — see the control below; write it out, never link it)
+the requirement this serves; the literal ToolSearch call; what must be measured
+
 ## Definition of Done
 specific completion checks
 
@@ -71,6 +74,38 @@ exact commands or steps the implementor should run
 - Content below = task body
 - Auto-converts to Task Note when saved
 - Do not edit converted task links — the system produces `- [ ] [Title](intent://...)` format; leave it as-is
+
+## The Grounding field (CRITICAL — this is the control, not advice)
+
+Across 135 retros exactly two things ever transferred between sessions: **a line in a
+dispatch-brief template** and **a named tool-specific gotcha**. Naming a rule does not
+transfer it — four sessions breached a rule they had quoted into their own brief that
+same session. So write these into the `## Grounding` field of every task block. **Inline
+them. A linked grounding file is read once at dispatch and never re-read** — mid-flight
+corrections reach only the agents you message directly.
+
+1. **Ask requirement-first, never liveness-first.** Not *"is X live / dead / orphaned /
+   wired?"* but **"what requirement does X serve, and is that requirement still live?"**
+   Zero instances of the second framing produced this error class; eight of the first
+   produced an expensive one. No named requirement AND current source ⇒ `UNDECIDABLE`.
+2. **Name the `ToolSearch` call, not the tool.** MCP tools are deferred in sub-agents and
+   cost a round-trip, so a task naming a tool without its loader gets grep instead. Paste
+   the literal call, e.g.
+   `ToolSearch query "select:mcp__memtrace__find_symbol,mcp__memtrace__get_impact"`.
+3. **Measure before you retire, rename or ratify** — a projection, probe or mutation, and
+   state what was executed. Measurement is the only thing in 135 retros that ever caught
+   this class without the owner. No executed check ⇒ `UNDECIDABLE`.
+4. **`UNDECIDABLE` is a first-class result**, preferred over a guess, and it must survive
+   the relay — carry its question **verbatim**; never flatten it into a go/no-go.
+5. **Challenge, don't confirm.** When asking an agent to test a read, say *"I want it
+   challenged, not confirmed."*
+6. **Require the coverage gap.** A `PASS` records a conclusion, never its coverage.
+
+**Name these as non-evidence in the field:** consumer-counting (a consumer of a stale
+concept is evidence the rot spread); population or emptiness in **either** direction;
+a task's goal text, ACs or owner-directive (evidence of intent at that time, never of
+correctness); grep absence; a "last verified" stamp (it certifies only what that pass
+executed).
 
 ## Response Organization
 

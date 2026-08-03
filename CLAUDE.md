@@ -54,6 +54,45 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
 - **Intent (ACP) sessions:** permission prompts never surface in Intent — a user-level PreToolUse hook (`~/.claude/hooks/intent-acp-autoallow.sh`) auto-allows tool calls when cwd is under `~/intent/workspaces/`. Claude Code's force-ask files (`.claude/settings*.json`, `.claude/hooks/`, `.claude/skills/`, `.claude/agents/`) can NOT be auto-allowed for **Write/Edit** — those stall until Intent's ~30-min watchdog kills the turn. **Bash-mediated writes DO go through** (author to a temp file, splice with python3 — proven S502, commit `747b5e3d` authored in an Intent workspace), and since S506 the sentinel guard covers the Bash shape too (`e393786f` + settings Bash matcher): Bash commands targeting `.claude/{agents,skills}` are sentinel-gated like Write/Edit. Skill edits from Intent therefore run: invoke the authoring skill (its Step 0 sentinel touch is allowlisted Bash), then splice. The Bash route still bypasses the force-ask gate — say so in the commit/note so that remains auditable.
 
+### Dispatch-brief required lines (S529; the DR-123 control)
+
+**Paste these into every sub-agent brief. Inline them — do not link them.** A shared
+grounding file is read once at dispatch and never polled (S528: two lanes never saw two
+rounds of corrections), and per RC1 of `reports/s528-error-class-recurrence-analysis.md`
+the only two things that ever transferred across 135 retros were **a line in a
+dispatch-brief template** and **a named tool-specific gotcha**. Naming a rule is not
+applying it — four sessions breached a rule they had quoted into their own brief that same
+session.
+
+1. **Ask requirement-first, never liveness-first.** Not *"is X live / dead / orphaned /
+   wired?"* but **_"what requirement does X serve, and is that requirement still live?"_**
+   Zero instances of the second framing produced this error class; eight of the first
+   produced an expensive one. If you cannot name the requirement **and its current
+   source**, the verdict is `UNDECIDABLE`.
+2. **Name the `ToolSearch` call, not the tool.** MCP tools are deferred in sub-agents and
+   cost a round-trip, so a brief naming a tool without its loader gets grep instead —
+   the measured mechanical cause of DR-071's five zero-compliance sessions. Paste the
+   literal call, e.g.
+   `ToolSearch query "select:mcp__memtrace__find_symbol,mcp__memtrace__get_impact"`.
+3. **Measure before you retire, rename or ratify.** Run a projection, probe or mutation and
+   state **what you executed**. Measurement is the only thing in 135 retros that ever
+   caught this class without the owner. A verdict with no executed check is `UNDECIDABLE`.
+4. **`UNDECIDABLE` is a first-class answer**, preferred over a guessed `RETIRE`, and it
+   must survive the relay — carry its question **verbatim**; never render it as a go/no-go.
+5. **Challenge, don't confirm.** When asking a sub-agent to test a read, say *"I want it
+   challenged, not confirmed."* Proven twice in opposite directions in S528 — it produced
+   the rebuttal that overturned the Coordinator, and it held a verdict against Coordinator
+   pressure to flip.
+6. **Report what your check did NOT cover.** A `PASS` records a conclusion, never its
+   coverage.
+
+**These readings are not evidence — say so in the brief:** consumer-counting (a consumer of
+a stale concept is evidence the rot spread); population or emptiness in **either**
+direction (pre-launch, all Platform data is synthetic); a task's goal text, ACs,
+owner-directive or invariant (DR-123 — evidence of intent at that time, never of
+correctness); grep absence (absence is the thing being fixed); a "last verified" stamp
+(it certifies only what that pass actually executed).
+
 ## Ledgers
 
 The task ledger is **ordna** in the PRIVATE docs-site: one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` (YAML frontmatter + body; Git is the source of truth — no database, no server). Read via `cat` on the task file, or the ordna CLI from the docs-site root: `ordna list` / `ordna show <id>` (non-interactive — bare `ordna` opens the TUI board and hangs background shells, like `supabase db push`). Write by editing the task file directly. File format + conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.
