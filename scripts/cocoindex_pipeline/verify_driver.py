@@ -98,28 +98,27 @@ FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
     "templates": (
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-efa/"
-                "evaluation-matrix-itt-vol8.xlsx"
+                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
+                "synthetic-sector-spend.xlsx"
             ),
-            dest_path="verify/evaluation-matrix-itt-vol8.xlsx",
-            title_prefix="VERIFY-ITT-EFA",
+            dest_path="verify/synthetic-sector-spend.xlsx",
+            title_prefix="VERIFY-SYN-XLSX",
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/form-templates/"
-                "sq-standard-selection-questionnaire/"
-                "standard-selection-questionnaire-ppn-03-24.pdf"
+                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
+                "synthetic-capability-statement.pdf"
             ),
-            dest_path="verify/standard-selection-questionnaire-ppn-03-24.pdf",
-            title_prefix="VERIFY-SQ-SSQ",
+            dest_path="verify/synthetic-capability-statement.pdf",
+            title_prefix="VERIFY-SYN-PDF",
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/"
-                "annex_2_supplier_response.docx"
+                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
+                "synthetic-sector-intel.docx"
             ),
-            dest_path="verify/annex_2_supplier_response.docx",
-            title_prefix="VERIFY-RFP-BC",
+            dest_path="verify/synthetic-sector-intel.docx",
+            title_prefix="VERIFY-SYN-DOCX",
         ),
     ),
 }
