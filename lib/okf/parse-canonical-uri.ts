@@ -10,9 +10,9 @@
  * - `canonical://source_documents/<uuid>` / `canonical://reference_items/<uuid>`
  *   — a per-row anchor (BI-6; `q_a_pairs` is deliberately absent from this
  *   form — its `gen_random_uuid()` PK is never bundle-cited, BI-7).
- * - `canonical://q_a_pairs?scope_tag=<tag>` or
- *   `canonical://q_a_pairs?domain=<domain>&subtopic=<subtopic>` — a filtered
- *   query, never a row (BI-8).
+ * - `canonical://q_a_pairs?scope_tag=<tag>` — a filtered query, never a
+ *   row (BI-8). The `?domain=&subtopic=` form retired S531 with the
+ *   fallback topic grain (DR-125 expiry ruled); it now parses to null.
  *
  * Pure parser — no DB dependency, mirroring the producer module's own
  * "pure builder" posture.
@@ -23,8 +23,7 @@ const SCHEME = 'canonical://';
 export type CanonicalResourceRef =
   | { table: 'source_documents'; id: string }
   | { table: 'reference_items'; id: string }
-  | { table: 'q_a_pairs'; scopeTag: string }
-  | { table: 'q_a_pairs'; domain: string; subtopic: string };
+  | { table: 'q_a_pairs'; scopeTag: string };
 
 const PER_ROW_TABLES = new Set(['source_documents', 'reference_items']);
 
@@ -48,9 +47,6 @@ export function parseCanonicalResourceUri(
     const params = new URLSearchParams(query);
     const scopeTag = params.get('scope_tag');
     if (scopeTag) return { table: 'q_a_pairs', scopeTag };
-    const domain = params.get('domain');
-    const subtopic = params.get('subtopic');
-    if (domain && subtopic) return { table: 'q_a_pairs', domain, subtopic };
     return null;
   }
 

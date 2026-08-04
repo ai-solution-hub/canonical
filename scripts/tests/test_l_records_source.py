@@ -83,13 +83,12 @@ class TestConceptKeyShape:
         with pytest.raises(ValueError, match="rel_path"):
             ConceptKey(rel_path="", concept_type="topic")
 
-    def test_rejects_scope_tag_and_domain_subtopic_both_set(self):
-        """BI-8 locator contract (mirrors
-        `producer/resource_uri.py:build_q_a_pairs_query_uri`, which raises
-        `ValueError` on the same both-set condition): `scope_tag` is
-        mutually exclusive with `domain`/`subtopic` — constructing a
-        `ConceptKey` with both set must not silently pick a branch."""
-        with pytest.raises(ValueError, match="mutually exclusive"):
+    def test_domain_subtopic_locator_fields_are_retired(self):
+        """S531 (DR-125 expiry ruled): the domain/subtopic fallback topic
+        grain is deleted — `ConceptKey` must not silently re-grow the
+        fields, because a rel_path minted from them is a DIFFERENT concept
+        identity under BI-2."""
+        with pytest.raises(TypeError):
             ConceptKey(
                 rel_path="topics/gdpr.md",
                 concept_type="topic",
@@ -162,11 +161,6 @@ def _five_type_pool(
     )
     pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
     pool.when(
-        "SELECT DISTINCT sd.primary_domain AS domain",
-        [{"domain": "security", "subtopic": "penetration-testing"}],
-    )
-    pool.when("sd.primary_subtopic AS subtopic, count(DISTINCT qa.id)", [])
-    pool.when(
         "entity_type = $1 ORDER BY 1",
         [{"canonical_name": "LMS"}, {"canonical_name": "Audit"}],
         arg_matcher=lambda args: args == ("product",),
@@ -215,7 +209,10 @@ class TestListConceptsFiveTypeSet:
 
         assert {k.concept_type for k in keys} == CONCEPT_TYPES
 
-    def test_topic_concepts_cover_both_scope_tag_and_domain_subtopic_locators(self):
+    def test_topic_concepts_enumerate_scope_tags_only(self):
+        """S531: scope_tag is the sole topic grain — no `--` fallback
+        rel_paths may appear (a fallback path minted here would be a NEW
+        concept identity under BI-2)."""
         src = LRecordsSource(_five_type_pool())
 
         keys = _run(src.list_concepts())
@@ -224,13 +221,9 @@ class TestListConceptsFiveTypeSet:
         assert {k.rel_path for k in topics} == {
             "topics/gdpr.md",
             "topics/encryption.md",
-            "topics/security--penetration-testing.md",
         }
-        scope_tag_key = next(k for k in topics if k.scope_tag == "gdpr")
-        assert scope_tag_key.domain is None and scope_tag_key.subtopic is None
-        domain_key = next(k for k in topics if k.domain == "security")
-        assert domain_key.subtopic == "penetration-testing"
-        assert domain_key.scope_tag is None
+        assert all(k.scope_tag is not None for k in topics)
+        assert not any("--" in k.rel_path for k in topics)
 
     def test_company_is_a_singleton_when_evidence_exists(self):
         src = LRecordsSource(_five_type_pool())
@@ -343,7 +336,7 @@ class TestReadConceptTopic:
         key = ConceptKey(rel_path="topics/orphan.md", concept_type="topic")
         src = LRecordsSource(self._pool())
 
-        with pytest.raises(ValueError, match="scope_tag OR"):
+        with pytest.raises(ValueError, match="needs scope_tag"):
             _run(src.read_concept(key))
 
 
@@ -937,8 +930,6 @@ class TestMemoKeyProtocolEscalation:
             "rel_path",
             "concept_type",
             "scope_tag",
-            "domain",
-            "subtopic",
             "entity_id",
             "workspace_id",
             "content_version",

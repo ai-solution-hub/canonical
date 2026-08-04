@@ -39,7 +39,7 @@ this a runtime invariant, not just a convention: constructing a
 
 | type            | `list_concepts()` grain                          | `read_concept()` joins |
 |------------------|---------------------------------------------------|-------------------------|
-| `topic`          | distinct `q_a_pairs.scope_tag` values, PLUS distinct `(primary_domain, primary_subtopic)` pairs for scope-tag-less pairs | the q_a_pairs cluster + their `source_document_id` parents + `reference_items` of those parents + `record_lifecycle` (both owner kinds) + `entity_mentions`/`entity_relationships` neighbourhood |
+| `topic`          | distinct `q_a_pairs.scope_tag` values (the domain/subtopic fallback grain retired S531 — DR-125 expiry ruled) | the q_a_pairs cluster + their `source_document_id` parents + `reference_items` of those parents + `record_lifecycle` (both owner kinds) + `entity_mentions`/`entity_relationships` neighbourhood |
 | `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` + `reference_items` |
 | `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + `reference_items` + the company `entity_mentions` graph |
 | `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + `reference_items` + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
@@ -203,19 +203,10 @@ class ConceptKey:
 
     scope_tag: "str | None" = None
     """`topic` locator: a single `q_a_pairs.scope_tag` array element this
-    concept clusters. Mutually exclusive with `domain`/`subtopic` (mirrors
+    concept clusters — the ONLY topic locator since S531 (the
+    domain/subtopic fallback grain retired under DR-125's expiry, mirrors
     `producer/resource_uri.py:build_q_a_pairs_query_uri`'s BI-8 locator
-    contract) — a topic concept sets EITHER this OR the domain/subtopic
-    pair, never both."""
-
-    domain: "str | None" = None
-    """`topic` locator (fallback grouping): the parent source_document's
-    `primary_domain`, paired with `subtopic`, for scope-tag-less q_a_pairs
-    clusters."""
-
-    subtopic: "str | None" = None
-    """`topic` locator: the parent source_document's `primary_subtopic`,
-    paired with `domain`."""
+    contract)."""
 
     entity_id: "str | None" = None
     """`product`/`certification`/`case_study` locator: the entity's
@@ -290,16 +281,6 @@ class ConceptKey:
                 "via the {132.36} concept-feeder mechanism "
                 f"({permitted or 'none'}); a q_a_pair is never a concept "
                 f"(BI-3). Got {self.concept_type!r}."
-            )
-        if self.scope_tag is not None and (
-            self.domain is not None or self.subtopic is not None
-        ):
-            raise ValueError(
-                "ConceptKey.scope_tag is mutually exclusive with "
-                "domain/subtopic (BI-8 locator contract, mirrors "
-                "producer/resource_uri.py:build_q_a_pairs_query_uri); got "
-                f"scope_tag={self.scope_tag!r} domain={self.domain!r} "
-                f"subtopic={self.subtopic!r}"
             )
         if self.workspace_id is not None and self.concept_type != "case_study":
             raise ValueError(
@@ -377,16 +358,6 @@ _SQL_TOPIC_SCOPE_TAGS = (
     "AND array_length(scope_tag, 1) > 0 ORDER BY 1"
 )
 
-_SQL_TOPIC_DOMAIN_SUBTOPICS = (
-    "SELECT DISTINCT sd.primary_domain AS domain, "
-    "sd.primary_subtopic AS subtopic FROM q_a_pairs qa "
-    "JOIN source_documents sd ON sd.id = qa.source_document_id "
-    "WHERE qa.publication_status = 'published' "
-    "AND (qa.scope_tag IS NULL OR array_length(qa.scope_tag, 1) IS NULL) "
-    "AND sd.primary_domain IS NOT NULL AND sd.primary_subtopic IS NOT NULL "
-    "ORDER BY 1, 2"
-)
-
 _QA_COLUMNS = (
     "id, question_text, answer_standard, answer_advanced, scope_tag, "
     "anti_scope_tag, source_document_id, origin_kind, publication_status, "
@@ -397,17 +368,6 @@ _SQL_QA_BY_SCOPE_TAG = (
     f"SELECT {_QA_COLUMNS} FROM q_a_pairs "
     "WHERE scope_tag @> ARRAY[$1]::text[] AND publication_status = 'published' "
     "ORDER BY id"
-)
-
-_SQL_QA_BY_DOMAIN_SUBTOPIC = (
-    "SELECT qa.id, qa.question_text, qa.answer_standard, "
-    "qa.answer_advanced, qa.scope_tag, qa.anti_scope_tag, "
-    "qa.source_document_id, qa.origin_kind, qa.publication_status, "
-    "qa.valid_from, qa.valid_to, qa.created_at, qa.updated_at "
-    "FROM q_a_pairs qa "
-    "JOIN source_documents sd ON sd.id = qa.source_document_id "
-    "WHERE sd.primary_domain = $1 AND sd.primary_subtopic = $2 "
-    "AND qa.publication_status = 'published' ORDER BY qa.id"
 )
 
 _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY = (
@@ -619,28 +579,6 @@ _SQL_TOPIC_SCOPE_TAG_VERSION = (
     "GROUP BY t.tag ORDER BY t.tag"
 )
 
-_SQL_TOPIC_DOMAIN_SUBTOPIC_VERSION = (
-    "SELECT sd.primary_domain AS domain, sd.primary_subtopic AS subtopic, "
-    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
-    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
-    "count(DISTINCT rl.id) AS rl_count, max(rl.updated_at) AS rl_max, "
-    "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max, "
-    "count(DISTINCT er.id) AS er_count, max(er.updated_at) AS er_max "
-    "FROM q_a_pairs qa "
-    "JOIN source_documents sd ON sd.id = qa.source_document_id "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
-    "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
-    "LEFT JOIN entity_relationships er ON er.source_document_id = sd.id "
-    "LEFT JOIN record_lifecycle rl ON "
-    "(rl.owner_kind = 'source_document' AND rl.source_document_id = sd.id) "
-    "OR (rl.owner_kind = 'q_a_pair' AND rl.q_a_pair_id = qa.id) "
-    "WHERE qa.publication_status = 'published' "
-    "AND (qa.scope_tag IS NULL OR array_length(qa.scope_tag, 1) IS NULL) "
-    "AND sd.primary_domain IS NOT NULL AND sd.primary_subtopic IS NOT NULL "
-    "GROUP BY sd.primary_domain, sd.primary_subtopic ORDER BY 1, 2"
-)
-
 # product (MD-7 grid: source_documents, q_a_pairs, reference_items — matches
 # `_read_product`'s assembly order), grouped by canonical_name.
 _SQL_PRODUCT_VERSION = (
@@ -749,7 +687,7 @@ def _dedupe_ids(ids: "Iterable[Any]") -> "list[Any]":
 def _concept_haystack(key: ConceptKey) -> str:
     return " ".join(
         v
-        for v in (key.rel_path, key.scope_tag, key.domain, key.subtopic, key.entity_id)
+        for v in (key.rel_path, key.scope_tag, key.entity_id)
         if v
     ).casefold()
 
@@ -881,9 +819,11 @@ class LRecordsSource:
         ]
 
     async def _list_topic_concepts(self) -> "list[ConceptKey]":
-        """{132.38} MD-5: two additional set-based aggregate queries (one per
-        enumeration branch) populate `content_version` — grouped by the SAME
-        key each branch enumerates by, never a per-concept round-trip."""
+        """{132.38} MD-5: a set-based aggregate query populates
+        `content_version` — grouped by the SAME key the enumeration uses,
+        never a per-concept round-trip. (Scope_tag is the only topic grain
+        since S531 — the domain/subtopic fallback branch retired under
+        DR-125's expiry ruling.)"""
         keys: "list[ConceptKey]" = []
         scope_tag_rows = await self._pool.fetch(_SQL_TOPIC_SCOPE_TAGS)
         version_by_tag = {
@@ -905,31 +845,6 @@ class LRecordsSource:
                     concept_type="topic",
                     scope_tag=tag,
                     content_version=version_by_tag.get(tag, ""),
-                )
-            )
-        domain_subtopic_rows = await self._pool.fetch(_SQL_TOPIC_DOMAIN_SUBTOPICS)
-        version_by_domain_subtopic = {
-            (row["domain"], row["subtopic"]): _combine_content_version(
-                _version_term(row.get("qa_count"), row.get("qa_max")),
-                _version_term(row.get("sd_count"), row.get("sd_max")),
-                _version_term(row.get("ri_count"), row.get("ri_max")),
-                _version_term(row.get("rl_count"), row.get("rl_max")),
-                _version_term(row.get("em_count"), row.get("em_max")),
-                _version_term(row.get("er_count"), row.get("er_max")),
-            )
-            for row in await self._pool.fetch(_SQL_TOPIC_DOMAIN_SUBTOPIC_VERSION)
-        }
-        for row in domain_subtopic_rows:
-            domain, subtopic = row["domain"], row["subtopic"]
-            keys.append(
-                ConceptKey(
-                    rel_path=f"topics/{_slugify(domain)}--{_slugify(subtopic)}.md",
-                    concept_type="topic",
-                    domain=domain,
-                    subtopic=subtopic,
-                    content_version=version_by_domain_subtopic.get(
-                        (domain, subtopic), ""
-                    ),
                 )
             )
         return keys
@@ -1106,15 +1021,12 @@ class LRecordsSource:
     async def _topic_qa_rows(
         self, key: ConceptKey, *, limit: "int | None" = None
     ) -> "list[Mapping[str, Any]]":
-        if key.scope_tag is not None:
-            sql, args = _SQL_QA_BY_SCOPE_TAG, [key.scope_tag]
-        elif key.domain is not None and key.subtopic is not None:
-            sql, args = _SQL_QA_BY_DOMAIN_SUBTOPIC, [key.domain, key.subtopic]
-        else:
+        if key.scope_tag is None:
             raise ValueError(
-                "a topic ConceptKey needs scope_tag OR (domain and "
-                f"subtopic) set (BI-8 locator contract); got {key!r}"
+                "a topic ConceptKey needs scope_tag set (BI-8 locator "
+                f"contract; sole topic grain since S531); got {key!r}"
             )
+        sql, args = _SQL_QA_BY_SCOPE_TAG, [key.scope_tag]
         if limit is not None:
             sql = f"{sql} LIMIT ${len(args) + 1}"
             args = [*args, limit]

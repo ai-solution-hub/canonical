@@ -129,8 +129,10 @@ _PER_ROW_RESOURCE_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
+# The ?domain=&subtopic= form retired S531 with the fallback topic grain
+# (DR-125 expiry ruled) — scope_tag is the only accepted query form.
 _QA_PAIRS_QUERY_RESOURCE_RE = re.compile(
-    r"^canonical://q_a_pairs\?(?:scope_tag=[^&]+|domain=[^&]+&subtopic=[^&]+)$"
+    r"^canonical://q_a_pairs\?scope_tag=[^&]+$"
 )
 
 

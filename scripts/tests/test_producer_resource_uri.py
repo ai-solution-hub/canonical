@@ -136,26 +136,21 @@ def test_build_q_a_pairs_query_uri_scope_tag_form():
     )
 
 
-def test_build_q_a_pairs_query_uri_domain_subtopic_form():
-    assert (
+def test_build_q_a_pairs_query_uri_domain_subtopic_form_is_retired():
+    """S531 (DR-125 expiry ruled): the ?domain=&subtopic= form is gone —
+    the builder must not silently re-accept the retired keywords."""
+    with pytest.raises(TypeError):
         ru.build_q_a_pairs_query_uri(domain="security", subtopic="encryption")
-        == "canonical://q_a_pairs?domain=security&subtopic=encryption"
-    )
-
-
-def test_build_q_a_pairs_query_uri_rejects_mixed_forms():
-    with pytest.raises(ValueError):
-        ru.build_q_a_pairs_query_uri(scope_tag="x", domain="y")
 
 
 def test_build_q_a_pairs_query_uri_rejects_no_args():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         ru.build_q_a_pairs_query_uri()
 
 
-def test_build_q_a_pairs_query_uri_rejects_partial_domain_subtopic():
+def test_build_q_a_pairs_query_uri_rejects_empty_scope_tag():
     with pytest.raises(ValueError):
-        ru.build_q_a_pairs_query_uri(domain="security")
+        ru.build_q_a_pairs_query_uri(scope_tag="")
 
 
 def test_q_a_pairs_query_uri_has_no_path_segment_after_table():
@@ -171,7 +166,7 @@ def test_build_q_a_pairs_query_uri_signature_has_no_uuid_parameter():
     import inspect
 
     params = inspect.signature(ru.build_q_a_pairs_query_uri).parameters
-    assert set(params) == {"scope_tag", "domain", "subtopic"}
+    assert set(params) == {"scope_tag"}
 
 
 # ──────────────────────────────────────────

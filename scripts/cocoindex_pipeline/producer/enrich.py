@@ -329,16 +329,15 @@ def _qa_pairs_anchor(key: ConceptKey) -> "str | None":
     """The BI-8 `q_a_pairs` table/query anchor for `key`'s topic locator.
 
     `None` for `product`/`company`/`certification`/`case_study` concepts —
-    `ConceptKey` carries no `scope_tag`/`domain`/`subtopic` for those types
-    (they locate via `entity_id`), so there is no unambiguous BI-8 form to
-    build; their q_a_pairs rows (where present, per the join grid) are
-    cited via their parent `source_documents`/`reference_items` anchors
-    instead.
+    `ConceptKey` carries no `scope_tag` for those types (they locate via
+    `entity_id`), so there is no unambiguous BI-8 form to build; their
+    q_a_pairs rows (where present, per the join grid) are cited via their
+    parent `source_documents`/`reference_items` anchors instead. (The
+    domain/subtopic fallback anchor retired S531 with the fallback topic
+    grain — DR-125 expiry ruled.)
     """
     if key.scope_tag is not None:
         return build_q_a_pairs_query_uri(scope_tag=key.scope_tag)
-    if key.domain is not None and key.subtopic is not None:
-        return build_q_a_pairs_query_uri(domain=key.domain, subtopic=key.subtopic)
     return None
 
 

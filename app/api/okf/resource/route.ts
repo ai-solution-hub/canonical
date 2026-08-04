@@ -109,16 +109,12 @@ export const GET = defineRoute(
         });
       }
 
-      // domain+subtopic form: q_a_pairs carries no domain/subtopic column
-      // directly (checked against the live schema at implementation time) —
-      // deliberately unresolved rather than silently mis-filtering. See the
-      // Executor's discrepancy report.
+      // Unreachable: the parser only returns the scopeTag q_a_pairs shape
+      // (the ?domain=&subtopic= form retired S531 with the fallback topic
+      // grain and now parses to null upstream).
       return NextResponse.json(
-        {
-          error:
-            'canonical://q_a_pairs?domain=&subtopic= resolution is not yet implemented',
-        },
-        { status: 501 },
+        { error: 'Unrecognised q_a_pairs resource form' },
+        { status: 400 },
       );
     } catch (err) {
       return NextResponse.json(

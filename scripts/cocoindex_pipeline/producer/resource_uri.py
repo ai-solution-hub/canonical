@@ -20,7 +20,7 @@ TECH.md §"Proposed changes per invariant":
   full-replace rebuild, so it is NEVER read or emitted here; there is no
   function in this module whose signature accepts a `q_a_pairs` row id.
 - **BI-8** — the Q&A corpus is referenced only via the table/query form
-  `canonical://q_a_pairs?scope_tag=<tag>` (or `?domain=&subtopic=`),
+  `canonical://q_a_pairs?scope_tag=<tag>`,
   never a row uuid (`build_q_a_pairs_query_uri`).
 - **BI-9** — concept→concept cross-references cite the concept's bundle
   rel_path (matching ID-131's `citations.cited_concept_path text`), never a
@@ -151,35 +151,18 @@ def reference_item_uri_from_source_url(source_url: str) -> str:
     return build_reference_item_uri(derive_reference_item_id(source_url))
 
 
-def build_q_a_pairs_query_uri(
-    *,
-    scope_tag: "str | None" = None,
-    domain: "str | None" = None,
-    subtopic: "str | None" = None,
-) -> str:
+def build_q_a_pairs_query_uri(*, scope_tag: str) -> str:
     """BI-8: the Q&A corpus table/query resource form.
 
-    `canonical://q_a_pairs?scope_tag=<tag>` OR
-    `canonical://q_a_pairs?domain=<domain>&subtopic=<subtopic>` — NEVER a row
-    uuid. There is deliberately no `record_id`/`uuid` parameter on this
-    function: the q_a_pairs `gen_random_uuid()` master cannot be passed to it
-    even by caller error (BI-7).
+    `canonical://q_a_pairs?scope_tag=<tag>` — NEVER a row uuid. There is
+    deliberately no `record_id`/`uuid` parameter on this function: the
+    q_a_pairs `gen_random_uuid()` master cannot be passed to it even by
+    caller error (BI-7). The `?domain=&subtopic=` form retired S531 with
+    the fallback topic grain (DR-125 expiry ruled).
     """
-    if scope_tag is not None:
-        if domain is not None or subtopic is not None:
-            raise ValueError(
-                "scope_tag is mutually exclusive with domain/subtopic (BI-8)"
-            )
-        if not scope_tag:
-            raise ValueError("scope_tag must be non-empty (BI-8)")
-        query = f"scope_tag={scope_tag}"
-    else:
-        if not domain or not subtopic:
-            raise ValueError(
-                "either scope_tag, or both domain and subtopic, are required (BI-8)"
-            )
-        query = f"domain={domain}&subtopic={subtopic}"
-    return f"{_SCHEME}{TABLE_Q_A_PAIRS}?{query}"
+    if not scope_tag:
+        raise ValueError("scope_tag must be non-empty (BI-8)")
+    return f"{_SCHEME}{TABLE_Q_A_PAIRS}?scope_tag={scope_tag}"
 
 
 def concept_citation_path(rel_path: str) -> str:

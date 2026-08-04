@@ -111,11 +111,13 @@ const CANONICAL_RESOURCE_URI_PATTERN =
 
 /**
  * BI-8: the `q_a_pairs` table/query resource form — `producer/
- * resource_uri.py`'s `build_q_a_pairs_query_uri` emits exactly these two
- * shapes. Never a row uuid (that PK is opaque/re-minting — BI-6/BI-7).
+ * resource_uri.py`'s `build_q_a_pairs_query_uri` emits exactly this shape.
+ * Never a row uuid (that PK is opaque/re-minting — BI-6/BI-7). The
+ * `?domain=&subtopic=` form retired S531 with the fallback topic grain
+ * (DR-125 expiry ruled).
  */
 const CANONICAL_QUERY_RESOURCE_URI_PATTERN =
-  /^canonical:\/\/q_a_pairs\?(?:scope_tag=[^&]+|domain=[^&]+&subtopic=[^&]+)$/;
+  /^canonical:\/\/q_a_pairs\?scope_tag=[^&]+$/;
 
 /** True iff `value` is a valid `resource:` URI — the per-row anchor form
  * OR the BI-8 `q_a_pairs` query form. */
@@ -149,7 +151,7 @@ export const ConceptFrontmatterSchema = z.object({
     .string()
     .refine(isValidConceptResourceUri, {
       message:
-        'resource must match canonical://<table>/<uuid> or canonical://q_a_pairs?scope_tag=<tag>|domain=<domain>&subtopic=<subtopic>',
+        'resource must match canonical://<table>/<uuid> or canonical://q_a_pairs?scope_tag=<tag>',
     })
     .optional(),
   tags: z.array(z.string()),

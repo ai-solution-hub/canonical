@@ -128,10 +128,15 @@ def test_qa_pairs_scope_tag_query_resource_is_valid():
     assert errors == []
 
 
-def test_qa_pairs_domain_subtopic_query_resource_is_valid():
-    resource = ru.build_q_a_pairs_query_uri(domain="security", subtopic="encryption")
-    errors = v.check_concept(_valid_frontmatter(resource=resource), body=_VALID_BODY)
-    assert errors == []
+def test_qa_pairs_domain_subtopic_query_resource_is_rejected():
+    """S531: the retired ?domain=&subtopic= form must no longer validate."""
+    errors = v.check_concept(
+        _valid_frontmatter(
+            resource="canonical://q_a_pairs?domain=security&subtopic=encryption"
+        ),
+        body=_VALID_BODY,
+    )
+    assert errors != []
 
 
 @pytest.mark.parametrize(

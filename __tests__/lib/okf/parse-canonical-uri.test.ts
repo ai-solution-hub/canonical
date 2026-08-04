@@ -22,16 +22,12 @@ describe('parseCanonicalResourceUri', () => {
     ).toEqual({ table: 'q_a_pairs', scopeTag: 'pricing' });
   });
 
-  it('parses a q_a_pairs domain+subtopic query pointer', () => {
+  it('rejects the retired q_a_pairs domain+subtopic form (S531, DR-125 expiry)', () => {
     expect(
       parseCanonicalResourceUri(
         'canonical://q_a_pairs?domain=security&subtopic=compliance',
       ),
-    ).toEqual({
-      table: 'q_a_pairs',
-      domain: 'security',
-      subtopic: 'compliance',
-    });
+    ).toBeNull();
   });
 
   it('returns null for a non-canonical:// uri (an external resource link)', () => {

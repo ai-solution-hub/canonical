@@ -25,8 +25,8 @@ validator (BI-13)":
   `canonical://` pointer in one of the TWO forms `producer/resource_uri.py`
   actually emits: the per-row anchor `canonical://{source_documents,
   reference_items}/<uuid>` (`build_per_row_uri`) OR the BI-8 `q_a_pairs`
-  table/query form `canonical://q_a_pairs?scope_tag=<tag>` /
-  `?domain=<domain>&subtopic=<subtopic>` (`build_q_a_pairs_query_uri`).
+  table/query form `canonical://q_a_pairs?scope_tag=<tag>`
+  (`build_q_a_pairs_query_uri`; the ?domain=&subtopic= form retired S531).
   `lib/ontology/concept-schema.ts`'s `CANONICAL_RESOURCE_URI_PATTERN`
   matches ONLY the per-row form — the query form would fail that regex.
   This is a genuine RESOURCE-FORM NUANCE (not a bug to silently paper
@@ -430,8 +430,7 @@ def check_resource_scheme(resource: object) -> "list[str]":
         return [
             f"resource {resource!r} is not a valid canonical:// pointer "
             "(BI-6) — expected canonical://{source_documents,reference_"
-            "items}/<uuid> or canonical://q_a_pairs?scope_tag=<tag>|"
-            "domain=<domain>&subtopic=<subtopic>"
+            "items}/<uuid> or canonical://q_a_pairs?scope_tag=<tag>"
         ]
     return []
 

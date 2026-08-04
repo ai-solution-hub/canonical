@@ -172,17 +172,15 @@ describe('parseConceptFrontmatter', () => {
     );
   });
 
-  it('accepts a BI-8 query-form canonical://q_a_pairs?domain=&subtopic= resource', () => {
+  it('rejects the retired q_a_pairs?domain=&subtopic= resource form (S531, DR-125 expiry)', () => {
     const queryFormResource = WELL_FORMED_FRONTMATTER.replace(
       WELL_FORMED_RESOURCE_LINE,
       'resource: "canonical://q_a_pairs?domain=energy&subtopic=solar"',
     );
 
-    const parsed = parseConceptFrontmatter(conceptMarkdown(queryFormResource));
-
-    expect(parsed.resource).toBe(
-      'canonical://q_a_pairs?domain=energy&subtopic=solar',
-    );
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown(queryFormResource)),
+    ).toThrow(/resource must match/);
   });
 
   it('still rejects a malformed resource URI resembling the query form on a non-canonical scheme', () => {
