@@ -163,7 +163,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#aed156319a4fb01449e7e69a6067f6c49cd76d48",
+    "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#85c750938fcab9e34fa34b874d3a5a4bf17cab67",
     "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.60.0",
     "@stryker-mutator/core": "^9.6.1",
