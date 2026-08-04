@@ -10,7 +10,6 @@ import {
   BookOpen,
   UserCheck,
   Fingerprint,
-  ClipboardCheck,
   Building2,
   Tags,
 } from 'lucide-react';
@@ -41,7 +40,6 @@ export type SettingsSection =
   | 'tag-morphology'
   | 'team'
   | 'governance'
-  | 'reviewer-assignments'
   | 'provenance';
 
 interface SectionDef {
@@ -90,12 +88,6 @@ const ALL_SECTIONS: SectionDef[] = [
     id: 'governance',
     label: 'Quality Review',
     icon: ShieldCheck,
-    group: 'system',
-  },
-  {
-    id: 'reviewer-assignments',
-    label: 'Reviewer Assignments',
-    icon: ClipboardCheck,
     group: 'system',
   },
   {

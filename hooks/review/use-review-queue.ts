@@ -18,18 +18,6 @@ import { useReviewActions } from '@/hooks/review/use-review-actions';
 // Types (preserved for consumer compatibility)
 // ---------------------------------------------------------------------------
 
-export interface ReviewAssignmentInfo {
-  id: string;
-  notes: string | null;
-  filter_domains: string[];
-  filter_content_types: string[];
-  filter_freshness: string[];
-  filter_date_from: string | null;
-  filter_date_to: string | null;
-  item_count: number | null;
-  due_date: string | null;
-}
-
 /** @public */
 export interface UseReviewQueueReturn {
   // State
@@ -45,9 +33,6 @@ export interface UseReviewQueueReturn {
   flagDetails: string;
   showQueuePanel: boolean;
   announcement: string;
-
-  // Assignment
-  activeAssignment: ReviewAssignmentInfo | null;
 
   // Refs
   cardRef: React.RefObject<HTMLDivElement | null>;
@@ -229,9 +214,6 @@ export function useReviewQueue(
     flagDetails: session.flagDetails,
     showQueuePanel: session.showQueuePanel,
     announcement: session.announcement,
-
-    // Assignment
-    activeAssignment: data.activeAssignment,
 
     // Refs
     cardRef: nav.cardRef,

@@ -158,7 +158,7 @@ describe('useReviewQueueData', () => {
   });
 
   // =========================================================================
-  // Hook rendering — queue, stats, assignments
+  // Hook rendering — queue, stats
   // =========================================================================
 
   describe('hook return values', () => {
@@ -213,7 +213,7 @@ describe('useReviewQueueData', () => {
       expect(result.current.stats).toBeNull();
     });
 
-    it('activeAssignment defaults to null when no assignments exist', async () => {
+    it('isLoading settles false once queue and stats resolve', async () => {
       // Queue response
       mockFetchJson
         .mockResolvedValueOnce({
@@ -234,56 +234,6 @@ describe('useReviewQueueData', () => {
           by_content_type: {},
           by_source_file: {},
           by_source_document: {},
-        })
-        // Assignments response — empty
-        .mockResolvedValueOnce({ assignments: [] });
-
-      const { Wrapper } = createWrapper();
-      const { result } = renderHook(
-        () => useReviewQueueData({ status: 'unverified' }, undefined),
-        { wrapper: Wrapper },
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-        expect(result.current.activeAssignment).toBeNull();
-      });
-    });
-
-    it('assignment select coerces null filter arrays to empty arrays', async () => {
-      mockFetchJson
-        .mockResolvedValueOnce({
-          items: [],
-          total: 0,
-          verified_count: 0,
-          flagged_count: 0,
-          has_more: false,
-        })
-        .mockResolvedValueOnce({
-          total: 10,
-          verified: 5,
-          flagged: 1,
-          unverified: 4,
-          draft: 0,
-          by_domain: {},
-          by_content_type: {},
-          by_source_file: {},
-          by_source_document: {},
-        })
-        .mockResolvedValueOnce({
-          assignments: [
-            {
-              id: 'assign-1',
-              notes: 'Urgent review',
-              filter_domains: null,
-              filter_content_types: null,
-              filter_freshness: null,
-              filter_date_from: '2026-01-01',
-              filter_date_to: null,
-              item_count: 42,
-              due_date: '2026-04-01',
-            },
-          ],
         });
 
       const { Wrapper } = createWrapper();
@@ -293,13 +243,7 @@ describe('useReviewQueueData', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.activeAssignment).not.toBeNull();
-        expect(result.current.activeAssignment!.filter_domains).toEqual([]);
-        expect(result.current.activeAssignment!.filter_content_types).toEqual(
-          [],
-        );
-        expect(result.current.activeAssignment!.filter_freshness).toEqual([]);
-        expect(result.current.activeAssignment!.id).toBe('assign-1');
+        expect(result.current.isLoading).toBe(false);
       });
     });
 

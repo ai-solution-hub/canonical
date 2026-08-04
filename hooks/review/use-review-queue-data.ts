@@ -18,7 +18,6 @@ import type {
   ReviewStatsResponse,
   ReviewQueueSortField,
 } from '@/types/review';
-import type { ReviewAssignmentInfo } from '@/hooks/review/use-review-queue';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -38,21 +37,6 @@ export interface ReviewQueuePage {
   flagged_count: number;
   has_more: boolean;
   nextOffset: number;
-}
-
-/** Shape of the assignments API response. */
-interface AssignmentsResponse {
-  assignments: Array<{
-    id: string;
-    notes: string | null;
-    filter_domains: string[] | null;
-    filter_content_types: string[] | null;
-    filter_freshness: string[] | null;
-    filter_date_from: string | null;
-    filter_date_to: string | null;
-    item_count: number | null;
-    due_date: string | null;
-  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +89,6 @@ export interface UseReviewQueueDataReturn {
   isLoading: boolean;
   hasMore: boolean;
   stats: ReviewStatsResponse | null;
-  activeAssignment: ReviewAssignmentInfo | null;
   queueQuery: UseInfiniteQueryResult<
     InfiniteData<ReviewQueuePage, number>,
     Error
@@ -119,9 +102,9 @@ export interface UseReviewQueueDataReturn {
 // ---------------------------------------------------------------------------
 
 /**
- * All server data fetching for the review queue: queue (infinite), stats,
- * and assignments. Replaces 4 useState, 1 useCallback, 3 useEffects, 1 ref
- * from the original monolith.
+ * All server data fetching for the review queue: queue (infinite) and stats.
+ * Replaces 4 useState, 1 useCallback, 3 useEffects, 1 ref from the original
+ * monolith. (The reviewer-assignments query retired with its route — id-420.)
  */
 export function useReviewQueueData(
   filters: ReviewFiltersType,
@@ -193,38 +176,6 @@ export function useReviewQueueData(
   });
 
   // -----------------------------------------------------------------------
-  // Assignments
-  // -----------------------------------------------------------------------
-
-  const { data: activeAssignment = null } = useQuery<
-    AssignmentsResponse,
-    Error,
-    ReviewAssignmentInfo | null
-  >({
-    queryKey: queryKeys.review.assignments,
-    queryFn: () =>
-      fetchJson<AssignmentsResponse>('/api/review/assignments?status=active'),
-    staleTime: 5 * 60_000,
-    gcTime: 10 * 60_000,
-    refetchOnWindowFocus: false,
-    select: (data): ReviewAssignmentInfo | null => {
-      const assignment = data.assignments?.[0];
-      if (!assignment) return null;
-      return {
-        id: assignment.id,
-        notes: assignment.notes,
-        filter_domains: assignment.filter_domains ?? [],
-        filter_content_types: assignment.filter_content_types ?? [],
-        filter_freshness: assignment.filter_freshness ?? [],
-        filter_date_from: assignment.filter_date_from,
-        filter_date_to: assignment.filter_date_to,
-        item_count: assignment.item_count,
-        due_date: assignment.due_date,
-      };
-    },
-  });
-
-  // -----------------------------------------------------------------------
   // Return
   // -----------------------------------------------------------------------
 
@@ -233,7 +184,6 @@ export function useReviewQueueData(
     isLoading,
     hasMore,
     stats,
-    activeAssignment,
     queueQuery,
     queryClient,
     queueFiltersKey,

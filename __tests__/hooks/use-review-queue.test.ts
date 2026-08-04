@@ -77,17 +77,6 @@ const mockDataReturn = vi.hoisted(() => ({
   isLoading: true,
   hasMore: false,
   stats: null as ReviewStatsResponse | null,
-  activeAssignment: null as null | {
-    id: string;
-    notes: string;
-    filter_domains: string[];
-    filter_content_types: string[];
-    filter_freshness: string[];
-    filter_date_from: string | null;
-    filter_date_to: string | null;
-    item_count: number;
-    due_date: string;
-  },
   queueQuery: {
     data: undefined,
     isLoading: true,
@@ -301,7 +290,6 @@ describe('useReviewQueue', () => {
       isLoading: true,
       hasMore: false,
       stats: null,
-      activeAssignment: null,
       queryClient: new QueryClient(),
       queueFiltersKey: {},
     });
@@ -1028,31 +1016,6 @@ describe('useReviewQueue', () => {
       expect(result.current.isActioning).toBe(true);
     });
 
-    it('activeAssignment comes from data hook', () => {
-      setupLoadedState([makeQueueItem()]);
-      mockDataReturn.activeAssignment = {
-        id: 'assign-1',
-        notes: 'Review these items',
-        filter_domains: ['Technical'],
-        filter_content_types: [],
-        filter_freshness: [],
-        filter_date_from: null,
-        filter_date_to: null,
-        item_count: 20,
-        due_date: '2026-04-01',
-      };
-
-      const { result } = renderHook(() => useReviewQueue(), {
-        wrapper: createWrapper(),
-      });
-
-      expect(result.current.activeAssignment).not.toBeNull();
-      expect(result.current.activeAssignment!.id).toBe('assign-1');
-      expect(result.current.activeAssignment!.filter_domains).toEqual([
-        'Technical',
-      ]);
-    });
-
     it('handlePublish publishes the current item', async () => {
       setupLoadedState([
         makeQueueItem({ id: 'pub1', governance_review_status: 'draft' }),
@@ -1069,7 +1032,7 @@ describe('useReviewQueue', () => {
       expect(mockActionsReturn.handlePublish).toHaveBeenCalled();
     });
 
-    it('all 34 return properties are present', () => {
+    it('all 33 return properties are present', () => {
       setupLoadedState([makeQueueItem()]);
 
       const { result } = renderHook(() => useReviewQueue(), {
@@ -1089,7 +1052,6 @@ describe('useReviewQueue', () => {
         'flagDetails',
         'showQueuePanel',
         'announcement',
-        'activeAssignment',
         'cardRef',
         'flagInputRef',
         'currentItem',
@@ -1117,7 +1079,7 @@ describe('useReviewQueue', () => {
         expect(result.current).toHaveProperty(prop);
       }
 
-      expect(expectedProperties).toHaveLength(34);
+      expect(expectedProperties).toHaveLength(33);
     });
   });
 });

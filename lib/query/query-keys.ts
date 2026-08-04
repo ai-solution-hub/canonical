@@ -51,7 +51,6 @@ export const queryKeys = {
       ['review', 'queue', filters] as const,
     stats: ['review', 'stats'] as const,
     history: (itemId: string) => ['review', 'history', itemId] as const,
-    assignments: ['review', 'assignments'] as const,
     /**
      * Awaiting-publication queue (tab 6 of /review) — REST
      * GET /api/review/queue?publication_status=in_review.

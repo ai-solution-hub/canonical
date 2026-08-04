@@ -39,37 +39,10 @@
     }
   ],
   "regions": ["lhr1"],
-  "functions": {
-    "app/api/summaries/generate/*": { "maxDuration": 30 },
-    "app/api/change-reports/generate/*": { "maxDuration": 60 },
-    "app/api/bids/[id]/questions/extract/*": { "maxDuration": 120 },
-    "app/api/bids/[id]/questions/match/*": { "maxDuration": 120 },
-    "app/api/bids/[id]/responses/draft/*": { "maxDuration": 120 },
-    "app/api/bids/[id]/responses/draft-all/*": { "maxDuration": 120 },
-    "app/api/bids/[id]/responses/[rId]/regenerate/*": { "maxDuration": 120 },
-    "app/api/cron/content-gaps/*": { "maxDuration": 30 },
-    "app/api/cron/quality-score/*": { "maxDuration": 50 },
-    "app/api/cron/intelligence-poll/*": { "maxDuration": 120 },
-    "app/api/cron/intelligence-cleanup/*": { "maxDuration": 60 },
-    "app/api/cron/datapath-watch/*": { "maxDuration": 30 },
-    "app/api/cron/attachment-orphan-sweep/*": { "maxDuration": 60 }
-  },
   "crons": [
     {
       "path": "/api/cron/freshness-transitions",
       "schedule": "15 3 * * *"
-    },
-    {
-      "path": "/api/cron/review-cadence",
-      "schedule": "45 3 * * *"
-    },
-    {
-      "path": "/api/cron/content-gaps",
-      "schedule": "30 5 * * 1"
-    },
-    {
-      "path": "/api/cron/quality-score",
-      "schedule": "0 5 * * 0"
     },
     {
       "path": "/api/cron/intelligence-cleanup",

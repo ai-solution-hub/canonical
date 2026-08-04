@@ -6,7 +6,6 @@ import type {
   ReviewFilters as ReviewFiltersType,
   ReviewProgress,
 } from '@/types/review';
-// ReviewAssignmentInfo is used by other sub-hooks, not directly here
 
 // ---------------------------------------------------------------------------
 // Return type
