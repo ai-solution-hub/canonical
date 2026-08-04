@@ -11,10 +11,8 @@ import { z } from 'zod';
  * §5.4.x candidate (5.4.1 / 5.4.2) adds its own `JobType` value
  * when its candidate spec dispatches. (`'form_draft_all'` — formerly
  * `'bid_draft_all'`, renamed under ID-71 — added by
- * §5.4.1 W4-IMPL S224; `'batch_reclassify'` added by §5.4.2 W1-IMPL
- * S225 — see migrations
- * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql` and
- * `20260505211806_s225_widen_job_type_check_batch_reclassify.sql`.)
+ * §5.4.1 W4-IMPL S224, see migration
+ * `20260505164817_s224_widen_job_type_check_bid_draft_all.sql`.)
  *
  * The retired §5.4.4 upload-markdown-batch job type (added S226) was
  * removed from this union by ID-46.11 once the folder-drop replacement UX
@@ -42,11 +40,12 @@ import { z } from 'zod';
  * types `embed | classify | extract_qa | summarise | validate | reprocess`
  * plus the pre-existing template type `template_fill`, plus `form_draft_all`
  * (formerly `bid_draft_all`, renamed under ID-71) added by §5.4.1 — see
- * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`,
- * plus `batch_reclassify` added by §5.4.2 W1-IMPL — see
- * `supabase/migrations/20260505211806_s225_widen_job_type_check_batch_reclassify.sql`).
+ * `supabase/migrations/20260505164817_s224_widen_job_type_check_bid_draft_all.sql`).
  * (The legacy upload-markdown-batch job type was retired from the union by
- * ID-46.11 — that path is superseded by ID-56.12 folder-drop ingest.)
+ * ID-46.11 — that path is superseded by ID-56.12 folder-drop ingest. The
+ * `batch_reclassify` type (§5.4.2) was retired by id-419 (S531) — no enqueue
+ * site ever existed; its DB CHECK value is deliberately retained, like the
+ * other retired types.)
  *
  * The legacy synchronous template-analyse job type was retired from this
  * union by ID-52 (the app-side analyse path is superseded by the
@@ -70,7 +69,6 @@ export type JobType =
   | 'reprocess'
   | 'template_fill'
   | 'form_draft_all'
-  | 'batch_reclassify'
   | 'analyse_form';
 
 /**
@@ -192,7 +190,6 @@ export interface QueueJobPayload<TBody extends Record<string, unknown>> {
  *
  * Examples (spec §5.5 lines 813-815):
  * - `form_draft_all:${procurementId}:${YYYY-MM-DD}:${requestHash}` ✓
- * - `batch_reclassify:${workspaceId}:${YYYY-MM-DD}:${optionsHash}` ✓
  *
  * @param args.jobType - The job-type value (must be in `JobType` union).
  * @param args.scopedId - The scoping identifier (form_id, workspace_id,

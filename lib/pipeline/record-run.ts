@@ -54,9 +54,9 @@ export interface RecordPipelineRunParams {
   supabase: SupabaseClient<Database>;
   /**
    * Pipeline identifier — lowercase snake_case, matches the existing
-   * `pipeline_runs.pipeline_name` values (`content_gaps`,
-   * `freshness_transitions`, `quality_score`, `classification_quality`,
-   * `coverage_alert`, `provenance_audit_pdf`, etc.). Used as the Sentry
+   * `pipeline_runs.pipeline_name` values (`file_upload`,
+   * `freshness_transitions`, `form_draft_all`, `analyse_form`,
+   * `provenance_audit_pdf`, etc.). Used as the Sentry
    * fingerprint so repeated failures of the same pipeline group in the
    * Sentry UI.
    */

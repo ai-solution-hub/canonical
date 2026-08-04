@@ -69,7 +69,7 @@ export interface ApiRequestOptions {
  *
  * @example POST with no body (auth-failure path test)
  * ```ts
- * const req = createMockApiRequest({ path: '/api/admin/batch-reclassify' });
+ * const req = createMockApiRequest({ path: '/api/search' });
  * expect((await POST(req)).status).toBe(401);
  * ```
  */

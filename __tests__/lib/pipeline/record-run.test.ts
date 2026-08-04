@@ -319,7 +319,7 @@ describe('recordPipelineRun', () => {
     });
     await recordPipelineRun({
       supabase: client,
-      pipelineName: 'batch_reclassify',
+      pipelineName: 'form_draft_all',
       status: 'cancelled',
       itemsProcessed: 7,
       result: { partial: 'work' },
@@ -344,7 +344,7 @@ describe('recordPipelineRun', () => {
     const { client } = createMockSupabase({ data: null, error: null });
     await recordPipelineRun({
       supabase: client,
-      pipelineName: 'classification_quality',
+      pipelineName: 'freshness_transitions',
       status: 'failed',
       errorMessage: 'all items errored',
     });
@@ -353,7 +353,7 @@ describe('recordPipelineRun', () => {
     const [message, options] = (
       Sentry.captureMessage as ReturnType<typeof vi.fn>
     ).mock.calls[0];
-    expect(message).toContain('classification_quality');
+    expect(message).toContain('freshness_transitions');
     expect(message).toContain('failed');
     expect(message).toContain('all items errored');
     expect(options).toMatchObject({ level: 'error' });

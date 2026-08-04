@@ -110,9 +110,10 @@ function sortRefsEffectiveFirst<T extends { context_type: string }>(
  *
  * ID-131 {131.17} G-IMS-DELETE KEEP-list: re-pointed off content_items onto
  * source_documents (M3 gave SD the classification family). `contentItemId`
- * IS the source_documents id directly (both surviving callers —
- * `classifyContent`/`runBatchReclassifyJob`, both re-pointed in this same
- * Subtask — now pass a source_documents id here) — the FORMER separate
+ * IS the source_documents id directly (the surviving caller,
+ * `classifyContent` — re-pointed in that same Subtask — passes a
+ * source_documents id here; the other re-pointed caller,
+ * `runBatchReclassifyJob`, was retired by id-419/S531) — the FORMER separate
  * `content_items.source_document_id` FK-column resolution (ID-131.26
  * value-provenance fix, needed because content_items and source_documents
  * were independent PK spaces) collapses to an identity. `metadata` has no SD

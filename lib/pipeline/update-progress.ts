@@ -2,7 +2,7 @@
 //
 // Mid-flight pipeline_runs progress UPDATE helper. Extracted from
 // `app/api/upload/route.ts:142-164` (EP3 file_upload pipeline) so the
-// Pattern E consumers (batch_reclassify, folder-drop) can write the same
+// Pattern E consumers (folder-drop) can write the same
 // shape against the same row column without duplicating the silent-catch /
 // service-client wiring.
 //

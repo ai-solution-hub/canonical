@@ -155,9 +155,8 @@ export const POST = defineRoute(
           // not a workspaces id, post-W1e (procurement rows deleted from
           // workspaces wholesale). Writing `id` here would violate the FK on
           // every enqueue. No replacement column tracks the form; the caller
-          // already gets `pipeline_run_id` back for polling (matches the
-          // app/api/admin/batch-reclassify/route.ts precedent, which also
-          // passes null for a non-workspace-scoped pipeline).
+          // already gets `pipeline_run_id` back for polling (null is the
+          // established shape for a non-workspace-scoped pipeline).
           workspace_id: null,
         }),
         'bids.response.draftAll.pipelineRunInsert',

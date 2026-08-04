@@ -28,8 +28,8 @@
  *
  *   Inv-18's contract is: the cocoindex code path MUST go through
  *   recordPipelineRun(), NOT a raw `supabase.from('pipeline_runs').
- *   insert(...)` call. Other pipelines (batch_reclassify, taxonomy-sync,
- *   draft-all) have their own code paths and are out of Inv-18 scope.
+ *   insert(...)` call. Other pipelines (e.g. draft-all) have their own
+ *   code paths and are out of Inv-18 scope.
  *
  *   The guard test does a source-code scan of the cocoindex bridge file
  *   (app/api/internal/pipeline-runs/record/route.ts) and asserts:

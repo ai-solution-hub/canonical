@@ -44,7 +44,7 @@ export interface StartPipelineRunParams {
    * Postgres generates one via the column default and we read it back.
    */
   id?: string;
-  /** Pipeline name (e.g. 'file_upload', 'batch_reclassify'). */
+  /** Pipeline name (e.g. 'file_upload', 'form_draft_all'). */
   pipelineName: string;
   /**
    * User id for `created_by` — gates polling visibility via the
