@@ -4,6 +4,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { createNotification } from '@/lib/notifications';
 import { sb } from '@/lib/supabase/safe';
+import { createServiceClient } from '@/lib/supabase/server';
 import { parseBody } from '@/lib/validation';
 import {
   SendToReviewBodySchema,
@@ -154,11 +155,20 @@ export const POST = defineRoute(
         // Collect items with no owner to look up admins
         const itemsWithoutOwner: string[] = [];
 
+        // id-369 F1 class: these rows are for OTHER users (owners/admins),
+        // and the `notifications_insert` RLS policy only allows
+        // `user_id = auth.uid()` — the actor's client is denied every
+        // cross-user insert, and PostgREST returns that denial in-band as
+        // `{ error }`, so nothing ever threw. Insert via the service client
+        // and surface failures in the response, per the S496 precedent
+        // (lib/mcp/tools/governance.ts).
+        const notificationClient = createServiceClient();
+
         for (const itemId of eligible) {
           const ownerId = ownerMap.get(itemId);
           if (ownerId) {
-            await createNotification({
-              supabase,
+            const { error: notifyErr } = await createNotification({
+              supabase: notificationClient,
               userId: ownerId,
               type: 'governance_review_needed',
               entityType: 'content_item',
@@ -166,6 +176,12 @@ export const POST = defineRoute(
               title: 'Source document review',
               message: `Source document review: ${filename} was updated. This item needs reviewing.`,
             });
+            if (notifyErr) {
+              unnotifiedItems += 1;
+              warnings.push(
+                `Owner notification failed for item ${itemId}: ${notifyErr.message}`,
+              );
+            }
           } else {
             itemsWithoutOwner.push(itemId);
           }
@@ -185,7 +201,7 @@ export const POST = defineRoute(
             );
             // Items were sent to review, but no notifications could be
             // created for owner-less items. Surface as warning + count.
-            unnotifiedItems = itemsWithoutOwner.length;
+            unnotifiedItems += itemsWithoutOwner.length;
             warnings.push(
               'Items were sent to review, but admin notifications failed: ' +
                 safeErrorMessage(adminRolesError, 'admin role lookup failed'),
@@ -193,16 +209,17 @@ export const POST = defineRoute(
           } else {
             const adminIds = (adminRoles ?? []).map((r) => r.user_id);
             if (adminIds.length === 0) {
-              unnotifiedItems = itemsWithoutOwner.length;
+              unnotifiedItems += itemsWithoutOwner.length;
               warnings.push(
                 'Items were sent to review, but no admins exist to notify',
               );
             }
 
             for (const itemId of itemsWithoutOwner) {
+              let notifiedForItem = adminIds.length === 0;
               for (const adminId of adminIds) {
-                await createNotification({
-                  supabase,
+                const { error: notifyErr } = await createNotification({
+                  supabase: notificationClient,
                   userId: adminId,
                   type: 'governance_review_needed',
                   entityType: 'content_item',
@@ -210,7 +227,15 @@ export const POST = defineRoute(
                   title: 'Source document review',
                   message: `Source document review: ${filename} was updated. This item needs reviewing.`,
                 });
+                if (notifyErr) {
+                  warnings.push(
+                    `Admin notification failed for item ${itemId}: ${notifyErr.message}`,
+                  );
+                } else {
+                  notifiedForItem = true;
+                }
               }
+              if (!notifiedForItem) unnotifiedItems += 1;
             }
           }
         }

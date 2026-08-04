@@ -395,8 +395,16 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
         let notificationError: string | null = null;
         try {
           const { createNotification } = await import('@/lib/notifications');
+          // id-369 F1 class: the reviewer is another user, and the
+          // `notifications_insert` RLS policy only allows
+          // `user_id = auth.uid()` — the MCP caller's client is denied
+          // every cross-user insert, in-band as `{ error }`. The check
+          // below saw the denial but the row still never landed; insert
+          // via the service client instead (S496 precedent,
+          // lib/mcp/tools/governance.ts).
+          const { createServiceClient } = await import('@/lib/supabase/server');
           const { error: notifError } = await createNotification({
-            supabase,
+            supabase: createServiceClient(),
             userId: args.reviewer_id,
             type: 'governance_review_needed',
             entityType: 'content_item',

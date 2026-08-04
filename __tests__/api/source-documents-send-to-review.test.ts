@@ -12,12 +12,20 @@ import { createTestRequest, createTestParams } from '../helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 
+// id-369 F1 class: cross-user notification inserts must go through the
+// service client — the actor's RLS client is denied by the
+// `notifications_insert` policy (`user_id = auth.uid()`). A distinct
+// sentinel object lets the tests pin WHICH client the route hands to
+// createNotification.
+const mockServiceClient = { __client: 'service' };
+
 const { mockCookies } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockServiceClient),
 }));
 
 vi.mock('next/headers', () => ({
@@ -591,6 +599,75 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
         entityId: ITEM_ID_2,
         message: expect.stringContaining('policy-v2.docx'),
       }),
+    );
+
+    // id-369 F1 class: every notification row is for ANOTHER user, so every
+    // insert must ride the service client — the actor's client is denied by
+    // the notifications_insert RLS policy and the row silently never lands.
+    for (const [callParams] of mockCreateNotification.mock.calls) {
+      expect(callParams.supabase).toBe(mockServiceClient);
+    }
+  });
+
+  // 11b. id-369 F1 class: a denied notification insert must be visible in
+  // the response — never silently absorbed — while the review action itself
+  // (which already landed) still succeeds.
+  it('surfaces a failed owner notification in unnotified + warnings while the send still succeeds', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              source_document_id: ITEM_ID_1,
+              governance_review_status: null,
+              content_owner_id: 'owner-1',
+              source_documents: {
+                id: ITEM_ID_1,
+                filename: 'item-one.docx',
+                suggested_title: 'Item One',
+              },
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // record_lifecycle update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // source_documents updated_at stamp succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Source document filename lookup
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { filename: 'policy-v2.docx' },
+      error: null,
+    });
+
+    // The owner insert is denied (in-band PostgREST error, nothing throws)
+    mockCreateNotification.mockResolvedValueOnce({
+      error: { message: 'new row violates row-level security policy' },
+    });
+
+    const req = createTestRequest(
+      `/api/source-documents/${DOC_ID}/send-to-review`,
+      { method: 'POST', body: { item_ids: [ITEM_ID_1] } },
+    );
+    const params = createTestParams({ id: DOC_ID });
+    const res = await POST(req, { params });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.sent).toBe(1);
+    expect(body.unnotified).toBe(1);
+    expect(body.warnings).toEqual(
+      expect.arrayContaining([expect.stringContaining(ITEM_ID_1)]),
     );
   });
 
