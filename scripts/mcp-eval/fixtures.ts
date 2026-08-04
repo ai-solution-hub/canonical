@@ -54,122 +54,84 @@ export function loadEnv(): void {
 // built-but-unwired question_match_search RPC (id-57/T10). 40 → 41.
 // ---------------------------------------------------------------------------
 
-/** Canonical set of all 41 MCP tool names. Compared as a set (not an ordered list) by `mcp-fixture-sync.test.ts`. */
+/**
+ * Canonical set of the 16 REGISTERED MCP tool names. Compared bidirectionally
+ * against source by `mcp-fixture-sync.test.ts`.
+ *
+ * S530 (id-417 third deletion wave, dd773ff68): the owner retired the
+ * search/procurement/templates/apps/workspaces tool files wholesale — 40 → 16.
+ * The pre-wave register carried 24 phantom names precisely because the sync
+ * guard was one-directional (source ⊆ fixtures only); the reverse assertion
+ * now exists, so a retired tool that lingers here FAILS the suite.
+ */
 export const CANONICAL_TOOL_NAMES = [
-  // ID-71.7 — ONE consolidated find/answer entry (search + QA + chunk + similar).
-  'find', // 1
-  'get_reorientation', // 5
-  // ID-71.8 — ONE consolidated five-layer exposure entry (was get_freshness_report,
-  // get_expiring_content, get_coverage_gaps, audit_content, get_quality_summary,
-  // get_quality_briefing, get_quality_actions, get_certification_status).
-  'where_are_we_exposed',
-  'list_active_procurement', // 8
-  'get_procurement_detail', // 9
-  'get_form_question', // 10
-  'cite_content', // 11
-  'get_content_effectiveness', // 12
-  // ID-145 {145.17} — R7 reader (BI-36): question_match_search consumer.
+  // question-matches.ts — ID-145 {145.17} R7 reader (BI-36).
   'get_question_matches',
-  'get', // 13 (ID-71.10 — one-or-many; was get_content_item + get_content_items)
-  'create_content_item', // 14
-  'update_content_item', // 15
-  // get_workspace_items RETIRED (ID-131.19, M6) — content_item_workspaces dropped.
-  'assign', // 17 (ID-71.10 — one-or-many; was assign_content_owner + bulk_assign_owner)
-  'get_document_versions', // 18
-  // get_document_diff RETIRED (ID-117.12) — legacy diff-display surface removed.
-  // ID-71.10 PART 2 — dedup entry; was find_duplicate_candidates
-  // (single-item) + find_all_duplicates (batch). Single-item-only since
-  // ID-131.15 retired the whole-KB batch-scan branch.
-  'find_duplicates',
-  'suggest_content_creation', // 26 (KEPT — ID-71.8 resolution affordance, B-INV-4)
-  'classify_content', // 29
-  'generate_summary', // 30
-  'get_entity_relationships', // 31
-  'list_templates', // 33
-  'get_template_coverage', // 34
-  'get_template_gaps', // 35
-  'show_coverage_matrix', // 36
-  'show_procurement_dashboard', // 37
-  'show_reorient_me', // 38
-  'show_intelligence_feed', // 39
-  'delete_content_item', // 40
-  'update_governance_status', // 41
-  'get_intelligence_summary', // 42
-  'list_guides', // 44
-  'get_guide', // 45
-  'create_guide', // 46
-  'update_guide', // 47
-  'trigger_intelligence_poll', // 48
-  // S180 P0-23 — review + governance additions.
-  // ID-71.9 — ONE faceted queue entry (was get_governance_queue,
-  // get_review_queue, get_assignments_for_user, get_dashboard_summary).
+  // ai.ts
+  'classify_content',
+  'generate_summary',
+  // entities.ts
+  'get_entity_relationships',
+  // governance.ts
+  'delete_content_item',
+  'update_governance_status',
+  'update_publication_status',
+  'review_governance_item',
+  // review.ts — S180 P0-23; ID-71.9 faceted queue consolidation.
   'whats_in_my_queue',
-  'review_governance_item', // 50
-  'create_review_assignment', // 53
-  // S180 P1-35 — change-report tool (WP6, 52 → 53).
-  'get_change_report', // 54
-  // supersede_content_item RETIRED (ID-417, S529): lib/mcp/tools/supersession.ts
-  // and the lib/supersession/set.ts helper it wrapped are both deleted.
-  // S194 UI-simp WP4.2 — P1-34 workspace resolution helper (55 → 56).
-  'list_user_workspaces', // 56
-  // S202 §5.2 Phase 2 / T7 — publication-lifecycle MCP surface (56 → 57).
-  'update_publication_status', // 57
+  'create_review_assignment',
+  // intelligence.ts
+  'get_intelligence_summary',
+  'trigger_intelligence_poll',
+  // guides.ts
+  'list_guides',
+  'get_guide',
+  'create_guide',
+  'update_guide',
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 40 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1; ID-145 {145.17} added get_question_matches: 40 + 1; ID-417 retired supersede_content_item: 41 − 1)
+/**
+ * id-71 contract tools the S530 wave DELETED whose product outcomes
+ * (O1 find/answer, O4 reorientation, O6 exposure, M-CREATE propose-write)
+ * remain ratified — the successor surface is id-71's to rebuild. These are
+ * NOT registered on the server. The eval set definitions
+ * (headless-complete-set.ts, propose-write-set.ts) still name them because
+ * they encode the PRODUCT contract, not the current registry; their unit
+ * tests admit CANONICAL_TOOL_NAMES ∪ this register and nothing else.
+ * Deleting a name here without either rebuilding the tool or re-ruling the
+ * contract is the half-retirement id-417 exists to end.
+ */
+export const RETIRED_PENDING_REBUILD_TOOLS = [
+  'find', // O1 — the KB currently has NO MCP find/answer surface
+  'get_reorientation', // O4
+  'where_are_we_exposed', // O6
+  'create_content_item', // M-CREATE propose-into-store leg
+] as const;
+
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 16 since S530 (id-417 wave 3) — mcp-fixture-sync.test.ts pins this against a SOURCE-derived count, so the comment here is descriptive, not the guard.
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
-  'find',
-  'find_duplicates', // ID-71.10 part 2 — consolidated dedup entry
-  'get_reorientation',
-  'where_are_we_exposed', // ID-71.8 — five-layer exposure consolidation
-  'whats_in_my_queue', // ID-71.9 — faceted queue consolidation
-  'list_active_procurement',
-  'get_procurement_detail',
-  'get_form_question',
-  'get_content_effectiveness',
-  // ID-145 {145.17} — R7 reader (BI-36): pure read over question_match_search.
-  'get_question_matches',
-  'get', // ID-71.10 — one-or-many (was get_content_item + get_content_items)
-  // get_workspace_items RETIRED (ID-131.19, M6) — content_item_workspaces dropped.
-  'suggest_content_creation',
+  'get_question_matches', // ID-145 {145.17} — pure read over question_match_search
   'get_entity_relationships',
-  'list_templates',
-  'get_template_coverage',
-  'get_template_gaps',
-  'show_coverage_matrix',
-  'show_procurement_dashboard',
-  'show_reorient_me',
-  'show_intelligence_feed',
-  'get_document_versions',
+  'whats_in_my_queue', // ID-71.9 — faceted queue consolidation
   'get_intelligence_summary',
-  'get_guide',
   'list_guides',
-  // S180 P1-35
-  'get_change_report',
-  // S194 UI-simp WP4.2 — P1-34
-  'list_user_workspaces',
+  'get_guide',
 ]);
 
 /** Write tools that modify data. */
 export const WRITE_TOOLS = new Set([
-  'classify_content', // 10
-  'generate_summary', // 11
-  'create_content_item', // 12
-  'cite_content', // 15
-  'update_content_item', // 19
-  'delete_content_item', // 25
-  'update_governance_status', // 30
-  'assign', // ID-71.10 — one-or-many (was assign_content_owner + bulk_assign_owner)
+  'classify_content',
+  'generate_summary',
+  'delete_content_item',
+  'update_governance_status',
+  'update_publication_status', // S202 §5.2 Phase 2 / T7 — publication lifecycle
+  'review_governance_item', // S180 P0-23
+  'create_review_assignment', // S180 P0-23
   'create_guide',
   'update_guide',
   'trigger_intelligence_poll',
-  // S180 P0-23 additions
-  'review_governance_item',
-  'create_review_assignment',
-  // S202 §5.2 Phase 2 / T7 — publication lifecycle write tool
-  'update_publication_status',
 ]);
 
 /**
@@ -182,36 +144,25 @@ export const AI_TOOLS = new Set([
   'generate_summary', // calls Claude API
 ]);
 
-/** All 7 prompt names. */
-export const CANONICAL_PROMPT_NAMES = [
-  'reorient',
-  'form_briefing',
-  'coverage_analysis',
-  'draft_response',
-  'review_item',
-  'sector_briefing',
-  'form_pipeline_review',
-] as const;
+/**
+ * Prompt names. EMPTY since S530: the whole MCP prompt surface
+ * (registerPrompts + all 7 prompts) was deleted in the id-417 third wave
+ * (dd773ff68). The sync guard treats zero as the canonical state — a prompt
+ * added back in source without a fixture entry fails the suite.
+ */
+export const CANONICAL_PROMPT_NAMES = [] as const;
 
-export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 7
+export const PROMPT_COUNT = CANONICAL_PROMPT_NAMES.length; // 0
 
-/** Resource template URIs (3 templates). */
-export const RESOURCE_TEMPLATE_URIS = [
-  'kb://items/{id}',
-  'kb://forms/{id}',
-  'kb://qa/{id}',
-] as const;
+/** Resource template URIs. kb://items/{id} + kb://forms/{id} retired in the
+ * S530 wave with the surfaces that served them. */
+export const RESOURCE_TEMPLATE_URIS = ['kb://qa/{id}'] as const;
 
-/** Static resource URIs (8 static + 4 app). */
+/** Static resource URIs (1 static + 1 app) — the rest retired in the S530
+ * wave (kb://taxonomy et al. died with lib/mcp/resources.ts's gutting;
+ * intelligence-feed is the sole surviving MCP app). */
 export const STATIC_RESOURCE_URIS = [
-  'kb://coverage',
-  'kb://dashboard',
-  'kb://taxonomy',
   'kb://entities',
-  'kb://quality-briefing',
-  'ui://coverage-matrix/app.html',
-  'ui://form-dashboard/app.html',
-  'ui://reorient-me/app.html',
   'ui://intelligence-feed/app.html',
 ] as const;
 

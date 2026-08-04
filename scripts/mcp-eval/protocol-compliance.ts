@@ -396,15 +396,11 @@ async function runToolCallChecks(
       const charCount = textContent.length;
       const isError = result.isError === true;
 
-      // For create_content_item, track created item for cleanup
-      if (toolName === 'create_content_item' && !isError) {
-        const idMatch = textContent.match(
-          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-        );
-        if (idMatch) {
-          createdItemIds.push(idMatch[0]);
-        }
-      }
+      // create_content_item cleanup-tracking lived here until the S530 wave
+      // retired the tool (see RETIRED_PENDING_REBUILD_TOOLS in fixtures.ts).
+      // When id-71 rebuilds the create surface, this pass needs its
+      // created-item cleanup branch back; `createdItemIds` and the cleanup
+      // loop below are kept for that reason.
 
       const detail = isError
         ? 'error response'

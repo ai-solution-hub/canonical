@@ -150,8 +150,25 @@ describe('MCP Fixture Sync', () => {
     ).toHaveLength(0);
   });
 
-  it('TOOL_COUNT should match the number of canonical tool names', () => {
-    expect(TOOL_COUNT).toBe(CANONICAL_TOOL_NAMES.length);
+  // The reverse direction was missing until S530, which is how the register
+  // carried 24 phantom names of wave-deleted tools without any guard firing.
+  it('every tool in CANONICAL_TOOL_NAMES should be in source code', () => {
+    const missingFromSource = [...fixtureToolNames].filter(
+      (name) => !sourceToolNames.has(name),
+    );
+    expect(
+      missingFromSource,
+      `Tools in fixtures but missing from source: ${missingFromSource.join(', ')}`,
+    ).toHaveLength(0);
+  });
+
+  // TOOL_COUNT === CANONICAL_TOOL_NAMES.length is tautological (it IS that
+  // length); the count only means something pinned against SOURCE.
+  it('TOOL_COUNT should match the number of tools in source', () => {
+    expect(
+      TOOL_COUNT,
+      `TOOL_COUNT is ${TOOL_COUNT} but source registers ${sourceToolNames.size} tools`,
+    ).toBe(sourceToolNames.size);
   });
 
   it('every tool should be in either READ_ONLY_TOOLS or WRITE_TOOLS', () => {
@@ -177,13 +194,9 @@ describe('MCP Prompts Fixture Sync', () => {
   const sourcePromptNames = extractPromptNamesFromSource();
   const fixturePromptNames = new Set<string>(CANONICAL_PROMPT_NAMES);
 
-  it('should find prompts in source files', () => {
-    expect(
-      sourcePromptNames.size,
-      'No prompts found in lib/mcp/resources.ts — regex parsing may be broken',
-    ).toBeGreaterThan(0);
-  });
-
+  // No non-empty floor here: zero prompts IS the canonical state since the
+  // S530 wave deleted the whole prompt surface. The two bidirectional
+  // assertions below re-arm automatically if prompts ever return.
   it('every prompt in source code should be in CANONICAL_PROMPT_NAMES', () => {
     const missingFromFixtures = [...sourcePromptNames].filter(
       (name) => !fixturePromptNames.has(name),

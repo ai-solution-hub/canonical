@@ -22,14 +22,24 @@ import {
   AUTO_APPLY_WORKFLOWS,
   autoApplyVerifiablyOff,
 } from '@/scripts/mcp-eval/propose-write-set';
-import { CANONICAL_TOOL_NAMES } from '@/scripts/mcp-eval/fixtures';
+import {
+  CANONICAL_TOOL_NAMES,
+  RETIRED_PENDING_REBUILD_TOOLS,
+} from '@/scripts/mcp-eval/fixtures';
+
+// The id-71 contract union: tools registered today plus the wave-deleted
+// tools whose product outcomes remain ratified and await the id-71 rebuild.
+const CONTRACT_TOOLS: readonly string[] = [
+  ...CANONICAL_TOOL_NAMES,
+  ...RETIRED_PENDING_REBUILD_TOOLS,
+];
 
 describe('PROPOSE_WRITE_TOOLS — headless propose-writes (B-INV-6)', () => {
-  it('every propose-write tool is a real, registered MCP entry', () => {
+  it('every propose-write tool is a registered MCP entry or an id-71 rebuild target', () => {
     for (const tool of PROPOSE_WRITE_TOOLS) {
       expect(
-        (CANONICAL_TOOL_NAMES as readonly string[]).includes(tool),
-        `propose-write tool ${tool} must be a registered MCP entry`,
+        CONTRACT_TOOLS.includes(tool),
+        `propose-write tool ${tool} must be registered or in RETIRED_PENDING_REBUILD_TOOLS`,
       ).toBe(true);
     }
   });
@@ -53,6 +63,8 @@ describe('PUBLISH_GATED_TRANSITIONS — publication human-gate (B-INV-6)', () =>
   });
 
   it('every gated transition names a registered MCP tool', () => {
+    // Deliberately the REGISTERED set only — both publication-gate tools
+    // survived the S530 wave, and a gate on a nonexistent tool is a defect.
     for (const t of PUBLISH_GATED_TRANSITIONS) {
       expect(
         (CANONICAL_TOOL_NAMES as readonly string[]).includes(t.mcpTool),

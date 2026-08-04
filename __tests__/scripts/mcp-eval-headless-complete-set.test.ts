@@ -24,7 +24,17 @@ import {
   FOUR_LAYER_ORDER,
   type HeadlessCompleteMember,
 } from '@/scripts/mcp-eval/headless-complete-set';
-import { CANONICAL_TOOL_NAMES } from '@/scripts/mcp-eval/fixtures';
+import {
+  CANONICAL_TOOL_NAMES,
+  RETIRED_PENDING_REBUILD_TOOLS,
+} from '@/scripts/mcp-eval/fixtures';
+
+// The id-71 contract union: tools registered today plus the wave-deleted
+// tools whose product outcomes remain ratified and await the id-71 rebuild.
+const CONTRACT_TOOLS: readonly string[] = [
+  ...CANONICAL_TOOL_NAMES,
+  ...RETIRED_PENDING_REBUILD_TOOLS,
+];
 
 describe('HEADLESS_COMPLETE_SET enumeration (B-INV-1)', () => {
   it('enumerates exactly the O1/O4/O6 reads plus W5.6 — no other outcome', () => {
@@ -46,10 +56,11 @@ describe('HEADLESS_COMPLETE_SET enumeration (B-INV-1)', () => {
 });
 
 describe('each member is driven MCP-only to a terminal result (B-INV-2)', () => {
-  it('drives every member via a real, registered MCP tool entry', () => {
+  it('drives every member via a registered MCP tool or an id-71 rebuild target', () => {
     for (const member of HEADLESS_COMPLETE_SET) {
       expect(
-        (CANONICAL_TOOL_NAMES as readonly string[]).includes(member.mcpTool),
+        CONTRACT_TOOLS.includes(member.mcpTool),
+        `${member.outcome} tool ${member.mcpTool} must be registered or in RETIRED_PENDING_REBUILD_TOOLS`,
       ).toBe(true);
     }
   });
