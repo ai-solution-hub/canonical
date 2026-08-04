@@ -27,17 +27,35 @@ describe('slugifyDomain', () => {
 });
 
 describe('validateDomain uses slugifyDomain', () => {
-  const validDomains = ['corporate', 'compliance', 'security'];
+  // Order matters for the regression guards below: 'security' first mirrors
+  // the staging display_order the old silent fallback coerced misses onto.
+  const validDomains = ['security', 'compliance', 'corporate'];
 
   it('matches an uppercase input against a lowercase taxonomy slug', () => {
     expect(validateDomain('CORPORATE', validDomains)).toBe('corporate');
   });
 
-  it('matches a human-form input via slug fuzzy match', () => {
+  it('matches a human-form input after slugification', () => {
     expect(validateDomain('Compliance ', validDomains)).toBe('compliance');
   });
 
-  it('falls back to first valid domain when nothing matches', () => {
-    expect(validateDomain('quantum-weather', validDomains)).toBe('corporate');
+  // id-419 regression guards — the silent-coercion defect. An
+  // out-of-taxonomy domain must surface as a miss (null), NEVER become a
+  // plausible in-taxonomy value. Both of the old behaviours are asserted
+  // dead: the validDomains[0] fallback and the substring-fuzzy branch.
+  it('returns null on a taxonomy miss instead of the first valid domain', () => {
+    expect(validateDomain('quantum-weather', validDomains)).toBeNull();
+  });
+
+  it('does not substring-fuzzy-match a compound miss onto a real domain', () => {
+    // Old behaviour: 'security-compliance' ⊇ 'security' → coerced to
+    // 'security' at full LLM confidence. It must be a miss.
+    expect(validateDomain('security-compliance', validDomains)).toBeNull();
+    // And the containment in the other direction ('sec' ⊂ 'security').
+    expect(validateDomain('sec', validDomains)).toBeNull();
+  });
+
+  it('returns null when the taxonomy list is empty', () => {
+    expect(validateDomain('security', [])).toBeNull();
   });
 });

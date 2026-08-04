@@ -649,16 +649,23 @@ export function slugifyDomain(input: string): string {
  * Normalise an AI-returned domain string to a valid taxonomy slug.
  * Converts to lowercase kebab-case, strips non-alphanumeric characters,
  * then matches against the list of valid domain slugs.
+ *
+ * Returns `null` on a taxonomy miss — the caller floors a PRIMARY domain
+ * to the honest `'unclassified'` sentinel (and logs the miss) and drops a
+ * SECONDARY domain to `null`. An out-of-taxonomy value must never become
+ * a plausible in-taxonomy one: the pre-S531 behaviour (substring-fuzzy
+ * match, then silent fallback to `validDomains[0]` — measured as
+ * `security`, the highest-stakes domain, on staging) fabricated
+ * classifications indistinguishable from correct ones downstream, at full
+ * LLM confidence. That is client feedback Item 3's failure mode
+ * manufactured internally (id-419).
  */
-export function validateDomain(domain: string, validDomains: string[]): string {
+export function validateDomain(
+  domain: string,
+  validDomains: string[],
+): string | null {
   const slug = slugifyDomain(domain);
-  const exact = validDomains.find((d) => d === slug);
-  if (exact) return exact;
-  // Fuzzy match: find closest valid domain by substring containment
-  const closest = validDomains.find(
-    (d) => d.includes(slug) || slug.includes(d),
-  );
-  return closest ?? validDomains[0]; // Fallback to first domain
+  return validDomains.find((d) => d === slug) ?? null;
 }
 
 // ──────────────────────────────────────────
@@ -1364,10 +1371,17 @@ ${contentForClassification}`,
   // against taxonomy slugs (mirrors classifyContent's post-processing).
   const primarySubtopic = coerceSubtopic(result.primary_subtopic);
   const validDomainSlugs = (domains ?? []).map((d) => d.name);
-  const primaryDomain =
-    validDomainSlugs.length > 0
-      ? validateDomain(result.primary_domain, validDomainSlugs)
-      : result.primary_domain;
+  let primaryDomain = result.primary_domain;
+  if (validDomainSlugs.length > 0) {
+    const validated = validateDomain(result.primary_domain, validDomainSlugs);
+    if (validated === null) {
+      logger.warn(
+        { returnedDomain: result.primary_domain, validDomainSlugs },
+        'classify.taxonomy_miss: classifyText returned an out-of-taxonomy domain; flooring to unclassified',
+      );
+    }
+    primaryDomain = validated ?? 'unclassified';
+  }
 
   return {
     primary_domain: primaryDomain,
@@ -1674,18 +1688,34 @@ ${contentForClassification}`,
   result.primary_subtopic = coerceSubtopic(result.primary_subtopic);
   result.secondary_subtopic = coerceSubtopic(result.secondary_subtopic);
 
-  // Validate domains against taxonomy slugs
+  // Validate domains against taxonomy slugs. A miss floors the primary to
+  // the honest 'unclassified' sentinel and drops the secondary to null —
+  // never a fabricated in-taxonomy value (id-419).
   const validDomainSlugs = (domains ?? []).map((d) => d.name);
   if (validDomainSlugs.length > 0) {
-    result.primary_domain = validateDomain(
+    const validatedPrimary = validateDomain(
       result.primary_domain,
       validDomainSlugs,
     );
+    if (validatedPrimary === null) {
+      logger.warn(
+        { returnedDomain: result.primary_domain, validDomainSlugs },
+        'classify.taxonomy_miss: classifyContent returned an out-of-taxonomy primary domain; flooring to unclassified',
+      );
+    }
+    result.primary_domain = validatedPrimary ?? 'unclassified';
     if (result.secondary_domain) {
-      result.secondary_domain = validateDomain(
+      const validatedSecondary = validateDomain(
         result.secondary_domain,
         validDomainSlugs,
       );
+      if (validatedSecondary === null) {
+        logger.warn(
+          { returnedDomain: result.secondary_domain, validDomainSlugs },
+          'classify.taxonomy_miss: classifyContent returned an out-of-taxonomy secondary domain; dropping to null',
+        );
+      }
+      result.secondary_domain = validatedSecondary;
     }
   }
 

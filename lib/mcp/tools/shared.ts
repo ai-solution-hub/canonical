@@ -70,7 +70,7 @@ export const READ_ONLY_ANNOTATIONS: RequiredToolAnnotations = {
 /**
  * Write that is safe to retry (same inputs → same end state) and does not
  * destroy data. Use for `update_*`, `assign_*`, `cite_*` (upsert),
- * `classify_content`, `generate_summary`, `update_governance_status`.
+ * `generate_summary`, `update_governance_status`.
  */
 export const SAFE_WRITE_ANNOTATIONS: RequiredToolAnnotations = {
   readOnlyHint: false,

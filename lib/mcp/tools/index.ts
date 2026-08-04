@@ -8,7 +8,7 @@
  * RETIRED_PENDING_REBUILD_TOOLS the id-71 successor work still owes;
  * drift-guarded bidirectionally by mcp-fixture-sync.test.ts):
  *   - question-matches.ts (1): get_question_matches
- *   - ai.ts         (2): classify_content, generate_summary
+ *   - ai.ts         (1): generate_summary
  *   - entities.ts   (1): get_entity_relationships
  *   - governance.ts (4): delete_content_item, update_governance_status, update_publication_status, review_governance_item
  *   - review.ts     (2): whats_in_my_queue, create_review_assignment

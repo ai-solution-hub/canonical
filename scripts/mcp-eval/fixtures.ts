@@ -67,8 +67,7 @@ export function loadEnv(): void {
 export const CANONICAL_TOOL_NAMES = [
   // question-matches.ts — ID-145 {145.17} R7 reader (BI-36).
   'get_question_matches',
-  // ai.ts
-  'classify_content',
+  // ai.ts — classify_content retired S531 (id-419; no id-71 contract outcome)
   'generate_summary',
   // entities.ts
   'get_entity_relationships',
@@ -122,7 +121,6 @@ export const READ_ONLY_TOOLS = new Set([
 
 /** Write tools that modify data. */
 export const WRITE_TOOLS = new Set([
-  'classify_content',
   'generate_summary',
   'delete_content_item',
   'update_governance_status',
@@ -140,7 +138,6 @@ export const WRITE_TOOLS = new Set([
  * embeddings which are fast and cheap (<$0.001 per call).
  */
 export const AI_TOOLS = new Set([
-  'classify_content', // calls Claude API
   'generate_summary', // calls Claude API
 ]);
 
@@ -381,7 +378,7 @@ export interface EvalItem {
  * `content_items`/`content_history` tables (20260706110000_id131_drops.sql,
  * M6) onto `source_documents`, mirroring getKnownUUIDs above. Write tools
  * exercised against this item (update_content_item, delete_content_item,
- * assign, classify_content, etc.) resolve a plain id against
+ * assign, generate_summary, etc.) resolve a plain id against
  * `source_documents` first (lib/mcp/tools/content.ts ownerKind resolution),
  * so a source_documents row is the correct target. `title` has no
  * source_documents column — `suggested_title` is the M6 successor (BI-11).
@@ -595,8 +592,6 @@ export function getMinimalArgs(
       return { slug: 'test-guide' };
 
     // Write tools — use eval item
-    case 'classify_content':
-      return { item_id: evalItemId, force: true };
     case 'generate_summary':
       return { item_id: evalItemId, force: true };
     case 'create_content_item':
