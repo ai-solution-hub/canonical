@@ -208,7 +208,8 @@ export interface UnifiedDashboardData {
   /** Active procurements with stats */
   active_forms: ActiveProcurementSummary[];
 
-  /** Freshness summary for QuickStatsStrip */
+  /** Freshness summary — feeds deriveIsKBEmpty (first-run signals);
+   *  its section renderer (QuickStatsStrip) retired S531. */
   freshness_summary: {
     fresh: number;
     aging: number;
