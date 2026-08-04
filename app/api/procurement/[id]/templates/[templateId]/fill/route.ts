@@ -213,6 +213,10 @@ export const POST = defineRoute(
       // §3.1) and is enqueued by this route directly, not enqueueQueueJob().
       // BI-23 anchor: form_id is the sole identifying key — no workspace_id
       // (form_instances has none post-{145.6}).
+      // `created_by` must be stamped explicitly (no DB default): the
+      // `processing_queue_select_own` policy keys on it, and it is what
+      // makes both this RETURNING `.select('id')` and the subsequent
+      // /api/jobs/:id/status poll visible to non-admin creators.
       const { data: job, error: jobError } = await supabase
         .from('processing_queue')
         .insert({
@@ -224,6 +228,7 @@ export const POST = defineRoute(
             options,
           },
           status: 'pending',
+          created_by: user.id,
         })
         .select('id')
         .single();
