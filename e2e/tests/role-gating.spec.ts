@@ -41,23 +41,19 @@ test.describe('Viewer role restrictions', { tag: '@smoke' }, () => {
         mobileNav.getByRole('link', { name: 'Review' }),
       ).not.toBeVisible();
     } else {
-      // Desktop zone entries render inside a portalled Radix DropdownMenu
-      // (role=menu/menuitem) appended outside the <nav>'s DOM subtree — the
-      // disclosure must be OPENED first, otherwise a mainNav-scoped
-      // link-role query matches nothing and passes vacuously regardless of
-      // whether Review is actually gated.
+      // Since 6bcd9f699 (id-417: Change reports retired with its table) the
+      // Governance zone has no viewer-visible entries, and site-header
+      // collapses an entry-less zone entirely — so for a viewer the gate now
+      // manifests as the WHOLE disclosure being absent, not as a missing
+      // menuitem behind an openable trigger. Positive control first: the nav
+      // itself and a viewer-visible zone must render, so the absence
+      // assertion cannot pass vacuously against a broken page.
       const mainNav = page.getByRole('navigation', { name: 'Main navigation' });
-      const governanceTrigger = mainNav.getByRole('button', {
-        name: 'Governance',
-      });
-      await expect(governanceTrigger).toBeVisible();
-      await governanceTrigger.click();
-      await expect(page.getByRole('menu')).toBeVisible();
-
-      // Viewer should not see the Review menuitem (requires editor+ role).
-      // Queried at page level since the disclosure content is portalled.
       await expect(
-        page.getByRole('menuitem', { name: 'Review' }),
+        mainNav.getByRole('button', { name: 'Knowledge' }),
+      ).toBeVisible();
+      await expect(
+        mainNav.getByRole('button', { name: 'Governance' }),
       ).not.toBeVisible();
     }
   });
