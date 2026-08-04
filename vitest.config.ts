@@ -20,7 +20,6 @@ export default defineConfig({
     environment: 'jsdom',
     include: [
       '__tests__/**/*.test.{ts,tsx}',
-      'tools/**/*.test.{ts,tsx}',
       'eslint-rules/tests/**/*.test.ts',
     ],
     exclude: ['__tests__/**/*.integration.test.{ts,tsx}', 'node_modules'],

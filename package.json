@@ -47,9 +47,9 @@
     "register:id71-touchpoints": "bun run scripts/eval-register-id71-touchpoints.ts --register",
     "seed:e2e-users": "bun run scripts/seed-e2e-users.ts",
     "kb-search": "bun run scripts/kb-search.ts",
-    "ast-dataflow": "bun run tools/ast-dataflow/cli.ts",
-    "ast-dataflow-mcp": "bun run tools/ast-dataflow/mcp-server.ts",
-    "ast-dataflow-py": "python3 tools/ast_dataflow_py/cli.py",
+    "ast-dataflow": "bunx ast-dataflow",
+    "ast-dataflow-mcp": "bunx ast-dataflow-mcp",
+    "ast-dataflow-py": "python3 node_modules/@ai-solution-hub/ast-dataflow/tools/ast_dataflow_py/cli.py",
     "gitnexus:analyze": "bun run scripts/gitnexus-analyze.ts",
     "dupe-check": "jscpd . --pattern \"**/*.{ts,tsx,js,jsx,py}\"",
     "knip": "knip --no-config-hints",
@@ -163,6 +163,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#aed156319a4fb01449e7e69a6067f6c49cd76d48",
     "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.60.0",
     "@stryker-mutator/core": "^9.6.1",

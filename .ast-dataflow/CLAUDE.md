@@ -7,7 +7,10 @@ precise file-and-line answers that GitNexus (graph-level) and Knip (binary reach
 cannot give: exact call sites, column access sites, string-literal AST context,
 barrel-chain tracing, and type-position blast radius.
 
-**CLI:** `bun run ast-dataflow <query> [args]` (entry point `tools/ast-dataflow/cli.ts`)
+**CLI:** `bun run ast-dataflow <query> [args]` (the installed
+`@ai-solution-hub/ast-dataflow` git dependency — extracted from this repo, id-377;
+source: <https://github.com/ai-solution-hub/ast-dataflow>). The MCP server is
+registered in `.mcp.json` as `ast-dataflow` (warm path, DR-100).
 
 ## Skill catalogue
 

@@ -80,16 +80,6 @@ deploy/
 AGENTS.md
 CLAUDE.md
 
-# Deliberately-invalid parser fixtures — `fixture-uses` is tested against JSON
-# that does not parse ("still returns the rows lexed from malformed.json without
-# crashing", tools/ast-dataflow/__tests__/fixture-uses.test.ts). Prettier errors
-# on the file rather than warning, which fails the whole `format:check` run.
-tools/ast-dataflow/__tests__/fixtures/**/malformed.json
-
 # Misc
 *.log
 .DS_Store
-
-# ast-dataflow - tool and related files are due to be extracted from repo
-tools/ast-dataflow/**
-tools/ast_dataflow_py/**

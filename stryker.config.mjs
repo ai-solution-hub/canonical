@@ -24,11 +24,7 @@ const config = {
   },
   mutate: isFullRun ? productionMutations : ['lib/extraction/url-normalise.ts'],
   testFiles: isFullRun
-    ? [
-        '__tests__/**/*.test.{ts,tsx}',
-        'tools/**/*.test.{ts,tsx}',
-        'eslint-rules/tests/**/*.test.ts',
-      ]
+    ? ['__tests__/**/*.test.{ts,tsx}', 'eslint-rules/tests/**/*.test.ts']
     : ['__tests__/lib/extraction/url-normalise.test.ts'],
   reporters: ['clear-text', 'html', 'json'],
   htmlReporter: {
@@ -55,7 +51,6 @@ const config = {
     '/reports',
     '/scripts/tests',
     '/supabase/types',
-    '/tools/ast-dataflow/__tests__/fixtures',
   ],
   cleanTempDir: 'always',
 };

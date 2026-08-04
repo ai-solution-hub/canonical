@@ -83,7 +83,8 @@ const config: KnipConfig = {
     'marked',
   ],
   // `python3` is invoked by the `ast-dataflow-py` package.json script
-  // (tools/ast_dataflow_py/cli.py) — a system binary, not an npm dep.
+  // (the installed @ai-solution-hub/ast-dataflow package's Python CLI) — a
+  // system binary, not an npm dep.
   ignoreBinaries: ['python3'],
   // Exports tagged `@public` in JSDoc are deliberate library/API surface
   // that no current callsite consumes by name. Marking them keeps knip's

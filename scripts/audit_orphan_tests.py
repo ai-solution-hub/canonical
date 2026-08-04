@@ -80,7 +80,6 @@ def is_internal_test_path(path: Path, root: Path) -> bool:
         (
             "scripts/tests/",
             "__tests__/",
-            "tools/ast-dataflow/__tests__/",
         )
     )
 

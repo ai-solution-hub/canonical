@@ -26,11 +26,6 @@ const eslintConfig = defineConfig([
     '.user-scratch/**',
     '.cache/**',
     'docs-site/.astro/**',
-    // Deliberately-dead ast-dataflow test fixtures — these contain unused
-    // exports/imports/vars by design (they exercise the dead-export and
-    // unused-symbol queries), so they must stay out of the unused-imports
-    // error gate (S391 eslint-tightening path (a)).
-    'tools/ast-dataflow/__tests__/fixtures/**',
     // Generated artefacts — committed but never hand-edited, and on the
     // sandbox Read-deny list (bl-209) so lint should never try to read them.
     // (scripts/ and supabase/ are now linted as of S391, so these two

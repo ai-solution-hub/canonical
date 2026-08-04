@@ -123,6 +123,7 @@
         "eslint-config-next": "^16",
         "eslint-plugin-react-hooks": "^7.0.0",
         "eslint-plugin-unused-imports": "^4.4.1",
+        "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#aed156319a4fb01449e7e69a6067f6c49cd76d48",
         "jscpd": "^5.0.11",
         "jsdom": "^28.1.0",
         "knip": "^6.13.1",
@@ -141,6 +142,8 @@
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
 
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
+
+    "@ai-solution-hub/ast-dataflow": ["@ai-solution-hub/ast-dataflow@github:ai-solution-hub/ast-dataflow#aed1563", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "ts-morph": "^28.0.0", "yaml": "^2.9.0" }, "bin": { "ast-dataflow": "tools/ast-dataflow/cli.ts", "ast-dataflow-mcp": "tools/ast-dataflow/mcp-server.ts" } }, "ai-solution-hub-ast-dataflow-aed1563"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

@@ -14,7 +14,6 @@
 __tests__/
 e2e/
 scripts/tests/
-tools/**/__tests__/
 eslint-rules/tests/
 **/*.test.ts
 **/*.test.tsx
@@ -30,7 +29,6 @@ eslint-rules/tests/
 **/*_test.py
 **/tests.py
 **/conftest.py
-tools/ast-dataflow/__tests__/fixtures/
 
 # Documentation, agent configuration, and repository metadata
 docs/

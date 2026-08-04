@@ -63,13 +63,5 @@
     ".next-4/types/**/*.ts",
     ".next-4/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "scripts",
-    "supabase",
-    "mcp-apps",
-    "docs-site",
-    "tools/ast-dataflow/__tests__/fixtures",
-    "vitest.integration.config.ts"
-  ]
+  "exclude": ["node_modules", "scripts", "supabase", "mcp-apps", "docs-site", "vitest.integration.config.ts"]
 }
