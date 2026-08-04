@@ -113,6 +113,21 @@ function transitionMessage(
   return `Source document "${title}" in ${domainStr} transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
 }
 
+/**
+ * id-369 F5: a failed bulk notification insert previously vanished — the
+ * `if (!bulkError)` count guard consumed the error and nothing logged it, so
+ * the cron reported success while the notifications were never created. Log
+ * it and surface it as a cron warning so `success` reflects what happened.
+ */
+function reportFailedBulkNotifications(
+  scope: string,
+  error: { code?: string; message: string },
+  warnings: string[],
+): void {
+  logger.error({ err: error, scope }, 'Bulk notification insert failed');
+  warnings.push(`${scope}: notification insert failed: ${error.message}`);
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -224,7 +239,7 @@ export async function GET(request: NextRequest) {
     if (changed.length === 0) {
       // Still check date-based expiry reminders even when no freshness transitions
       const expiryResult = await checkDateExpiryReminders(supabase);
-      if (expiryResult.warning) cronWarnings.push(expiryResult.warning);
+      cronWarnings.push(...expiryResult.warnings);
 
       // Clean up old notifications even when no transitions
       const cleanupResult = await cleanupExpiredNotifications(supabase);
@@ -416,7 +431,15 @@ export async function GET(request: NextRequest) {
           supabase,
           ownerNotifications,
         );
-        if (!bulkError) notificationsCreated += ownerNotifications.length;
+        if (bulkError) {
+          reportFailedBulkNotifications(
+            'owned freshness transitions',
+            bulkError,
+            cronWarnings,
+          );
+        } else {
+          notificationsCreated += ownerNotifications.length;
+        }
       }
     }
 
@@ -450,7 +473,15 @@ export async function GET(request: NextRequest) {
           supabase,
           notifications,
         );
-        if (!bulkError) notificationsCreated += notifications.length;
+        if (bulkError) {
+          reportFailedBulkNotifications(
+            'unowned freshness summary',
+            bulkError,
+            cronWarnings,
+          );
+        } else {
+          notificationsCreated += notifications.length;
+        }
       } else {
         // Individual notifications
         const notifications = unownedTransitions.flatMap((item) =>
@@ -479,7 +510,15 @@ export async function GET(request: NextRequest) {
           supabase,
           notifications,
         );
-        if (!bulkError) notificationsCreated += notifications.length;
+        if (bulkError) {
+          reportFailedBulkNotifications(
+            'unowned freshness transitions',
+            bulkError,
+            cronWarnings,
+          );
+        } else {
+          notificationsCreated += notifications.length;
+        }
       }
     }
 
@@ -542,7 +581,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (governanceFlagItems.length > 0) {
-        autoGovernanceTriggered = governanceFlagItems.length;
+        // id-369 F5 (semantic): report the PERSISTED state, not the intended
+        // one. Items whose 'pending' write fails are excluded from the
+        // trigger count AND from reviewer notifications — a reviewer
+        // notified about a row never set to pending is sent to a queue the
+        // item is not in.
+        const flaggedItems: typeof governanceFlagItems = [];
 
         // Update each item's governance status
         for (const item of governanceFlagItems) {
@@ -566,78 +610,99 @@ export async function GET(request: NextRequest) {
             cronWarnings.push(
               `Governance status update failed for ${item.itemId}: ${govUpdateError.message}`,
             );
+          } else {
+            flaggedItems.push(item);
           }
         }
 
-        // Determine notification recipients per item
-        const govAdminIds = await getUsersByRole(supabase, ['admin']);
+        autoGovernanceTriggered = flaggedItems.length;
 
-        if (governanceFlagItems.length > GOVERNANCE_BATCH_SUMMARY_THRESHOLD) {
-          // Batch summary path: single notification per reviewer/admin
-          batchSummaryNotification = true;
+        if (flaggedItems.length > 0) {
+          // Determine notification recipients per item
+          const govAdminIds = await getUsersByRole(supabase, ['admin']);
 
-          // Find the most-affected domain's governance_config ID for entity_id
-          const domainCounts = new Map<string, number>();
-          for (const item of governanceFlagItems) {
-            const d = item.domain ?? 'unclassified';
-            domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
-          }
-          let maxDomain = '';
-          let maxCount = 0;
-          domainCounts.forEach((count, domain) => {
-            if (count > maxCount) {
-              maxDomain = domain;
-              maxCount = count;
+          if (flaggedItems.length > GOVERNANCE_BATCH_SUMMARY_THRESHOLD) {
+            // Batch summary path: single notification per reviewer/admin
+            batchSummaryNotification = true;
+
+            // Find the most-affected domain's governance_config ID for entity_id
+            const domainCounts = new Map<string, number>();
+            for (const item of flaggedItems) {
+              const d = item.domain ?? 'unclassified';
+              domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
             }
-          });
-          const summaryEntityId =
-            govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
+            let maxDomain = '';
+            let maxCount = 0;
+            domainCounts.forEach((count, domain) => {
+              if (count > maxCount) {
+                maxDomain = domain;
+                maxCount = count;
+              }
+            });
+            const summaryEntityId =
+              govConfigMap.get(maxDomain)?.id ?? flaggedItems[0].itemId;
 
-          // Collect unique recipients (reviewers + admins)
-          const recipientIds = new Set<string>(govAdminIds);
-          for (const item of governanceFlagItems) {
-            if (item.reviewerId) recipientIds.add(item.reviewerId);
+            // Collect unique recipients (reviewers + admins)
+            const recipientIds = new Set<string>(govAdminIds);
+            for (const item of flaggedItems) {
+              if (item.reviewerId) recipientIds.add(item.reviewerId);
+            }
+
+            const summaryNotifications = Array.from(recipientIds).map(
+              (userId) => ({
+                userId,
+                type: 'governance_review_needed' as const,
+                entityType: 'domain',
+                entityId: summaryEntityId,
+                title: `${flaggedItems.length} items flagged for freshness review`,
+                message: `The daily freshness scan flagged ${flaggedItems.length} items as stale or expired. Review them in the review queue.`,
+              }),
+            );
+
+            const { error: govNotifError } = await createBulkNotifications(
+              supabase,
+              summaryNotifications,
+            );
+            if (govNotifError) {
+              reportFailedBulkNotifications(
+                'governance batch summary',
+                govNotifError,
+                cronWarnings,
+              );
+            } else {
+              notificationsCreated += summaryNotifications.length;
+            }
+          } else {
+            // Individual notification path
+            const govNotifications = flaggedItems.flatMap((item) => {
+              // Notify the assigned reviewer, or all admins if no reviewer
+              const recipients = item.reviewerId
+                ? [item.reviewerId]
+                : govAdminIds;
+              return recipients.map((userId) => ({
+                userId,
+                type: 'governance_review_needed' as const,
+                entityType: 'content_item',
+                entityId: item.itemId,
+                title: `Freshness review needed: "${item.title}"`,
+                message: `"${item.title}" transitioned to stale or expired. Auto-flagged for governance review.`,
+              }));
+            });
+
+            const { error: govNotifError } = await createBulkNotifications(
+              supabase,
+              govNotifications,
+            );
+            if (govNotifError) {
+              reportFailedBulkNotifications(
+                'governance review',
+                govNotifError,
+                cronWarnings,
+              );
+            } else {
+              notificationsCreated += govNotifications.length;
+            }
           }
-
-          const summaryNotifications = Array.from(recipientIds).map(
-            (userId) => ({
-              userId,
-              type: 'governance_review_needed' as const,
-              entityType: 'domain',
-              entityId: summaryEntityId,
-              title: `${governanceFlagItems.length} items flagged for freshness review`,
-              message: `The daily freshness scan flagged ${governanceFlagItems.length} items as stale or expired. Review them in the review queue.`,
-            }),
-          );
-
-          const { error: govNotifError } = await createBulkNotifications(
-            supabase,
-            summaryNotifications,
-          );
-          if (!govNotifError)
-            notificationsCreated += summaryNotifications.length;
-        } else {
-          // Individual notification path
-          const govNotifications = governanceFlagItems.flatMap((item) => {
-            // Notify the assigned reviewer, or all admins if no reviewer
-            const recipients = item.reviewerId
-              ? [item.reviewerId]
-              : govAdminIds;
-            return recipients.map((userId) => ({
-              userId,
-              type: 'governance_review_needed' as const,
-              entityType: 'content_item',
-              entityId: item.itemId,
-              title: `Freshness review needed: "${item.title}"`,
-              message: `"${item.title}" transitioned to stale or expired. Auto-flagged for governance review.`,
-            }));
-          });
-
-          const { error: govNotifError } = await createBulkNotifications(
-            supabase,
-            govNotifications,
-          );
-          if (!govNotifError) notificationsCreated += govNotifications.length;
         }
       }
     }
@@ -662,7 +727,7 @@ export async function GET(request: NextRequest) {
     // their expiry_date within the next 30 days. Sends date_expiry_approaching
     // notifications with idempotency (one per item/entity per day).
     const expiryResult = await checkDateExpiryReminders(supabase);
-    if (expiryResult.warning) cronWarnings.push(expiryResult.warning);
+    cronWarnings.push(...expiryResult.warnings);
     notificationsCreated += expiryResult.notificationsCreated;
 
     // Clean up expired+dismissed notifications (§10b.7)
@@ -696,8 +761,11 @@ export async function GET(request: NextRequest) {
  */
 async function checkDateExpiryReminders(
   supabase: ReturnType<typeof createServiceClient>,
-): Promise<{ notificationsCreated: number; warning?: string }> {
+): Promise<{ notificationsCreated: number; warnings: string[] }> {
   let notificationsCreated = 0;
+  // id-369 F5: an array, not a single slot — a document-expiry bulk failure
+  // must not be overwritten by a later entity-expiry failure.
+  const warnings: string[] = [];
 
   try {
     const now = new Date();
@@ -728,7 +796,10 @@ async function checkDateExpiryReminders(
       );
       return {
         notificationsCreated: 0,
-        warning: `Failed to query expiring content items: ${expiringError.message}`,
+        warnings: [
+          ...warnings,
+          `Failed to query expiring content items: ${expiringError.message}`,
+        ],
       };
     }
 
@@ -834,7 +905,15 @@ async function checkDateExpiryReminders(
             supabase,
             expiryNotifications,
           );
-          if (!bulkError) notificationsCreated += expiryNotifications.length;
+          if (bulkError) {
+            reportFailedBulkNotifications(
+              'document expiry reminders',
+              bulkError,
+              warnings,
+            );
+          } else {
+            notificationsCreated += expiryNotifications.length;
+          }
         }
       }
     }
@@ -853,7 +932,10 @@ async function checkDateExpiryReminders(
       );
       return {
         notificationsCreated,
-        warning: `Failed to query entity mentions for expiry: ${entityError.message}`,
+        warnings: [
+          ...warnings,
+          `Failed to query entity mentions for expiry: ${entityError.message}`,
+        ],
       };
     }
 
@@ -951,7 +1033,15 @@ async function checkDateExpiryReminders(
             supabase,
             entityNotifications,
           );
-          if (!bulkError) notificationsCreated += entityNotifications.length;
+          if (bulkError) {
+            reportFailedBulkNotifications(
+              'entity expiry reminders',
+              bulkError,
+              warnings,
+            );
+          } else {
+            notificationsCreated += entityNotifications.length;
+          }
         }
       }
     }
@@ -959,11 +1049,14 @@ async function checkDateExpiryReminders(
     logger.error({ err }, 'Date expiry reminder check failed');
     return {
       notificationsCreated,
-      warning: `Date expiry reminders failed: ${safeErrorMessage(err, 'unknown error')}`,
+      warnings: [
+        ...warnings,
+        `Date expiry reminders failed: ${safeErrorMessage(err, 'unknown error')}`,
+      ],
     };
   }
 
-  return { notificationsCreated };
+  return { notificationsCreated, warnings };
 }
 
 async function cleanupExpiredNotifications(
