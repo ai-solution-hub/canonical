@@ -1,7 +1,7 @@
-# Memtrace index exclusions (gitignore syntax; layered over .gitignore + built-in skips).
+# Gitnexus index exclusions (gitignore syntax; layered over .gitignore + built-in skips).
 # Generated artifacts only — they flood the symbol graph (Interface/centrality noise)
 # without being hand-maintained code. Schema truth for DB types stays the generated
-# file itself (supabase/CLAUDE.md); memtrace just shouldn't graph it.
+# file itself (supabase/CLAUDE.md); Gitnexus just shouldn't graph it.
 supabase/types/database.types.ts
 lib/mcp/plugin-bundle.ts
 supabase/config.toml

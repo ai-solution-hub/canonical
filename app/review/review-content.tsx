@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, BookOpen, X } from 'lucide-react';
+import { PanelRight, CheckCircle2, BookOpen } from 'lucide-react';
 import {
   Sheet,
   SheetContent,

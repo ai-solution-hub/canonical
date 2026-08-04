@@ -54,9 +54,9 @@ test.describe('Guide listing', { tag: '@smoke' }, () => {
     await page.goto('/guide');
 
     await expect(page).toHaveURL(/\/guide$/, { timeout: 10000 });
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Seeded staging carries published guides — the listing links to them.
     const guideLinks = page.locator('a[href^="/guide/"]');
@@ -140,9 +140,9 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
 
     // Navigates to the rebuilt /guide listing (S531)
     await expect(page).toHaveURL(/\/guide$/, { timeout: 10000 });
-    await expect(
-      page.getByRole('heading', { name: 'Guides' }),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('nonexistent guide shows error state', async ({
