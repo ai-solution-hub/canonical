@@ -55,7 +55,7 @@ export function loadEnv(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Canonical set of the 16 REGISTERED MCP tool names. Compared bidirectionally
+ * Canonical set of the 15 REGISTERED MCP tool names. Compared bidirectionally
  * against source by `mcp-fixture-sync.test.ts`.
  *
  * S530 (id-417 third deletion wave, dd773ff68): the owner retired the
@@ -107,7 +107,7 @@ export const RETIRED_PENDING_REBUILD_TOOLS = [
   'create_content_item', // M-CREATE propose-into-store leg
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 16 since S530 (id-417 wave 3) — mcp-fixture-sync.test.ts pins this against a SOURCE-derived count, so the comment here is descriptive, not the guard.
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 15 since S531 (16 after the S530 id-417 wave 3, minus classify_content, retired id-419) — mcp-fixture-sync.test.ts pins this against a SOURCE-derived count, so the comment here is descriptive, not the guard.
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([

@@ -28,6 +28,7 @@ import {
   CANONICAL_TOOL_NAMES,
   TOOL_COUNT,
   PROMPT_COUNT,
+  RESOURCE_TEMPLATE_URIS,
   AI_TOOLS,
   type KnownUUIDs,
   type EvalItem,
@@ -225,7 +226,11 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
     );
   }
 
-  // PC-06: resources/templates/list
+  // PC-06: resources/templates/list — the live template surface must match
+  // the canonical register (RESOURCE_TEMPLATE_URIS: kb://qa/{id} is the sole
+  // survivor of the S530 id-417 wave; kb://items/{id} + kb://forms/{id}
+  // retired with the surfaces that served them). The old literal `>= 3`
+  // predated the wave.
   try {
     const response = await mcpRequest(
       'resources/templates/list',
@@ -239,15 +244,32 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
         `RPC error: ${response.error.message}`,
       );
     } else {
-      const result = response.result as { resourceTemplates: unknown[] };
-      const count = result.resourceTemplates?.length ?? 0;
-      if (count >= 3) {
-        pass('PC-06', 'resource templates', `${count} templates`);
+      const result = response.result as {
+        resourceTemplates: Array<{ uriTemplate?: string }>;
+      };
+      const templates = result.resourceTemplates ?? [];
+      const liveUris = new Set(
+        templates
+          .map((t) => t.uriTemplate)
+          .filter((uri): uri is string => typeof uri === 'string'),
+      );
+      const missing = RESOURCE_TEMPLATE_URIS.filter(
+        (uri) => !liveUris.has(uri),
+      );
+      if (
+        templates.length === RESOURCE_TEMPLATE_URIS.length &&
+        missing.length === 0
+      ) {
+        pass(
+          'PC-06',
+          'resource templates',
+          `${templates.length} template(s), matching the canonical register`,
+        );
       } else {
         fail(
           'PC-06',
           'resource templates',
-          `Expected >= 3 templates, got ${count}`,
+          `Expected exactly [${RESOURCE_TEMPLATE_URIS.join(', ')}], got ${templates.length} template(s)${missing.length > 0 ? ` (missing: ${missing.join(', ')})` : ''}`,
         );
       }
     }
@@ -259,16 +281,34 @@ async function runDiscoveryChecks(accessToken: string): Promise<void> {
     );
   }
 
-  // PC-07: prompts/list count
+  // PC-07: prompts/list count. Zero prompts IS the canonical state since the
+  // S530 id-417 wave deleted the whole prompt surface (fixtures.ts
+  // CANONICAL_PROMPT_NAMES). With no prompt registered the SDK never installs
+  // a prompts/list handler, so "Method not found" (-32601) is the
+  // protocol-visible form of the empty register — accept it as the expected
+  // outcome while PROMPT_COUNT is 0. If prompts ever return, PROMPT_COUNT
+  // re-arms the strict count assertion (and mcp-fixture-sync guards the
+  // register itself).
   let prompts: PromptDef[] = [];
   try {
     const response = await mcpRequest('prompts/list', {}, accessToken);
     if (response.error) {
-      fail(
-        'PC-07',
-        'prompts/list count',
-        `RPC error: ${response.error.message}`,
-      );
+      const methodNotFound =
+        response.error.code === -32601 ||
+        /method not found/i.test(response.error.message);
+      if (PROMPT_COUNT === 0 && methodNotFound) {
+        pass(
+          'PC-07',
+          'prompts/list count',
+          'No prompt surface (Method not found) — canonical zero-prompt state',
+        );
+      } else {
+        fail(
+          'PC-07',
+          'prompts/list count',
+          `RPC error: ${response.error.message}`,
+        );
+      }
     } else {
       const result = response.result as { prompts: PromptDef[] };
       prompts = result.prompts ?? [];

@@ -1,9 +1,10 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 16 tools across 7 category files (the surface left by the
- * id-417 S530 deletion wave, which retired the search/procurement/
- * templates/apps/workspaces families wholesale — see
+ * Registers 15 tools across 7 category files (the surface left by the
+ * id-417 S530 deletion wave — which retired the search/procurement/
+ * templates/apps/workspaces families wholesale — minus classify_content,
+ * retired S531 under id-419; see
  * scripts/mcp-eval/fixtures.ts for the canonical register, including the
  * RETIRED_PENDING_REBUILD_TOOLS the id-71 successor work still owes;
  * drift-guarded bidirectionally by mcp-fixture-sync.test.ts):

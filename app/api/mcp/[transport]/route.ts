@@ -93,13 +93,18 @@ async function verifyToken(
 }
 
 // ---------------------------------------------------------------------------
-// Server factory — creates a fresh McpServer with all tools/resources/prompts
+// Server factory — creates a fresh McpServer with all tools/resources
 // ---------------------------------------------------------------------------
 
 async function createMcpServer(): Promise<McpServer> {
+  // No `prompts` capability: the whole prompt surface was deleted in the
+  // S530 id-417 wave (fixtures.ts CANONICAL_PROMPT_NAMES is canonically
+  // empty), and advertising a capability with no registered handler makes
+  // clients call prompts/list into a -32601. Re-add alongside the first
+  // registerPrompt if prompts ever return.
   const server = new McpServer(
     { name: 'knowledge-hub', version: '1.0.0' },
-    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+    { capabilities: { tools: {}, resources: {} } },
   );
 
   await registerTools(server);

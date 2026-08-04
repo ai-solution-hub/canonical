@@ -100,10 +100,12 @@ interfaces — tested by `mcp-app-contracts.test.ts`.
 
 - **Unit tests:** `__tests__/mcp/` — formatters, tool registration, app contracts (file
   count tracked in `docs/generated/codebase-stats.md`)
-- **Eval Layer 1:** `bun run test:mcp-eval` — protocol compliance (42 checks)
-- **Eval Layer 3:** `bun run test:mcp-eval:rq` — response quality (17 checks)
-- **Eval Layer 4:** `bun run test:mcp-eval:fc` — functional correctness (37 checks, live
-  DB)
+- **Eval Layer 1:** `bun run test:mcp-eval` — protocol compliance
+- **Eval Layer 3:** `bun run test:mcp-eval:rq` — response quality
+- **Eval Layer 4:** `bun run test:mcp-eval:fc` — functional correctness (live DB)
+- Check counts track the canonical register in `scripts/mcp-eval/fixtures.ts` — the
+  find/procurement/app-template check sections are parked or removed with their
+  S530-wave subjects (`RETIRED_PENDING_REBUILD_TOOLS` names what id-71 still owes).
 - **Eval fixtures:** `scripts/mcp-eval/fixtures.ts` — canonical tool/prompt lists, auth
   helpers
 

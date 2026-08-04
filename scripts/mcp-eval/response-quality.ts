@@ -3,8 +3,15 @@
  *
  * Evaluates whether MCP tool responses are optimised for LLM consumption:
  *   1. Token efficiency — are responses concise enough for model context windows?
- *   2. Search relevance — do search tools rank relevant results highly?
- *   3. Structural quality — are Markdown responses well-structured?
+ *   2. Structural quality — are Markdown responses well-structured?
+ *
+ * The former Search Relevance section (RQ-01..05, plus TE-01/RQ-11) drove the
+ * consolidated `find` entry, which the S530 id-417 wave deleted — the O1
+ * find/answer outcome is RETIRED_PENDING_REBUILD (fixtures.ts), owned by the
+ * id-71 successor surface. Search-relevance evaluation returns with that
+ * rebuild; nothing here measures a surface that intentionally does not exist.
+ * `--skip-search` is still accepted (CI passes it in cost-zero mode) but is a
+ * no-op while the section is parked.
  *
  * Usage:
  *   bun run scripts/mcp-eval/response-quality.ts
@@ -25,7 +32,7 @@ import { MCP_EVAL_SEED_GUIDE_SLUG } from './seed-data.js';
 // ---------------------------------------------------------------------------
 
 const cliArgs = process.argv.slice(2);
-const skipSearch = cliArgs.includes('--skip-search');
+// `--skip-search` is accepted but currently a no-op — see the module header.
 const serverArgIdx = cliArgs.indexOf('--server');
 const serverBase =
   serverArgIdx >= 0
@@ -248,20 +255,15 @@ interface TokenCheck {
   label: string;
 }
 
-function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
+function getTokenChecks(_knownUUIDs: KnownUUIDs): TokenCheck[] {
   // Ranges calibrated against live server responses (15 Mar 2026).
   // Lower bounds are set at ~50% of observed values to allow for data variation.
   // Upper bounds and flag thresholds from the spec catch response bloat.
+  //
+  // TE-01 (`find`) is parked with the O1 rebuild (RETIRED_PENDING_REBUILD,
+  // id-71); TE-04 (`get_procurement_detail`) died with the procurement tool
+  // family in the S530 id-417 wave — no successor owed.
   return [
-    {
-      id: 'TE-01',
-      tool: 'find',
-      args: { query: 'ISO 27001' },
-      expectedMin: 500,
-      expectedMax: 5000,
-      flagThreshold: 8000,
-      label: 'find',
-    },
     {
       id: 'TE-02',
       tool: 'whats_in_my_queue',
@@ -270,17 +272,6 @@ function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
       expectedMax: 4000,
       flagThreshold: 6000,
       label: 'whats_in_my_queue',
-    },
-    {
-      id: 'TE-04',
-      tool: 'get_procurement_detail',
-      args: {
-        id: knownUUIDs.procurementId ?? '00000000-0000-0000-0000-000000000000',
-      },
-      expectedMin: 100,
-      expectedMax: 8000,
-      flagThreshold: 12000,
-      label: 'get_procurement_detail',
     },
     {
       id: 'TE-08',
@@ -312,18 +303,6 @@ async function runTokenEfficiencyChecks(
   const checks = getTokenChecks(knownUUIDs);
 
   for (const check of checks) {
-    // Skip bid detail if no bid exists
-    if (check.tool === 'get_procurement_detail' && !knownUUIDs.procurementId) {
-      record(
-        'Token Efficiency',
-        check.id,
-        check.label,
-        'SKIP',
-        'No bid workspace found',
-      );
-      continue;
-    }
-
     const result = await callTool(check.tool, check.args, accessToken);
 
     if (result.errorMessage) {
@@ -392,213 +371,14 @@ async function runTokenEfficiencyChecks(
 }
 
 // ---------------------------------------------------------------------------
-// 2. Search Relevance Evaluation
+// 2. Search Relevance Evaluation — PARKED with the O1 rebuild.
+//
+// RQ-01..05 drove the consolidated `find` entry, deleted in the S530 id-417
+// wave. The O1 find/answer product outcome remains ratified and is
+// RETIRED_PENDING_REBUILD (fixtures.ts) — the id-71 successor surface owns
+// the rebuild, and search-relevance evaluation returns with it. Until then
+// there is deliberately NO live find surface to measure.
 // ---------------------------------------------------------------------------
-
-interface SearchRelevanceCheck {
-  id: string;
-  query: string;
-  tool: string;
-  label: string;
-  evaluate: (text: string) => { status: CheckStatus; detail: string };
-}
-
-const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
-  {
-    id: 'RQ-01',
-    query: 'data protection GDPR policies',
-    tool: 'find',
-    label: 'GDPR data protection',
-    evaluate: (text: string) => {
-      // Check that top results contain data-protection subtopic
-      const lines = text.split('\n');
-      const dataProtectionHits = lines.filter(
-        (line) =>
-          line.toLowerCase().includes('data-protection') ||
-          line.toLowerCase().includes('data protection') ||
-          line.toLowerCase().includes('gdpr'),
-      ).length;
-      if (dataProtectionHits >= 3) {
-        return {
-          status: 'PASS',
-          detail: `${dataProtectionHits} data-protection references in results`,
-        };
-      } else if (dataProtectionHits >= 1) {
-        return {
-          status: 'WARN',
-          detail: `Only ${dataProtectionHits} data-protection reference(s) — expected 3+`,
-        };
-      }
-      return {
-        status: 'FAIL',
-        detail: 'No data-protection references found in results',
-      };
-    },
-  },
-  {
-    id: 'RQ-02',
-    query: 'ISO 27001 certification ISMS',
-    tool: 'find',
-    label: 'ISO 27001 cross-domain',
-    evaluate: (text: string) => {
-      const textLower = text.toLowerCase();
-      const hasSecurityDomain =
-        textLower.includes('security') ||
-        textLower.includes('iso-27001') ||
-        textLower.includes('isms');
-      const hasComplianceDomain =
-        textLower.includes('compliance') || textLower.includes('certification');
-      if (hasSecurityDomain && hasComplianceDomain) {
-        return {
-          status: 'PASS',
-          detail: 'Both security and compliance domains represented',
-        };
-      } else if (hasSecurityDomain || hasComplianceDomain) {
-        return {
-          status: 'WARN',
-          detail: `Only ${hasSecurityDomain ? 'security' : 'compliance'} domain found`,
-        };
-      }
-      return {
-        status: 'FAIL',
-        detail: 'Neither security nor compliance domain found in results',
-      };
-    },
-  },
-  {
-    id: 'RQ-03',
-    query: 'SLA response times',
-    tool: 'find',
-    label: 'SLA Q&A search',
-    evaluate: (text: string) => {
-      const textLower = text.toLowerCase();
-      const hasSLA =
-        textLower.includes('sla') ||
-        textLower.includes('service level') ||
-        textLower.includes('response time');
-      const hasQA =
-        textLower.includes('q&a') ||
-        textLower.includes('q_a') ||
-        textLower.includes('question') ||
-        textLower.includes('answer');
-      if (hasSLA) {
-        return {
-          status: 'PASS',
-          detail: `SLA content found${hasQA ? ' (Q&A format)' : ''}`,
-        };
-      }
-      return {
-        status: 'FAIL',
-        detail: 'No SLA-related content found in results',
-      };
-    },
-  },
-  {
-    id: 'RQ-04',
-    query: 'staff qualifications CVs',
-    tool: 'find',
-    label: 'Staff qualifications',
-    evaluate: (text: string) => {
-      const textLower = text.toLowerCase();
-      const hasStaffing =
-        textLower.includes('staffing') ||
-        textLower.includes('corporate') ||
-        textLower.includes('personnel') ||
-        textLower.includes('qualification') ||
-        textLower.includes('staff') ||
-        textLower.includes('cv');
-      if (hasStaffing) {
-        return {
-          status: 'PASS',
-          detail: 'Corporate/staffing content found in results',
-        };
-      }
-      return {
-        status: 'FAIL',
-        detail: 'No staffing-related content found in results',
-      };
-    },
-  },
-  {
-    id: 'RQ-05',
-    query: 'quantum computing blockchain',
-    tool: 'find',
-    label: 'Negative test (irrelevant query)',
-    evaluate: (text: string) => {
-      // Should return 0-3 results with low relevance
-      // Count result items — look for numbered items or bullet points
-      const resultLines = text
-        .split('\n')
-        .filter(
-          (line) =>
-            line.match(/^\d+\./) || line.match(/^- \*\*/) || line.match(/^###/),
-        );
-      if (resultLines.length <= 3) {
-        return {
-          status: 'PASS',
-          detail: `${resultLines.length} result(s) — correctly low relevance`,
-        };
-      }
-      // Check if the response explicitly indicates no/few results
-      const textLower = text.toLowerCase();
-      if (
-        textLower.includes('no results') ||
-        textLower.includes('no matching') ||
-        textLower.includes('0 results') ||
-        textLower.includes('no items found')
-      ) {
-        return { status: 'PASS', detail: 'Correctly reports no/few results' };
-      }
-      return {
-        status: 'WARN',
-        detail: `${resultLines.length} results found — expected 0-3 for irrelevant query`,
-      };
-    },
-  },
-];
-
-async function runSearchRelevanceChecks(accessToken: string): Promise<void> {
-  console.log('\nSearch Relevance');
-
-  for (const check of SEARCH_RELEVANCE_CHECKS) {
-    const result = await callTool(
-      check.tool,
-      { query: check.query },
-      accessToken,
-    );
-
-    if (result.errorMessage) {
-      record(
-        'Search Relevance',
-        check.id,
-        check.label,
-        'FAIL',
-        result.errorMessage,
-      );
-      continue;
-    }
-
-    if (result.isError) {
-      record(
-        'Search Relevance',
-        check.id,
-        check.label,
-        'FAIL',
-        `Tool returned error: ${result.text.slice(0, 100)}`,
-      );
-      continue;
-    }
-
-    const evaluation = check.evaluate(result.text);
-    record(
-      'Search Relevance',
-      check.id,
-      check.label,
-      evaluation.status,
-      evaluation.detail,
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // 3. Structural Quality Checks
@@ -637,51 +417,8 @@ function getStructuralChecks(_knownUUIDs: KnownUUIDs): StructuralCheck[] {
         };
       },
     },
-    {
-      id: 'RQ-11',
-      label: 'Search result formatting',
-      tool: 'find',
-      args: { query: 'data protection' },
-      evaluate: (text: string) => {
-        // Check for consistent item formatting — numbered list or bullet points with bold titles
-        const lines = text.split('\n');
-        const numberedItems = lines.filter((line) => /^\d+\.\s/.test(line));
-        const bulletItems = lines.filter((line) => /^[-*]\s\*\*/.test(line));
-        const headerItems = lines.filter((line) => /^###\s/.test(line));
-
-        const itemCount = Math.max(
-          numberedItems.length,
-          bulletItems.length,
-          headerItems.length,
-        );
-        if (itemCount >= 2) {
-          const format =
-            numberedItems.length >= 2
-              ? 'numbered list'
-              : bulletItems.length >= 2
-                ? 'bullet points'
-                : 'section headers';
-          return {
-            status: 'PASS',
-            detail: `${itemCount} items in consistent ${format} format`,
-          };
-        }
-        // Also check for bold labels on separate lines
-        const boldLabels = lines.filter((line) =>
-          /^\*\*[^*]+\*\*/.test(line.trim()),
-        );
-        if (boldLabels.length >= 2) {
-          return {
-            status: 'PASS',
-            detail: `${boldLabels.length} items with bold label formatting`,
-          };
-        }
-        return {
-          status: 'FAIL',
-          detail: 'Search results lack consistent item formatting',
-        };
-      },
-    },
+    // RQ-11 (search result formatting) is parked with the `find`/O1 rebuild
+    // (RETIRED_PENDING_REBUILD, id-71) — see the module header.
     {
       id: 'RQ-13',
       label: 'Entity relationships structured',
@@ -893,7 +630,6 @@ function printReport(): void {
   console.log('='.repeat(60));
   console.log(`Date: ${new Date().toISOString()}`);
   console.log(`Server: ${MCP_URL}`);
-  if (skipSearch) console.log('Mode: --skip-search (search relevance skipped)');
 
   // Group by section
   const sections = new Map<string, CheckResult[]>();
@@ -928,7 +664,6 @@ async function main(): Promise<void> {
 
   console.log('MCP Response Quality Evaluation — Layer 3');
   console.log(`Server: ${MCP_URL}`);
-  if (skipSearch) console.log('Mode: --skip-search');
 
   // Load env
   loadEnv();
@@ -947,20 +682,8 @@ async function main(): Promise<void> {
   // Step 3: Token Efficiency
   await runTokenEfficiencyChecks(accessToken, knownUUIDs);
 
-  // Step 4: Search Relevance (unless --skip-search)
-  if (skipSearch) {
-    for (const check of SEARCH_RELEVANCE_CHECKS) {
-      record(
-        'Search Relevance',
-        check.id,
-        check.label,
-        'SKIP',
-        'Skipped (--skip-search)',
-      );
-    }
-  } else {
-    await runSearchRelevanceChecks(accessToken);
-  }
+  // Step 4: Search Relevance — parked with the O1/`find` rebuild (id-71);
+  // see the module header.
 
   // Step 5: Structural Quality
   await runStructuralQualityChecks(accessToken, knownUUIDs);
@@ -990,9 +713,9 @@ main().catch((err) => {
 
 // ---------------------------------------------------------------------------
 // eval-runner integration (T23 / B-INV-23) — orchestration wiring only.
-// The check logic above (runTokenEfficiencyChecks, runSearchRelevanceChecks,
-// runStructuralQualityChecks) is UNCHANGED — only the orchestration around it
-// is rebuilt (spec §Area G). main() above continues to drive the CLI path.
+// The check logic above (runTokenEfficiencyChecks, runStructuralQualityChecks)
+// is UNCHANGED — only the orchestration around it is rebuilt (spec §Area G).
+// main() above continues to drive the CLI path.
 // ---------------------------------------------------------------------------
 
 import type { SuiteRunOutcome } from '@/scripts/eval-runner';
@@ -1012,17 +735,8 @@ export async function runAsEvalSuite(): Promise<SuiteRunOutcome> {
     const knownUUIDs = await getKnownUUIDs(supabase);
 
     await runTokenEfficiencyChecks(accessToken, knownUUIDs);
-    // Skip search checks in runner invocation: avoids blocking on
-    // search-index state and keeps the gate deterministic.
-    for (const check of SEARCH_RELEVANCE_CHECKS) {
-      record(
-        'Search Relevance',
-        check.id,
-        check.label,
-        'SKIP',
-        'skipped in runner mode',
-      );
-    }
+    // Search relevance is parked with the O1/`find` rebuild (id-71) — see
+    // the module header.
     await runStructuralQualityChecks(accessToken, knownUUIDs);
   } catch (err) {
     return {
