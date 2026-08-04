@@ -235,7 +235,12 @@ export function ReviewTabs() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange}>
       <div className="mx-auto w-full max-w-[1100px] px-4 pt-6 sm:px-6">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 p-1">
+        {/* The height override must carry the same group-data variant the base
+            tabsListVariants uses to pin `h-9` — a bare `h-auto` loses on
+            specificity, the list stays 36px tall, and the wrapped triggers
+            spill over the content below it (on a 393px viewport the tab row
+            wraps to ~5 lines and covered the bulk-action toolbar). */}
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 p-1 group-data-[orientation=horizontal]/tabs:h-auto">
           {tabSpecsWithCounts.map(
             ({ value, label, icon: Icon, countValue }) => (
               <TabsTrigger

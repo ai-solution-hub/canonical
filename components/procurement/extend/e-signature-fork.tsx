@@ -387,7 +387,9 @@ function SignatureDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      {/* sm:-prefixed so the base DialogContent mobile width cap survives
+          (unprefixed max-w-* overflows small viewports). */}
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Add signature</DialogTitle>
           <DialogDescription>

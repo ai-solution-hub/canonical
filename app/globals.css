@@ -355,6 +355,15 @@
 html,
 body {
   min-height: 100vh;
+  /* Mobile viewport containment: the document never scrolls horizontally by
+     design — wide content scrolls inside its own overflow-x-auto containers.
+     `clip` rather than `hidden` so no scroll container is created and
+     position: sticky descendants (e.g. the site header) keep working.
+     Without this, any component that overflows the viewport width — even
+     transiently during a mount — makes Chromium's mobile viewport latch a
+     wider layout viewport (measured: 697px on a 393px Pixel 5, dialogs then
+     size against the wider viewport and render clipped off-screen). */
+  overflow-x: clip;
 }
 
 body {

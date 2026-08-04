@@ -59,7 +59,10 @@ export function SeedStarterPackDialog({
           Seed Starter Pack
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      {/* sm:-prefixed so the base DialogContent mobile cap
+          (max-w-[calc(100%-2rem)]) survives tailwind-merge — an unprefixed
+          max-w-* renders the dialog wider than small viewports. */}
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Seed Starter Pack</DialogTitle>
           <DialogDescription>

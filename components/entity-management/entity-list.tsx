@@ -316,7 +316,9 @@ function TypeEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm" showCloseButton={false}>
+      {/* sm:-prefixed so the base DialogContent mobile width cap survives
+          (unprefixed max-w-* overflows small viewports). */}
+      <DialogContent className="sm:max-w-sm" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
             Change type for &ldquo;
