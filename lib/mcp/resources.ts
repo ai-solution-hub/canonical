@@ -7,7 +7,6 @@
  *   - ui://intelligence-feed/app.html — Intelligence Feed MCP App (interactive UI)
  *
  */
-import { z } from 'zod';
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
@@ -16,18 +15,9 @@ import type {
   ServerNotification,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
-import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
-import { fetchSourceDocumentBody } from '@/lib/source-documents/body';
-import { loadSkill } from '@/lib/ai/skills/loader';
+import { createMcpClient } from '@/lib/mcp/auth';
 import { sb } from '@/lib/supabase/safe';
 import { logger } from '@/lib/logger';
-import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
-
-// Lazy import — dashboard module pulls in bid-queries and other heavy modules
-// that can cause Vercel serverless cold start crashes at module evaluation time.
-async function getDashboardModule() {
-  return await import('@/lib/dashboard');
-}
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
