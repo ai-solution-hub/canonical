@@ -302,7 +302,11 @@ test.describe('8.0.2 MCP tool invocation', () => {
     }
   });
 
-  test('authenticated tool call returns seeded row, negative cases reject', async ({
+  // PARKED against id-71: the `find` tool was deleted in wave 3 and sits in
+  // RETIRED_PENDING_REBUILD_TOOLS (scripts/mcp-eval/fixtures.ts) — the id-71
+  // contract outcome is still owed, so this test is skipped, not deleted.
+  // Un-skip when id-71 rebuilds the find/answer surface.
+  test.skip('authenticated tool call returns seeded row, negative cases reject', async ({
     authenticatedPage: page,
   }) => {
     // -------------------------------------------------------------------

@@ -22,14 +22,15 @@ test.describe('Provenance -- admin access and tab navigation', () => {
       { timeout: 15000 },
     );
 
-    // Should see all five tab triggers
+    // Should see all four tab triggers (Disputes retired with the
+    // classification_disputes drop, 6bcd9f699 / id-417 C6b)
     await expect(page.getByRole('tab', { name: 'Per-item' })).toBeVisible();
     await expect(
       page.getByRole('tab', { name: 'Pipeline Health' }),
     ).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Audit' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Cost' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Disputes' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Disputes' })).not.toBeVisible();
   });
 
   test('viewer sees AccessDenied on /provenance', async ({

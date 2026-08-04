@@ -164,10 +164,11 @@ test.describe('Admin role full access', { tag: '@smoke' }, () => {
 
     const settingsNav = await getSettingsNav(page);
 
-    // Admin sees everything — personal, content management, and system groups
+    // Admin sees everything — personal, content management, and system groups.
+    // (Content Organisation retired at b063121ea; Reviewer Assignments retired
+    // into id-420 at a7fc9d715.)
     await expect(settingsNav.getByText('Profile')).toBeVisible();
     await expect(settingsNav.getByText('Connections')).toBeVisible();
-    await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
     await expect(settingsNav.getByText('Tag Morphology')).toBeVisible();
     await expect(settingsNav.getByText('Team')).toBeVisible();
     await expect(settingsNav.getByText('Quality Review')).toBeVisible();

@@ -338,8 +338,9 @@ test.describe('Settings -- Permission gating for mutations', () => {
     await expect(settingsNav.getByText('Profile')).toBeVisible();
     await expect(settingsNav.getByText('Connections')).toBeVisible();
 
-    // Content management sections (admin only)
-    await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
+    // Content management sections (admin only; Content Organisation retired
+    // at b063121ea)
+    await expect(settingsNav.getByText('Content Owners')).toBeVisible();
 
     // System sections (admin only). 'Activity' was removed from the settings
     // sidebar (replaced by the /provenance route's audit tab, commit
