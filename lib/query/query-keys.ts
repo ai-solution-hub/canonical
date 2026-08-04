@@ -11,6 +11,13 @@ import type { CorpusKind, CorpusSearchFilters } from '@/types/corpus-search';
  * `tags.duplicates`, etc.
  */
 export const queryKeys = {
+  // Guides (DR-126 first-class surface; /guide listing rebuilt S531 after
+  // the /coverage?tab=guides ghost redirect died with the coverage page)
+  guides: {
+    all: ['guides'] as const,
+    list: ['guides', 'list'] as const,
+  },
+
   // Search (lexical preview — distinct from contentItems.search which is semantic)
   search: {
     all: ['search'] as const,

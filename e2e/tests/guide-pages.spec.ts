@@ -34,10 +34,11 @@ async function firstPublishedGuideSlug(page: Page): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// 1. /guide redirect
+// 1. /guide listing (rebuilt S531 — the old redirect aimed at the retired
+//    /coverage?tab=guides ghost; DR-126 makes guides first-class)
 // ---------------------------------------------------------------------------
 
-test.describe('Guide listing redirect', { tag: '@smoke' }, () => {
+test.describe('Guide listing', { tag: '@smoke' }, () => {
   // bl-336: opt-in browser-error gate (see e2e/helpers/console-gate.ts).
   let gate: ConsoleGate;
   test.beforeEach(({ authenticatedPage }) => {
@@ -47,18 +48,19 @@ test.describe('Guide listing redirect', { tag: '@smoke' }, () => {
     gate.assertNoConsoleViolations();
   });
 
-  test('/guide redirects to /coverage?tab=guides', async ({
+  test('/guide renders the guides listing', async ({
     authenticatedPage: page,
   }) => {
     await page.goto('/guide');
 
-    // Should redirect to coverage with guides tab
-    await expect(page).toHaveURL(/\/coverage\?tab=guides/, { timeout: 10000 });
-
-    // Coverage dashboard heading should be visible
+    await expect(page).toHaveURL(/\/guide$/, { timeout: 10000 });
     await expect(
-      page.getByRole('heading', { name: 'Coverage Dashboard' }),
+      page.getByRole('heading', { name: 'Guides' }),
     ).toBeVisible({ timeout: 10000 });
+
+    // Seeded staging carries published guides — the listing links to them.
+    const guideLinks = page.locator('a[href^="/guide/"]');
+    await expect(guideLinks.first()).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -121,7 +123,7 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
     expect(linkCount).toBeGreaterThan(0);
   });
 
-  test('guide detail back link navigates to coverage guides tab', async ({
+  test('guide detail back link navigates to the guides listing', async ({
     authenticatedPage: page,
   }) => {
     const slug = await firstPublishedGuideSlug(page);
@@ -136,11 +138,10 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
     await expect(backLink).toBeVisible();
     await backLink.click();
 
-    // Should navigate to coverage (guides tab param retained in the URL,
-    // though the tab param is UI-inert post-DR-034 — see coverage-tabs.tsx)
-    await expect(page).toHaveURL(/\/coverage\?tab=guides/, { timeout: 10000 });
+    // Navigates to the rebuilt /guide listing (S531)
+    await expect(page).toHaveURL(/\/guide$/, { timeout: 10000 });
     await expect(
-      page.getByRole('heading', { name: 'Coverage Dashboard' }),
+      page.getByRole('heading', { name: 'Guides' }),
     ).toBeVisible({ timeout: 10000 });
   });
 

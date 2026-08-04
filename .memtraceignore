@@ -4,4 +4,4 @@
 # file itself (supabase/CLAUDE.md); memtrace just shouldn't graph it.
 supabase/types/database.types.ts
 lib/mcp/plugin-bundle.ts
-
+supabase/config.toml
