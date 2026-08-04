@@ -4,7 +4,7 @@
   // the WHOLE repo INCLUDING `scripts/*.ts`. The base `tsconfig.json` excludes
   // `scripts`, and `next build` only typechecks files inside the Next.js
   // compilation graph — so standalone CLI scripts (e.g.
-  // scripts/eval-classification.ts) are never gated by CI without this. A type
+  // scripts/eval-search.ts) are never gated by CI without this. A type
   // error here is an unambiguous "build is broken" signal (the `build-gate`
   // job in .github/workflows/ci.yml).
   //

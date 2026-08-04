@@ -14,10 +14,12 @@
  *   `resolvePrivateDocsDir()`. The PRIVATE_FIXTURES map is now empty;
  *   the bridge import is retained for future private fixtures.
  *
- * Canonical fixture names: `classification`, `entity`, `summarisation`,
- * `procurement-drafting` (all public). The historical `bid-drafting`
- * filename was reconciled to `procurement-drafting` (Checker S317
- * discrepancy — the tracked artefact name is canonical).
+ * Canonical fixture names: `procurement-drafting` (public). The
+ * `classification`, `entity` and `summarisation` fixtures were retired in
+ * S531 (id-419 census): all gold IDs were keyed on the dropped
+ * content_items table (0 of 140 resolved against source_documents), no CI
+ * lane or eval_touchpoints registration consumed them, and two carried
+ * un-de-identified person/vendor names.
  *
  * Import directly (`@/lib/eval/fixtures` or a relative path) — no barrel
  * re-exports.
@@ -41,28 +43,20 @@ const PUBLIC_FIXTURE_DIR = join(
 const PRIVATE_FIXTURE_SUBDIR = 'eval-fixtures';
 
 const PUBLIC_FIXTURES: Record<string, string> = {
-  classification: 'classification-eval-gold-standard.json',
-  entity: 'entity-eval-gold-standard.json',
-  summarisation: 'summarisation-eval-gold-standard.json',
   'procurement-drafting': 'procurement-drafting-eval-gold-standard.json',
 };
 
 const PRIVATE_FIXTURES: Record<string, string> = {};
 
 /** Canonical eval fixture names accepted by {@link resolveEvalFixture}. */
-export type EvalFixtureName =
-  | 'classification'
-  | 'entity'
-  | 'summarisation'
-  | 'procurement-drafting';
+export type EvalFixtureName = 'procurement-drafting';
 
 /**
  * Resolve the absolute path of an eval gold-standard fixture.
  *
  * @param name canonical fixture name (see {@link EvalFixtureName}).
  * @returns absolute path — in-repo `__tests__/fixtures/eval-gold/` for
- *   all four public names (classification, entity, summarisation,
- *   procurement-drafting). Private-fixture resolution via
+ *   the public name (procurement-drafting). Private-fixture resolution via
  *   `${KH_PRIVATE_DOCS_DIR}/eval-fixtures/` is retained for future
  *   private fixtures but no current name routes through it.
  * @throws for unknown fixture names.

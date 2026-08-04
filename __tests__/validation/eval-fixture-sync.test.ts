@@ -6,11 +6,11 @@
  * fixtures exist and have the expected minimum item counts. Catches
  * accidental deletion or truncation of eval data.
  *
- * All four canonical fixtures (classification, entity, summarisation,
- * procurement-drafting) are now in-repo public fixtures at
- * `__tests__/fixtures/eval-gold/` following the de-ID pass in {114.8}
- * and the PRIVATE→PUBLIC flip in {114.14}. All four are asserted by
- * default with no KH_PRIVATE_DOCS_DIR guard required (AC-C3 satisfied).
+ * The surviving canonical fixture (procurement-drafting) is an in-repo
+ * public fixture at `__tests__/fixtures/eval-gold/` following the de-ID
+ * pass in {114.8} and the PRIVATE→PUBLIC flip in {114.14}. The
+ * classification/entity/summarisation fixtures were retired in S531
+ * (id-419 census) — stale content_items-keyed gold IDs, no consumer lane.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -20,31 +20,6 @@ import { resolve } from 'path';
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 
 describe('Eval fixture sync', () => {
-  it('entity eval gold standard has 60+ items', () => {
-    const path = resolveEvalFixture('entity');
-    expect(existsSync(path)).toBe(true);
-    const data = JSON.parse(readFileSync(path, 'utf-8'));
-    expect(data.length).toBeGreaterThanOrEqual(60);
-  });
-
-  it('classification eval gold standard has 50+ items', () => {
-    const path = resolveEvalFixture('classification');
-    expect(existsSync(path)).toBe(true);
-    const data = JSON.parse(readFileSync(path, 'utf-8'));
-    expect(data.length).toBeGreaterThanOrEqual(50);
-  });
-
-  it('summarisation eval gold standard has 30+ items', () => {
-    const path = resolveEvalFixture('summarisation');
-    expect(existsSync(path)).toBe(true);
-    const data = JSON.parse(readFileSync(path, 'utf-8'));
-    // Filter out the _metadata entry
-    const items = data.filter(
-      (item: Record<string, unknown>) => !('_metadata' in item),
-    );
-    expect(items.length).toBeGreaterThanOrEqual(30);
-  });
-
   it('procurement drafting eval gold standard has 20+ items', () => {
     const path = resolveEvalFixture('procurement-drafting');
     expect(existsSync(path)).toBe(true);

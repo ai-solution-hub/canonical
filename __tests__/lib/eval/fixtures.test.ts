@@ -32,29 +32,6 @@ describe('resolveEvalFixture (PC-7 step 3)', () => {
     }
   });
 
-  it('resolves the classification fixture to the public eval-gold path', () => {
-    expect(resolveEvalFixture('classification')).toBe(
-      resolve(PUBLIC_DIR, 'classification-eval-gold-standard.json'),
-    );
-  });
-
-  it('resolves the entity fixture to the public eval-gold path', () => {
-    expect(resolveEvalFixture('entity')).toBe(
-      resolve(PUBLIC_DIR, 'entity-eval-gold-standard.json'),
-    );
-  });
-
-  it('resolves public fixtures without the bridge knob set', () => {
-    expect(() => resolveEvalFixture('classification')).not.toThrow();
-    expect(() => resolveEvalFixture('entity')).not.toThrow();
-  });
-
-  it('resolves the summarisation fixture to the public eval-gold path', () => {
-    expect(resolveEvalFixture('summarisation')).toBe(
-      resolve(PUBLIC_DIR, 'summarisation-eval-gold-standard.json'),
-    );
-  });
-
   it('resolves the procurement-drafting fixture to the public eval-gold path', () => {
     expect(resolveEvalFixture('procurement-drafting')).toBe(
       resolve(PUBLIC_DIR, 'procurement-drafting-eval-gold-standard.json'),
@@ -62,7 +39,6 @@ describe('resolveEvalFixture (PC-7 step 3)', () => {
   });
 
   it('resolves public fixtures without the bridge knob set', () => {
-    expect(() => resolveEvalFixture('summarisation')).not.toThrow();
     expect(() => resolveEvalFixture('procurement-drafting')).not.toThrow();
   });
 
@@ -70,6 +46,6 @@ describe('resolveEvalFixture (PC-7 step 3)', () => {
     expect(() =>
       // @ts-expect-error — deliberately exercising the runtime guard
       resolveEvalFixture('bid-drafting'),
-    ).toThrowError(/bid-drafting.*classification/s);
+    ).toThrowError(/bid-drafting.*procurement-drafting/s);
   });
 });

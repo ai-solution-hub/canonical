@@ -240,11 +240,11 @@ describe('isRoleTitle', () => {
   });
 
   it.each([
-    'Matthew Burgess',
+    'Jonathan Pemberton',
     'Jane Smith',
     'John Doe',
     'Alan Turing',
-    'Matthew',
+    'Jonathan',
     'ISO 27001',
     'NHS',
     'Agile',
@@ -492,7 +492,7 @@ describe('shouldExcludeEntity', () => {
     expect(
       shouldExcludeEntity(entity('Cyber Essentials Plus', 'certification')),
     ).toBe(false);
-    expect(shouldExcludeEntity(entity('Matthew Burgess', 'person'))).toBe(
+    expect(shouldExcludeEntity(entity('Jonathan Pemberton', 'person'))).toBe(
       false,
     );
     expect(shouldExcludeEntity(entity('Public Sector', 'sector'))).toBe(false);

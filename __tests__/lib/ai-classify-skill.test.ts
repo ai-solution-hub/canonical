@@ -482,8 +482,8 @@ describe('Classification skill placeholder interpolation', () => {
 
   it('replaces {PRODUCT_NAME} with the configured product name', () => {
     // ID-119.5 routed the hardcoded product name onto BRANDING.productName via a
-    // {PRODUCT_NAME} placeholder in classification.md (resolved by classify.ts /
-    // eval-classification.ts). The skill must carry it and it must interpolate.
+    // {PRODUCT_NAME} placeholder in classification.md (resolved by classify.ts).
+    // The skill must carry it and it must interpolate.
     expect(skillContent).toContain('{PRODUCT_NAME}');
 
     const interpolated = skillContent.replaceAll(

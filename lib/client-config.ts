@@ -82,8 +82,7 @@ export interface ClientConfig {
    * Client-specific classification disambiguation rules.
    *
    * Interpolated into the `{CLIENT_DISAMBIGUATION}` placeholder in
-   * `lib/ai/skills/classification.md` via `lib/ai/classify.ts` and
-   * `scripts/eval-classification.ts`. Each rule may contain
+   * `lib/ai/skills/classification.md` via `lib/ai/classify.ts`. Each rule may contain
    * `{CLIENT_PRODUCT_NAME}`, `{CLIENT_ORGANISATION_NAME}`, etc.
    * placeholders — these are resolved by the subsequent `.replaceAll`
    * chain at the prompt-assembly call site.
@@ -219,8 +218,6 @@ export function isFeatureEnabled(feature: FeatureName): boolean {
  *
  * Called from:
  *   - `lib/ai/classify.ts` (TypeScript classification pipeline)
- *   - `scripts/eval-classification.ts` (eval harness, kept in sync
- *     with the production pipeline by construction)
  */
 export function buildDisambiguationBlock(): string {
   return CLIENT_CONFIG.classification_disambiguation_rules
@@ -634,7 +631,7 @@ import { logger } from '@/lib/logger/client';
 // segment ANYWHERE in the absolute entry path
 // (`/(^|[/\\])scripts[/\\]/`), which — unlike every other
 // `process.argv[1]` self-invocation guard in this repo (those anchor to a
-// filename, e.g. `endsWith('eval-classification.ts')`) — would false-positive
+// filename, e.g. `endsWith('eval-search.ts')`) — would false-positive
 // on an ANCESTOR directory merely named `scripts` (e.g. a checkout under
 // `~/scripts/canonical`), suppressing the advisory app-wide for every entry
 // point (next dev/build, vitest included). Anchor to the REPO-RELATIVE entry

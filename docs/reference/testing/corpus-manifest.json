@@ -76,70 +76,12 @@
       "notes": ""
     },
     {
-      "id": "eval-gold/classification-eval-gold-standard.json",
-      "path": "__tests__/fixtures/eval-gold/classification-eval-gold-standard.json",
-      "tree": "eval-gold",
-      "format": "json",
-      "sha256": "00c87eb6189d5dae324d1ab153e2479de6105a55f97d56189450270739b68363",
-      "bytes": 50725,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "never-staged",
-      "consumers": [
-        "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "eval-gold/entity-eval-gold-standard.README.md",
-      "path": "__tests__/fixtures/eval-gold/entity-eval-gold-standard.README.md",
-      "tree": "eval-gold",
-      "format": "md",
-      "sha256": "e29b555f2b50f59266f1407eec120b9a7b9f8c14296a1f21a939669e0f3e2985",
-      "bytes": 3255,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "never-staged",
-      "consumers": [],
-      "notes": "Documentation for the entity gold standard beside it, not a fixture any test loads. Registered so the tree's file-set assertion stays exact; exempt from the orphan rule with this justification.",
-      "orphan_exempt": true
-    },
-    {
-      "id": "eval-gold/entity-eval-gold-standard.json",
-      "path": "__tests__/fixtures/eval-gold/entity-eval-gold-standard.json",
-      "tree": "eval-gold",
-      "format": "json",
-      "sha256": "861a038ff857ec548b082822fdcc3828fd14b3e0316749699cc778e5bfcaddd0",
-      "bytes": 96062,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "never-staged",
-      "consumers": [
-        "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts"
-      ],
-      "notes": ""
-    },
-    {
       "id": "eval-gold/procurement-drafting-eval-gold-standard.json",
       "path": "__tests__/fixtures/eval-gold/procurement-drafting-eval-gold-standard.json",
       "tree": "eval-gold",
       "format": "json",
       "sha256": "31f2e42d8ad6a0322945b025c0be3422269d9e8190714b683cd2342f490a2140",
       "bytes": 73059,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "never-staged",
-      "consumers": [
-        "__tests__/lib/eval/fixtures.test.ts",
-        "lib/eval/fixtures.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "eval-gold/summarisation-eval-gold-standard.json",
-      "path": "__tests__/fixtures/eval-gold/summarisation-eval-gold-standard.json",
-      "tree": "eval-gold",
-      "format": "json",
-      "sha256": "2670700f930898e1cb4a8bb5c7bcda8c9282623a85b33ef4fa9c3498dd47697e",
-      "bytes": 76205,
       "fixture_class": "vendored-read-only",
       "staging_mode": "never-staged",
       "consumers": [
