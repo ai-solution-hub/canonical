@@ -14,12 +14,18 @@
  *      entry maps a `suite_name` to the suite's `runAsEvalSuite` adapter (the
  *      function that runs the checks and returns a `SuiteRunOutcome`).
  *
- * Suites registered (10 total):
+ * Suites registered (7 total):
  *   — 3 mcp-eval suites:   l1 (protocol-compliance), l3 (response-quality),
  *                           l4 (functional-correctness)
- *   — 7 legacy eval suites: classification, entity-classification,
- *                           holder-rule-ts, procurement-drafting, search,
- *                           summarisation, tag-morphology-adoption
+ *   — 4 legacy eval suites: holder-rule-ts, procurement-drafting, search,
+ *                           tag-morphology-adoption
+ *
+ * The classification-era suites (classification, entity-classification,
+ * summarisation) were retired with the content_items-keyed golden eval lane
+ * (id-419 wave, commit 14a4d4e36; id-344 closed done-by-events, S531 audit).
+ * Their `eval_touchpoints` rows may persist until deregistered — the runner
+ * reports those as `no registered suite for suite_name: …` (infra, exit 2),
+ * the same non-gating class as the placeholder infra-skip they replaced.
  *
  * Contract field choices (per TECH §T23 / §Contract / B-INV-23):
  *   - mcp-eval suites: kind='tool' (they exercise MCP tools end-to-end),
@@ -27,10 +33,10 @@
  *     suites — a failure must fail the gate), variance_band=0.02.
  *   - legacy eval suites: kind='inline' (they run inside the codebase, not
  *     via an MCP protocol hop), grounding_shape='n/a' (no forced grounding —
- *     they test classification/search quality), severity_on_fail='warn' (legacy
+ *     they test retrieval/drafting quality), severity_on_fail='warn' (legacy
  *     suites are not yet CI-blocking; an operator reviews regressions via
  *     /admin/refinement), variance_band=0.03 (slightly wider band for
- *     classification/search variance).
+ *     suite-output variance).
  *
  * No barrel re-export: import directly from `@/scripts/eval-register-suites`.
  */
@@ -82,24 +88,6 @@ const SUITE_CONTRACTS: readonly AgentEvalContract[] = [
   },
   // ── legacy eval suites ──────────────────────────────────────────────────
   {
-    touchpoint_id: 'eval.classification',
-    kind: 'inline',
-    owner: 'platform-team',
-    suite_name: 'classification',
-    grounding_shape: 'n/a',
-    severity_on_fail: 'warn',
-    variance_band: 0.03,
-  },
-  {
-    touchpoint_id: 'eval.entity-classification',
-    kind: 'inline',
-    owner: 'platform-team',
-    suite_name: 'entity-classification',
-    grounding_shape: 'n/a',
-    severity_on_fail: 'warn',
-    variance_band: 0.03,
-  },
-  {
     touchpoint_id: 'eval.holder-rule-ts',
     kind: 'inline',
     owner: 'platform-team',
@@ -122,15 +110,6 @@ const SUITE_CONTRACTS: readonly AgentEvalContract[] = [
     kind: 'inline',
     owner: 'platform-team',
     suite_name: 'search',
-    grounding_shape: 'n/a',
-    severity_on_fail: 'warn',
-    variance_band: 0.03,
-  },
-  {
-    touchpoint_id: 'eval.summarisation',
-    kind: 'inline',
-    owner: 'platform-team',
-    suite_name: 'summarisation',
     grounding_shape: 'n/a',
     severity_on_fail: 'warn',
     variance_band: 0.03,
@@ -181,7 +160,7 @@ export const REGISTERED_SUITE_CONTRACTS: readonly AgentEvalContract[] =
 /**
  * Placeholder suite fn for legacy `scripts/eval-*.ts` suites.
  *
- * The 7 legacy suites run in process (long-running, require env vars,
+ * The 4 legacy suites run in process (long-running, require env vars,
  * expensive Anthropic calls on some modes). The dispatch map carries them as
  * `SuiteFn` entries for the runner to call; in the nightly lane they run for
  * real. In the unit-test context the suite registry is mocked at the
@@ -196,7 +175,7 @@ export const REGISTERED_SUITE_CONTRACTS: readonly AgentEvalContract[] =
  * (TECH §Risk: "file path removed only after every suite is re-pointed and
  * the nightly lane is green").
  *
- * For the bootstrap Subtask ({104.14}) scope, the 7 legacy suites are
+ * For the bootstrap Subtask ({104.14}) scope, the legacy suites are
  * REGISTERED as touchpoints (the registry rows exist + their contracts are
  * bound) but their suite fns return a stable `infra`-skip until a follow-on
  * Subtask wires each one to a real `runSuiteForRunner` export. The runner
@@ -220,7 +199,7 @@ function legacySuiteFn(
  * and returns a `SuiteRunOutcome`.
  *
  * The three mcp-eval suites have full adapters (`runAsEvalSuite` exported from
- * their module). The seven legacy suites carry placeholder infra-skip fns until
+ * their module). The four legacy suites carry placeholder infra-skip fns until
  * each is re-pointed per the DB-cutover plan.
  */
 export function buildSuiteRegistry(): SuiteRegistry {
@@ -245,12 +224,9 @@ export function buildSuiteRegistry(): SuiteRegistry {
       return runAsEvalSuite();
     },
     // legacy suites — registered, placeholder infra-skip until DB-cutover
-    classification: legacySuiteFn('classification'),
-    'entity-classification': legacySuiteFn('entity-classification'),
     'holder-rule-ts': legacySuiteFn('holder-rule-ts'),
     'procurement-drafting': legacySuiteFn('procurement-drafting'),
     search: legacySuiteFn('search'),
-    summarisation: legacySuiteFn('summarisation'),
     'tag-morphology-adoption': legacySuiteFn('tag-morphology-adoption'),
   };
 }

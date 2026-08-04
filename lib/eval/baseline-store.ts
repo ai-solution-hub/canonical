@@ -254,17 +254,14 @@ const __dirname = dirname(__filename);
 const FIXTURE_DIR = join(__dirname, '../../__tests__/fixtures/eval-baselines');
 
 /**
- * The four legacy suite fixtures that seed the DB store. Each `suite` is the
- * fixture file stem AND the `touchpoint_id` the seeded row is keyed by — the
- * suites the legacy flat-JSON store carried (VERIFIED: classification,
- * entity-classification, search, summarisation).
+ * The legacy suite fixtures that seed the DB store. Each `suite` is the
+ * fixture file stem AND the `touchpoint_id` the seeded row is keyed by.
+ * The legacy flat-JSON store carried four (classification,
+ * entity-classification, search, summarisation); the three classification-era
+ * fixtures were deleted with the golden eval lane (14a4d4e36 / id-344,
+ * S532 residue sweep) — `search` is the only surviving flat-JSON baseline.
  */
-const FIXTURE_SUITES = [
-  'classification',
-  'entity-classification',
-  'search',
-  'summarisation',
-] as const;
+const FIXTURE_SUITES = ['search'] as const;
 
 /** Shape of a flat-JSON baseline fixture (legacy `EvalBaseline` on disk). */
 interface FixtureBaseline {
@@ -281,7 +278,7 @@ function readFixture(suite: string): FixtureBaseline {
 }
 
 /**
- * One-shot cutover bootstrap: seed the four existing flat-JSON baseline
+ * One-shot cutover bootstrap: seed the surviving flat-JSON baseline
  * fixtures into `eval_baselines` rows so the DB store starts populated. Each
  * seeded row is keyed by the fixture suite name as its `touchpoint_id`, carries
  * the fixture's metrics + thresholds verbatim, and is attributed to `actor`

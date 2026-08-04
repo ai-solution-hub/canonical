@@ -1,13 +1,14 @@
 /**
  * eval-register-suites — bootstrap registration + suite dispatch map.
  *
- * Behaviour contract (testStrategy, {104.14}):
+ * Behaviour contract (testStrategy, {104.14}; classification-era suites
+ * retired with the golden eval lane — 14a4d4e36 / id-344):
  *   - each L1/L3/L4 suite is a registered touchpoint with a bound contract
  *     routing through eval-runner;
- *   - each of the 7 legacy suites is registered with a bound contract;
+ *   - each of the 4 legacy suites is registered with a bound contract;
  *   - `buildSuiteRegistry` returns a registry keyed by suite_name covering
- *     all 10 suites;
- *   - `registerAllSuites` calls `registerTouchpoint` once per contract (10
+ *     all 7 suites;
+ *   - `registerAllSuites` calls `registerTouchpoint` once per contract (7
  *     calls) and is idempotent (second call is a no-op from the registry's
  *     perspective);
  *   - the mcp-eval contracts carry severity_on_fail='block', the legacy
@@ -63,8 +64,8 @@ function storedRow(suite_name: string, touchpoint_id: string): Touchpoint {
 // ---------------------------------------------------------------------------
 
 describe('REGISTERED_SUITE_CONTRACTS', () => {
-  it('contains exactly 10 suite contracts (3 mcp-eval + 7 legacy)', () => {
-    expect(REGISTERED_SUITE_CONTRACTS).toHaveLength(10);
+  it('contains exactly 7 suite contracts (3 mcp-eval + 4 legacy)', () => {
+    expect(REGISTERED_SUITE_CONTRACTS).toHaveLength(7);
   });
 
   it('every contract satisfies the AgentEvalContract Zod schema (all 7 mandatory fields present)', () => {
@@ -87,14 +88,11 @@ describe('REGISTERED_SUITE_CONTRACTS', () => {
     expect(mcpSuiteNames).toEqual(['l1', 'l3', 'l4']);
   });
 
-  it('includes exactly the 7 legacy suite_names', () => {
+  it('includes exactly the 4 legacy suite_names', () => {
     const legacyNames = [
-      'classification',
-      'entity-classification',
       'holder-rule-ts',
       'procurement-drafting',
       'search',
-      'summarisation',
       'tag-morphology-adoption',
     ].sort();
     const actual = REGISTERED_SUITE_CONTRACTS.filter(
@@ -134,7 +132,7 @@ describe('REGISTERED_SUITE_CONTRACTS', () => {
 // ---------------------------------------------------------------------------
 
 describe('registerAllSuites', () => {
-  it('calls registerTouchpoint once per contract (10 contracts → 10 DB pre-reads)', async () => {
+  it('calls registerTouchpoint once per contract (7 contracts → 7 DB pre-reads)', async () => {
     const supabase = mockDb();
 
     // registerTouchpoint calls:
@@ -142,8 +140,8 @@ describe('registerAllSuites', () => {
     //   2. currentRegistryVersion (then — direct array resolve)
     //   3. sb insert (single)
     // We configure maybeSingle → null (no existing row) + single → inserted
-    // row for each of the 10 contracts. We use mockResolvedValue (not Once)
-    // so all 10 calls share the same mock behaviour.
+    // row for each of the 7 contracts. We use mockResolvedValue (not Once)
+    // so all 7 calls share the same mock behaviour.
     supabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
     supabase._chain.single.mockResolvedValue({
       data: storedRow('l1', 'mcp-eval.l1'),
@@ -152,10 +150,10 @@ describe('registerAllSuites', () => {
 
     await registerAllSuites(supabase);
 
-    // 10 contracts × 1 maybeSingle pre-read each = 10 maybeSingle calls.
-    expect(supabase._chain.maybeSingle).toHaveBeenCalledTimes(10);
-    // 10 contracts × 1 insert each = 10 insert calls.
-    expect(supabase._chain.insert).toHaveBeenCalledTimes(10);
+    // 7 contracts × 1 maybeSingle pre-read each = 7 maybeSingle calls.
+    expect(supabase._chain.maybeSingle).toHaveBeenCalledTimes(7);
+    // 7 contracts × 1 insert each = 7 insert calls.
+    expect(supabase._chain.insert).toHaveBeenCalledTimes(7);
   });
 
   it('is a no-op (zero inserts) when every contract row already exists with an identical contract', async () => {
@@ -173,7 +171,7 @@ describe('registerAllSuites', () => {
       }),
     );
 
-    // The 10 contracts each pre-read their row. The mock returns the l1 row
+    // The 7 contracts each pre-read their row. The mock returns the l1 row
     // shape for ALL calls. For a real no-op the returned row must have the same
     // field values as the incoming contract — but since registry.ts compares
     // the VERSIONED_FIELDS one by one, a mismatch would trigger an update.
@@ -190,9 +188,9 @@ describe('registerAllSuites', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildSuiteRegistry', () => {
-  it('returns a registry with exactly 10 entries', () => {
+  it('returns a registry with exactly 7 entries', () => {
     const registry = buildSuiteRegistry();
-    expect(Object.keys(registry)).toHaveLength(10);
+    expect(Object.keys(registry)).toHaveLength(7);
   });
 
   it('contains entries for all 3 mcp-eval suites (l1, l3, l4)', () => {
@@ -202,15 +200,12 @@ describe('buildSuiteRegistry', () => {
     expect(typeof registry['l4']).toBe('function');
   });
 
-  it('contains entries for all 7 legacy suites', () => {
+  it('contains entries for all 4 legacy suites', () => {
     const registry = buildSuiteRegistry();
     const legacyNames = [
-      'classification',
-      'entity-classification',
       'holder-rule-ts',
       'procurement-drafting',
       'search',
-      'summarisation',
       'tag-morphology-adoption',
     ];
     for (const name of legacyNames) {
@@ -222,12 +217,12 @@ describe('buildSuiteRegistry', () => {
 
   it('legacy suite fns return an infra outcome (not-yet-wired placeholder) without throwing', async () => {
     const registry = buildSuiteRegistry();
-    const tp = storedRow('classification', 'eval.classification');
-    const outcome = await registry['classification']!(tp);
+    const tp = storedRow('search', 'eval.search');
+    const outcome = await registry['search']!(tp);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
       expect(outcome.kind).toBe('infra');
-      expect(outcome.reason).toContain('classification');
+      expect(outcome.reason).toContain('search');
     }
   });
 

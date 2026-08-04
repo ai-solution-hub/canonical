@@ -270,13 +270,15 @@ describe('compareBaselines', () => {
 });
 
 // ---------------------------------------------------------------------------
-// bootstrap — seeds the 4 flat-JSON fixtures into eval_baselines rows
+// bootstrap — seeds the surviving flat-JSON fixtures into eval_baselines rows
+// (the three classification-era fixtures were deleted with the golden eval
+// lane — 14a4d4e36 / id-344; `search` is the only remaining fixture)
 // ---------------------------------------------------------------------------
 
 describe('bootstrapBaselinesFromFixtures', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('seeds one eval_baselines row per JSON fixture (4 suites)', async () => {
+  it('seeds one eval_baselines row per JSON fixture (search only)', async () => {
     const supabase = createMockSupabaseTable();
     supabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
@@ -287,23 +289,15 @@ describe('bootstrapBaselinesFromFixtures', () => {
       'bootstrap',
     );
 
-    // One insert per fixture file (classification, entity-classification,
-    // search, summarisation).
+    // One insert per fixture file (search).
     expect(supabase.from).toHaveBeenCalledWith('eval_baselines');
-    expect(summary.seeded).toBe(4);
+    expect(summary.seeded).toBe(1);
 
     // The seeded touchpoint ids mirror the fixture suite names.
     const seededTouchpoints = supabase._chain.insert.mock.calls
       .map((c) => (c[0] as Record<string, unknown>).touchpoint_id)
       .filter((id): id is string => typeof id === 'string');
-    expect(seededTouchpoints).toEqual(
-      expect.arrayContaining([
-        'classification',
-        'entity-classification',
-        'search',
-        'summarisation',
-      ]),
-    );
+    expect(seededTouchpoints).toEqual(expect.arrayContaining(['search']));
   });
 
   it('carries each fixture metrics + thresholds into the seeded row', async () => {
@@ -317,17 +311,17 @@ describe('bootstrapBaselinesFromFixtures', () => {
       'bootstrap',
     );
 
-    const classificationRow = supabase._chain.insert.mock.calls
+    const searchRow = supabase._chain.insert.mock.calls
       .map((c) => c[0] as Record<string, unknown>)
-      .find((p) => p.touchpoint_id === 'classification');
-    expect(classificationRow).toBeDefined();
-    // The classification fixture's domain_accuracy metric is carried verbatim.
-    const metrics = classificationRow!.metrics as Record<string, number>;
-    expect(metrics.domain_accuracy).toBeCloseTo(0.9746835443037974, 10);
-    const thresholds = classificationRow!.thresholds as Record<
+      .find((p) => p.touchpoint_id === 'search');
+    expect(searchRow).toBeDefined();
+    // The search fixture's mrr metric is carried verbatim.
+    const metrics = searchRow!.metrics as Record<string, number>;
+    expect(metrics.mrr).toBeCloseTo(0.8459595959595959, 10);
+    const thresholds = searchRow!.thresholds as Record<
       string,
       { min?: number; max_drop?: number }
     >;
-    expect(thresholds.domain_accuracy.min).toBe(0.7);
+    expect(thresholds.mrr.min).toBe(0.4);
   });
 });
