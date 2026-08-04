@@ -109,10 +109,11 @@ Constraints on this read (non-negotiable):
   already down. Verified S528; flagged unfixed in three prior retros before that.
 - **Lock-free only** — `mode=ro&immutable=1`, WAL sqlite read. NEVER open a
   chromadb writer and NEVER route through a mempalace CLI write in this path.
-- **No `wing` filter** — `mempalace_search` with a `wing` filter errors
-  (upstream mempalace issue #1665, HNSW↔sqlite drift after bulk add/delete).
-  Search without it and filter results client-side, whether via the MCP tool
-  or this direct FTS read.
+- **`wing=`/`room=` filters are safe — use them.** On `mempalace_search` they
+  are genuine ChromaDB pre-filters; the old "#1665 — search without filters
+  and post-filter client-side" rule was a misdiagnosis (disproved S520). On
+  this direct FTS read the wing/room joins are plain sqlite metadata — filter
+  freely. Failure shape + remedy when a filtered MCP search degrades: §2a.
 - **Seed the query** with the terms that matter for the conclusion you're
   about to present — task id(s), `DR-NNN`, topic keywords — not a bare
   wildcard.
@@ -135,12 +136,21 @@ discipline client-side whenever you recall via MCP:
 - **Drop noise drawers**: anything starting `CHECKPOINT:`, containing
   `Base directory for this skill`, or `topic='checkpoint'` — these are
   machine boilerplate, not memory.
-- A second `mempalace_search` scoped by `room: "diary"` is a legitimate
-  follow-up when the unscoped pass returns only transcript noise. If any
-  metadata-scoped search errors (the #1665 class appears under
-  HNSW↔sqlite drift), fall back to an unscoped pass filtered client-side.
-  Note the noise filters still apply — `CHECKPOINT:` drawers live inside
-  `room='diary'` too.
+- A `mempalace_search` scoped by `room:`/`wing:` (e.g. `room: "diary"`) is a
+  first-class move — the filters are genuine ChromaDB pre-filters (S520
+  disproved the earlier "#1665 wing-filter defect" reading). If a filtered
+  query errors or returns 0 for terms that match unfiltered, that is
+  `_query_drawers_with_filter_fallback` degrading because the HNSW index is
+  inconsistent with the metadata store: the remedy is a palace repair +
+  `mempalace_reconnect`, not filter avoidance — an unscoped pass filtered
+  client-side is only the stopgap until that runs. Note the noise filters
+  still apply — `CHECKPOINT:` drawers live inside `room='diary'` too.
+- Two repair-adjacent caveats. A plain `repair --mode from-sqlite` resets
+  `hnsw:sync_threshold` to 2 and silently re-arms the vector-search outage —
+  every rebuild must re-pin it to 1000 (DR-110). And while HNSW divergence
+  exceeds tolerance (as in the S531→S532 interim, ~2k behind), recall
+  silently degrades to `bm25_only_via_sqlite`: filtered searches still
+  answer, riding BM25, until the repair/compaction catches up.
 
 ## 3. On-demand historic stores
 

@@ -114,7 +114,7 @@ Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-Ap
 
 Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). The SessionStart hook `.claude/hooks/mempal-recall.sh` injects a lock-free FTS digest of prior context — seeded by branch + cwd base name, diary-first, CHECKPOINT-noise filtered — on session `startup`/`clear`.
 
-**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, the `mempalace_search` wing-filter defect (upstream #1665) and its client-side-filter workaround, the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
+**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters — S520; on HNSW-inconsistency degradation the remedy is repair + `mempalace_reconnect` with the DR-110 re-pin, not filter avoidance), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
