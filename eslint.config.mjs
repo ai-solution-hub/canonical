@@ -121,6 +121,23 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Silent-failure prevention — terminal catches that answer the client
+    // without logging ({369.6}; rule: eslint-rules/no-unlogged-terminal-catch.js).
+    // Scope pin: route handlers only — the terminal-response shape the rule
+    // recognises. Pre-existing sites are baselined via ESLint bulk
+    // suppressions (eslint-suppressions.json): new violations fail, fixed
+    // ones must be pruned (unused suppressions error), so the count only
+    // ratchets down.
+    files: ['app/api/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**'],
+    plugins: {
+      local: localRules,
+    },
+    rules: {
+      'local/no-unlogged-terminal-catch': 'error',
+    },
+  },
+  {
     // Silent-failure prevention — promise catch swallows
     // (spec: docs/specs/silent-failure-prevention-spec.md).
     // Scope intentionally NARROWER than `no-unchecked-supabase-error`: the

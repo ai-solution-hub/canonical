@@ -1,0 +1,647 @@
+{
+  "app/api/activity/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/admin/pipeline-runs/recent/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/admin/provenance/export/verification-history/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/admin/provenance/pipeline-runs/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/admin/tag-morphology/flags/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/admin/tag-morphology/flags/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/admin/users/[userId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/admin/users/invite/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/admin/users/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/application-types/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/certifications/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/content-owners/bulk-assign/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/content-owners/stats/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/coverage/templates/list/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/coverage/templates/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/cron/freshness-transitions/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/dashboard/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/embed/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/engagement-groups/[id]/content/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/engagement-groups/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/[canonical_name]/metadata/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/entities/[canonical_name]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/[canonical_name]/type/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/co-occurrence/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/merge/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/entities/split/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/governance/promotion-candidates/[extractionId]/accept/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/governance/promotion-candidates/[extractionId]/edit/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/governance/promotion-candidates/[extractionId]/reject/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/governance/review/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/governance/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/guides/[slug]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/guides/[slug]/sections/[sectionId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/guides/[slug]/sections/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 4
+    }
+  },
+  "app/api/guides/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/ingest/folder-drop/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/ingest/url/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/profiles/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/intelligence/profiles/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/trigger-poll/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/articles/[articleId]/flag/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/articles/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/flags/resolve/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/flags/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/health/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/metrics/prompt-performance/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/metrics/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/metrics/trend/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/prompts/preview/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/prompts/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/seed-starter-pack/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/sources/[sourceId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/sources/[sourceId]/test/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/intelligence/workspaces/[id]/sources/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/intelligence/workspaces/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/jobs/[id]/status/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/notifications/preferences/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/notifications/read/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/notifications/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/oauth/decision/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/oauth/grants/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/oauth/revoke/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/okf/[bundleId]/file/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 4
+    }
+  },
+  "app/api/okf/[bundleId]/graph/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/okf/[bundleId]/tree/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/okf/bundles/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/okf/resource/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/okf/union-graph/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/organisation/profile/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/pipeline-runs/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/plugin/download/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/attachments/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/[id]/citations/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/export/docx/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/export/xlsx/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/fields/[fieldId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/fields/bulk-update/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/fields/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/outcome/integrate/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/outcome/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/questions/[qId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/[id]/questions/extract/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/questions/match/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/questions/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/[id]/readiness/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/responses/[rId]/history/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/responses/[rId]/restore/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/responses/[rId]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/[id]/responses/draft-stream/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/responses/draft/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/responses/manual/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 3
+    }
+  },
+  "app/api/procurement/[id]/templates/[templateId]/auto-map/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/templates/[templateId]/completions/[completionId]/download/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/templates/[templateId]/fill/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/tender/download/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/[id]/tender/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/procurement/requirement-catalogue/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/procurement/upload/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/[id]/history/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/q-a-pairs/batch/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/dedup-proposals/[proposalId]/approve/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/dedup-proposals/[proposalId]/reject/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/promote-corpus/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/q-a-pairs/promote/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/refinement/touchpoints/[id]/patterns/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/refinement/touchpoints/[id]/proposals/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/refinement/touchpoints/[id]/signals/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/refinement/touchpoints/[id]/version-history/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/reorient/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/action/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/cadence/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/history/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/publication-bulk-action/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/queue/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/review/stats/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/search/preview/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/source-documents/[id]/binary-url/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/source-documents/[id]/citations/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/source-documents/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/source-documents/[id]/send-to-review/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/source-documents/[id]/versions/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/users/display-names/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 1
+    }
+  },
+  "app/api/workspaces/[id]/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  },
+  "app/api/workspaces/route.ts": {
+    "local/no-unlogged-terminal-catch": {
+      "count": 2
+    }
+  }
+}
