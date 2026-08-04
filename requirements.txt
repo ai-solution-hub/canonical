@@ -140,7 +140,8 @@ tenacity==9.1.4
 # encoding for token accounting); pinned explicitly as a first-class dependency
 # because the guard treats it as one (mirrors the aiohttp/asyncpg/httpx pins).
 tiktoken>=0.13.0
-# sqlglot: SQL parser backing tools/ast_dataflow_py column-reads/column-writes
+# sqlglot: SQL parser backing the installed ast-dataflow package's Python
+# column-reads/column-writes
 # (cross-language column lineage — Python-side raw-SQL statements over the same
 # tables the TS ast-dataflow tool covers). OPTIONAL only for the per-column
 # queries (they degrade to a word-boundary regex fallback at 'indirect'
