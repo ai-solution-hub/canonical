@@ -33,5 +33,5 @@ export {
   type WhatsInMyQueueData,
   formatWhatsInMyQueue,
 } from './review';
-export { formatClassification, formatSummaryResult } from './ai';
+export { formatSummaryResult } from './ai';
 export { formatIntelligenceSummary } from './intelligence';

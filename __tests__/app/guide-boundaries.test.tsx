@@ -71,11 +71,11 @@ describe('Guide Detail Error Boundary', () => {
     expect(reset).toHaveBeenCalledOnce();
   });
 
-  it('has a navigation link to /coverage?tab=guides', () => {
+  it('has a navigation link to /guide', () => {
     render(<GuideDetailError error={error} reset={reset} />);
     expect(
       screen.getByRole('link', { name: /back to guides/i }),
-    ).toHaveAttribute('href', '/coverage?tab=guides');
+    ).toHaveAttribute('href', '/guide');
   });
 
   it('calls logger.error with the error via useEffect', () => {

@@ -5,3 +5,6 @@
 supabase/types/database.types.ts
 lib/mcp/plugin-bundle.ts
 supabase/config.toml
+package.json
+docs/reference/testing/corpus-manifest.json
+search-evaluation.json

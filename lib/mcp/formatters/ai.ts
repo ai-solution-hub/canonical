@@ -1,50 +1,8 @@
 /**
- * AI classification and summary formatters for MCP tool responses.
+ * AI summary formatter for MCP tool responses. (The classification
+ * formatter retired S531 with the classify_content tool — id-419.)
  */
-import type { ClassificationResult } from '@/lib/ai/classify';
 import type { SummariseResult } from '@/lib/ai/summarise';
-
-// ---------------------------------------------------------------------------
-// Classification result
-// ---------------------------------------------------------------------------
-
-export function formatClassification(result: ClassificationResult): string {
-  const lines: string[] = [
-    '# Classification Result',
-    '',
-    `**Title:** ${result.suggested_title}`,
-    `**Domain:** ${result.primary_domain}`,
-    // S159 WP4a made ClassificationResult.primary_subtopic `string | null`
-    // (classifier coerces empty strings to null). Render em dash for null.
-    `**Subtopic:** ${result.primary_subtopic ?? '—'}`,
-    `**Confidence:** ${Math.round(result.classification_confidence * 100)}%`,
-  ];
-
-  if (result.secondary_domain) {
-    lines.push(`**Secondary domain:** ${result.secondary_domain}`);
-  }
-  if (result.secondary_subtopic) {
-    lines.push(`**Secondary subtopic:** ${result.secondary_subtopic}`);
-  }
-
-  if (result.ai_keywords.length > 0) {
-    lines.push(`**Keywords:** ${result.ai_keywords.join(', ')}`);
-  }
-
-  if (result.summary) {
-    lines.push('', '## Summary', '', result.summary);
-  }
-
-  if (result.classification_reasoning) {
-    lines.push('', '## Reasoning', '', result.classification_reasoning);
-  }
-
-  return lines.join('\n');
-}
-
-// ---------------------------------------------------------------------------
-// Summary result
-// ---------------------------------------------------------------------------
 
 export function formatSummaryResult(result: SummariseResult): string {
   const data = result.summary_data;

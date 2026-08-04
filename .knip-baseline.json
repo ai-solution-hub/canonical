@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts \u2014 CI fails when any current count exceeds its baseline. Raise or ratchet in a dedicated commit with the attribution in the COMMIT MESSAGE; per-raise archaeology was trimmed from this file S483 (owner request) and lives in this file's git history. Update procedure: docs/runbooks/ci.md \u00a76.",
   "capturedAt": "2026-08-04",
-  "capturedFromCommit": "Functionality retire sweep",
+  "capturedFromCommit": "S531 re-capture: types 29->30 is a capture artefact, not drift (identical 30-name list measured at BOTH the S530 baseline commit 1ed12099a and S531 HEAD via clean worktree runs)",
   "counts": {
     "dependencies": 1,
     "devDependencies": 0,
     "exports": 41,
-    "types": 29,
+    "types": 30,
     "unlisted": 0,
     "binaries": 0,
     "duplicates": 0,
