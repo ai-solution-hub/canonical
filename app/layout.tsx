@@ -64,23 +64,23 @@ export default async function RootLayout({
             <ClientFeaturesProvider>
               <TaxonomyProvider>
                 <LayerVocabularyProvider>
-                    <TooltipProvider>
-                      <a href="#main-content" className="skip-link">
-                        Skip to main content
-                      </a>
-                      <AuthAwareChrome>
-                        <main id="main-content">{children}</main>
-                      </AuthAwareChrome>
-                      <CommandPalette />
-                      <KeyboardShortcutsProvider />
-                      <SessionGuard />
-                      <Toaster
-                        position="bottom-right"
-                        toastOptions={{
-                          className: 'font-sans',
-                        }}
-                      />
-                    </TooltipProvider>
+                  <TooltipProvider>
+                    <a href="#main-content" className="skip-link">
+                      Skip to main content
+                    </a>
+                    <AuthAwareChrome>
+                      <main id="main-content">{children}</main>
+                    </AuthAwareChrome>
+                    <CommandPalette />
+                    <KeyboardShortcutsProvider />
+                    <SessionGuard />
+                    <Toaster
+                      position="bottom-right"
+                      toastOptions={{
+                        className: 'font-sans',
+                      }}
+                    />
+                  </TooltipProvider>
                 </LayerVocabularyProvider>
               </TaxonomyProvider>
             </ClientFeaturesProvider>

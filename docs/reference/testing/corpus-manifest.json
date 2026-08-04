@@ -279,7 +279,6 @@
       "staging_mode": "verify-driver",
       "consumers": [
         "__tests__/integration/cocoindex/extract-memoisation.integration.test.ts",
-        "__tests__/integration/form-extraction.integration.test.ts",
         "scripts/cocoindex_pipeline/form_extractors/xlsx.py",
         "scripts/cocoindex_pipeline/verify_driver.py",
         "scripts/tests/test_form_extractors.py"

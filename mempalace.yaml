@@ -177,7 +177,8 @@ rooms:
   # (DR-118's corpus manifest lives there), not the reference-library feature.
   # Excluded files continue the P0 loop and land in `tests` via `testing`.
   - name: knowledge
-    description: Corpus, OKF, ontology, provenance, review/governance, extraction
+    description:
+      Corpus, OKF, ontology, provenance, review/governance, extraction
     priority: true
     keywords:
       [

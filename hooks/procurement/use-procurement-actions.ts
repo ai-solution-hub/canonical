@@ -189,7 +189,6 @@ function useFormTransitions(
 // ---------------------------------------------------------------------------
 
 function useFormDialogs() {
-  const [showCostEstimate, setShowCostEstimate] = useState(false);
   const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
   const [showKBReview, setShowKBReview] = useState(false);
   const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
@@ -198,8 +197,6 @@ function useFormDialogs() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   return {
-    showCostEstimate,
-    setShowCostEstimate,
     showOutcomeDialog,
     setShowOutcomeDialog,
     showKBReview,
@@ -331,8 +328,6 @@ export function useFormActions({ id }: UseFormActionsParams) {
 
   // Dialog state
   const {
-    showCostEstimate,
-    setShowCostEstimate,
     showOutcomeDialog,
     setShowOutcomeDialog,
     showKBReview,
@@ -647,8 +642,6 @@ export function useFormActions({ id }: UseFormActionsParams) {
     extractedQuestions,
 
     // UI dialog state
-    showCostEstimate,
-    setShowCostEstimate,
     draftingAll: draftAllMutation.isPending || activeJobId !== null,
     showOutcomeDialog,
     setShowOutcomeDialog,

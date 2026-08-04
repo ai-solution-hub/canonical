@@ -153,8 +153,18 @@ describe('wrap-define-route CLI scaffold', () => {
     const result = runCodemod([], { outputDir: tmpOutputDir });
     expect(result.status).toBe(0);
     // Per TECH §2.2, ts-morph enumeration over the working tree should
-    // discover the full app/api/**/route.ts corpus. Current count is 159
-    // (was 165/floor 160 before ID-131.19 (M6, S450 GO tail) deleted
+    // discover the full app/api/**/route.ts corpus. Current count is 150
+    // (was 159/floor 159 before id-417 (S529) retired 23 IMS-fork-era routes
+    // across two owner deletion waves plus the ratified board execution:
+    // app/api/taxonomy/** (5) and app/api/layers/** (3), whose admin CRUD went
+    // with the taxonomy/layer vocabularies; app/api/admin/taxonomy-sync/** (3),
+    // the sync machine measured dead since 2026-04-28, plus
+    // admin/batch-reclassify; the freshness/quality crons and endpoints —
+    // cron/{quality-score,review-cadence,classification-quality,content-gaps},
+    // freshness/{calculate,recalculate-all}, summaries/generate — retired under
+    // board rulings Q5/A6/C6c; app/api/jobs/[id]/{status,cancel}; and
+    // app/api/extract plus procurement/[id]/responses/estimate;
+    // was 165/floor 160 before ID-131.19 (M6, S450 GO tail) deleted
     // app/api/workspaces/[id]/items/route.ts — its sole mechanism,
     // content_item_workspaces, was dropped and no production caller
     // existed; was 193/floor 190 before ID-131.17 (G-IMS-DELETE) retired 24
@@ -166,12 +176,12 @@ describe('wrap-define-route CLI scaffold', () => {
     // deleted the last 7 deferred legacy routes — app/api/items/route.ts,
     // app/api/items/[id]/route.ts, app/api/items/[id]/{metadata,classify,
     // archive,workspaces}/route.ts, app/api/items/batch/route.ts — retiring
-    // the app/api/items directory entirely). Hard floor: 159 to allow minor
+    // the app/api/items directory entirely). Hard floor: 150 to allow minor
     // churn.
     const match = result.stdout.match(/(\d+) route\(s\) discovered/);
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : 0;
-    expect(count).toBeGreaterThanOrEqual(159);
+    expect(count).toBeGreaterThanOrEqual(150);
   });
 
   it('honours --scope filter to a subdirectory', () => {

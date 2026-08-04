@@ -116,9 +116,7 @@ describe('UnifiedAttentionSection', () => {
         screen.getByText('2 quality flags unresolved'),
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(
-        screen.getByText('3 unclassified items'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('3 unclassified items')).toBeInTheDocument();
     });
 
     it('omits tier headers for empty tiers', () => {
@@ -162,9 +160,7 @@ describe('UnifiedAttentionSection', () => {
         screen.getByText('2 quality flags unresolved'),
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(
-        screen.getByText('3 unclassified items'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('3 unclassified items')).toBeInTheDocument();
     });
 
     it('filters out editor/admin-only items for viewer role', () => {

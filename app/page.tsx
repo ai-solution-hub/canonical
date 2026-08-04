@@ -18,7 +18,6 @@ import {
   getOrganisationProfile,
   isProfileComplete,
 } from '@/lib/organisation-profile';
-import type { ReorientData } from '@/types/reorient';
 import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -155,31 +154,6 @@ async function DashboardContent() {
     ...unified.attention_sources,
     active_forms: unified.active_forms,
   });
-
-  // Build ReorientData from the unified data for ReorientSection
-  const reorientData: ReorientData = {
-    last_active_at: unified.reorient.last_active_at,
-    last_active_relative: unified.reorient.last_active_relative,
-    // Empty — the dashboard UI moved to the unified attention model (S157 WP5).
-    // The field is retained on `ReorientData` because MCP dashboard tooling
-    // still consumes `fetchReorientData().urgent` server-side.
-    urgent: [],
-    team_changes: unified.reorient.team_changes,
-    my_recent_work: unified.reorient.my_recent_work,
-    forms_summary: unified.reorient.forms_summary,
-    counts: {
-      unread_notifications: unified.attention_sources.unread_notification_count,
-      pending_reviews: unified.attention_sources.governance_review_count,
-      stale_or_expired:
-        unified.attention_sources.stale_content_count +
-        unified.attention_sources.expired_content_count,
-      quality_flags: unified.attention_sources.quality_flag_count,
-    },
-    generated_at: new Date().toISOString(),
-    user_display_name: unified.reorient.user_display_name,
-    has_display_name: unified.reorient.has_display_name,
-    errors: unified.errors,
-  };
 
   // ── First-run signals ──
   // Extracted to @/lib/dashboard-signals so integration tests exercise the

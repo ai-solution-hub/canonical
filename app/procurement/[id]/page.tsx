@@ -108,8 +108,6 @@ export default function ProcurementDetailPage({
     transitioning,
     showQuestionReview,
     extractedQuestions,
-    showCostEstimate,
-    setShowCostEstimate,
     draftingAll,
     showOutcomeDialog,
     setShowOutcomeDialog,

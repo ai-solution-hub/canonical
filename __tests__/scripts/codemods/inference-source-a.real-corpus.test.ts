@@ -111,18 +111,10 @@ describe('inferSchema binds real ${interface}Schema over the REAL corpus (AC-5)'
     });
   });
 
-  it('binds TaxonomySyncStatusSchema for the /api/admin/taxonomy-sync/status route', () => {
-    const project = createCodemodProject();
-    const routes = enumerateRouteFiles(project);
-    const sf = routeBySuffix(
-      routes,
-      'app/api/admin/taxonomy-sync/status/route.ts',
-    );
-
-    expect(inferSchemaSourceA(sf, 'GET', project)).toEqual({
-      schema: 'TaxonomySyncStatusSchema',
-    });
-  });
+  // The /api/admin/taxonomy-sync/status case was removed in S529 (id-417): the
+  // route was deleted with the taxonomy sync machine (board ruling A6), so the
+  // case asserted against a corpus entry that no longer exists. The remaining
+  // cases cover the same inference path over live routes.
 
   it('yields real schemas (>0) across the corpus, not z.unknown() for all', () => {
     const project = createCodemodProject();

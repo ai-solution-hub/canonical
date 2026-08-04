@@ -1623,8 +1623,6 @@ describe('useFormActions (TanStack Query)', () => {
     expect(result.current).toHaveProperty('extractedQuestions');
 
     // Dialog state
-    expect(result.current).toHaveProperty('showCostEstimate');
-    expect(result.current).toHaveProperty('setShowCostEstimate');
     expect(result.current).toHaveProperty('draftingAll');
     expect(result.current).toHaveProperty('showOutcomeDialog');
     expect(result.current).toHaveProperty('setShowOutcomeDialog');
