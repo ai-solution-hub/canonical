@@ -110,7 +110,6 @@ describe('GET /api/notifications/preferences', () => {
     configureRole(mockSupabase, 'viewer');
 
     const mockPrefs = {
-      email_weekly_change_report: false,
       email_review_assigned: true,
       email_owned_content_flagged: false,
       updated_at: '2026-04-22T10:00:00Z',
@@ -125,7 +124,6 @@ describe('GET /api/notifications/preferences', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.preferences.email_weekly_change_report).toBe(false);
     expect(body.preferences.email_review_assigned).toBe(true);
     expect(body.preferences.email_owned_content_flagged).toBe(false);
   });
@@ -144,7 +142,6 @@ describe('GET /api/notifications/preferences', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.preferences.email_weekly_change_report).toBe(true);
     expect(body.preferences.email_review_assigned).toBe(true);
     expect(body.preferences.email_owned_content_flagged).toBe(true);
   });
@@ -189,7 +186,7 @@ describe('PUT /api/notifications/preferences', () => {
 
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
-      body: { email_weekly_change_report: false },
+      body: { email_owned_content_flagged: false },
     });
 
     const res = await PUT(req);
@@ -200,9 +197,8 @@ describe('PUT /api/notifications/preferences', () => {
     configureRole(mockSupabase, 'viewer');
 
     const updatedPrefs = {
-      email_weekly_change_report: false,
       email_review_assigned: true,
-      email_owned_content_flagged: true,
+      email_owned_content_flagged: false,
       updated_at: '2026-04-22T10:00:00Z',
     };
 
@@ -213,14 +209,14 @@ describe('PUT /api/notifications/preferences', () => {
 
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
-      body: { email_weekly_change_report: false },
+      body: { email_owned_content_flagged: false },
     });
 
     const res = await PUT(req);
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.preferences.email_weekly_change_report).toBe(false);
+    expect(body.preferences.email_owned_content_flagged).toBe(false);
   });
 
   it('returns 400 for invalid body (non-boolean value)', async () => {
@@ -228,7 +224,7 @@ describe('PUT /api/notifications/preferences', () => {
 
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
-      body: { email_weekly_change_report: 'not-a-boolean' },
+      body: { email_owned_content_flagged: 'not-a-boolean' },
     });
 
     const res = await PUT(req);
@@ -243,7 +239,7 @@ describe('PUT /api/notifications/preferences', () => {
 
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
-      body: { email_weekly_change_report: true, unknown_field: true },
+      body: { email_owned_content_flagged: true, unknown_field: true },
     });
 
     const res = await PUT(req);
@@ -270,7 +266,6 @@ describe('PUT /api/notifications/preferences', () => {
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
       body: {
-        email_weekly_change_report: undefined,
         email_review_assigned: undefined,
         email_owned_content_flagged: undefined,
       },
@@ -284,7 +279,6 @@ describe('PUT /api/notifications/preferences', () => {
     configureRole(mockSupabase, 'viewer');
 
     const updatedPrefs = {
-      email_weekly_change_report: true,
       email_review_assigned: false,
       email_owned_content_flagged: true,
       updated_at: '2026-04-22T10:00:00Z',
@@ -317,7 +311,7 @@ describe('PUT /api/notifications/preferences', () => {
 
     const req = createTestRequest('/api/notifications/preferences', {
       method: 'PUT',
-      body: { email_weekly_change_report: false },
+      body: { email_owned_content_flagged: false },
     });
 
     const res = await PUT(req);
@@ -330,7 +324,6 @@ describe('PUT /api/notifications/preferences', () => {
       configureRole(mockSupabase, role);
 
       const updatedPrefs = {
-        email_weekly_change_report: true,
         email_review_assigned: true,
         email_owned_content_flagged: true,
         updated_at: '2026-04-22T10:00:00Z',
@@ -343,7 +336,7 @@ describe('PUT /api/notifications/preferences', () => {
 
       const req = createTestRequest('/api/notifications/preferences', {
         method: 'PUT',
-        body: { email_weekly_change_report: true },
+        body: { email_owned_content_flagged: true },
       });
 
       const res = await PUT(req);

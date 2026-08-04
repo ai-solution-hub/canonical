@@ -276,7 +276,6 @@ describe('CommandPalette', () => {
       await waitFor(() => {
         expect(screen.getByText('Intelligence')).toBeInTheDocument();
         expect(screen.getByText('Review')).toBeInTheDocument();
-        expect(screen.getByText('Coverage')).toBeInTheDocument();
       });
 
       expect(screen.queryByText('Provenance')).not.toBeInTheDocument();

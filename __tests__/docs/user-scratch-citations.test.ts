@@ -16,8 +16,12 @@
  * character. That deliberately spares the directory's own configuration —
  * `.gitignore` and `.worktreeinclude` list `.user-scratch/` bare, `eslint.config.mjs`
  * uses `.user-scratch/**`, `stryker.config.mjs` uses `/.user-scratch` — none of
- * which promise a file exists. Prose that names the directory as a concept is
- * likewise fine; only a path to a FILE inside it is a broken promise.
+ * which promise a file exists. `mempalace.yaml` is the same class one step
+ * further: its `exclude_patterns` entries name scratch paths in order to DENY
+ * them to the miner, so an entry there (glob or exact) promises nothing about
+ * existence — it is exempted as a file below. Prose that names the directory
+ * as a concept is likewise fine; only a path to a FILE inside it is a broken
+ * promise.
  *
  * Fix when this fails: migrate the cited file to a tracked home (a spec's `notes/`
  * or dated `reports/` in the private docs-site), then repoint the citation. If the
@@ -49,7 +53,12 @@ const SCRATCH_CITATION = /\.user-scratch\/[A-Za-z0-9_.-]/;
  * `.user-scratch/checker-artifacts/` references describe how that retired
  * orchestrator behaved; rewriting them would falsify the snapshot.
  */
-const EXEMPT_PREFIXES = ['.dev-workflow/'];
+const EXEMPT_PREFIXES = [
+  '.dev-workflow/',
+  // Mine-exclusion config: entries under exclude_patterns deny paths to the
+  // mempalace miner rather than cite them (see docstring).
+  'mempalace.yaml',
+];
 
 const SELF = relative(PROJECT_ROOT, __filename);
 

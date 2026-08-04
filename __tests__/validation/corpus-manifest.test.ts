@@ -314,7 +314,7 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       );
     });
 
-    it('verify_driver.py stages exactly the fixtures the manifest marks verify-driver', () => {
+    it('verify_driver.py stages exactly the fixtures the manifest gives a verify_dest', () => {
       const src = readFileSync(
         join(REPO_ROOT, 'scripts/cocoindex_pipeline/verify_driver.py'),
         'utf8',
@@ -324,8 +324,11 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
         ...src.matchAll(/fixture_path=\(([\s\S]*?)\),/g),
       ].map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((s) => s[1]).join(''));
       expect(driverPaths.length).toBeGreaterThan(0);
+      // verify_dest presence is the staged-set marker (not staging_mode):
+      // the staged files are platform-corpus content docs since S527, and
+      // those keep staging_mode 'walked-baseline' per the S522 invariant.
       const declared = manifest.fixtures
-        .filter((f) => f.staging_mode === 'verify-driver')
+        .filter((f) => f.verify_dest !== undefined)
         .map((f) => f.path);
       expect(driverPaths.sort()).toEqual(declared.sort());
     });

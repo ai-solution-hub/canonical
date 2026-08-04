@@ -155,14 +155,19 @@ export function loadCorpusManifest(
  * `DRIVER_MANIFEST_DEST_PATHS`.
  */
 export function verifyDriverDestPaths(manifest: CorpusManifest): string[] {
+  // Keyed on verify_dest PRESENCE, not staging_mode === 'verify-driver':
+  // since S527 the driver stages platform-corpus CONTENT docs, and those
+  // entries keep staging_mode 'walked-baseline' (the S522 whole-tree
+  // invariant) while verify_dest records the verify-lane staging. A
+  // verify-driver staging_mode without a verify_dest is still an error.
+  for (const f of manifest.fixtures) {
+    if (f.staging_mode === 'verify-driver' && !f.verify_dest) {
+      throw new Error(
+        `corpus manifest: ${f.id} declares staging_mode "verify-driver" without a verify_dest`,
+      );
+    }
+  }
   return manifest.fixtures
-    .filter((f) => f.staging_mode === 'verify-driver')
-    .map((f) => {
-      if (!f.verify_dest) {
-        throw new Error(
-          `corpus manifest: ${f.id} declares staging_mode "verify-driver" without a verify_dest`,
-        );
-      }
-      return f.verify_dest;
-    });
+    .filter((f) => f.verify_dest !== undefined)
+    .map((f) => f.verify_dest as string);
 }

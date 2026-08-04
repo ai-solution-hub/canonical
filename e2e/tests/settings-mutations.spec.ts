@@ -25,7 +25,7 @@ const SEEDED_GOVERNANCE_DOMAIN = 'e2e-seeded-domain';
  * Flow: Settings Mutations
  *
  * Tests write operations on the Settings page, extending the existing
- * read-only settings.spec.ts. Covers team management, taxonomy editing,
+ * read-only settings.spec.ts. Covers team management,
  * tag management, governance configuration, and role-based permission
  * gating for mutations.
  *
@@ -168,86 +168,13 @@ test.describe('Settings -- Team management', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Content Organisation (Taxonomy)
+// 2. Tag Morphology
 // ---------------------------------------------------------------------------
+// The Content Organisation (taxonomy/layers admin) section this block also
+// covered was retired at id-417 S530 — every backing route died in the
+// deletion waves, so the tabs and their CRUD e2e went with it.
 
-test.describe('Settings -- Content Organisation (Taxonomy)', () => {
-  test('taxonomy section loads with existing domains', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/settings?section=content-organisation');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
-      timeout: 10000,
-    });
-
-    const main = page.locator('main');
-
-    // Verify the Content Organisation heading is visible
-    await expect(
-      main.getByRole('heading', { name: /Content Organisation/i }),
-    ).toBeVisible({ timeout: 15000 });
-
-    // Wait for the "Add Domain" button to confirm the taxonomy section loaded
-    await expect(main.getByRole('button', { name: /Add Domain/i })).toBeVisible(
-      { timeout: 15000 },
-    );
-
-    // The "Categories" heading should be visible (default tab)
-    await expect(
-      main.getByRole('heading', { name: /Categories/ }),
-    ).toBeVisible();
-
-    // HARD assert the deterministically seeded taxonomy domain card by its
-    // known display name. `bun run seed:e2e-users` seeds a taxonomy_domains row
-    // name='e2e-seeded-domain'; the DomainCard renders formatDomainName(name)
-    // → 'E2e Seeded Domain'. This replaces the prior ambient-dependent
-    // ">=1 Move domain button" check that silently passed on whatever staging
-    // taxonomy happened to exist (test-philosophy §2.1).
-    await expect(
-      main.getByText(SEEDED_TAXONOMY_DOMAIN_DISPLAY, { exact: true }),
-    ).toBeVisible({ timeout: 15000 });
-
-    // Domain reorder controls confirm the cards are real, interactive domain
-    // rows (the seeded domain guarantees at least one reorder button renders).
-    await expect(
-      main.getByRole('button', { name: 'Move domain up' }).first(),
-    ).toBeVisible({ timeout: 10000 });
-  });
-
-  test('add domain button opens dialog with required fields', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/settings?section=content-organisation');
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({
-      timeout: 10000,
-    });
-
-    const main = page.locator('main');
-
-    // Wait for taxonomy content to load — Add Domain button confirms section loaded
-    const addButton = main.getByRole('button', { name: /Add Domain/i });
-    await expect(addButton).toBeVisible({ timeout: 15000 });
-
-    // Click Add Domain
-    await addButton.click();
-
-    // Dialog should appear
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-
-    // Dialog should contain a name input
-    const nameInput = dialog
-      .getByLabel(/name/i)
-      .or(dialog.getByRole('textbox'));
-    await expect(nameInput.first()).toBeVisible();
-
-    // Dialog should contain a submit button
-    const submitButton = dialog.getByRole('button', {
-      name: /add|create|save/i,
-    });
-    await expect(submitButton.first()).toBeVisible();
-  });
-
+test.describe('Settings -- Tag Morphology', () => {
   test('tag morphology section loads with drift-review tabs', async ({
     authenticatedPage: page,
   }) => {

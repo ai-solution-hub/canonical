@@ -181,8 +181,8 @@ describe('SiteHeader', () => {
     render(<SiteHeader />);
     const content = await openDesktopZone(user, 'Governance');
     expect(within(content).getByText('Review')).toBeInTheDocument();
-    expect(within(content).getByText('Coverage')).toBeInTheDocument();
-    expect(within(content).getByText('Change reports')).toBeInTheDocument();
+    expect(within(content).getByText('Promotion gate')).toBeInTheDocument();
+    // Coverage + Change reports retired with their tables (id-417 S530).
     // id-118.12: Activity is now admin-gated (its destination, /provenance,
     // is admin-gated) — no longer visible to an editor.
     expect(within(content).queryByText('Activity')).not.toBeInTheDocument();
@@ -230,21 +230,17 @@ describe('SiteHeader', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('hides edit/admin-gated Governance entries for a viewer, keeps role-uniform ones', async () => {
-    const user = userEvent.setup();
+  it('renders no Governance zone at all for a viewer (every remaining entry is edit/admin-gated)', async () => {
+    // Change reports was the zone's last 'all'-visibility entry; it retired
+    // with the change_reports table (id-417 S530), and a zone with zero
+    // visible entries renders null. id-420's faceted queue repopulates it.
     mockUserRole.role = 'viewer';
     mockUserRole.canEdit = false;
     mockUserRole.canAdmin = false;
     render(<SiteHeader />);
 
-    const govContent = await openDesktopZone(user, 'Governance');
-    expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
-    expect(within(govContent).queryByText('Activity')).not.toBeInTheDocument();
-    expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
-    expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
-    expect(
-      within(govContent).queryByText('Provenance'),
-    ).not.toBeInTheDocument();
+    const nav = screen.getByLabelText('Main navigation');
+    expect(within(nav).queryByText('Governance')).not.toBeInTheDocument();
   });
 
   it('fails closed: hides edit/admin-gated entries everywhere during the role-loading window, keeps role-uniform entries visible', async () => {
@@ -267,25 +263,19 @@ describe('SiteHeader', () => {
     ).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
 
-    const govContent = await openDesktopZone(user, 'Governance');
-    expect(within(govContent).getByText('Change reports')).toBeInTheDocument();
-    expect(within(govContent).queryByText('Activity')).not.toBeInTheDocument();
-    expect(within(govContent).queryByText('Review')).not.toBeInTheDocument();
-    expect(within(govContent).queryByText('Coverage')).not.toBeInTheDocument();
-    expect(
-      within(govContent).queryByText('Provenance'),
-    ).not.toBeInTheDocument();
-    await user.keyboard('{Escape}');
+    // Governance holds no role-uniform entries since id-417 S530, so the
+    // whole zone stays hidden during the loading window too.
+    const nav = screen.getByLabelText('Main navigation');
+    expect(within(nav).queryByText('Governance')).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Open navigation menu'));
     const mobileNav = screen.getByLabelText('Mobile navigation');
     expect(within(mobileNav).getByText('Procurement')).toBeInTheDocument();
-    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
     expect(
       within(mobileNav).queryByText('Intelligence'),
     ).not.toBeInTheDocument();
+    expect(within(mobileNav).queryByText('Governance')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Review')).not.toBeInTheDocument();
-    expect(within(mobileNav).queryByText('Coverage')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Provenance')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Activity')).not.toBeInTheDocument();
   });
@@ -366,7 +356,7 @@ describe('SiteHeader', () => {
     expect(within(mobileNav).getByText('Search')).toBeInTheDocument();
     expect(within(mobileNav).getByText('Answers')).toBeInTheDocument();
     expect(within(mobileNav).getByText('External sources')).toBeInTheDocument();
-    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
+    expect(within(mobileNav).getByText('Review')).toBeInTheDocument();
   });
 
   it('never renders legacy IMS-era labels in the mobile drawer', async () => {
@@ -392,9 +382,10 @@ describe('SiteHeader', () => {
       within(mobileNav).queryByText('Intelligence'),
     ).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Review')).not.toBeInTheDocument();
-    expect(within(mobileNav).queryByText('Coverage')).not.toBeInTheDocument();
     expect(within(mobileNav).queryByText('Provenance')).not.toBeInTheDocument();
-    expect(within(mobileNav).getByText('Change reports')).toBeInTheDocument();
+    // The whole Governance section disappears for a viewer (no
+    // 'all'-visibility entry remains in it since id-417 S530).
+    expect(within(mobileNav).queryByText('Governance')).not.toBeInTheDocument();
   });
 
   // ── Settings / search / sign-out non-regression ──

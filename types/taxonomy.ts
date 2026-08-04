@@ -10,7 +10,9 @@
 //   - lib/content/content-suggestions.ts (gap analysis engine)
 // ---------------------------------------------------------------------------
 
-export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
+// Not exported since S530: its last direct importer (the settings taxonomy
+// admin surface) retired with id-417. Re-export if a consumer returns.
+type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
 
 export interface TaxonomyDomain {
   id: string;

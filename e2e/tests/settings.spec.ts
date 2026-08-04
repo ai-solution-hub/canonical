@@ -50,7 +50,6 @@ test.describe('Settings page', { tag: '@smoke' }, () => {
     await expect(settingsNav.getByText('Connections')).toBeVisible();
 
     // Content Management group (admin only)
-    await expect(settingsNav.getByText('Content Organisation')).toBeVisible();
     await expect(settingsNav.getByText('Tag Morphology')).toBeVisible();
 
     // System group (admin only)
@@ -77,20 +76,6 @@ test.describe('Settings page', { tag: '@smoke' }, () => {
     // Verify by re-opening nav and checking active state
     const settingsNav = await getSettingsNav(page);
     await expect(settingsNav.getByText('Connections')).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-  });
-
-  test('can navigate to Content Organisation section', async ({
-    authenticatedPage: page,
-  }) => {
-    await navigateToSettingsSection(page, 'Content Organisation');
-
-    await expect(page).toHaveURL(/section=content-organisation/);
-
-    const settingsNav = await getSettingsNav(page);
-    await expect(settingsNav.getByText('Content Organisation')).toHaveAttribute(
       'aria-current',
       'page',
     );

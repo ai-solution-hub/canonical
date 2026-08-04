@@ -24,7 +24,6 @@ const {
   mockTeamSection,
   mockGovernanceSection,
   mockActivitySection,
-  mockContentOrganisationSection,
   mockEntitiesSection,
   mockGuidesSection,
 } = vi.hoisted(() => ({
@@ -50,7 +49,6 @@ const {
   mockTeamSection: vi.fn(),
   mockGovernanceSection: vi.fn(),
   mockActivitySection: vi.fn(),
-  mockContentOrganisationSection: vi.fn(),
   mockEntitiesSection: vi.fn(),
   mockGuidesSection: vi.fn(),
 }));
@@ -122,9 +120,6 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
     const legacyMap: Record<string, string> = {
-      taxonomy: 'content-organisation',
-      tags: 'content-organisation',
-      layers: 'content-organisation',
       integrations: 'connections',
       'developer-setup': 'connections',
     };
@@ -132,7 +127,6 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
     const allSections = [
       'profile',
       'connections',
-      'content-organisation',
       'entities',
       'guides',
       'team',
@@ -164,17 +158,6 @@ vi.mock('@/components/settings/activity-section', () => ({
   ActivitySection: () => {
     mockActivitySection();
     return <div data-testid="activity-section">ActivitySection</div>;
-  },
-}));
-
-vi.mock('@/components/settings/content-organisation-section', () => ({
-  ContentOrganisationSection: () => {
-    mockContentOrganisationSection();
-    return (
-      <div data-testid="content-organisation-section">
-        ContentOrganisationSection
-      </div>
-    );
   },
 }));
 
@@ -286,7 +269,7 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('reads ?section=content-organisation and renders ContentOrganisationSection for admins', async () => {
+  it('falls back to Profile for the retired ?section=content-organisation (id-417 S530)', async () => {
     mockSearchParams.value = new URLSearchParams(
       'section=content-organisation',
     );
@@ -295,22 +278,18 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByTestId('content-organisation-section'),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId('profile-section')).toBeInTheDocument();
     });
   });
 
-  it('maps legacy ?section=taxonomy to content-organisation for admins', async () => {
+  it('falls back to Profile for the retired legacy ?section=taxonomy (id-417 S530)', async () => {
     mockSearchParams.value = new URLSearchParams('section=taxonomy');
     mockUseUserRole.loading = false;
     mockUseUserRole.canAdmin = true;
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByTestId('content-organisation-section'),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId('profile-section')).toBeInTheDocument();
     });
   });
 
