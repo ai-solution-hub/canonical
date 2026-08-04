@@ -24,8 +24,9 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — 41 tools (42 after S357 Wave-1; ID-117.12 retired
-// get_document_diff, 42 → 41). S357 Wave-1 surface consolidation:
+// Canonical lists — 40 tools (42 after S357 Wave-1; ID-117.12 retired
+// get_document_diff, 42 → 41; ID-417 retired supersede_content_item,
+// 41 → 40). S357 Wave-1 surface consolidation:
 // ID-71.7 (M27/B-INV-27) collapsed the search trio (search_knowledge_base /
 // search_qa_library / search_content_chunks) + find_similar_items into ONE `find`
 // entry; ID-71.10 (M32) collapsed get_content_item+get_content_items → `get` and
@@ -107,15 +108,15 @@ export const CANONICAL_TOOL_NAMES = [
   'create_review_assignment', // 53
   // S180 P1-35 — change-report tool (WP6, 52 → 53).
   'get_change_report', // 54
-  // S186 WP-B.4 — supersession model (53 → 54).
-  'supersede_content_item', // 55
+  // supersede_content_item RETIRED (ID-417, S529): lib/mcp/tools/supersession.ts
+  // and the lib/supersession/set.ts helper it wrapped are both deleted.
   // S194 UI-simp WP4.2 — P1-34 workspace resolution helper (55 → 56).
   'list_user_workspaces', // 56
   // S202 §5.2 Phase 2 / T7 — publication-lifecycle MCP surface (56 → 57).
   'update_publication_status', // 57
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 41 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1; ID-145 {145.17} added get_question_matches: 40 + 1)
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 40 (ID-117.12 retired get_document_diff: 42 − 1; ID-131.19 retired get_workspace_items: 41 − 1; ID-145 {145.17} added get_question_matches: 40 + 1; ID-417 retired supersede_content_item: 41 − 1)
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -167,8 +168,6 @@ export const WRITE_TOOLS = new Set([
   // S180 P0-23 additions
   'review_governance_item',
   'create_review_assignment',
-  // S186 WP-B.4
-  'supersede_content_item',
   // S202 §5.2 Phase 2 / T7 — publication lifecycle write tool
   'update_publication_status',
 ]);
@@ -728,14 +727,6 @@ export function getMinimalArgs(
     // S180 P1-35 change-report read tool
     case 'get_change_report':
       return { period_days: 7 };
-
-    // S186 WP-B.4 supersession write tool. Both IDs point at the eval
-    // item so the tool's SAME_ID guard fires — the test exercises the
-    // validation path without mutating production data. Layer 1 checks
-    // that the tool returns a valid structured response; isError=true is
-    // the intended outcome here.
-    case 'supersede_content_item':
-      return { old_id: evalItemId, new_id: evalItemId };
 
     default:
       return {};

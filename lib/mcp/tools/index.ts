@@ -1,16 +1,16 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 41 tools across 17 category files (canonical surface after the
+ * Registers 40 tools across 16 category files (canonical surface after the
  * S357 Wave-1 consolidations + ID-117.12 get_document_diff retirement +
  * ID-131.19 get_workspace_items retirement + ID-145 {145.17} R7 reader
- * addition — see scripts/mcp-eval/fixtures.ts, drift-guarded by
+ * addition + ID-417 supersede_content_item retirement — see
+ * scripts/mcp-eval/fixtures.ts, drift-guarded by
  * mcp-fixture-sync.test.ts):
  *   - search.ts     (2): find_duplicates, find
  *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
  *   - question-matches.ts (1): get_question_matches
  *   - governance.ts (4): delete_content_item, update_governance_status, update_publication_status, review_governance_item
- *   - supersession.ts (1): supersede_content_item
  *   - review.ts     (2): whats_in_my_queue, create_review_assignment
  *   - ai.ts         (2): classify_content, generate_summary
  *   - entities.ts   (1): get_entity_relationships
@@ -37,7 +37,6 @@ import { registerEntityTools } from './entities';
 import { registerTemplateTools } from './templates';
 import { registerAppTools } from './apps';
 import { registerGovernanceTools } from './governance';
-import { registerSupersessionTools } from './supersession';
 import { registerReviewTools } from './review';
 import { registerIntelligenceTools } from './intelligence';
 import { registerGuideTools } from './guides';
@@ -60,7 +59,6 @@ export async function registerTools(server: McpServer): Promise<void> {
   await registerTemplateTools(server);
   await registerAppTools(server);
   await registerGovernanceTools(server);
-  await registerSupersessionTools(server);
   await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);

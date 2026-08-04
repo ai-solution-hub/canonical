@@ -16,9 +16,9 @@ This plugin uses `~~knowledge base` as its primary connector. Unlike enterprise 
 
 ## What the Knowledge Hub server provides
 
-The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for accessing the knowledge base.
+The Knowledge Hub MCP server exposes 53 tools, 12 resources, and 7 prompts for accessing the knowledge base.
 
-### Tools (54)
+### Tools (53)
 
 | # | Tool | Purpose | Role required |
 |---|------|---------|---------------|
@@ -74,8 +74,7 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 | 50 | `get_guide` | Get a specific guide | Any |
 | 51 | `create_guide` | Create a new guide | Editor+ |
 | 52 | `update_guide` | Update an existing guide | Editor+ |
-| 53 | `supersede_content_item` | Mark a content item as superseded | Admin |
-| 54 | `get_change_report` | Get a change report for a period | Any |
+| 53 | `get_change_report` | Get a change report for a period | Any |
 
 ### Resources (12)
 
@@ -114,4 +113,4 @@ The Knowledge Hub MCP server exposes 54 tools, 12 resources, and 7 prompts for a
 4. Paste the server URL: `https://knowledge-hub-seven-kappa.vercel.app/api/mcp/mcp`
 5. Authenticate with your Knowledge Hub credentials when prompted
 
-Once connected, all 54 tools, 12 resources, and 7 prompts become available automatically.
+Once connected, all 53 tools, 12 resources, and 7 prompts become available automatically.
