@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from '../fixtures';
 import { attachConsoleGate, type ConsoleGate } from '../helpers/console-gate';
+import { MD_BREAKPOINT, isMobileViewport } from '../helpers/responsive';
 
 /**
  * Flow: Guide Pages
@@ -117,8 +118,16 @@ test.describe('Guide detail page', { tag: '@smoke' }, () => {
     const tocNav = page.getByRole('navigation', { name: 'Guide sections' });
     await expect(tocNav).toBeVisible({ timeout: 3000 });
 
+    // Below the md breakpoint TocNav initialises collapsed (deliberate mobile
+    // behaviour — components/shared/toc-nav.tsx), so the entry list is not in
+    // the DOM until the "Sections" toggle is opened.
+    if (isMobileViewport(page, MD_BREAKPOINT)) {
+      await tocNav.getByRole('button', { name: /Sections/ }).click();
+    }
+
     // TOC entries are links within the navigation
     const tocLinks = tocNav.locator('a');
+    await expect(tocLinks.first()).toBeVisible({ timeout: 3000 });
     const linkCount = await tocLinks.count();
     expect(linkCount).toBeGreaterThan(0);
   });
