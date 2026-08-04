@@ -33,6 +33,7 @@ const config: KnipConfig = {
   project: [
     'app/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',
+    '!components/ui/**/*.{ts,tsx}',
     'contexts/**/*.{ts,tsx}',
     'hooks/**/*.{ts,tsx}',
     'lib/**/*.{ts,tsx}',
@@ -66,6 +67,7 @@ const config: KnipConfig = {
     '@tailwindcss/postcss',
     'autoprefixer',
     'postcss',
+    'radix-ui',
     // Staged for ID-59 (application write-back / collaborative editing): the
     // yjs collaboration stack was added (39bd81c4, "unblock S8/S9") ahead of the
     // editor wiring. ID-59 has not reached spec/implementation yet, so nothing

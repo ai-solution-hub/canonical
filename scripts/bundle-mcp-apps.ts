@@ -22,33 +22,6 @@ interface AppConfig {
 
 const APPS: AppConfig[] = [
   {
-    name: 'coverage-matrix',
-    constName: 'COVERAGE_MATRIX_HTML',
-    htmlPath: join(
-      PROJECT_ROOT,
-      'mcp-apps',
-      'coverage-matrix',
-      'dist',
-      'app.html',
-    ),
-  },
-  {
-    name: 'form-dashboard',
-    constName: 'FORM_DASHBOARD_HTML',
-    htmlPath: join(
-      PROJECT_ROOT,
-      'mcp-apps',
-      'form-dashboard',
-      'dist',
-      'app.html',
-    ),
-  },
-  {
-    name: 'reorient-me',
-    constName: 'REORIENT_ME_HTML',
-    htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'reorient-me', 'dist', 'app.html'),
-  },
-  {
     name: 'intelligence-feed',
     constName: 'INTELLIGENCE_FEED_HTML',
     htmlPath: join(

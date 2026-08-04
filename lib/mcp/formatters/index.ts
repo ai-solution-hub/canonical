@@ -5,38 +5,7 @@
  * from '@/lib/mcp/formatters' continue to work without any path changes.
  */
 
-export { CHARACTER_LIMIT, truncateResponse } from './shared';
-export {
-  type SearchResult,
-  formatSearchResults,
-  formatQASearchResults,
-  type SimilarItem,
-  type SimilarItemsResult,
-  formatSimilarItems,
-  type ChunkSearchResult,
-  formatChunkSearchResults,
-} from './search';
-export {
-  type ProcurementQuestionSummary,
-  type ProcurementSection,
-  type ProcurementDetail,
-  formatProcurementDetail,
-  type ProcurementQuestionDetail,
-  formatProcurementQuestion,
-  type CitationResult,
-  formatCitation,
-  type ContentEffectiveness,
-  formatContentEffectiveness,
-} from './procurements';
-export {
-  formatActiveProcurements,
-  type FreshnessReport,
-  formatReorientation,
-  type ExposureResolution,
-  type ExposureLayer,
-  type WhereAreWeExposedData,
-  formatWhereAreWeExposed,
-} from './dashboard';
+export { truncateResponse } from './shared';
 export {
   type EntitySummaryResult,
   type EntityRelationship,
@@ -64,19 +33,5 @@ export {
   type WhatsInMyQueueData,
   formatWhatsInMyQueue,
 } from './review';
-export {
-  type TemplateCoverageData,
-  formatTemplateCoverage,
-  type TemplateListData,
-  formatTemplateList,
-  type TemplateGapsData,
-  formatTemplateGaps,
-} from './templates';
 export { formatClassification, formatSummaryResult } from './ai';
-export {
-  type CoverageMatrixData,
-  formatCoverageMatrix,
-  type ProcurementDashboardData,
-  formatProcurementDashboard,
-} from './apps';
 export { formatIntelligenceSummary } from './intelligence';

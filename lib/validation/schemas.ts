@@ -810,39 +810,9 @@ export const GovernanceReviewBodySchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
-/** POST /api/review/assignments — create a review assignment */
-export const ReviewAssignmentBodySchema = z.object({
-  reviewer_id: z.string().uuid(),
-  filter_domains: z.array(z.string()).default([]),
-  filter_content_types: z.array(z.string()).default([]),
-  filter_freshness: z.array(z.string()).default([]),
-  filter_date_from: z.string().datetime().nullable().optional(),
-  filter_date_to: z.string().datetime().nullable().optional(),
-  due_date: z.string().datetime().nullable().optional(),
-  notes: z.string().max(500).nullable().optional(),
-});
-
-/** PATCH /api/review/assignments — update assignment status */
-export const ReviewAssignmentUpdateSchema = z.object({
-  id: z.string().uuid(),
-  status: z.enum(['completed', 'cancelled']),
-});
-
-/** POST /api/freshness/calculate */
-export const FreshnessCalculateBodySchema = z.object({
-  item_ids: z.array(z.string().uuid()).min(1).max(500),
-});
-
 /** POST /api/notifications/read */
 export const NotificationReadBodySchema = z.object({
   notification_ids: z.array(z.string().uuid()).min(1).max(100),
-});
-
-/** POST /api/extract */
-export const ExtractBodySchema = z.object({
-  itemId: z.string().uuid('itemId must be a valid UUID'),
-  schema: z.record(z.string(), z.unknown()),
-  prompt: z.string().max(5000).optional(),
 });
 
 // ──────────────────────────────────────────
@@ -990,11 +960,6 @@ export const ResponseManualCreateBodySchema = z.object({
 /** POST /api/procurement/[id]/responses/draft-all */
 export const ResponseDraftAllBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
-  skip_existing: z.boolean().default(true),
-});
-
-/** POST /api/procurement/[id]/responses/estimate */
-export const CostEstimateBodySchema = z.object({
   skip_existing: z.boolean().default(true),
 });
 
@@ -1700,66 +1665,6 @@ export const TagMorphologyFlagDecisionSchema = z.object({
 });
 
 // ──────────────────────────────────────────
-// Taxonomy Admin Schemas
-// ──────────────────────────────────────────
-
-/** POST /api/taxonomy/domains */
-export const TaxonomyDomainCreateSchema = z.object({
-  name: z.string().trim().min(1, 'Domain name is required').max(100),
-  colour: z.string().trim().max(50).optional(),
-  display_order: z.number().int().min(0).max(999).optional(),
-  key_signal: z.string().trim().max(1000).optional(),
-});
-
-/** PATCH /api/taxonomy/domains/:id */
-export const TaxonomyDomainUpdateSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  colour: z.string().trim().max(50).nullable().optional(),
-  display_order: z.number().int().min(0).max(999).optional(),
-  is_active: z.boolean().optional(),
-  accepted_at: z.string().datetime().nullable().optional(),
-  key_signal: z.string().trim().max(1000).nullable().optional(),
-});
-
-/** POST /api/taxonomy/subtopics */
-export const TaxonomySubtopicCreateSchema = z.object({
-  domain_id: z.string().uuid('domain_id must be a valid UUID'),
-  name: z.string().trim().min(1, 'Subtopic name is required').max(100),
-  display_order: z.number().int().min(0).max(999).optional(),
-  description: z.string().trim().max(1000).nullable().optional(),
-});
-
-/** PATCH /api/taxonomy/subtopics/:id */
-export const TaxonomySubtopicUpdateSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  display_order: z.number().int().min(0).max(999).optional(),
-  is_active: z.boolean().optional(),
-  accepted_at: z.string().datetime().nullable().optional(),
-  description: z.string().trim().max(1000).nullable().optional(),
-});
-
-/** POST /api/taxonomy/reorder */
-export const TaxonomyReorderSchema = z
-  .object({
-    type: z.enum(['domain', 'subtopic']),
-    /** Required when type === 'subtopic'. Scopes reordering to a single domain. */
-    domain_id: z.string().uuid().optional(),
-    items: z
-      .array(
-        z.object({
-          id: z.string().uuid(),
-          display_order: z.number().int().min(0).max(999),
-        }),
-      )
-      .min(1)
-      .max(100),
-  })
-  .refine((data) => data.type === 'domain' || !!data.domain_id, {
-    message: 'domain_id is required when reordering subtopics',
-    path: ['domain_id'],
-  });
-
-// ──────────────────────────────────────────
 // Entity Management Schemas (Phase 4)
 // ──────────────────────────────────────────
 
@@ -1835,141 +1740,6 @@ export const EntitySplitBodySchema = z.object({
 /** PATCH /api/entities/[canonical_name]/type */
 export const EntityTypeOverrideBodySchema = z.object({
   entity_type: z.enum(VALID_ENTITY_TYPES),
-});
-
-// ──────────────────────────────────────────
-// Content Metadata JSONB Schema (read-side)
-// ──────────────────────────────────────────
-//
-// Runtime validation for content_items.metadata JSONB column.
-// All keys are optional — metadata accumulates over time from
-// different ingestion paths. Uses .passthrough() to allow
-// unknown keys (metadata is extensible by design).
-//
-// Four functional categories:
-//   1. Source provenance — where content came from
-//   2. Content enrichment — derived/extracted content
-//   3. User-facing state — drives UI behaviour and filtering
-//   4. Import-specific context — particular to ingestion paths
-
-/** Read-side schema for content_items.metadata JSONB */
-export const ContentMetadataSchema = z
-  .object({
-    // ── 1. Source provenance ──────────────────
-    /** File path of the ingested source (markdown pipeline, bid library) */
-    source_file: z.string().optional(),
-    /** Folder within the source directory (markdown pipeline) */
-    source_folder: z.string().optional(),
-    /** Pipeline identifier (e.g. 'markdown_pipeline', 'upload') */
-    ingestion_source: z.string().optional(),
-    /** Original format before conversion (e.g. 'markdown', 'docx') */
-    original_format: z.string().optional(),
-    /** Batch identifier grouping related imports (bid library) */
-    import_batch: z.string().optional(),
-    /** Original filename as uploaded by user */
-    original_filename: z.string().optional(),
-    /** File size in bytes */
-    file_size: z.number().nonnegative().optional(),
-    /** MIME type of the original file */
-    mime_type: z.string().optional(),
-    /** Batch tag applied during MCP or CLI import */
-    batch_tag: z.string().optional(),
-    /** Source document name (MCP create_content_item) */
-    source_document: z.string().optional(),
-
-    // ── 2. Content enrichment ─────────────────
-    /** Reader-friendly HTML rendering */
-    reader_html: z.string().optional(),
-    /** Extracted images from the content item */
-    extracted_images: z.array(z.record(z.string(), z.unknown())).optional(),
-    /** Timestamp when images were extracted */
-    images_extracted_at: z.string().optional(),
-    /** Chapter/segment markers (video/podcast content) */
-    chapters: z.array(z.record(z.string(), z.unknown())).optional(),
-    /** Extracted tables from PDF/DOCX content */
-    tables: z.array(z.record(z.string(), z.unknown())).optional(),
-    /** Number of tables extracted */
-    table_count: z.number().int().nonnegative().optional(),
-    /** Number of pages in PDF/DOCX */
-    page_count: z.number().int().nonnegative().optional(),
-
-    // ── 3. User-facing state ──────────────────
-    // Note: `layer` and `starred` were promoted to proper columns on
-    // content_items in S117 and are no longer stored in metadata JSONB.
-    /** Topic group identifier for layer switcher navigation */
-    topic_id: z.string().optional(),
-
-    // ── 4. Import-specific context ────────────
-    /** Section name within the source document (bid library) */
-    section_name: z.string().optional(),
-    /** Table index within the source document (bid library) */
-    table_index: z.number().int().nonnegative().optional(),
-    /** Row index within a table (bid library) */
-    row_index: z.number().int().nonnegative().optional(),
-    /** Whether the item has a standard answer variant (bid library) */
-    has_standard: z.boolean().optional(),
-    /** Whether the item has an advanced answer variant (bid library) */
-    has_advanced: z.boolean().optional(),
-    /** Whether text extraction failed during upload */
-    extraction_failed: z.boolean().optional(),
-  })
-  .passthrough();
-
-/** TypeScript type for content_items.metadata */
-export type ContentMetadata = z.infer<typeof ContentMetadataSchema>;
-
-/** Parse and validate content_items.metadata JSONB */
-export function parseContentMetadata(raw: unknown): ContentMetadata | null {
-  const result = ContentMetadataSchema.safeParse(raw);
-  if (!result.success) {
-    logger.warn({ err: result.error.format() }, 'Invalid content metadata');
-    return null;
-  }
-  return result.data;
-}
-
-// ──────────────────────────────────────────
-// Layer vocabulary schemas
-// ──────────────────────────────────────────
-
-/** POST /api/layers — create a new layer */
-export const LayerCreateSchema = z.object({
-  key: z
-    .string()
-    .trim()
-    .min(1, 'Key is required')
-    .max(100)
-    .regex(
-      /^[a-z][a-z0-9_]*$/,
-      'Key must be lowercase alphanumeric with underscores',
-    ),
-  label: z.string().trim().min(1, 'Label is required').max(200),
-  description: z.string().trim().max(500).optional(),
-  display_order: z.number().int().min(0).optional(),
-});
-
-/** PATCH /api/layers/:id — update an existing layer */
-export const LayerUpdateSchema = z
-  .object({
-    label: z.string().trim().min(1).max(200).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
-    display_order: z.number().int().min(0).optional(),
-    is_active: z.boolean().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field must be provided',
-  });
-
-/** PUT /api/layers/reorder — bulk update display_order */
-export const LayerReorderSchema = z.object({
-  layers: z
-    .array(
-      z.object({
-        id: z.string().uuid('Invalid layer ID'),
-        display_order: z.number().int().min(0),
-      }),
-    )
-    .min(1, 'At least one layer must be provided'),
 });
 
 // ──────────────────────────────────────────
@@ -2154,16 +1924,6 @@ export const GovernanceReviewParamsSchema = z.object({
     .transform((v) => Math.max(0, v)),
 });
 
-/** GET /api/content-suggestions */
-export const ContentSuggestionsParamsSchema = z.object({
-  limit: z
-    .number()
-    .int()
-    .default(5)
-    .transform((v) => Math.min(Math.max(v, 1), 20)),
-  domain: z.string().max(200).optional(),
-});
-
 /** GET /api/guides */
 const VALID_GUIDE_TYPES = [
   'sector',
@@ -2199,11 +1959,6 @@ export const CoverageTemplateParamsSchema = z.object({
 /** GET /api/review/history */
 export const ReviewHistoryParamsSchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
-});
-
-/** GET /api/review/assignments */
-export const ReviewAssignmentsParamsSchema = z.object({
-  status: z.enum(['active', 'completed', 'cancelled', 'all']).default('active'),
 });
 
 /** GET /api/entities/co-occurrence */
@@ -2485,16 +2240,11 @@ export const ReviewQueueResponseSchema = z.object({
       source_url: z.string().nullable(),
       verified_at: z.string().nullable(),
       verified_by: z.string().nullable(),
-      secondary_domain: z.string().nullable(),
-      secondary_subtopic: z.string().nullable(),
-      quality_score: z.number().nullable(),
       last_reviewed_at: z.string().nullable(),
       id: z.string(),
       title: z.string(),
       suggested_title: z.string().nullable(),
       summary: z.string().nullable(),
-      primary_domain: z.string().nullable(),
-      primary_subtopic: z.string().nullable(),
       content_type: z.string(),
       platform: z.string().nullable(),
       author_name: z.string().nullable(),
@@ -2504,7 +2254,6 @@ export const ReviewQueueResponseSchema = z.object({
       ai_keywords: z.array(z.string()).nullable(),
       classification_confidence: z.number().nullable(),
       priority: z.string().nullable(),
-      freshness: z.string().nullable(),
       user_tags: z.array(z.string()).nullable(),
       governance_review_status: z.string().nullable(),
       metadata: z.record(z.string(), z.unknown()).nullable(),
@@ -3008,31 +2757,6 @@ export const WorkspaceHealthResponseSchema = z.object({
     failingSources: z.number(),
     disabledSources: z.number(),
   }),
-});
-
-/** R-WP17 ResponseSchema for `AssignmentsResponse` (hooks/review/use-review-queue-data.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const AssignmentsResponseSchema = z.object({
-  assignments: z.array(
-    z.object({
-      id: z.string(),
-      notes: z.string().nullable(),
-      filter_domains: z.array(z.string()).nullable(),
-      filter_content_types: z.array(z.string()).nullable(),
-      filter_freshness: z.array(z.string()).nullable(),
-      filter_date_from: z.string().nullable(),
-      filter_date_to: z.string().nullable(),
-      item_count: z.number().nullable(),
-      due_date: z.string().nullable(),
-    }),
-  ),
-});
-
-/** R-WP17 ResponseSchema for `TaxonomySyncStatus` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */
-export const TaxonomySyncStatusSchema = z.object({
-  in_sync: z.boolean(),
-  last_sync_at: z.string().nullable(),
-  current_hash: z.string(),
-  synced_hash: z.string().nullable(),
 });
 
 /** R-WP17 ResponseSchema for `PipelineRunRow` (lib/query/fetchers.ts). Generated; strict per INV-S (TECH §3.1a). */

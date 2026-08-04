@@ -20,7 +20,7 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { createMcpUserClient } from '@/lib/mcp/auth';
 import { getMcpActorType, MCP_ACTOR_HEADER } from '@/lib/mcp/actor';
 import { registerTools } from '@/lib/mcp/tools';
-import { registerResources, registerPrompts } from '@/lib/mcp/resources';
+import { registerResources } from '@/lib/mcp/resources';
 import { resolveResourceUrl } from '@/lib/mcp/resource-url';
 import { logger } from '@/lib/logger';
 
@@ -104,7 +104,6 @@ async function createMcpServer(): Promise<McpServer> {
 
   await registerTools(server);
   await registerResources(server);
-  registerPrompts(server);
 
   return server;
 }

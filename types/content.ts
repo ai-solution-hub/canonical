@@ -96,45 +96,6 @@ export interface SummaryData {
   tokens_used?: number;
 }
 
-/** AI-generated transcript segment */
-export interface TranscriptSegment {
-  id: string;
-  chapter_index: number;
-  title: string;
-  summary: string;
-  key_points: string[];
-  start_seconds: number;
-  end_seconds: number;
-  start_time: string;
-  end_time: string;
-  duration_seconds: number;
-  word_count: number;
-  read_time_minutes: number;
-}
-
-/** Highlight category types (intra-file: TranscriptHighlight.category) */
-type HighlightCategory =
-  | 'insight'
-  | 'prediction'
-  | 'framework'
-  | 'quote'
-  | 'data_point'
-  | 'action_item';
-
-/** Extracted highlight from transcript */
-export interface TranscriptHighlight {
-  id: string;
-  quote: string;
-  timestamp: string;
-  approximate_timestamp: number;
-  chapter_index: number;
-  category: HighlightCategory;
-  significance: string;
-  context?: string;
-  starred: boolean;
-  created_item_id?: string;
-}
-
 /** Search result with similarity score and optional content snippet.
  *  Note: hybrid_search() does NOT return user_tags — it will be undefined. */
 export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {

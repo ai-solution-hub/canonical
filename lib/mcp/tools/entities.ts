@@ -16,7 +16,8 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
-import { formatEntitySummary, truncateResponse } from '@/lib/mcp/formatters';
+import { formatEntitySummary } from '@/lib/mcp/formatters';
+import { truncateResponse } from '@/lib/mcp/formatters';
 import type {
   EntitySummaryResult,
   EntityRelationship,

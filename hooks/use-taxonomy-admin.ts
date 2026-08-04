@@ -11,8 +11,6 @@ import type { TaxonomyProvenance } from '@/types/taxonomy';
 // Types
 // ---------------------------------------------------------------------------
 
-export type { TaxonomyProvenance };
-
 export interface AdminDomain {
   id: string;
   name: string;

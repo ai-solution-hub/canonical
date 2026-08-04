@@ -7,18 +7,14 @@
  * addition + ID-417 supersede_content_item retirement — see
  * scripts/mcp-eval/fixtures.ts, drift-guarded by
  * mcp-fixture-sync.test.ts):
- *   - search.ts     (2): find_duplicates, find
- *   - procurement.ts (5): list_active_procurement, get_procurement_detail, get_form_question, cite_content, get_content_effectiveness
  *   - question-matches.ts (1): get_question_matches
  *   - governance.ts (4): delete_content_item, update_governance_status, update_publication_status, review_governance_item
  *   - review.ts     (2): whats_in_my_queue, create_review_assignment
  *   - ai.ts         (2): classify_content, generate_summary
  *   - entities.ts   (1): get_entity_relationships
- *   - templates.ts  (3): list_templates, get_template_coverage, get_template_gaps
- *   - apps.ts       (4): show_coverage_matrix, show_procurement_dashboard, show_reorient_me, show_intelligence_feed
+ *   - apps.ts       (1): show_intelligence_feed
  *   - intelligence.ts (2): get_intelligence_summary, trigger_intelligence_poll
  *   - guides.ts     (4): list_guides, get_guide, create_guide, update_guide
- *   - workspaces.ts (1): list_user_workspaces
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -29,18 +25,13 @@
  * unnecessarily verbose for Claude. Revisit if multi-server scenarios arise.
  */
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerSearchTools } from './search';
-import { registerProcurementTools } from './procurement';
 import { registerQuestionMatchTools } from './question-matches';
 import { registerAITools } from './ai';
 import { registerEntityTools } from './entities';
-import { registerTemplateTools } from './templates';
-import { registerAppTools } from './apps';
 import { registerGovernanceTools } from './governance';
 import { registerReviewTools } from './review';
 import { registerIntelligenceTools } from './intelligence';
 import { registerGuideTools } from './guides';
-import { registerWorkspaceTools } from './workspaces';
 
 export async function registerTools(server: McpServer): Promise<void> {
   // Registration order determines tool discovery order in MCP clients.
@@ -51,16 +42,11 @@ export async function registerTools(server: McpServer): Promise<void> {
   // {145.17}) registers directly after procurement — same domain, new file
   // (kept disjoint from procurement.ts per TECH §4 / {145.21} ownership).
 
-  await registerSearchTools(server);
-  await registerProcurementTools(server);
   await registerQuestionMatchTools(server);
   await registerAITools(server);
   await registerEntityTools(server);
-  await registerTemplateTools(server);
-  await registerAppTools(server);
   await registerGovernanceTools(server);
   await registerReviewTools(server);
   await registerIntelligenceTools(server);
   await registerGuideTools(server);
-  await registerWorkspaceTools(server);
 }
