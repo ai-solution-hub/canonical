@@ -91,7 +91,6 @@
     "@mendable/firecrawl-js": "^4.23.0",
     "@modelcontextprotocol/ext-apps": "^1.7.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@mozilla/readability": "^0.6.0",
     "@pierre/diffs": "^1.1.22",
     "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.53.1",
