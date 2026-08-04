@@ -106,7 +106,6 @@ export const selectors = {
   settings: {
     profileSection: '[data-testid="profile-section"]',
     connectionsSection: '[data-testid="connections-section"]',
-    taxonomySection: '[data-testid="taxonomy-section"]',
     tagsSection: '[data-testid="tags-section"]',
     teamSection: '[data-testid="team-section"]',
     governanceSection: '[data-testid="governance-section"]',

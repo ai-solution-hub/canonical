@@ -13,17 +13,14 @@
  *
  * Reads go straight through the browser Supabase client (`.from(...)`
  * resolves to the `api.form_requirement_templates` security_invoker view at
- * runtime — see `lib/supabase/schema.ts`), mirroring the established
- * direct-read precedent in `hooks/use-taxonomy-admin.ts`
- * (`fetchSubtopicsForDomain`) — reads carry no write risk, so no server-route
- * indirection is needed.
+ * runtime — see `lib/supabase/schema.ts`) — reads carry no write risk, so no
+ * server-route indirection is needed.
  *
  * Writes route through `app/api/procurement/requirement-catalogue/route.ts`
  * (POST create / PATCH update), each gated server-side with
  * `getAuthorisedClient(['admin','editor'])` + `authFailureResponse(auth)` —
- * the repo's standard admin-mutation pattern (mirrors
- * `app/api/layers/route.ts` and the sibling {147.17} editor's reuse of
- * `getAuthorisedClient`-gated PATCH routes). ID-147 {147.16} fix-mode
+ * the repo's standard admin-mutation pattern (mirrors the sibling {147.17}
+ * editor's reuse of `getAuthorisedClient`-gated PATCH routes). ID-147 {147.16} fix-mode
  * remediation (Checker FAIL): the original executor commit (5088e664) wrote
  * directly through the browser Supabase client, gated only by RLS +
  * client-side UI-hiding, which deviated from the brief's

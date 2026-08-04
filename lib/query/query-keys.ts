@@ -63,14 +63,12 @@ export const queryKeys = {
       ['review', 'queue', 'publication-review', filters ?? {}] as const,
   },
 
-  // Taxonomy
+  // Taxonomy (read-side; consumed by the root-layout TaxonomyProvider —
+  // the admin CRUD keys went with the settings taxonomy surface)
   taxonomy: {
     all: ['taxonomy'] as const,
     domains: ['taxonomy', 'domains'] as const,
     subtopics: ['taxonomy', 'subtopics'] as const,
-    adminDomains: ['taxonomy', 'admin-domains'] as const,
-    adminSubtopics: (domainId: string) =>
-      ['taxonomy', 'subtopics', domainId] as const,
   },
 
   // Tags
@@ -285,7 +283,8 @@ export const queryKeys = {
     governance: ['settings', 'governance'] as const,
   },
 
-  // Layers (admin)
+  // Layer vocabulary (read-side; consumed by the root-layout
+  // LayerVocabularyProvider — the admin CRUD surface is retired)
   layers: {
     all: ['layers'] as const,
     list: ['layers', 'list'] as const,
@@ -438,7 +437,6 @@ export const queryKeys = {
   },
 
   // Taxonomy sync (drift-detection banner, P0-TX)
-  taxonomySyncStatus: ['taxonomy-sync-status'] as const,
 
   // Admin monitoring (pipeline_runs dashboard tile, S152B WP4)
   admin: {

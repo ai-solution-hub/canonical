@@ -4,7 +4,6 @@ import {
   User,
   Users,
   ShieldCheck,
-  FolderTree,
   Menu,
   Plug,
   Network,
@@ -36,7 +35,6 @@ export type SettingsSection =
   | 'profile'
   | 'organisation'
   | 'connections'
-  | 'content-organisation'
   | 'content-owners'
   | 'entities'
   | 'guides'
@@ -67,12 +65,6 @@ const ALL_SECTIONS: SectionDef[] = [
     adminOrEditorOnly: true,
   },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
-  {
-    id: 'content-organisation',
-    label: 'Content Organisation',
-    icon: FolderTree,
-    group: 'content',
-  },
   {
     id: 'content-owners',
     label: 'Content Owners',
@@ -137,9 +129,6 @@ function getVisibleSections(isAdmin: boolean, canEdit = false): SectionDef[] {
 
 /** Legacy section IDs that map to their new equivalents */
 const LEGACY_SECTION_MAP: Record<string, SettingsSection> = {
-  taxonomy: 'content-organisation',
-  tags: 'content-organisation',
-  layers: 'content-organisation',
   integrations: 'connections',
   'developer-setup': 'connections',
 };

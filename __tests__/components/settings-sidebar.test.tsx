@@ -60,7 +60,6 @@ describe('SettingsSidebar', () => {
     // All section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Connections')).toBeInTheDocument();
-    expect(within(nav).getByText('Content Organisation')).toBeInTheDocument();
     expect(within(nav).getByText('Content Owners')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
@@ -150,9 +149,9 @@ describe('SettingsSidebar', () => {
     expect(result).toBe('connections');
   });
 
-  it('redirects legacy "taxonomy" param to "content-organisation"', () => {
+  it('falls back to "profile" for the retired "taxonomy" param', () => {
     const result = getValidSection('taxonomy', true);
-    expect(result).toBe('content-organisation');
+    expect(result).toBe('profile');
   });
 
   it('redirects legacy "developer-setup" param to "connections" for admin users', () => {

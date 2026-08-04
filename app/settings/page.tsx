@@ -35,11 +35,6 @@ const LazyGovernanceSection = lazy(() =>
     default: m.GovernanceSection,
   })),
 );
-const LazyContentOrganisationSection = lazy(() =>
-  import('@/components/settings/content-organisation-section').then((m) => ({
-    default: m.ContentOrganisationSection,
-  })),
-);
 const LazyEntitiesSection = lazy(() =>
   import('@/components/settings/entities-section').then((m) => ({
     default: m.EntitiesSection,
@@ -98,12 +93,6 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyOrganisationSection />
-        </Suspense>
-      );
-    case 'content-organisation':
-      return (
-        <Suspense fallback={<SectionSkeleton />}>
-          <LazyContentOrganisationSection />
         </Suspense>
       );
     case 'content-owners':
@@ -170,24 +159,6 @@ function SettingsContent() {
   useEffect(() => {
     if (sectionParam === 'activity') {
       router.replace('/provenance?tab=audit', { scroll: false });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionParam]);
-
-  // Redirect legacy section URLs to content-organisation with the correct tab
-  const legacyTabMap: Record<string, string> = {
-    taxonomy: 'categories',
-    tags: 'tags',
-    layers: 'depth-levels',
-  };
-
-  useEffect(() => {
-    if (sectionParam && legacyTabMap[sectionParam]) {
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.delete('tab');
-      newParams.set('section', 'content-organisation');
-      newParams.set('tab', legacyTabMap[sectionParam]);
-      router.replace(`/settings?${newParams.toString()}`, { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionParam]);
