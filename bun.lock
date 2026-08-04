@@ -99,7 +99,7 @@
         "zod": "^4.4.3",
       },
       "devDependencies": {
-        "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#85c750938fcab9e34fa34b874d3a5a4bf17cab67",
+        "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#06b868576c2b87c76a54c25cea0b03b3e9126c8e",
         "@next/bundle-analyzer": "^16.2.6",
         "@playwright/test": "^1.60.0",
         "@stryker-mutator/core": "^9.6.1",
@@ -143,7 +143,7 @@
 
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 
-    "@ai-solution-hub/ast-dataflow": ["@ai-solution-hub/ast-dataflow@github:ai-solution-hub/ast-dataflow#85c7509", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "ts-morph": "^28.0.0", "yaml": "^2.9.0" }, "bin": { "ast-dataflow": "tools/ast-dataflow/cli.ts", "ast-dataflow-mcp": "tools/ast-dataflow/mcp-server.ts" } }, "ai-solution-hub-ast-dataflow-85c7509"],
+    "@ai-solution-hub/ast-dataflow": ["@ai-solution-hub/ast-dataflow@github:ai-solution-hub/ast-dataflow#06b8685", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "ts-morph": "^28.0.0", "yaml": "^2.9.0" }, "bin": { "ast-dataflow": "tools/ast-dataflow/cli.ts", "ast-dataflow-mcp": "tools/ast-dataflow/mcp-server.ts" } }, "ai-solution-hub-ast-dataflow-06b8685"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
