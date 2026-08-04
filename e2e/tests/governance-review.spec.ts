@@ -10,8 +10,8 @@ import { navigateViaHeader } from '../helpers/responsive';
  *
  * There is deliberately NO empty-queue test here: emptiness is anti-monotone
  * on a shared DB — any concurrent worker's seed falsifies it — so it can only
- * be asserted at the READ boundary (route-intercept), never by seeding. See
- * `change-reports-page.spec.ts`'s `stubEmptyChangeReports` for that pattern.
+ * be asserted at the READ boundary (route-intercept via `page.route` +
+ * `route.fulfill`), never by seeding.
  *
  * Eleven of the thirteen tests below need a non-empty queue, and the queue is
  * supplied by the worker-scoped `workerData` fixture (12 unverified

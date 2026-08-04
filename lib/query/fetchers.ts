@@ -108,10 +108,8 @@ export async function fetchQAPairHistory(
 
 /** Shape returned by GET/PUT /api/notifications/preferences */
 export interface NotificationPreferences {
-  email_weekly_change_report: boolean;
   email_review_assigned: boolean;
   email_owned_content_flagged: boolean;
-  auto_generate_change_reports: boolean;
   updated_at: string | null;
 }
 
@@ -128,10 +126,7 @@ export async function updateNotificationPreferences(
   body: Partial<
     Pick<
       NotificationPreferences,
-      | 'email_weekly_change_report'
-      | 'email_review_assigned'
-      | 'email_owned_content_flagged'
-      | 'auto_generate_change_reports'
+      'email_review_assigned' | 'email_owned_content_flagged'
     >
   >,
 ): Promise<NotificationPreferences> {

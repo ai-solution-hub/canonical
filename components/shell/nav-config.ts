@@ -10,9 +10,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
-  BarChart3,
   Briefcase,
-  FileBarChart,
   History,
   Inbox,
   Library,
@@ -146,20 +144,6 @@ export const NAV_ZONES: readonly NavZone[] = [
         label: 'Promotion gate',
         icon: Inbox,
         visibility: 'edit',
-      },
-      {
-        href: '/coverage',
-        label: 'Coverage',
-        icon: BarChart3,
-        visibility: 'edit',
-      },
-      {
-        href: '/change-reports',
-        // Preserves the current requiresEdit:false audience (BI-21); lowercase
-        // "r" per the BI-17 ratified label.
-        label: 'Change reports',
-        icon: FileBarChart,
-        visibility: 'all',
       },
       {
         href: '/activity',

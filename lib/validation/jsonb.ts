@@ -55,24 +55,6 @@ export const TranscriptHighlightSchema = z
   })
   .passthrough();
 
-export const ChangeReportDomainSummarySchema = z
-  .object({
-    domain: z.string(),
-    item_count: z.number(),
-    summary: z.string(),
-    top_items: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-        content_type: z.string().optional(),
-        why_notable: z.string().optional(),
-        summary: z.string().nullable().optional(),
-      }),
-    ),
-    key_themes: z.array(z.string()),
-  })
-  .passthrough();
-
 // ── Parse helpers ──
 
 /**

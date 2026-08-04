@@ -121,13 +121,10 @@ type Role = (typeof ROLES)[number];
 export const SURFACE_TABLES: readonly string[] = [
   'ai_call_events',
   'application_types',
-  'change_reports',
   'citations',
-  'classification_disputes',
   'company_profiles',
   'content_chunks',
   'content_propagation_version',
-  'coverage_targets',
   'engagement_group_content',
   'engagement_groups',
   'entity_aliases',

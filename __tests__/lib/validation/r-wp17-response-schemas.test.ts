@@ -84,6 +84,12 @@ interface SchemaCase {
 //   moved to mutationBulkPublicationAction().
 //   MutationResultSchema (was in the 'hooks/* (general)' group) —
 //   hooks/use-tags-data.ts deleted at 16a6794f6 (ID-131.17).
+// RETIRED at S530 (id-417 deletion-wave repair + change_reports DDL drop):
+//   AssignmentsResponseSchema — app/api/review/assignments deleted in the
+//   third owner wave (dd773ff68).
+//   TaxonomySyncStatusSchema — the TaxonomySyncStatus fetcher retired with
+//   the Settings taxonomy admin surface (its /api/admin/taxonomy-sync
+//   source routes died in wave 3349ce79f).
 const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
   'types/intelligence-refinement.ts': [
     {
@@ -181,21 +187,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
     },
   ],
   'lib/query/fetchers.ts': [
-    {
-      schema: 'TaxonomySyncStatusSchema',
-      valid: {
-        in_sync: true,
-        last_sync_at: null,
-        current_hash: 'abc',
-        synced_hash: null,
-      },
-      invalid: {
-        in_sync: 'yes',
-        last_sync_at: null,
-        current_hash: 'abc',
-        synced_hash: null,
-      },
-    },
     {
       schema: 'PipelineRunRowSchema',
       valid: {
@@ -702,11 +693,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
         },
       },
     },
-    {
-      schema: 'AssignmentsResponseSchema',
-      valid: { assignments: [] },
-      invalid: { assignments: 'none' },
-    },
   ],
 };
 
@@ -802,8 +788,13 @@ describe('Source-A findSchemaConstant resolves R-WP17 schemas (AC-5)', () => {
     //                                 its call site moved to
     //                                 mutationBulkPublicationAction(); it was
     //                                 never imported there (git log -S empty).
+    // Was 32; 2 entries retired at S530 (id-417 wave repair + DDL pass):
+    //   AssignmentsResponse   app/api/review/assignments deleted in the
+    //                         third owner wave (dd773ff68);
+    //   TaxonomySyncStatus    fetcher retired with the Settings taxonomy
+    //                         admin surface (source routes died at 3349ce79f).
     // The baseline is the register those removals should have updated.
-    expect(baseline.length).toBe(32);
+    expect(baseline.length).toBe(30);
   });
 
   it('resolves a real ${interface}Schema for every baseline interface — never null', () => {

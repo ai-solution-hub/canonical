@@ -4,7 +4,7 @@
  * Tests the notification preferences sub-section in Profile settings.
  *
  * Covers:
- *   - Renders three switches with correct labels
+ *   - Renders both switches with correct labels
  *   - Toggle interaction calls the mutation with expected payload
  *   - Loading state renders disabled switches
  *   - Default-on state when server returns no row
@@ -57,10 +57,8 @@ function renderWithQuery(ui: React.ReactElement) {
 const originalFetch = global.fetch;
 
 function mockFetchPrefs(prefs: {
-  email_weekly_change_report: boolean;
   email_review_assigned: boolean;
   email_owned_content_flagged: boolean;
-  auto_generate_change_reports: boolean;
 }) {
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
@@ -70,10 +68,8 @@ function mockFetchPrefs(prefs: {
 
 function mockFetchPrefsDefault() {
   mockFetchPrefs({
-    email_weekly_change_report: true,
     email_review_assigned: true,
     email_owned_content_flagged: true,
-    auto_generate_change_reports: true,
   });
 }
 
@@ -115,7 +111,6 @@ describe('NotificationPreferences', () => {
       ok: true,
       json: async () => ({
         preferences: {
-          email_weekly_change_report: true,
           email_review_assigned: true,
           email_owned_content_flagged: true,
         },
@@ -123,22 +118,18 @@ describe('NotificationPreferences', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByRole('switch').length).toBe(4);
+      expect(screen.getAllByRole('switch').length).toBe(2);
     });
   });
 
-  it('renders four switches with correct labels', async () => {
+  it('renders both switches with correct labels', async () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     expect(screen.getByLabelText('Owned content flags')).toBeInTheDocument();
-    expect(
-      screen.getByLabelText('Auto-generate weekly Change Reports'),
-    ).toBeInTheDocument();
   });
 
   it('renders section heading', async () => {
@@ -154,20 +145,12 @@ describe('NotificationPreferences', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Email digest of knowledge base changes each week'),
+        screen.getByText('Email when a review is assigned to you'),
       ).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText('Email when a review is assigned to you'),
-    ).toBeInTheDocument();
-    expect(
       screen.getByText('Email when content you own gets flagged for review'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Automatically generate a weekly Change Report on your first visit to Change Reports',
-      ),
     ).toBeInTheDocument();
   });
 
@@ -175,45 +158,32 @@ describe('NotificationPreferences', () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    const weeklySwitch = screen.getByRole('switch', {
-      name: 'Weekly Change Report',
-    });
     const reviewSwitch = screen.getByRole('switch', {
       name: 'Review assignments',
     });
     const flaggedSwitch = screen.getByRole('switch', {
       name: 'Owned content flags',
     });
-    const autoGenSwitch = screen.getByRole('switch', {
-      name: 'Auto-generate weekly Change Reports',
-    });
 
-    expect(weeklySwitch).toHaveAttribute('data-state', 'checked');
     expect(reviewSwitch).toHaveAttribute('data-state', 'checked');
     expect(flaggedSwitch).toHaveAttribute('data-state', 'checked');
-    expect(autoGenSwitch).toHaveAttribute('data-state', 'checked');
   });
 
   it('shows switches matching server state when some are OFF', async () => {
     mockFetchPrefs({
-      email_weekly_change_report: false,
       email_review_assigned: true,
       email_owned_content_flagged: false,
-      auto_generate_change_reports: true,
     });
 
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    const weeklySwitch = screen.getByRole('switch', {
-      name: 'Weekly Change Report',
-    });
     const reviewSwitch = screen.getByRole('switch', {
       name: 'Review assignments',
     });
@@ -221,7 +191,6 @@ describe('NotificationPreferences', () => {
       name: 'Owned content flags',
     });
 
-    expect(weeklySwitch).toHaveAttribute('data-state', 'unchecked');
     expect(reviewSwitch).toHaveAttribute('data-state', 'checked');
     expect(flaggedSwitch).toHaveAttribute('data-state', 'unchecked');
   });
@@ -240,10 +209,8 @@ describe('NotificationPreferences', () => {
             ok: true,
             json: async () => ({
               preferences: {
-                email_weekly_change_report: true,
                 email_review_assigned: true,
                 email_owned_content_flagged: true,
-                auto_generate_change_reports: true,
               },
             }),
           };
@@ -253,10 +220,8 @@ describe('NotificationPreferences', () => {
           ok: true,
           json: async () => ({
             preferences: {
-              email_weekly_change_report: false,
-              email_review_assigned: true,
+              email_review_assigned: false,
               email_owned_content_flagged: true,
-              auto_generate_change_reports: true,
             },
           }),
         };
@@ -265,13 +230,13 @@ describe('NotificationPreferences', () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    const weeklySwitch = screen.getByRole('switch', {
-      name: 'Weekly Change Report',
+    const reviewSwitch = screen.getByRole('switch', {
+      name: 'Review assignments',
     });
-    await user.click(weeklySwitch);
+    await user.click(reviewSwitch);
 
     await waitFor(() => {
       const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
@@ -280,7 +245,7 @@ describe('NotificationPreferences', () => {
       );
       expect(putCall).toBeDefined();
       const body = JSON.parse((putCall![1] as RequestInit).body as string);
-      expect(body.email_weekly_change_report).toBe(false);
+      expect(body.email_review_assigned).toBe(false);
     });
   });
 
@@ -296,10 +261,8 @@ describe('NotificationPreferences', () => {
             ok: true,
             json: async () => ({
               preferences: {
-                email_weekly_change_report: true,
                 email_review_assigned: true,
                 email_owned_content_flagged: true,
-                auto_generate_change_reports: true,
               },
             }),
           };
@@ -313,13 +276,13 @@ describe('NotificationPreferences', () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    const weeklySwitch = screen.getByRole('switch', {
-      name: 'Weekly Change Report',
+    const reviewSwitch = screen.getByRole('switch', {
+      name: 'Review assignments',
     });
-    await user.click(weeklySwitch);
+    await user.click(reviewSwitch);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalled();
@@ -337,10 +300,8 @@ describe('NotificationPreferences', () => {
             ok: true,
             json: async () => ({
               preferences: {
-                email_weekly_change_report: true,
                 email_review_assigned: true,
                 email_owned_content_flagged: true,
-                auto_generate_change_reports: true,
               },
             }),
           };
@@ -349,10 +310,8 @@ describe('NotificationPreferences', () => {
           ok: true,
           json: async () => ({
             preferences: {
-              email_weekly_change_report: false,
-              email_review_assigned: true,
+              email_review_assigned: false,
               email_owned_content_flagged: true,
-              auto_generate_change_reports: true,
             },
           }),
         };
@@ -361,13 +320,13 @@ describe('NotificationPreferences', () => {
     renderWithQuery(<NotificationPreferences />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Weekly Change Report')).toBeInTheDocument();
+      expect(screen.getByLabelText('Review assignments')).toBeInTheDocument();
     });
 
-    const weeklySwitch = screen.getByRole('switch', {
-      name: 'Weekly Change Report',
+    const reviewSwitch = screen.getByRole('switch', {
+      name: 'Review assignments',
     });
-    await user.click(weeklySwitch);
+    await user.click(reviewSwitch);
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();

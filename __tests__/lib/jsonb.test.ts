@@ -6,7 +6,6 @@ import {
   SummaryDataSchema,
   TranscriptSegmentSchema,
   TranscriptHighlightSchema,
-  ChangeReportDomainSummarySchema,
 } from '@/lib/validation/jsonb';
 
 describe('parseJsonb', () => {
@@ -85,28 +84,6 @@ describe('parseJsonb', () => {
     );
   });
 
-  it('should parse valid ChangeReportDomainSummary', () => {
-    const valid = {
-      domain: 'SECURITY',
-      item_count: 10,
-      summary: 'This week featured several AI developments.',
-      top_items: [
-        {
-          id: '123e4567-e89b-12d3-a456-426614174000',
-          title: 'New AI Model Released',
-          content_type: 'article',
-        },
-      ],
-      key_themes: ['model releases', 'safety'],
-    };
-
-    const result = parseJsonb(ChangeReportDomainSummarySchema, valid);
-    expect(result).not.toBeNull();
-    expect(result?.domain).toBe('SECURITY');
-    expect(result?.top_items).toHaveLength(1);
-    expect(result?.key_themes).toHaveLength(2);
-  });
-
   it('should parse valid TranscriptSegment', () => {
     const valid = {
       id: '550e8400-e29b-41d4-a716-446655440000',
@@ -149,78 +126,74 @@ describe('parseJsonb', () => {
 });
 
 describe('parseJsonbArray', () => {
-  it('should parse array of valid ChangeReportDomainSummary items', () => {
+  it('should parse array of valid SummaryData items', () => {
     const validArray = [
       {
-        domain: 'SECURITY',
-        item_count: 3,
-        summary: 'Security summary',
-        top_items: [],
-        key_themes: ['ai'],
+        executive: 'First summary',
+        detailed: 'First detailed summary',
+        takeaways: ['a'],
+        generated_at: '2026-01-01T00:00:00Z',
+        model: 'claude-sonnet-4-6',
       },
       {
-        domain: 'COMPLIANCE',
-        item_count: 7,
-        summary: 'Compliance summary',
-        top_items: [],
-        key_themes: ['strategy'],
+        executive: 'Second summary',
+        detailed: 'Second detailed summary',
+        takeaways: ['b'],
+        generated_at: '2026-01-02T00:00:00Z',
+        model: 'claude-sonnet-4-6',
       },
     ];
 
-    const result = parseJsonbArray(ChangeReportDomainSummarySchema, validArray);
+    const result = parseJsonbArray(SummaryDataSchema, validArray);
     expect(result).toHaveLength(2);
-    expect(result[0].domain).toBe('SECURITY');
-    expect(result[1].domain).toBe('COMPLIANCE');
+    expect(result[0].executive).toBe('First summary');
+    expect(result[1].executive).toBe('Second summary');
   });
 
   it('should filter out invalid items from mixed array', () => {
     const mixedArray = [
       {
-        domain: 'SECURITY',
-        item_count: 5,
-        summary: 'Valid',
-        top_items: [],
-        key_themes: [],
+        executive: 'Valid',
+        detailed: 'Valid detailed',
+        takeaways: [],
+        generated_at: '2026-01-01T00:00:00Z',
+        model: 'claude-sonnet-4-6',
       },
       {
-        domain: 'Invalid - missing required fields',
+        executive: 'Invalid - missing required fields',
       },
       {
-        domain: 'COMPLIANCE',
-        item_count: 2,
-        summary: 'Also valid',
-        top_items: [],
-        key_themes: [],
+        executive: 'Also valid',
+        detailed: 'Also valid detailed',
+        takeaways: [],
+        generated_at: '2026-01-02T00:00:00Z',
+        model: 'claude-sonnet-4-6',
       },
     ];
 
-    const result = parseJsonbArray(ChangeReportDomainSummarySchema, mixedArray);
+    const result = parseJsonbArray(SummaryDataSchema, mixedArray);
     expect(result).toHaveLength(2);
-    expect(result[0].domain).toBe('SECURITY');
-    expect(result[1].domain).toBe('COMPLIANCE');
+    expect(result[0].executive).toBe('Valid');
+    expect(result[1].executive).toBe('Also valid');
   });
 
   it('should return empty array for non-array input', () => {
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, null)).toEqual([]);
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, undefined)).toEqual(
-      [],
-    );
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 'string')).toEqual(
-      [],
-    );
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, 42)).toEqual([]);
-    expect(parseJsonbArray(ChangeReportDomainSummarySchema, {})).toEqual([]);
+    expect(parseJsonbArray(SummaryDataSchema, null)).toEqual([]);
+    expect(parseJsonbArray(SummaryDataSchema, undefined)).toEqual([]);
+    expect(parseJsonbArray(SummaryDataSchema, 'string')).toEqual([]);
+    expect(parseJsonbArray(SummaryDataSchema, 42)).toEqual([]);
+    expect(parseJsonbArray(SummaryDataSchema, {})).toEqual([]);
   });
 
   it('should return empty array for empty array input', () => {
-    const result = parseJsonbArray(ChangeReportDomainSummarySchema, []);
+    const result = parseJsonbArray(SummaryDataSchema, []);
     expect(result).toEqual([]);
   });
 
   it('should return empty array when all items are invalid', () => {
-    const allInvalid = [{ domain: 123 }, { item_count: 'not-a-number' }];
+    const allInvalid = [{ executive: 123 }, { detailed: 42 }];
 
-    const result = parseJsonbArray(ChangeReportDomainSummarySchema, allInvalid);
+    const result = parseJsonbArray(SummaryDataSchema, allInvalid);
     expect(result).toEqual([]);
   });
 });

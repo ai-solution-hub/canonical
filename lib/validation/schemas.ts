@@ -95,13 +95,6 @@ export const VALID_REVIEW_STATUSES = [
   'all',
 ] as const;
 
-/** @public */
-export const VALID_CHANGE_REPORT_FREQUENCIES = [
-  'weekly',
-  'daily',
-  'custom',
-] as const;
-
 /**
  * PostgREST `.or(...)` predicate matching content_items on the taxonomy
  * 'unclassified' sentinel — `primary_domain = 'unclassified'` OR
@@ -300,30 +293,6 @@ export const PublicationReviewQueueParamsSchema = z.object({
 export const SummaryGenerateBodySchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
   force: z.boolean().optional(),
-});
-
-/** POST /api/change-reports/generate */
-export const ChangeReportGenerateBodySchema = z.object({
-  period_days: z.number().int().min(1).max(90).default(7),
-  frequency: z.enum(VALID_CHANGE_REPORT_FREQUENCIES).default('weekly'),
-  domain: z.string().optional(),
-  keywords: z.array(z.string().trim().min(1)).optional(),
-  date_from: z.string().datetime().optional(),
-  date_to: z.string().datetime().optional(),
-});
-
-/** GET /api/change-reports/list */
-export const ChangeReportListParamsSchema = z.object({
-  limit: z
-    .number()
-    .int()
-    .default(10)
-    .transform((v) => Math.max(1, Math.min(50, v))),
-  offset: z
-    .number()
-    .int()
-    .default(0)
-    .transform((v) => Math.max(0, v)),
 });
 
 /** POST /api/read-marks */
@@ -2101,10 +2070,8 @@ export const VerificationHistoryExportParamsSchema = z
  */
 export const NotificationPreferencesPutBodySchema = z
   .object({
-    email_weekly_change_report: z.boolean().optional(),
     email_review_assigned: z.boolean().optional(),
     email_owned_content_flagged: z.boolean().optional(),
-    auto_generate_change_reports: z.boolean().optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

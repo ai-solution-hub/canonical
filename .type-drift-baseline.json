@@ -162,19 +162,7 @@
     }
   },
   {
-    "interface": "AssignmentsResponse",
-    "declaredAt": {
-      "file": "hooks/review/use-review-queue-data.ts"
-    }
-  },
-  {
     "interface": "ItemHistoryVersionDetail",
-    "declaredAt": {
-      "file": "lib/query/fetchers.ts"
-    }
-  },
-  {
-    "interface": "TaxonomySyncStatus",
     "declaredAt": {
       "file": "lib/query/fetchers.ts"
     }

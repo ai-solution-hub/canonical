@@ -10,14 +10,12 @@ import { z } from 'zod';
 export const maxDuration = 10;
 
 const PREF_COLUMNS =
-  'email_weekly_change_report, email_review_assigned, email_owned_content_flagged, auto_generate_change_reports, updated_at, created_at';
+  'email_review_assigned, email_owned_content_flagged, updated_at, created_at';
 
 /** Default preferences when no row exists for a user. */
 const DEFAULT_PREFERENCES = {
-  email_weekly_change_report: true,
   email_review_assigned: true,
   email_owned_content_flagged: true,
-  auto_generate_change_reports: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -26,13 +24,11 @@ const DEFAULT_PREFERENCES = {
 
 /** Notification-preferences shape returned by both GET and PUT: either the
  *  stored `user_notification_prefs` row (PREF_COLUMNS) or the all-true defaults
- *  (which set updated_at/created_at to null). `auto_generate_change_reports`
- *  and `created_at` are optional because some stored rows omit them. */
+ *  (which set updated_at/created_at to null). `created_at` is optional because
+ *  some stored rows omit it. */
 const NotificationPreferencesSchema = z.object({
-  email_weekly_change_report: z.boolean(),
   email_review_assigned: z.boolean(),
   email_owned_content_flagged: z.boolean(),
-  auto_generate_change_reports: z.boolean().optional(),
   updated_at: z.string().nullable(),
   created_at: z.string().nullable().optional(),
 });

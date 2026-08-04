@@ -109,57 +109,6 @@ export type Database = {
         }
         Relationships: []
       }
-      change_reports: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          domain_summaries: Json | null
-          frequency: string | null
-          generated_at: string | null
-          generated_by: string | null
-          id: string | null
-          item_count: number | null
-          item_ids: string[] | null
-          metadata: Json | null
-          narrative_summary: string | null
-          period_end: string | null
-          period_start: string | null
-          tokens_used: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_summaries?: Json | null
-          frequency?: string | null
-          generated_at?: string | null
-          generated_by?: string | null
-          id?: string | null
-          item_count?: number | null
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          tokens_used?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_summaries?: Json | null
-          frequency?: string | null
-          generated_at?: string | null
-          generated_by?: string | null
-          id?: string | null
-          item_count?: number | null
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end?: string | null
-          period_start?: string | null
-          tokens_used?: number | null
-        }
-        Relationships: []
-      }
       citations: {
         Row: {
           citation_type: string | null
@@ -252,76 +201,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      classification_disputes: {
-        Row: {
-          created_at: string | null
-          current_value: Json | null
-          disputed_by: string | null
-          disputed_field: string | null
-          id: string | null
-          proposed_value: Json | null
-          rationale: string | null
-          resolution_notes: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          source_document_id: string | null
-          status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          current_value?: Json | null
-          disputed_by?: string | null
-          disputed_field?: string | null
-          id?: string | null
-          proposed_value?: Json | null
-          rationale?: string | null
-          resolution_notes?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_document_id?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          current_value?: Json | null
-          disputed_by?: string | null
-          disputed_field?: string | null
-          id?: string | null
-          proposed_value?: Json | null
-          rationale?: string | null
-          resolution_notes?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_document_id?: string | null
-          status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "classification_disputes_disputed_by_fkey"
-            columns: ["disputed_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classification_disputes_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classification_disputes_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -480,61 +359,6 @@ export type Database = {
           version?: number | null
         }
         Relationships: []
-      }
-      coverage_targets: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          domain_id: string | null
-          id: string | null
-          metric_name: string | null
-          target_value: number | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_id?: string | null
-          id?: string | null
-          metric_name?: string | null
-          target_value?: number | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_id?: string | null
-          id?: string | null
-          metric_name?: string | null
-          target_value?: number | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "coverage_targets_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coverage_targets_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "taxonomy_domains"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coverage_targets_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       engagement_group_content: {
         Row: {
@@ -3439,29 +3263,23 @@ export type Database = {
       }
       user_notification_prefs: {
         Row: {
-          auto_generate_change_reports: boolean | null
           created_at: string | null
           email_owned_content_flagged: boolean | null
           email_review_assigned: boolean | null
-          email_weekly_change_report: boolean | null
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
-          auto_generate_change_reports?: boolean | null
           created_at?: string | null
           email_owned_content_flagged?: boolean | null
           email_review_assigned?: boolean | null
-          email_weekly_change_report?: boolean | null
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
-          auto_generate_change_reports?: boolean | null
           created_at?: string | null
           email_owned_content_flagged?: boolean | null
           email_review_assigned?: boolean | null
-          email_weekly_change_report?: boolean | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -4289,57 +4107,6 @@ export type Database = {
         }
         Relationships: []
       }
-      change_reports: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          domain_summaries: Json
-          frequency: string
-          generated_at: string
-          generated_by: string
-          id: string
-          item_count: number
-          item_ids: string[] | null
-          metadata: Json | null
-          narrative_summary: string | null
-          period_end: string
-          period_start: string
-          tokens_used: number | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          domain_summaries?: Json
-          frequency?: string
-          generated_at?: string
-          generated_by?: string
-          id?: string
-          item_count?: number
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end: string
-          period_start: string
-          tokens_used?: number | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          domain_summaries?: Json
-          frequency?: string
-          generated_at?: string
-          generated_by?: string
-          id?: string
-          item_count?: number
-          item_ids?: string[] | null
-          metadata?: Json | null
-          narrative_summary?: string | null
-          period_end?: string
-          period_start?: string
-          tokens_used?: number | null
-        }
-        Relationships: []
-      }
       citations: {
         Row: {
           citation_type: string
@@ -4432,76 +4199,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      classification_disputes: {
-        Row: {
-          created_at: string
-          current_value: Json
-          disputed_by: string | null
-          disputed_field: string
-          id: string
-          proposed_value: Json | null
-          rationale: string
-          resolution_notes: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-          source_document_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          current_value?: Json
-          disputed_by?: string | null
-          disputed_field: string
-          id?: string
-          proposed_value?: Json | null
-          rationale: string
-          resolution_notes?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_document_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          current_value?: Json
-          disputed_by?: string | null
-          disputed_field?: string
-          id?: string
-          proposed_value?: Json | null
-          rationale?: string
-          resolution_notes?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          source_document_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "classification_disputes_disputed_by_fkey"
-            columns: ["disputed_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classification_disputes_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classification_disputes_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -4713,61 +4410,6 @@ export type Database = {
           holder_token?: string
         }
         Relationships: []
-      }
-      coverage_targets: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          domain_id: string
-          id: string
-          metric_name: string
-          target_value: number
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_id: string
-          id?: string
-          metric_name: string
-          target_value: number
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          domain_id?: string
-          id?: string
-          metric_name?: string
-          target_value?: number
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "coverage_targets_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coverage_targets_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "taxonomy_domains"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coverage_targets_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       engagement_group_content: {
         Row: {
@@ -7847,29 +7489,23 @@ export type Database = {
       }
       user_notification_prefs: {
         Row: {
-          auto_generate_change_reports: boolean
           created_at: string
           email_owned_content_flagged: boolean
           email_review_assigned: boolean
-          email_weekly_change_report: boolean
           updated_at: string
           user_id: string
         }
         Insert: {
-          auto_generate_change_reports?: boolean
           created_at?: string
           email_owned_content_flagged?: boolean
           email_review_assigned?: boolean
-          email_weekly_change_report?: boolean
           updated_at?: string
           user_id: string
         }
         Update: {
-          auto_generate_change_reports?: boolean
           created_at?: string
           email_owned_content_flagged?: boolean
           email_review_assigned?: boolean
-          email_weekly_change_report?: boolean
           updated_at?: string
           user_id?: string
         }

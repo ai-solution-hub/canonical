@@ -42,7 +42,6 @@ export type AiTouchpointId =
   | 'extract-content.extractStructuredContent'
   | 'match.assessConfidence'
   | 'vision.analyseVision'
-  | 'change-reports.generateChangeReport'
   | 'citation-vision-rasterise.deriveVisionHighlightLive';
 
 /**
@@ -82,9 +81,6 @@ export const AI_TOUCHPOINT_GROUNDING: Record<AiTouchpointId, GroundingShape> = {
 
   // vision.ts — free-form prose description of a PDF; no structured grounding.
   'vision.analyseVision': 'n/a',
-
-  // change-reports.ts — forced-tool structured digest.
-  'change-reports.generateChangeReport': 'forced_tool_strict',
 
   // citation-vision-rasterise.ts — ID-147 {147.12} B2 vision-fallback citation
   // bounding-box detection (DR-064, PRODUCT §D2 approximate path), live call

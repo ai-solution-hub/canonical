@@ -194,7 +194,6 @@ const FIXTURE_SUBJECT_BUNDLE: SubjectBundle = {
   user_notification_prefs: {
     user_id: VALID_UUID_A,
     email_review_assigned: true,
-    auto_generate_change_reports: false,
   },
   roles_granted_by_subject: [],
 };
@@ -374,7 +373,6 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'form_questions',
     'form_instances',
     'verification_history',
-    'classification_disputes',
     'feed_flags',
     'tag_morphology_drift_flags',
     'review_assignments',
@@ -382,7 +380,6 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'taxonomy_domains',
     'taxonomy_subtopics',
     'taxonomy_sync_state',
-    'change_reports',
     'processing_queue',
     'pipeline_runs',
     'ingestion_quality_log',
@@ -398,7 +395,6 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'citations',
     'feed_prompts',
     'feed_sources',
-    'coverage_targets',
     'guides',
     'template_completions',
     'workspaces',

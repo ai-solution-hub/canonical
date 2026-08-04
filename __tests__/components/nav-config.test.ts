@@ -46,8 +46,6 @@ describe('NAV_ZONES membership', () => {
     ['knowledge', 'Concepts', '/okf', 'all'],
     ['governance', 'Review', '/review', 'edit'],
     ['governance', 'Promotion gate', '/promotion-gate', 'edit'],
-    ['governance', 'Coverage', '/coverage', 'edit'],
-    ['governance', 'Change reports', '/change-reports', 'all'],
     ['governance', 'Activity', '/activity', 'admin'],
     ['governance', 'Provenance', '/provenance', 'admin'],
   ] as const)(
@@ -79,14 +77,7 @@ describe('NAV_ZONES membership', () => {
     ['knowledge', ['/search', '/library', '/reference', '/okf']],
     [
       'governance',
-      [
-        '/review',
-        '/promotion-gate',
-        '/coverage',
-        '/change-reports',
-        '/activity',
-        '/provenance',
-      ],
+      ['/review', '/promotion-gate', '/activity', '/provenance'],
     ],
   ] as const)(
     'orders the %s zone entries exactly as ratified (BI-4/9/11)',
@@ -132,17 +123,11 @@ describe('isEntryVisible role-gating (BI-20/BI-21)', () => {
       (entry) => !isEntryVisible(entry.visibility, viewer),
     );
     // id-118.12: /activity flipped to admin (its destination, /provenance,
-    // is admin-gated), joining /coverage, /provenance, /review.
+    // is admin-gated), joining /provenance, /review.
     // ID-145 {145.22}: /promotion-gate joins at 'edit' visibility — the same
     // admin/editor gate as the surface itself.
     expect(hiddenForViewer.map((e) => e.href).sort()).toEqual(
-      [
-        '/activity',
-        '/coverage',
-        '/promotion-gate',
-        '/provenance',
-        '/review',
-      ].sort(),
+      ['/activity', '/promotion-gate', '/provenance', '/review'].sort(),
     );
   });
 });

@@ -31,10 +31,10 @@ export default function NotFound() {
           Home
         </Link>
         <Link
-          href="/change-reports"
+          href="/library"
           className="inline-flex h-9 items-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
         >
-          Change Reports
+          Library
         </Link>
       </nav>
     </div>

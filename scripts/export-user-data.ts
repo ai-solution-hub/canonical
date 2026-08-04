@@ -509,7 +509,6 @@ export interface AuditTrailBundle {
   // names would re-import the exact ambiguity the rename removes.
   form_instances: Record<string, unknown>[];
   verification_history: Record<string, unknown>[];
-  classification_disputes: Record<string, unknown>[];
   feed_flags: Record<string, unknown>[];
   tag_morphology_drift_flags: Record<string, unknown>[];
   review_assignments: Record<string, unknown>[];
@@ -517,7 +516,6 @@ export interface AuditTrailBundle {
   taxonomy_domains: Record<string, unknown>[];
   taxonomy_subtopics: Record<string, unknown>[];
   taxonomy_sync_state: Record<string, unknown>[];
-  change_reports: Record<string, unknown>[];
   processing_queue: Record<string, unknown>[];
   pipeline_runs: Record<string, unknown>[];
   ingestion_quality_log: Record<string, unknown>[];
@@ -540,7 +538,6 @@ export interface AttributedContentBundle {
   citations: Record<string, unknown>[];
   feed_prompts: Record<string, unknown>[];
   feed_sources: Record<string, unknown>[];
-  coverage_targets: Record<string, unknown>[];
   guides: Record<string, unknown>[];
   // templates REMOVED (id-138.19): queried a table literally named
   // 'templates', which never existed — pre-existing dead code. The real
@@ -668,7 +665,6 @@ export async function assembleAuditTrailBundle(
     procurementQuestions,
     formInstances,
     verificationHistory,
-    classificationDisputes,
     feedFlags,
     tagMorphologyDriftFlags,
     reviewAssignments,
@@ -676,7 +672,6 @@ export async function assembleAuditTrailBundle(
     taxonomyDomains,
     taxonomySubtopics,
     taxonomySyncState,
-    changeReports,
     processingQueue,
     pipelineRuns,
     ingestionQualityLog,
@@ -708,12 +703,6 @@ export async function assembleAuditTrailBundle(
     fetchByColumn(client, 'verification_history', 'performed_by', subjectUuid),
     fetchByAnyColumn(
       client,
-      'classification_disputes',
-      ['disputed_by', 'resolved_by'],
-      subjectUuid,
-    ),
-    fetchByAnyColumn(
-      client,
       'feed_flags',
       ['flagged_by', 'resolved_by'],
       subjectUuid,
@@ -739,12 +728,6 @@ export async function assembleAuditTrailBundle(
     fetchByColumn(client, 'taxonomy_domains', 'recommended_by', subjectUuid),
     fetchByColumn(client, 'taxonomy_subtopics', 'recommended_by', subjectUuid),
     fetchByColumn(client, 'taxonomy_sync_state', 'synced_by', subjectUuid),
-    fetchByAnyColumn(
-      client,
-      'change_reports',
-      ['created_by', 'generated_by'],
-      subjectUuid,
-    ),
     fetchByColumn(client, 'processing_queue', 'created_by', subjectUuid),
     fetchByColumn(client, 'pipeline_runs', 'created_by', subjectUuid),
     fetchByAnyColumn(
@@ -775,7 +758,6 @@ export async function assembleAuditTrailBundle(
     form_questions: procurementQuestions,
     form_instances: formInstances,
     verification_history: verificationHistory,
-    classification_disputes: classificationDisputes,
     feed_flags: feedFlags,
     tag_morphology_drift_flags: tagMorphologyDriftFlags,
     review_assignments: reviewAssignments,
@@ -783,7 +765,6 @@ export async function assembleAuditTrailBundle(
     taxonomy_domains: taxonomyDomains,
     taxonomy_subtopics: taxonomySubtopics,
     taxonomy_sync_state: taxonomySyncState,
-    change_reports: changeReports,
     processing_queue: processingQueue,
     pipeline_runs: pipelineRuns,
     ingestion_quality_log: ingestionQualityLog,
@@ -805,7 +786,6 @@ export async function assembleAttributedContentBundle(
     citations,
     feedPrompts,
     feedSources,
-    coverageTargets,
     guides,
     templateCompletions,
     workspaces,
@@ -820,12 +800,6 @@ export async function assembleAttributedContentBundle(
     fetchByColumn(client, 'citations', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_prompts', 'created_by', subjectUuid),
     fetchByColumn(client, 'feed_sources', 'created_by', subjectUuid),
-    fetchByAnyColumn(
-      client,
-      'coverage_targets',
-      ['created_by', 'updated_by'],
-      subjectUuid,
-    ),
     fetchByColumn(client, 'guides', 'created_by', subjectUuid),
     fetchByColumn(client, 'template_completions', 'created_by', subjectUuid),
     fetchByAnyColumn(
@@ -841,7 +815,6 @@ export async function assembleAttributedContentBundle(
     citations,
     feed_prompts: feedPrompts,
     feed_sources: feedSources,
-    coverage_targets: coverageTargets,
     guides,
     template_completions: templateCompletions,
     workspaces,

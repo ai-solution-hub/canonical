@@ -79,15 +79,6 @@ export const queryKeys = {
     byDomain: ['tags', 'by-domain'] as const,
   },
 
-  // Change Reports (formerly Digests — code rename T5, S248)
-  changeReports: {
-    all: ['change-reports'] as const,
-    latest: ['change-reports', 'latest'] as const,
-    list: (limit: number, offset: number) =>
-      ['change-reports', 'list', { limit, offset }] as const,
-    detail: (id: string) => ['change-reports', 'detail', id] as const,
-  },
-
   // Entities
   entities: {
     all: ['entities'] as const,

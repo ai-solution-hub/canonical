@@ -20,21 +20,13 @@ import type { NotificationPreferences as NotificationPreferencesType } from '@/l
 interface PrefSwitch {
   key: keyof Pick<
     NotificationPreferencesType,
-    | 'email_weekly_change_report'
-    | 'email_review_assigned'
-    | 'email_owned_content_flagged'
-    | 'auto_generate_change_reports'
+    'email_review_assigned' | 'email_owned_content_flagged'
   >;
   label: string;
   description: string;
 }
 
 const PREF_SWITCHES: PrefSwitch[] = [
-  {
-    key: 'email_weekly_change_report',
-    label: 'Weekly Change Report',
-    description: 'Email digest of knowledge base changes each week',
-  },
   {
     key: 'email_review_assigned',
     label: 'Review assignments',
@@ -45,26 +37,15 @@ const PREF_SWITCHES: PrefSwitch[] = [
     label: 'Owned content flags',
     description: 'Email when content you own gets flagged for review',
   },
-  {
-    key: 'auto_generate_change_reports',
-    label: 'Auto-generate weekly Change Reports',
-    description:
-      'Automatically generate a weekly Change Report on your first visit to Change Reports',
-  },
 ];
 
 /** Default preferences when the server has no row for this user. */
 const DEFAULTS: Pick<
   NotificationPreferencesType,
-  | 'email_weekly_change_report'
-  | 'email_review_assigned'
-  | 'email_owned_content_flagged'
-  | 'auto_generate_change_reports'
+  'email_review_assigned' | 'email_owned_content_flagged'
 > = {
-  email_weekly_change_report: true,
   email_review_assigned: true,
   email_owned_content_flagged: true,
-  auto_generate_change_reports: true,
 };
 
 // ---------------------------------------------------------------------------

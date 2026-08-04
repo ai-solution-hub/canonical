@@ -259,8 +259,6 @@ authTest.describe('Authentication — authenticated session', () => {
           { label: 'Procurement', hrefPattern: /\/procurement/ },
           { label: 'Intelligence', hrefPattern: /\/intelligence/ },
           { label: 'Review', hrefPattern: /\/review/ },
-          { label: 'Coverage', hrefPattern: /\/coverage/ },
-          { label: 'Change reports', hrefPattern: /\/change-reports/ },
         ];
 
         for (const { label, hrefPattern } of destinations) {
@@ -281,12 +279,16 @@ authTest.describe('Authentication — authenticated session', () => {
       async ({ viewerPage: page }) => {
         const nav = await getVisibleNavLinks(page);
 
-        // Every zone still renders a header for a viewer — each zone keeps
-        // at least one 'all'-visibility entry (Procurement; Search/Answers/
-        // External sources; Change reports).
-        for (const header of ZONE_HEADERS) {
+        // Applications and Knowledge keep an 'all'-visibility entry
+        // (Procurement; Search/Answers/External sources) so their headers
+        // render for a viewer. Governance lost its last 'all' entry when
+        // Change reports retired with the change_reports table (id-417),
+        // and a zone with zero visible entries does not render at all
+        // (site-header visibleZoneEntries -> null).
+        for (const header of ['Applications', 'Knowledge']) {
           await expect(nav.getByText(header)).toBeVisible();
         }
+        await expect(nav.getByText('Governance')).not.toBeVisible();
 
         // BI-20: every non-reserved Knowledge entry stays reachable for a
         // viewer (Concepts is excluded — reserved, BI-8).
@@ -308,7 +310,7 @@ authTest.describe('Authentication — authenticated session', () => {
         }
 
         // BI-21: edit-gated entries are hidden entirely for a viewer (not
-        // merely disabled) — Intelligence (Applications), Review + Coverage
+        // merely disabled) — Intelligence (Applications), Review
         // (Governance). Re-derive the correct scope per viewport since the
         // resets above return the mobile hamburger to its closed state.
         if (isMobileViewport(page)) {
@@ -319,7 +321,7 @@ authTest.describe('Authentication — authenticated session', () => {
             name: 'Mobile navigation',
           });
           await expect(mobileNav).toBeVisible();
-          for (const label of ['Intelligence', 'Review', 'Coverage']) {
+          for (const label of ['Intelligence', 'Review']) {
             await expect(
               mobileNav.getByRole('link', { name: label }),
             ).not.toBeVisible();
@@ -329,7 +331,7 @@ authTest.describe('Authentication — authenticated session', () => {
           // elements are absent from the DOM entirely for a viewer
           // (isEntryVisible filters them out before render), so no
           // zone needs to be opened for this negative assertion to hold.
-          for (const label of ['Intelligence', 'Review', 'Coverage']) {
+          for (const label of ['Intelligence', 'Review']) {
             await expect(
               page.getByRole('menuitem', { name: label }),
             ).not.toBeVisible();
