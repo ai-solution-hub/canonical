@@ -15,7 +15,7 @@ import { getSettingsNav } from '../helpers/responsive';
 // Taxonomy domain: seeded slug 'e2e-seeded-domain'. The DomainCard renders
 // formatDomainName(name) → kebab-case to Title Case; 'e2e' is not in the
 // abbreviation list so it title-cases to 'E2e' (lib/taxonomy/taxonomy-format.ts).
-const SEEDED_TAXONOMY_DOMAIN_DISPLAY = 'E2e Seeded Domain';
+const _SEEDED_TAXONOMY_DOMAIN_DISPLAY = 'E2e Seeded Domain';
 // Governance rule: governance_config.domain stores the taxonomy slug verbatim
 // (matches the real Add-Domain flow, which submits the SelectItem value = the
 // taxonomy domain slug). The config row renders config.domain unformatted.

@@ -75,10 +75,7 @@ describe('NAV_ZONES membership', () => {
   it.each([
     ['applications', ['/procurement', '/intelligence']],
     ['knowledge', ['/search', '/library', '/reference', '/okf']],
-    [
-      'governance',
-      ['/review', '/promotion-gate', '/activity', '/provenance'],
-    ],
+    ['governance', ['/review', '/promotion-gate', '/activity', '/provenance']],
   ] as const)(
     'orders the %s zone entries exactly as ratified (BI-4/9/11)',
     (zoneId, expectedHrefOrder) => {
