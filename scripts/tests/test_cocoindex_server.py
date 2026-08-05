@@ -4194,3 +4194,171 @@ class TestWalkStatusRegistry:
         assert entry is not None
         assert entry["status"] == "fence_busy"
         assert entry.get("opId") is None
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §12 — id-379 D1b: exit-on-crash (the named consumer of the crash signal)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+class TestCrashExitConsumer:
+    """id-379 D1b — a crashed worker must eventually EXIT the process.
+
+    `restart: unless-stopped` reacts to the process exiting, not to health
+    status, and the dead worker is a daemon thread — so without this, an
+    unhealthy container sits forever (the S501 live observation on both
+    platform hosts). The consumer is a bounded-grace `threading.Timer` that
+    re-checks the crash flag at fire time and exits via `os._exit(70)`,
+    releasing any registered writer-fence lease first (id-382).
+    """
+
+    def test_crash_boundary_arms_the_exit_timer(self) -> None:
+        """A real lifespan-entry crash through `start_cocoindex_thread()`
+        must arm the crash-exit timer (production wiring, not a helper
+        called in isolation)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        _reset_cocoindex_app_registry()
+        try:
+            with patch.object(
+                server_mod.coco,
+                "start_blocking",
+                side_effect=RuntimeError("boom"),
+            ):
+                thread = server_mod.start_cocoindex_thread()
+                thread.join(timeout=2.0)
+            with server_mod._CRASH_EXIT_TIMER_LOCK:
+                timer = server_mod._CRASH_EXIT_TIMER
+            assert timer is not None and timer.is_alive(), (
+                "the crash boundary must schedule the D1b process exit"
+            )
+            assert timer.daemon is True
+        finally:
+            # Cancels the timer too — a stray 120s timer must never be able
+            # to kill the pytest process.
+            server_mod.reset_worker_state()
+
+    def test_exit_fires_after_grace_with_the_distinct_exit_code(self) -> None:
+        """With the worker crashed, the timer target releases stranded
+        leases then exits with the distinct code 70 (EX_SOFTWARE)."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        exit_calls: list[int] = []
+        release_calls: list[bool] = []
+        try:
+            server_mod.mark_worker_crashed("boom at boot")
+            with patch.object(
+                server_mod.os, "_exit", side_effect=exit_calls.append
+            ):
+                with patch.object(
+                    server_mod,
+                    "_release_stranded_walk_leases",
+                    side_effect=lambda: release_calls.append(True),
+                ):
+                    timer = server_mod._schedule_crash_exit(grace_seconds=0.01)
+                    timer.join(timeout=2.0)
+            assert exit_calls == [70]
+            assert release_calls == [True], (
+                "the exit path must attempt the id-382 lease release first — "
+                "os._exit skips every finally"
+            )
+        finally:
+            server_mod.reset_worker_state()
+
+    def test_exit_is_a_noop_when_the_worker_state_was_reset(self) -> None:
+        """The fire-time re-check: a reset (recovered) worker must never be
+        killed by a stale timer."""
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        exit_calls: list[int] = []
+        with patch.object(server_mod.os, "_exit", side_effect=exit_calls.append):
+            # Crash flag NOT set — fire the target directly.
+            server_mod._crash_exit_now()
+        assert exit_calls == []
+
+    def test_reset_worker_state_cancels_a_pending_timer(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        server_mod.mark_worker_crashed("boom")
+        timer = server_mod._schedule_crash_exit(grace_seconds=60.0)
+        assert timer.is_alive()
+        server_mod.reset_worker_state()
+        with server_mod._CRASH_EXIT_TIMER_LOCK:
+            assert server_mod._CRASH_EXIT_TIMER is None
+        # A cancelled timer's target never runs; give the cancel a beat.
+        timer.join(timeout=0.1)
+        assert not timer.is_alive()
+
+    def test_schedule_is_idempotent_while_a_timer_is_pending(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        server_mod.reset_worker_state()
+        try:
+            server_mod.mark_worker_crashed("boom")
+            first = server_mod._schedule_crash_exit(grace_seconds=60.0)
+            second = server_mod._schedule_crash_exit(grace_seconds=60.0)
+            assert first is second, "one crash arms exactly one exit timer"
+        finally:
+            server_mod.reset_worker_state()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# §13 — id-382: shutdown release of stranded writer-fence leases
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestShutdownLeaseRelease:
+    """id-382 part 1 (SIGTERM half) — `main()` drains the writer-fence
+    lease registry after `web.run_app` returns, and the drain is
+    best-effort (never raises on the shutdown path)."""
+
+    def test_main_calls_the_release_seam_after_run_app_returns(self) -> None:
+        """Source-inspection coverage (the established pattern for wiring
+        that cannot run under unit tests — `web.run_app` boots a real
+        socket): `main()` must invoke `_release_stranded_walk_leases()`
+        AFTER `web.run_app(...)` on the drain path."""
+        import inspect
+
+        from scripts.cocoindex_pipeline import server as server_mod
+
+        source = inspect.getsource(server_mod.main)
+        run_app_at = source.index("web.run_app(")
+        release_at = source.index("_release_stranded_walk_leases()")
+        assert release_at > run_app_at, (
+            "the stranded-lease release must run AFTER web.run_app returns "
+            "(the SIGTERM/drain path) — before it, the lease is still live"
+        )
+
+    def test_release_seam_swallows_failures(self) -> None:
+        """The seam must never raise while the process is going down."""
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline import writer_fence as writer_fence_mod
+
+        with patch.object(
+            writer_fence_mod,
+            "release_registered_leases_sync",
+            side_effect=RuntimeError("db unreachable"),
+        ):
+            # Must not raise.
+            server_mod._release_stranded_walk_leases()
+
+    def test_release_seam_delegates_to_the_registry_drain(self) -> None:
+        from scripts.cocoindex_pipeline import server as server_mod
+        from scripts.cocoindex_pipeline import writer_fence as writer_fence_mod
+
+        with patch.object(
+            writer_fence_mod,
+            "release_registered_leases_sync",
+            return_value=0,
+        ) as mock_release:
+            server_mod._release_stranded_walk_leases()
+        mock_release.assert_called_once()
+        # The DSN factory is passed UNCALLED — the drain only builds a DSN
+        # when the registry is non-empty.
+        (dsn_factory,) = mock_release.call_args.args
+        assert callable(dsn_factory)

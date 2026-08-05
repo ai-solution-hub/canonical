@@ -313,11 +313,22 @@ def mark_worker_crashed(reason: str | None = None) -> None:
 
 
 def reset_worker_state() -> None:
-    """Clear the crash flag + reason — used by tests and at a fresh worker (re)start."""
+    """Clear the crash flag + reason — used by tests and at a fresh worker (re)start.
+
+    Also cancels any pending id-379 D1b crash-exit timer: a reset worker is
+    (by definition) no longer crashed, so the scheduled process exit must not
+    fire — and a stray timer left running by a crash-driving test must never
+    be able to kill the pytest process.
+    """
     global _WORKER_CRASH_REASON  # noqa: PLW0603 — module-level worker state, mirrors _WORKER_CRASHED
+    global _CRASH_EXIT_TIMER  # noqa: PLW0603 — mirrors _WORKER_CRASHED lifecycle
     _WORKER_CRASHED.clear()
     with _WORKER_CRASH_REASON_LOCK:
         _WORKER_CRASH_REASON = None
+    with _CRASH_EXIT_TIMER_LOCK:
+        if _CRASH_EXIT_TIMER is not None:
+            _CRASH_EXIT_TIMER.cancel()
+            _CRASH_EXIT_TIMER = None
 
 
 def worker_is_healthy() -> bool:
@@ -329,6 +340,84 @@ def worker_crash_reason() -> str:
     """Why the worker died, as served by /health (falls back to the generic literal)."""
     with _WORKER_CRASH_REASON_LOCK:
         return _WORKER_CRASH_REASON or _WORKER_CRASH_REASON_FALLBACK
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# id-379 D1b — exit-on-crash: the named consumer of the crash signal
+# ──────────────────────────────────────────────────────────────────────────
+#
+# A truthful /health probe (D1) makes a dead worker show as UNHEALTHY, but
+# nothing in the deploy topology ACTS on unhealthy: `restart: unless-stopped`
+# reacts to the process EXITING, Coolify surfaces health without acting on it,
+# and there is no autoheal sidecar. The worker is a daemon thread — its death
+# never exits the aiohttp process, so the container sat "healthy" with a dead
+# pipeline on BOTH platform hosts (S501). The minimal reliable consumer is
+# therefore to make a worker crash EXIT the process, after a bounded grace,
+# so the restart policy every compose file already declares finally has
+# something to fire on.
+#
+# The grace window exists because an immediate exit would destroy the {379.3}
+# diagnostic surface: the crash reason is served by /health from THIS
+# process, and killing it instantly would leave only container boot logs —
+# the exact regression {379.3} shipped to fix. 120s is sized so the D1 probe
+# observes the failure first (start_period 60s + up to 3 failing probes at
+# 30s intervals ≈ 90-150s to unhealthy), the reason stays curlable for the
+# window, and then the process exits. A TRANSIENT boot crash (the original
+# ID-49.8 asyncpg gaierror) self-heals on the restart; a deterministic one
+# becomes a visible ~2.5-minute restart loop instead of an invisible zombie
+# (each cycle runs >= the grace window, so Docker's restart backoff keeps
+# resetting — the loop never tightens into a hot spin).
+_CRASH_EXIT_GRACE_SECONDS = 120.0
+# BSD sysexits EX_SOFTWARE — greppable in `docker inspect` / container logs
+# as "the sidecar exited itself over a crashed worker", distinct from OOM
+# (137) and clean exit (0).
+_CRASH_EXIT_CODE = 70
+
+_CRASH_EXIT_TIMER: "threading.Timer | None" = None
+_CRASH_EXIT_TIMER_LOCK = threading.Lock()
+
+
+def _crash_exit_now() -> None:
+    """Timer target: exit the process over a crashed worker (id-379 D1b).
+
+    Re-checks the crash flag at fire time: if the state was reset in the
+    grace window (tests; a future in-process worker restart), the exit is a
+    no-op — this function must never be able to kill a healthy process.
+    Releases any registered writer-fence lease first (id-382): `os._exit`
+    skips every finally/atexit, so this is the last chance to free it.
+    """
+    if not _WORKER_CRASHED.is_set():
+        return
+    _logger.critical(
+        "cocoindex worker crashed %.0fs ago and this process cannot recover "
+        "it — exiting with code %d so the container restart policy can "
+        "replace the container (id-379 D1b). Crash reason: %s",
+        _CRASH_EXIT_GRACE_SECONDS,
+        _CRASH_EXIT_CODE,
+        worker_crash_reason(),
+    )
+    _release_stranded_walk_leases()
+    os._exit(_CRASH_EXIT_CODE)
+
+
+def _schedule_crash_exit(
+    grace_seconds: float = _CRASH_EXIT_GRACE_SECONDS,
+) -> "threading.Timer":
+    """Arm the delayed process exit after a worker crash (idempotent).
+
+    One timer per crash: a second call while a timer is pending returns the
+    existing one. `reset_worker_state()` cancels it.
+    """
+    global _CRASH_EXIT_TIMER  # noqa: PLW0603 — module-level worker state, mirrors _WORKER_CRASHED
+    with _CRASH_EXIT_TIMER_LOCK:
+        if _CRASH_EXIT_TIMER is not None and _CRASH_EXIT_TIMER.is_alive():
+            return _CRASH_EXIT_TIMER
+        timer = threading.Timer(grace_seconds, _crash_exit_now)
+        timer.daemon = True
+        timer.name = "cocoindex-crash-exit"
+        timer.start()
+        _CRASH_EXIT_TIMER = timer
+        return timer
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1895,6 +1984,13 @@ def start_cocoindex_thread() -> threading.Thread:
                 f"(coco.start_blocking): {describe_crash(exc)}"
             )
             _logger.exception("cocoindex background thread crashed")
+            # id-379 D1b: the crash flag alone changes nothing at the
+            # container level (the daemon thread's death never exits the
+            # process, and nothing acts on unhealthy) — arm the bounded-grace
+            # process exit so `restart: unless-stopped` gets an event to fire
+            # on. /health serves the {379.3} crash reason for the whole grace
+            # window first. See _schedule_crash_exit / _crash_exit_now.
+            _schedule_crash_exit()
             raise
 
     thread = threading.Thread(
