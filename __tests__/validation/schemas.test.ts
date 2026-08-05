@@ -136,13 +136,11 @@ describe('SearchBodySchema', () => {
     }
   });
 
-  it('should default kind/domain/subtopic/dateFrom/dateTo to undefined when omitted', () => {
+  it('should default kind/dateFrom/dateTo to undefined when omitted', () => {
     const result = SearchBodySchema.safeParse({ query: 'test' });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.kind).toBeUndefined();
-      expect(result.data.domain).toBeUndefined();
-      expect(result.data.subtopic).toBeUndefined();
       expect(result.data.dateFrom).toBeUndefined();
       expect(result.data.dateTo).toBeUndefined();
     }

@@ -152,20 +152,10 @@ describe('CorpusKindNarrow', () => {
 // ---------------------------------------------------------------------------
 
 describe('CorpusFilterControls', () => {
-  it('pushes ?domain when a domain is entered', () => {
+  it('renders no domain/subtopic filter inputs (subject axis retired, DR-130)', () => {
     render(<CorpusFilterControls />);
-    fireEvent.change(screen.getByLabelText(/^domain$/i), {
-      target: { value: 'finance' },
-    });
-    expect(mockPush).toHaveBeenCalledWith('/search?domain=finance');
-  });
-
-  it('pushes ?subtopic when a subtopic is entered', () => {
-    render(<CorpusFilterControls />);
-    fireEvent.change(screen.getByLabelText(/^subtopic$/i), {
-      target: { value: 'invoicing' },
-    });
-    expect(mockPush).toHaveBeenCalledWith('/search?subtopic=invoicing');
+    expect(screen.queryByLabelText(/^domain$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^subtopic$/i)).not.toBeInTheDocument();
   });
 
   // TECH §4 mandates the canonical URL param list `?q, ?domain, ?subtopic,
@@ -214,14 +204,14 @@ describe('CorpusFilterControls', () => {
   it('preserves active query/kind params when a filter is set', () => {
     navState.search = 'q=x&kind=answer';
     render(<CorpusFilterControls />);
-    fireEvent.change(screen.getByLabelText(/^domain$/i), {
-      target: { value: 'finance' },
+    fireEvent.change(screen.getByLabelText(/date from/i), {
+      target: { value: '2026-01-01' },
     });
     const [url] = mockPush.mock.calls[0];
     const params = new URLSearchParams(String(url).split('?')[1]);
     expect(params.get('q')).toBe('x');
     expect(params.get('kind')).toBe('answer');
-    expect(params.get('domain')).toBe('finance');
+    expect(params.get('from')).toBe('2026-01-01');
   });
 
   it('never renders a publication-status control — that restriction is server-side only (id-131 BI-20)', () => {
@@ -231,9 +221,8 @@ describe('CorpusFilterControls', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('clearing all filters removes every filter param but preserves q/kind', () => {
-    navState.search =
-      'q=x&kind=document&domain=finance&subtopic=invoicing&from=2026-01-01&to=2026-02-01';
+  it('clearing all filters removes the date params but preserves q/kind', () => {
+    navState.search = 'q=x&kind=document&from=2026-01-01&to=2026-02-01';
     render(<CorpusFilterControls />);
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
     expect(mockPush).toHaveBeenCalledWith('/search?q=x&kind=document');
