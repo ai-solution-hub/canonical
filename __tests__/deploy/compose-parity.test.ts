@@ -134,6 +134,49 @@ describe('check-compose-parity — flags injected divergence', () => {
     expect(drifts.some((d) => d.check === 'healthcheck')).toBe(true);
   });
 
+  it('flags a regression to the bare TCP-connect probe (id-379 D1)', () => {
+    // The pre-id-379 probe: connects, asserts nothing about HTTP status —
+    // it stayed green while the cocoindex worker was dead and /health
+    // served 503 on both platform hosts. It must now read as drift.
+    const drifts = withMutatedCompose((compose) => {
+      const services = compose.services as Record<
+        string,
+        { healthcheck: { test: string[] } }
+      >;
+      const key = Object.keys(services).find((k) => k.startsWith('cocoindex'))!;
+      services[key].healthcheck.test = [
+        'CMD',
+        'bash',
+        '-c',
+        'exec 3<>/dev/tcp/127.0.0.1/8080',
+      ];
+    });
+    expect(
+      drifts.some(
+        (d) => d.check === 'healthcheck' && d.message.includes('GET /health'),
+      ),
+    ).toBe(true);
+  });
+
+  it('flags a probe that requests /health but never asserts the status', () => {
+    // Fetching /health without checking the code is the same defect with an
+    // extra request — the probe exits 0 whatever the worker state.
+    const drifts = withMutatedCompose((compose) => {
+      const services = compose.services as Record<
+        string,
+        { healthcheck: { test: string[] } }
+      >;
+      const key = Object.keys(services).find((k) => k.startsWith('cocoindex'))!;
+      services[key].healthcheck.test = [
+        'CMD',
+        'bash',
+        '-c',
+        "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3",
+      ];
+    });
+    expect(drifts.some((d) => d.check === 'healthcheck')).toBe(true);
+  });
+
   it('flags a healthcheck missing the start_period field', () => {
     const drifts = withMutatedCompose((compose) => {
       const services = compose.services as Record<

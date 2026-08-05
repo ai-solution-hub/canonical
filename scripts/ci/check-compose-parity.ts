@@ -32,7 +32,10 @@
  *   2. COCOINDEX_DB    — the engine LMDB state-store wired to /cocoindex-state/lmdb.
  *   3. Traefik scope   — the router rule path-scoped to EXACTLY /walk + /health +
  *                        /extract (and NOT /stage — Inv-13 keeps /stage internal).
- *   4. healthcheck     — the bash /dev/tcp/127.0.0.1/8080 liveness probe with the
+ *   4. healthcheck     — the bash-builtin GET /health HTTP-status probe over
+ *                        /dev/tcp/127.0.0.1/8080 (id-379 D1 — a bare TCP-connect
+ *                        probe is DRIFT: it stayed green while the cocoindex
+ *                        worker thread was dead and /health served 503), with the
  *                        interval / timeout / retries / start_period quartet.
  *   5. env keyset      — every required environment key is present.
  *
@@ -238,8 +241,15 @@ export function diffComposeTemplate(compose: ComposeFile): ComposeDrift[] {
     }
   }
 
-  // 4. healthcheck — the bash /dev/tcp/127.0.0.1/<port> liveness probe with the
-  //    interval / timeout / retries / start_period quartet.
+  // 4. healthcheck — the bash-builtin GET /health HTTP-status probe over
+  //    /dev/tcp (id-379 D1), with the interval / timeout / retries /
+  //    start_period quartet. All three assertions matter: the /dev/tcp form
+  //    is the only transport the buildpack image supports (no curl/wget,
+  //    {66.8}), `GET /health` is what makes the probe observe worker-thread
+  //    state (server.py returns 503 on a dead worker), and the `200` status
+  //    assertion is what turns that observation into a failing probe — a
+  //    bare TCP-connect probe (the pre-id-379 form) satisfied the first
+  //    assertion alone and stayed green over a dead pipeline.
   const hc = service.healthcheck;
   if (!hc) {
     drifts.push({
@@ -250,10 +260,14 @@ export function diffComposeTemplate(compose: ComposeFile): ComposeDrift[] {
     const test = Array.isArray(hc.test)
       ? hc.test.map((t) => String(t)).join(' ')
       : String(hc.test ?? '');
-    if (!test.includes(`/dev/tcp/127.0.0.1/${COCOINDEX_PORT}`)) {
+    if (
+      !test.includes(`/dev/tcp/127.0.0.1/${COCOINDEX_PORT}`) ||
+      !test.includes('GET /health') ||
+      !test.includes('200')
+    ) {
       drifts.push({
         check: 'healthcheck',
-        message: `healthcheck test must probe the HTTP port via bash /dev/tcp/127.0.0.1/${COCOINDEX_PORT} (found "${test}")`,
+        message: `healthcheck test must issue GET /health over bash /dev/tcp/127.0.0.1/${COCOINDEX_PORT} and assert HTTP 200 — a bare TCP-connect probe cannot see a dead cocoindex worker (id-379 D1) (found "${test}")`,
       });
     }
     for (const field of [

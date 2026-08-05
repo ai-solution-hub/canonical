@@ -177,11 +177,14 @@ services:
 
     # Liveness healthcheck — container-restart purposes ONLY; explicitly NOT the datapath
     # signal ({66.15} watches pipeline_runs row arrival in Supabase, not container liveness).
-    # The buildpack image ships NO curl/wget and python is not on the exec PATH, so we probe
-    # the HTTP wrapper's port via bash /dev/tcp (path-independent, no external deps). {66.8}
-    # — the original curl test produced a false "unhealthy" on the buildpack image.
+    # id-379 D1: the probe asserts GET /health returns HTTP 200 — a bare TCP-connect probe
+    # stayed green while the cocoindex worker thread was dead (/health 503) on both platform
+    # hosts. Bash BUILTINS only over /dev/tcp: the buildpack image ships NO curl/wget
+    # ({66.8} — the original curl test produced a false "unhealthy" on the buildpack image)
+    # and python3 is not on the exec PATH. `$$code` is compose-escaping for a literal
+    # `$code` inside the container.
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\nHost: 127.0.0.1\\r\\n\\r\\n' >&3 && read -r _ code _ <&3 && [ \"$$code\" = 200 ]"]
       interval: 30s
       timeout: 10s
       retries: 3

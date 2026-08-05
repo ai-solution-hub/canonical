@@ -4,8 +4,9 @@
 # (deploy/coolify/docker-compose.platform.yaml) still conforms to the shared
 # cocoindex service structural template: the ${COCOINDEX_IMAGE_TAG:?} hard-fail
 # image form, the /cocoindex-state/lmdb engine wiring, the Traefik
-# /walk + /health + /extract path scope, the bash /dev/tcp healthcheck probe,
-# and the required env keyset (TECH.md §BI-15 Change B).
+# /walk + /health + /extract path scope, the bash-builtin GET /health
+# HTTP-status healthcheck probe over /dev/tcp (id-379 D1 — a bare TCP-connect
+# probe is drift), and the required env keyset (TECH.md §BI-15 Change B).
 #
 # WARN-ONLY / NON-REQUIRED (mirrors token-parity.yml, ID-114):
 #   This workflow is intentionally NOT listed in ci.yml and must never become a
