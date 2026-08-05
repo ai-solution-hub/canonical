@@ -686,55 +686,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .throwOnError();
       }
 
-      // --- Notifications require admin user_id ---
-      const { data: adminRole } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'admin')
-        .limit(1)
-        .single();
-
-      const adminUserId = adminRole?.user_id;
-
-      let notificationIds: string[] = [];
-      if (adminUserId) {
-        // --- Notifications: 1 unread quality flag, 1 read governance review ---
-        const notifications = [
-          {
-            user_id: adminUserId,
-            type: 'quality_flag',
-            entity_type: 'content_item',
-            entity_id: itemIds[3], // stale item (Cyber Essentials)
-            title: `${prefix} Content needs review`,
-            message: 'This content item has become stale and requires review.',
-          },
-          {
-            user_id: adminUserId,
-            type: 'governance_review_needed',
-            entity_type: 'content_item',
-            entity_id: itemIds[4], // expired item (Pricing Model)
-            title: `${prefix} Item expired`,
-            message:
-              'This content item has expired and should be updated or archived.',
-            read_at: new Date().toISOString(),
-          },
-        ];
-
-        const { data: notifs } = await supabase
-          .from('notifications')
-          .insert(notifications)
-          .select('id')
-          .throwOnError();
-
-        notificationIds = (notifs ?? []).map((n) => n.id);
-
-        // ID-131.19 M6 retirement: `read_marks` table DROPPED at M6 (S450
-        // wave-1 also retired its production readers in lib/dashboard.ts +
-        // lib/reorient.ts — last_active_at now falls back to
-        // last_sign_in_at). The "2 items marked as read by admin" seed step
-        // that used to live here has no destination and is removed.
-      }
-
       // --- Intelligence workspace, feed source, and articles ---
       const { data: intelWorkspace } = await supabase
         .from('workspaces')
@@ -871,48 +822,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // These land on the trigger-minted default of `freshness = 'fresh'`.
       seededFreshnessCounts.fresh += intelItemIds.length;
 
-      const data: WorkerData = {
-        contentItemIds: itemIds,
-        articleId: itemIds[0],
-        qaPairId: itemIds[1],
-        qaPairTechId: itemIds[2],
-        noteId: itemIds[4], // Pricing Model Template (note type)
-        staleItemId: itemIds[3],
-        expiredItemId: itemIds[4],
-        certificationId: itemIds[5],
-        caseStudyId: itemIds[6],
-        methodologyId: itemIds[7],
-        socialValueId: itemIds[8],
-        dataProtectionId: itemIds[9],
-        peopleSkillsId: itemIds[10],
-        environmentalId: itemIds[11],
-        workspaceId: kbSectionId,
-        procurementId,
-        projectId,
-        questionIds,
-        responseIds,
-        notificationIds,
-        intelligenceWorkspaceId,
-        intelligenceFeedSourceId,
-        intelligenceFeedPromptId,
-        feedArticleIds,
-        seededFreshnessCounts,
-        prefix,
-        embeddedItemIndices: EMBEDDING_ITEM_INDICES,
-      };
-
-      console.log(
-        `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items ` +
-          `(${precomputedEmbeddings.length} with embeddings), ` +
-          `2 workspaces (kb_section + intelligence), 2 procurement items (1 in drafting) with ${data.questionIds.length} questions and ` +
-          `${data.responseIds.length} responses, ${data.notificationIds.length} notifications, ` +
-          `${data.feedArticleIds.length} feed articles + 1 active feed prompt, ` +
-          `freshness ${JSON.stringify(data.seededFreshnessCounts)} ` +
-          `(prefix: ${prefix})`,
-      );
-
-      await use(data);
-
       // --- Teardown: clean up this worker's data ---
       console.log(
         `[Worker ${workerInfo.workerIndex}] Cleaning up ${prefix} data...`,
@@ -935,11 +844,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // `content_chunks_source_document_id_fkey`,
       // `20260628200000_id131_extract_reparent.sql`). Adding redundant
       // deletes here would only widen the teardown's blast radius.
-
-      // 1. Notifications (by ID)
-      if (notificationIds.length > 0) {
-        await supabase.from('notifications').delete().in('id', notificationIds);
-      }
 
       // 2. Procurement responses (safety net — CASCADE from the question's
       // `form_instances` parent should handle this, but delete explicitly
