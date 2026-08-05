@@ -85,6 +85,12 @@ session.
    pressure to flip.
 6. **Report what your check did NOT cover.** A `PASS` records a conclusion, never its
    coverage.
+7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** Before
+   ruling on a concept, state where it came from (fork-era? which task minted it?) and
+   the owner's current hypothesis marked _"to be tested, not assumed"_. A doc authored
+   while the investigated assumption stood — however ratified-looking — is the
+   assumption's carrier, not independent evidence for it (S528 GROUNDING §2a; ratified
+   S535, DR-130's grounding).
 
 **These readings are not evidence — say so in the brief:** consumer-counting (a consumer of
 a stale concept is evidence the rot spread); population or emptiness in **either**
