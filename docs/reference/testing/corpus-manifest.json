@@ -30,13 +30,13 @@
       "id": "extraction",
       "root": "scripts/tests/fixtures/extraction",
       "synthetic": false,
-      "notes": "HTML/expected-text parity pairs. Read directly by pytest and the TS parity test. NOT MERGED with scripts/fixtures/ (id-412 reconciliation, S524): the overlap is a DELIBERATE, documented copy, not pivot-era residue. platform-feed-seed-article.html duplicates procurement_guide.html's content and says why in its own header \u2014 'copied rather than referenced in-place so this file's identity is owned by the seed, not by the extraction test suite (moving/renaming the test fixture must not silently rot this seed's URL)'. That reasoning is correct and survives the cocoindex pivot; merging the trees would couple a served artefact to a test fixture and reintroduce exactly the rot it prevents. The earlier note here called this 'duplication that predates the pivot' \u2014 that characterisation was wrong."
+      "notes": "HTML/expected-text parity pairs. Read directly by pytest and the TS parity test. STILL NOT MERGED with scripts/fixtures/, but re-reconciled at S536 (id-412 AC-8) because the S524 note here was WRONG on the why: it endorsed the article copy's header reasoning ('copied rather than referenced in-place so the seed's URL cannot rot') as 'correct and surviving the cocoindex pivot'. In fact the copy never protected anything from this tree \u2014 what made ANY referenced repo path move-rot-prone was FEED_ARTICLE_SEED pinning `main` (bl-372's rot vector rebuilt as a filesystem freeze). Since S536 that URL pins commit 87febe72d, the served artefact is that commit's immutable snapshot, and the content duplication with platform-feed-seed-article.html is inert history. The trees stay separate on DR-117 grounds, not rot-prevention grounds: this tree is extraction-parity evidence owned by the extract path's tests; scripts/fixtures/ holds served-then-seeded platform-feed artefacts owned by the seed \u2014 different requirements, different owning domains, so they file apart."
     },
     {
       "id": "platform-feed-seeds",
       "root": "scripts/fixtures",
       "synthetic": false,
-      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched. NOT RELOCATED by id-412 (S524) and the reason is load-bearing: this tree's repo PATH IS A LIVE URL. Both files are served over HTTPS from raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/... so the Coolify pipeline container, which cannot see this repo's filesystem, can fetch them like any other feed article (bl-372). The path is baked into FEED_SOURCE_SEED.url, FEED_ARTICLE_SEED.externalUrl, the atom entry's <link href>, AND the landed feed_articles.external_url rows the seeder matches on. Moving the tree is a coordinated URL migration with a merge-to-main ordering dependency and a DB backfill, not a file move \u2014 out of proportion to id-412 and unsafe to do casually. Both files carry an explicit DO NOT MOVE OR RENAME banner."
+      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched. SETTLED HOME ruling (id-412 AC-8, S536): the tree stays at scripts/fixtures/, and the S524 'this tree's repo PATH IS A LIVE URL' reason is NARROWED to the atom half. The ARTICLE URL now pins commit 87febe72d, so it serves an immutable snapshot; the working copy is only the authoring source for a future re-pin and could move without rotting anything. The ATOM's path IS still a live URL \u2014 FEED_SOURCE_SEED.url tracks `main` because the served atom body must name the article URL byte-equal to FEED_ARTICLE_SEED.externalUrl (lib/intelligence/pipeline.ts dedupes polled items by external_url), so SHA-pinning the feed needs an atom ALREADY merged with a SHA-pinned href: a two-commit, merge-ordered migration plus a DB backfill (feed_sources.url and landed feed_articles.external_url rows are matched by URL), deliberately deferred beyond AC-8's one-constant fix. Until that migration the atom must not move or rename, and a DR-117-conformant relocation of the tree stays blocked on it. Re-pin rule and the already-seeded-DB caveat: FEED_ARTICLE_SEED's doc comment; the href/constant lockstep is guarded by __tests__/scripts/seed-platform-feed.test.ts."
     }
   ],
   "fixtures": [
@@ -486,8 +486,8 @@
       "path": "scripts/fixtures/platform-feed-seed-article.html",
       "tree": "platform-feed-seeds",
       "format": "html",
-      "sha256": "ca33fe43136e7d3c13ac7199b3f5188115d51e19c3b6eb91dd1d5501643c30a5",
-      "bytes": 6631,
+      "sha256": "a761c38b7af0e9bb70fb6fbf2709046a42f831b26b6ffde76b439e4bf5495241",
+      "bytes": 7053,
       "fixture_class": "vendored-read-only",
       "staging_mode": "db-seed",
       "consumers": [
@@ -501,8 +501,8 @@
       "path": "scripts/fixtures/platform-feed-seed-feed.atom",
       "tree": "platform-feed-seeds",
       "format": "atom",
-      "sha256": "9acbba3b5c167f5700e25d87f4d2754e02e8d0350f02448bb5d0678bd92a736d",
-      "bytes": 1589,
+      "sha256": "3a9198ee2d7af21af6dce63391a1f11428d59c543a5b7dcf735c2d6e54c68243",
+      "bytes": 1885,
       "fixture_class": "vendored-read-only",
       "staging_mode": "db-seed",
       "consumers": [

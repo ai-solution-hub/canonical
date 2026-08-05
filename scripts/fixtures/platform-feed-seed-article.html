@@ -11,15 +11,20 @@
   Content is a duplicate of the proven-good extraction pipeline test fixture
   scripts/tests/fixtures/extraction/procurement_guide.html (verified
   trafilatura-clean output ≥500 chars, i.e. clears the extract.py
-  apply_quality_gate() "OK" threshold) — copied rather than referenced
-  in-place so this file's identity is owned by the seed, not by the
-  extraction test suite (moving/renaming the test fixture must not silently
-  rot this seed's URL).
+  apply_quality_gate() "OK" threshold). The copy was originally justified as
+  shielding the seed's URL from test-fixture moves — but what actually made
+  ANY referenced path move-rot-prone was FEED_ARTICLE_SEED pinning `main`.
 
-  DO NOT MOVE OR RENAME this file without updating the raw.githubusercontent
-  URL baked into scripts/seed-platform-feed.ts's FEED_ARTICLE_SEED constant —
-  moving it re-introduces the exact "seed points at a URL that 404s" failure
-  bl-372 exists to fix.
+  PINNED, NOT LIVE (id-412 AC-8, S536): FEED_ARTICLE_SEED.externalUrl now
+  pins commit 87febe72d, so the URL serves that commit's immutable snapshot
+  of this file. Moving or renaming THIS working copy can no longer 404 the
+  seed (the DO-NOT-MOVE banner that used to sit here dated from the
+  main-pin era). This copy remains as the seed-owned authoring source for
+  any future re-pin: edit it, merge to main, then update
+  FEED_ARTICLE_SEED.externalUrl AND the atom fixture's <link href> to the
+  new commit SHA in the same change — the two must stay byte-equal, or a
+  real poll of the feed mints a divergent feed_articles row
+  (lib/intelligence/pipeline.ts dedupes by external_url).
 -->
 <!doctype html>
 <html lang="en">

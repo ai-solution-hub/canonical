@@ -11,17 +11,21 @@
   The single <entry>'s <link href> intentionally matches
   FEED_ARTICLE_SEED.externalUrl exactly, so a real poll of this feed
   discovers the SAME article the seed already inserts directly — no
-  duplicate/divergent feed_articles row.
+  duplicate/divergent feed_articles row. Since id-412 AC-8 (S536) that URL
+  pins a commit SHA, not `main`; whenever FEED_ARTICLE_SEED.externalUrl is
+  re-pinned, update the href below in the same change.
 
   DO NOT MOVE OR RENAME this file without updating the raw.githubusercontent
-  URL baked into scripts/seed-platform-feed.ts's FEED_SOURCE_SEED constant.
+  URL baked into scripts/seed-platform-feed.ts's FEED_SOURCE_SEED constant —
+  unlike the article, THIS file's URL still tracks `main`, so its repo path
+  is a live URL.
 -->
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>Platform synthetic feed — UK procurement policy (hermetic fixture, bl-372)</title>
   <entry>
     <id>tag:canonical.internal,2026:platform-feed-seed/procurement-frameworks-guide</id>
     <updated>2026-06-01T09:00:00+00:00</updated>
-    <link rel="alternate" type="text/html" href="https://raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/platform-feed-seed-article.html"/>
+    <link rel="alternate" type="text/html" href="https://raw.githubusercontent.com/ai-solution-hub/canonical/87febe72da5b49a8f78dec026bf7dd0045d6d847/scripts/fixtures/platform-feed-seed-article.html"/>
     <title>UK SMB Procurement Frameworks: A Practical Guide</title>
     <summary type="html">&lt;p&gt;A practical guide to UK public-sector procurement frameworks for small and medium-sized suppliers.&lt;/p&gt;</summary>
     <category term="Procurement"/>

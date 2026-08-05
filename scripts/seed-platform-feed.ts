@@ -27,6 +27,11 @@
  * Deployment Protection bypass — see bl-372 resolution notes). This keeps
  * the S415-recommended "real HTTP fetch → trafilatura clean → real content"
  * walk-proof coverage without depending on a URL we don't own.
+ * The ARTICLE URL pins a commit SHA rather than `main` (id-412 AC-8, S536) —
+ * see `FEED_ARTICLE_SEED`. The FEED URL still tracks `main`, deliberately:
+ * the served atom body must name the article URL byte-for-byte, so
+ * SHA-pinning the feed needs an atom ALREADY merged with a SHA-pinned href —
+ * a two-commit, merge-ordered migration deferred out of AC-8's scope.
  * `extraction_method = 'fetch'` (an allowed value of the
  * `feed_articles_extraction_method_check` constraint) marks the intended
  * fetch-then-clean path.
@@ -73,7 +78,9 @@ export const FEED_WORKSPACE_NAME = 'Platform — Procurement';
  * The seed feed_sources row. `url` is the stable idempotency key per
  * workspace — points at the hermetic Atom fixture
  * `scripts/fixtures/platform-feed-seed-feed.atom` (bl-372; see file header
- * comment there before moving/renaming it).
+ * comment there before moving/renaming it). Unlike `FEED_ARTICLE_SEED`,
+ * this URL still tracks `main` (see the module header for why), so the atom's
+ * repo path IS a live URL: the file must not move or rename.
  */
 export const FEED_SOURCE_SEED = {
   name: 'Platform synthetic feed (UK procurement policy)',
@@ -88,10 +95,25 @@ export const FEED_SOURCE_SEED = {
  * third-party URL. `passed = true` so `FeedUrlSource` enumerates it.
  * `extraction_method = 'fetch'` is an allowed value of the
  * `feed_articles_extraction_method_check` constraint.
+ *
+ * **PINNED to a commit SHA, not `main` (id-412 AC-8, S536).** A `main`-pinned
+ * raw URL freezes the fixture's repo path forever — moving the file 404s the
+ * seed, which is bl-372's rot vector rebuilt as a filesystem freeze. A commit
+ * pin serves that commit's immutable snapshot, so the working copy can move
+ * or change without breaking the URL.
+ * RE-PIN RULE: change this URL only (a) to a SHA already on origin/main that
+ * contains the file at the named path, and (b) together with the atom
+ * fixture's `<link href>`, which must stay byte-equal to this constant —
+ * `lib/intelligence/pipeline.ts` dedupes polled items by `external_url`, so
+ * a mismatch mints a divergent `feed_articles` row on a real poll.
+ * Already-seeded DBs: this constant is the seeder's idempotency key, so the
+ * first `--apply` after a re-pin inserts a fresh row instead of matching the
+ * old-URL row; the old row keeps resolving (its SHA still serves) and needs a
+ * manual cleanup only if the duplicate matters.
  */
 export const FEED_ARTICLE_SEED = {
   externalUrl:
-    'https://raw.githubusercontent.com/ai-solution-hub/canonical/main/scripts/fixtures/platform-feed-seed-article.html',
+    'https://raw.githubusercontent.com/ai-solution-hub/canonical/87febe72da5b49a8f78dec026bf7dd0045d6d847/scripts/fixtures/platform-feed-seed-article.html',
   title: 'UK SMB Procurement Frameworks: A Practical Guide',
   extractionMethod: 'fetch' as const,
 } as const;

@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { REPO_ROOT } from '@/lib/corpus/fixture-manifest';
 import {
   seedFeed,
   requireFeedWorkspaceId,
@@ -141,6 +144,27 @@ describe('hermetic seed URLs (bl-372) — no live third-party domain', () => {
   it('neither seed URL points at gov.uk (the URL that rotted twice)', () => {
     expect(FEED_SOURCE_SEED.url).not.toContain('gov.uk');
     expect(FEED_ARTICLE_SEED.externalUrl).not.toContain('gov.uk');
+  });
+
+  it('the article URL pins a commit SHA, not a branch (id-412 AC-8)', () => {
+    // A `main`-pinned raw URL freezes the fixture's repo path forever —
+    // bl-372's rot vector rebuilt as a filesystem freeze. The ref segment of
+    // raw.githubusercontent.com/<owner>/<repo>/<ref>/<path> must be a SHA.
+    const ref = new URL(FEED_ARTICLE_SEED.externalUrl).pathname.split('/')[3];
+    expect(ref).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('the atom fixture <link href> matches FEED_ARTICLE_SEED.externalUrl byte-for-byte', () => {
+    // The intelligence pipeline dedupes polled items by external_url
+    // (lib/intelligence/pipeline.ts), so a drifted href mints a divergent
+    // feed_articles row on a real poll. Re-pin the constant and this href
+    // together, always.
+    const atom = readFileSync(
+      join(REPO_ROOT, 'scripts/fixtures/platform-feed-seed-feed.atom'),
+      'utf8',
+    );
+    const href = atom.match(/<link rel="alternate"[^>]*href="([^"]+)"/)?.[1];
+    expect(href).toBe(FEED_ARTICLE_SEED.externalUrl);
   });
 });
 
