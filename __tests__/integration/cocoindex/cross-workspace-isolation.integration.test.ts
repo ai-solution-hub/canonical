@@ -65,6 +65,9 @@ const FIXTURE_PATH_W2 =
 const VARIANT_W1 = 'ISO 27001';
 const VARIANT_W2 = 'ISO27001';
 
+/** Two awaited walks in `beforeAll` (one per workspace), plus slack. */
+const SETUP_BUDGET_MS = WALK_BUDGET_MS * 2 + 30_000;
+
 beforeAll(async () => {
   if (!ENABLED) return;
   // W1 run: corpus for workspace 1.
@@ -80,7 +83,7 @@ beforeAll(async () => {
     destPath: `inv-21-w2/${W2_PREFIX}.md`,
     titlePrefix: W2_PREFIX,
   });
-}, WALK_BUDGET_MS * 2 + 30_000);
+}, SETUP_BUDGET_MS);
 
 afterAll(async () => {
   if (!ENABLED) return;

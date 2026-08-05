@@ -43,6 +43,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -54,6 +55,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
@@ -641,6 +643,209 @@ def install_signal_handlers() -> threading.Event:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# /stage destPath query-suffix contract (id-414 AC-5 / AC-6)
+# ──────────────────────────────────────────────────────────────────────────
+#
+# WHY THIS EXISTS. `destPath` is a corpus-relative FILE PATH, not a URL, so a
+# `?...` tail on it means nothing to the filesystem. Before this contract the
+# handler joined the tail into the target and wrote files literally named
+# `name.xlsx?fullreprocess=1`; extension routing then failed to recognise them
+# and the items were dropped per-item. That is 19 of the 159 ingests the S522
+# nightly dropped while still reporting `completed`.
+#
+# REJECT, NOT STRIP — the deliberate choice (id-414 AC-5).
+#   `_stage_handler`'s own failure model (Inv-5) already rules this case: "a
+#   client-correctable mis-wire is a NAMED 400, never a silent accept and
+#   never a 5xx". A caller who wrote `?fullreprocess=1` MEANT something by it.
+#   Silently stripping the tail would write a file the caller never asked for,
+#   discard the intent without a word, and return 200 — which is both the
+#   silent accept Inv-5 forbids AND a re-run of the exact failure shape that
+#   made the S522 drop invisible (a caller believing something happened that
+#   did not). Rejecting is also STRICTLY stronger against the requirement
+#   "`name.xlsx?fullreprocess=1` can never land as a filename": on rejection
+#   nothing is written at all, so no mangled name ever exists on disk, not
+#   even briefly.
+#
+# ...WITH EXACTLY ONE ALLOWLISTED DIRECTIVE.
+#   A blanket reject would also break the one query-style directive the wire
+#   contract genuinely defines: `?failStage5=<mode>`, the config-only Stage-5
+#   failure injection sent by
+#   `__tests__/integration/cocoindex/test-helpers.ts::injectStage5Failure`.
+#   That directive is RECOGNISED — stripped off the path before the write and
+#   acted on by the next walk (see `stage5_failure_injection` below). Anything
+#   else carrying a `?` is a named 400. The distinction is the whole point:
+#   this route HAS a query contract; it does not TOLERATE junk.
+#
+# Scope note: this contract covers `?` only. A `#` fragment (or any other
+# URL-ish punctuation) is still written verbatim — `#` is a legal filename
+# character on POSIX and no caller has ever sent one, so widening the guard
+# would be speculative.
+
+_STAGE_DEST_PATH_DIRECTIVE = "failStage5"
+
+# Credential env vars each `failStage5` mode overrides, mapped to the model
+# call the Stage-5 resolution stack makes:
+#   embedder      → `KhEntityEmbedder.embed()` → LiteLLM → OPENAI_API_KEY
+#   pair_resolver → `KhPairResolver._invoke_llm()` → anthropic.AsyncAnthropic()
+# Both are read from the process environment AT CALL TIME (flow.py's
+# `_get_embedder` note records this for litellm; `extraction.py`'s
+# `_extraction_async_client()` constructs a FRESH client per call), which is
+# what makes a walk-scoped override effective at all.
+_STAGE5_FAILURE_CREDENTIAL_ENV: "dict[str, tuple[str, ...]]" = {
+    "embedder": ("OPENAI_API_KEY",),
+    "pair_resolver": ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"),
+}
+
+# The injected value is a non-empty INVALID credential, deliberately NOT an
+# unset/empty var. Two measured reasons:
+#   1. `extraction._extraction_async_client()` DELETES any `ANTHROPIC_*` var
+#      whose value is the empty string (its id-389 empty-string guard), and a
+#      bare `anthropic.AsyncAnthropic()` with no credential raises at CLIENT
+#      CONSTRUCTION — not the `anthropic.AuthenticationError` the Inv-12/13
+#      contract documents. A non-empty bogus value survives that guard and
+#      produces a real 401 → `AuthenticationError`.
+#   2. litellm with a bogus `OPENAI_API_KEY` raises
+#      `litellm.exceptions.AuthenticationError` — again the documented class.
+# Restoring is exact: absent stays absent, a prior value is put back verbatim.
+_STAGE5_INJECTED_CREDENTIAL = "kh-id414-invalid-injected-credential"
+
+_STAGE5_FAILURE_LOCK = threading.Lock()
+_STAGE5_FAILURE_ARMED: "dict[str, str] | None" = None
+
+
+def parse_stage_dest_path(dest_path: str) -> "tuple[str, str | None, str | None]":
+    """Split a `?...` query suffix off a /stage `destPath`.
+
+    Returns `(clean_dest_path, stage5_fail_mode, error)`. A non-None `error`
+    means REJECT: the caller must return a named 400 and write nothing. See
+    the section comment above for why the policy is reject-with-an-allowlist
+    rather than strip-everything.
+    """
+    if "?" not in dest_path:
+        return dest_path, None, None
+
+    path, _, query = dest_path.partition("?")
+    if not path:
+        return (
+            dest_path,
+            None,
+            f"destPath is a query suffix with no path: {dest_path!r}",
+        )
+
+    key, sep, value = query.partition("=")
+    if not sep or key != _STAGE_DEST_PATH_DIRECTIVE:
+        return (
+            dest_path,
+            None,
+            (
+                f"destPath must not carry a query suffix: {dest_path!r}. "
+                "`?` is not part of a filename — a corpus-relative path is "
+                "written verbatim, so the suffix would land IN the filename "
+                "and break extension routing. The only understood suffix is "
+                f"`?{_STAGE_DEST_PATH_DIRECTIVE}=<mode>`."
+            ),
+        )
+
+    if value not in _STAGE5_FAILURE_CREDENTIAL_ENV:
+        known = ", ".join(sorted(_STAGE5_FAILURE_CREDENTIAL_ENV))
+        return (
+            dest_path,
+            None,
+            (
+                f"unknown {_STAGE_DEST_PATH_DIRECTIVE} mode {value!r} in "
+                f"destPath {dest_path!r} — known modes: {known}"
+            ),
+        )
+
+    return path, value, None
+
+
+def _arm_stage5_failure(mode: str, dest_rel: str) -> None:
+    """Arm the Stage-5 failure directive for the NEXT walk (one-shot)."""
+    global _STAGE5_FAILURE_ARMED  # noqa: PLW0603 — module-level directive state
+    with _STAGE5_FAILURE_LOCK:
+        _STAGE5_FAILURE_ARMED = {"mode": mode, "destPath": dest_rel}
+    _logger.warning(
+        "/stage armed Stage-5 failure injection mode=%s for the next /walk "
+        "(armed by %s) — Stage 5 will fail for the WHOLE of that walk",
+        mode,
+        dest_rel,
+    )
+
+
+def stage5_failure_armed() -> "dict[str, str] | None":
+    """Return the pending Stage-5 failure directive, or None. Read-only."""
+    with _STAGE5_FAILURE_LOCK:
+        return dict(_STAGE5_FAILURE_ARMED) if _STAGE5_FAILURE_ARMED else None
+
+
+def reset_stage5_failure_state() -> None:
+    """Disarm any pending directive (test hygiene — mirrors reset_walk_state)."""
+    global _STAGE5_FAILURE_ARMED  # noqa: PLW0603 — module-level directive state
+    with _STAGE5_FAILURE_LOCK:
+        _STAGE5_FAILURE_ARMED = None
+
+
+@contextlib.contextmanager
+def stage5_failure_injection() -> "Iterator[str | None]":
+    """Apply a pending `?failStage5=` directive for the duration of ONE walk.
+
+    A no-op — a single lock-guarded read yielding None — unless a `/stage`
+    call armed a directive. When armed: the mode's credential env vars are
+    overridden with an invalid sentinel for the walk, the directive is
+    CONSUMED (one walk, then disarmed), and the original environment is
+    restored in a `finally` regardless of how the walk ended.
+
+    BLAST RADIUS — stated plainly, because it is not intuitive. Stage 5 is a
+    PER-RUN resolution pass over the whole walk's entity mentions, NOT a
+    per-document step, so an armed directive fails Stage 5 for EVERY document
+    in that walk, not only the fixture that armed it. The override is also
+    process-wide for the walk's duration, so a `POST /extract` racing the walk
+    on this sidecar sees the sentinel too. There is no narrower seam available
+    at this layer: "fail Stage 5 for one document" is not expressible, because
+    Stage 5 does not run per document. That is precisely why the directive is
+    opt-in, consumed by exactly one walk, and restored in a `finally` — it
+    must never be armed while other fixtures in the same walk need a healthy
+    Stage 5.
+    """
+    global _STAGE5_FAILURE_ARMED  # noqa: PLW0603 — module-level directive state
+    with _STAGE5_FAILURE_LOCK:
+        armed = _STAGE5_FAILURE_ARMED
+        _STAGE5_FAILURE_ARMED = None
+
+    if armed is None:
+        yield None
+        return
+
+    mode = armed["mode"]
+    names = _STAGE5_FAILURE_CREDENTIAL_ENV[mode]
+    saved = {name: os.environ.get(name) for name in names}
+    for name in names:
+        os.environ[name] = _STAGE5_INJECTED_CREDENTIAL
+    _logger.warning(
+        "Stage-5 failure injection ACTIVE for this walk (mode=%s, armed by "
+        "%s): %s overridden with an invalid credential. Stage 5 will fail for "
+        "every document in this walk.",
+        mode,
+        armed.get("destPath"),
+        ", ".join(names),
+    )
+    try:
+        yield mode
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        _logger.info(
+            "Stage-5 failure injection cleared (mode=%s) — %s restored",
+            mode,
+            ", ".join(names),
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # HTTP route handlers
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -694,6 +899,12 @@ async def _stage_handler(request: web.Request) -> web.Response:
     the caller), a `destPath` text part (corpus-relative target), and a
     `titlePrefix` text part (informational; the caller embeds the prefix in
     the dest filename — `/stage` does NO in-byte title injection, OQ-62-6).
+
+    `destPath` query suffix (id-414 AC-5/AC-6): a `?...` tail is REJECTED with
+    a named 400 and nothing is written, EXCEPT the one allowlisted directive
+    `?failStage5=<embedder|pair_resolver>`, which is stripped off the path
+    before the write and armed for the next `POST /walk`. The full rationale
+    for reject-not-strip lives above `parse_stage_dest_path`.
 
     Failure model (Inv-5): a client-correctable mis-wire is a NAMED 400, never
     a silent accept and never a 5xx. 5xx is reserved for an unambiguous
@@ -754,6 +965,16 @@ async def _stage_handler(request: web.Request) -> web.Response:
             status=400,
         )
 
+    # (2a) Apply the destPath query-suffix contract BEFORE any containment or
+    #      filesystem work, so every later step sees the real target path and a
+    #      rejected request never reaches `open()` [id-414 AC-5]. Unknown `?`
+    #      suffixes are a named 400 (Inv-5); the one allowlisted directive,
+    #      `?failStage5=<mode>`, is stripped here and armed after the write.
+    #      Rationale for reject-not-strip: see the section comment above.
+    dest_path, stage5_fail_mode, suffix_error = parse_stage_dest_path(dest_path)
+    if suffix_error is not None:
+        return web.json_response({"error": suffix_error}, status=400)
+
     # (3) Resolve the corpus-relative target; reject path-escape, write nothing
     #     on rejection [Inv-3]. realpath() collapses `..` and resolves symlinks,
     #     so the containment check catches traversal regardless of how it is
@@ -786,10 +1007,18 @@ async def _stage_handler(request: web.Request) -> web.Response:
         request_id,
     )
 
+    # Arm the allowlisted directive only AFTER the bytes landed: a request that
+    # 400s on containment must not leave a directive armed for the next walk.
+    if stage5_fail_mode is not None:
+        _arm_stage5_failure(stage5_fail_mode, written_rel)
+
     # (4) Respond 2xx echoing the dest path + an informational requestId [Inv-4].
-    return web.json_response(
-        {"destPath": written_rel, "requestId": request_id}, status=200
-    )
+    #     `destPath` echoes the path ACTUALLY written — the directive suffix is
+    #     gone, so the caller can see what landed rather than what it sent.
+    body: "dict[str, Any]" = {"destPath": written_rel, "requestId": request_id}
+    if stage5_fail_mode is not None:
+        body["failStage5"] = stage5_fail_mode
+    return web.json_response(body, status=200)
 
 
 async def _read_full_reprocess_flag(request: web.Request) -> bool:
@@ -1239,9 +1468,19 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
             full_reprocess,
             request_id,
         )
-        asyncio.run(
-            _pull_sync_then_walk(KH_PIPELINE_APP, full_reprocess, request_id)
-        )
+        # Consume any pending `?failStage5=` directive for THIS walk only
+        # (id-414 AC-6). No-op — and no env mutation whatsoever — unless a
+        # `/stage` call armed one; the context manager restores the
+        # environment in a `finally`, so a failed or fence-busy walk cannot
+        # leak the injected credential into the next pass. Surfaced on the
+        # walk-registry entry so `/walk-status` shows an injected walk for
+        # what it is rather than reporting an unexplained Stage-5 failure.
+        with stage5_failure_injection() as injected_mode:
+            if injected_mode is not None:
+                _walk_registry_update(request_id, stage5FailureInjected=injected_mode)
+            asyncio.run(
+                _pull_sync_then_walk(KH_PIPELINE_APP, full_reprocess, request_id)
+            )
         # Attribute the completed pass to the op_id `app_main` minted for IT:
         # only a holder value that DIFFERS from the pre-walk snapshot belongs
         # to this pass (op_ids are per-walk UUIDs — a real walk always

@@ -55,6 +55,9 @@ const POLL_TIMEOUT_MS = 180_000;
 const VARIANT_A = 'ISO 27001';
 const VARIANT_B = 'ISO27001';
 
+/** Two awaited walks in `beforeAll`, plus slack. */
+const SETUP_BUDGET_MS = WALK_BUDGET_MS * 2 + 30_000;
+
 beforeAll(async () => {
   if (!ENABLED) return;
   // Two fixtures sharing the TEST_PREFIX corpus — doc A carries 'ISO 27001',
@@ -77,7 +80,7 @@ beforeAll(async () => {
     destPath: `inv-3-dedup/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
-}, WALK_BUDGET_MS * 2 + 30_000);
+}, SETUP_BUDGET_MS);
 
 afterAll(async () => {
   if (!ENABLED) return;

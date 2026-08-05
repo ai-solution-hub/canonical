@@ -46,6 +46,7 @@ import signal
 import sys
 import threading
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Callable
 from unittest.mock import Mock, patch
 
@@ -1490,6 +1491,349 @@ class TestStagePathEscape:
         assert status == 400
         assert "error" in body
         assert not abs_target.exists()
+
+
+class TestStageDestPathQuerySuffix:
+    """id-414 AC-5/AC-7 — a `?...` tail on destPath never lands in a filename.
+
+    THE REGRESSION. The S522 nightly reported `completed` while dropping 159
+    per-item ingests, 19 of them `.xlsx?fullreprocess=1`: `/stage` wrote the
+    query tail verbatim, so the file on disk was literally named
+    `<name>.xlsx?fullreprocess=1`, extension routing did not recognise it, and
+    the item was dropped per-item.
+
+    These assert at the `/stage` BOUNDARY, deliberately. Extension routing
+    downstream is a backstop, and S516's lesson is that a backstop must not be
+    the only cover — re-adding the flow.py leak failed no test because
+    server.py's redaction absorbed it. The defect is here, so the test is here.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _disarm(self) -> Iterator[None]:
+        """No armed directive may leak between tests (or out of this class)."""
+        from scripts.cocoindex_pipeline.server import reset_stage5_failure_state
+
+        reset_stage5_failure_state()
+        yield
+        reset_stage5_failure_state()
+
+    def test_stage_400_on_query_suffix_and_writes_nothing(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The exact S522 drop class: `name.xlsx?fullreprocess=1` is refused."""
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"PK\x03\x04 fake-xlsx-bytes",
+                file_name="sector-spend.xlsx",
+                dest_path="forms/sector-spend.xlsx?fullreprocess=1",
+                title_prefix="P-414",
+            )
+        )
+        assert status == 400
+        # Named, client-correctable: the caller learns WHICH input was wrong.
+        assert "fullreprocess" in body["error"]
+
+        # Nothing written under ANY name — not the mangled one, and not a
+        # silently-stripped one either. Rejection means the corpus is untouched.
+        assert list(corpus.rglob("*")) == []
+
+    def test_no_written_corpus_filename_ever_contains_a_query_char(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The load-bearing property, asserted over the corpus tree itself.
+
+        Stated as "no path under the corpus root contains `?`" rather than as
+        "this one request 400s", so it still holds if a future suffix form is
+        accepted by some other route into the same corpus dir.
+        """
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        for dest in (
+            "a.xlsx?fullreprocess=1",
+            "nested/b.pdf?foo=bar&baz=1",
+            "c.docx?",
+            "d.doc?fullreprocess",
+        ):
+            status, _ = asyncio.run(
+                _exercise_stage(
+                    aiohttp_app,
+                    file_bytes=b"bytes",
+                    dest_path=dest,
+                    title_prefix="P-414",
+                )
+            )
+            assert status == 400, f"{dest!r} was not rejected"
+
+        assert [p for p in corpus.rglob("*") if "?" in p.name] == []
+        assert list(corpus.rglob("*")) == []
+
+    def test_stage_still_writes_a_clean_dest_path_unchanged(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The guard must not disturb the ordinary no-suffix path."""
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"clean",
+                dest_path="forms/clean.xlsx",
+                title_prefix="P-414",
+            )
+        )
+        assert status == 200
+        assert body["destPath"] == "forms/clean.xlsx"
+        assert (corpus / "forms" / "clean.xlsx").read_bytes() == b"clean"
+
+
+class TestStageFailStage5Directive:
+    """id-414 AC-6 — `?failStage5=<mode>` is stripped AND acted on.
+
+    The one allowlisted query suffix. `injectStage5Failure`
+    (`__tests__/integration/cocoindex/test-helpers.ts`) documents that the
+    service strips the suffix and applies the credential override for that run
+    only; these tests are what make that docstring true rather than aspirational.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _disarm(self) -> Iterator[None]:
+        from scripts.cocoindex_pipeline.server import reset_stage5_failure_state
+
+        reset_stage5_failure_state()
+        yield
+        reset_stage5_failure_state()
+
+    def test_directive_is_stripped_from_the_written_filename(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import stage5_failure_armed
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"PK\x03\x04",
+                file_name="inv12.xlsx",
+                dest_path="inv-12/inv12.xlsx?failStage5=embedder",
+                title_prefix="P-414",
+            )
+        )
+        assert status == 200
+        # Landed under the CLEAN name — extension routing sees `.xlsx`.
+        assert (corpus / "inv-12" / "inv12.xlsx").exists()
+        assert [p for p in corpus.rglob("*") if "?" in p.name] == []
+        # The response echoes what was written, and confirms the directive was
+        # understood rather than silently ignored.
+        assert body["destPath"] == "inv-12/inv12.xlsx"
+        assert body["failStage5"] == "embedder"
+        # ...and acted on: armed for the next walk.
+        assert stage5_failure_armed() == {
+            "mode": "embedder",
+            "destPath": "inv-12/inv12.xlsx",
+        }
+
+    def test_unknown_fail_mode_is_rejected_and_arms_nothing(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import stage5_failure_armed
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, body = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"bytes",
+                dest_path="inv-12/x.xlsx?failStage5=not-a-mode",
+                title_prefix="P-414",
+            )
+        )
+        assert status == 400
+        assert "not-a-mode" in body["error"]
+        # Names the modes that WOULD work — client-correctable (Inv-5).
+        assert "embedder" in body["error"]
+        assert list(corpus.rglob("*")) == []
+        assert stage5_failure_armed() is None
+
+    def test_a_rejected_stage_arms_nothing(
+        self,
+        aiohttp_app: web.Application,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A valid directive on a path that fails containment must not arm.
+
+        Otherwise a refused request would still poison the next walk.
+        """
+        from scripts.cocoindex_pipeline.server import stage5_failure_armed
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        monkeypatch.setenv("COCOINDEX_SOURCE_PATH", str(corpus))
+        status, _ = asyncio.run(
+            _exercise_stage(
+                aiohttp_app,
+                file_bytes=b"escape",
+                dest_path="../escaped.xlsx?failStage5=embedder",
+                title_prefix="P-414",
+            )
+        )
+        assert status == 400
+        assert not (tmp_path / "escaped.xlsx").exists()
+        assert stage5_failure_armed() is None
+
+    def test_injection_overrides_the_credential_for_one_walk_then_restores(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The 'for that run only' half of the contract, at the walk seam."""
+        from scripts.cocoindex_pipeline.server import (
+            _arm_stage5_failure,
+            stage5_failure_injection,
+        )
+
+        monkeypatch.setenv("OPENAI_API_KEY", "real-key")
+        _arm_stage5_failure("embedder", "inv-12/x.xlsx")
+
+        with stage5_failure_injection() as mode:
+            assert mode == "embedder"
+            # Overridden with a NON-EMPTY invalid value: an empty string would
+            # be treated as unset by the SDK guards and raise at client
+            # construction instead of returning the documented 401.
+            injected = os.environ["OPENAI_API_KEY"]
+            assert injected != "real-key"
+            assert injected != ""
+
+        assert os.environ["OPENAI_API_KEY"] == "real-key"
+
+        # One-shot: the directive was consumed, so the NEXT walk is clean.
+        with stage5_failure_injection() as mode:
+            assert mode is None
+            assert os.environ["OPENAI_API_KEY"] == "real-key"
+
+    def test_injection_restores_an_absent_credential_to_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline.server import (
+            _arm_stage5_failure,
+            stage5_failure_injection,
+        )
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        _arm_stage5_failure("embedder", "inv-12/x.xlsx")
+
+        with stage5_failure_injection():
+            assert "OPENAI_API_KEY" in os.environ
+
+        assert "OPENAI_API_KEY" not in os.environ
+
+    def test_injection_restores_when_the_walk_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failed walk must not leak the injected credential onward."""
+        from scripts.cocoindex_pipeline.server import (
+            _arm_stage5_failure,
+            stage5_failure_injection,
+        )
+
+        monkeypatch.setenv("OPENAI_API_KEY", "real-key")
+        _arm_stage5_failure("embedder", "inv-12/x.xlsx")
+
+        with pytest.raises(RuntimeError):
+            with stage5_failure_injection():
+                raise RuntimeError("walk blew up")
+
+        assert os.environ["OPENAI_API_KEY"] == "real-key"
+
+    def test_pair_resolver_mode_overrides_both_anthropic_credentials(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`AsyncAnthropic()` authenticates via either var — override both.
+
+        Overriding only ANTHROPIC_API_KEY would leave ANTHROPIC_AUTH_TOKEN
+        authenticating the call, and Stage 5 would not fail at all.
+        """
+        from scripts.cocoindex_pipeline.server import (
+            _arm_stage5_failure,
+            stage5_failure_injection,
+        )
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "real-anthropic-key")
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "real-anthropic-token")
+        _arm_stage5_failure("pair_resolver", "inv-12/x.xlsx")
+
+        with stage5_failure_injection() as mode:
+            assert mode == "pair_resolver"
+            assert os.environ["ANTHROPIC_API_KEY"] != "real-anthropic-key"
+            assert os.environ["ANTHROPIC_AUTH_TOKEN"] != "real-anthropic-token"
+
+        assert os.environ["ANTHROPIC_API_KEY"] == "real-anthropic-key"
+        assert os.environ["ANTHROPIC_AUTH_TOKEN"] == "real-anthropic-token"
+
+    def test_walk_registry_carries_the_injection_marker_to_walk_status(
+        self,
+    ) -> None:
+        """An injected walk must be attributable, not a mystery Stage-5 failure.
+
+        Covers the registry round-trip only. That `_run_walk` actually writes
+        this field is NOT covered here — it needs a real walk.
+        """
+        from scripts.cocoindex_pipeline.server import (
+            _walk_registry_update,
+            reset_walk_registry,
+            walk_registry_entry,
+        )
+
+        reset_walk_registry()
+        try:
+            _walk_registry_update("rid-414", status="running")
+            _walk_registry_update("rid-414", stage5FailureInjected="embedder")
+            entry = walk_registry_entry("rid-414")
+            assert entry is not None
+            # `_walk_status_handler` returns the entry verbatim, so a field on
+            # the entry is a field on the /walk-status body.
+            assert entry["stage5FailureInjected"] == "embedder"
+            assert entry["status"] == "running"
+        finally:
+            reset_walk_registry()
+
+    def test_unarmed_injection_touches_no_environment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The overwhelmingly common case: every ordinary walk is unaffected."""
+        from scripts.cocoindex_pipeline.server import stage5_failure_injection
+
+        monkeypatch.setenv("OPENAI_API_KEY", "real-key")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "real-anthropic-key")
+        before = dict(os.environ)
+
+        with stage5_failure_injection() as mode:
+            assert mode is None
+            assert dict(os.environ) == before
+
+        assert dict(os.environ) == before
 
 
 class TestStageContentTypeGuard:

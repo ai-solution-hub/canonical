@@ -51,19 +51,30 @@
 # C-31 already carries that correlation load, so no separate items_created
 # assertion was added (see that test file's docblock).
 #
-# Remaining exclusion (still NOT attempted, tracked as follow-up, NOT
-# silently dropped): stage-5-failure-non-destructive. Its beforeAll already
-# calls the real `injectStage5Failure` helper, but the helper's
-# `?failStage5=<mode>` directive is NOT understood by server.py's
-# `_stage_handler` today — landing it needs a scoped, concurrency-safe
-# design (the naive "clear the credential env var" approach the helper's
-# docblock describes would clobber every OTHER concurrently-processed
-# fixture's Stage-5 pass in this shared, single-process sidecar, since
-# `update_blocking()` processes the whole watched corpus per invocation, not
-# one file at a time) — deliberately out of scope for a "keep the diff
-# MINIMAL" pass, and doubly so with a parallel id-132 session possibly
-# touching pipeline files concurrently. The `--exclude` list below is this
-# file's OWN defer ledger — one entry, stage-5-failure-non-destructive. The
+# Remaining exclusion: stage-5-failure-non-destructive. The reason CHANGED at
+# id-414 AC-5/AC-6 (S535) and this note is rewritten rather than left lying:
+# the `?failStage5=<mode>` directive its `injectStage5Failure` helper sends IS
+# now implemented — `server.py`'s `_stage_handler` allowlists it, strips it,
+# and arms a one-shot walk-scoped credential override that `_run_walk`
+# consumes and restores in a `finally`.
+#
+# It stays excluded on a NARROWER, still-honest ground: nothing has yet
+# verified end-to-end against a live sidecar that the injected credential
+# actually yields the documented `AuthenticationError` on the MOCK tier — a
+# mock provider need not 401 on a bogus key — nor that flow.py then resolves
+# `status='failed'` with `error_class='entity_resolution_failed'`. Until one
+# run proves that, this spec is unverified and saying so is the point of this
+# ledger.
+#
+# The concurrency concern the previous note raised is REAL and was not solved,
+# it was scoped: Stage 5 is a per-RUN pass, not per-document, so "fail Stage 5
+# for one fixture" is not expressible at any seam — an armed directive fails
+# Stage 5 for every document in that walk. That is why the directive is
+# opt-in, one-shot, and restored in a `finally`, and it is documented at both
+# `server.py` and `test-helpers.ts`.
+#
+# The `--exclude` list below is this file's OWN defer ledger — one entry,
+# stage-5-failure-non-destructive. The
 # other 8 landed as real tests when the bl-227 stubs were built out. (Until
 # S525 this comment claimed the list was "copied VERBATIM" from the operator
 # script and then named an 8-item exception in the same sentence; the script
@@ -989,10 +1000,13 @@ jobs:
 
       - name: Run cocoindex Vitest go-live tier
         # File selection + --exclude list are OWNED HERE (id-412, S525 — see
-        # header). Only stage-5-failure-non-destructive remains excluded: the
-        # `?failStage5=` destPath directive it needs is not implemented by the
-        # live /stage route ({62.5}), so Stage-5 never fails and its
-        # assertions cannot pass. Every other formerly-deferred file now runs.
+        # header). Only stage-5-failure-non-destructive remains excluded. Its
+        # `?failStage5=` destPath directive IS implemented as of id-414
+        # AC-5/AC-6 (S535); what is still unproven is that the injected
+        # credential yields a real `AuthenticationError` on the MOCK tier and
+        # that flow.py resolves `status='failed'` from it. Excluded until one
+        # live run shows that — see the header note for the full reasoning.
+        # Every other formerly-deferred file now runs.
         #
         # Adding an --exclude here is declaring a test unverified. Say why, in
         # this comment, at the same time.

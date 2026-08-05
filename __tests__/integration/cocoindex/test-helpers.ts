@@ -16,10 +16,13 @@
  *     `pipeline_runs WHERE op_id = <value>` returns exactly one row (Inv-6).
  *   - `seedAliasMap(...)` / `cleanupAliasMap(...)` — INSERT active rows into
  *     `entity_aliases` and remove them in cleanup (Inv-10 preload).
- *   - `injectStage5Failure(...)` — config-only Stage-5 failure injection
- *     (Inv-12/13) that produces a REAL exception from inside the resolution
- *     stack WITHOUT any production-code hook. See the dedicated docblock on
- *     that function for the chosen mechanism + observed exception classes.
+ *   - `injectStage5Failure(...)` — credential-scoped Stage-5 failure injection
+ *     (Inv-12/13) that produces a REAL exception from inside an UNMODIFIED
+ *     resolution stack. The injection is honoured by the `/stage` + `/walk`
+ *     directive plumbing in `server.py` (id-414 AC-6); stage_5.py, flow.py,
+ *     entity_embedder.py and pair_resolver.py carry no test hook. See the
+ *     dedicated docblock on that function for the mechanism, the blast
+ *     radius, and the observed exception classes.
  *
  * Env-gate: every caller MUST compute the canonical
  * `ENABLED = HAS_STAGING_URL && HAS_SOURCE_PATH && HAS_FIXTURE_STAGING &&
@@ -580,14 +583,44 @@ export async function cleanupAliasMap(aliasIds: string[]): Promise<void> {
  *      mechanism (used when a test needs a PairResolver-stack failure
  *      specifically).
  *
- * The staging service performs the failure injection by running the staged
- * fixture's pipeline with the requested credential(s) cleared for that run
- * (`failMode: 'embedder'` clears the embedding provider key; `failMode:
- * 'pair_resolver'` clears `ANTHROPIC_API_KEY`). The request body extends the
- * standard stageFixture contract with a `failStage5` directive; a staging
- * service that does not understand the directive returns a 4xx and the test's
- * env-gate skip-clean masks it (the directive only fires when the suite is
- * ENABLED, i.e. the fixture-staging service is wired).
+ * ───────────────────────────────────────────────────────────────────────────
+ * HOW THE DIRECTIVE TRAVELS AND WHERE IT IS HONOURED (id-414 AC-6)
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ * Transport: the directive rides as a query-style suffix on `destPath`
+ * (`<path>?failStage5=<mode>`), which keeps this helper inside the existing
+ * 3-field `stageFixture` contract — no fourth field, no excess property. It
+ * is NOT a separate request-body field; an earlier revision of this docblock
+ * said it was, and that was never true of the code below.
+ *
+ * Server side (`scripts/cocoindex_pipeline/server.py`):
+ *   1. `_stage_handler` STRIPS the suffix off `destPath` before writing, so
+ *      the file lands as `<path>` and extension routing sees a real
+ *      extension. The 200 body echoes the path actually written plus a
+ *      `failStage5` field confirming the directive was understood.
+ *   2. The directive is then ARMED, one-shot, for the next `POST /walk`.
+ *      `_run_walk` consumes it via `stage5_failure_injection()`, which
+ *      overrides that mode's credential env vars with an invalid sentinel for
+ *      the duration of that ONE walk and restores the previous environment in
+ *      a `finally`. `failMode: 'embedder'` overrides `OPENAI_API_KEY`;
+ *      `failMode: 'pair_resolver'` overrides `ANTHROPIC_API_KEY` +
+ *      `ANTHROPIC_AUTH_TOKEN`. An INVALID value is used rather than an unset
+ *      one so the provider returns a real 401 (the documented
+ *      `AuthenticationError` classes below) instead of the SDK raising at
+ *      client construction.
+ *   3. `/walk-status` reports `stage5FailureInjected` on an injected walk, so
+ *      the injection is attributable rather than looking like a spontaneous
+ *      Stage-5 failure.
+ *
+ * A staging service that does not understand the suffix returns a 400 (the
+ * route rejects every unrecognised `?...` tail), and the test's env-gate
+ * skip-clean masks it — the directive only fires when the suite is ENABLED.
+ *
+ * BLAST RADIUS — read before arming this in a shared corpus. Stage 5 is a
+ * per-RUN resolution pass, not a per-document step, so an armed directive
+ * fails Stage 5 for EVERY document in that walk, not only this fixture. The
+ * credential override is process-wide for the walk's duration. Do not arm it
+ * while other fixtures in the same walk need a healthy Stage 5.
  *
  * ───────────────────────────────────────────────────────────────────────────
  * OBSERVED / EXPECTED EXCEPTION CLASSES (input for Subtask {53.15})
@@ -655,26 +688,30 @@ export const STAGE5_FAILURE_EXCEPTION_CLASSES: Record<
 };
 
 /**
- * Stage a fixture configured to fail inside the Stage-5 resolution pass.
- * Delegates to `stageFixture` with an extended request directive; the staging
- * service clears the relevant credential for that run only. Returns the
- * stageFixture result (destPath + requestId).
+ * Stage a fixture whose next walk's Stage-5 pass is configured to fail.
  *
- * The function itself adds no prod-code hook — the failure arises naturally
- * from the credential-cleared model call inside the unmodified resolution
- * stack. See the function-family docblock above for the full rationale.
+ * Returns the `stageFixture` result. Note that `result.destPath` is the path
+ * the server ACTUALLY wrote — the `?failStage5=` suffix has been stripped —
+ * so it is the value to poll or clean up against, not the string passed in.
+ *
+ * The failure arises from a real credential-rejected model call inside the
+ * UNMODIFIED resolution stack (stage_5.py / entity_embedder.py /
+ * pair_resolver.py are untouched); the only production code involved is the
+ * `/stage` + `/walk` directive plumbing in server.py described in the
+ * function-family docblock above, which is where the credential override is
+ * scoped and restored.
  */
 export async function injectStage5Failure(
   args: InjectStage5FailureArgs,
 ): Promise<StageFixtureResult> {
   const failMode: Stage5FailMode = args.failMode ?? 'embedder';
-  // The failMode directive is carried on the `destPath` as a query-style
-  // suffix (`?failStage5=<mode>`) — the fixture-staging service strips it
-  // before writing the file and uses it to clear the relevant credential for
-  // that run only. This keeps `injectStage5Failure` within the existing
-  // 3-field `stageFixture` contract (no excess properties, no prod-code hook).
-  // A staging service that does not understand the suffix 4xxs, and the
-  // env-gate skip masks it (only ENABLED suites reach this call).
+  // The directive rides as a query-style suffix on `destPath`, keeping this
+  // helper inside the existing 3-field `stageFixture` contract (no excess
+  // properties). `_stage_handler` strips the suffix before writing and arms
+  // the injection for the next walk; every OTHER `?...` tail is a named 400,
+  // so a staging service without this contract rejects the call loudly rather
+  // than writing a file named `<path>?failStage5=<mode>`. The env-gate skip
+  // masks that rejection (only ENABLED suites reach this call).
   return stageFixture({
     fixturePath: args.fixturePath,
     destPath: `${args.destPath}?failStage5=${failMode}`,

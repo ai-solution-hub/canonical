@@ -124,6 +124,9 @@ const POLL_TIMEOUT_MS = 120_000;
 // Lifecycle.
 // ---------------------------------------------------------------------------
 
+/** One awaited walk plus the landing poll, plus slack. */
+const SETUP_BUDGET_MS = WALK_BUDGET_MS + POLL_TIMEOUT_MS + 30_000;
+
 beforeAll(async () => {
   if (!ENABLED) return;
   // Pass 1: drop the fixture, then wait for the flow run to complete and the
@@ -139,7 +142,7 @@ beforeAll(async () => {
     timeoutMs: POLL_TIMEOUT_MS,
   });
   for (const r of items) seededContentIds.push(r.id);
-}, WALK_BUDGET_MS + POLL_TIMEOUT_MS + 30_000);
+}, SETUP_BUDGET_MS);
 
 afterAll(async () => {
   if (!ENABLED) return;
