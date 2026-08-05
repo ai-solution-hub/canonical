@@ -2,10 +2,10 @@
  * AI tool registrations (1 tool):
  *  11. generate_summary
  *
- * classify_content retired S531 (id-419): no id-71 contract outcome named
- * it, and the subject-classification axis it triggered is transitional
- * under DR-125. Library-level classification (`classifyContent`) stays —
- * the MCP governance publish path still runs it for entities/embeddings.
+ * classify_content retired S531 (id-419); the library-level classification
+ * stage (`lib/ai/classify.ts`) followed under DR-130 — the per-document
+ * subject-classification stage is deleted entirely, including the MCP
+ * governance publish-time pass.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

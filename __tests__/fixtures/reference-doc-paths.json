@@ -12,6 +12,7 @@
     "app/api/procurement/[id]/outcome/integrate/route.ts",
     "app/api/upload/route.ts",
     "lib/ai-parse.ts",
+    "lib/ai/classify.ts",
     "lib/ai/embed.ts",
     "lib/ai/errors.ts",
     "lib/ai/skills/classification.md",
@@ -21,6 +22,8 @@
     "lib/entities/entity-aliases.ts",
     "lib/entities/entity-context.ts",
     "lib/entities/entity-dedup.ts",
+    "lib/entities/entity-metadata-bridge.ts",
+    "lib/entities/temporal-reconciliation.ts",
     "lib/intelligence/pipeline.ts",
     "lib/layer-inference.ts",
     "lib/mcp/plugin-bundle.ts",
@@ -28,6 +31,8 @@
     "lib/quality/quality-score.ts",
     "lib/validation/schemas.ts",
     "scripts/bundle-plugin.ts",
+    "scripts/generate-classification-prompt-taxonomy.ts",
+    "scripts/generate-taxonomy-snapshot.ts",
     "scripts/import_bid_library.py",
     "scripts/ingest_markdown.py",
     "scripts/kb_pipeline/classify.py",
@@ -35,7 +40,8 @@
     "scripts/kb_pipeline/layer_inference.py",
     "scripts/kb_pipeline/pipeline.py",
     "scripts/kb_pipeline/store.py",
-    "scripts/sync-plugin-taxonomy.ts"
+    "scripts/sync-plugin-taxonomy.ts",
+    "scripts/tests/fixtures/taxonomy_snapshot.json"
   ],
   "contentItems": {
     "_comment": "data-entry-points.md content_items-INSERT completeness scan (doc-freshness.test.ts:100-187). Every file under app/api + lib/mcp/tools that INSERTs into content_items (route.ts or lib/mcp/tools/*) must be in entryPoints (documented data entry point) OR allowedUnreferenced (modifies existing items / auxiliary). A new inserter in neither list fails the guard.",

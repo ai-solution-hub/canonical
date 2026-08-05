@@ -29,9 +29,6 @@ import type { GroundingShape } from '@/lib/eval/contract';
  * Pass-1 analysis and the citation Pass-2 draft as distinct touchpoints).
  */
 export type AiTouchpointId =
-  | 'classify.classifyContent'
-  | 'classify.classifyText'
-  | 'classify.validateEntities'
   | 'draft.analyseQuestion'
   | 'draft.draftResponse'
   | 'quality-check.runAIQualityCheck'
@@ -50,11 +47,6 @@ export type AiTouchpointId =
  * declared shape is a B-INV-35 violation.
  */
 export const AI_TOUCHPOINT_GROUNDING: Record<AiTouchpointId, GroundingShape> = {
-  // classify.ts — three forced-tool extraction passes.
-  'classify.classifyContent': 'forced_tool_strict',
-  'classify.classifyText': 'forced_tool_strict',
-  'classify.validateEntities': 'forced_tool_strict',
-
   // draft.ts — the 3-pass split keeps structured Pass 1 separate from citation
   // Pass 2 (Pass 3 is quality-check.ts). Citations and structured outputs are
   // never combined, so these stay distinct touchpoints.

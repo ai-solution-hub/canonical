@@ -224,28 +224,10 @@ export const POST = withRequestContext(
         warnings.push('Embedding generation failed');
       }
 
-      // 9. Classification — POPULATE-UNLESS-ERROR (ID-110 {110.6} DELTA c).
-      // Run the pure classifyText() classifier UNCONDITIONALLY to populate
-      // primary_domain/primary_subtopic; pass NULL ONLY if it throws. The
-      // reference columns are nullable and reference_search projects both for a
-      // later backfill, but null-when-inconvenient is avoidable data skew, so we
-      // classify here in-request (the manual path is now lighter than before —
-      // no entity/temporal/summary passes).
-      let primaryDomain: string | null = null;
-      let primarySubtopic: string | null = null;
-      try {
-        const { classifyText } = await import('@/lib/ai/classify');
-        const classified = await classifyText({
-          supabase,
-          title,
-          content: body,
-        });
-        primaryDomain = classified.primary_domain;
-        primarySubtopic = classified.primary_subtopic;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        warnings.push(`Classification failed: ${msg}`);
-      }
+      // 9. Subject classification retired (DR-130): the per-document LLM
+      // classification stage is gone, so p_primary_domain/p_primary_subtopic
+      // are always NULL here. The RPC params themselves fall away with the
+      // column drops in the DDL wave.
 
       // 10. Provenance fields for the source_documents row (TECH §1.4/§1.5).
       // filename guarded non-empty (source_documents.filename NOT NULL — ENG-FIX).
@@ -281,8 +263,8 @@ export const POST = withRequestContext(
         p_title: title || filename,
         p_body: body,
         p_summary: summary,
-        p_primary_domain: primaryDomain,
-        p_primary_subtopic: primarySubtopic,
+        p_primary_domain: null,
+        p_primary_subtopic: null,
         p_embedding: embeddingValue,
         p_published_at: null,
         p_filename: filename,

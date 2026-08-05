@@ -2,8 +2,8 @@
   "_meta": {
     "extracted_from": "docs/ontology/*.md frontmatter at public commit 96bdc1fa (ID-68.27 OQ-E branch (b) cutover)",
     "live_source": "${KH_PRIVATE_DOCS_DIR}/src/content/docs/ontology/ (private docs-site repo, canonical home)",
-    "purpose": "Frozen parity baselines for the CVs with lib-side counterparts: content_type, requirement_type, form_type. ID-133 BI-5 added the two KG-ontology CVs entity_type (Layer 5) + relationship (Layer 6) as the public mirror of the extraction.py Literals - each baseline value carries the per-value provenance keys (provenance_model/client_extensible/editable_via); their Python Literal == TS const == this fixture is enforced by TestEntityTypeParity / TestRelationshipParity in scripts/tests/test_cocoindex_extraction.py. The platform CV was dropped with the 05-platform register file (id-417 S535 DROP ruling), and the taxonomy_snapshot.json parity legs retired with the snapshot (DR-130).",
-    "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change."
+    "purpose": "Frozen parity baselines for the CVs with lib-/snapshot-side counterparts: content_type, platform, requirement_type, form_type. ID-133 BI-5 added the two KG-ontology CVs entity_type (Layer 5) + relationship (Layer 6) as the public mirror of the extraction.py Literals — each baseline value carries the per-value provenance keys (provenance_model/client_extensible/editable_via); their Python Literal == TS const == this fixture is enforced by TestEntityTypeParity / TestRelationshipParity in scripts/tests/test_cocoindex_extraction.py.",
+    "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change that regenerates scripts/tests/fixtures/taxonomy_snapshot.json (bun run sync:taxonomy)."
   },
   "cvs": [
     {
@@ -13,10 +13,7 @@
       "client_extensible": false,
       "editable_via": "database_migration",
       "core_seed_path": null,
-      "related_layers": [
-        2,
-        5
-      ],
+      "related_layers": [2, 5],
       "status": "active",
       "baseline_values": [
         {
@@ -57,16 +54,55 @@
       ]
     },
     {
+      "cv_name": "platform",
+      "layer": 1,
+      "provenance_model": "core",
+      "client_extensible": false,
+      "editable_via": "database_migration",
+      "core_seed_path": null,
+      "related_layers": [2],
+      "status": "active",
+      "baseline_values": [
+        {
+          "key": "web",
+          "label": "Web",
+          "provenance": "core"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "provenance": "core"
+        },
+        {
+          "key": "manual",
+          "label": "Manual",
+          "provenance": "core"
+        },
+        {
+          "key": "upload",
+          "label": "Upload",
+          "provenance": "core"
+        },
+        {
+          "key": "extraction",
+          "label": "Extraction",
+          "provenance": "core"
+        },
+        {
+          "key": "other",
+          "label": "Other",
+          "provenance": "core"
+        }
+      ]
+    },
+    {
       "cv_name": "requirement_type",
       "layer": 1,
       "provenance_model": "hybrid",
       "client_extensible": true,
       "editable_via": "admin_ui",
       "core_seed_path": "scripts/seed/baseline-requirement-types.sql",
-      "related_layers": [
-        2,
-        5
-      ],
+      "related_layers": [2, 5],
       "status": "active",
       "baseline_values": [
         {
@@ -113,71 +149,50 @@
       "client_extensible": true,
       "editable_via": "admin_ui",
       "core_seed_path": "supabase/seed.sql",
-      "related_layers": [
-        2,
-        3,
-        5
-      ],
+      "related_layers": [2, 3, 5],
       "status": "active",
       "baseline_values": [
         {
           "key": "rfp",
           "label": "RFP (Request For Proposal)",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement"
-          ]
+          "applicable_application_types": ["procurement"]
         },
         {
           "key": "psq",
           "label": "Selection Questionnaire (SQ/PSQ)",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement"
-          ]
+          "applicable_application_types": ["procurement"]
         },
         {
           "key": "itt",
           "label": "ITT (Invitation To Tender)",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement"
-          ]
+          "applicable_application_types": ["procurement"]
         },
         {
           "key": "tender",
           "label": "Tender",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement"
-          ]
+          "applicable_application_types": ["procurement"]
         },
         {
           "key": "checklist",
           "label": "Checklist",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement",
-            "sales_proposal",
-            "product_guide"
-          ]
+          "applicable_application_types": ["procurement", "sales_proposal", "product_guide"]
         },
         {
           "key": "questionnaire",
           "label": "Questionnaire",
           "provenance": "core",
-          "applicable_application_types": [
-            "procurement",
-            "competitor_research"
-          ]
+          "applicable_application_types": ["procurement", "competitor_research"]
         },
         {
           "key": "sales_proposal_template",
           "label": "Sales Proposal Template",
           "provenance": "core",
-          "applicable_application_types": [
-            "sales_proposal"
-          ]
+          "applicable_application_types": ["sales_proposal"]
         }
       ]
     },
@@ -188,9 +203,7 @@
       "client_extensible": true,
       "editable_via": "database_migration",
       "core_seed_path": null,
-      "related_layers": [
-        6
-      ],
+      "related_layers": [6],
       "status": "active",
       "baseline_values": [
         {
@@ -298,9 +311,7 @@
       "client_extensible": true,
       "editable_via": "database_migration",
       "core_seed_path": null,
-      "related_layers": [
-        5
-      ],
+      "related_layers": [5],
       "status": "active",
       "baseline_values": [
         {

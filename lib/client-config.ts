@@ -78,23 +78,6 @@ export interface ClientConfig {
     /** Informal product name to avoid, e.g. "product" */
     product_short: string;
   };
-  /**
-   * Client-specific classification disambiguation rules.
-   *
-   * Interpolated into the `{CLIENT_DISAMBIGUATION}` placeholder in
-   * `lib/ai/skills/classification.md` via `lib/ai/classify.ts`. Each rule may contain
-   * `{CLIENT_PRODUCT_NAME}`, `{CLIENT_ORGANISATION_NAME}`, etc.
-   * placeholders — these are resolved by the subsequent `.replaceAll`
-   * chain at the prompt-assembly call site.
-   *
-   * Multi-client readiness note: these rules are the only client-
-   * specific classification knobs outside the skill file itself. When a
-   * new client is onboarded (e.g. demo DB or a client DB branch), their
-   * rules go here rather than being hardcoded in `classify.ts`. See
-   * `docs/specs/entity-classification-prompt-tightening-spec.md` §13 Q6
-   * resolution.
-   */
-  classification_disambiguation_rules: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -145,15 +128,6 @@ export const CLIENT_CONFIG = {
     product_name: 'Example Product',
     product_short: 'product',
   },
-
-  classification_disambiguation_rules: [
-    '"{CLIENT_PRODUCT_NAME}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.',
-    'Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.',
-    'Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.',
-    'Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.',
-    'Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial-standing.',
-    'When "{CLIENT_ORGANISATION_NAME}" or its short form "{CLIENT_ORGANISATION_SHORT}" appears verbatim in content — including first-party Q&A answers where it reads as a self-reference (e.g. "{CLIENT_ORGANISATION_SHORT} is complying", "{CLIENT_ORGANISATION_SHORT} must", "{CLIENT_ORGANISATION_SHORT} Project Manager", "Phase 2. Implementation ({CLIENT_ORGANISATION_SHORT})") — extract it as an `organisation` entity. Client self-references are named entities, NOT pronouns. The alias map normalises the short form to the full formal name, so extracting the verbatim short form is correct.',
-  ],
 
   layer_vocabulary: [
     {
@@ -207,23 +181,9 @@ export function isFeatureEnabled(feature: FeatureName): boolean {
   return CLIENT_CONFIG.features[feature].enabled;
 }
 
-/**
- * Build the `{CLIENT_DISAMBIGUATION}` block inserted into the
- * classification skill prompt. Returns a markdown bullet list of the
- * client's disambiguation rules.
- *
- * Placeholders inside the rules (`{CLIENT_PRODUCT_NAME}` etc.) are NOT
- * resolved here — they are resolved by the caller's subsequent
- * `.replaceAll` chain after `{CLIENT_DISAMBIGUATION}` substitution.
- *
- * Called from:
- *   - `lib/ai/classify.ts` (TypeScript classification pipeline)
- */
-export function buildDisambiguationBlock(): string {
-  return CLIENT_CONFIG.classification_disambiguation_rules
-    .map((rule) => `- ${rule}`)
-    .join('\n');
-}
+// (buildDisambiguationBlock + classification_disambiguation_rules were
+// retired with the TS classification stage, DR-130 — the Python pipeline
+// carries its own prompt.)
 
 // ---------------------------------------------------------------------------
 // OKLCH parser — single source of truth

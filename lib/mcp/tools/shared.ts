@@ -177,10 +177,6 @@ export async function getGenerateEmbedding() {
   const { generateEmbedding } = await import('@/lib/ai/embed');
   return generateEmbedding;
 }
-export async function getClassifyContent() {
-  const { classifyContent } = await import('@/lib/ai/classify');
-  return classifyContent;
-}
 export async function getGenerateSummary() {
   const { generateSummary } = await import('@/lib/ai/summarise');
   return generateSummary;

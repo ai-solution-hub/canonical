@@ -9,7 +9,7 @@ import { SKILLS } from '@/lib/ai/skills/inlined.generated';
  * deployment bundling).
  *
  * Async signature preserved for backwards compatibility with existing
- * callers (lib/ai/classify.ts, lib/ai/draft.ts, lib/mcp/resources.ts).
+ * callers (lib/domains/procurement/ai/draft.ts).
  */
 export async function loadSkill(name: string): Promise<string> {
   const content = SKILLS[name];
