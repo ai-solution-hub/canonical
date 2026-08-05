@@ -55,8 +55,20 @@ const TERMINAL_REGISTRY_STATUSES = new Set([
  * `requestWalk` meets the single-flight 409 and burns its own budget
  * re-requesting. Express hook budgets as multiples of this constant rather
  * than as literals, so a change here propagates to every caller.
+ *
+ * MEASURED, run 30989321051 (2026-08-05, S535): the nightly's own baseline
+ * walk step logged `walk completed ... after 351s overall (fence-busy
+ * retries=0)` — ONE clean pass over a 14-file corpus, no contention. The
+ * previous 300_000 ceiling therefore killed every awaited walk roughly 50s
+ * before it would have finished, and thirteen specs in that run each burned
+ * exactly ~300_390ms proving it. 600_000 is ~1.7x the measured pass.
+ *
+ * This is a CEILING, not a spend: a walk that completes costs what it costs,
+ * so raising it lengthens only the broken path. If a walk legitimately needs
+ * more than this, the walk is the defect — do not raise the ceiling again
+ * without a fresh measurement recorded here.
  */
-export const WALK_BUDGET_MS = 300_000;
+export const WALK_BUDGET_MS = 600_000;
 
 const DEFAULT_WALK_TIMEOUT_MS = WALK_BUDGET_MS;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;

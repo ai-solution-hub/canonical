@@ -35,6 +35,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor, UUID_V4_REGEX } from './test-helpers';
 
 // PLANE MISMATCH — id-415's work list (measured by id-412, S524).
@@ -71,7 +72,7 @@ beforeAll(async () => {
     destPath: `inv-5/${RUN_A_PREFIX}.xlsx`,
     titlePrefix: RUN_A_PREFIX,
   });
-}, 600_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

@@ -47,6 +47,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import {
   pollEntityMentionsFor,
   readEntityResolutionStageCount,
@@ -73,7 +74,7 @@ beforeAll(async () => {
     destPath: `inv-20/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
-}, 600_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;

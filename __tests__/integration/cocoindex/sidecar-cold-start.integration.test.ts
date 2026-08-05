@@ -60,6 +60,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { FORM_TEMPLATE } from './_helpers/fixtures';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -103,7 +104,7 @@ beforeAll(async () => {
     destPath: `inv-10/${TEST_PREFIX}.pdf`,
     titlePrefix: TEST_PREFIX,
   });
-}, 600_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
