@@ -345,7 +345,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
     {
       title: 'Create Guide',
       description:
-        'Create a new guide with optional sections. Guides organise knowledge base content into structured views by domain, subtopic, and content type. Requires editor or admin role. Set is_published to false (default) to create as draft. Use the kb://taxonomy resource for valid domain values.',
+        'Create a new guide with optional sections. Guides organise knowledge base content into curated structured views. Requires editor or admin role. Set is_published to false (default) to create as draft.',
       inputSchema: {
         name: guideCreateSchema.shape.name.describe('Guide name'),
         slug: guideCreateSchema.shape.slug.describe(
@@ -381,9 +381,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
                 .string()
                 .optional()
                 .nullable()
-                .describe(
-                  'Valid layer key — see kb://taxonomy resource for current values',
-                ),
+                .describe('Valid layer key (layer vocabulary)'),
               subtopic_filter: z
                 .string()
                 .optional()
@@ -619,9 +617,7 @@ export async function registerGuideTools(server: McpServer): Promise<void> {
                 .string()
                 .optional()
                 .nullable()
-                .describe(
-                  'Valid layer key — see kb://taxonomy resource for current values',
-                ),
+                .describe('Valid layer key (layer vocabulary)'),
               subtopic_filter: z
                 .string()
                 .nullable()

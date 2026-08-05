@@ -138,7 +138,6 @@ function buildMcpClient() {
 
 const baseArgs = {
   reviewer_id: REVIEWER_ID,
-  filter_domains: [],
   filter_content_types: [],
   filter_freshness: [],
 };
