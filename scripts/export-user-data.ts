@@ -513,8 +513,6 @@ export interface AuditTrailBundle {
   tag_morphology_drift_flags: Record<string, unknown>[];
   review_assignments: Record<string, unknown>[];
   source_documents: Record<string, unknown>[];
-  taxonomy_domains: Record<string, unknown>[];
-  taxonomy_subtopics: Record<string, unknown>[];
   processing_queue: Record<string, unknown>[];
   pipeline_runs: Record<string, unknown>[];
   ingestion_quality_log: Record<string, unknown>[];
@@ -668,8 +666,6 @@ export async function assembleAuditTrailBundle(
     tagMorphologyDriftFlags,
     reviewAssignments,
     sourceDocuments,
-    taxonomyDomains,
-    taxonomySubtopics,
     processingQueue,
     pipelineRuns,
     ingestionQualityLog,
@@ -723,8 +719,6 @@ export async function assembleAuditTrailBundle(
       ['archived_by', 'uploaded_by', 'updated_by'],
       subjectUuid,
     ),
-    fetchByColumn(client, 'taxonomy_domains', 'recommended_by', subjectUuid),
-    fetchByColumn(client, 'taxonomy_subtopics', 'recommended_by', subjectUuid),
     fetchByColumn(client, 'processing_queue', 'created_by', subjectUuid),
     fetchByColumn(client, 'pipeline_runs', 'created_by', subjectUuid),
     fetchByAnyColumn(
@@ -759,8 +753,6 @@ export async function assembleAuditTrailBundle(
     tag_morphology_drift_flags: tagMorphologyDriftFlags,
     review_assignments: reviewAssignments,
     source_documents: sourceDocuments,
-    taxonomy_domains: taxonomyDomains,
-    taxonomy_subtopics: taxonomySubtopics,
     processing_queue: processingQueue,
     pipeline_runs: pipelineRuns,
     ingestion_quality_log: ingestionQualityLog,

@@ -10,7 +10,7 @@
 -- --------
 -- 1. SCHEMA-ONLY DATA: only data that is true across ALL client deployments.
 --    Per-client data (product guides, sector guides, client-specific
---    taxonomy customisations, real bid Q&A, company profiles) lives elsewhere
+--    CV overlays, real bid Q&A, company profiles) lives elsewhere
 --    — see `docs/runbooks/staging-refresh.md` "Per-client seeding" section.
 --
 -- 2. IDEMPOTENT: every INSERT uses `ON CONFLICT … DO NOTHING` or the
@@ -274,8 +274,9 @@ ON CONFLICT (id) DO NOTHING;
 -- ======================================================================
 -- id-417 C6/B2: the weekly staging-reference-refresh workflow that used to
 -- populate these lookup tables from Platform prod is RETIRED. §4 below is now
--- the sole source of the reference baseline (taxonomy_domains,
--- taxonomy_subtopics, layer_vocabulary, entity_aliases),
+-- the sole source of the reference baseline (layer_vocabulary,
+-- entity_aliases — the taxonomy_domains/taxonomy_subtopics rows retired with
+-- their tables at 20260805190000, DR-130),
 -- so a fresh/reset DB always has the client-agnostic ontology CI depends on.
 -- Tables with user-referencing data use the deterministic fixtures above.
 -- form_requirement_templates is populated by ingest, not by seed.
@@ -293,81 +294,11 @@ ON CONFLICT (id) DO NOTHING;
 -- §4  Core ontology reference data (baseline/core provenance only — NO client data; see ID/bl platform-seed)
 -- ======================================================================
 -- Pulled from old-prod (provenance-tagged) restricted to the client-agnostic
--- CORE/BASELINE subset that is safe for this PUBLIC repo. EXCLUDES every
--- provenance='client' row and provenance='recommended' subtopics. UUIDs are
--- preserved verbatim so taxonomy_subtopics.domain_id -> taxonomy_domains.id
--- resolves. Idempotent via ON CONFLICT on the natural key. FK-safe order:
--- taxonomy_domains -> taxonomy_subtopics; the other three are independent.
+-- CORE/BASELINE subset that is safe for this PUBLIC repo. UUIDs are preserved
+-- verbatim. Idempotent via ON CONFLICT on the natural key; the two blocks are
+-- independent. (§4a/4b taxonomy_domains + taxonomy_subtopics retired with
+-- their tables at 20260805190000, DR-130.)
 -- Re-derivable from the docs-site ontology config (ontology/01..03) + old-prod.
-
--- 4a. taxonomy_domains (7 baseline; natural key = name)
-INSERT INTO public.taxonomy_domains
-  (id, name, description, display_order, colour, is_active, provenance, display_name, key_signal)
-VALUES
-  ('17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'security', 'Information security, data protection, cyber security, and access control policies and practices.', 1, 'security', true, 'baseline', 'security', $tok$**Key signal:** Content about protecting information, systems, and data —
-controls, policies, and security practices. The substance is about HOW security
-is managed, not merely that a certification exists.$tok$),
-  ('8d6c0b63-f77c-4021-a54b-15c07fa04420', 'compliance', 'Regulatory compliance, industry standards, certifications, and audit processes.', 2, 'compliance', true, 'baseline', 'compliance', $tok$**Key signal:** Content about proving adherence to external requirements —
-standards bodies, regulators, auditors. The focus is on the obligation or
-evidence, not the underlying practice. For H&S, environmental, and modern
-slavery subtopics, the signal is physical safety, environmental impact, or
-ethical supply chain — not information security or data protection.$tok$),
-  ('7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b', 'implementation', 'Solution deployment, system migration, client onboarding, and third-party integration.', 3, 'implementation', true, 'baseline', 'implementation', $tok$**Key signal:** Content about concrete delivery activities — what happens, when
-it happens, and how the transition is managed. Answers the question "What do you
-do to get the client live?"$tok$),
-  ('d234988f-f548-4ea6-afbd-3aa7969674bd', 'support', 'Service level agreements, helpdesk operations, maintenance, and incident management.', 4, 'support', true, 'baseline', 'support', $tok$**Key signal:** Content about keeping a live service running — BAU operations,
-response commitments, and what happens when things go wrong. Answers the
-question "How do you look after the service once it is live?"$tok$),
-  ('2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'corporate', 'Company information, financial standing, insurance, references, and staffing.', 5, 'corporate', true, 'baseline', 'corporate', $tok$**Key signal:** Content about the organisation itself — who you are, your track
-record, your people, and your financial health. Answers the question "Tell us
-about your company."$tok$),
-  ('609bbcc4-ea14-4d74-b53d-d074ddce19a4', 'product-feature', 'Product functionality, technical capabilities, reporting, and usability.', 6, 'product', true, 'baseline', 'product-feature', $tok$**Key signal:** Content about what the product or platform CAN do — its
-capabilities, architecture, and user experience. Answers the question "What does
-your system do?"$tok$),
-  ('047b2b0f-59a1-4242-bbc8-b912c57d29aa', 'methodology', 'Project delivery approach, project management, quality assurance, and delivery frameworks.', 7, 'methodology', true, 'baseline', 'methodology', $tok$**Key signal:** Content about HOW you work — your processes, governance, and
-quality practices. Answers the question "What is your approach to delivering
-projects?"$tok$)
-ON CONFLICT (name) DO NOTHING;
-
--- 4b. taxonomy_subtopics (34 baseline; natural key = (domain_id, name))
-INSERT INTO public.taxonomy_subtopics
-  (id, domain_id, name, description, display_order, is_active, provenance, display_name)
-VALUES
-  ('de0bd12e-607c-43e2-bfa3-e372096ff66e', '17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'data-protection', 'GDPR, data handling, privacy policies, data retention and disposal', 1, true, 'baseline', 'data-protection'),
-  ('cf09c33d-f7a3-4cd3-884c-867745b882ad', '17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'cyber-security', 'Threat detection, vulnerability management, penetration testing, security monitoring', 2, true, 'baseline', 'cyber-security'),
-  ('338e233d-a056-4267-b50d-304ea9aa90b8', '17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'encryption', 'Data encryption at rest and in transit, key management, cryptographic standards', 3, true, 'baseline', 'encryption'),
-  ('844b1177-4da2-40b6-bd13-83b14c4456d0', '17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'access-control', 'Authentication, authorisation, role-based access, multi-factor authentication', 4, true, 'baseline', 'access-control'),
-  ('d40979c1-ec77-4d2b-aca0-b8be8c748c06', '17d9f23f-1c4f-4d6d-b9c3-f37c178a547e', 'iso-27001', 'ISO 27001 certification, ISMS, security management framework compliance', 5, true, 'baseline', 'iso-27001'),
-  ('5a9fef89-13a0-4512-84d1-0aacd31707aa', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'standards', 'Industry standards compliance, best practice frameworks, governance requirements', 1, true, 'baseline', 'standards'),
-  ('b7486e15-de9b-4e85-9e01-ed1d0ba0df53', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'regulatory', 'Legal and regulatory requirements, sector-specific regulations, compliance obligations', 2, true, 'baseline', 'regulatory'),
-  ('b367636e-a9d1-453c-9801-7aa1cc1b6488', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'audit', 'Audit processes, evidence gathering, compliance reporting, third-party audits', 3, true, 'baseline', 'audit'),
-  ('00e6192a-c6d0-4fe8-9c3a-bf89b48f0776', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'certification', 'Professional certifications, organisational accreditations, quality marks', 4, true, 'baseline', 'certification'),
-  ('48baad22-24bd-4434-a492-27bacf94bd70', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'health-and-safety', 'Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations', 5, true, 'baseline', 'health-and-safety'),
-  ('e2ab8b62-e838-4e4b-b6ab-466a411fcd3b', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'environmental', 'Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20', 6, true, 'baseline', 'environmental'),
-  ('d3318f02-34f4-4d3f-b923-e94d9bbf4e64', '8d6c0b63-f77c-4021-a54b-15c07fa04420', 'modern-slavery', 'Modern slavery statement, supply chain due diligence, forced labour prevention, PPN 02/23', 7, true, 'baseline', 'modern-slavery'),
-  ('ff5e3789-fc77-4904-9fde-ed26392fc224', '7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b', 'deployment', 'Solution rollout, environment setup, go-live planning, deployment processes', 1, true, 'baseline', 'deployment'),
-  ('14f33f1e-c69b-4ffe-a6d5-841cdecdd8a0', '7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b', 'migration', 'Data migration, system transition, legacy replacement, cutover planning', 2, true, 'baseline', 'migration'),
-  ('5ad3bdc7-f536-4559-9934-baacd028a36b', '7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b', 'onboarding', 'Client onboarding, user training, adoption support, change management', 3, true, 'baseline', 'onboarding'),
-  ('d9c2678f-074b-4680-ba71-516246cfe6f2', '7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b', 'integration', 'API integration, third-party systems, data exchange, interoperability', 4, true, 'baseline', 'integration'),
-  ('e07d008f-f7b8-43d6-9190-2a2f4b52cbbe', 'd234988f-f548-4ea6-afbd-3aa7969674bd', 'sla', 'Service level agreements, uptime guarantees, response times, performance targets', 1, true, 'baseline', 'sla'),
-  ('bd79809d-2e72-4e34-8165-4876a5d28fbc', 'd234988f-f548-4ea6-afbd-3aa7969674bd', 'helpdesk', 'Support desk operations, ticket management, escalation procedures, user support', 2, true, 'baseline', 'helpdesk'),
-  ('2f8bf860-ad6c-48d0-9835-7c13f51c5a54', 'd234988f-f548-4ea6-afbd-3aa7969674bd', 'maintenance', 'Scheduled maintenance, patching, updates, system health monitoring', 3, true, 'baseline', 'maintenance'),
-  ('5665e422-c718-47f6-a3f7-b0f7a7eeca02', 'd234988f-f548-4ea6-afbd-3aa7969674bd', 'incident', 'Incident response, disaster recovery, business continuity, root cause analysis', 4, true, 'baseline', 'incident'),
-  ('c3fa88b4-b98c-448f-85ff-e6b6ac44e4e1', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'company-info', 'Company overview, history, mission, organisational structure', 1, true, 'baseline', 'company-info'),
-  ('111bbaea-6070-4100-ba6f-99cf388e0a32', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'financial', 'Financial statements, turnover, profitability, financial stability', 2, false, 'baseline', 'financial'),
-  ('1aa59827-104c-4434-9b09-767e214cda18', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'insurance', 'Professional indemnity, public liability, cyber insurance, coverage details', 3, true, 'baseline', 'insurance'),
-  ('d63daabd-c690-4f11-9244-d4dff43633f6', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'references', 'Client references, case studies, testimonials, similar contract experience', 4, true, 'baseline', 'references'),
-  ('4256a5bc-9103-425c-88b0-3a7f7c894de1', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'staffing', 'Team structure, key personnel, CVs, recruitment and retention', 5, true, 'baseline', 'staffing'),
-  ('ae221eeb-52e1-4a9e-b2a9-3a1664c75909', '2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b', 'supply-chain', 'Supply chain management, prompt payment, subcontractor oversight, PPN 02/23', 6, true, 'baseline', 'supply-chain'),
-  ('de5d47f0-6f59-4d13-9cb3-a9561230bfc0', '609bbcc4-ea14-4d74-b53d-d074ddce19a4', 'functionality', 'Core product features, capabilities, modules, feature descriptions', 1, true, 'baseline', 'functionality'),
-  ('51294099-2a34-4f59-b5bc-853ee8e7772b', '609bbcc4-ea14-4d74-b53d-d074ddce19a4', 'technical', 'Technical architecture, infrastructure, hosting, technology stack', 2, true, 'baseline', 'technical'),
-  ('67f2614a-cbbf-404c-b89d-3be456f182c0', '609bbcc4-ea14-4d74-b53d-d074ddce19a4', 'reporting', 'Reporting capabilities, dashboards, analytics, management information', 3, true, 'baseline', 'reporting'),
-  ('69583689-3a44-46ba-a9a3-b009043858e5', '609bbcc4-ea14-4d74-b53d-d074ddce19a4', 'usability', 'User experience, accessibility, interface design, ease of use', 4, true, 'baseline', 'usability'),
-  ('451b58a4-c34e-4926-b897-5149f819594a', '047b2b0f-59a1-4242-bbc8-b912c57d29aa', 'approach', 'Delivery methodology, project approach, ways of working, agile/waterfall', 1, true, 'baseline', 'approach'),
-  ('4ec4990d-135a-4cd3-b582-c41ce4b644d2', '047b2b0f-59a1-4242-bbc8-b912c57d29aa', 'project-management', 'Project governance, milestones, risk management, stakeholder communication', 2, true, 'baseline', 'project-management'),
-  ('944db61d-3ed2-4938-8381-a00b4c71c5ca', '047b2b0f-59a1-4242-bbc8-b912c57d29aa', 'quality', 'Quality assurance, testing strategy, acceptance criteria, continuous improvement', 3, true, 'baseline', 'quality'),
-  ('9c5f4c1c-a509-41bd-a734-c24fb69dc875', '047b2b0f-59a1-4242-bbc8-b912c57d29aa', 'delivery', 'Delivery timelines, phased rollout, resource planning, capacity management', 4, true, 'baseline', 'delivery')
-ON CONFLICT (domain_id, name) DO NOTHING;
 
 -- 4c. layer_vocabulary (4 core rows; natural key = key)
 INSERT INTO public.layer_vocabulary
