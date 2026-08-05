@@ -15,7 +15,9 @@ e2e/fixtures/embeddings.json
 __tests__/fixtures/keyword-normalisation-cases.json
 __tests__/fixtures/eval-gold/procurement-drafting-eval-gold-standard.json
 __tests__/fixtures/ontology/ontology-cv-baselines.json
-jscpd.json
+__tests__/fixtures/reference-doc-paths.json
+__tests__/fixtures/eval-baselines/search.baseline.json
+.jscpd.json
 .gitnexus/
 node_modules/
 .next/
@@ -50,3 +52,11 @@ vitest.config.ts
 vitest.integration.config.ts
 prettier.config.mjs
 eslint-suppressions.json
+.vercel/
+vercel.json
+tsconfig.json
+tsconfig.ci.json
+skills-lock.json
+components.json
+lib/branding/clients/default.json
+pyproject.toml
