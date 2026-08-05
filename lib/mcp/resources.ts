@@ -36,56 +36,26 @@ export async function registerResources(server: McpServer): Promise<void> {
           // ID-131 (G-MCP-REPOINT, BI-9): Q&A pairs now live in their own
           // `q_a_pairs` table (no more `content_items.content_type =
           // 'q_a_pair'` discriminator). `question_text` is the sole
-          // title-equivalent — q_a_pairs has no domain of its own, so the
-          // description's domain context comes from a join through
-          // `source_document_id`.
+          // title-equivalent. The former per-item domain description came
+          // from a join to sd.primary_domain — retired with the subject
+          // axis (DR-130).
           const items = await sb(
             supabase
               .from('q_a_pairs')
-              .select('id, question_text, source_document_id')
+              .select('id, question_text')
               .order('updated_at', { ascending: false })
               .limit(10),
             'mcp.resources.qa_pair.list',
           );
 
-          const sdIds = (items as Array<{ source_document_id: string | null }>)
-            .map((i) => i.source_document_id)
-            .filter((id): id is string => !!id);
-          const domainBySdId = new Map<string, string | null>();
-          if (sdIds.length > 0) {
-            const sds = await sb(
-              supabase
-                .from('source_documents')
-                .select('id, primary_domain')
-                .in('id', sdIds),
-              'mcp.resources.qa_pair.list.domains',
-            );
-            for (const sd of sds as Array<{
-              id: string | null;
-              primary_domain: string | null;
-            }>) {
-              if (sd.id) domainBySdId.set(sd.id, sd.primary_domain);
-            }
-          }
-
           return {
-            resources: items.map(
-              (item: {
-                id: string;
-                question_text: string | null;
-                source_document_id: string | null;
-              }) => {
-                const domain = item.source_document_id
-                  ? (domainBySdId.get(item.source_document_id) ?? null)
-                  : null;
-                return {
-                  uri: `kb://qa/${item.id}`,
-                  name: item.question_text || 'Untitled Q&A',
-                  description: domain ? `Domain: ${domain}` : undefined,
-                  mimeType: 'application/json',
-                };
-              },
-            ),
+            resources: (
+              items as Array<{ id: string; question_text: string | null }>
+            ).map((item) => ({
+              uri: `kb://qa/${item.id}`,
+              name: item.question_text || 'Untitled Q&A',
+              mimeType: 'application/json',
+            })),
           };
         } catch (err) {
           logger.error({ err }, 'Failed to list Q&A pair resources');
@@ -104,10 +74,9 @@ export async function registerResources(server: McpServer): Promise<void> {
           ? variables.id[0]
           : variables.id;
         // ID-131 (G-MCP-REPOINT, BI-9): re-pointed to q_a_pairs.
-        // `title`/`content`/`primary_domain`/`primary_subtopic`/`summary`
-        // had no successor on q_a_pairs itself (those are source_documents
-        // concepts, BI-11) — domain/subtopic/summary context is joined
-        // through `source_document_id`; `question_text` replaces `title`.
+        // `question_text` replaces `title`. Summary context is joined
+        // through `source_document_id`; the former primary_domain/
+        // primary_subtopic join retired with the subject axis (DR-130).
         const { data: qa, error } = await supabase
           .from('q_a_pairs')
           .select(
@@ -129,15 +98,13 @@ export async function registerResources(server: McpServer): Promise<void> {
         }
 
         let sourceContext: {
-          primary_domain: string | null;
-          primary_subtopic: string | null;
           summary: string | null;
         } | null = null;
         if (qa.source_document_id) {
           sourceContext = await sb(
             supabase
               .from('source_documents')
-              .select('primary_domain, primary_subtopic, summary')
+              .select('summary')
               .eq('id', qa.source_document_id)
               .maybeSingle(),
             'mcp.resources.qa_pair.read.source_context',
@@ -149,8 +116,6 @@ export async function registerResources(server: McpServer): Promise<void> {
           question_text: qa.question_text,
           answer_standard: qa.answer_standard,
           answer_advanced: qa.answer_advanced,
-          primary_domain: sourceContext?.primary_domain ?? null,
-          primary_subtopic: sourceContext?.primary_subtopic ?? null,
           summary: sourceContext?.summary ?? null,
         };
 

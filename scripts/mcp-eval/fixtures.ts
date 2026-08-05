@@ -665,7 +665,6 @@ export function getMinimalArgs(
       // creating an eval orphan row that needs cleanup.
       return {
         reviewer_id: '11111111-1111-4111-8111-111111111111',
-        filter_domains: [],
         filter_content_types: [],
         filter_freshness: [],
       };

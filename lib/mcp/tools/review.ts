@@ -221,12 +221,6 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           .string()
           .uuid()
           .describe('UUID of the user to assign the review to'),
-        filter_domains: z
-          .array(z.string())
-          .default([])
-          .describe(
-            'Primary-domain filter (e.g. ["compliance", "audit-content"])',
-          ),
         filter_content_types: z
           .array(z.string())
           .default([])
@@ -329,9 +323,6 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           .from('source_documents')
           .select('id', { count: 'exact', head: true });
 
-        if (args.filter_domains.length > 0) {
-          countQuery = countQuery.in('primary_domain', args.filter_domains);
-        }
         if (args.filter_content_types.length > 0) {
           countQuery = countQuery.in('content_type', args.filter_content_types);
         }
@@ -364,7 +355,6 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
             reviewer_id: args.reviewer_id,
             assigned_by: userId,
             assignment_type: 'manual',
-            filter_domains: args.filter_domains,
             filter_content_types: args.filter_content_types,
             filter_freshness: args.filter_freshness,
             filter_date_from: args.filter_date_from ?? null,
@@ -430,7 +420,6 @@ export async function registerReviewTools(server: McpServer): Promise<void> {
           assigned_by: userId,
           item_count: itemCount ?? 0,
           due_date: args.due_date ?? null,
-          filter_domains: args.filter_domains,
           filter_content_types: args.filter_content_types,
           filter_freshness: args.filter_freshness,
           filter_date_from: args.filter_date_from ?? null,

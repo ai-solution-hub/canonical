@@ -17,7 +17,6 @@ export interface CreateReviewAssignmentResult {
   assigned_by: string;
   item_count: number;
   due_date: string | null;
-  filter_domains: string[];
   filter_content_types: string[];
   filter_freshness: string[];
   filter_date_from: string | null;
@@ -44,9 +43,6 @@ export function formatCreateReviewAssignment(
   }
 
   const filterLines: string[] = [];
-  if (result.filter_domains.length > 0) {
-    filterLines.push(`- Domains: ${result.filter_domains.join(', ')}`);
-  }
   if (result.filter_content_types.length > 0) {
     filterLines.push(
       `- Content types: ${result.filter_content_types.join(', ')}`,
