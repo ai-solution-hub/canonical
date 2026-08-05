@@ -5,8 +5,9 @@
 -- One batch per DR-032 (the exposure companion never ships as a follow-up).
 -- Rulings executed here:
 --   DR-130  — subject domains/subtopics retire platform-wide; the driving axes
---             are scope (scope_tag), semantics (embeddings + ai_keywords +
---             entities) and concept membership. sd/ri/frt domain columns and
+--             are scope (scope_tag), semantics (embeddings + entity
+--             extraction — the keywords leg retired by the owner ruling
+--             noted below) and concept membership. sd/ri/frt domain columns and
 --             taxonomy_domains/taxonomy_subtopics fall under it.
 --   DR-124  — a reference item does NOT mint a source_documents row. The
 --             reference_ingest sd-mint path is unwound; existing URL-minted
@@ -312,8 +313,8 @@ BEGIN
   ),
   arms AS (
     -- ---- Arm 1: source_documents (PROVENANCE anchor; TEXT-ONLY match — BI-29).
-    -- DR-130: suggested_title/summary sources dropped — scoring is
-    -- filename + ai_keywords; summary/snippet are NULL for this arm.
+    -- DR-130: suggested_title/summary/ai_keywords sources dropped —
+    -- scoring is filename-only; summary/snippet are NULL for this arm.
     SELECT
       sd.id AS "id",
       sd.filename AS "title",
