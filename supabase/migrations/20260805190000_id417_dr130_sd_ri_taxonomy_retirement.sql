@@ -33,7 +33,8 @@
 -- taxonomy_domains, taxonomy_subtopics}; functions public+api
 -- {hybrid_search, reference_ingest, reference_list, reference_search,
 -- reference_get_verbatim}, public.{search_content ×2, search_content_chunks,
--- get_aggregate_win_rate_stats, coerce_empty_classification_to_null,
+-- get_aggregate_win_rate_stats, get_review_breakdown_stats (by_domain leg —
+-- app-reader-purge lane census catch), coerce_empty_classification_to_null,
 -- record_lifecycle_domain_sync}; indexes idx_source_documents_{source_url,
 -- pipeline_run_id, workspace_id}, idx_reference_items_source_document_id,
 -- idx_form_template_requirements_domain; no RLS qual and no realtime
@@ -199,8 +200,10 @@ ALTER TABLE public.reference_items
 -- ═════════════════════════════════════════════════════════════════════════
 -- §6  record_lifecycle.domain — forced consequence of DR-130: its ONLY
 --     writer was the record_lifecycle_domain_sync trigger (§2) copying
---     sd.primary_domain; its readers were hybrid_search's q_a_pair arm and
---     get_aggregate_win_rate_stats' per-domain scope, both replaced below.
+--     sd.primary_domain; its readers were hybrid_search's q_a_pair arm,
+--     get_aggregate_win_rate_stats' per-domain scope, and
+--     get_review_breakdown_stats' by_domain leg (app-reader-purge lane
+--     census catch) — all three replaced below.
 -- ═════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE public.record_lifecycle
@@ -796,6 +799,138 @@ BEGIN
     END AS "shortlist_pass_rate"
   FROM "citation_detail" "cd";
 END;
+$function$;
+
+-- §10g get_review_breakdown_stats — same signature and json shape minus the
+-- 'by_domain' key: its source record_lifecycle.domain is dropped in §6
+-- (census catch by the app-reader-purge lane — the by_domain leg grouped on
+-- COALESCE(rl.domain, 'Uncategorised')). The axis retires, so the leg is
+-- removed rather than re-pointed; every other leg reads only kept columns
+-- (publication_status, admission_status, verified_at, governance_review_
+-- status, content_type, storage_path, filename). CREATE OR REPLACE: grants
+-- and the api.get_review_breakdown_stats wrapper are unchanged.
+CREATE OR REPLACE FUNCTION public.get_review_breakdown_stats()
+RETURNS json
+LANGUAGE sql
+STABLE
+SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT json_build_object(
+    -- Top-level counts — review/governance axis spans BOTH owner_kinds (BI-22).
+    'total', (
+      SELECT COUNT(*)
+      FROM record_lifecycle rl
+      LEFT JOIN source_documents sd ON rl.owner_kind = 'source_document' AND sd.id = rl.source_document_id
+      LEFT JOIN q_a_pairs qap ON rl.owner_kind = 'q_a_pair' AND qap.id = rl.q_a_pair_id
+      WHERE COALESCE(sd.publication_status, qap.publication_status) = 'published'
+        AND (sd.id IS NULL OR sd.admission_status <> 'tombstoned')
+    ),
+    'verified', (
+      SELECT COUNT(*)
+      FROM record_lifecycle rl
+      LEFT JOIN source_documents sd ON rl.owner_kind = 'source_document' AND sd.id = rl.source_document_id
+      LEFT JOIN q_a_pairs qap ON rl.owner_kind = 'q_a_pair' AND qap.id = rl.q_a_pair_id
+      WHERE COALESCE(sd.publication_status, qap.publication_status) = 'published'
+        AND rl.verified_at IS NOT NULL
+        AND (sd.id IS NULL OR sd.admission_status <> 'tombstoned')
+    ),
+    -- 'flagged': no source_documents join present — nothing to guard here
+    -- (BL-398 out of scope; the ingestion_quality_log row itself is not
+    -- tombstoned, only its backing source_document may be).
+    'flagged', (
+      SELECT COUNT(DISTINCT source_document_id)
+      FROM ingestion_quality_log
+      WHERE flag_type = 'review_needed'
+        AND resolved = FALSE
+        AND source_document_id IS NOT NULL
+    ),
+    'draft', (
+      SELECT COUNT(*)
+      FROM record_lifecycle rl
+      LEFT JOIN source_documents sd ON rl.owner_kind = 'source_document' AND sd.id = rl.source_document_id
+      LEFT JOIN q_a_pairs qap ON rl.owner_kind = 'q_a_pair' AND qap.id = rl.q_a_pair_id
+      WHERE COALESCE(sd.publication_status, qap.publication_status) = 'draft'
+        AND (sd.id IS NULL OR sd.admission_status <> 'tombstoned')
+    ),
+    'overdue', (
+      SELECT COUNT(*)
+      FROM record_lifecycle rl
+      LEFT JOIN source_documents sd ON rl.owner_kind = 'source_document' AND sd.id = rl.source_document_id
+      WHERE (rl.owner_kind <> 'source_document' OR (sd.archived_at IS NULL AND sd.admission_status <> 'tombstoned'))
+        AND rl.governance_review_status = 'review_overdue'
+    ),
+
+    -- 'by_domain' REMOVED (DR-130 — record_lifecycle.domain dropped in §6;
+    -- the app-side by_domain consumer retires in the same wave).
+
+    -- Breakdown by content type — source_document-only (q_a_pairs carries no
+    -- content_type, BI-27 hybrid_search polymorphic UNION table).
+    'by_content_type', (
+      SELECT COALESCE(json_object_agg(ct, json_build_object(
+        'total', total,
+        'verified', verified
+      )), '{}'::json)
+      FROM (
+        SELECT
+          COALESCE(sd.content_type, 'other') AS ct,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE rl.verified_at IS NOT NULL) AS verified
+        FROM record_lifecycle rl
+        JOIN source_documents sd ON sd.id = rl.source_document_id
+        WHERE rl.owner_kind = 'source_document'
+          AND sd.publication_status = 'published'
+          AND sd.admission_status <> 'tombstoned'
+        GROUP BY COALESCE(sd.content_type, 'other')
+      ) t
+    ),
+
+    -- by_source_file: GAP-2b (owner-ruled, S443) — repointed onto the
+    -- register's existing provenance path (source_documents.storage_path, the
+    -- persisted rel_path value — flow.py:2160/2581). No new column.
+    -- source_document-only (q_a_pairs have no file), published-filtered —
+    -- modelled EXACTLY on the by_source_document block below.
+    'by_source_file', (
+      SELECT COALESCE(json_object_agg(file_path, json_build_object(
+        'total', total,
+        'verified', verified
+      )), '{}'::json)
+      FROM (
+        SELECT
+          sd.storage_path AS file_path,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE rl.verified_at IS NOT NULL) AS verified
+        FROM record_lifecycle rl
+        JOIN source_documents sd ON sd.id = rl.source_document_id
+        WHERE rl.owner_kind = 'source_document'
+          AND sd.publication_status = 'published'
+          AND sd.admission_status <> 'tombstoned'
+        GROUP BY sd.storage_path
+      ) f
+    ),
+
+    -- Breakdown by source_document — source_document owners are their own
+    -- anchor now (no more many-content_items-per-source_document indirection).
+    'by_source_document', (
+      SELECT COALESCE(json_object_agg(doc_id, json_build_object(
+        'total', total,
+        'verified', verified,
+        'name', doc_name
+      )), '{}'::json)
+      FROM (
+        SELECT
+          sd.id::text AS doc_id,
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE rl.verified_at IS NOT NULL) AS verified,
+          COALESCE(sd.filename, LEFT(sd.id::text, 8)) AS doc_name
+        FROM record_lifecycle rl
+        JOIN source_documents sd ON sd.id = rl.source_document_id
+        WHERE rl.owner_kind = 'source_document'
+          AND sd.publication_status = 'published'
+          AND sd.admission_status <> 'tombstoned'
+        GROUP BY sd.id, sd.filename
+      ) doc
+    )
+  );
 $function$;
 
 -- ═════════════════════════════════════════════════════════════════════════
