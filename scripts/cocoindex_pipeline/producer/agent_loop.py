@@ -55,8 +55,11 @@ env whenever its `base_url`/`auth_token` constructor params are left `None`,
 so setting those globally to route the producer to an Anthropic-compatible
 endpoint (e.g. OpenRouter's "Anthropic Skin", `z-ai/glm-5.2` — the docubot
 precedent, `docs-site harness/scripts/docubot/run-agent.ts:52-54`) would
-ALSO redirect `extraction.py` — DR-079 requires extraction stay on
-Anthropic. `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` are NEW,
+ALSO redirect `extraction.py` — the S481 {132.35} slice-B ratification
+deliberately keeps extraction's lane UNTOUCHED while DR-079 puts the
+producer on GLM-5.2 for non-client bundles (isolation is the point; DR-079
+itself says nothing about extraction's provider — S534 verification, id-389
+AC3). `PRODUCER_BASE_URL`/`PRODUCER_AUTH_TOKEN` are NEW,
 producer-package-scoped vars `extraction.py` never reads;
 `producer_async_client()` (below) is the shared factory both producer call
 sites now use in place of a bare `AsyncAnthropic()` — see its own docstring
