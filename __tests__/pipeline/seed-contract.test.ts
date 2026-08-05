@@ -98,12 +98,13 @@ describe('SEED-CONTRACT freeze (BI-7)', () => {
     }
   });
 
-  it('seeds the citeable sd: UUID from both the file (rel_path) and URL branches', () => {
-    // sd: is minted on the content branch (rel_path) AND the URL-landing branch
-    // (item.url). Both branches must keep the sd: prefix so a citation resolves
-    // identically regardless of how the document was ingested.
+  it('seeds the citeable sd: UUID from the file (rel_path) branch ONLY', () => {
+    // sd: is minted on the content branch (rel_path). The URL-landing branch
+    // mints NO sd row (DR-124: a reference item is standalone — the synthetic
+    // sd mint is unwound); it lands ri: only. The absence pin keeps the mint
+    // from silently returning.
     expect(flowSource).toContain('f"sd:{rel_path}"');
-    expect(flowSource).toContain('f"sd:{item.url}"');
+    expect(flowSource).not.toContain('f"sd:{item.url}"');
   });
 
   it('keeps the sd/ri citeable seeds in their frozen natural-key formats', () => {
