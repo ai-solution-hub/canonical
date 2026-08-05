@@ -127,19 +127,14 @@ const BodySchema = z.object({
    * indicates a sidecar bug, rejected at the boundary).
    */
   retryCount: z.number().int().nonnegative().optional(),
-  /**
-   * ID-63.8 Inv-7 (rider on ID-61.4): per-field tally of out-of-taxonomy
-   * soft-warns — `_FlowTaxonomyMissCounter.tally_by_field()` in
-   * `scripts/cocoindex_pipeline/flow.py` emits `dict[str, int]` as
-   * `payload["taxonomyMisses"]` at flow end. Before ID-61.4 this strict
-   * schema silently stripped the key, so the tally never reached
-   * `pipeline_runs.result` (live Inv-7 regression). Empty map is meaningful:
-   * "extractions ran, zero misses" — distinguishable from the field being
-   * omitted entirely (flow-start emission).
+  /*
+   * The former `taxonomyMisses` field (ID-63.8 Inv-7 out-of-taxonomy
+   * soft-warn tally) was retired with the taxonomy miss-counter telemetry
+   * (DR-130) — its sole sender, `_FlowTaxonomyMissCounter` in
+   * `scripts/cocoindex_pipeline/flow.py`, is deleted in the same wave. A
+   * stale sidecar still emitting the key is harmlessly stripped by this
+   * non-strict schema.
    */
-  taxonomyMisses: z
-    .record(z.string(), z.number().int().nonnegative())
-    .optional(),
   /**
    * ID-80.9 (80.2 §B.4, OQ-80.2-C RATIFIED): per-branch tally of CONTAINED
    * per-item ingest faults — `_FlowItemFailureCounter.tally()` in
@@ -149,7 +144,7 @@ const BodySchema = z.object({
    * the bl-224 cascade inversion). An all-zero tally is meaningful ("walk
    * ran, zero per-item faults") and distinguishable from the field being
    * omitted entirely (flow-start emission / pre-80.9 sidecars). Sibling of
-   * ID-61.4's `errorDetail` + `taxonomyMisses` — strictly additive.
+   * ID-61.4's `errorDetail` — strictly additive.
    *
    * ID-80.17 ({80.16} rider delta): `url` is the third branch, emitted by
    * `bound_ingest_url` (ID-75.11, the Stage-1b URL-source mount) — counter
@@ -190,8 +185,7 @@ const BodySchema = z.object({
    * walk after the healing walk; that convergence was previously
    * unobservable in the persisted row). `None` omits the field entirely
    * (flow-start emission); an empty map at flow end means "walk ran, zero
-   * memo self-heals". Rides ALONGSIDE itemFailures/taxonomyMisses — never
-   * clobbers.
+   * memo self-heals". Rides ALONGSIDE itemFailures — never clobbers.
    */
   memoHeals: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
@@ -232,7 +226,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     errorDetail,
     extractorVersion,
     retryCount,
-    taxonomyMisses,
     itemFailures,
     memoHeals,
   } = parsed.data;
@@ -250,9 +243,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // sidecar omits the field (no `error_detail: undefined` leakage).
   if (errorDetail !== undefined) result.error_detail = errorDetail;
   if (retryCount !== undefined) result.retry_count = retryCount;
-  // ID-63.8 Inv-7: `!== undefined` (not truthy) — an empty map means
-  // "extractions ran, zero misses" and must land verbatim.
-  if (taxonomyMisses !== undefined) result.taxonomy_misses = taxonomyMisses;
+  // (The former taxonomy_misses write retired with the miss-counter
+  // telemetry, DR-130.)
   // ID-80.9 (80.2 §B.4): `!== undefined` (not truthy) — an all-zero tally
   // means "walk ran, zero per-item faults" and must land verbatim. Key
   // absent when the sidecar omits the field (no `item_failures: undefined`
@@ -260,7 +252,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (itemFailures !== undefined) result.item_failures = itemFailures;
   // ID-127.33: `!== undefined` (not truthy) — an empty map means "walk ran,
   // zero memo self-heals" and must land verbatim, same discipline as
-  // taxonomyMisses/itemFailures above.
+  // itemFailures above.
   if (memoHeals !== undefined) result.memo_heals = memoHeals;
 
   try {

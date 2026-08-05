@@ -5,8 +5,8 @@
  * `reference_ingest` RPC and NO LONGER writes content_items:
  *   - Fresh URL → 2xx, calls reference_ingest, response carries id + title and
  *     OMITS suggested_layer / content_type / duplicate_matches (TECH §3.3).
- *   - Classifiable URL populates primary_domain/subtopic (DELTA c
- *     populate-unless-error); classifier throw → null, no 500.
+ *   - primary_domain/subtopic are always NULL (the DELTA c in-request
+ *     classification pass retired with the subject axis, DR-130).
  *   - Path-less URL (https://host/) → non-empty filename (host), no 500
  *     (source_documents.filename NOT NULL — ENG-FIX).
  *   - Pre-seeded URL → url_already_exists.
@@ -73,8 +73,6 @@ vi.mock('@/lib/extraction/pdf', () => ({ extractPdfText: vi.fn() }));
 vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn(async () => [0.1, 0.2, 0.3]),
 }));
-vi.mock('@/lib/ai/classify', () => ({ classifyText: vi.fn() }));
-
 import { POST } from '@/app/api/ingest/url/route';
 import { getAuthorisedClient } from '@/lib/auth/client';
 import { validateUrl } from '@/lib/extraction/url-validation';
@@ -84,7 +82,6 @@ import {
   ExtractEndpointError,
 } from '@/lib/extraction/clean-via-worker';
 import { extractPdfText } from '@/lib/extraction/pdf';
-import { classifyText } from '@/lib/ai/classify';
 
 const getAuthorisedClientMock = vi.mocked(getAuthorisedClient);
 const validateUrlMock = vi.mocked(validateUrl);
@@ -92,7 +89,6 @@ const fetchForExtractionMock = vi.mocked(fetchForExtraction);
 const extractHtmlMetadataMock = vi.mocked(extractHtmlMetadata);
 const cleanViaWorkerMock = vi.mocked(cleanViaWorker);
 const extractPdfTextMock = vi.mocked(extractPdfText);
-const classifyTextMock = vi.mocked(classifyText);
 
 const EDITOR_USER_ID = 'b0000000-0000-4000-8000-000000000bbb';
 const REF_ID = 'ac261849-c4e5-5a28-970b-4a063146ad2a';
@@ -174,10 +170,6 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
       text: 'x'.repeat(800),
       verdict: 'ok',
       warnings: [],
-    });
-    classifyTextMock.mockResolvedValue({
-      primary_domain: 'cyber-security',
-      primary_subtopic: 'iso-27001',
     });
     // URL-exists check resolves to "not found" by default.
     client._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
@@ -279,19 +271,7 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(json).not.toHaveProperty('duplicate_matches');
   });
 
-  it('populates primary_domain/subtopic from the classifier (DELTA c)', async () => {
-    await POST(makeRequest({ url: 'https://example.com/a' }) as never);
-    expect(client.rpc).toHaveBeenCalledWith(
-      'reference_ingest',
-      expect.objectContaining({
-        p_primary_domain: 'cyber-security',
-        p_primary_subtopic: 'iso-27001',
-      }),
-    );
-  });
-
-  it('passes NULL domain/subtopic when the classifier throws (populate-UNLESS-error)', async () => {
-    classifyTextMock.mockRejectedValueOnce(new Error('classifier down'));
+  it('passes NULL domain/subtopic (in-request classification retired, DR-130)', async () => {
     const res = await POST(
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
@@ -302,12 +282,6 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
         p_primary_domain: null,
         p_primary_subtopic: null,
       }),
-    );
-    const json = await res.json();
-    expect(json.warnings).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Classification failed'),
-      ]),
     );
   });
 

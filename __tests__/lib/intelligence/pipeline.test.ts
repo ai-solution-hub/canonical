@@ -75,9 +75,6 @@ vi.mock('@/lib/ai/embed', async (importOriginal) => {
     generateEmbedding: vi.fn(),
   };
 });
-vi.mock('@/lib/ai/classify', () => ({
-  classifyContent: vi.fn(),
-}));
 vi.mock('@/lib/intelligence/article-summariser', () => ({
   generateArticleSummary: vi
     .fn()

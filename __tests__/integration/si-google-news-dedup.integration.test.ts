@@ -81,13 +81,11 @@ vi.mock('@/lib/intelligence/content-extractor', async () => {
   };
 });
 
-// classifyContent and generateEmbedding are never reached when
-// companyContext is null (scoring skipped → passed=false → no content
-// item creation → no classification). But guard anyway so a future
-// refactor doesn't silently hit the real AI APIs from this test.
-vi.mock('@/lib/ai/classify', () => ({
-  classifyContent: vi.fn(),
-}));
+// generateEmbedding is never reached when companyContext is null
+// (scoring skipped → passed=false → no content item creation). But guard
+// anyway so a future refactor doesn't silently hit the real AI APIs from
+// this test. (The former classifyContent guard-mock went with the
+// classification stage, DR-130.)
 vi.mock('@/lib/ai/embed', () => ({
   MAX_EMBEDDING_CHARS: 24_000,
   getEmbeddingModel: vi.fn(() => 'text-embedding-3-large'),

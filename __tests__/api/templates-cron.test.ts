@@ -19,7 +19,6 @@ const {
   mockGetUsersByRole,
   mockCreateBulkNotifications,
   mockGetExistingNotificationIds,
-  mockClassifyContent,
   mockSimilarity,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
@@ -28,7 +27,6 @@ const {
   mockGetUsersByRole: vi.fn(),
   mockCreateBulkNotifications: vi.fn(),
   mockGetExistingNotificationIds: vi.fn(),
-  mockClassifyContent: vi.fn(),
   mockSimilarity: vi.fn(),
 }));
 
@@ -53,10 +51,6 @@ vi.mock('@/lib/cron-auth', () => ({
 vi.mock('@/lib/notifications', () => ({
   createBulkNotifications: mockCreateBulkNotifications,
   getExistingNotificationIds: mockGetExistingNotificationIds,
-}));
-
-vi.mock('@/lib/ai/classify', () => ({
-  classifyContent: mockClassifyContent,
 }));
 
 vi.mock('@/lib/domains/procurement/form-templating/template-auto-map', () => ({
@@ -164,11 +158,6 @@ beforeEach(() => {
   mockCreateBulkNotifications.mockResolvedValue({ count: 0, error: null });
   mockGetExistingNotificationIds.mockResolvedValue(new Set());
   mockSimilarity.mockReturnValue(0.8);
-  mockClassifyContent.mockResolvedValue({
-    primary_domain: 'Engineering',
-    primary_subtopic: 'Standards',
-    classification_confidence: 0.9,
-  });
   // NOTE: Do NOT set a default configureRole() here. Each test must
   // call configureRole() / configureUnauthenticated() explicitly so
   // that the queued .single() calls are consumed in the correct order.
