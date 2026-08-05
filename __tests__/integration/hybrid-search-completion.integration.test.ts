@@ -19,10 +19,10 @@
  *     regression this fixes: a client-side post-LIMIT filter could return
  *     fewer than a full page even when more matches of the requested kind
  *     existed).
- *   - BI-16: filter_domain / filter_subtopic / filter_date_from / _to bound
- *     the result set; filter_subtopic naturally excludes the q_a_pair grain
- *     (no subtopic column on that arm); STRICT-EXCLUDE drops undated rows
- *     once a date bound is set.
+ *   - BI-16: filter_date_from / _to bound the result set; STRICT-EXCLUDE
+ *     drops undated rows once a date bound is set. (The former
+ *     filter_domain/filter_subtopic legs retired with the subject axis,
+ *     DR-130.)
  *   - BI-10/BI-20: the all-NULL default is unnarrowed (all grains returned)
  *     and the limit-raising load-more produces stable, dupe-free pages
  *     (the bl-431 OBS-3 `ORDER BY similarity DESC, id` tie-breaker).
@@ -335,19 +335,17 @@ async function callHybridSearch(params: {
   queryText: string;
   limitCount?: number;
   filterKind?: 'answer' | 'document' | 'reference';
-  filterDomain?: string;
-  filterSubtopic?: string;
   filterDateFrom?: string;
   filterDateTo?: string;
 }): Promise<HybridSearchRow[]> {
+  // filter_domain/filter_subtopic retired with the subject axis (DR-130) —
+  // the RPC params drop in the same wave's DDL.
   const { data, error } = await serviceClient.rpc('hybrid_search', {
     query_embedding: SHARED_VECTOR_STR,
     query_text: params.queryText,
     similarity_threshold: 0,
     limit_count: params.limitCount ?? 20,
     filter_kind: params.filterKind,
-    filter_domain: params.filterDomain,
-    filter_subtopic: params.filterSubtopic,
     filter_date_from: params.filterDateFrom,
     filter_date_to: params.filterDateTo,
   });
@@ -500,32 +498,8 @@ describe('BI-16 domain/subtopic/date filters, STRICT-EXCLUDE undated rows (DR-05
     });
   }, 30_000);
 
-  it('filter_domain restricts to the arm domain expr (sd.primary_domain / record_lifecycle.domain)', async () => {
-    const rows = await callHybridSearch({
-      queryText: MARKER,
-      filterDomain: DOMAIN_A,
-    });
-    const ids = rows.map((r) => r.id);
-    expect(ids).toContain(sdA);
-    expect(ids).toContain(sdC);
-    expect(ids).toContain(qaDated);
-    expect(ids).not.toContain(sdB);
-  });
-
-  it('filter_subtopic restricts to the arm subtopic expr and EXCLUDES answers (no subtopic grain)', async () => {
-    const rows = await callHybridSearch({
-      queryText: MARKER,
-      filterSubtopic: SUBTOPIC_A,
-    });
-    const ids = rows.map((r) => r.id);
-    expect(ids).toContain(sdA);
-    expect(ids).toContain(sdC);
-    expect(ids).not.toContain(sdB);
-    // q_a_pairs project NULL::text for subtopic — a non-null filter_subtopic
-    // naturally excludes the whole answer grain (TECH §2.4).
-    expect(ids).not.toContain(qaDated);
-    expect(ids).not.toContain(qaUndated);
-  });
+  // (The former filter_domain/filter_subtopic cases retired with the
+  // subject axis, DR-130 — the RPC params drop in the same wave.)
 
   it('filter_date_from/_to bound the result set; STRICT-EXCLUDE drops undated rows once a bound is set', async () => {
     const rows = await callHybridSearch({

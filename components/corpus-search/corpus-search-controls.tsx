@@ -181,9 +181,10 @@ export function CorpusKindNarrow() {
 }
 
 /**
- * Metadata filter controls (BI-16) — domain / subtopic / date range, pushed
- * to the search params on top of the active query/kind. Fully URL-controlled
- * (no local state), mirroring `CorpusKindNarrow`.
+ * Metadata filter controls (BI-16) — date range, pushed to the search
+ * params on top of the active query/kind. Fully URL-controlled (no local
+ * state), mirroring `CorpusKindNarrow`. The former domain/subtopic filter
+ * inputs retired with the subject axis (DR-130).
  *
  * `q_a_pair` results are restricted to `publication_status = 'published'`
  * server-side by the `hybrid_search` RPC (id-131 BI-20, shipped) — this is
@@ -195,37 +196,21 @@ export function CorpusFilterControls() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Date-range URL keys are `from`/`to` (TECH §4 canonical param list:
-  // `?q, ?domain, ?subtopic, ?source, ?from, ?to`) — DELIBERATELY not
-  // `dateFrom`/`dateTo`, even though the CorpusSearchFilters object fields
-  // (and the {135.6} useCorpusSearch hook's parsed filter shape) ARE named
-  // dateFrom/dateTo. This is the one place field name and URL key diverge;
-  // pushFilter below (keyed by CorpusSearchFilters field name) is safe for
-  // domain/subtopic ONLY because their field name equals their URL key.
+  // Date-range URL keys are `from`/`to` (TECH §4 canonical param list) —
+  // DELIBERATELY not `dateFrom`/`dateTo`, even though the
+  // CorpusSearchFilters object fields (and the {135.6} useCorpusSearch
+  // hook's parsed filter shape) ARE named dateFrom/dateTo.
   const filters: CorpusSearchFilters = {
-    domain: searchParams.get('domain') ?? undefined,
-    subtopic: searchParams.get('subtopic') ?? undefined,
     dateFrom: searchParams.get('from') ?? undefined,
     dateTo: searchParams.get('to') ?? undefined,
   };
 
-  const activeFilterCount = [
-    filters.domain,
-    filters.subtopic,
-    filters.dateFrom || filters.dateTo,
-  ].filter(Boolean).length;
-
-  const pushFilter = (key: keyof CorpusSearchFilters, next: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next) params.set(key, next);
-    else params.delete(key);
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  };
+  const activeFilterCount = [filters.dateFrom || filters.dateTo].filter(
+    Boolean,
+  ).length;
 
   // Dedicated writer for the date range — the URL key ('from'/'to') differs
-  // from the CorpusSearchFilters field name (dateFrom/dateTo), so it cannot
-  // reuse `pushFilter`'s field-name-as-URL-key shortcut.
+  // from the CorpusSearchFilters field name (dateFrom/dateTo).
   const pushDate = (urlKey: 'from' | 'to', next: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (next) params.set(urlKey, next);
@@ -236,8 +221,6 @@ export function CorpusFilterControls() {
 
   const clearFilters = () => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete('domain');
-    params.delete('subtopic');
     params.delete('from');
     params.delete('to');
     const qs = params.toString();
@@ -246,40 +229,6 @@ export function CorpusFilterControls() {
 
   return (
     <div className="mt-4 flex flex-wrap items-end gap-3">
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="corpus-filter-domain"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          Domain
-        </label>
-        <input
-          id="corpus-filter-domain"
-          type="text"
-          value={filters.domain ?? ''}
-          onChange={(e) => pushFilter('domain', e.target.value)}
-          placeholder="Any domain"
-          className={controlClass}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="corpus-filter-subtopic"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          Subtopic
-        </label>
-        <input
-          id="corpus-filter-subtopic"
-          type="text"
-          value={filters.subtopic ?? ''}
-          onChange={(e) => pushFilter('subtopic', e.target.value)}
-          placeholder="Any subtopic"
-          className={controlClass}
-        />
-      </div>
-
       <div className="flex flex-col gap-1">
         <label
           htmlFor="corpus-filter-from"

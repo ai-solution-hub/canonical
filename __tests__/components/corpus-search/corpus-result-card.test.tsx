@@ -37,8 +37,6 @@ function makeAnswer(
     title: 'What is the minimum PPE requirement on-site?',
     answerSnippet: 'Hard hats and high-vis vests are mandatory at all times.',
     scopeTags: ['procurement'],
-    primaryDomain: 'health-and-safety',
-    primarySubtopic: 'ppe',
     ...overrides,
   };
 }
@@ -51,8 +49,6 @@ function makeDocument(
     kind: 'document',
     title: 'Site Safety Policy 2026',
     summary: 'Outlines mandatory safety procedures for all site visitors.',
-    primaryDomain: 'health-and-safety',
-    primarySubtopic: 'policy',
     ...overrides,
   };
 }
@@ -83,11 +79,10 @@ describe('CorpusResultCard', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders scope and domain badges', () => {
+    it('renders scope tags (domain badges retired, DR-130)', () => {
       render(<CorpusResultCard result={makeAnswer()} />);
       expect(screen.getByText('procurement')).toBeInTheDocument();
-      expect(screen.getByText('health-and-safety')).toBeInTheDocument();
-      expect(screen.getByText('ppe')).toBeInTheDocument();
+      expect(screen.queryByText('health-and-safety')).not.toBeInTheDocument();
     });
 
     it('links to /library/[id] (ID-135 {135.22} single-pair viewer)', () => {
@@ -110,10 +105,10 @@ describe('CorpusResultCard', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders primary_domain/primary_subtopic badges', () => {
+    it('renders no domain/subtopic badges (retired, DR-130)', () => {
       render(<CorpusResultCard result={makeDocument()} />);
-      expect(screen.getByText('health-and-safety')).toBeInTheDocument();
-      expect(screen.getByText('policy')).toBeInTheDocument();
+      expect(screen.queryByText('health-and-safety')).not.toBeInTheDocument();
+      expect(screen.queryByText('policy')).not.toBeInTheDocument();
     });
 
     it('links to /documents/[id] (Surface B)', () => {
@@ -124,42 +119,6 @@ describe('CorpusResultCard', () => {
       );
     });
 
-    it('omits badges when domain/subtopic are null', () => {
-      render(
-        <CorpusResultCard
-          result={makeDocument({
-            primaryDomain: null,
-            primarySubtopic: null,
-          })}
-        />,
-      );
-      expect(screen.queryByText('health-and-safety')).not.toBeInTheDocument();
-      expect(screen.queryByText('policy')).not.toBeInTheDocument();
-    });
-
-    it('renders both domain badges without a React duplicate-key warning when primaryDomain equals primarySubtopic', () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
-
-      render(
-        <CorpusResultCard
-          result={makeDocument({
-            primaryDomain: 'unclassified',
-            primarySubtopic: 'unclassified',
-          })}
-        />,
-      );
-
-      expect(screen.getAllByText('unclassified')).toHaveLength(2);
-
-      const duplicateKeyWarning = consoleErrorSpy.mock.calls.some((call) =>
-        String(call[0]).includes('two children with the same key'),
-      );
-      expect(duplicateKeyWarning).toBe(false);
-
-      consoleErrorSpy.mockRestore();
-    });
   });
 
   describe('reference kind', () => {
