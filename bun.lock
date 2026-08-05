@@ -98,7 +98,7 @@
         "zod": "^4.4.3",
       },
       "devDependencies": {
-        "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#06b868576c2b87c76a54c25cea0b03b3e9126c8e",
+        "@ai-solution-hub/ast-dataflow": "github:ai-solution-hub/ast-dataflow#af67110ae7f6c7c88a9f75ff9a6a5820a6b67771",
         "@next/bundle-analyzer": "^16.2.6",
         "@playwright/test": "^1.60.0",
         "@stryker-mutator/core": "^9.6.1",
@@ -142,7 +142,7 @@
 
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 
-    "@ai-solution-hub/ast-dataflow": ["@ai-solution-hub/ast-dataflow@github:ai-solution-hub/ast-dataflow#06b8685", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "ts-morph": "^28.0.0", "yaml": "^2.9.0" }, "bin": { "ast-dataflow": "tools/ast-dataflow/cli.ts", "ast-dataflow-mcp": "tools/ast-dataflow/mcp-server.ts" } }, "ai-solution-hub-ast-dataflow-06b8685"],
+    "@ai-solution-hub/ast-dataflow": ["@ai-solution-hub/ast-dataflow@github:ai-solution-hub/ast-dataflow#af67110", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "tinyglobby": "^0.2.17", "ts-morph": "^28.0.0", "yaml": "^2.9.0" }, "bin": { "ast-dataflow": "tools/ast-dataflow/cli.ts", "ast-dataflow-mcp": "tools/ast-dataflow/mcp-server.ts" } }, "ai-solution-hub-ast-dataflow-af67110"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 
@@ -3305,6 +3305,8 @@
     "zod-validation-error": ["zod-validation-error@4.0.2", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
+
+    "@ai-solution-hub/ast-dataflow/tinyglobby": ["tinyglobby@0.2.17", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.4" } }, "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="],
 
     "@babel/code-frame/js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 
