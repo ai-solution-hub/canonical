@@ -33,9 +33,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The S507 false-alarm fixture: hybrid_search's last-writer body (snippet /
 # rank / summary reads of content_chunks.content) lives in this migration.
+# Retargeted when the id-417 DR-130 migration replaced hybrid_search — arm 2
+# still reads cc.content, so the census must attribute the read to the new
+# last-writer body.
 FIXTURE_RPC_MIGRATION = (
     "supabase/migrations/"
-    "20260716120000_id145_37_repoint_search_rpcs_to_form_instances.sql"
+    "20260805190000_id417_dr130_sd_ri_taxonomy_retirement.sql"
 )
 
 
