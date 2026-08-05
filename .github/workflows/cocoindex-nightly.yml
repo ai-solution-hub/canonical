@@ -899,6 +899,21 @@ jobs:
           echo "COCOINDEX_WALK_LOG_SINCE=${WALK_STEP_SINCE}" >> "$GITHUB_ENV"
           DEADLINE=$(( WALK_OVERALL_START + 1800 ))
           FENCE_RETRIES=0
+          # id-382 part 3: a run whose EVERY attempt bounces off the {138.9}
+          # writer-fence must report a BLOCK (with the holder + expiry the
+          # sidecar logged), not burn the full 1800s and report a timeout —
+          # the S501 misdiagnosis cost a full nightly + ~40 min. 300s is
+          # > 2x the 120s renewal TTL (writer_fence.py), so once the id-382
+          # renew migration is applied a DEAD holder's lease will have
+          # expired within the window — still-busy after 300s means a live
+          # holder or a pre-renewal stale lease, and either way the honest
+          # verdict is "blocked", named, 25 minutes sooner. The holder +
+          # expires_at detail travels in the sidecar's fence-busy log line
+          # (the sidecar is the only layer with DB reach into the lease
+          # table); this step just relays it into the run summary, which is
+          # id-379's "loudly" bar.
+          FENCE_BUSY_FAIL_FAST_SECONDS=300
+          FIRST_BUSY_AT=""
 
           trigger_walk() {
             WALK_LOG_SINCE="$(date -u +%Y-%m-%dT%H:%M:%S)"
@@ -927,7 +942,19 @@ jobs:
             fi
             if printf '%s' "$WALK_LINES" | grep -q "fence busy"; then
               FENCE_RETRIES=$((FENCE_RETRIES + 1))
-              echo "walk pass skipped (requestId=${REQUEST_ID}) — writer-fence busy (another writer holds the {138.9} lease); re-issuing /walk (retry ${FENCE_RETRIES})"
+              # The sidecar's enriched WriterFenceBusyError message carries
+              # "blocked by lease held by <label>, expires <ts>" when the
+              # lease row was readable (writer_fence.py, id-382 part 3).
+              HOLDER_INFO="$(printf '%s' "$WALK_LINES" | grep -oE 'blocked by lease held by [^)]*' | tail -1 || true)"
+              if [ -z "$FIRST_BUSY_AT" ]; then
+                FIRST_BUSY_AT=$(date +%s)
+              fi
+              BUSY_FOR=$(( $(date +%s) - FIRST_BUSY_AT ))
+              echo "walk pass skipped (requestId=${REQUEST_ID}) — writer-fence busy for ${BUSY_FOR}s (${HOLDER_INFO:-holder detail not in sidecar log}); re-issuing /walk (retry ${FENCE_RETRIES})"
+              if [ "$BUSY_FOR" -ge "$FENCE_BUSY_FAIL_FAST_SECONDS" ]; then
+                echo "::error::walk BLOCKED by the {138.9} writer-fence lease — ${HOLDER_INFO:-holder detail not in sidecar log (pre-id-382 sidecar image?)}. Every attempt for ${BUSY_FOR}s was fence-busy (retries=${FENCE_RETRIES}); failing FAST instead of burning the 1800s budget. This is a BLOCK, not a slow walk: if the holder is a dead/cancelled run its lease self-expires (120s renewal TTL once the id-382 renew migration is applied; 1h acquire TTL before it) — see tasks/id-382 for the read-then-judge release workaround." >&2
+                exit 1
+              fi
               if [ "$(date +%s)" -ge "$DEADLINE" ]; then
                 WALK_ELAPSED=$(( $(date +%s) - WALK_OVERALL_START ))
                 echo "walk did not complete within ${WALK_ELAPSED}s (deadline 1800s, requestId=${REQUEST_ID}, fence-busy retries=${FENCE_RETRIES})" >&2
@@ -937,6 +964,10 @@ jobs:
               trigger_walk
               continue
             fi
+            # Progress without a busy skip (the walk is genuinely running) —
+            # reset the consecutive-busy window so only an UNBROKEN run of
+            # fence-busy skips can trip the fail-fast above.
+            FIRST_BUSY_AT=""
             if [ "$(date +%s)" -ge "$DEADLINE" ]; then
               WALK_ELAPSED=$(( $(date +%s) - WALK_OVERALL_START ))
               echo "walk did not complete within ${WALK_ELAPSED}s (deadline 1800s, requestId=${REQUEST_ID}, fence-busy retries=${FENCE_RETRIES})" >&2
