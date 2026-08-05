@@ -129,14 +129,12 @@ const FIXTURES: ReadonlyArray<{
   },
   {
     kind: 'q_a_form',
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Services.docx',
+    fixturePath: FORM_TEMPLATE.ittServicesDocx,
     destSuffix: 'q_a_form.docx',
   },
   {
     kind: 'entity_mention',
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
+    fixturePath: FORM_TEMPLATE.legacyRfpLearningPartnersDoc,
     destSuffix: 'entity_mention.doc',
   },
 ];

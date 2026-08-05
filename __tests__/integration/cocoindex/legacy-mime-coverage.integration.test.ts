@@ -32,6 +32,7 @@ import {
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { FORM_TEMPLATE } from './_helpers/fixtures';
 import { runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -49,14 +50,12 @@ const WALK_BUDGET_MS = 300_000;
 const LEGACY_FIXTURES = [
   {
     kind: 'xls' as const,
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls',
+    fixturePath: FORM_TEMPLATE.legacyEvaluationMatrixXls,
     destPath: `nm3-legacy/${TEST_PREFIX}-legacy.xls`,
   },
   {
     kind: 'doc' as const,
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/rfp_onlinetdcops.doc',
+    fixturePath: FORM_TEMPLATE.legacyRfpOnlinetdcopsDoc,
     destPath: `nm3-legacy/${TEST_PREFIX}-legacy.doc`,
   },
 ];

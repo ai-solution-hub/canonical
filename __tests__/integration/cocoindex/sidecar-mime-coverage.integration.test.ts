@@ -58,6 +58,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { FORM_TEMPLATE } from './_helpers/fixtures';
 import { runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -92,20 +93,17 @@ const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
     {
       kind: 'pdf',
       fileSuffix: '.pdf',
-      fixturePath:
-        'scripts/cocoindex_pipeline/fixtures/form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+      fixturePath: FORM_TEMPLATE.selectionQuestionnairePdf,
     },
     {
       kind: 'docx',
       fileSuffix: '.docx',
-      fixturePath:
-        'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/annex_2_supplier_response.docx',
+      fixturePath: FORM_TEMPLATE.supplierResponseDocx,
     },
     {
       kind: 'xlsx',
       fileSuffix: '.xlsx',
-      fixturePath:
-        'scripts/cocoindex_pipeline/fixtures/form-templates/rfp-british-council/annex_3_pricing_approach.xlsx',
+      fixturePath: FORM_TEMPLATE.pricingApproachXlsx,
     },
   ];
 

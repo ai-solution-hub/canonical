@@ -60,6 +60,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { FORM_TEMPLATE } from './_helpers/fixtures';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -98,8 +99,7 @@ beforeAll(async () => {
   // (matches the idiom every other cocoindex integration test in this
   // directory uses) — the `it` body below polls for the landed row itself.
   await stageFixture({
-    fixturePath:
-      'scripts/cocoindex_pipeline/fixtures/form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+    fixturePath: FORM_TEMPLATE.selectionQuestionnairePdf,
     destPath: `inv-10/${TEST_PREFIX}.pdf`,
     titlePrefix: TEST_PREFIX,
   });

@@ -77,6 +77,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { pollContentItemsFor, stageFixture } from './_helpers/fixture-staging';
+import { FORM_TEMPLATE } from './_helpers/fixtures';
 
 // ---------------------------------------------------------------------------
 // Env-gate — same logical AND as Inv-20 sibling (28.14 cohort).
@@ -105,8 +106,7 @@ const seededContentIds: string[] = [];
 // evaluation-matrix xlsx, a form-shaped spreadsheet expected to classify
 // similarly; if it does not yield `q_a_extractions` rows, the fixture choice
 // (not the memo-hit contract below) is the thing to revisit.
-const FIXTURE_PATH =
-  'scripts/cocoindex_pipeline/fixtures/form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx';
+const FIXTURE_PATH = FORM_TEMPLATE.evaluationMatrixXlsx;
 const DEST_PATH = `inv-21/${TEST_PREFIX}.xlsx`;
 
 // ---------------------------------------------------------------------------

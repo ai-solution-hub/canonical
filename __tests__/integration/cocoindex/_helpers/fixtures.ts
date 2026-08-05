@@ -132,4 +132,12 @@ export const FORM_TEMPLATE = {
   legacyEvaluationMatrixXls: path(
     'form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls',
   ),
+  /** Legacy binary Office — .doc (British Council online-TDC-ops RFP). Same no-Docling-route caveat as the .xls; the NM-3 legacy-containment subject. */
+  legacyRfpOnlinetdcopsDoc: path(
+    'form-templates/rfp-british-council/rfp_onlinetdcops.doc',
+  ),
+  /** Legacy binary Office — .doc (British Council learning-partners RFP). Rich named-entity surface; same no-Docling-route caveat. */
+  legacyRfpLearningPartnersDoc: path(
+    'form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
+  ),
 } as const;
