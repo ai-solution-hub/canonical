@@ -5,7 +5,6 @@ import { ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DomainBadge } from '@/components/shared/domain-badge';
 import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
@@ -177,9 +176,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           <div className="flex flex-wrap items-center gap-2">
             {item.governance_review_status && (
               <GovernanceBadge status={item.governance_review_status} />
-            )}
-            {item.primary_domain && (
-              <DomainBadge domain={item.primary_domain} />
             )}
             {item.content_type && (
               <Badge variant="secondary" className="text-xs">

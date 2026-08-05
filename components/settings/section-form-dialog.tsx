@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { type GuideSection } from './guide-types';
 
@@ -41,12 +40,10 @@ export function SectionFormDialog({
   section: GuideSection | null;
   onSave: () => void;
 }) {
-  const { subtopics } = useTaxonomy();
   const { layers: layerVocabulary } = useLayerVocabulary();
   const [sectionName, setSectionName] = useState('');
   const [description, setDescription] = useState('');
   const [expectedLayer, setExpectedLayer] = useState<string>('none');
-  const [subtopicFilter, setSubtopicFilter] = useState<string>('none');
   const [isRequired, setIsRequired] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -56,14 +53,12 @@ export function SectionFormDialog({
       setSectionName(section.section_name);
       setDescription(section.description ?? '');
       setExpectedLayer(section.expected_layer ?? 'none');
-      setSubtopicFilter(section.subtopic_filter ?? 'none');
       setIsRequired(section.is_required);
       setDisplayOrder(section.display_order);
     } else {
       setSectionName('');
       setDescription('');
       setExpectedLayer('none');
-      setSubtopicFilter('none');
       setIsRequired(true);
       setDisplayOrder(0);
     }
@@ -77,13 +72,16 @@ export function SectionFormDialog({
 
     setSaving(true);
     try {
+      // The vocabulary-backed subtopic_filter picker retired with the
+      // subject taxonomy (DR-130). The guide_sections.subtopic_filter
+      // COLUMN is not dropping this wave, so an existing value persists
+      // untouched: the PATCH body simply omits the key (which also means
+      // a legacy value can no longer be cleared from this dialog).
       const body = {
         section_name: sectionName.trim(),
         description: description.trim() || null,
         expected_layer:
           expectedLayer && expectedLayer !== 'none' ? expectedLayer : null,
-        subtopic_filter:
-          subtopicFilter && subtopicFilter !== 'none' ? subtopicFilter : null,
         display_order: displayOrder,
         is_required: isRequired,
       };
@@ -173,28 +171,6 @@ export function SectionFormDialog({
                 {layerVocabulary.map((layer) => (
                   <SelectItem key={layer.key} value={layer.key}>
                     {layer.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label
-              htmlFor="section-subtopic"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Subtopic Filter
-            </label>
-            <Select value={subtopicFilter} onValueChange={setSubtopicFilter}>
-              <SelectTrigger id="section-subtopic" className="mt-1">
-                <SelectValue placeholder="Any subtopic" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Any subtopic</SelectItem>
-                {subtopics.map((s) => (
-                  <SelectItem key={s.name} value={s.name}>
-                    {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>

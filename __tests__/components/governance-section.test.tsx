@@ -189,9 +189,11 @@ describe('GovernanceSection', () => {
         screen.getByText('No governance rules configured'),
       ).toBeInTheDocument();
     });
+    // The former 'Add a domain...' helper copy went with the add-new-domain
+    // flow (DR-130).
     expect(
-      screen.getByText('Add a domain and choose a preset to get started.'),
-    ).toBeInTheDocument();
+      screen.queryByRole('button', { name: 'Add Domain' }),
+    ).not.toBeInTheDocument();
   });
 
   it('renders config list with domain and preset badge', async () => {
@@ -247,126 +249,6 @@ describe('GovernanceSection', () => {
 
     // Should infer strict from review_on_change posture
     expect(screen.getByText('Strict')).toBeInTheDocument();
-  });
-
-  it('opens add dialog with preset picker when Add Domain is clicked', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([]),
-    });
-
-    const user = userEvent.setup();
-    render(<GovernanceSection />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('No governance rules configured'),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Add Domain' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Add Governance Config')).toBeInTheDocument();
-    });
-
-    // Should show preset radio options
-    expect(screen.getByText('Light-touch')).toBeInTheDocument();
-    expect(screen.getByText('Strict')).toBeInTheDocument();
-
-    // Should show preset descriptions
-    expect(
-      screen.getByText(
-        'All edits land immediately. Low-scoring items surface to your attention, but nothing is blocked.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Edits to this domain are held for review. Stale or low-quality items are automatically flagged.',
-      ),
-    ).toBeInTheDocument();
-
-    // Should have domain selector
-    expect(screen.getByText('Select a domain')).toBeInTheDocument();
-
-    // Should have Save button
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    // Should have Cancel button
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-  });
-
-  it('shows empty taxonomy message in add dialog when no domains exist', async () => {
-    setupEmptyTaxonomy();
-
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([]),
-    });
-
-    const user = userEvent.setup();
-    render(<GovernanceSection />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('No governance rules configured'),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Add Domain' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Add Governance Config')).toBeInTheDocument();
-    });
-
-    expect(
-      screen.getByText(
-        'No taxonomy domains configured. Add domains in the taxonomy settings first.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('shows all-configured message when all domains have rules', async () => {
-    // All 3 taxonomy domains already have governance config
-    const configs = [
-      createGovernanceConfig({
-        id: 'gov-1',
-        domain: 'Technology & Systems',
-        preset: 'light_touch',
-      }),
-      createGovernanceConfig({
-        id: 'gov-2',
-        domain: 'Corporate',
-        preset: 'strict',
-      }),
-      createGovernanceConfig({
-        id: 'gov-3',
-        domain: 'Operations',
-        preset: 'light_touch',
-      }),
-    ];
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(configs),
-    });
-
-    const user = userEvent.setup();
-    render(<GovernanceSection />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Technology & Systems')).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Add Domain' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Add Governance Config')).toBeInTheDocument();
-    });
-
-    expect(
-      screen.getByText(
-        'All taxonomy domains already have governance rules configured.',
-      ),
-    ).toBeInTheDocument();
   });
 
   it('shows edit dialog title when editing existing config', async () => {

@@ -57,29 +57,25 @@ export function CollapsibleGroup({
 // ---------------------------------------------------------------------------
 
 /** @public */
-export type GroupBy = 'none' | 'source' | 'domain';
+export type GroupBy = 'none' | 'source';
 
 // ---------------------------------------------------------------------------
-// groupItems — group ContentListItems by source or domain
+// groupItems — group ContentListItems by source document
+// (the former 'domain' grouping retired with the subject axis, DR-130)
 // ---------------------------------------------------------------------------
 
 export function groupItems(
   items: ContentListItem[],
-  groupBy: GroupBy,
+  _groupBy: GroupBy,
 ): Map<string, ContentListItem[]> {
   const groups = new Map<string, ContentListItem[]>();
 
   for (const item of items) {
-    let key: string;
-    if (groupBy === 'source') {
-      key =
-        item.source_file ||
-        ((item.metadata as Record<string, unknown> | null)
-          ?.source_file as string) ||
-        'No source';
-    } else {
-      key = item.primary_domain || 'Unclassified';
-    }
+    const key: string =
+      item.source_file ||
+      ((item.metadata as Record<string, unknown> | null)
+        ?.source_file as string) ||
+      'No source';
 
     const existing = groups.get(key);
     if (existing) {

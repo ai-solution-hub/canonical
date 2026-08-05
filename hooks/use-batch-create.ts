@@ -49,8 +49,6 @@ export interface UseBatchCreateReturn {
   submit: (
     pairs: BatchQAPair[],
     options?: {
-      domain?: string;
-      subtopic?: string;
       sourceDocumentLink?: string;
     },
   ) => Promise<BatchCreateResult | null>;
@@ -69,8 +67,6 @@ export interface UseBatchCreateReturn {
 interface SubmitVariables {
   pairs: BatchQAPair[];
   options?: {
-    domain?: string;
-    subtopic?: string;
     sourceDocumentLink?: string;
   };
 }
@@ -228,8 +224,6 @@ export function useBatchCreate(): UseBatchCreateReturn {
     async (
       pairs: BatchQAPair[],
       options?: {
-        domain?: string;
-        subtopic?: string;
         sourceDocumentLink?: string;
       },
     ): Promise<BatchCreateResult | null> => {

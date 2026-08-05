@@ -69,13 +69,8 @@ export const queryKeys = {
       ['review', 'queue', 'publication-review', filters ?? {}] as const,
   },
 
-  // Taxonomy (read-side; consumed by the root-layout TaxonomyProvider —
-  // the admin CRUD keys went with the settings taxonomy surface)
-  taxonomy: {
-    all: ['taxonomy'] as const,
-    domains: ['taxonomy', 'domains'] as const,
-    subtopics: ['taxonomy', 'subtopics'] as const,
-  },
+  // (The taxonomy read-side keys retired with TaxonomyProvider — DR-130;
+  // the admin CRUD keys had already gone with the settings taxonomy surface)
 
   // Tags
   tags: {

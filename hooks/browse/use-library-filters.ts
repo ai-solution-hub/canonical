@@ -10,7 +10,6 @@ import type { UrlFilterConfig } from '@/lib/content-browsing';
 // ---------------------------------------------------------------------------
 
 export interface LibraryFilters {
-  domain?: string;
   source_file?: string;
   variant?: 'all' | 'standard_only' | 'both';
   search?: string;
@@ -19,7 +18,7 @@ export interface LibraryFilters {
   [key: string]: unknown;
 }
 
-export type GroupBy = 'none' | 'source' | 'domain';
+export type GroupBy = 'none' | 'source';
 
 // ---------------------------------------------------------------------------
 // URL filter config for library filters
@@ -27,7 +26,6 @@ export type GroupBy = 'none' | 'source' | 'domain';
 
 const LIBRARY_FILTER_CONFIG: UrlFilterConfig<LibraryFilters> = {
   defaults: {
-    domain: undefined,
     source_file: undefined,
     variant: undefined,
     search: undefined,
@@ -39,7 +37,6 @@ const LIBRARY_FILTER_CONFIG: UrlFilterConfig<LibraryFilters> = {
     search: 'q',
   },
   parsers: {
-    domain: (raw) => raw || undefined,
     source_file: (raw) => raw || undefined,
     variant: (raw) => (raw as LibraryFilters['variant']) || undefined,
     search: (raw) => raw || undefined,

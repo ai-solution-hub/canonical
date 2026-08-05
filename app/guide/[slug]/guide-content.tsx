@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2, Settings, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DomainBadge } from '@/components/shared/domain-badge';
 import { GuideSection } from '@/components/guide/guide-section';
 import { GuideProgressBar } from '@/components/guide/guide-progress-bar';
 import { GuideResearchFeed } from '@/components/guide/guide-research-feed';
@@ -143,14 +142,6 @@ function GuideSidebarContent({
                 {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
               </dd>
             </div>
-            {guide.domain_filter && (
-              <div>
-                <dt className="text-xs text-muted-foreground">Domain</dt>
-                <dd>
-                  <DomainBadge domain={guide.domain_filter} />
-                </dd>
-              </div>
-            )}
             <div>
               <dt className="text-xs text-muted-foreground">Sections</dt>
               <dd className="font-medium text-foreground">{sections.length}</dd>
@@ -306,7 +297,6 @@ export function GuideContent({ slug }: { slug: string }) {
           <Badge variant="secondary" className="text-xs">
             {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
           </Badge>
-          {guide.domain_filter && <DomainBadge domain={guide.domain_filter} />}
         </div>
         {guide.description && (
           <p className="mt-1.5 text-sm text-muted-foreground">

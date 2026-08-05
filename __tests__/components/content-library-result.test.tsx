@@ -138,19 +138,18 @@ describe('ContentLibraryResult', () => {
     expect(screen.getByText('What is the policy?')).toBeInTheDocument();
   });
 
-  it('shows content type and domain badges', () => {
+  it('shows the content type badge (domain badge retired, DR-130)', () => {
     render(
       <ContentLibraryResult
         result={createResult({
           content_type: 'case_study',
-          primary_domain: 'Technical',
         })}
         onCopy={mockOnCopy}
       />,
     );
 
     expect(screen.getByText('Case Study')).toBeInTheDocument();
-    expect(screen.getByTestId('domain-badge')).toHaveTextContent('Technical');
+    expect(screen.queryByTestId('domain-badge')).not.toBeInTheDocument();
   });
 
   it('shows similarity score', () => {

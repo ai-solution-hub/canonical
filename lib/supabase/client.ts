@@ -32,7 +32,7 @@ export function createClient(): SupabaseClient<Database> {
 /**
  * Whether the browser currently holds a Supabase session.
  *
- * Root-layout providers (`TaxonomyProvider`, `LayerVocabularyProvider`) mount
+ * Root-layout providers (`LayerVocabularyProvider`) mount
  * on EVERY route, including the unauthenticated ones (`lib/routes.ts`
  * PUBLIC_ROUTES: /login, /auth/callback, /oauth/consent). Since the id-347
  * anon lockdown, `anon` reaches no relation at all, so a reference-data fetch

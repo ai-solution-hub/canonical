@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { DomainBadge } from '@/components/shared/domain-badge';
 import { Badge } from '@/components/ui/badge';
 import { Check, Flag } from 'lucide-react';
 import { getDisplayTitle } from '@/lib/format';
@@ -56,9 +55,6 @@ export function ReviewQueuePanel({
               aria-label={title}
             >
               <div className="flex items-center gap-1.5">
-                {item.primary_domain && (
-                  <DomainBadge domain={item.primary_domain} />
-                )}
                 {item.content_type && (
                   <Badge variant="secondary" className="text-[10px]">
                     {item.content_type.replace(/_/g, ' ')}

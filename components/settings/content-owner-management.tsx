@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,11 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import type { ContentOwnerStats } from '@/types/owner';
-
-type AssignScope = 'unowned' | 'by_domain';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,15 +74,8 @@ export function ContentOwnerManagement() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [scope, setScope] = useState<AssignScope>('unowned');
   const [ownerId, setOwnerId] = useState('');
-  const [assignDomain, setAssignDomain] = useState('');
-  const [assignSubtopic, setAssignSubtopic] = useState('');
-  const [assignContentType, setAssignContentType] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const { getSubtopics, getDomainNames } = useTaxonomy();
-  const domainNames = getDomainNames();
 
   // Fetch owner stats
   const fetchStats = useCallback(async () => {
@@ -158,7 +147,8 @@ export function ContentOwnerManagement() {
     init();
   }, [fetchStats, fetchTeamMembers]);
 
-  // Handle assign action — branches on scope
+  // Handle assign action — unowned items only (the former by-domain scope
+  // retired with the subject taxonomy, DR-130)
   async function handleAssign() {
     if (!ownerId) {
       toast.error('Please select an owner');
@@ -168,11 +158,6 @@ export function ContentOwnerManagement() {
     setSaving(true);
     try {
       const filter: Record<string, unknown> = { unowned_only: true };
-      if (scope === 'by_domain') {
-        if (assignDomain) filter.domain = assignDomain;
-        if (assignSubtopic) filter.subtopic = assignSubtopic;
-        if (assignContentType) filter.content_type = assignContentType;
-      }
 
       const response = await fetch('/api/content-owners/bulk-assign', {
         method: 'POST',
@@ -186,13 +171,7 @@ export function ContentOwnerManagement() {
       }
 
       const result = await response.json();
-      const message =
-        scope === 'unowned'
-          ? `Assigned ${result.items_updated} unowned items`
-          : assignDomain
-            ? `Assigned ${result.items_updated} items in ${assignDomain}`
-            : `Assigned ${result.items_updated} items`;
-      toast.success(message);
+      toast.success(`Assigned ${result.items_updated} unowned items`);
       setDialogOpen(false);
       resetForm();
       await fetchStats();
@@ -206,19 +185,7 @@ export function ContentOwnerManagement() {
   }
 
   function resetForm() {
-    setScope('unowned');
     setOwnerId('');
-    setAssignDomain('');
-    setAssignSubtopic('');
-    setAssignContentType('');
-  }
-
-  function handleScopeChange(value: AssignScope) {
-    setScope(value);
-    // Clear domain filters when switching scope; keep ownerId (scope-agnostic)
-    setAssignDomain('');
-    setAssignSubtopic('');
-    setAssignContentType('');
   }
 
   function getTeamMemberLabel(member: TeamMember): string {
@@ -238,8 +205,6 @@ export function ContentOwnerManagement() {
       </div>
     );
   }
-
-  const subtopicOptions = assignDomain ? getSubtopics(assignDomain) : [];
 
   return (
     <div className="space-y-4">
@@ -267,111 +232,11 @@ export function ContentOwnerManagement() {
             <DialogHeader>
               <DialogTitle>Assign content owner</DialogTitle>
               <DialogDescription>
-                Assign unowned content items to a team member, either globally
-                or filtered by domain.
+                Assign unowned content items to a team member.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              {/* Scope toggle */}
-              <div className="space-y-2">
-                <Label>Scope</Label>
-                <RadioGroup
-                  value={scope}
-                  onValueChange={(v) => handleScopeChange(v as AssignScope)}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="unowned" id="scope-unowned" />
-                    <Label
-                      htmlFor="scope-unowned"
-                      className="cursor-pointer font-normal"
-                    >
-                      Unowned only
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="by_domain" id="scope-by-domain" />
-                    <Label
-                      htmlFor="scope-by-domain"
-                      className="cursor-pointer font-normal"
-                    >
-                      By domain
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {/* Domain filters — visible only in by_domain scope */}
-              {scope === 'by_domain' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="assign-domain">Domain</Label>
-                    <Select
-                      value={assignDomain}
-                      onValueChange={(v) => {
-                        setAssignDomain(v);
-                        setAssignSubtopic('');
-                      }}
-                    >
-                      <SelectTrigger id="assign-domain">
-                        <SelectValue placeholder="All domains" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {domainNames.map((d) => (
-                          <SelectItem key={d} value={d}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {subtopicOptions.length > 0 && (
-                    <div className="space-y-2">
-                      <Label htmlFor="assign-subtopic">Subtopic</Label>
-                      <Select
-                        value={assignSubtopic}
-                        onValueChange={setAssignSubtopic}
-                      >
-                        <SelectTrigger id="assign-subtopic">
-                          <SelectValue placeholder="All subtopics" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subtopicOptions.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor="assign-content-type">Content type</Label>
-                    <Select
-                      value={assignContentType}
-                      onValueChange={setAssignContentType}
-                    >
-                      <SelectTrigger id="assign-content-type">
-                        <SelectValue placeholder="All types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="article">Article</SelectItem>
-                        <SelectItem value="blog">Blog</SelectItem>
-                        <SelectItem value="policy">Policy</SelectItem>
-                        <SelectItem value="guide">Guide</SelectItem>
-                        <SelectItem value="case_study">Case Study</SelectItem>
-                        <SelectItem value="certification">
-                          Certification
-                        </SelectItem>
-                        <SelectItem value="compliance">Compliance</SelectItem>
-                        <SelectItem value="document">Document</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-              {/* Owner picker — always visible */}
+              {/* Owner picker */}
               <div className="space-y-2">
                 <Label htmlFor="assign-owner">Owner</Label>
                 <Select value={ownerId} onValueChange={setOwnerId}>

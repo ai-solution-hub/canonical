@@ -334,11 +334,12 @@ describe('LibraryContent', () => {
     });
   });
 
-  it('renders domain filter select with taxonomy domains', async () => {
+  it('does not render a domain filter (subject axis retired, DR-130)', async () => {
     renderLibraryContent();
     await waitFor(() => {
-      expect(screen.getByLabelText('Filter by domain')).toBeInTheDocument();
+      expect(screen.getByLabelText('Search Q&A pairs')).toBeInTheDocument();
     });
+    expect(screen.queryByLabelText('Filter by domain')).not.toBeInTheDocument();
   });
 
   it('renders freshness filter select', async () => {
