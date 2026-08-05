@@ -1393,7 +1393,10 @@ class TestItemFailuresWebhookEmission:
         payload = self._emit(item_failures={"forms": 1, "content": 0})
         assert payload is not None
         assert payload.get("itemFailures") == {"forms": 1, "content": 0}
-        # OQ-80.2-C: per-item faults do NOT flip the terminal status.
+        # The webhook helper is a PASS-THROUGH: it serialises the status it
+        # is GIVEN and never re-resolves it against item_failures — the
+        # id-414 AC-1 resolution happens at the source
+        # (`_resolve_terminal_status` in app_main's finally), not here.
         assert payload.get("status") == "completed"
 
     def test_emit_rides_alongside_error_detail_and_taxonomy_misses(self):
@@ -1430,7 +1433,9 @@ class TestPerItemFailureIsolation:
 
       - content rows still land (cc target receives the good doc's chunk row
         — {127.25} DR-034 re-pointed this proof off content_items, dropped),
-      - flow_status == 'completed' (per-item faults never flip it),
+      - flow_status == 'completed_with_errors' (id-414 AC-1: the contained
+        fault stays contained but no longer hides inside 'completed';
+        'failed' stays reserved for walk-wide faults),
       - the terminal webhook threads
         item_failures == {'content': 1, 'url': 0},
       - ONE `cocoindex.stage_error` with stage='ingest_item' is emitted.
@@ -1705,11 +1710,13 @@ class TestPerItemFailureIsolation:
         )
         assert cc_rows[0]["content"] == good_markdown
 
-        # 2. flow_status == 'completed': per-item faults never flip the
-        # terminal status ('failed' is reserved for walk-wide faults).
+        # 2. flow_status == 'completed_with_errors' (id-414 AC-1): the
+        # contained per-item fault surfaces in the terminal LABEL — never a
+        # bare 'completed' (the S522 silent-drop class) and never 'failed'
+        # (reserved for walk-wide faults). No walk-wide error fields ride it.
         assert webhook_calls, "expected webhook emissions"
         terminal = webhook_calls[-1]
-        assert terminal["status"] == "completed"
+        assert terminal["status"] == "completed_with_errors"
         assert terminal.get("error_class") is None
         assert terminal.get("error_message") is None
 
@@ -1954,11 +1961,12 @@ class TestPerItemFailureIsolation:
         )
         assert cc_rows[0]["content"] == good_markdown
 
-        # 2. flow_status == 'completed': the retired-type fault is
-        # item-isolated, NOT promoted to a whole-walk failure.
+        # 2. flow_status == 'completed_with_errors' (id-414 AC-1): the
+        # retired-type fault is item-isolated — NOT promoted to a whole-walk
+        # 'failed', but no longer hidden inside a bare 'completed' either.
         assert webhook_calls, "expected webhook emissions"
         terminal = webhook_calls[-1]
-        assert terminal["status"] == "completed"
+        assert terminal["status"] == "completed_with_errors"
         assert terminal.get("error_class") is None
         assert terminal.get("error_message") is None
 
@@ -2018,7 +2026,8 @@ class TestUrlPerItemFailureIsolation:
 
       - URL A lands ZERO rows (no sd, no ri) while sibling URL B's sd+ri
         pair lands — one URL's fault never aborts the batch (BI-19),
-      - flow_status == 'completed' (per-item faults never flip it),
+      - flow_status == 'completed_with_errors' (id-414 AC-1: contained,
+        but no longer hidden inside 'completed'),
       - the terminal webhook threads
         item_failures == {'content': 0, 'url': 1} (ID-136: the tally shape
         dropped 'forms' — T4),
@@ -2295,9 +2304,11 @@ class TestUrlPerItemFailureIsolation:
         assert [r["source_url"] for r in sd_rows] == [self._URL_B]
         assert ri_rows[0]["title"] == "Beta"
 
-        # 2. flow_status == 'completed' — a per-item URL fault never flips it.
+        # 2. flow_status == 'completed_with_errors' (id-414 AC-1) — the
+        # per-item URL fault surfaces in the label, never as walk-wide
+        # 'failed', never hidden as bare 'completed'.
         terminal = harness["webhook_calls"][-1]
-        assert terminal["status"] == "completed"
+        assert terminal["status"] == "completed_with_errors"
         assert terminal.get("error_class") is None
 
         # 3. The fault rides the 'url' branch of the per-branch tally.
@@ -2464,8 +2475,9 @@ class TestUrlPerItemFailureIsolation:
 
         asyncio.run(flow.app_main())
 
+        # id-414 AC-1: two contained per-item faults surface in the label.
         terminal = harness["webhook_calls"][-1]
-        assert terminal["status"] == "completed"
+        assert terminal["status"] == "completed_with_errors"
         assert terminal.get("item_failures") == {
             "content": 0,
             "url": 2,
@@ -2496,8 +2508,9 @@ class TestUrlPerItemFailureIsolation:
 
         asyncio.run(flow.app_main())
 
+        # id-414 AC-1: two contained per-item faults surface in the label.
         terminal = harness["webhook_calls"][-1]
-        assert terminal["status"] == "completed"
+        assert terminal["status"] == "completed_with_errors"
         assert terminal.get("item_failures") == {
             "content": 0,
             "url": 2,

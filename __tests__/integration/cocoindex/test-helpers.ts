@@ -378,17 +378,29 @@ export interface PollPipelineRunOpts {
 }
 
 /**
- * Poll `pipeline_runs WHERE op_id = <opId>` until the row reaches
- * `status='completed'`, or the deadline is reached. This is the C-54 /
- * Stage-5 Inv-3 read-contract gate: `entity_mentions.canonical_name` is only
- * authoritative AFTER the producing run completes (TECH §2.6 row C-54;
- * Stage-5 PRODUCT Inv-3 "canonical_name freshness on successful run").
+ * Poll `pipeline_runs WHERE op_id = <opId>` until the row reaches a terminal
+ * SUCCESS status (`completed` OR `completed_with_errors`), or the deadline
+ * is reached. This is the C-54 / Stage-5 Inv-3 read-contract gate:
+ * `entity_mentions.canonical_name` is only authoritative AFTER the producing
+ * run completes (TECH §2.6 row C-54; Stage-5 PRODUCT Inv-3 "canonical_name
+ * freshness on successful run").
  *
- * Rejects (rather than silently resolving) when the run terminates in any
- * NON-completed terminal status (`failed`/`cancelled`/...): a non-completed
- * run cannot satisfy the post-completion read contract, so the caller's
- * assertions would be meaningless. Throws when live-DB credentials are not
- * real (callers MUST env-gate first) and rejects on timeout.
+ * `completed_with_errors` IS terminal success for this gate (id-414 AC-4,
+ * coupled to the AC-1 flow change): since the fail-loud resolution, a walk
+ * with CONTAINED per-item drops resolves to `completed_with_errors` instead
+ * of a bare `completed` — treating only `completed` as success would hang
+ * this poll to timeout on any such walk. The run still finished its pass;
+ * Stage-5 faults are walk-wide and land `failed`, so the landed rows'
+ * post-completion read contract holds. The drops belong to OTHER items —
+ * callers assert on the rows they staged, and those assertions (not this
+ * gate) fail loudly if the caller's own item was the one dropped. The
+ * returned row carries `status` for callers that need to distinguish.
+ *
+ * Rejects (rather than silently resolving) when the run terminates in a
+ * terminal NON-success status (`failed`/`cancelled`/...): such a run cannot
+ * satisfy the post-completion read contract, so the caller's assertions
+ * would be meaningless. Throws when live-DB credentials are not real
+ * (callers MUST env-gate first) and rejects on timeout.
  */
 export async function pollPipelineRunCompleted(
   opId: string,
@@ -424,7 +436,7 @@ export async function pollPipelineRunCompleted(
     }
     if (run) {
       const status = run.status as string;
-      if (status === 'completed') {
+      if (status === 'completed' || status === 'completed_with_errors') {
         return {
           id: run.id as string,
           op_id: run.op_id as string,
@@ -444,7 +456,7 @@ export async function pollPipelineRunCompleted(
   }
 
   throw new Error(
-    `pollPipelineRunCompleted: timed out after ${timeoutMs}ms waiting for pipeline_runs.status='completed' for op_id ${opId}`,
+    `pollPipelineRunCompleted: timed out after ${timeoutMs}ms waiting for pipeline_runs.status IN ('completed', 'completed_with_errors') for op_id ${opId}`,
   );
 }
 

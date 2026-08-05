@@ -164,11 +164,17 @@ describe.skipIf(!ENABLED)(
 
         // ---- C-54 part 1: gate the authoritative read on completion -------
         // The post-completion read contract: canonical_name is only stable
-        // AFTER pipeline_runs.status='completed' for the producing run.
+        // AFTER the producing run reaches terminal success. Since id-414
+        // AC-1 that is `completed` OR `completed_with_errors` — a contained
+        // per-item drop elsewhere in the shared corpus resolves the run to
+        // the latter without invalidating THIS test's landed rows (Stage-5
+        // faults are walk-wide and land `failed`, which the poll rejects).
+        // The mention assertions below fail loudly if this test's OWN docs
+        // were the ones dropped.
         const run = await pollPipelineRunCompleted(opId!, {
           timeoutMs: POLL_TIMEOUT_MS,
         });
-        expect(run.status).toBe('completed');
+        expect(['completed', 'completed_with_errors']).toContain(run.status);
 
         // Inv-6 round-trip: exactly one pipeline_runs row for this op_id.
         await assertOpIdRoundTrip(opId!);

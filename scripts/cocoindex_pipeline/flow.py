@@ -529,6 +529,54 @@ def _emit_stage_error_log(
     _logger.error(json.dumps(payload))
 
 
+def _emit_run_terminal_log(
+    *,
+    op_id: "uuid.UUID | str",
+    status: "PipelineRunStatus",
+    item_failures: dict[str, int],
+    items_processed: int,
+) -> None:
+    """Emit ONE structured run-terminal log line carrying the drop COUNT.
+
+    id-414 AC-2. Surface choice, stated here as the AC requires: the
+    per-branch tally already rides the terminal webhook (`itemFailures`,
+    persisted to `pipeline_runs.result.item_failures` by the record route),
+    so the DB/webhook altitude needs no new shape. What was missing is the
+    LOG altitude — the sidecar emits one `cocoindex.stage_error` line per
+    dropped item but no per-run rollup, so a run's drop total was only
+    recoverable by counting lines in the sidecar artifact. This single line
+    makes the total legible in `docker logs` directly, and it is the
+    instrument the nightly baseline-walk gate parses (id-414 AC-3). It is
+    emitted unconditionally at flow end: webhook delivery is best-effort
+    against a possibly-misconfigured URL; this line cannot be lost that way.
+
+    Contract shape (machine-parseable, one line):
+
+      {"event": "cocoindex.run_terminal", "op_id": "<uuid>",
+       "status": "completed"|"completed_with_errors"|"failed",
+       "item_failures": {"content": m, "url": k},
+       "item_failure_total": m + k, "items_processed": n}
+
+    Level: INFO on a clean `completed` run; WARNING otherwise — so a
+    level-filtered log view surfaces exactly the runs that dropped items
+    (or failed) without per-item line counting.
+    """
+    total = sum(item_failures.values())
+    payload: dict[str, object] = {
+        "event": "cocoindex.run_terminal",
+        "op_id": str(op_id),
+        "status": status,
+        "item_failures": dict(item_failures),
+        "item_failure_total": total,
+        "items_processed": items_processed,
+    }
+    line = json.dumps(payload)
+    if status == "completed":
+        _logger.info(line)
+    else:
+        _logger.warning(line)
+
+
 # ── Inv-23 retry-count substrate (ID-28.13 fix-pack) ─────────────────────────
 
 
@@ -643,11 +691,16 @@ class _FlowItemFailureCounter:
     at flow end and emitted via the pipeline-run webhook as `itemFailures`
     (`{'content': m, 'url': k}`).
 
-    OQ-80.2-C (Liam, S314, 05/06/2026): per-item faults leave
-    `flow_status='completed'` and ride this tally; `'failed'` is reserved for
-    walk-wide faults (manifest load, Stage-5, mount errors). This is the
-    bl-224 cascade inversion — one file's fault must never zero another
-    file's reported writes.
+    OQ-80.2-C (Liam, S314, 05/06/2026) ratified the CONTAINMENT half of this
+    substrate: per-item faults ride this tally and never abort the batch —
+    the bl-224 cascade inversion (one file's fault must never zero another
+    file's reported writes); `'failed'` stays reserved for walk-wide faults
+    (manifest load, Stage-5, mount errors). Its LABEL half ("per-item faults
+    leave `flow_status='completed'`") is SUPERSEDED by id-414 AC-1 (W2
+    fail-loud): a non-zero tally now resolves the terminal status to
+    `'completed_with_errors'` via `_resolve_terminal_status` — the S314
+    ruling predates the S522 finding that a nightly run reported `completed`
+    while silently dropping 159 per-item ingests.
 
     Instances are per-flow — one per `app_main()` invocation, no shared
     state. Thread-safety is not required: cocoindex @coco.fn execution is
@@ -731,6 +784,43 @@ PipelineRunStatus = Literal[
     "completed_with_errors",
     "failed",
 ]
+
+
+def _resolve_terminal_status(
+    flow_status: PipelineRunStatus,
+    item_failures: dict[str, int],
+) -> PipelineRunStatus:
+    """Resolve the terminal run status against the per-item failure tally.
+
+    id-414 AC-1 (W2 fail-loud). The rule, stated here because this is the
+    code that enforces its status half:
+
+      - A walk-wide fault (manifest load, Stage-5, mount errors) raises out
+        of `app_main`'s try and lands `'failed'` — untouched here (never
+        downgraded, never upgraded).
+      - A CONTAINED per-item fault no longer hides inside `'completed'`: a
+        `'completed'` walk whose item-failure tally is non-zero resolves to
+        `'completed_with_errors'`. The containment itself is unchanged
+        (bl-224 cascade inversion — one file's fault never aborts the batch
+        or zeroes a sibling's writes); only the terminal LABEL now tells the
+        truth about the drop.
+      - The in-scope/out-of-scope boundary (id-414 AC-3) is deliberately NOT
+        decided here: the flow walks whatever corpus it is given and cannot
+        know Platform-corpus membership. The nightly's baseline-walk gate
+        (`.github/workflows/cocoindex-nightly.yml`) reds the job on this
+        status because the corpus walked THERE is exactly the vendored
+        Platform corpus (id-412 seed) — in-scope by construction. Per-test
+        staged inputs are walked in LATER, ungated runs, where this status
+        merely reports the drop (log line + webhook count) and expected-
+        unsupported non-corpus inputs stay a warning, not a red.
+
+    Supersedes the OQ-80.2-C label ruling (S314: per-item faults leave
+    `flow_status='completed'`) — see `_FlowItemFailureCounter`'s docstring
+    for the provenance.
+    """
+    if flow_status == "completed" and sum(item_failures.values()) > 0:
+        return "completed_with_errors"
+    return flow_status
 
 # Canonical name the sidecar stamps on every `pipeline_runs.pipeline_name`
 # emission (Inv-16). Centralised here (ID-55.3) as the single producer-side
@@ -4229,7 +4319,10 @@ async def app_main() -> None:
     # containment handler in `bound_ingest_file` below each time an
     # unexpected exception escapes ONE file's ingest; its per-branch tally
     # (`{'content': m, 'url': k}`) is threaded into the terminal webhook
-    # emit. Per-item faults never flip `flow_status` (OQ-80.2-C).
+    # emit. Per-item faults never abort the batch (bl-224 inversion), and a
+    # non-zero tally resolves the terminal status to `completed_with_errors`
+    # at flow end (id-414 AC-1, `_resolve_terminal_status` — superseding the
+    # OQ-80.2-C `completed` label).
     flow_item_failure_counter = _FlowItemFailureCounter()
     # ID-127.33 (S457 self-healing-memo): counter is bound via
     # `bind_memo_heal_counter` below so `extraction.py`'s
@@ -4428,10 +4521,12 @@ async def app_main() -> None:
         # boundary. An UNEXPECTED escape from one file's branch is contained
         # and attributed (per-branch tally + ingest_item stage error), NOT
         # promoted to a whole-walk failure — Inv-17: one file's fault must
-        # not abort the batch or flip flow_status (the bl-224 cascade
+        # not abort the batch or zero a sibling's writes (the bl-224 cascade
         # inversion). Walk-wide faults (Stage-5, mount errors) still
         # propagate through the flow-scope except below and correctly land
-        # status='failed'.
+        # status='failed'. The contained tally is no longer silent either:
+        # a non-zero count resolves the terminal status to
+        # `completed_with_errors` at flow end (id-414 AC-1).
         async def bound_ingest_file(file, *targets):
             try:
                 return await ingest_file(
@@ -4827,6 +4922,16 @@ async def app_main() -> None:
         # binary_conversion + 3x llm_extraction + embedding + N postgres_upsert
         # per doc) and silently change the magnitude/meaning of the column.
         #
+        # id-414 AC-1: resolve the terminal status against the settled
+        # per-item failure tally BEFORE the terminal emit — a completed walk
+        # that dropped items reports `completed_with_errors`, never a bare
+        # `completed` (the S522 silent-drop class). Rule + in-scope boundary:
+        # `_resolve_terminal_status`'s docstring. A walk-wide `failed` is
+        # never rewritten.
+        flow_status = _resolve_terminal_status(
+            flow_status, flow_item_failure_counter.tally()
+        )
+
         # id-415 phase `flow_end_webhook`: one outbound HTTP POST to Vercel. It
         # is best-effort (never raises — see the helper's docstring), which is
         # what makes it safe to emit the bisect line AFTER it.
@@ -4855,21 +4960,39 @@ async def app_main() -> None:
         )
         _record_walk_phase(walk_phases, "flow_end_webhook", _phase_started)
 
+        # id-414 AC-2: ONE run-terminal rollup line — the run's drop COUNT
+        # legible in `docker logs` without the sidecar artifact, and the
+        # parse target of the nightly baseline-walk gate (AC-3). Emitted
+        # AFTER the webhook (same settled tallies) and BEFORE the id-415
+        # bisect line, which stays last by its own contract.
+        _emit_run_terminal_log(
+            op_id=run_op_id,
+            status=flow_status,
+            item_failures=flow_item_failure_counter.tally(),
+            items_processed=stage_counts["source_walk"],
+        )
+
         # id-415 phase `producer_trigger`: the delta read + the chained producer
         # run. Delta-gated by design, so it SHOULD be near-zero on a no-change
         # walk — included precisely so that claim is measured, not assumed.
         _phase_started = time.perf_counter()
-        # ID-132 {132.16} G-TRIGGER: producer post-walk chaining. Gated on a
-        # CLEAN completion — a failed walk's source_documents deltas may be
-        # partial/inconsistent, so a failed `flow_status` never chains a
-        # producer run. `_fetch_source_document_deltas` reads back the rows
+        # ID-132 {132.16} G-TRIGGER: producer post-walk chaining. Gated on
+        # completion — a failed walk's source_documents deltas may be
+        # partial/inconsistent, so a walk-wide `failed` never chains a
+        # producer run. `completed_with_errors` DOES chain (id-414 AC-1,
+        # behaviour-preserving): before the fail-loud change a walk with
+        # contained per-item faults reported `completed` and chained; only
+        # its LABEL changed, not its delta consistency — a failed item
+        # declares NOTHING (see bound_ingest_url's ORDERING note), so the
+        # rows the delta read returns are exactly the landed ones, as
+        # consistent as before. `_fetch_source_document_deltas` reads back the rows
         # THIS walk's `_upsert_source_document` calls stamped with
         # `op_id=run_op_id` (see that helper's own comment) — the precise
         # delta signal `producer.trigger.trigger_producer_post_walk` gates
         # on (empty ⇒ no-op, per v3 §7.2 delta-only). CONTAINED like the
         # qa_dedup_proposer post-pass above: a producer-chain fault must
         # never fail the ingest walk itself — the walk already landed.
-        if flow_status == "completed":
+        if flow_status in ("completed", "completed_with_errors"):
             try:
                 source_document_deltas = await _fetch_source_document_deltas(
                     coco.use_context(DB_CTX), run_op_id

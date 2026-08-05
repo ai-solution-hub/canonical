@@ -893,7 +893,8 @@ jobs:
             python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures templates
 
       - name:
-          Trigger corpus walk (bearer-gated POST /walk) and wait for completion
+          Trigger corpus walk (bearer-gated POST /walk), wait for completion,
+          and red on in-scope item drops (id-414 AC-3)
         # Port is published to the host, so a plain host-side curl suffices —
         # no docker-exec-python3-urllib indirection needed. (The deleted B1
         # operator hook needed that indirection because the compose stack
@@ -986,6 +987,53 @@ jobs:
             fi
             sleep 10
           done
+
+          # ── id-414 AC-3: the in-scope / out-of-scope gate ────────────────
+          # Boundary rule (the W2 purpose framing), stated here because this
+          # is the code that enforces its corpus half: the corpus THIS walk
+          # just walked is exactly the vendored Platform corpus — the id-412
+          # seed step above staged it as the walked baseline, and the
+          # verify_driver step stages only Platform-corpus-derived copies
+          # under verify/ (its `templates` set reads
+          # scripts/cocoindex_pipeline/fixtures/platform-corpus/content/).
+          # Every item in this pass is therefore IN-SCOPE by construction: a
+          # per-item drop here is a real Platform-E2E regression and REDS the
+          # job — the S522 class (159 drops under a green `completed`) can
+          # no longer pass silently. Expected-unsupported inputs that are NOT
+          # part of the Platform corpus only enter via LATER per-test
+          # staging (the Vitest step): those walks are deliberately NOT
+          # gated here — their drops surface as the sidecar's WARNING-level
+          # `cocoindex.run_terminal` line + the webhook `item_failures`
+          # count, and the job stays GREEN for them.
+          #
+          # Instrument: flow.py's `cocoindex.run_terminal` structured line
+          # (id-414 AC-2) — emitted unconditionally at flow end, unlike the
+          # webhook row (best-effort delivery to a possibly-misconfigured
+          # URL; see the preflight warning step above), and readable over
+          # the same docker-logs channel the wait loop above already uses.
+          # An unreadable instrument FAILS the gate rather than passing
+          # unverified — silent-green on missing evidence is exactly the
+          # defect class this gate exists to kill.
+          OP_ID="$(printf '%s' "$WALK_LINES" | grep -oE 'opId=[0-9a-f-]{36}' | tail -1 | cut -d= -f2 || true)"
+          if [ -z "$OP_ID" ]; then
+            echo "::error::id-414 gate: the '/walk completed' line carried no opId — the id-400 FlowRunContext attribution channel is broken, so the in-scope item-drop gate CANNOT evaluate. Failing rather than passing unverified." >&2
+            exit 1
+          fi
+          TERMINAL_LINE="$(docker logs --since "$WALK_LOG_SINCE" cocoindex-sidecar 2>&1 | grep -F '"event": "cocoindex.run_terminal"' | grep -F "$OP_ID" | tail -1 || true)"
+          if [ -z "$TERMINAL_LINE" ]; then
+            echo "::error::id-414 gate: no cocoindex.run_terminal line for op_id ${OP_ID} in the sidecar log — cannot read the run's item-failure count. Failing rather than passing unverified." >&2
+            exit 1
+          fi
+          GATE_EVAL="$(printf '%s' "$TERMINAL_LINE" | python3 -c 'import json,sys; line=sys.stdin.read(); payload=json.loads(line[line.index("{"):]); print(payload.get("status","unknown"), payload.get("item_failure_total",-1))')"
+          set -- $GATE_EVAL
+          RUN_STATUS="${1:-unknown}"; FAIL_TOTAL="${2:--1}"
+          echo "baseline Platform-corpus walk terminal: status=${RUN_STATUS} item_failure_total=${FAIL_TOTAL} (op_id=${OP_ID})"
+          if [ "$RUN_STATUS" = "completed" ] && [ "$FAIL_TOTAL" = "0" ]; then
+            echo "id-414 gate: every in-scope Platform-corpus document processed — clean."
+          else
+            echo "::error::id-414 gate: the baseline walk over the Platform corpus dropped ${FAIL_TOTAL} item(s) (terminal status '${RUN_STATUS}'). Every item in this walk is an in-scope Platform-corpus document, so this is a real Platform-E2E regression — the exact silent-drop class S522 found reported as 'completed'. Per-item detail: grep the cocoindex-nightly-logs artifact for cocoindex.stage_error lines with op_id ${OP_ID}." >&2
+            exit 1
+          fi
 
       # id-400 (HARNESS §2 — OQ-397-3 RULED W2): the 10 s background walk
       # pump is DELETED. It was the direct mechanism behind the op_id

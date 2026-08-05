@@ -17,7 +17,9 @@ wiring only:
     run end-to-end; mirrors `test_cocoindex_flow_embedding_stage_count.py`
     SLICE 3 / `test_cocoindex_app_main_retry_wiring.py`'s established
     pattern): the hook fires exactly once, is gated on
-    `flow_status == "completed"`, and is wrapped so a producer-chain fault
+    `flow_status in ("completed", "completed_with_errors")` (id-414 AC-1 —
+    a walk-wide `failed` never chains; contained per-item faults keep
+    chaining as they always did), and is wrapped so a producer-chain fault
     cannot fail the ingest walk itself.
 """
 
@@ -198,17 +200,28 @@ class TestAppMainWiresProducerTrigger:
         )
 
     def test_hook_is_gated_on_completed_status(self) -> None:
+        # id-414 AC-1: the gate admits BOTH completion labels. A walk with
+        # contained per-item faults chained the producer before the
+        # fail-loud change (it reported `completed`); only its label moved
+        # to `completed_with_errors`, not its delta consistency — a failed
+        # item declares nothing, so the delta read returns exactly the
+        # landed rows. Only a walk-wide `failed` skips the chain.
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
-        gate_idx = source.find('flow_status == "completed"')
+        gate_idx = source.find(
+            'flow_status in ("completed", "completed_with_errors")'
+        )
         hook_idx = source.find("trigger_producer_post_walk(")
         assert gate_idx != -1, (
-            "the producer-chain hook must be gated on flow_status == 'completed' "
-            "— a failed walk's source_documents delta may be partial/inconsistent."
+            "the producer-chain hook must be gated on flow_status in "
+            "('completed', 'completed_with_errors') — a walk-wide 'failed' "
+            "walk's source_documents delta may be partial/inconsistent and "
+            "never chains; a completed_with_errors walk's landed rows are "
+            "consistent and must keep chaining (id-414 AC-1)."
         )
         assert gate_idx < hook_idx, (
-            "the completed-status gate must precede the trigger_producer_post_walk "
-            "call site."
+            "the completion-status gate must precede the "
+            "trigger_producer_post_walk call site."
         )
 
     def test_hook_is_contained_and_does_not_re_raise(self) -> None:

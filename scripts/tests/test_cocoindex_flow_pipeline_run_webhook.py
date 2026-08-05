@@ -567,6 +567,11 @@ class TestEmitPipelineRunWebhookItemFailures:
     the terminal emission as camelCase `itemFailures`, omit-when-None —
     mirroring the errorDetail (ID-61.4) pattern. Strictly additive alongside
     errorDetail / taxonomyMisses (coordinate, don't clobber).
+
+    The helper is TRANSPORT ONLY: status arrives already resolved. The
+    id-414 AC-1 rule (non-zero tally → 'completed_with_errors') lives in
+    `_resolve_terminal_status` and is tested at that source
+    (`test_cocoindex_flow_terminal_status.py`), not here.
     """
 
     URL = "https://kh.example.org/api/internal/pipeline-runs/record"
@@ -615,15 +620,33 @@ class TestEmitPipelineRunWebhookItemFailures:
         assert _StubSession.last_json is not None
         assert "itemFailures" not in _StubSession.last_json
 
-    def test_payload_status_stays_completed_with_item_failures(self):
-        # OQ-80.2-C: per-item faults are reported on a 'completed' run;
-        # 'failed' is reserved for walk-wide faults.
+    def test_payload_status_is_passed_through_not_re_resolved(self):
+        # The webhook helper serialises the status it is GIVEN and never
+        # re-resolves it against item_failures — the id-414 AC-1 resolution
+        # (non-zero tally → 'completed_with_errors') happens at the source,
+        # `_resolve_terminal_status` in app_main's finally. A caller that
+        # passes 'completed' alongside a non-zero tally gets 'completed'
+        # back verbatim; the helper is transport, not policy.
         self._emit(status="completed", item_failures={"forms": 3, "content": 1})
         assert _StubSession.last_json is not None
         assert _StubSession.last_json["status"] == "completed"
         assert _StubSession.last_json["itemFailures"] == {
             "forms": 3,
             "content": 1,
+        }
+
+    def test_payload_completed_with_errors_round_trips(self):
+        # id-414 AC-1: the resolved fail-loud status rides the terminal
+        # emission verbatim alongside the tally that caused it.
+        self._emit(
+            status="completed_with_errors",
+            item_failures={"content": 1, "url": 0},
+        )
+        assert _StubSession.last_json is not None
+        assert _StubSession.last_json["status"] == "completed_with_errors"
+        assert _StubSession.last_json["itemFailures"] == {
+            "content": 1,
+            "url": 0,
         }
 
 
