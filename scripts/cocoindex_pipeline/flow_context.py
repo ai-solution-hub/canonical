@@ -201,62 +201,10 @@ def current_stage_counter() -> StageCounterProtocol | None:
     return _stage_counter_var.get()
 
 
-# Taxonomy-miss-counter binding (ID-63.8 — Inv-7 out-of-taxonomy soft-warn).
-#
-# `ClassificationExtraction`'s `_surface_out_of_taxonomy_classification`
-# model-validator (extraction.py) records a miss each time the LLM proposes a
-# `primary_domain` / `primary_subtopic` / `secondary_classification` value
-# outside the canonical taxonomy snapshot. The row is STILL written unchanged
-# (soft-warn, never raise — PRODUCT Inv-7); the counter exists purely for
-# observability. Routing it through `flow_context` (rather than a direct
-# `extraction.py → flow.py` import) avoids an import cycle and lets unit tests
-# omit the binding entirely (the validator skips `.record()` when
-# `current_taxonomy_miss_counter()` is None), exactly as the retry / stage
-# counters do.
-#
-# The counter is keyed by `(field, value)` so the flow-end webhook can break
-# the tally down by field — `field` is one of `'primary_domain'`,
-# `'primary_subtopic'`, `'secondary_classification'`.
-
-
-class TaxonomyMissCounter(Protocol):
-    """Structural type any per-flow taxonomy-miss counter must satisfy.
-
-    `_FlowTaxonomyMissCounter` in `flow.py` is the production implementation;
-    tests supply lightweight stand-ins. `field` distinguishes the dimension
-    that missed (`'primary_domain'` / `'primary_subtopic'` /
-    `'secondary_classification'`); `value` is the offending taxonomy term.
-    """
-
-    def record(self, *, field: str, value: str) -> None: ...
-    def get(self, *, field: str, value: str) -> int: ...
-    def tally_by_field(self) -> dict[str, int]: ...
-
-
-_taxonomy_miss_counter_var: contextvars.ContextVar[TaxonomyMissCounter | None] = (
-    contextvars.ContextVar("_kh_flow_taxonomy_miss_counter_var", default=None)
-)
-
-
-@asynccontextmanager
-async def bind_taxonomy_miss_counter(
-    counter: TaxonomyMissCounter,
-) -> AsyncGenerator[TaxonomyMissCounter]:
-    """Bind a taxonomy-miss counter for the duration of the wrapped async block.
-
-    Token-based reset on exit — safe against nesting + exceptions, mirroring
-    `bind_retry_counter` / `bind_stage_counter`.
-    """
-    token = _taxonomy_miss_counter_var.set(counter)
-    try:
-        yield counter
-    finally:
-        _taxonomy_miss_counter_var.reset(token)
-
-
-def current_taxonomy_miss_counter() -> TaxonomyMissCounter | None:
-    """Return the currently-bound taxonomy-miss counter, or None if no binding."""
-    return _taxonomy_miss_counter_var.get()
+# DR-130: the ID-63.8 taxonomy-miss-counter binding
+# (`TaxonomyMissCounter` protocol + `bind_taxonomy_miss_counter` /
+# `current_taxonomy_miss_counter`) is DELETED along with the taxonomy
+# snapshot — the misses it carried were write-only telemetry.
 
 
 # ── Context-passed run context (id-400 / D-397-A Option C) ──────────────────
@@ -299,7 +247,6 @@ class FlowRunContext:
     op_id: UUID | None = None
     stage_counter: object | None = None
     retry_counter: object | None = None
-    taxonomy_miss_counter: object | None = None
     memo_heal_counter: object | None = None
 
     def begin_flow_run(
@@ -308,13 +255,11 @@ class FlowRunContext:
         op_id: UUID,
         stage_counter: object | None = None,
         retry_counter: object | None = None,
-        taxonomy_miss_counter: object | None = None,
         memo_heal_counter: object | None = None,
     ) -> None:
         self.op_id = op_id
         self.stage_counter = stage_counter
         self.retry_counter = retry_counter
-        self.taxonomy_miss_counter = taxonomy_miss_counter
         self.memo_heal_counter = memo_heal_counter
 
     def reset(self) -> None:
@@ -322,7 +267,6 @@ class FlowRunContext:
         self.op_id = None
         self.stage_counter = None
         self.retry_counter = None
-        self.taxonomy_miss_counter = None
         self.memo_heal_counter = None
 
 
@@ -379,7 +323,7 @@ def resolve_flow_run_context() -> FlowRunContext:
 # wrapper falls back to a fresh, un-memoised extraction so the item still
 # succeeds instead of failing outright. Routing it through `flow_context`
 # (rather than a direct `extraction.py -> flow.py` import) mirrors the retry
-# / taxonomy-miss counters exactly: same daemon-thread rebind discipline
+# counter exactly: same daemon-thread rebind discipline
 # (ID-66.19 — `ingest_file` / `ingest_url` re-bind this ContextVar locally on
 # the `_LoopRunner` worker thread), same graceful-degradation contract (the
 # wrapper simply skips `.record()` when `current_memo_heal_counter()` is
@@ -415,7 +359,7 @@ async def bind_memo_heal_counter(
     """Bind a memo-heal counter for the duration of the wrapped async block.
 
     Token-based reset on exit — safe against nesting + exceptions, mirroring
-    `bind_retry_counter` / `bind_taxonomy_miss_counter`.
+    `bind_retry_counter` / `bind_stage_counter`.
     """
     token = _memo_heal_counter_var.set(counter)
     try:

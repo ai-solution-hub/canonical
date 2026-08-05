@@ -163,15 +163,14 @@ const VALID_ENTITY_TYPES = [
   'methodology',
 ] as const;
 
-// The canonical form_type CV (ID-130 AD-4) — mirrors the validator's set
-// (scripts/cocoindex_pipeline/extraction.py:_load_canonical_form_types). `psq`
-// re-keyed from the pre-2023 `pqq`; framework/dps/gcloud are NOT canonical CV keys.
+// The canonical form_type CV (ID-130 AD-4). `psq` re-keyed from the
+// pre-2023 `pqq`; framework/dps/gcloud are NOT canonical CV keys.
 //
-// NOTE: this is a HAND-MAINTAINED copy, unlike the Python validator which
-// loads the keys from taxonomy_snapshot.json at import. It carried the
-// retired `bid` key until id-417 A4. The live-table guard is
-// __tests__/integration/form-type-parity.integration.test.ts — it does not
-// cover this list, so keep it in step by hand when the CV changes.
+// NOTE: this is a HAND-MAINTAINED copy. DR-130 deleted the Python
+// snapshot-backed form_type validator (the walk discards form_metadata
+// since ID-136); the live enforcement is the DB FK on the app upload path
+// (`form_instances.form_type` → `form_types.key`). It carried the retired
+// `bid` key until id-417 A4 — keep it in step by hand when the CV changes.
 const VALID_FORM_TYPES = [
   'rfp',
   'psq',

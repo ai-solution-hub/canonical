@@ -353,9 +353,10 @@ class TestExtractClassification:
 
     def test_invalid_content_type_raises_validation_error(self):
         """LLM returns content_type not in taxonomy → ValidationError."""
-        # `invented_junk_type` is NOT in taxonomy_snapshot.json content_types
-        # — the @field_validator on ClassificationExtraction.content_type
-        # raises ValueError → Pydantic surfaces as ValidationError.
+        # `invented_junk_type` is NOT in `_VALID_CONTENT_TYPES` (the DR-130
+        # inline constant) — the @field_validator on
+        # ClassificationExtraction.content_type raises ValueError → Pydantic
+        # surfaces as ValidationError.
         mock_client = _make_mock_client(_classification_json("invented_junk_type"))
         with patch(
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
@@ -449,8 +450,14 @@ class TestExtractQAForm:
                 asyncio.run(extract_qa_form("form content"))
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
-    def test_unknown_form_type_raises_validation_error(self):
-        """LLM returns form_type='rfx' (not in 11-value list) → ValidationError."""
+    def test_unknown_form_type_validates_unchanged(self):
+        """LLM returns an invented form_type → extraction still validates.
+
+        DR-130 deleted the snapshot-backed form_type gate (the walk discards
+        form_metadata since ID-136; enforcement is the DB FK on the app
+        upload path), so an out-of-CV form_type no longer raises — the value
+        rides through as-emitted.
+        """
         payload = json.loads(_qa_form_json())
         payload["form_metadata"]["form_type"] = "rfx"  # invented
         mock_client = _make_mock_client(json.dumps(payload))
@@ -458,9 +465,8 @@ class TestExtractQAForm:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_qa_form("form content"))
-        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
+            result = asyncio.run(extract_qa_form("form content"))
+        assert result.form_metadata.form_type == "rfx"
 
 
 # ============================================================================

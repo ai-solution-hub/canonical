@@ -6,9 +6,9 @@ Covers:
   invalid `extraction_kind`.
 - §5.2 Validation-behaviour invariants — Pydantic strict-mode error
   surfaces map to `error_class` strings via `classify_pydantic_error`.
-- §5.4 Enum-parity guards — entity_type vs lib/validation/schemas.ts,
-  form_type vs docs/ontology/26-form-type.md, content_type vs
-  taxonomy_snapshot.json.
+- §5.4 Enum-parity guards — entity_type vs lib/validation/schemas.ts;
+  content_type vs the inline `_VALID_CONTENT_TYPES` constant (DR-130
+  retired taxonomy_snapshot.json and the form_type / domain gates).
 
 Stub-pattern: no cocoindex Rust engine / LMDB at test time. The
 `normalise_entity_span` helper is decorated `@coco.fn(memo=True)` but the
@@ -47,9 +47,6 @@ from scripts.cocoindex_pipeline.extraction import (
     RelationshipExtraction,
     _UNSTAMPED_UUID,
     _VALID_CONTENT_TYPES,
-    _VALID_DOMAINS,
-    _VALID_FORM_TYPES,
-    _VALID_SUBTOPICS,
     _classification_adapter,
     _entity_mentions_adapter,
     _qa_form_adapter,
@@ -57,7 +54,6 @@ from scripts.cocoindex_pipeline.extraction import (
     normalise_entity_span,
     stamp_extraction_base,
 )
-from scripts.cocoindex_pipeline.flow_context import bind_taxonomy_miss_counter
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -123,7 +119,7 @@ class TestClassificationVariant:
         assert not hasattr(parsed, "op_id")
 
     def test_all_canonical_content_types_pass(self, base_fields: dict) -> None:
-        """Every value in taxonomy_snapshot.json must validate."""
+        """Every value in the inline `_VALID_CONTENT_TYPES` set must validate."""
         for ct in sorted(_VALID_CONTENT_TYPES):
             extraction = ClassificationExtraction(
                 **base_fields,
@@ -1015,57 +1011,26 @@ class TestRelationshipParity:
         )
 
 
-class TestFormTypeParity:
-    """ID-52.6 / TECH §2.6b — `form_type` triple-source lockstep.
+class TestFormTypeGateRetired:
+    """DR-130 — the snapshot-backed `form_type` runtime gate is DELETED.
 
-    Python no longer carries a hardcoded Literal — `FormMetadata.form_type`
-    is validated at runtime against `_VALID_FORM_TYPES`, which is loaded from
-    `scripts/tests/fixtures/taxonomy_snapshot.json:form_types` (the same
-    pattern as `_VALID_CONTENT_TYPES`). These tests are the Python half of
-    the lockstep; the TS half is
-    `__tests__/lib/ontology/form-type-parity.test.ts`, which asserts the
-    snapshot keys match `docs/ontology/26-form-type.md` baseline_values.
+    The corpus walk has discarded `form_metadata` since ID-136 (it stopped
+    writing `form_instances` / `form_instance_fields`), so the gate guarded
+    a value nothing persisted. Enforcement lives at the DB FK on the app
+    upload path (`form_instances.form_type` → `form_types.key`). Pin the
+    new behaviour: any non-empty string validates, unchanged.
     """
 
-    def test_loaded_set_matches_snapshot_json(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
-        """The frozenset built at module load must equal the snapshot keys."""
-        snapshot_keys = {row["key"] for row in taxonomy_from_snapshot["form_types"]}
-        assert _VALID_FORM_TYPES == snapshot_keys
+    def test_arbitrary_form_type_validates_unchanged(self) -> None:
+        meta = FormMetadata(
+            form_type="invented_junk_form_type",
+            form_format="pdf",
+        )
+        assert meta.form_type == "invented_junk_form_type"
 
-    def test_snapshot_form_types_non_empty_and_bounded(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
-        """Sanity guard — the snapshot is non-empty + reasonable size.
-
-        The current canonical list (post 3-tier split, S275) is 8 values; the
-        wider 1-50 bound tolerates future hybrid client extensions without
-        churning this test on every legitimate baseline change."""
-        form_types = taxonomy_from_snapshot["form_types"]
-        assert isinstance(form_types, list)
-        n = len(form_types)
-        assert 1 <= n <= 50
-
-    def test_unknown_form_type_fails_validation(
-        self, base_fields: dict
-    ) -> None:
-        """A form_type value not in the snapshot must raise ValidationError
-        with error_class=invalid_enum (mirrors content_type behaviour)."""
-        with pytest.raises(ValidationError) as exc_info:
-            FormMetadata(
-                form_type="invented_junk_form_type",
-                form_format="pdf",
-            )
-        assert classify_pydantic_error(exc_info.value) == "invalid_enum"
-
-    def test_all_canonical_form_types_pass(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
-        """Every key in the snapshot must validate cleanly."""
-        for row in taxonomy_from_snapshot["form_types"]:
-            meta = FormMetadata(form_type=row["key"], form_format="pdf")
-            assert meta.form_type == row["key"]
+    def test_canonical_form_type_still_validates(self) -> None:
+        meta = FormMetadata(form_type="questionnaire", form_format="pdf")
+        assert meta.form_type == "questionnaire"
 
 
 class TestExpectedResponseKindParity:
@@ -1094,222 +1059,97 @@ class TestExpectedResponseKindParity:
                 )
 
 
-class TestContentTypeParity:
-    """Q-EX2 §5.4 — runtime validator vs taxonomy_snapshot.json."""
+class TestContentTypeGate:
+    """Q-EX2 §5.4 — runtime validator vs the inline constant (DR-130).
 
-    def test_loaded_set_matches_snapshot_json(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
-        """The frozenset built at module load must equal the snapshot."""
-        snapshot_types = set(taxonomy_from_snapshot["content_types"])
-        assert _VALID_CONTENT_TYPES == snapshot_types
+    ID-133 BI-3 (S451 owner-ratified freeze) trimmed the canonical
+    content_type list from 15 to 7 (the source_documents-editorial-shape
+    stay-set: article/blog/pdf/note/research/document/other). DR-130
+    replaced the snapshot-backed load with the inline transitional
+    `_VALID_CONTENT_TYPES` constant, pending the id-417 OQ5 content-type
+    rework — pin the stay-set here so an accidental edit is loud.
+    """
 
-    def test_snapshot_has_7_values(self, taxonomy_from_snapshot: dict) -> None:
-        """Sanity guard — the snapshot is non-empty + reasonable size.
+    def test_inline_constant_is_the_bi3_stay_set(self) -> None:
+        assert _VALID_CONTENT_TYPES == {
+            "article",
+            "blog",
+            "pdf",
+            "note",
+            "research",
+            "document",
+            "other",
+        }
 
-        ID-133 BI-3 (S451 owner-ratified freeze) trimmed the canonical
-        content_type list from 15 to 7 (the source_documents-editorial-shape
-        stay-set: article/blog/pdf/note/research/document/other) — q_a_pair
-        migrated out to its own Layer-5 class and the concept-type
-        discriminators (case_study/policy/certification/compliance/
-        methodology/capability/product_description) moved to the L-concept
-        ontology (37-concept-type.md). If the snapshot drops to <5 or grows
-        past 20 something has gone wrong (the canonical list is
-        hand-curated and stable)."""
-        n = len(taxonomy_from_snapshot["content_types"])
-        assert 5 <= n <= 20
-
-    def test_q_a_pair_absent_from_snapshot(
-        self, taxonomy_from_snapshot: dict
-    ) -> None:
+    def test_q_a_pair_absent(self) -> None:
         """q_a_pair migrated out to its own Layer-5 class (32-q-a-pair.md)
-        — must not reappear in the trimmed content_type snapshot."""
-        assert "q_a_pair" not in taxonomy_from_snapshot["content_types"]
+        — must not reappear in the trimmed content_type set."""
+        assert "q_a_pair" not in _VALID_CONTENT_TYPES
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# ID-63.8 — out-of-taxonomy soft-warn (PRODUCT Inv-6/7; TECH §3.5-§3.7)
+# DR-130 — the ID-63.8 out-of-taxonomy soft-warn (domain / subtopic /
+# secondary observability) is DELETED with the taxonomy snapshot. The
+# classes below pin the post-DR-130 behaviour: open dimensions validate
+# unchanged with no counter and no warning; the Inv-5 content_type
+# hard-reject is untouched.
 # ──────────────────────────────────────────────────────────────────────────
 
 
-class _RecordingMissCounter:
-    """Lightweight stand-in for the production `_FlowTaxonomyMissCounter`.
+class TestOpenDimensionsUngated:
+    """DR-130 — domain / subtopic dimensions are open: written as-emitted."""
 
-    Satisfies the `TaxonomyMissCounter` structural protocol so a
-    `ClassificationExtraction` construction inside a
-    `bind_taxonomy_miss_counter` scope records misses into `recorded`.
-    """
-
-    def __init__(self) -> None:
-        self.recorded: list[tuple[str, str]] = []
-
-    def record(self, *, field: str, value: str) -> None:
-        self.recorded.append((field, value))
-
-    def get(self, *, field: str, value: str) -> int:
-        return self.recorded.count((field, value))
-
-    def tally_by_field(self) -> dict[str, int]:
-        tally: dict[str, int] = {}
-        for field, _value in self.recorded:
-            tally[field] = tally.get(field, 0) + 1
-        return tally
-
-
-def _build_classification_under_counter(
-    counter: _RecordingMissCounter,
-    base_fields: dict,
-    **overrides: object,
-) -> ClassificationExtraction:
-    """Construct a ClassificationExtraction inside the counter binding.
-
-    The soft-warn model-validator runs at construction time and reads the
-    flow-bound counter via `current_taxonomy_miss_counter()`, so the
-    construction must happen inside the `bind_taxonomy_miss_counter`
-    async-context-manager scope.
-    """
-
-    async def _exercise() -> ClassificationExtraction:
-        async with bind_taxonomy_miss_counter(counter):
-            return ClassificationExtraction(**base_fields, **overrides)
-
-    return asyncio.run(_exercise())
-
-
-class TestTaxonomyParityGuards:
-    """ID-63.8 §3.5/§3.6 — module-load sets match the snapshot."""
-
-    def test_valid_domains_matches_snapshot(self, valid_domains: list) -> None:
-        assert _VALID_DOMAINS == {d["name"] for d in valid_domains}
-
-    def test_valid_subtopics_matches_snapshot(
-        self, valid_subtopics: list
-    ) -> None:
-        assert _VALID_SUBTOPICS == {s["name"] for s in valid_subtopics}
-
-    def test_subtopic_names_globally_unique(
-        self, valid_subtopics: list
-    ) -> None:
-        """TECH §1.6 — a FLAT subtopic set is correct because subtopic names
-        are globally unique across domains; a collision would mean the flat
-        set silently drops a value."""
-        names = [s["name"] for s in valid_subtopics]
-        assert len(names) == len(set(names))
-
-
-class TestOutOfTaxonomySoftWarn:
-    """ID-63.8 — PRODUCT Inv-7: out-of-taxonomy values are observed, not rejected."""
-
-    def test_out_of_taxonomy_primary_domain_validates_and_records(
+    def test_arbitrary_primary_domain_validates_unchanged(
         self, base_fields: dict, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """An unknown primary_domain VALIDATES (returns an instance, unchanged),
-        bumps the bound counter with field='primary_domain', and warns."""
-        counter = _RecordingMissCounter()
+        """An unknown primary_domain VALIDATES, unchanged, with no warning
+        (the {63.8} soft-warn + miss counter are deleted)."""
         with caplog.at_level("WARNING"):
-            extraction = _build_classification_under_counter(
-                counter,
-                base_fields,
+            extraction = ClassificationExtraction(
+                **base_fields,
                 content_type="document",
                 primary_domain="not_a_real_domain",
                 classification_confidence=0.8,
             )
-        # Row written UNCHANGED — no coercion, no drop.
         assert isinstance(extraction, ClassificationExtraction)
         assert extraction.primary_domain == "not_a_real_domain"
-        assert counter.recorded == [("primary_domain", "not_a_real_domain")]
-        assert any(
-            "out-of-taxonomy" in rec.getMessage()
-            and "primary_domain" in rec.getMessage()
-            for rec in caplog.records
+        assert not any(
+            "out-of-taxonomy" in rec.getMessage() for rec in caplog.records
         )
 
-    def test_out_of_taxonomy_primary_subtopic_validates_and_records(
-        self, base_fields: dict, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        counter = _RecordingMissCounter()
-        with caplog.at_level("WARNING"):
-            extraction = _build_classification_under_counter(
-                counter,
-                base_fields,
-                content_type="document",
-                primary_domain="security",
-                primary_subtopic="not_a_real_subtopic",
-                classification_confidence=0.8,
-            )
-        assert extraction.primary_subtopic == "not_a_real_subtopic"
-        assert counter.recorded == [
-            ("primary_subtopic", "not_a_real_subtopic")
-        ]
-        assert any(
-            "primary_subtopic" in rec.getMessage() for rec in caplog.records
-        )
-
-    def test_out_of_taxonomy_secondary_classification_records(
+    def test_arbitrary_primary_subtopic_validates_unchanged(
         self, base_fields: dict
     ) -> None:
-        """Each out-of-taxonomy secondary_classifications value records a
-        'secondary_classification' miss (one per offending entry)."""
-        counter = _RecordingMissCounter()
-        extraction = _build_classification_under_counter(
-            counter,
-            base_fields,
+        extraction = ClassificationExtraction(
+            **base_fields,
+            content_type="document",
+            primary_domain="security",
+            primary_subtopic="not_a_real_subtopic",
+            classification_confidence=0.8,
+        )
+        assert extraction.primary_subtopic == "not_a_real_subtopic"
+
+    def test_arbitrary_secondary_classifications_validate_unchanged(
+        self, base_fields: dict
+    ) -> None:
+        extraction = ClassificationExtraction(
+            **base_fields,
             content_type="document",
             primary_domain="security",
             classification_confidence=0.8,
             secondary_classifications=["security", "not_a_real_domain"],
         )
-        # Valid 'security' is untouched; only the unknown value is recorded.
         assert extraction.secondary_classifications == [
             "security",
             "not_a_real_domain",
         ]
-        assert counter.recorded == [
-            ("secondary_classification", "not_a_real_domain")
-        ]
-
-    def test_valid_domain_and_subtopic_no_bump_no_warning(
-        self, base_fields: dict, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """A wholly in-taxonomy classification records NOTHING and emits no
-        soft-warn — the happy path stays silent."""
-        counter = _RecordingMissCounter()
-        with caplog.at_level("WARNING"):
-            extraction = _build_classification_under_counter(
-                counter,
-                base_fields,
-                content_type="document",
-                primary_domain="security",
-                primary_subtopic="functionality",
-                classification_confidence=0.9,
-                secondary_classifications=["security"],
-            )
-        assert isinstance(extraction, ClassificationExtraction)
-        assert counter.recorded == []
-        assert not any(
-            "out-of-taxonomy" in rec.getMessage() for rec in caplog.records
-        )
-
-    def test_soft_warn_does_not_require_bound_counter(
-        self, base_fields: dict
-    ) -> None:
-        """With NO counter bound, an out-of-taxonomy value still VALIDATES
-        (returns the instance unchanged) — observability is skipped, the row
-        is never rejected."""
-        extraction = ClassificationExtraction(
-            **base_fields,
-            content_type="document",
-            primary_domain="not_a_real_domain",
-            classification_confidence=0.7,
-        )
-        assert extraction.primary_domain == "not_a_real_domain"
 
     def test_inv5_content_type_hard_reject_still_raises(
         self, base_fields: dict
     ) -> None:
         """Inv-5 witness: out-of-vocab content_type 'junk' STILL raises a
-        ValidationError → invalid_enum. The Inv-7 soft-warn must not weaken
-        the content_type hard-reject path."""
+        ValidationError → invalid_enum. Deleting the open-dimension
+        soft-warn must not weaken the content_type hard-reject path."""
         with pytest.raises(ValidationError) as exc_info:
             ClassificationExtraction(
                 **base_fields,
@@ -1322,17 +1162,16 @@ class TestOutOfTaxonomySoftWarn:
 
 # ──────────────────────────────────────────────────────────────────────────
 # ID-133 BI-5 — enforcement-semantics invariant (TECH §"Enforcement-semantics
-# invariant"). The pass changes WHAT is gated, NOT the HARD/SOFT line:
+# invariant"), post-DR-130 form:
 #   - closed enums (entity_type, relationship) HARD-reject → RAISE
-#   - open dimensions (primary_domain) SOFT-WARN → row written, counter bumped,
-#     never raises (`_surface_out_of_taxonomy_classification` UNTOUCHED).
-# This single class pins both halves so the BI-5 promotion provably did not move
-# the enforcement line.
+#   - open dimensions (primary_domain) never raise — row written as-emitted
+#     (the {63.8} soft-warn counter is deleted; openness is what remains).
+# This single class pins both halves so the enforcement line stays put.
 # ──────────────────────────────────────────────────────────────────────────
 
 
 class TestEnforcementSemanticsInvariant:
-    """ID-133 BI-5 — HARD-reject (closed enums) vs SOFT-WARN (open dimensions)."""
+    """ID-133 BI-5 — HARD-reject (closed enums) vs open dimensions."""
 
     def test_junk_entity_type_hard_rejects(self, base_fields: dict) -> None:
         """A junk `entity_type` still RAISES → invalid_enum (closed-enum
@@ -1359,31 +1198,21 @@ class TestEnforcementSemanticsInvariant:
             )
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
-    def test_junk_primary_domain_soft_warns(
-        self, base_fields: dict, caplog: pytest.LogCaptureFixture
+    def test_junk_primary_domain_does_not_raise(
+        self, base_fields: dict
     ) -> None:
-        """A junk `primary_domain` does NOT raise — the row is written UNCHANGED,
-        the bound counter is bumped, and a warning is logged (open-dimension
-        SOFT-WARN; `_surface_out_of_taxonomy_classification` untouched)."""
-        counter = _RecordingMissCounter()
-        with caplog.at_level("WARNING"):
-            extraction = _build_classification_under_counter(
-                counter,
-                base_fields,
-                content_type="document",
-                primary_domain="not_a_real_domain",
-                classification_confidence=0.8,
-            )
+        """A junk `primary_domain` does NOT raise — the row is written
+        UNCHANGED (open dimension; DR-130 deleted the {63.8} soft-warn
+        counter, so openness — never-raise — is the pinned behaviour)."""
+        extraction = ClassificationExtraction(
+            **base_fields,
+            content_type="document",
+            primary_domain="not_a_real_domain",
+            classification_confidence=0.8,
+        )
         # No raise; row written unchanged.
         assert isinstance(extraction, ClassificationExtraction)
         assert extraction.primary_domain == "not_a_real_domain"
-        # Counter bumped for the open dimension.
-        assert counter.recorded == [("primary_domain", "not_a_real_domain")]
-        assert any(
-            "out-of-taxonomy" in rec.getMessage()
-            and "primary_domain" in rec.getMessage()
-            for rec in caplog.records
-        )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1572,8 +1401,9 @@ class TestMemoHitSerdeRoundTrip:
                 # so the q_a_form variant must equally fail the strict memo-HIT
                 # round-trip — close the FAIL-before witness gap (Checker note).
                 # `form_metadata` is the only required field beyond the stamp;
-                # form_type="psq" / form_format="docx" are known-valid (see the
-                # passing TestQAFormVariant cases + the taxonomy snapshot).
+                # form_type="psq" / form_format="docx" are known-valid (see
+                # the passing TestQAFormVariant cases; DR-130 ungated
+                # form_type entirely).
                 QAFormExtractionStamped,
                 {
                     "form_metadata": FormMetadata(

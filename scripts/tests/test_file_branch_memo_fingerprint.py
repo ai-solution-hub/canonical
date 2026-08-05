@@ -163,15 +163,16 @@ class _FakeMessage:
         self.stop_reason = "end_turn"
 
 
-# Valid stub payloads: content_type/form_type/primary_domain are sourced live
-# from the canonical-taxonomy sets the REAL extractors validate against
-# (extraction._VALID_* — loaded from taxonomy_snapshot.json at import), so a
-# future taxonomy change cannot re-stale these stubs (bl-417). `sorted(...)[0]`
-# is an arbitrary-but-deterministic in-taxonomy pick; entity mentions return an
+# Valid stub payloads: content_type is sourced live from the SAME frozenset
+# the REAL extractor validates against (extraction._VALID_CONTENT_TYPES —
+# the DR-130 inline constant), so a stay-set change cannot re-stale this
+# stub (bl-417). `sorted(...)[0]` is an arbitrary-but-deterministic
+# in-set pick. form_type / primary_domain are plain literals: DR-130
+# deleted their gates, so any string validates. Entity mentions return an
 # empty list (valid, and keeps the probe off the per-mention paths).
 _CONTENT_TYPE = sorted(extraction._VALID_CONTENT_TYPES)[0]
-_FORM_TYPE = sorted(extraction._VALID_FORM_TYPES)[0]
-_PRIMARY_DOMAIN = sorted(extraction._VALID_DOMAINS)[0]
+_FORM_TYPE = "questionnaire"
+_PRIMARY_DOMAIN = "security"
 _CLS = json.dumps({
     "extraction_kind": "classification", "content_type": _CONTENT_TYPE,
     "primary_domain": _PRIMARY_DOMAIN, "classification_confidence": 0.9,

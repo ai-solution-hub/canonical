@@ -4,10 +4,12 @@
 - **Worktree pytest must run from the worktree CWD:** main-repo-CWD invocations resolve
   `scripts.*` to the MAIN tree's modules (namespace-package hazard — spurious
   failures/passes against stale code).
-- **Pipeline taxonomy source:** the Python pipeline reads taxonomy from
-  `scripts/tests/fixtures/taxonomy_snapshot.json` (the app uses the DB-driven taxonomy
-  via `contexts/taxonomy-context.tsx`; format/server helpers live in
-  `lib/taxonomy/taxonomy-format.ts` / `taxonomy-server.ts`).
+- **Pipeline taxonomy source:** DR-130 retired `taxonomy_snapshot.json` entirely. The
+  pipeline's one remaining gate is the inline `_VALID_CONTENT_TYPES` constant in
+  `scripts/cocoindex_pipeline/extraction.py` (transitional, pending the id-417 OQ5
+  content-type rework). The app uses the DB-driven taxonomy via
+  `contexts/taxonomy-context.tsx`; format/server helpers live in
+  `lib/taxonomy/taxonomy-format.ts` / `taxonomy-server.ts`.
 - **`classifyContent` userId must be a UUID:** use the pipeline service account UUID
   (`a0000000-0000-4000-8000-000000000001`), never literal strings.
 - Tests: `python3 -m pytest scripts/tests/`; deps: `pip install -r requirements.txt`.

@@ -4,10 +4,10 @@
  *
  * Real-behaviour: no mocks. Loads the frozen parity baselines from
  * `__tests__/fixtures/ontology/ontology-cv-baselines.json` (the CVs with
- * lib-/snapshot-side counterparts: content_type, platform, requirement_type,
- * form_type), validates them against the real Zod schema, and compares the
- * declared enums against the live DB CHECK via
- * `scripts/tests/fixtures/taxonomy_snapshot.json`.
+ * lib-side counterparts: content_type, platform, requirement_type,
+ * form_type) and validates them against the real Zod schema. (The former
+ * third leg — DB CHECK parity via `taxonomy_snapshot.json` — is gone:
+ * DR-130 retired the snapshot entirely.)
  *
  * History: this guard originally loaded the live `docs/ontology/*.md`
  * register. That register went fully private at the ID-68.27 OQ-E branch-(b)
@@ -18,7 +18,6 @@
  * intent with public counterparts:
  *   - the ontology Zod schema contract (`lib/ontology/schemas.ts`)
  *   - the content-type registry (`lib/ontology/content-type-registry.ts`)
- *   - the DB-derived taxonomy snapshot parity
  *   - a loader-free privacy tripwire asserting the public register directory
  *     is absent (PC-25 Inv 29 — no public register). The dead ontology loader
  *     (`lib/ontology/loader.ts`) was retired at ID-133 BI-7 (Decision A: zero
@@ -43,35 +42,14 @@ const PROJECT_ROOT = join(__dirname, '../../..');
 // ID-133 BI-7 — this asserts the PUBLIC register directory is absent directly,
 // without importing any loader.
 const PUBLIC_ONTOLOGY_DIR = resolve(PROJECT_ROOT, 'docs', 'ontology');
-const SNAPSHOT_PATH = join(
-  PROJECT_ROOT,
-  'scripts/tests/fixtures/taxonomy_snapshot.json',
-);
 const BASELINES_PATH = join(
   PROJECT_ROOT,
   '__tests__/fixtures/ontology/ontology-cv-baselines.json',
 );
 
-interface TaxonomySnapshot {
-  content_types?: string[];
-  platforms?: string[];
-  requirement_type?: string[];
-}
-
-const SNAPSHOT_EXISTS = existsSync(SNAPSHOT_PATH);
-const snapshot: TaxonomySnapshot | null = SNAPSHOT_EXISTS
-  ? (JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8')) as TaxonomySnapshot)
-  : null;
-
 const cvs = (
   JSON.parse(readFileSync(BASELINES_PATH, 'utf8')) as { cvs: unknown[] }
 ).cvs as OntologyCV[];
-
-// Map of cv_name → snapshot key for the parity case (§5.4 case 2).
-const SNAPSHOT_KEY_BY_CV_NAME: Record<string, keyof TaxonomySnapshot> = {
-  content_type: 'content_types',
-  platform: 'platforms',
-};
 
 describe('Ontology Baseline Parity', () => {
   it('every frozen baseline CV parses and validates against the ontology schema', () => {
@@ -96,10 +74,10 @@ describe('Ontology Baseline Parity', () => {
 
   it('the fixture freezes exactly the six parity-relevant CVs', () => {
     // content_type / platform / requirement_type / form_type are the original
-    // snapshot/lib-side mirrors; entity_type (Layer 5) + relationship (Layer 6)
+    // lib-side mirrors; entity_type (Layer 5) + relationship (Layer 6)
     // are the ID-133 BI-5 KG-ontology mirrors of the extraction.py Literals
-    // (public mirror per Decision A). The latter two have NO taxonomy_snapshot
-    // counterpart — their parity is Python-Literal ↔ TS-const ↔ this fixture,
+    // (public mirror per Decision A). The latter two's parity is
+    // Python-Literal ↔ TS-const ↔ this fixture,
     // enforced in scripts/tests/test_cocoindex_extraction.py, NOT here.
     expect(cvs.map((cv) => cv.cv_name).sort()).toEqual([
       'content_type',
@@ -120,123 +98,17 @@ describe('Ontology Baseline Parity', () => {
     expect([...CONTENT_TYPE_VALUES].sort()).toEqual(fixtureKeys);
   });
 
-  describe.skipIf(!snapshot)(
-    'live DB CHECK parity (via taxonomy_snapshot.json)',
-    () => {
-      it('source_documents.content_type lists exactly the BI-3 stay-set (7 values) matching the taxonomy snapshot', () => {
-        // ID-133 BI-3 (S451 owner-ratified freeze): content_type was
-        // re-homed off content_items onto source_documents by ID-131 M3
-        // (nullable, no DB CHECK — enforcement is the Pydantic
-        // `_validate_content_type` field validator reading this same
-        // snapshot) and trimmed 3 ways: q_a_pair migrated out to its own
-        // Layer-5 class (32-q-a-pair.md); case_study/policy/certification/
-        // compliance/methodology/capability/product_description moved to
-        // the L-concept type discriminators (37-concept-type.md); the
-        // remaining 7 stay as source_documents.content_type.
-        const md = [...CONTENT_TYPE_VALUES].sort();
-        const db = [...(snapshot!.content_types ?? [])].sort();
-        expect(md).toEqual(db);
-        expect(CONTENT_TYPE_VALUES).toHaveLength(7);
-      });
+  // DR-130 removed the 'live DB CHECK parity (via taxonomy_snapshot.json)'
+  // block — the snapshot is retired entirely. The content_type stay-set
+  // remains pinned by the CONTENT_TYPE_VALUES ↔ frozen-baseline case above
+  // (plus its 7-value length assertion below) and, cross-language, by the
+  // inline `_VALID_CONTENT_TYPES` constant in
+  // scripts/cocoindex_pipeline/extraction.py (Python-side tests).
 
-      it('q_a_pair is ABSENT from the trimmed content_type set (migrated out to its own Layer-5 class)', () => {
-        expect(CONTENT_TYPE_VALUES).not.toContain('q_a_pair');
-        expect(snapshot!.content_types ?? []).not.toContain('q_a_pair');
-      });
-
-      it('every frozen CV with editable_via=database_migration matches the live DB CHECK both ways', () => {
-        const databaseMigrationCVs = cvs.filter(
-          (cv) => cv.editable_via === 'database_migration',
-        );
-        const errors: string[] = [];
-        for (const cv of databaseMigrationCVs) {
-          const snapshotKey = SNAPSHOT_KEY_BY_CV_NAME[cv.cv_name];
-          if (!snapshotKey) {
-            // No snapshot key wired for this CV. Two reasons land here:
-            //   (a) deliberate snapshot-exempt CVs — the ID-133 BI-5 KG-ontology
-            //       CVs `entity_type` (Layer 5) + `relationship` (Layer 6) carry
-            //       editable_via=database_migration but have NO
-            //       taxonomy_snapshot.json counterpart; their parity is
-            //       Python-Literal ↔ TS-const ↔ fixture (the Python guards), so
-            //       they MUST NOT be cross-checked against the snapshot here.
-            //   (b) a CV whose snapshot key is simply not wired yet.
-            // Schema validation has already passed (case 1), so skipping is safe
-            // either way; wiring a snapshot key into SNAPSHOT_KEY_BY_CV_NAME opts
-            // a CV into this DB-CHECK parity comparison.
-            continue;
-          }
-          const dbValues = snapshot![snapshotKey];
-          if (!Array.isArray(dbValues)) {
-            errors.push(
-              `${cv.cv_name}: snapshot key '${String(snapshotKey)}' is missing from taxonomy_snapshot.json`,
-            );
-            continue;
-          }
-          // {63.9} made baseline_values optional (requirement_type standalone
-          // case). A wired snapshot key always implies baseline_values must be
-          // present for the parity comparison — fail loudly if it is missing.
-          expect(cv.baseline_values).toBeDefined();
-          const baselineValues = cv.baseline_values ?? [];
-          const mdKeys = baselineValues.map((bv) => bv.key);
-          const mdSet = new Set(mdKeys);
-          const dbSet = new Set(dbValues);
-          const missingFromMD = dbValues.filter((v) => !mdSet.has(v));
-          const missingFromDB = mdKeys.filter((k) => !dbSet.has(k));
-          if (missingFromMD.length > 0) {
-            errors.push(
-              `${cv.cv_name}: values in DB CHECK but missing from frozen baseline: ${missingFromMD.join(', ')}`,
-            );
-          }
-          if (missingFromDB.length > 0) {
-            errors.push(
-              `${cv.cv_name}: values in frozen baseline but missing from DB CHECK: ${missingFromDB.join(', ')}`,
-            );
-          }
-        }
-        expect(
-          errors,
-          `Frozen baseline ↔ DB CHECK drift (update the fixture per its _meta.update_protocol):\n${errors.join('\n')}`,
-        ).toHaveLength(0);
-      });
-
-      // Standalone parity case for `requirement_type` (ID-63.9 — PRODUCT
-      // Inv-9; TECH §3.9 + §5.2). The requirement_type CV is
-      // `editable_via: admin_ui`, so the `database_migration` loop above
-      // skips it entirely — this case is NOT gated on `editable_via` and
-      // asserts the frozen baseline_values match the snapshot
-      // `requirement_type` set both ways. The snapshot is DB-derived, so
-      // fixture == snapshot == live DB CHECK holds transitively.
-      it('requirement_type frozen baseline_values match the snapshot requirement_type set and the live DB CHECK both ways', () => {
-        const reqCV = cvs.find((cv) => cv.cv_name === 'requirement_type');
-        expect(
-          reqCV,
-          'requirement_type CV not found in ontology-cv-baselines.json',
-        ).toBeDefined();
-
-        const dbValues = snapshot!.requirement_type;
-        expect(
-          Array.isArray(dbValues),
-          "snapshot key 'requirement_type' is missing from taxonomy_snapshot.json",
-        ).toBe(true);
-
-        const mdKeys = (reqCV!.baseline_values ?? []).map((bv) => bv.key);
-        const md = [...mdKeys].sort();
-        const db = [...(dbValues ?? [])].sort();
-
-        const mdSet = new Set(mdKeys);
-        const missingFromMD = (dbValues ?? []).filter((v) => !mdSet.has(v));
-        const dbSet = new Set(dbValues ?? []);
-        const missingFromDB = mdKeys.filter((k) => !dbSet.has(k));
-
-        expect(
-          md,
-          `requirement_type frozen baseline ↔ snapshot/DB CHECK drift:\n` +
-            `  in DB CHECK but missing from fixture: ${missingFromMD.join(', ') || '(none)'}\n` +
-            `  in fixture but missing from DB CHECK: ${missingFromDB.join(', ') || '(none)'}`,
-        ).toEqual(db);
-      });
-    },
-  );
+  it('q_a_pair is ABSENT from the trimmed content_type set (migrated out to its own Layer-5 class)', () => {
+    expect(CONTENT_TYPE_VALUES).not.toContain('q_a_pair');
+    expect(CONTENT_TYPE_VALUES).toHaveLength(7);
+  });
 
   it('each cv_name appears in only one frozen baseline entry', () => {
     const names = cvs.map((cv) => cv.cv_name);

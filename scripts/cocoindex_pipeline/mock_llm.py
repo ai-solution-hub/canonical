@@ -77,11 +77,13 @@ _logger = logging.getLogger(__name__)
 
 # ── Canned payloads — built from the REAL shapes, valid by construction ──────
 #
-# Taxonomy-validated fields (`content_type`, `form_type`, `primary_domain`)
-# take the first sorted member of the SAME frozensets `extraction.py`
-# validates against, so taxonomy regeneration can never strand the mock on
-# a retired value. All free-text fields carry an unambiguous MOCK marker so
-# mock-tier rows are instantly recognisable in the DB.
+# `content_type` takes the first sorted member of the SAME frozenset
+# `extraction.py` validates against, so a stay-set change can never strand
+# the mock on a retired value. `primary_domain` / `form_type` are plain
+# literals: DR-130 deleted their snapshot-backed gates (the domain soft-warn
+# and the form_type validator), so any string validates — the values below
+# are stable, recognisable picks. All free-text fields carry an unambiguous
+# MOCK marker so mock-tier rows are instantly recognisable in the DB.
 
 
 def _first(values: frozenset[str]) -> str:
@@ -92,7 +94,7 @@ def _first(values: frozenset[str]) -> str:
 
 _CLASSIFICATION_PAYLOAD = extraction.ClassificationExtraction(
     content_type=_first(extraction._VALID_CONTENT_TYPES),
-    primary_domain=_first(extraction._VALID_DOMAINS),
+    primary_domain="security",
     suggested_title="MOCK classified document (id-389 tier-1)",
     classification_confidence=0.95,
     rationale="MOCK canned response — id-389 tier-1 wiring substrate",
@@ -100,7 +102,7 @@ _CLASSIFICATION_PAYLOAD = extraction.ClassificationExtraction(
 
 _QA_FORM_PAYLOAD = extraction.QAFormExtraction(
     form_metadata=extraction.FormMetadata(
-        form_type=_first(extraction._VALID_FORM_TYPES),
+        form_type="questionnaire",
         form_format="md",
         form_title="MOCK form (id-389 tier-1)",
     ),

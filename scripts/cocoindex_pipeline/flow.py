@@ -145,7 +145,6 @@ from scripts.cocoindex_pipeline.flow_context import (
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
-    bind_taxonomy_miss_counter,
     current_flow_meta,  # noqa: F401 — re-export; ingest_file resolves it lazily
     resolve_flow_run_context,
 )
@@ -636,43 +635,10 @@ class _FlowStageCounter:
         return self._counts.get(stage, 0)
 
 
-# ── Inv-7 taxonomy-miss substrate (ID-63.8 — out-of-taxonomy soft-warn) ──────
-
-
-class _FlowTaxonomyMissCounter:
-    """Per-flow out-of-taxonomy-miss counter for Inv-7 observability.
-
-    `.record(field=..., value=...)` is called from the
-    `_surface_out_of_taxonomy_classification` model-validator on
-    `ClassificationExtraction` (extraction.py) via the
-    `bind_taxonomy_miss_counter()` contextvar binding `app_main` wraps
-    `mount_each` in, each time the LLM proposes a `primary_domain` /
-    `primary_subtopic` / `secondary_classification` value outside the
-    canonical taxonomy snapshot. The ROW IS STILL WRITTEN UNCHANGED — this
-    counter is observability-only (soft-warn, never reject). `.tally_by_field()`
-    is read at flow end and folded into the pipeline-run webhook payload,
-    broken down by field.
-
-    Instances are per-flow — one per `app_main()` invocation, no shared state.
-    Thread-safety is not required: cocoindex @coco.fn execution is sequential
-    per content row. Mirrors `_FlowRetryCounter` / `_FlowStageCounter`.
-    """
-
-    def __init__(self) -> None:
-        self._counts: dict[tuple[str, str], int] = {}
-
-    def record(self, *, field: str, value: str) -> None:
-        key = (field, value)
-        self._counts[key] = self._counts.get(key, 0) + 1
-
-    def get(self, *, field: str, value: str) -> int:
-        return self._counts.get((field, value), 0)
-
-    def tally_by_field(self) -> dict[str, int]:
-        tally: dict[str, int] = {}
-        for (field, _value), count in self._counts.items():
-            tally[field] = tally.get(field, 0) + count
-        return tally
+# DR-130: the ID-63.8 `_FlowTaxonomyMissCounter` (Inv-7 out-of-taxonomy
+# soft-warn tally) is DELETED with the taxonomy snapshot — its
+# `taxonomyMisses` webhook key was write-only telemetry (raw-JSON dump in
+# the pipeline-runs drawer; nothing parsed it).
 
 
 # ── 80.2 §B.4 per-item-failure substrate (ID-80.9 — OQ-80.2-C RATIFIED) ─────
@@ -741,7 +707,7 @@ class _FlowMemoHealCounter:
     Instances are per-flow — one per `app_main()` invocation, no shared
     state. Thread-safety is not required: cocoindex @coco.fn execution is
     sequential per content row. Mirrors `_FlowRetryCounter` /
-    `_FlowTaxonomyMissCounter`.
+    `_FlowStageCounter`.
     """
 
     def __init__(self) -> None:
@@ -991,7 +957,6 @@ async def _emit_pipeline_run_webhook(
     error_detail: dict[str, str] | None = None,
     extractor_version: str | None = None,
     retry_count: int | None = None,
-    taxonomy_misses: dict[str, int] | None = None,
     item_failures: dict[str, int] | None = None,
     memo_heals: dict[str, int] | None = None,
     pipeline_name: str = KH_CANONICAL_PIPELINE_NAME,
@@ -1063,16 +1028,11 @@ async def _emit_pipeline_run_webhook(
     # so 0 lands verbatim, mirroring the route's `!== undefined` check.
     if retry_count is not None:
         payload["retryCount"] = retry_count
-    # ID-63.8 Inv-7: per-field tally of out-of-taxonomy soft-warns. `None`
-    # omits the field entirely (flow-start emission, where no extraction has
-    # run yet); an empty dict at flow-end means "extractions ran, zero misses".
-    if taxonomy_misses is not None:
-        payload["taxonomyMisses"] = taxonomy_misses
     # ID-80.9 (80.2 §B.4, OQ-80.2-C): per-branch tally of CONTAINED per-item
     # faults — `{'content': m, 'url': k}`. `None` omits the field entirely
     # (flow-start emission); the terminal emission always threads the tally,
     # so an all-zero map at flow end means "walk ran, zero per-item faults".
-    # Rides ALONGSIDE errorDetail/taxonomyMisses (ID-61.4) — never clobbers.
+    # Rides ALONGSIDE errorDetail (ID-61.4) — never clobbers.
     if item_failures is not None:
         payload["itemFailures"] = item_failures
     # ID-127.33 (S457 self-healing-memo ratification): per-extractor tally of
@@ -1080,7 +1040,7 @@ async def _emit_pipeline_run_webhook(
     # extraction — `{'classification': n, ...}`. `None` omits the field
     # entirely (flow-start emission); the terminal emission always threads
     # the tally, so an all-zero map at flow end means "walk ran, zero memo
-    # self-heals". Rides ALONGSIDE itemFailures/taxonomyMisses — never
+    # self-heals". Rides ALONGSIDE itemFailures — never
     # clobbers. Burn observability is the explicit owner guardrail: each
     # heal costs one fresh LLM call, and this is the surfaced signal.
     if memo_heals is not None:
@@ -1959,9 +1919,9 @@ async def ingest_file(
     fallback below (`bind_flow_meta` et al.).
 
     CAVEAT (ID-66.19, mechanism unchanged): `extraction.py`'s
-    `stamp_extraction_base` + the retry / taxonomy-miss / memo-heal recorders
+    `stamp_extraction_base` + the retry / memo-heal recorders
     read `current_flow_meta()` / `current_retry_counter()` /
-    `current_taxonomy_miss_counter()` / `current_memo_heal_counter()` INSIDE
+    `current_memo_heal_counter()` INSIDE
     the per-item extractor calls, which run on the SAME daemon thread as this
     body. So once the holder values arrive we RE-BIND those ContextVars
     LOCALLY around the body. `stage_counter` is read directly (only this body
@@ -2021,10 +1981,10 @@ async def ingest_file(
     if stage_counter is None:
         stage_counter = run_ctx.stage_counter
 
-    # CAVEAT (ID-66.19): RE-BIND flow_meta / retry_counter / taxonomy_miss_counter
+    # CAVEAT (ID-66.19): RE-BIND flow_meta / retry_counter
     # LOCALLY on THIS (daemon) thread so `extraction.py`'s in-task reads
-    # (`stamp_extraction_base` / the retry `before_sleep` hook / the
-    # `_surface_out_of_taxonomy_classification` validator) see the run context.
+    # (`stamp_extraction_base` / the retry `before_sleep` hook) see the run
+    # context.
     # The holder values are the bind SOURCE, and ONLY for slots the in-task
     # caller did not already bind (already-active bindings on this same task
     # enter no-op `nullcontext`s — no double-binding/clobbering).
@@ -2037,16 +1997,8 @@ async def ingest_file(
         and run_ctx.retry_counter is not None
     ):
         rebind_retry = flow_context_module.bind_retry_counter(run_ctx.retry_counter)
-    rebind_taxonomy: Any = contextlib.nullcontext()
-    if (
-        flow_context_module.current_taxonomy_miss_counter() is None
-        and run_ctx.taxonomy_miss_counter is not None
-    ):
-        rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
-            run_ctx.taxonomy_miss_counter
-        )
-    # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
-    # taxonomy-miss above — `extraction.py`'s `extract_with_memo_self_heal`
+    # ID-127.33 (S457): same daemon-thread rebind discipline as retry
+    # above — `extraction.py`'s `extract_with_memo_self_heal`
     # reads `current_memo_heal_counter()` in-task, on this same thread.
     rebind_memo_heal: Any = contextlib.nullcontext()
     if (
@@ -2057,7 +2009,7 @@ async def ingest_file(
             run_ctx.memo_heal_counter
         )
 
-    async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
+    async with rebind_meta, rebind_retry, rebind_memo_heal:
         await _ingest_file_body(
             file,
             qa_target,
@@ -3627,8 +3579,8 @@ async def ingest_once(
     provenance = await extract_source_provenance(file)
     # ID-127.33 (S457): via `extract_with_memo_self_heal` — no
     # `flow_memo_heal_counter` is bound on this off-`mount_each` P4 path, so
-    # `.record()` is a graceful no-op (mirrors the retry/taxonomy-miss
-    # counters' existing degradation contract here); the re-extraction
+    # `.record()` is a graceful no-op (mirrors the retry counter's
+    # existing degradation contract here); the re-extraction
     # fallback + loud log still fire.
     classification = await extract_with_memo_self_heal(
         extract_classification,
@@ -3904,7 +3856,7 @@ async def ingest_url(
     (the production path — on the `_LoopRunner` daemon thread the ContextVars
     are structurally unset, so the holder always resolves there; it is
     invisible to the memo fingerprint by construction). The re-bind makes
-    `extraction.py`'s in-task reads (retry / taxonomy recorders) see the run
+    `extraction.py`'s in-task reads (retry / memo-heal recorders) see the run
     context on THIS daemon thread.
     """
     import contextlib
@@ -3936,16 +3888,7 @@ async def ingest_url(
         and run_ctx.retry_counter is not None
     ):
         rebind_retry = flow_context_module.bind_retry_counter(run_ctx.retry_counter)
-    rebind_taxonomy: Any = contextlib.nullcontext()
-    if (
-        flow_context_module.current_taxonomy_miss_counter() is None
-        and run_ctx.taxonomy_miss_counter is not None
-    ):
-        rebind_taxonomy = flow_context_module.bind_taxonomy_miss_counter(
-            run_ctx.taxonomy_miss_counter
-        )
-    # ID-127.33 (S457): same daemon-thread rebind discipline as retry /
-    # taxonomy-miss above.
+    # ID-127.33 (S457): same daemon-thread rebind discipline as retry above.
     rebind_memo_heal: Any = contextlib.nullcontext()
     if (
         flow_context_module.current_memo_heal_counter() is None
@@ -3955,7 +3898,7 @@ async def ingest_url(
             run_ctx.memo_heal_counter
         )
 
-    async with rebind_meta, rebind_retry, rebind_taxonomy, rebind_memo_heal:
+    async with rebind_meta, rebind_retry, rebind_memo_heal:
         await _ingest_url_body(
             item,
             ri_target,
@@ -4307,14 +4250,6 @@ async def app_main() -> None:
     # webhook emit. Closes the ID-49.2 gap where `stage_counts["embedding"]`
     # was initialised to 0 (via `_empty_stage_counts()`) but never incremented.
     flow_stage_counter = _FlowStageCounter()
-    # Inv-7 taxonomy-miss substrate: counter is bound via
-    # `bind_taxonomy_miss_counter` below so the
-    # `_surface_out_of_taxonomy_classification` model-validator in
-    # `extraction.py` records each out-of-taxonomy primary_domain /
-    # primary_subtopic / secondary_classification value (soft-warn — the row is
-    # written unchanged). Its per-field tally is folded into the flow-end
-    # webhook payload (ID-63.8).
-    flow_taxonomy_miss_counter = _FlowTaxonomyMissCounter()
     # 80.2 §B.4 per-item-failure substrate (ID-80.9): bumped by the
     # containment handler in `bound_ingest_file` below each time an
     # unexpected exception escapes ONE file's ingest; its per-branch tally
@@ -4345,7 +4280,6 @@ async def app_main() -> None:
         op_id=run_op_id,
         stage_counter=flow_stage_counter,
         retry_counter=flow_retry_counter,
-        taxonomy_miss_counter=flow_taxonomy_miss_counter,
         memo_heal_counter=flow_memo_heal_counter,
     )
     # id-415 walk-phase bisect (see `_record_walk_phase`) — a PLAIN LOCAL dict
@@ -4512,7 +4446,7 @@ async def app_main() -> None:
         # Use a NAMED nested coroutine: it has a real `__name__` +
         # `__qualname__` + a clean signature. Option A still holds under
         # id-400: the BIND POINT stays inside the per-item callable
-        # (flow_meta / retry_counter / taxonomy_miss_counter are RE-BOUND
+        # (flow_meta / retry_counter are RE-BOUND
         # locally on the worker thread from the holder, where `extraction.py`
         # reads those ContextVars in-task; stage_counter is read directly from
         # the holder), NOT on this binder task whose ContextVars the engine
@@ -4947,7 +4881,6 @@ async def app_main() -> None:
             error_detail=flow_error_detail,
             extractor_version=extractor_version,
             retry_count=flow_retry_counter.get(),
-            taxonomy_misses=flow_taxonomy_miss_counter.tally_by_field(),
             # ID-80.9 (80.2 §B.4): per-branch tally of contained per-item
             # faults. Always threaded at flow end — an all-zero map means
             # "walk ran, zero per-item faults" (omitted only at flow start).

@@ -19,9 +19,11 @@ The prompts are written to:
 1. Force JSON-only output (no markdown fences, no commentary) so the
    downstream Pydantic `TypeAdapter.validate_json()` round-trip is direct.
 2. Enumerate the valid field values verbatim — `extraction_kind`, the
-   12-value `entity_type` Literal, the 8-value `form_type` set
-   (snapshot-backed; see `extraction.py:_VALID_FORM_TYPES`), the
-   2-value `expected_response_kind` Literal — so prompt drift is rare.
+   12-value `entity_type` Literal, the `form_type` value list (advisory
+   since DR-130 deleted the snapshot-backed runtime gate — the walk
+   discards `form_metadata`; enforcement is the DB FK on the app upload
+   path), the 2-value `expected_response_kind` Literal — so prompt drift
+   is rare.
 3. Omit the flow-stamp fields (`op_id`, `source_document_id`,
    `extracted_at`). Those are NOT on the memo-returned core shapes at all
    (bl-220 / ID-74); the flow wrapper stamps the full `*Stamped` type
@@ -47,8 +49,8 @@ from __future__ import annotations
 
 # ID-133 BI-3 (S451 owner-ratified freeze): content_type FIELD CONSTRAINTS
 # below trimmed from 15 to the 7-value stay-set — kept in exact bidirectional
-# parity with the snapshot-backed `_VALID_CONTENT_TYPES`
-# (scripts/cocoindex_pipeline/extraction.py) by
+# parity with the inline `_VALID_CONTENT_TYPES` constant (DR-130;
+# scripts/cocoindex_pipeline/extraction.py) by
 # `TestPromptsEnumeratesEnums.test_classification_enumerates_content_types`
 # in scripts/tests/test_cocoindex_prompts.py. q_a_pair migrated out to its
 # own Layer-5 class; case_study/policy/certification/compliance/methodology/

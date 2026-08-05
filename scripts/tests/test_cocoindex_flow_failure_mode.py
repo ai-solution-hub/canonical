@@ -1342,7 +1342,7 @@ class TestItemFailuresWebhookEmission:
     """`_emit_pipeline_run_webhook()` forwards `item_failures` as `itemFailures`.
 
     Mirrors the TestErrorDetailWebhookEmission cooperative-stub pattern.
-    Strictly additive alongside ID-61.4's errorDetail + taxonomyMisses
+    Strictly additive alongside ID-61.4's errorDetail
     (coordinate, don't clobber — 80.2 §B.4 ratification note).
     """
 
@@ -1399,20 +1399,20 @@ class TestItemFailuresWebhookEmission:
         # (`_resolve_terminal_status` in app_main's finally), not here.
         assert payload.get("status") == "completed"
 
-    def test_emit_rides_alongside_error_detail_and_taxonomy_misses(self):
-        # Coordinate, don't clobber: the three ID-61.4-era optional fields and
-        # itemFailures all land in ONE payload.
+    def test_emit_rides_alongside_error_detail(self):
+        # Coordinate, don't clobber: the ID-61.4-era optional errorDetail and
+        # itemFailures land in ONE payload. (taxonomyMisses is gone — DR-130
+        # deleted the taxonomy-miss counter.)
         self._skip_if_no_introspectable_stub()
         detail = {"pydantic_class": "missing_required", "stage": "flow"}
         payload = self._emit(
             item_failures={"forms": 2, "content": 1},
             error_detail=detail,
-            taxonomy_misses={"primary_domain": 3},
         )
         assert payload is not None
         assert payload.get("itemFailures") == {"forms": 2, "content": 1}
         assert payload.get("errorDetail") == detail
-        assert payload.get("taxonomyMisses") == {"primary_domain": 3}
+        assert "taxonomyMisses" not in payload
 
     def test_emit_omits_item_failures_when_default(self):
         # The flow-start emission passes no item_failures — the payload must

@@ -566,7 +566,7 @@ class TestEmitPipelineRunWebhookItemFailures:
     The per-branch item-failure tally (`{'forms': n, 'content': m}`) rides
     the terminal emission as camelCase `itemFailures`, omit-when-None —
     mirroring the errorDetail (ID-61.4) pattern. Strictly additive alongside
-    errorDetail / taxonomyMisses (coordinate, don't clobber).
+    errorDetail (coordinate, don't clobber).
 
     The helper is TRANSPORT ONLY: status arrives already resolved. The
     id-414 AC-1 rule (non-zero tally → 'completed_with_errors') lives in
@@ -655,7 +655,7 @@ class TestEmitPipelineRunWebhookMemoHeals:
 
     The per-extractor memo-self-heal tally (`{'classification': n, ...}`)
     rides the terminal emission as camelCase `memoHeals`, omit-when-None —
-    mirroring the `itemFailures` / `taxonomyMisses` pattern exactly. Burn
+    mirroring the `itemFailures` pattern exactly. Burn
     observability (per-heal LLM cost) is the explicit owner guardrail from
     the S457 ratification.
     """

@@ -26,7 +26,7 @@ This file verifies, behaviour-first (no mock-only assertions):
     — resolves the raw coroutine when present and fails loudly when absent;
   - `_FlowMemoHealCounter` (flow.py) and `bind_memo_heal_counter` /
     `current_memo_heal_counter` (flow_context.py) — the counter substrate
-    itself, mirroring the existing retry / taxonomy-miss / item-failure
+    itself, mirroring the existing retry / item-failure
     counter test patterns.
 
 Reference: docs/reference/task-list.json → ID-127 → Subtask 33
@@ -208,7 +208,7 @@ class TestExtractWithMemoSelfHealDeserializationFailure:
         assert counter.tally() == {"classification": 1}
 
     def test_no_bound_counter_still_heals_gracefully(self) -> None:
-        """Graceful degradation (mirrors the retry / taxonomy-miss counters):
+        """Graceful degradation (mirrors the retry counter):
         outside any `bind_memo_heal_counter` scope, the fallback still fires
         and the item still succeeds — only the count is not recorded."""
         error_cls = _resolve_coco_deserialization_error()
@@ -417,7 +417,7 @@ class TestResolveCocoDeserializationError:
 class TestFlowMemoHealCounter:
     """`_FlowMemoHealCounter` — per-flow per-extractor memo-self-heal tally.
 
-    Mirrors the `_FlowItemFailureCounter` / `_FlowTaxonomyMissCounter` test
+    Mirrors the `_FlowItemFailureCounter` test
     pattern (test_cocoindex_flow_failure_mode.py).
     """
 

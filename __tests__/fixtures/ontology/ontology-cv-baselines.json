@@ -3,7 +3,7 @@
     "extracted_from": "docs/ontology/*.md frontmatter at public commit 96bdc1fa (ID-68.27 OQ-E branch (b) cutover)",
     "live_source": "${KH_PRIVATE_DOCS_DIR}/src/content/docs/ontology/ (private docs-site repo, canonical home)",
     "purpose": "Frozen parity baselines for the CVs with lib-/snapshot-side counterparts: content_type, platform, requirement_type, form_type. ID-133 BI-5 added the two KG-ontology CVs entity_type (Layer 5) + relationship (Layer 6) as the public mirror of the extraction.py Literals — each baseline value carries the per-value provenance keys (provenance_model/client_extensible/editable_via); their Python Literal == TS const == this fixture is enforced by TestEntityTypeParity / TestRelationshipParity in scripts/tests/test_cocoindex_extraction.py.",
-    "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change that regenerates scripts/tests/fixtures/taxonomy_snapshot.json (bun run sync:taxonomy)."
+    "update_protocol": "When a baseline changes in the private CV register, update the matching frontmatter block here in the same change. (The former taxonomy_snapshot.json regeneration step is gone — DR-130 retired the snapshot.)"
   },
   "cvs": [
     {

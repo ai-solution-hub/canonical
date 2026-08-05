@@ -14,10 +14,9 @@ Hosts:
 References:
 - `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §2.1, §2.2, §3.2, §4.1.
 - `lib/validation/schemas.ts:1506-1519` — `VALID_ENTITY_TYPES` (12 values).
-- `docs/ontology/26-form-type.md` — `form_type` CV (markdown side of the
-  triple-source lockstep per ID-52.6 / TECH §2.6b).
-- `scripts/tests/fixtures/taxonomy_snapshot.json` — canonical `content_types`
-  + `form_types` arrays (Python consumer of the triple-source lockstep).
+- DR-130 retired `scripts/tests/fixtures/taxonomy_snapshot.json` (and with
+  it the ID-52.6 `form_type` triple-source lockstep); the sole surviving
+  gate is the inline `_VALID_CONTENT_TYPES` constant below.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
@@ -39,7 +37,6 @@ from pydantic import (
     TypeAdapter,
     ValidationError,
     field_validator,
-    model_validator,
 )
 
 from scripts.cocoindex_pipeline.prompts import (
@@ -49,8 +46,8 @@ from scripts.cocoindex_pipeline.prompts import (
     RELATIONSHIP_PROMPT,
 )
 
-# `flow_context` is imported LAZILY (function-local) inside the retry hook,
-# `stamp_extraction_base`, and the taxonomy-miss path — preserving the original
+# `flow_context` is imported LAZILY (function-local) inside the retry hook
+# and `stamp_extraction_base` — preserving the original
 # lazy-import timing. Post-{67.2} the pipeline is canonicalised onto the single
 # `scripts.cocoindex_pipeline.*` namespace, so these now use the absolute
 # `from scripts.cocoindex_pipeline import flow_context` form; the prior
@@ -120,110 +117,27 @@ def _resolve_coco_deserialization_error() -> type[BaseException]:
 ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
-# Content-type runtime validator (Q-EX2 TECH §2.2). The canonical
-# `content_types` list lives in `lib/ontology/content-type-registry.ts`;
-# Python reads it from `scripts/tests/fixtures/taxonomy_snapshot.json` per
-# CLAUDE.md "Taxonomy dual-source" gotcha to avoid a third source of drift.
-
-_TAXONOMY_SNAPSHOT_PATH = (
-    Path(__file__).parent.parent / "tests" / "fixtures" / "taxonomy_snapshot.json"
+# Content-type runtime validator (Q-EX2 TECH §2.2). DR-130 retired
+# `scripts/tests/fixtures/taxonomy_snapshot.json` entirely — this inline
+# frozenset is the TRANSITIONAL constant that replaces the snapshot's
+# `content_types` array (the values were hardcoded in the retired
+# `scripts/generate-taxonomy-snapshot.ts` generator, never DB-derived).
+# It is the ID-133 BI-3 stay-set (S451 owner-ratified), byte-equal to the
+# last snapshot's array. The value set is pending the id-417 OQ5
+# content-type rework — do not extend it here; that rework owns the
+# successor shape. TS mirror: `lib/ontology/content-type-registry.ts`
+# (`CONTENT_TYPE_VALUES`).
+_VALID_CONTENT_TYPES: frozenset[str] = frozenset(
+    {
+        "article",
+        "blog",
+        "pdf",
+        "note",
+        "research",
+        "document",
+        "other",
+    }
 )
-
-
-def _load_canonical_content_types() -> frozenset[str]:
-    """Read the canonical content_types list from the taxonomy snapshot."""
-    with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
-        snapshot = json.load(fh)
-    content_types = snapshot.get("content_types")
-    if not isinstance(content_types, list) or not content_types:
-        raise ValueError(
-            f"taxonomy_snapshot.json missing 'content_types' array — "
-            f"path={_TAXONOMY_SNAPSHOT_PATH}"
-        )
-    return frozenset(content_types)
-
-
-_VALID_CONTENT_TYPES: frozenset[str] = _load_canonical_content_types()
-
-
-def _load_canonical_form_types() -> frozenset[str]:
-    """Read the canonical form_types keys from the taxonomy snapshot.
-
-    Mirrors `_load_canonical_content_types` per ID-52.6 / TECH §2.6b
-    (`form_type` triple-source lockstep). The snapshot is regenerated from
-    the live `form_types` Postgres table by `bun run sync:taxonomy`; the TS
-    side is guarded by `__tests__/lib/ontology/form-type-parity.test.ts`.
-    """
-    with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
-        snapshot = json.load(fh)
-    form_types = snapshot.get("form_types")
-    if not isinstance(form_types, list) or not form_types:
-        raise ValueError(
-            f"taxonomy_snapshot.json missing 'form_types' array — "
-            f"path={_TAXONOMY_SNAPSHOT_PATH}"
-        )
-    keys: list[str] = []
-    for row in form_types:
-        if not isinstance(row, dict):
-            raise ValueError(
-                f"taxonomy_snapshot.json form_types entry must be an object "
-                f"with 'key' + 'label' — got {row!r}"
-            )
-        key = row.get("key")
-        if not isinstance(key, str) or not key:
-            raise ValueError(
-                f"taxonomy_snapshot.json form_types entry missing string "
-                f"'key' — got {row!r}"
-            )
-        keys.append(key)
-    return frozenset(keys)
-
-
-_VALID_FORM_TYPES: frozenset[str] = _load_canonical_form_types()
-
-
-def _load_canonical_name_set(array_key: str) -> frozenset[str]:
-    """Read a canonical name set (`name`-keyed objects) from the snapshot.
-
-    Shared body for `domains` (ID-63.8 / TECH §3.5) and `subtopics`
-    (TECH §3.6), both of which carry an array of objects each holding a string
-    `name`. Mirrors `_load_canonical_form_types`' fail-loud discipline: it
-    raises only if `array_key`'s array is structurally malformed (missing /
-    empty, or an entry lacking a string `name`), surfacing taxonomy-sync drift
-    loudly at import time rather than silently degrading the downstream
-    soft-warn. Membership itself is enforced as a NON-RAISING soft-warn on
-    `ClassificationExtraction` (PRODUCT Inv-6/7).
-    """
-    with _TAXONOMY_SNAPSHOT_PATH.open() as fh:
-        snapshot = json.load(fh)
-    rows = snapshot.get(array_key)
-    if not isinstance(rows, list) or not rows:
-        raise ValueError(
-            f"taxonomy_snapshot.json missing '{array_key}' array — "
-            f"path={_TAXONOMY_SNAPSHOT_PATH}"
-        )
-    names: list[str] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            raise ValueError(
-                f"taxonomy_snapshot.json {array_key} entry must be an object "
-                f"with a string 'name' — got {row!r}"
-            )
-        name = row.get("name")
-        if not isinstance(name, str) or not name:
-            raise ValueError(
-                f"taxonomy_snapshot.json {array_key} entry missing string "
-                f"'name' — got {row!r}"
-            )
-        names.append(name)
-    return frozenset(names)
-
-
-# Subtopic names are GLOBALLY UNIQUE across domains (56 distinct values at v1 —
-# TECH §1.6), so a FLAT subtopic set is the correct v1 contract: no
-# `domain_id`-scoping is needed to disambiguate.
-_VALID_DOMAINS: frozenset[str] = _load_canonical_name_set("domains")
-_VALID_SUBTOPICS: frozenset[str] = _load_canonical_name_set("subtopics")
 
 
 _logger = logging.getLogger(__name__)
@@ -320,12 +234,14 @@ class _ExtractionStamp(BaseModel):
 class FormMetadata(BaseModel):
     """Block carried inside the q_a_form variant (Q-EX2 PRODUCT inv 2).
 
-    `form_type` is validated at runtime against the canonical taxonomy
-    snapshot (`scripts/tests/fixtures/taxonomy_snapshot.json:form_types`),
-    which is regenerated from the live `form_types` Postgres table by
-    `bun run sync:taxonomy`. This mirrors the `_validate_content_type`
-    pattern on `ClassificationExtraction` and avoids a third drift-prone
-    source per ID-52.6 / TECH §2.6b (`form_type` triple-source lockstep).
+    `form_type` is a free string — DR-130 deleted the snapshot-backed
+    runtime gate (ID-52.6's triple-source lockstep) along with the
+    taxonomy snapshot itself: the corpus walk has DISCARDED this value
+    since ID-136 (the walk stopped writing `form_instances` /
+    `form_instance_fields`), so the gate guarded a value nothing
+    persisted. Real enforcement is the DB FK on the app upload path
+    (`form_templates_form_type_fkey` — constraint name kept through the
+    {145.6} table rename — `form_instances.form_type` → `form_types.key`).
     """
 
     model_config = ConfigDict(strict=True, extra="forbid")
@@ -349,19 +265,6 @@ class FormMetadata(BaseModel):
     # test_qa_form_with_deadline_survives_real_memo_hit_serde.
     deadline: datetime | None = Field(default=None, strict=False)
     evaluation_methodology: str | None = None
-
-    @field_validator("form_type")
-    @classmethod
-    def _validate_form_type(cls, value: str) -> str:
-        # Pydantic surfaces this `ValueError` as a `ValidationError` with
-        # `error['type'] == 'value_error'`, mapped to `invalid_enum` in
-        # `_PYDANTIC_ERROR_TO_ERROR_CLASS` (mirrors the content_type path).
-        if value not in _VALID_FORM_TYPES:
-            raise ValueError(
-                f"form_type {value!r} not in canonical taxonomy "
-                f"(valid: {sorted(_VALID_FORM_TYPES)})"
-            )
-        return value
 
 
 class QAPair(BaseModel):
@@ -498,7 +401,7 @@ class ClassificationExtraction(_ExtractionCore):
     `ClassificationExtractionStamped` (built by `stamp_extraction_base`).
 
     `content_type` is constrained at runtime via `_validate_content_type`
-    below, which reads the canonical taxonomy snapshot.
+    below, against the inline `_VALID_CONTENT_TYPES` constant (DR-130).
     """
 
     extraction_kind: Literal["classification"] = "classification"
@@ -507,8 +410,8 @@ class ClassificationExtraction(_ExtractionCore):
     # ID-63.7 (OQ-63-9): nullable subtopic dimension persisted alongside
     # primary_domain. Optional/nullable so it is backward-compatible with
     # existing callers under ConfigDict(extra='forbid') — it is a declared
-    # field, not an extra. Taxonomy-membership enforcement is the
-    # snapshot-backed soft-warn added in {63.8}; no field_validator here.
+    # field, not an extra. The {63.8} snapshot-backed soft-warn was deleted
+    # by DR-130 (write-only telemetry); the value is written as-emitted.
     primary_subtopic: str | None = None
     # ID-64.10 (S296): human-readable title the classifier proposes for the
     # document. Nullable/defaulted so it is backward-compatible under
@@ -533,56 +436,13 @@ class ClassificationExtraction(_ExtractionCore):
             )
         return value
 
-    @model_validator(mode="after")
-    def _surface_out_of_taxonomy_classification(
-        self,
-    ) -> "ClassificationExtraction":
-        """Soft-warn out-of-taxonomy domain / subtopic / secondary values.
-
-        PRODUCT Inv-6/7 (TECH §3.5-§3.7): the LLM may propose a
-        `primary_domain`, `primary_subtopic`, or `secondary_classifications[]`
-        value outside the canonical taxonomy snapshot. Unlike `content_type`
-        (Inv-5 HARD-reject via the `_validate_content_type` field-validator),
-        these dimensions are OBSERVABILITY-ONLY: the row is written UNCHANGED.
-
-        For each miss we (1) bump the flow-bound `TaxonomyMissCounter` when one
-        is bound, and (2) emit a `logging.warning`. We deliberately do NOT
-        coerce-to-first-valid (cf. the TS `validateDomain` /
-        `coerceSubtopic` smells) and do NOT drop / reject. Because this
-        validator ALWAYS returns `self` and NEVER raises, it never produces a
-        pydantic error and therefore never routes through
-        `_PYDANTIC_ERROR_TO_ERROR_CLASS` — the Inv-5 `content_type` hard-reject
-        path is left entirely intact.
-        """
-        misses: list[tuple[str, str]] = []
-        if self.primary_domain not in _VALID_DOMAINS:
-            misses.append(("primary_domain", self.primary_domain))
-        if (
-            self.primary_subtopic is not None
-            and self.primary_subtopic not in _VALID_SUBTOPICS
-        ):
-            misses.append(("primary_subtopic", self.primary_subtopic))
-        for secondary in self.secondary_classifications:
-            if secondary not in _VALID_DOMAINS:
-                misses.append(("secondary_classification", secondary))
-
-        if misses:
-            # Canonical single-namespace import post-{67.2} (kept function-local
-            # to preserve the original lazy-import timing; flow_context imports
-            # neither extraction nor flow, so this is cycle-free).
-            from scripts.cocoindex_pipeline import flow_context
-
-            counter = flow_context.current_taxonomy_miss_counter()
-            for field, value in misses:
-                if counter is not None:
-                    counter.record(field=field, value=value)
-                _logger.warning(
-                    "out-of-taxonomy %s %r — row written (soft-warn per "
-                    "ID-63 Inv-7)",
-                    field,
-                    value,
-                )
-        return self
+    # DR-130: the {63.8} `_surface_out_of_taxonomy_classification` soft-warn
+    # (out-of-taxonomy primary_domain / primary_subtopic /
+    # secondary_classifications observability) is DELETED. Its misses fed a
+    # per-flow counter whose tally landed as write-only telemetry
+    # (`pipeline_runs.result` jsonb, rendered only as a raw-JSON dump) and
+    # gated nothing — the row was always written unchanged. The Inv-5
+    # `content_type` hard-reject above is intact.
 
 
 # ---------------------------------------------------------------------------
@@ -1365,8 +1225,8 @@ async def extract_with_memo_self_heal(
     (scope discipline — network/LLM errors are untouched). On catch: log one
     loud structured line (rel_path + error class + "stale memo,
     re-extracting"), bump the per-flow memo-heal counter (best-effort —
-    silently skipped when no counter is bound, mirroring the retry/
-    taxonomy-miss counters' graceful degradation), then re-run the SAME
+    silently skipped when no counter is bound, mirroring the retry
+    counter's graceful degradation), then re-run the SAME
     extraction via the raw undecorated coroutine (`_bypass_memo_extractor`)
     so the item succeeds this walk.
     """
