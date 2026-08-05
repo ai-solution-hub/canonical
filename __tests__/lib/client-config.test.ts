@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   CLIENT_CONFIG,
   isFeatureEnabled,
-  buildDisambiguationBlock,
   type FeatureName,
 } from '@/lib/client-config';
 import {

@@ -38,8 +38,6 @@ const answer: CorpusSearchResult = {
   title: 'What is VAT registration?',
   answerSnippet: 'VAT registration is required once turnover exceeds...',
   scopeTags: ['tax'],
-  primaryDomain: 'finance',
-  primarySubtopic: 'vat',
 };
 
 const document: CorpusSearchResult = {
@@ -47,8 +45,6 @@ const document: CorpusSearchResult = {
   kind: 'document',
   title: 'Supplier terms.pdf',
   summary: 'Standard supplier terms and conditions.',
-  primaryDomain: 'procurement',
-  primarySubtopic: 'contracts',
 };
 
 const reference: CorpusSearchResult = {
@@ -64,8 +60,6 @@ describe('CorpusSearchResult discriminated union', () => {
     if (answer.kind === 'answer') {
       expect(answer.answerSnippet).toContain('VAT');
       expect(answer.scopeTags).toEqual(['tax']);
-      expect(answer.primaryDomain).toBe('finance');
-      expect(answer.primarySubtopic).toBe('vat');
     }
   });
 
@@ -73,8 +67,6 @@ describe('CorpusSearchResult discriminated union', () => {
     expect(linkTargetFor(document)).toBe(`/documents/${document.id}`);
     if (document.kind === 'document') {
       expect(document.summary).toBe('Standard supplier terms and conditions.');
-      expect(document.primaryDomain).toBe('procurement');
-      expect(document.primarySubtopic).toBe('contracts');
     }
   });
 
@@ -97,14 +89,12 @@ describe('CorpusSearchResult discriminated union', () => {
     );
   });
 
-  it('allows null primaryDomain/primarySubtopic/summary on the document variant', () => {
+  it('allows a null summary on the document variant', () => {
     const unclassifiedDocument: CorpusSearchResult = {
       id: 'document-2',
       kind: 'document',
       title: 'Unclassified upload.pdf',
       summary: null,
-      primaryDomain: null,
-      primarySubtopic: null,
     };
     expect(linkTargetFor(unclassifiedDocument)).toBe(
       `/documents/${unclassifiedDocument.id}`,
@@ -168,16 +158,12 @@ describe('CorpusSearchFilters', () => {
     expect(empty).toEqual({});
   });
 
-  it('accepts a domain/subtopic/date filter combination', () => {
+  it('accepts a date filter combination (domain/subtopic retired, DR-130)', () => {
     const filters: CorpusSearchFilters = {
-      domain: 'finance',
-      subtopic: 'vat',
       dateFrom: '2026-01-01',
       dateTo: '2026-06-30',
     };
     expect(filters).toEqual({
-      domain: 'finance',
-      subtopic: 'vat',
       dateFrom: '2026-01-01',
       dateTo: '2026-06-30',
     });
@@ -190,7 +176,7 @@ describe('queryKeys.corpusSearch (new namespace)', () => {
   });
 
   it('search() returns a stable key incorporating query, kind, and filters', () => {
-    const filters: CorpusSearchFilters = { domain: 'finance' };
+    const filters: CorpusSearchFilters = { dateFrom: '2026-01-01' };
     const key1 = queryKeys.corpusSearch.search('vat', 'answer', filters);
     const key2 = queryKeys.corpusSearch.search('vat', 'answer', filters);
     expect(key1).toEqual(key2);
@@ -202,7 +188,7 @@ describe('queryKeys.corpusSearch (new namespace)', () => {
     const differentQuery = queryKeys.corpusSearch.search('paye', 'answer', {});
     const differentKind = queryKeys.corpusSearch.search('vat', 'document', {});
     const differentFilters = queryKeys.corpusSearch.search('vat', 'answer', {
-      domain: 'finance',
+      dateFrom: '2026-01-01',
     });
 
     expect(base).not.toEqual(differentQuery);
