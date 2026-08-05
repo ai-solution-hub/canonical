@@ -377,8 +377,6 @@ describe('user-linked-table bundle reconciliation (id-138.19)', () => {
     'tag_morphology_drift_flags',
     'review_assignments',
     'source_documents',
-    'taxonomy_domains',
-    'taxonomy_subtopics',
     'processing_queue',
     'pipeline_runs',
     'ingestion_quality_log',
