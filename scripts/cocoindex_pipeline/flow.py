@@ -1385,12 +1385,12 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         # DR-130 (DDL companion migration): the subject-classification family
         # (primary_domain/primary_subtopic/secondary_domain/secondary_subtopic/
         # suggested_title/classification_confidence/classification_reasoning/
-        # classified_at/summary) and source_url are DROPPED from
+        # classified_at/summary), source_url, and ai_keywords (owner ruling —
+        # its write leg only ever landed NULL) are DROPPED from
         # source_documents — their ColumnDefs are removed here in the same
-        # deploy window. `ai_keywords` / `content_type` / `captured_date` /
-        # `summary_data` are KEPT (content_type is the one surviving
-        # classification output the pipeline still writes).
-        "ai_keywords": ColumnDef(type="text[]", nullable=True),
+        # deploy window. `content_type` / `captured_date` / `summary_data`
+        # are KEPT (content_type is the one surviving classification output
+        # the pipeline still writes).
         "content_type": ColumnDef(type="text", nullable=True),
         "captured_date": ColumnDef(type="timestamptz", nullable=True),
         "summary_data": ColumnDef(type="jsonb", nullable=True),
@@ -3025,12 +3025,11 @@ async def _upsert_source_document(
     # DR-130: `content_type` is the sole surviving classification column
     # ({131.22}'s wider family — primary_domain/primary_subtopic/secondary_*/
     # suggested_title/classification_confidence/classification_reasoning/
-    # classified_at/summary — plus source_url is DROPPED by the DDL companion
-    # migration). ai_keywords/captured_date/summary_data are KEPT columns with
-    # no Path-A source today — accepted but not invented; callers leave them
-    # None → NULL.
+    # classified_at/summary — plus source_url and ai_keywords, owner ruling —
+    # is DROPPED by the DDL companion migration). captured_date/summary_data
+    # are KEPT columns with no Path-A source today — accepted but not
+    # invented; callers leave them None → NULL.
     content_type: str | None = None,
-    ai_keywords: list[str] | None = None,
     captured_date: datetime | None = None,
     summary_data: dict[str, Any] | None = None,
 ) -> None:
@@ -3101,12 +3100,12 @@ async def _upsert_source_document(
             "INSERT INTO public.source_documents "
             "(id, storage_path, content_hash, filename, mime_type, file_size, "
             "op_id, extraction_method, content_type, "
-            "ai_keywords, captured_date, summary_data, "
+            "captured_date, summary_data, "
             # ID-138 {138.10}: the mutable path attribute + admission lifecycle
             # columns ({138.5} M1).
             "logical_path, admission_status, retention_class, origin_type) "
-            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, "
-            "$13, $14, $15, $16) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, "
+            "$12, $13, $14, $15) "
             "ON CONFLICT (id) DO UPDATE SET "
             # ID-138 {138.10} R(a): storage_path is the FROZEN SEED-CONTRACT
             # admission key — DELIBERATELY omitted from the update set so a
@@ -3122,7 +3121,6 @@ async def _upsert_source_document(
             "op_id = EXCLUDED.op_id, "
             "extraction_method = EXCLUDED.extraction_method, "
             "content_type = EXCLUDED.content_type, "
-            "ai_keywords = EXCLUDED.ai_keywords, "
             "captured_date = EXCLUDED.captured_date, "
             "summary_data = EXCLUDED.summary_data",
             # ID-138 {138.10} R(d)/DR-026: admission_status / retention_class /
@@ -3138,7 +3136,6 @@ async def _upsert_source_document(
             op_id,
             extraction_method,
             content_type,
-            ai_keywords,
             captured_date,
             json.dumps(summary_data) if summary_data is not None else None,
             logical_path,

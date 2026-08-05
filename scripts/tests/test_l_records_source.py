@@ -176,7 +176,7 @@ def _five_type_pool(
         [{"id": "sd-co"}] if company_exists else [],
     )
     pool.when("em_max FROM source_documents sd", [])
-    pool.when("ri_max FROM source_documents sd", [])
+    pool.when("sd_max FROM source_documents sd", [])
     pool.when(
         "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions",
         [],
@@ -264,8 +264,9 @@ class TestListConceptsFiveTypeSet:
 
 
 class TestReadConceptTopic:
-    """topic: q_a_pairs cluster + source_document parents + reference_items
-    + record_lifecycle (both owner kinds) + entity_mentions/relationships."""
+    """topic: q_a_pairs cluster + source_document parents + record_lifecycle
+    (both owner kinds) + entity_mentions/relationships. (The reference_items
+    leg retired with the ri<->sd join path — DR-124.)"""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
@@ -295,10 +296,6 @@ class TestReadConceptTopic:
             [{"id": "sd-1", "filename": "master-bid-library.md"}],
         )
         pool.when(
-            "FROM reference_items",
-            [{"id": "ri-1", "title": "External evidence", "source_document_id": "sd-1"}],
-        )
-        pool.when(
             "FROM record_lifecycle",
             [
                 {"id": "rl-sd-1", "owner_kind": "source_document", "source_document_id": "sd-1"},
@@ -315,7 +312,7 @@ class TestReadConceptTopic:
         )
         return pool
 
-    def test_read_concept_returns_all_six_topic_anchors(self):
+    def test_read_concept_returns_all_five_topic_anchors(self):
         key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
         src = LRecordsSource(self._pool())
 
@@ -324,7 +321,8 @@ class TestReadConceptTopic:
         assert isinstance(raw, ConceptRaw)
         assert [r["id"] for r in raw.q_a_pairs] == ["qa-1"]
         assert [r["id"] for r in raw.source_documents] == ["sd-1"]
-        assert [r["id"] for r in raw.reference_items] == ["ri-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert {r["owner_kind"] for r in raw.record_lifecycle} == {
             "source_document",
             "q_a_pair",
@@ -341,8 +339,8 @@ class TestReadConceptTopic:
 
 
 class TestReadConceptProduct:
-    """product: source_documents (product docs) + product-scoped q_a_pairs
-    + reference_items. No record_lifecycle/entity_mentions in the grid."""
+    """product: source_documents (product docs) + product-scoped q_a_pairs.
+    No record_lifecycle/entity_mentions in the grid (ri leg retired, DR-124)."""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
@@ -355,13 +353,9 @@ class TestReadConceptProduct:
             "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
             [{"id": "qa-lms-1", "question_text": "LMS uptime SLA?", "source_document_id": "sd-lms"}],
         )
-        pool.when(
-            "FROM reference_items",
-            [{"id": "ri-lms-1", "source_document_id": "sd-lms"}],
-        )
         return pool
 
-    def test_read_concept_returns_the_3_product_anchors_only(self):
+    def test_read_concept_returns_the_2_product_anchors_only(self):
         key = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
         src = LRecordsSource(self._pool())
 
@@ -369,15 +363,16 @@ class TestReadConceptProduct:
 
         assert [r["id"] for r in raw.source_documents] == ["sd-lms"]
         assert [r["id"] for r in raw.q_a_pairs] == ["qa-lms-1"]
-        assert [r["id"] for r in raw.reference_items] == ["ri-lms-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert raw.record_lifecycle == []
         assert raw.entity_mentions == []
         assert raw.entity_relationships == []
 
 
 class TestReadConceptCompany:
-    """company: source_documents (company-overview, team-structure) +
-    reference_items + the company entity_mentions graph."""
+    """company: source_documents (company-overview, team-structure) + the
+    company entity_mentions graph (ri leg retired, DR-124)."""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
@@ -390,7 +385,6 @@ class TestReadConceptCompany:
             arg_matcher=lambda args: args
             == (["%company-overview%", "%team-structure%"],),
         )
-        pool.when("FROM reference_items", [{"id": "ri-co-1", "source_document_id": "sd-co"}])
         pool.when(
             "FROM entity_mentions WHERE source_document_id = ANY($1::uuid[])",
             [{"id": "em-co-1", "entity_type": "person", "canonical_name": "Jane Doe"}],
@@ -404,7 +398,8 @@ class TestReadConceptCompany:
         raw = _run(src.read_concept(key))
 
         assert {r["id"] for r in raw.source_documents} == {"sd-co", "sd-team"}
-        assert [r["id"] for r in raw.reference_items] == ["ri-co-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert [r["id"] for r in raw.entity_mentions] == ["em-co-1"]
         assert raw.q_a_pairs == []
         assert raw.record_lifecycle == []
@@ -412,9 +407,10 @@ class TestReadConceptCompany:
 
 
 class TestReadConceptCertification:
-    """certification: source_documents (compliance) + reference_items +
-    the certification's own entity_mentions (by canonical_name, across all
-    docs — external evidence), not just those of the compliance doc."""
+    """certification: source_documents (compliance) + the certification's
+    own entity_mentions (by canonical_name, across all docs — external
+    evidence), not just those of the compliance doc (ri leg retired,
+    DR-124)."""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
@@ -423,7 +419,6 @@ class TestReadConceptCertification:
             [{"id": "sd-comp", "filename": "07-compliance-governance-and-certifications.md"}],
             arg_matcher=lambda args: args == (["%compliance%"],),
         )
-        pool.when("FROM reference_items", [{"id": "ri-cert-1", "source_document_id": "sd-comp"}])
         pool.when(
             "FROM entity_mentions WHERE entity_type = $1 AND canonical_name = $2",
             [{"id": "em-cert-1", "entity_type": "certification", "canonical_name": "ISO 27001"}],
@@ -442,7 +437,8 @@ class TestReadConceptCertification:
         raw = _run(src.read_concept(key))
 
         assert [r["id"] for r in raw.source_documents] == ["sd-comp"]
-        assert [r["id"] for r in raw.reference_items] == ["ri-cert-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert [r["id"] for r in raw.entity_mentions] == ["em-cert-1"]
         assert raw.q_a_pairs == []
         assert raw.record_lifecycle == []
@@ -451,7 +447,7 @@ class TestReadConceptCertification:
 
 class TestReadConceptCaseStudy:
     """case_study: source_documents (named-clients) + supporting q_a_pairs
-    + reference_items."""
+    (ri leg retired, DR-124)."""
 
     def _pool(self) -> FakePool:
         pool = FakePool()
@@ -464,7 +460,6 @@ class TestReadConceptCaseStudy:
             "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
             [{"id": "qa-acme-1", "scope_tag": ["Acme Corp"], "source_document_id": "sd-clients"}],
         )
-        pool.when("FROM reference_items", [{"id": "ri-acme-1", "source_document_id": "sd-clients"}])
         return pool
 
     def test_read_concept_returns_the_3_case_study_anchors_only(self):
@@ -479,7 +474,8 @@ class TestReadConceptCaseStudy:
 
         assert [r["id"] for r in raw.source_documents] == ["sd-clients"]
         assert [r["id"] for r in raw.q_a_pairs] == ["qa-acme-1"]
-        assert [r["id"] for r in raw.reference_items] == ["ri-acme-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert raw.record_lifecycle == []
         assert raw.entity_mentions == []
         assert raw.entity_relationships == []
@@ -502,7 +498,7 @@ def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     pool.when("p.canonical_name AS canonical_name", [])
     pool.when("LIMIT 1", [])
     pool.when("em_max FROM source_documents sd", [])
-    pool.when("ri_max FROM source_documents sd", [])
+    pool.when("sd_max FROM source_documents sd", [])
     pool.when("count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", [])
     pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
     pool.when("c.canonical_name AS canonical_name", [])
@@ -693,7 +689,6 @@ class TestReadConceptWonBidCaseStudy:
             "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
             [{"id": "qa-acme-1", "source_document_id": "sd-clients"}],
         )
-        pool.when("FROM reference_items", [{"id": "ri-acme-1"}])
         key = ConceptKey(
             rel_path="case-studies/acme-corp.md",
             concept_type="case_study",
@@ -763,7 +758,6 @@ class TestSampleRows:
             "filename ILIKE ANY($1::text[])",
             [{"id": "sd-co"}, {"id": "sd-team"}],
         )
-        pool.when("FROM reference_items", [])
         pool.when("FROM entity_mentions WHERE source_document_id = ANY($1::uuid[])", [])
         src = LRecordsSource(pool)
         key = ConceptKey(rel_path="company/overview.md", concept_type="company")
@@ -957,7 +951,7 @@ def _other_types_empty(pool: "FakePool") -> "FakePool":
     pool.when("p.canonical_name AS canonical_name", [])
     pool.when("LIMIT 1", [])
     pool.when("em_max FROM source_documents sd", [])
-    pool.when("ri_max FROM source_documents sd", [])
+    pool.when("sd_max FROM source_documents sd", [])
     pool.when("count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", [])
     pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
     pool.when("c.canonical_name AS canonical_name", [])
@@ -984,8 +978,6 @@ def _topic_scope_tag_pool(*, em_max: "str | None") -> "FakePool":
                 "qa_max": "t0",
                 "sd_count": 1,
                 "sd_max": "t0",
-                "ri_count": 0,
-                "ri_max": None,
                 "rl_count": 0,
                 "rl_max": None,
                 "em_count": 1,
@@ -1051,8 +1043,6 @@ class TestContentVersionSensitivity:
                     "qa_max": "t0",
                     "sd_count": 1,
                     "sd_max": "t0",
-                    "ri_count": 0,
-                    "ri_max": None,
                     "rl_count": 0,
                     "rl_max": None,
                     "em_count": 1,
@@ -1091,8 +1081,6 @@ class TestContentVersionSensitivity:
                         "sd_max": sd_max,
                         "qa_count": 1,
                         "qa_max": "t0",
-                        "ri_count": 0,
-                        "ri_max": None,
                     }
                 ],
             )
@@ -1124,14 +1112,12 @@ class TestContentVersionSensitivity:
                     {
                         "sd_count": 2,
                         "sd_max": "t0",
-                        "ri_count": 1,
-                        "ri_max": "t0",
                         "em_count": 1,
                         "em_max": em_max,
                     }
                 ],
             )
-            pool.when("ri_max FROM source_documents sd", [])
+            pool.when("sd_max FROM source_documents sd", [])
             pool.when(
                 "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
             )
@@ -1177,8 +1163,8 @@ class TestContentVersionSensitivity:
             pool.when("LIMIT 1", [])
             pool.when("em_max FROM source_documents sd", [])
             pool.when(
-                "ri_max FROM source_documents sd",
-                [{"sd_count": 1, "sd_max": "t0", "ri_count": 1, "ri_max": "t0"}],
+                "sd_max FROM source_documents sd",
+                [{"sd_count": 1, "sd_max": "t0"}],
             )
             pool.when(
                 "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions",
@@ -1212,7 +1198,7 @@ class TestContentVersionSensitivity:
             pool.when("p.canonical_name AS canonical_name", [])
             pool.when("LIMIT 1", [])
             pool.when("em_max FROM source_documents sd", [])
-            pool.when("ri_max FROM source_documents sd", [])
+            pool.when("sd_max FROM source_documents sd", [])
             pool.when(
                 "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
             )
@@ -1263,7 +1249,7 @@ class TestContentVersionSensitivity:
             pool.when("p.canonical_name AS canonical_name", [])
             pool.when("LIMIT 1", [])
             pool.when("em_max FROM source_documents sd", [])
-            pool.when("ri_max FROM source_documents sd", [])
+            pool.when("sd_max FROM source_documents sd", [])
             pool.when(
                 "count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []
             )
@@ -1443,8 +1429,6 @@ class TestConceptFeederListConcepts:
                     "sd_max": "t0",
                     "qa_count": 1,
                     "qa_max": "t0",
-                    "ri_count": 0,
-                    "ri_max": None,
                 }
             ],
             arg_matcher=lambda args: args == ("partner",),
@@ -1463,8 +1447,6 @@ class TestConceptFeederListConcepts:
                     "sd_max": "t0",
                     "qa_count": 0,
                     "qa_max": None,
-                    "ri_count": 0,
-                    "ri_max": None,
                 }
             ],
             arg_matcher=lambda args: args == ("regulation_body",),
@@ -1524,10 +1506,6 @@ class TestConceptFeederReadConcept:
             "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
             [{"id": "qa-contoso-1", "source_document_id": "sd-contoso"}],
         )
-        pool.when(
-            "FROM reference_items",
-            [{"id": "ri-contoso-1", "source_document_id": "sd-contoso"}],
-        )
         return pool
 
     def _feeder_key(self, pool: FakePool) -> "tuple[LRecordsSource, ConceptKey]":
@@ -1540,14 +1518,15 @@ class TestConceptFeederReadConcept:
         keys = _run(src.list_concepts())
         return src, next(k for k in keys if k.concept_type == "partner")
 
-    def test_read_concept_returns_the_3_feeder_anchors(self):
+    def test_read_concept_returns_the_2_feeder_anchors(self):
         src, key = self._feeder_key(self._pool())
 
         raw = _run(src.read_concept(key))
 
         assert [r["id"] for r in raw.source_documents] == ["sd-contoso"]
         assert [r["id"] for r in raw.q_a_pairs] == ["qa-contoso-1"]
-        assert [r["id"] for r in raw.reference_items] == ["ri-contoso-1"]
+        # DR-124: the ri evidence leg retired with the ri<->sd join path.
+        assert raw.reference_items == []
         assert raw.record_lifecycle == []
         assert raw.entity_mentions == []
 

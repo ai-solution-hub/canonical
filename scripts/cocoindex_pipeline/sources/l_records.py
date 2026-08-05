@@ -39,11 +39,11 @@ this a runtime invariant, not just a convention: constructing a
 
 | type            | `list_concepts()` grain                          | `read_concept()` joins |
 |------------------|---------------------------------------------------|-------------------------|
-| `topic`          | distinct `q_a_pairs.scope_tag` values (the domain/subtopic fallback grain retired S531 — DR-125 expiry ruled) | the q_a_pairs cluster + their `source_document_id` parents + `reference_items` of those parents + `record_lifecycle` (both owner kinds) + `entity_mentions`/`entity_relationships` neighbourhood |
-| `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` + `reference_items` |
-| `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + `reference_items` + the company `entity_mentions` graph |
-| `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + `reference_items` + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
-| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs` + `reference_items`. won-bid grain (`key.workspace_id` set): `derived_from_form_response` `q_a_pairs` (by `source_form_instance_id`, published-only) + the won `form_instances` row itself (`issuing_organisation`/`name`/`outcome_notes`) — see the {145.24} note below |
+| `topic`          | distinct `q_a_pairs.scope_tag` values (the domain/subtopic fallback grain retired S531 — DR-125 expiry ruled) | the q_a_pairs cluster + their `source_document_id` parents + `record_lifecycle` (both owner kinds) + `entity_mentions`/`entity_relationships` neighbourhood |
+| `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` |
+| `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + the company `entity_mentions` graph |
+| `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
+| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs`. won-bid grain (`key.workspace_id` set): `derived_from_form_response` `q_a_pairs` (by `source_form_instance_id`, published-only) + the won `form_instances` row itself (`issuing_organisation`/`name`/`outcome_notes`) — see the {145.24} note below |
 
 **Won-bid case_study grain (S443 amendment / DR-029; re-pointed {145.24}
 post-{145.6} W1e).** A `won` procurement form is a first-class case_study
@@ -316,6 +316,10 @@ class ConceptRaw:
 
     source_documents: "list[Mapping[str, Any]]" = field(default_factory=list)
     q_a_pairs: "list[Mapping[str, Any]]" = field(default_factory=list)
+    # DR-124/DR-130: NO LONGER POPULATED — the ri evidence legs retired with
+    # the ri<->sd join path. The field stays (always []) as the
+    # enrich.py-facing seam; reference re-entry into concept building is
+    # id-422's open question.
     reference_items: "list[Mapping[str, Any]]" = field(default_factory=list)
     record_lifecycle: "list[Mapping[str, Any]]" = field(default_factory=list)
     entity_mentions: "list[Mapping[str, Any]]" = field(default_factory=list)
@@ -410,22 +414,15 @@ _SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS = (
     "LIMIT 1"
 )
 
-# DR-130: reference_items.primary_domain / primary_subtopic are DROPPED —
-# trimmed from this SELECT.
-# ⚠ DR-130 OPEN (UNDECIDABLE, escalated): the DDL companion ALSO drops
-# `reference_items.source_document_id` (DR-124 unwind — references are
-# standalone), which is this query's WHERE key AND the join key of the five
-# `LEFT JOIN reference_items ri ON ri.source_document_id = sd.id` clauses in
-# the version-fingerprint SQL below. After the drop there is NO remaining
-# ri↔sd join path (sd.source_url is dropped too). Whether the producer's
-# reference-items legs retire outright or re-key needs a producer-semantics
-# ruling — do not "fix" mechanically here.
-_SQL_REFERENCE_ITEMS_BY_SOURCE_DOCS = (
-    "SELECT id, title, body, summary, source_url, published_at, "
-    "layer, source_document_id, "
-    "ingestion_source, created_at, updated_at FROM reference_items "
-    "WHERE source_document_id = ANY($1::uuid[]) ORDER BY id"
-)
+# DR-130 ruling (coordinator, from DR-124 + the DELETE-entirely frame): the
+# producer's ri evidence legs retired with the ri↔sd join path (DR-124 —
+# the join existed only because of the synthetic sd mint the unwind
+# removed; a reference item is a standalone record with no sd). Reference
+# re-entry into concept building is id-422's open question — do not re-key
+# these reads mechanically. `_SQL_REFERENCE_ITEMS_BY_SOURCE_DOCS`, its
+# fetch helper, the version-fingerprint ri terms, and every read method's
+# ri leg are deleted; `ConceptRaw.reference_items` stays (always empty) as
+# the enrich.py-facing seam id-422 may repopulate.
 
 _SQL_RECORD_LIFECYCLE_FOR_OWNERS = (
     "SELECT id, owner_kind, source_document_id, q_a_pair_id, owner_id, "
@@ -540,7 +537,7 @@ _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE = (
 # (never per-concept, MD-5), grouped by the SAME identity the enumeration
 # query groups by, covering the SAME backing tables `read_concept` reads for
 # that type (the MD-7 read grid). Every table in every read grid now carries
-# `updated_at` — `q_a_pairs`/`source_documents`/`reference_items`/
+# `updated_at` — `q_a_pairs`/`source_documents`/
 # `record_lifecycle`/`form_instances` always did; `entity_mentions`/
 # `entity_relationships` gained it + an `ON UPDATE` trigger via the {132.40}
 # migration (`20260716150000_id132_entity_updated_at.sql`, DR-060 OQ-MD-2) —
@@ -566,15 +563,13 @@ def _combine_content_version(*terms: str) -> str:
     return "|".join(terms)
 
 
-# topic (MD-7 grid: q_a_pairs, source_documents, reference_items,
-# record_lifecycle, entity_mentions, entity_relationships — matches
-# `_read_topic`'s assembly order). Two branches, mirroring the two
-# enumeration queries above: scope_tag-grouped and domain/subtopic-grouped.
+# topic (MD-7 grid: q_a_pairs, source_documents, record_lifecycle,
+# entity_mentions, entity_relationships — matches `_read_topic`'s assembly
+# order; the reference_items leg retired with the ri<->sd join path, DR-124).
 _SQL_TOPIC_SCOPE_TAG_VERSION = (
     "SELECT t.tag AS tag, "
     "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
     "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
     "count(DISTINCT rl.id) AS rl_count, max(rl.updated_at) AS rl_max, "
     "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max, "
     "count(DISTINCT er.id) AS er_count, max(er.updated_at) AS er_max "
@@ -584,7 +579,6 @@ _SQL_TOPIC_SCOPE_TAG_VERSION = (
     "JOIN q_a_pairs qa ON qa.scope_tag @> ARRAY[t.tag]::text[] "
     "AND qa.publication_status = 'published' "
     "LEFT JOIN source_documents sd ON sd.id = qa.source_document_id "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
     "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
     "LEFT JOIN entity_relationships er ON er.source_document_id = sd.id "
     "LEFT JOIN record_lifecycle rl ON "
@@ -593,13 +587,13 @@ _SQL_TOPIC_SCOPE_TAG_VERSION = (
     "GROUP BY t.tag ORDER BY t.tag"
 )
 
-# product (MD-7 grid: source_documents, q_a_pairs, reference_items — matches
-# `_read_product`'s assembly order), grouped by canonical_name.
+# product (MD-7 grid: source_documents, q_a_pairs — matches
+# `_read_product`'s assembly order; ri leg retired, DR-124), grouped by
+# canonical_name.
 _SQL_PRODUCT_VERSION = (
     "SELECT p.canonical_name AS canonical_name, "
     "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max "
     "FROM (SELECT DISTINCT canonical_name FROM entity_mentions "
     "WHERE entity_type = $1) p "
     "LEFT JOIN source_documents sd ON "
@@ -607,32 +601,29 @@ _SQL_PRODUCT_VERSION = (
     "OR sd.logical_path ILIKE ('%' || p.canonical_name || '%') "
     "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
     "OR qa.scope_tag @> ARRAY[p.canonical_name]::text[] "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
     "GROUP BY p.canonical_name ORDER BY p.canonical_name"
 )
 
-# company (MD-7 grid: source_documents, reference_items, entity_mentions —
-# matches `_read_company`'s assembly order). Singleton — no GROUP BY.
+# company (MD-7 grid: source_documents, entity_mentions — matches
+# `_read_company`'s assembly order; ri leg retired, DR-124). Singleton — no
+# GROUP BY.
 _SQL_COMPANY_VERSION = (
     "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max, "
     "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max "
     "FROM source_documents sd "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
     "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
     "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
 )
 
-# certification (MD-7 grid: source_documents, reference_items, entity_mentions
-# — matches `_read_certification`'s assembly order). `source_documents`/
-# `reference_items` are the SAME compliance-doc set for every certification
-# (one shared term); `entity_mentions` is grouped by canonical_name (the
-# certification's OWN mentions, across all docs — mirrors `_read_certification`).
-_SQL_CERTIFICATION_SD_RI_VERSION = (
-    "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+# certification (MD-7 grid: source_documents, entity_mentions — matches
+# `_read_certification`'s assembly order; ri leg retired, DR-124). The
+# `source_documents` set is the SAME compliance-doc set for every
+# certification (one shared term); `entity_mentions` is grouped by
+# canonical_name (the certification's OWN mentions, across all docs —
+# mirrors `_read_certification`).
+_SQL_CERTIFICATION_SD_VERSION = (
+    "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max "
     "FROM source_documents sd "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
     "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
 )
 
@@ -641,25 +632,23 @@ _SQL_CERTIFICATION_ENTITY_MENTIONS_VERSION = (
     "FROM entity_mentions WHERE entity_type = $1 GROUP BY canonical_name ORDER BY 1"
 )
 
-# case_study, named-clients grain (MD-7 grid: source_documents, q_a_pairs,
-# reference_items — matches `_read_case_study`'s assembly order). Grouped by
-# the SAME named-client `entity_mentions.canonical_name` the enumeration
-# query (`_SQL_DISTINCT_CASE_STUDY_ENTITIES`) groups by; `source_documents`/
-# `reference_items` are the shared named-clients doc set, `q_a_pairs` is the
+# case_study, named-clients grain (MD-7 grid: source_documents, q_a_pairs —
+# matches `_read_case_study`'s assembly order; ri leg retired, DR-124).
+# Grouped by the SAME named-client `entity_mentions.canonical_name` the
+# enumeration query (`_SQL_DISTINCT_CASE_STUDY_ENTITIES`) groups by;
+# `source_documents` is the shared named-clients doc set, `q_a_pairs` is the
 # per-entity union `_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY` selects (shared docs OR
 # this entity's scope_tag).
 _SQL_CASE_STUDY_NAMED_CLIENT_VERSION = (
     "SELECT c.canonical_name AS canonical_name, "
     "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
-    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
-    "count(DISTINCT ri.id) AS ri_count, max(ri.updated_at) AS ri_max "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max "
     "FROM (SELECT DISTINCT em.canonical_name FROM entity_mentions em "
     "JOIN source_documents sd0 ON sd0.id = em.source_document_id "
     "WHERE em.entity_type = 'organisation' "
     "AND (sd0.filename ILIKE ANY($1::text[]) OR sd0.logical_path ILIKE ANY($1::text[]))) c "
     "LEFT JOIN source_documents sd ON "
     "sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[]) "
-    "LEFT JOIN reference_items ri ON ri.source_document_id = sd.id "
     "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
     "OR qa.scope_tag @> ARRAY[c.canonical_name]::text[] "
     "GROUP BY c.canonical_name ORDER BY c.canonical_name"
@@ -818,7 +807,6 @@ class LRecordsSource:
             row["canonical_name"]: _combine_content_version(
                 _version_term(row.get("sd_count"), row.get("sd_max")),
                 _version_term(row.get("qa_count"), row.get("qa_max")),
-                _version_term(row.get("ri_count"), row.get("ri_max")),
             )
             for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, entity_type)
         }
@@ -844,7 +832,6 @@ class LRecordsSource:
             row["tag"]: _combine_content_version(
                 _version_term(row.get("qa_count"), row.get("qa_max")),
                 _version_term(row.get("sd_count"), row.get("sd_max")),
-                _version_term(row.get("ri_count"), row.get("ri_max")),
                 _version_term(row.get("rl_count"), row.get("rl_max")),
                 _version_term(row.get("em_count"), row.get("em_max")),
                 _version_term(row.get("er_count"), row.get("er_max")),
@@ -869,7 +856,6 @@ class LRecordsSource:
             row["canonical_name"]: _combine_content_version(
                 _version_term(row.get("sd_count"), row.get("sd_max")),
                 _version_term(row.get("qa_count"), row.get("qa_max")),
-                _version_term(row.get("ri_count"), row.get("ri_max")),
             )
             for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, "product")
         }
@@ -895,7 +881,6 @@ class LRecordsSource:
         content_version = (
             _combine_content_version(
                 _version_term(version_rows[0].get("sd_count"), version_rows[0].get("sd_max")),
-                _version_term(version_rows[0].get("ri_count"), version_rows[0].get("ri_max")),
                 _version_term(version_rows[0].get("em_count"), version_rows[0].get("em_max")),
             )
             if version_rows
@@ -910,23 +895,23 @@ class LRecordsSource:
         ]
 
     async def _list_certification_concepts(self) -> "list[ConceptKey]":
-        """{132.38} MD-7: `source_documents`/`reference_items` are the SAME
-        shared compliance-doc set for every certification (one un-grouped
-        aggregate); `entity_mentions` is the certification's OWN mentions,
-        grouped by `canonical_name` (mirrors `_read_certification`)."""
+        """{132.38} MD-7: `source_documents` is the SAME shared
+        compliance-doc set for every certification (one un-grouped
+        aggregate; the ri leg retired with DR-124); `entity_mentions` is the
+        certification's OWN mentions, grouped by `canonical_name` (mirrors
+        `_read_certification`)."""
         rows = await self._pool.fetch(
             _SQL_DISTINCT_ENTITY_CANONICAL_NAMES, "certification"
         )
-        sd_ri_rows = await self._pool.fetch(
-            _SQL_CERTIFICATION_SD_RI_VERSION, list(_CERTIFICATION_FILENAME_PATTERNS)
+        sd_version_rows = await self._pool.fetch(
+            _SQL_CERTIFICATION_SD_VERSION, list(_CERTIFICATION_FILENAME_PATTERNS)
         )
         shared_term = (
-            _combine_content_version(
-                _version_term(sd_ri_rows[0].get("sd_count"), sd_ri_rows[0].get("sd_max")),
-                _version_term(sd_ri_rows[0].get("ri_count"), sd_ri_rows[0].get("ri_max")),
+            _version_term(
+                sd_version_rows[0].get("sd_count"), sd_version_rows[0].get("sd_max")
             )
-            if sd_ri_rows
-            else _combine_content_version(_version_term(0, None), _version_term(0, None))
+            if sd_version_rows
+            else _version_term(0, None)
         )
         em_by_name = {
             row["canonical_name"]: _version_term(row.get("em_count"), row.get("em_max"))
@@ -954,7 +939,6 @@ class LRecordsSource:
             row["canonical_name"]: _combine_content_version(
                 _version_term(row.get("sd_count"), row.get("sd_max")),
                 _version_term(row.get("qa_count"), row.get("qa_max")),
-                _version_term(row.get("ri_count"), row.get("ri_max")),
             )
             for row in await self._pool.fetch(
                 _SQL_CASE_STUDY_NAMED_CLIENT_VERSION, list(_CASE_STUDY_FILENAME_PATTERNS)
@@ -1053,13 +1037,6 @@ class LRecordsSource:
             return []
         return await self._pool.fetch(_SQL_SOURCE_DOCUMENTS_BY_IDS, list(ids))
 
-    async def _reference_items_by_source_docs(
-        self, ids: "Sequence[Any]"
-    ) -> "list[Mapping[str, Any]]":
-        if not ids:
-            return []
-        return await self._pool.fetch(_SQL_REFERENCE_ITEMS_BY_SOURCE_DOCS, list(ids))
-
     async def _entity_mentions_by_source_docs(
         self, ids: "Sequence[Any]"
     ) -> "list[Mapping[str, Any]]":
@@ -1116,7 +1093,6 @@ class LRecordsSource:
         )
         qa_ids = [row["id"] for row in qa_rows]
         sd_rows = await self._source_documents_by_ids(sd_ids)
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
         rl_rows = await self._pool.fetch(
             _SQL_RECORD_LIFECYCLE_FOR_OWNERS, sd_ids, qa_ids
         )
@@ -1125,7 +1101,6 @@ class LRecordsSource:
         return ConceptRaw(
             q_a_pairs=qa_rows,
             source_documents=sd_rows,
-            reference_items=ri_rows,
             record_lifecycle=rl_rows,
             entity_mentions=em_rows,
             entity_relationships=er_rows,
@@ -1137,30 +1112,20 @@ class LRecordsSource:
         qa_rows = await self._pool.fetch(
             _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
         )
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
-        return ConceptRaw(
-            source_documents=sd_rows, q_a_pairs=qa_rows, reference_items=ri_rows
-        )
+        return ConceptRaw(source_documents=sd_rows, q_a_pairs=qa_rows)
 
     async def _read_company(self, key: ConceptKey) -> ConceptRaw:
         sd_rows = await self._source_documents_for_key(key)
         sd_ids = [row["id"] for row in sd_rows]
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
         em_rows = await self._entity_mentions_by_source_docs(sd_ids)
-        return ConceptRaw(
-            source_documents=sd_rows, reference_items=ri_rows, entity_mentions=em_rows
-        )
+        return ConceptRaw(source_documents=sd_rows, entity_mentions=em_rows)
 
     async def _read_certification(self, key: ConceptKey) -> ConceptRaw:
         sd_rows = await self._source_documents_for_key(key)
-        sd_ids = [row["id"] for row in sd_rows]
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
         em_rows = await self._pool.fetch(
             _SQL_ENTITY_MENTIONS_BY_TYPE_AND_NAME, "certification", key.entity_id
         )
-        return ConceptRaw(
-            source_documents=sd_rows, reference_items=ri_rows, entity_mentions=em_rows
-        )
+        return ConceptRaw(source_documents=sd_rows, entity_mentions=em_rows)
 
     async def _read_case_study(self, key: ConceptKey) -> ConceptRaw:
         sd_rows = await self._source_documents_for_key(key)
@@ -1168,10 +1133,7 @@ class LRecordsSource:
         qa_rows = await self._pool.fetch(
             _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
         )
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
-        return ConceptRaw(
-            source_documents=sd_rows, q_a_pairs=qa_rows, reference_items=ri_rows
-        )
+        return ConceptRaw(source_documents=sd_rows, q_a_pairs=qa_rows)
 
     async def _read_won_bid_case_study(self, key: ConceptKey) -> ConceptRaw:
         """The won-bid case_study grain read (S443 amendment / DR-029, TECH
@@ -1191,8 +1153,8 @@ class LRecordsSource:
         Read-only against the won-bid write path — this method writes nothing.
         Anchors (BI-9): the q_a_pairs land in the `q_a_pairs` bucket (anchored
         downstream via the BI-8 `canonical://q_a_pairs?…` query form, NEVER a
-        q_a_pair master uuid — BI-3); `source_documents`/`reference_items`
-        stay empty for this grain (no named-clients doc backs a won bid)."""
+        q_a_pair master uuid — BI-3); `source_documents` stays empty for
+        this grain (no named-clients doc backs a won bid)."""
         qa_rows = await self._pool.fetch(
             _SQL_WON_BID_QA_BY_WORKSPACE, key.workspace_id
         )
@@ -1208,7 +1170,7 @@ class LRecordsSource:
         read — identical join shape to `_read_product` (source_documents by
         filename/logical_path match on `key.entity_id`, via `_source_
         documents_for_key`'s feeder branch, + q_a_pairs by
-        source-docs-or-entity-scope-tag + reference_items). `read_concept`
+        source-docs-or-entity-scope-tag). `read_concept`
         only reaches here for a `key.concept_type` present in
         `self._concept_feeder_config`."""
         sd_rows = await self._source_documents_for_key(key)
@@ -1216,10 +1178,7 @@ class LRecordsSource:
         qa_rows = await self._pool.fetch(
             _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
         )
-        ri_rows = await self._reference_items_by_source_docs(sd_ids)
-        return ConceptRaw(
-            source_documents=sd_rows, q_a_pairs=qa_rows, reference_items=ri_rows
-        )
+        return ConceptRaw(source_documents=sd_rows, q_a_pairs=qa_rows)
 
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 
