@@ -20,7 +20,10 @@
 --             (sd.source_url dropped); classification by-products
 --             (summary, suggested_title, classification_confidence,
 --             classification_reasoning, classified_at) retire with the
---             classification stage. sd.ai_keywords is KEPT (DR-130 axis 2).
+--             classification stage. sd.ai_keywords DROPS (owner ruling, this
+--             session: the DR-130 semantics axis narrows to embeddings +
+--             entity extraction — the keywords leg retires with its only
+--             writer, classify.ts).
 --             hybrid_search keeps filter_kind, loses filter_domain/subtopic.
 --
 -- DB-side dependency census (measured on Platform staging rbwqewalexrzgxtvcqrh,
@@ -77,6 +80,14 @@ DROP FUNCTION IF EXISTS public.reference_get_verbatim(uuid);
 DROP FUNCTION IF EXISTS public.search_content(vector, numeric, integer);
 DROP FUNCTION IF EXISTS public.search_content(vector, double precision, integer);
 DROP FUNCTION IF EXISTS public.search_content_chunks(vector, numeric, integer, uuid, boolean, integer, character varying);
+
+-- get_popular_keywords aggregated sd.ai_keywords (dropped in §4 — owner
+-- ruling: the semantics axis narrows to embeddings + entity extraction).
+-- Sole repo caller is app/api/search/suggestions/route.ts:19 (reported to
+-- the integration wave); with the column and its only writer gone the
+-- function has no live requirement. api wrapper falls with it (DR-032).
+DROP FUNCTION IF EXISTS api.get_popular_keywords(integer);
+DROP FUNCTION IF EXISTS public.get_popular_keywords(integer);
 
 -- Classification trigger legs. coerce_empty_classification_to_null exists
 -- only to NULLIF the four sd domain columns; record_lifecycle_domain_sync
@@ -149,8 +160,11 @@ DELETE FROM public.source_documents sd
 --       classification_reasoning / classified_at: classification-stage
 --       by-products; sole writers are lib/ai/classify.ts + flow.py's
 --       classification stage, both deleted this wave. Owner: RETIRE > carry.
---     - ai_keywords KEPT (DR-130 axis 2: semantics = embeddings +
---       ai_keywords + entities).
+--     - ai_keywords: owner ruling (this session) — the DR-130 semantics
+--       axis narrows to embeddings + entity extraction; the keywords leg
+--       retires with its only writer (classify.ts — flow.py declares the
+--       column but never writes a value). No index on it (measured
+--       pg_indexes).
 -- ═════════════════════════════════════════════════════════════════════════
 
 DROP INDEX IF EXISTS public.idx_source_documents_source_url;
@@ -169,7 +183,8 @@ ALTER TABLE public.source_documents
   DROP COLUMN IF EXISTS suggested_title,
   DROP COLUMN IF EXISTS classification_confidence,
   DROP COLUMN IF EXISTS classification_reasoning,
-  DROP COLUMN IF EXISTS classified_at;
+  DROP COLUMN IF EXISTS classified_at,
+  DROP COLUMN IF EXISTS ai_keywords;
 
 -- ═════════════════════════════════════════════════════════════════════════
 -- §5  reference_items column drops (DR-130; source_document_id already
@@ -239,8 +254,8 @@ ALTER TABLE public.review_assignments
 -- (their sources are dropped above). Arm mechanics otherwise carried
 -- forward verbatim: win_stats boost, application_type profile boost,
 -- provenance de-dup, deterministic tie-breaker. Arm 1 (sd, text-only —
--- BI-29) now scores on filename + ai_keywords only (suggested_title /
--- summary sources dropped); its summary/snippet project NULL.
+-- BI-29) now scores on filename only (suggested_title / summary /
+-- ai_keywords sources all dropped); its summary/snippet project NULL.
 CREATE FUNCTION public.hybrid_search(
   query_embedding vector,
   query_text text DEFAULT ''::text,
@@ -255,7 +270,7 @@ CREATE FUNCTION public.hybrid_search(
 RETURNS TABLE(
   id uuid, title text, summary text, content_type text, platform text,
   author_name text, source_domain text, thumbnail_url text,
-  captured_date timestamp with time zone, ai_keywords text[], priority text,
+  captured_date timestamp with time zone, priority text,
   metadata jsonb, similarity numeric, snippet text, created_by uuid,
   verified_at timestamp with time zone, verified_by uuid, scope_tag text[],
   source_url text, owner_kind text)
@@ -309,14 +324,10 @@ BEGIN
       NULL::text AS "source_domain",
       NULL::text AS "thumbnail_url",
       sd.captured_date AS "captured_date",
-      sd.ai_keywords AS "ai_keywords",
       NULL::text AS "priority",
       NULL::jsonb AS "metadata",
       LEAST(1.0, (
           CASE WHEN query_text <> '' AND sd.filename ILIKE '%' || query_text || '%' THEN 0.55
-               ELSE 0.0 END
-        + CASE WHEN query_text <> '' AND query_text = ANY(sd.ai_keywords) THEN 0.25
-               WHEN query_text <> '' AND EXISTS (SELECT 1 FROM unnest(sd.ai_keywords) AS kw WHERE kw ILIKE '%' || query_text || '%') THEN 0.15
                ELSE 0.0 END
       ))::NUMERIC(4, 3) AS "similarity",
       NULL::text AS "snippet",
@@ -329,10 +340,7 @@ BEGIN
     FROM source_documents sd
     LEFT JOIN record_lifecycle rl ON rl.owner_kind = 'source_document' AND rl.owner_id = sd.id
     WHERE COALESCE(query_text, '') <> ''
-      AND (
-           sd.filename ILIKE '%' || query_text || '%'
-        OR EXISTS (SELECT 1 FROM unnest(sd.ai_keywords) AS kw WHERE kw ILIKE '%' || query_text || '%')
-      )
+      AND sd.filename ILIKE '%' || query_text || '%'
       AND CASE visibility_filter
             WHEN 'default' THEN sd.publication_status = 'published'
             WHEN 'all' THEN sd.publication_status <> 'archived'
@@ -357,7 +365,6 @@ BEGIN
       NULL::text AS "source_domain",
       NULL::text AS "thumbnail_url",
       sd.captured_date AS "captured_date",
-      sd.ai_keywords AS "ai_keywords",
       NULL::text AS "priority",
       NULL::jsonb AS "metadata",
       LEAST(1.0, (
@@ -410,7 +417,6 @@ BEGIN
       NULL::text AS "source_domain",
       NULL::text AS "thumbnail_url",
       NULL::timestamp with time zone AS "captured_date",
-      NULL::text[] AS "ai_keywords",
       NULL::text AS "priority",
       NULL::jsonb AS "metadata",
       LEAST(1.0, (
@@ -469,7 +475,6 @@ BEGIN
       NULL::text AS "source_domain",
       NULL::text AS "thumbnail_url",
       NULL::timestamp with time zone AS "captured_date",
-      NULL::text[] AS "ai_keywords",
       NULL::text AS "priority",
       NULL::jsonb AS "metadata",
       LEAST(1.0, (
@@ -511,7 +516,7 @@ BEGIN
   SELECT
     deduped.id, deduped.title, deduped.summary, deduped.content_type,
     deduped.platform, deduped.author_name, deduped.source_domain, deduped.thumbnail_url,
-    deduped.captured_date, deduped.ai_keywords, deduped.priority, deduped.metadata,
+    deduped.captured_date, deduped.priority, deduped.metadata,
     deduped.similarity, deduped.snippet, deduped.created_by,
     deduped.verified_at, deduped.verified_by,
     deduped.scope_tag, deduped.source_url, deduped.owner_kind
@@ -811,7 +816,7 @@ CREATE FUNCTION api.hybrid_search(
 RETURNS TABLE(
   id uuid, title text, summary text, content_type text, platform text,
   author_name text, source_domain text, thumbnail_url text,
-  captured_date timestamp with time zone, ai_keywords text[], priority text,
+  captured_date timestamp with time zone, priority text,
   metadata jsonb, similarity numeric, snippet text, created_by uuid,
   verified_at timestamp with time zone, verified_by uuid, scope_tag text[],
   source_url text, owner_kind text)
@@ -909,7 +914,6 @@ CREATE VIEW api.source_documents WITH (security_invoker = true) AS
     archived_by,
     op_id,
     extraction_method,
-    ai_keywords,
     content_type,
     captured_date,
     summary_data,
