@@ -43,13 +43,17 @@ References:
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import hashlib
 import json
 import logging
 import mimetypes
 import os
 import re
+import time
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -738,6 +742,102 @@ PipelineRunStatus = Literal[
 # pipeline is ever renamed. The TS integration suite mirrors this via
 # `KH_CANONICAL_PIPELINE_NAME` in `__tests__/integration/cocoindex/test-helpers.ts`.
 KH_CANONICAL_PIPELINE_NAME = "kh_canonical_pipeline"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# TEMPORARY DIAGNOSTIC — per-stage wall-clock (id-415, S535)
+#
+# WHY THIS EXISTS. Nightly run 30989321051 logged one clean corpus walk over
+# 14 files at `351s overall (fence-busy retries=0)` on the MOCK LLM tier —
+# ~25s/file. At that rate the cocoindex Vitest tier needs ~2.5h of walks
+# against a 90-minute job cap, so the nightly is cancelled every run. Nothing
+# in this pipeline records where those 351s go: `stage_counts` counts ROWS,
+# never milliseconds, and cocoindex 1.0.3 exposes no per-stage completion
+# callback (see `_empty_stage_counts` and `flow_context`'s stage-counter note).
+# The open question this answers is a fork in the road: if the time is Docling
+# (`binary_conversion`), the fix is the image/extractor and no test changes;
+# if it is spread evenly, the fix is architectural (one shared walk in a Vitest
+# globalSetup) and touches ~26 specs.
+#
+# SCOPE FENCE. Logging ONLY. This deliberately does NOT touch the terminal
+# status resolution (`flow_status`, id-414's surface), the webhook payload
+# shape, or the `pipeline_runs` counter columns (DR-109 → id-410 / id-71).
+#
+# REMOVE OR PROMOTE DELIBERATELY once the question is answered — do not let it
+# accrete. Promotion means a real timing channel on the webhook, which is
+# id-414/id-410 ground, not a quiet edit here.
+# ──────────────────────────────────────────────────────────────────────────
+
+_stage_timings_var: contextvars.ContextVar[dict[str, list[float]] | None] = (
+    contextvars.ContextVar("_kh_flow_stage_timings_var", default=None)
+)
+
+
+def _begin_stage_timings() -> dict[str, list[float]]:
+    """Bind a fresh accumulator for this flow run and return it.
+
+    SET without a paired reset, deliberately — mirroring `begin_flow_run`'s
+    lifetime for exactly its stated reason: under `update_blocking(live=True)`
+    the fs-watch re-runs per-item components AFTER `app_main` returns, and
+    those re-runs must still find a bound accumulator. A scoped context
+    manager would unbind it at the wrong moment and silently drop their
+    samples. Walks are single-flight (`server.py` /walk lock), so each run
+    overwrites the previous run's binding with no interleaving.
+    """
+    timings: dict[str, list[float]] = {}
+    _stage_timings_var.set(timings)
+    return timings
+
+
+@contextlib.asynccontextmanager
+async def _time_stage(stage: str) -> AsyncGenerator[None]:
+    """Accumulate wall-clock (ms) for one stage of one item.
+
+    A no-op when no accumulator is bound, so the legacy/unit-test callers that
+    invoke the ingest helpers outside `app_main` are unaffected. Timed on
+    `perf_counter`, and the sample is recorded even when the body raises —
+    a stage that fails slowly is exactly what we are hunting.
+    """
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        timings = _stage_timings_var.get()
+        if timings is not None:
+            timings.setdefault(stage, []).append(
+                (time.perf_counter() - started) * 1000.0
+            )
+
+
+def _record_stage_sample(stage: str, started: float) -> None:
+    """Record one elapsed sample for `stage`, measured from `started`.
+
+    The marker form of `_time_stage`, for spans covering several statements
+    where wrapping in `async with` would mean re-indenting a block this
+    diagnostic has no business rewriting. No-ops when nothing is bound.
+    """
+    timings = _stage_timings_var.get()
+    if timings is not None:
+        timings.setdefault(stage, []).append((time.perf_counter() - started) * 1000.0)
+
+
+def _summarise_stage_timings(
+    timings: dict[str, list[float]],
+) -> dict[str, dict[str, float | int]]:
+    """Collapse raw per-item samples to {stage: {n, total_ms, max_ms}}.
+
+    `max_ms` is carried because the question is whether ONE file dominates
+    (a bad fixture) or every file costs the same (a slow stage) — a mean
+    alone cannot tell those apart.
+    """
+    return {
+        stage: {
+            "n": len(samples),
+            "total_ms": round(sum(samples), 1),
+            "max_ms": round(max(samples), 1),
+        }
+        for stage, samples in sorted(timings.items())
+    }
 
 
 def _empty_stage_counts() -> dict[str, int]:
@@ -1967,18 +2067,24 @@ async def _ingest_file_body(
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
-    await _ingest_content_branch(
-        file,
-        rel_path,
-        qa_target,
-        sd_target,
-        em_target,
-        cc_target,
-        er_target,
-        re_target,
-        op_id=op_id,
-        _bump=_bump,
-    )
+    # id-415 S535 diagnostic: per-item wall-clock. `item_total` minus the
+    # inner stage samples is the unattributed remainder (declare/flush, DB).
+    _item_started = time.perf_counter()
+    try:
+        await _ingest_content_branch(
+            file,
+            rel_path,
+            qa_target,
+            sd_target,
+            em_target,
+            cc_target,
+            er_target,
+            re_target,
+            op_id=op_id,
+            _bump=_bump,
+        )
+    finally:
+        _record_stage_sample("item_total", _item_started)
 
 
 async def _ingest_content_branch(
@@ -2011,7 +2117,10 @@ async def _ingest_content_branch(
     comment above the call for the staging walk f1fd0add evidence.
     """
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
-    content_text = await convert_binary_to_markdown(file)
+    # id-415 S535 diagnostic: this is the Docling call, and the leading
+    # hypothesis for where a 351s / 14-file walk actually goes.
+    async with _time_stage("binary_conversion"):
+        content_text = await convert_binary_to_markdown(file)
     # Inv-17: one binary→markdown conversion completed for this item.
     _bump("binary_conversion")
 
@@ -2032,6 +2141,12 @@ async def _ingest_content_branch(
     # keep working unchanged — see extraction.py's
     # `extract_with_memo_self_heal` docstring for why this call shape is
     # load-bearing.
+    #
+    # id-415 S535 diagnostic: marker form, so all four passes are timed as one
+    # span without re-indenting a block whose call shape is load-bearing (see
+    # the note directly above). On the mock tier this SHOULD be near-zero — if
+    # it is not, the mock LLM is not as cheap as the tier assumes.
+    _llm_started = time.perf_counter()
     classification = await extract_with_memo_self_heal(
         extract_classification,
         content_text,
@@ -2064,6 +2179,7 @@ async def _ingest_content_branch(
     # Inv-17: four Path-A LLM extraction passes ran for this content row
     # (classification + qa_form + entity_mentions + relationships) — mirrors the
     # per-pass semantic of `_record_extraction_success` (ID-28.16): +1 per pass.
+    _record_stage_sample("llm_extraction", _llm_started)  # id-415 S535 diagnostic
     _bump("llm_extraction", times=4)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
@@ -4188,6 +4304,11 @@ async def app_main() -> None:
         taxonomy_miss_counter=flow_taxonomy_miss_counter,
         memo_heal_counter=flow_memo_heal_counter,
     )
+    # id-415 S535 diagnostic — bound alongside the counters above, same
+    # lifetime, same single-flight reasoning. Remove with the rest of the
+    # timing block once the walk-cost question is settled.
+    flow_stage_timings = _begin_stage_timings()
+    _walk_started = time.perf_counter()
 
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
@@ -4672,6 +4793,29 @@ async def app_main() -> None:
         )
         stage_counts["llm_extraction"] = flow_stage_counter.get("llm_extraction")
         stage_counts["postgres_upsert"] = flow_stage_counter.get("postgres_upsert")
+
+        # ── id-415 S535 TEMPORARY DIAGNOSTIC — per-stage wall-clock ─────────
+        # One structured line per walk, into the sidecar log the nightly already
+        # uploads as an artefact. Deliberately NOT on the webhook payload: that
+        # shape is id-414 / id-410 ground (DR-109) and this is a question, not a
+        # contract. `walk_wall_ms` is the whole run; `item_total` is the summed
+        # per-item work, so the difference is engine overhead (walk_dir, memo
+        # scan/skip, target flush) — which is itself a candidate answer.
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.stage_timings_diagnostic",
+                    "op_id": str(run_op_id),
+                    "walk_wall_ms": round(
+                        (time.perf_counter() - _walk_started) * 1000.0, 1
+                    ),
+                    "stages": _summarise_stage_timings(flow_stage_timings),
+                    "stage_counts": stage_counts,
+                }
+            )
+        )
+        # ───────────────────────────────────────────────────────────────────
+
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         #
