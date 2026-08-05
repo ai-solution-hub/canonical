@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { VALID_GUIDE_TYPES } from '@/lib/validation/guide-schemas';
 import { type Guide, GUIDE_TYPE_LABELS, generateSlug } from './guide-types';
 
@@ -39,12 +38,10 @@ export function GuideFormDialog({
   guide: Guide | null;
   onSave: () => void;
 }) {
-  const { domains } = useTaxonomy();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [guideType, setGuideType] = useState<string>('sector');
-  const [domainFilter, setDomainFilter] = useState<string>('none');
   const [saving, setSaving] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
@@ -55,14 +52,12 @@ export function GuideFormDialog({
       setSlug(guide.slug);
       setDescription(guide.description ?? '');
       setGuideType(guide.guide_type);
-      setDomainFilter(guide.domain_filter ?? 'none');
       setSlugManuallyEdited(true);
     } else {
       setName('');
       setSlug('');
       setDescription('');
       setGuideType('sector');
-      setDomainFilter('none');
       setSlugManuallyEdited(false);
     }
   }, [guide, open]);
@@ -83,13 +78,16 @@ export function GuideFormDialog({
 
     setSaving(true);
     try {
+      // The vocabulary-backed domain_filter picker retired with the
+      // subject taxonomy (DR-130). The guides.domain_filter COLUMN is not
+      // dropping this wave (DR-126's membership predicate is undesigned),
+      // so an existing value persists untouched: the PATCH body simply
+      // omits the key.
       const body = {
         name: name.trim(),
         slug: slug.trim(),
         description: description.trim() || undefined,
         guide_type: guideType,
-        domain_filter:
-          domainFilter && domainFilter !== 'none' ? domainFilter : undefined,
       };
 
       const res = guide
@@ -199,28 +197,6 @@ export function GuideFormDialog({
                 {VALID_GUIDE_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
                     {GUIDE_TYPE_LABELS[type] ?? type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <label
-              htmlFor="guide-domain"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Domain Filter
-            </label>
-            <Select value={domainFilter} onValueChange={setDomainFilter}>
-              <SelectTrigger id="guide-domain" className="mt-1">
-                <SelectValue placeholder="None (cross-domain)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None (cross-domain)</SelectItem>
-                {domains.map((d) => (
-                  <SelectItem key={d.name} value={d.name}>
-                    {d.name}
                   </SelectItem>
                 ))}
               </SelectContent>

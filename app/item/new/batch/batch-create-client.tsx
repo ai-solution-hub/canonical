@@ -9,13 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -31,7 +24,6 @@ import {
   type QAPair,
 } from '@/components/qa/batch-qa-preview-table';
 import { useBatchCreate, type DuplicateMatch } from '@/hooks/use-batch-create';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,9 +44,6 @@ const MAX_PAIRS = 100;
  * Embedded as a tab within NewItemTabs at /item/new?tab=batch.
  */
 export function BatchCreateContent() {
-  const { getDomainNames, getSubtopics, formatSubtopic, formatDomainName } =
-    useTaxonomy();
-
   const {
     submit,
     checkDuplicates,
@@ -70,10 +59,6 @@ export function BatchCreateContent() {
   const [pairs, setPairs] = useState<QAPair[]>([]);
   const [hasParsed, setHasParsed] = useState(false);
 
-  // Shared metadata
-  const [domain, setDomain] = useState('');
-  const [subtopic, setSubtopic] = useState('');
-
   // Duplicate warning dialog
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
     [],
@@ -84,10 +69,6 @@ export function BatchCreateContent() {
   const [itemStatuses, setItemStatuses] = useState<
     Map<number, { status: 'created' | 'failed'; error?: string }>
   >(new Map());
-
-  // Derived values
-  const domainNames = getDomainNames();
-  const subtopicNames = domain ? getSubtopics(domain) : [];
 
   // Filter out empty rows for submission
   const validPairs = useMemo(
@@ -135,8 +116,6 @@ export function BatchCreateContent() {
     setShowDuplicateDialog(false);
 
     const result = await submit(validPairs, {
-      domain: domain || undefined,
-      subtopic: subtopic || undefined,
       sourceDocumentLink: undefined,
     });
 
@@ -162,7 +141,7 @@ export function BatchCreateContent() {
         );
       }
     }
-  }, [validPairs, domain, subtopic, submit]);
+  }, [validPairs, submit]);
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -182,12 +161,6 @@ export function BatchCreateContent() {
   const handleContinueWithDuplicates = useCallback(async () => {
     await executeSubmission();
   }, [executeSubmission]);
-
-  // Reset subtopic when domain changes
-  const handleDomainChange = useCallback((value: string) => {
-    setDomain(value);
-    setSubtopic('');
-  }, []);
 
   // Progress percentage for the progress bar
   const progressPercentage =
@@ -273,61 +246,9 @@ export function BatchCreateContent() {
               disabled={isSubmitting}
             />
 
-            {/* Shared metadata — domain/subtopic are collected for future per-item
-                  metadata support. Currently the batch API auto-classifies all items
-                  via the pipeline, so these values are informational only. */}
-            <fieldset
-              className="space-y-4 rounded-md border p-4"
-              disabled={isSubmitting}
-            >
-              <legend className="px-2 text-sm font-medium text-muted-foreground">
-                Shared metadata (optional)
-              </legend>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="batch-domain">Domain</Label>
-                  <Select value={domain} onValueChange={handleDomainChange}>
-                    <SelectTrigger id="batch-domain">
-                      <SelectValue placeholder="Select domain..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {domainNames.map((d) => (
-                        <SelectItem key={d} value={d}>
-                          {formatDomainName(d)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="batch-subtopic">Subtopic</Label>
-                  <Select
-                    value={subtopic}
-                    onValueChange={setSubtopic}
-                    disabled={!domain}
-                  >
-                    <SelectTrigger id="batch-subtopic">
-                      <SelectValue
-                        placeholder={
-                          domain
-                            ? 'Select subtopic...'
-                            : 'Select a domain first'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subtopicNames.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {formatSubtopic(s)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </fieldset>
+            {/* The former shared domain/subtopic pickers retired with the
+                subject axis (DR-130) — the batch endpoint never consumed
+                them (q_a_pairs carries no domain columns). */}
 
             {/* Progress bar during submission */}
             {isSubmitting && (

@@ -42,7 +42,6 @@ describe('useLibraryFilters', () => {
   it('returns empty filters when URL has no params', () => {
     const { result } = renderHook(() => useLibraryFilters());
 
-    expect(result.current.filters.domain).toBeUndefined();
     expect(result.current.filters.source_file).toBeUndefined();
     expect(result.current.filters.variant).toBeUndefined();
     expect(result.current.filters.search).toBeUndefined();
@@ -51,20 +50,22 @@ describe('useLibraryFilters', () => {
     expect(result.current.activeCount).toBe(0);
   });
 
-  it('parses filters from URL search params', () => {
+  it('parses filters from URL search params (domain param retired, DR-130)', () => {
     mockSearchParamsStore.current = new URLSearchParams(
       'domain=security&source=file.docx&variant=both&q=test&freshness=stale&verified=verified',
     );
 
     const { result } = renderHook(() => useLibraryFilters());
 
-    expect(result.current.filters.domain).toBe('security');
+    // A legacy ?domain= param is ignored — the filter retired with the
+    // subject axis.
+    expect(result.current.filters.domain).toBeUndefined();
     expect(result.current.filters.source_file).toBe('file.docx');
     expect(result.current.filters.variant).toBe('both');
     expect(result.current.filters.search).toBe('test');
     expect(result.current.filters.freshness).toBe('stale');
     expect(result.current.filters.verified).toBe('verified');
-    expect(result.current.activeCount).toBe(6);
+    expect(result.current.activeCount).toBe(5);
   });
 
   // -------------------------------------------------------------------------

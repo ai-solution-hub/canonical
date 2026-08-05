@@ -284,10 +284,8 @@ describe('GuideContent — mobile sidebar', () => {
     const typeLabels = screen.getAllByText('Product Guide');
     expect(typeLabels.length).toBeGreaterThanOrEqual(2); // sidebar mobile + desktop (+ header badge)
 
-    // Domain badge rendered via mock
-    const domainBadges = screen.getAllByTestId('domain-badge');
-    // Header has one, mobile sidebar has one, desktop sidebar has one = at least 3
-    expect(domainBadges.length).toBeGreaterThanOrEqual(3);
+    // Domain badges retired with the subject axis (DR-130)
+    expect(screen.queryByTestId('domain-badge')).not.toBeInTheDocument();
 
     // Sections count — 3 sections
     const sectionCounts = screen.getAllByText('3');
@@ -468,9 +466,9 @@ describe('GuideContent — mobile sidebar', () => {
     expect(mobileContent.getByText('Yes')).toBeInTheDocument();
     expect(desktopContent.getByText('Yes')).toBeInTheDocument();
 
-    // Both should have domain badge
-    expect(mobileContent.getByTestId('domain-badge')).toBeInTheDocument();
-    expect(desktopContent.getByTestId('domain-badge')).toBeInTheDocument();
+    // Domain badges retired with the subject axis (DR-130)
+    expect(mobileContent.queryByTestId('domain-badge')).not.toBeInTheDocument();
+    expect(desktopContent.queryByTestId('domain-badge')).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

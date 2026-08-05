@@ -15,15 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -33,7 +25,6 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip';
 import { ConceptHelp } from '@/components/ui/concept-help';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 import {
   PRESET_LABELS,
   inferPreset,
@@ -69,19 +60,16 @@ export function GovernanceSection() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDomain, setEditingDomain] = useState<string | null>(null);
-  const [selectedDomain, setSelectedDomain] = useState('');
   const [selectedPreset, setSelectedPreset] =
     useState<GovernancePreset>('light_touch');
   const [recalculating, setRecalculating] = useState(false);
   const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(null);
 
-  const { domains: taxonomyDomains, loading: taxonomyLoading } = useTaxonomy();
-
-  // Domains already configured — exclude from the "Add" dropdown
-  const configuredDomainNames = new Set(configs.map((c) => c.domain));
-  const availableDomains = taxonomyDomains.filter(
-    (d) => !configuredDomainNames.has(d.name),
-  );
+  // The add-new-domain flow retired with the taxonomy vocabulary (DR-130):
+  // governance_config rows are keyed by the retiring subject-domain axis,
+  // so no NEW per-domain rule can be created here. Existing rows stay
+  // listed and editable (preset changes) until governance_config's
+  // re-keying is ruled.
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
@@ -133,13 +121,11 @@ export function GovernanceSection() {
 
   function resetDialogState() {
     setEditingDomain(null);
-    setSelectedDomain('');
     setSelectedPreset('light_touch');
   }
 
   function handleEdit(config: GovernanceConfigEntry) {
     setEditingDomain(config.domain);
-    setSelectedDomain(config.domain);
     setSelectedPreset(
       (config.preset as GovernancePreset) ?? inferPreset(config.posture),
     );
@@ -148,7 +134,7 @@ export function GovernanceSection() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    const domain = editingDomain ?? selectedDomain;
+    const domain = editingDomain;
     if (!domain) return;
 
     setSaving(true);
@@ -218,8 +204,6 @@ export function GovernanceSection() {
     );
   }
 
-  const isEditing = editingDomain !== null;
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -255,58 +239,18 @@ export function GovernanceSection() {
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              onClick={() => {
-                resetDialogState();
-              }}
-            >
-              Add Domain
-            </Button>
-          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {isEditing ? 'Edit Governance Config' : 'Add Governance Config'}
-              </DialogTitle>
+              <DialogTitle>Edit Governance Config</DialogTitle>
               <DialogDescription>
                 Choose a governance preset for this domain.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSave} className="flex flex-col gap-4">
-              {/* Domain selection */}
+              {/* Domain (read-only — new per-domain rules retired, DR-130) */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="gov-domain">Domain</Label>
-                {isEditing ? (
-                  <p className="text-sm font-medium">{editingDomain}</p>
-                ) : taxonomyLoading ? (
-                  <p className="text-sm text-muted-foreground">
-                    Loading domains...
-                  </p>
-                ) : availableDomains.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {taxonomyDomains.length === 0
-                      ? 'No taxonomy domains configured. Add domains in the taxonomy settings first.'
-                      : 'All taxonomy domains already have governance rules configured.'}
-                  </p>
-                ) : (
-                  <Select
-                    value={selectedDomain}
-                    onValueChange={setSelectedDomain}
-                  >
-                    <SelectTrigger id="gov-domain">
-                      <SelectValue placeholder="Select a domain" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDomains.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>
-                          {d.display_name || d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <p className="text-sm font-medium">{editingDomain}</p>
               </div>
 
               {/* Preset selection */}
@@ -354,14 +298,7 @@ export function GovernanceSection() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={
-                    saving ||
-                    (!isEditing && !selectedDomain) ||
-                    (!isEditing && availableDomains.length === 0)
-                  }
-                >
+                <Button type="submit" disabled={saving}>
                   {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Save
                 </Button>
@@ -380,9 +317,6 @@ export function GovernanceSection() {
             />
             <p className="text-sm font-medium text-foreground">
               No governance rules configured
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Add a domain and choose a preset to get started.
             </p>
           </div>
         ) : (

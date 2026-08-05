@@ -25,7 +25,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import type { ContentListItem } from '@/types/content';
 
@@ -121,7 +120,6 @@ export function LibraryContent() {
     groupBy,
     setGroupBy,
   } = useLibraryFilters();
-  const { domains } = useTaxonomy();
   const { canEdit, canAdmin } = useUserRole();
 
   // Data fetching via TanStack Query
@@ -131,7 +129,6 @@ export function LibraryContent() {
   const bulk = useLibraryBulkActions({
     items,
     filterDeps: [
-      filters.domain,
       filters.source_file,
       filters.variant,
       filters.search,
@@ -221,28 +218,6 @@ export function LibraryContent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={filters.domain ?? '__all__'}
-            onValueChange={(v) =>
-              setFilters({ domain: v === '__all__' ? undefined : v })
-            }
-          >
-            <SelectTrigger
-              className="h-9 w-[160px] text-xs"
-              aria-label="Filter by domain"
-            >
-              <SelectValue placeholder="All domains" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All domains</SelectItem>
-              {domains.map((d) => (
-                <SelectItem key={d.name} value={d.name}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Select
             value={filters.freshness ?? 'all'}
             onValueChange={(v) =>
@@ -389,7 +364,6 @@ export function LibraryContent() {
                     <SelectContent>
                       <SelectItem value="none">No grouping</SelectItem>
                       <SelectItem value="source">By source document</SelectItem>
-                      <SelectItem value="domain">By domain</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -3,7 +3,6 @@
 import { Copy, ExternalLink, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DomainBadge } from '@/components/shared/domain-badge';
 import { SimilarityBadge } from '@/components/shared/similarity-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { getDisplayTitle, formatContentType } from '@/lib/format';
@@ -110,9 +109,6 @@ export function ContentLibraryResult({
           <Badge variant="secondary" className="text-[10px]">
             {formatContentType(result.content_type)}
           </Badge>
-          {result.primary_domain && (
-            <DomainBadge domain={result.primary_domain} />
-          )}
           <VerificationBadge
             verified={isVerified}
             verifiedAt={result.verified_at}
@@ -207,9 +203,6 @@ export function ContentLibraryResult({
           <Badge variant="secondary" className="text-[10px]">
             {formatContentType(result.content_type)}
           </Badge>
-        )}
-        {result.primary_domain && (
-          <DomainBadge domain={result.primary_domain} />
         )}
         <VerificationBadge
           verified={isVerified}

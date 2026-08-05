@@ -257,8 +257,8 @@ describe('ContentOwnerManagement', () => {
     expect(screen.getByText('Expired')).toBeInTheDocument();
   });
 
-  describe('Assign dialog — scope toggle', () => {
-    it('opens dialog with "Unowned only" scope selected by default', async () => {
+  describe('Assign dialog', () => {
+    it('opens the dialog with the owner picker (by-domain scope retired, DR-130)', async () => {
       const user = userEvent.setup();
       render(<ContentOwnerManagement />);
 
@@ -274,84 +274,13 @@ describe('ContentOwnerManagement', () => {
         screen.getByText(/Assign unowned content items to a team member/),
       ).toBeInTheDocument();
 
-      // Scope radio — "Unowned only" should be checked
-      const unownedRadio = screen.getByRole('radio', { name: /unowned only/i });
-      expect(unownedRadio).toBeChecked();
-
-      // "By domain" should not be checked
-      const byDomainRadio = screen.getByRole('radio', { name: /by domain/i });
-      expect(byDomainRadio).not.toBeChecked();
-
-      // Domain filter fields should NOT be visible in unowned scope
+      // The former scope toggle and domain/subtopic/content-type filters
+      // are gone with the subject taxonomy (DR-130).
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/^Domain$/)).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/content type/i)).not.toBeInTheDocument();
 
       // Owner picker should be visible
-      expect(screen.getByLabelText(/^Owner$/)).toBeInTheDocument();
-    });
-
-    it('shows domain filters when "By domain" scope is selected', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      // Switch to by-domain scope
-      const byDomainRadio = screen.getByRole('radio', { name: /by domain/i });
-      await user.click(byDomainRadio);
-
-      expect(byDomainRadio).toBeChecked();
-
-      // Domain filter fields should now be visible
-      expect(screen.getByLabelText(/^Domain$/)).toBeInTheDocument();
-      expect(screen.getByLabelText(/content type/i)).toBeInTheDocument();
-
-      // Owner picker still visible
-      expect(screen.getByLabelText(/^Owner$/)).toBeInTheDocument();
-    });
-
-    it('hides domain filters when switching back to "Unowned only"', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      // Switch to by-domain
-      await user.click(screen.getByRole('radio', { name: /by domain/i }));
-      expect(screen.getByLabelText(/^Domain$/)).toBeInTheDocument();
-
-      // Switch back to unowned
-      await user.click(screen.getByRole('radio', { name: /unowned only/i }));
-      expect(screen.queryByLabelText(/^Domain$/)).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/content type/i)).not.toBeInTheDocument();
-    });
-
-    it('keeps owner picker visible across scope changes', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      // Owner select visible in unowned scope
-      expect(screen.getByLabelText(/^Owner$/)).toBeInTheDocument();
-
-      // Switch scopes — owner field still present
-      await user.click(screen.getByRole('radio', { name: /by domain/i }));
-      expect(screen.getByLabelText(/^Owner$/)).toBeInTheDocument();
-
-      await user.click(screen.getByRole('radio', { name: /unowned only/i }));
       expect(screen.getByLabelText(/^Owner$/)).toBeInTheDocument();
     });
   });
@@ -390,90 +319,6 @@ describe('ContentOwnerManagement', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders scope radio group with both options', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      const radios = screen.getAllByRole('radio');
-      expect(radios).toHaveLength(2);
-      expect(
-        screen.getByRole('radio', { name: /unowned only/i }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('radio', { name: /by domain/i }),
-      ).toBeInTheDocument();
-    });
   });
 
-  describe('Assign dialog — reset on close', () => {
-    it('resets scope to "Unowned only" when dialog is closed via Cancel', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      // Open dialog and switch to by-domain
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-      await user.click(screen.getByRole('radio', { name: /by domain/i }));
-      expect(screen.getByLabelText(/^Domain$/)).toBeInTheDocument();
-
-      // Close via Cancel
-      const dialog = screen.getByRole('dialog');
-      await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
-
-      // Re-open — should be back to "Unowned only" default
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      const unownedRadio = screen.getByRole('radio', { name: /unowned only/i });
-      expect(unownedRadio).toBeChecked();
-      expect(screen.queryByLabelText(/^Domain$/)).not.toBeInTheDocument();
-    });
-
-    it('resets scope when dialog is closed by clicking outside', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      // Open and switch scope
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-      await user.click(screen.getByRole('radio', { name: /by domain/i }));
-
-      // Close by pressing Escape (simulates clicking away)
-      await user.keyboard('{Escape}');
-
-      // Re-open — should be back to default
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-
-      const unownedRadio = screen.getByRole('radio', { name: /unowned only/i });
-      expect(unownedRadio).toBeChecked();
-    });
-  });
-
-  describe('Assign dialog — content type options in by-domain scope', () => {
-    it('renders all content type options when in by-domain scope', async () => {
-      const user = userEvent.setup();
-      render(<ContentOwnerManagement />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Alice Admin')).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /assign owner/i }));
-      await user.click(screen.getByRole('radio', { name: /by domain/i }));
-
-      // Content type select trigger should be visible
-      expect(screen.getByLabelText(/content type/i)).toBeInTheDocument();
-    });
-  });
 });

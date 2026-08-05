@@ -15,7 +15,6 @@ import {
   type PreviewResult,
 } from '@/hooks/browse/use-debounced-preview';
 import { ContentTypeIcon } from '@/components/shared/content-type-icon';
-import { DomainBadge } from '@/components/shared/domain-badge';
 
 interface SearchBarProps {
   variant?: 'hero' | 'compact' | 'inline';
@@ -390,9 +389,6 @@ export function SearchBar({
                         <span className="min-w-0 flex-1 truncate">
                           {result.title}
                         </span>
-                        {result.primary_domain && (
-                          <DomainBadge domain={result.primary_domain} />
-                        )}
                       </a>
                     );
                   })}

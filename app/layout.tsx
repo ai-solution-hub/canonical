@@ -5,7 +5,6 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/shell/theme-provider';
 import { CommandPalette } from '@/components/shell/command-palette';
 import { KeyboardShortcutsProvider } from '@/components/shell/keyboard-shortcuts-provider';
-import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
 import { QueryProvider } from '@/lib/query/query-provider';
@@ -62,27 +61,25 @@ export default async function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <ClientFeaturesProvider>
-              <TaxonomyProvider>
-                <LayerVocabularyProvider>
-                  <TooltipProvider>
-                    <a href="#main-content" className="skip-link">
-                      Skip to main content
-                    </a>
-                    <AuthAwareChrome>
-                      <main id="main-content">{children}</main>
-                    </AuthAwareChrome>
-                    <CommandPalette />
-                    <KeyboardShortcutsProvider />
-                    <SessionGuard />
-                    <Toaster
-                      position="bottom-right"
-                      toastOptions={{
-                        className: 'font-sans',
-                      }}
-                    />
-                  </TooltipProvider>
-                </LayerVocabularyProvider>
-              </TaxonomyProvider>
+              <LayerVocabularyProvider>
+                <TooltipProvider>
+                  <a href="#main-content" className="skip-link">
+                    Skip to main content
+                  </a>
+                  <AuthAwareChrome>
+                    <main id="main-content">{children}</main>
+                  </AuthAwareChrome>
+                  <CommandPalette />
+                  <KeyboardShortcutsProvider />
+                  <SessionGuard />
+                  <Toaster
+                    position="bottom-right"
+                    toastOptions={{
+                      className: 'font-sans',
+                    }}
+                  />
+                </TooltipProvider>
+              </LayerVocabularyProvider>
             </ClientFeaturesProvider>
           </QueryProvider>
         </ThemeProvider>
