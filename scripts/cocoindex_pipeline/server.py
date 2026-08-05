@@ -1180,7 +1180,20 @@ def _run_walk(full_reprocess: bool, request_id: str) -> None:
         # writer holds the lease, so THIS pass aborts without ever calling
         # `update_blocking` (the P5 guard). A later /walk signal can retry.
         # Logged at WARNING (not `.exception`) — this is not a fault.
-        _walk_registry_update(request_id, status="fence_busy")
+        #
+        # id-382 part 3: the exception (and therefore this log line) carries
+        # the CURRENT holder + expires_at when the busy read could see them —
+        # this sidecar is the only layer with DB reach into the lease table,
+        # so the "blocked by lease held by <label>, expires <ts>" detail is
+        # emitted HERE; the cocoindex-nightly wait loop relays it into the
+        # run summary and fails fast on a sustained block. The registry entry
+        # mirrors it so /walk-status callers see the same fact.
+        _walk_registry_update(
+            request_id,
+            status="fence_busy",
+            heldBy=exc.held_by,
+            leaseExpiresAt=str(exc.expires_at) if exc.expires_at else None,
+        )
         _logger.warning(
             "/walk pull-sync fence busy — pass skipped, no walk ran "
             "(requestId=%s): %s",
@@ -1925,6 +1938,49 @@ def main() -> None:
     # the internal Docker bridge network. The container MUST bind 0.0.0.0 for
     # that bridge reachability; a loopback bind would break compose-internal calls.
     web.run_app(app, host="0.0.0.0", port=port, print=None)  # noqa: S104 — bind all interfaces for Docker-network reachability
+
+    # id-382 part 1 (SIGTERM half): `web.run_app` traps SIGTERM/SIGINT and
+    # returns here on the drain path (docker stop, GitHub Actions cancel,
+    # Coolify redeploy). Any {138.9} writer-fence lease still registered at
+    # this point belongs to a walk pass that can never finish — the walk
+    # worker is a daemon thread that dies with this process — so release it
+    # (token-scoped, best-effort) instead of stranding it for its TTL on the
+    # shared project. The walk thread may technically still be running for
+    # the few ms between this call and interpreter exit; that residual window
+    # is accepted against the alternative of a lease-TTL-long outage of every
+    # corpus writer (tasks/id-382 — observed live twice, S501 + S507).
+    _release_stranded_walk_leases()
+
+
+def _release_stranded_walk_leases() -> None:
+    """Best-effort release of any still-registered writer-fence lease.
+
+    A thin seam over `writer_fence.release_registered_leases_sync` so the
+    shutdown/crash-exit paths share one implementation and tests can patch
+    it. Never raises — this runs while the process is going down.
+    """
+    try:
+        # Lazy: flow.py is already imported in any process that ever walked
+        # (start_cocoindex_thread imports it); on one that never did, the
+        # registry is empty and release_registered_leases_sync returns 0
+        # before build_dsn is ever invoked.
+        from scripts.cocoindex_pipeline.flow import _build_dsn
+        from scripts.cocoindex_pipeline.writer_fence import (
+            release_registered_leases_sync,
+        )
+
+        released = release_registered_leases_sync(_build_dsn)
+        if released:
+            _logger.info(
+                "shutdown: released %d stranded {138.9} writer-fence lease(s)",
+                released,
+            )
+    except Exception:  # noqa: BLE001 — shutdown path, must never raise
+        _logger.warning(
+            "shutdown: best-effort writer-fence lease release failed "
+            "(the lease frees at TTL/renewal expiry instead)",
+            exc_info=True,
+        )
 
 
 if __name__ == "__main__":
