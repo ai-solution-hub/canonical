@@ -367,11 +367,10 @@ class TestIngestFileWritePath:
         assert "content_fingerprint" not in sd_rows[0], (
             "content_fingerprint does not exist in prod — must be content_hash"
         )
-        # ID-75 BI-4: the localfs branch writes an EXPLICIT source_url None —
-        # only URL-sourced documents populate it (the provenance split is
-        # visible at the write site).
-        assert sd_rows[0]["source_url"] is None, (
-            "localfs files have no source URL — explicit None (ID-75 BI-4)"
+        # DR-130 (DDL companion): source_url is DROPPED from source_documents
+        # — the localfs write no longer carries the key at all.
+        assert "source_url" not in sd_rows[0], (
+            "source_documents.source_url is dropped (DR-130 DDL companion)"
         )
 
         # {127.25} DR-034: the content_items row is GONE — the table was
@@ -382,21 +381,21 @@ class TestIngestFileWritePath:
         # per-chunk embeddings, asserted elsewhere in this file, are the
         # search substrate and are unaffected).
         #
-        # ID-131 {131.22} (G-PRODUCER-CLASS): the classification family
-        # (superseding the {63.7}/OQ-63-9 content_items write) lands on
-        # source_documents instead.
-        assert sd_rows[0]["primary_domain"] == "procurement", (
-            "primary_domain must be persisted to source_documents (131.22)"
-        )
-        assert sd_rows[0]["primary_subtopic"] == "tender_evaluation", (
-            "primary_subtopic must be persisted to source_documents (131.22)"
-        )
+        # DR-130: content_type is the ONE surviving classification write —
+        # the {131.22} subject-classification family (primary_domain/
+        # primary_subtopic/suggested_title/confidence/reasoning/classified_at)
+        # is dropped from source_documents.
         assert sd_rows[0]["content_type"] == "case_study", (
-            "content_type must be persisted to source_documents (131.22)"
+            "content_type must be persisted to source_documents (131.22/DR-130)"
         )
-        assert sd_rows[0]["suggested_title"] == "Doc One Title", (
-            "suggested_title must be persisted to source_documents (131.22)"
+        assert "primary_domain" not in sd_rows[0], (
+            "primary_domain is dropped from source_documents (DR-130)"
         )
+        assert "primary_subtopic" not in sd_rows[0]
+        assert "suggested_title" not in sd_rows[0]
+        assert "classification_confidence" not in sd_rows[0]
+        assert "classification_reasoning" not in sd_rows[0]
+        assert "classified_at" not in sd_rows[0]
 
         # q_a_extractions: one row per qa_pair, op_id stamped, FK to source_documents.
         assert len(qa.rows) == 2, "expected one q_a_extractions row per qa_pair"
@@ -1271,9 +1270,8 @@ class TestSourceDocumentRawPoolFkOrdering:
         sd_row = sd_rows[0]
         assert sd_row["storage_path"] == src.as_posix()
         assert sd_row["op_id"] == run_op_id
-        assert sd_row["source_url"] is None, (
-            "localfs files have no source URL — explicit None (ID-75 BI-4)"
-        )
+        # DR-130 (DDL companion): source_url is dropped from source_documents.
+        assert "source_url" not in sd_row
 
     def test_sd_raw_pool_write_precedes_entity_children_declares(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2274,11 +2272,11 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
     def test_classification_output_is_never_a_workspace(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """BI-8: the LLM classification (primary_domain / primary_subtopic) is
-        persisted to source_documents (ID-131 {131.22} G-PRODUCER-CLASS
-        re-homed the write off content_items, which no longer exists —
-        {127.25} DR-034) but is NEVER interpreted as a workspace. Association
-        is explicit, never inferred from classification."""
+        """BI-8: the LLM classification output is NEVER interpreted as a
+        workspace. DR-130 dropped the subject-classification columns
+        (primary_domain / primary_subtopic) from source_documents entirely —
+        the surviving classification write is content_type, and no
+        classification->workspace mapping exists on the canonical path."""
         flow = _flow_module()
         src = tmp_path / "doc.md"
         src.write_text("# Doc\n\nbody")
@@ -2287,14 +2285,13 @@ class TestCanonicalRecordHasNoIntrinsicWorkspace:
         sd = _run_ingest(flow, _FakeFile(src), monkeypatch)
         sd_row = sd[0]
 
-        # The classifier output landed on source_documents' own columns…
-        assert sd_row["primary_domain"] == "procurement"
-        assert sd_row["primary_subtopic"] == "tender_evaluation"
-        # …and it never carries the value in a workspace field (no
-        # classification->workspace mapping exists on the canonical path —
-        # BI-8).
+        # DR-130: the subject-classification columns are gone from the row…
+        assert "primary_domain" not in sd_row
+        assert "primary_subtopic" not in sd_row
+        # …and the surviving classifier output never lands in a workspace
+        # field (no classification->workspace mapping exists — BI-8).
         assert "workspace_id" not in sd_row
-        assert sd_row.get("primary_domain") != sd_row.get("workspace_id")
+        assert "content_type" in sd_row
 
 
 # ── 66.16 — stamp_extraction_base is WIRED into the per-item path (Inv-5) ──────

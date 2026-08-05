@@ -9,15 +9,18 @@ ID-112.7 re-point: the HTML branch fetches raw HTML via ``_fetch_url_bytes``
 and cleans it IN-PROCESS via the shared Trafilatura cleaner (``clean_html`` +
 ``apply_quality_gate``), retiring the prior fetch+extract sidecar hop on this
 datapath (PI-1). These tests assert the cleaned TEXT (not Markdown) is the
-canonical body with ``extraction_method == "trafilatura"``.
+canonical body. (The former ``extraction_method`` provenance assertions died
+with the synthetic sd row — DR-124 unwind.)
 
-WHAT THIS PROVES (TECH §3 WP-C steps 1-8 + §4 BI-mapping):
+WHAT THIS PROVES (TECH §3 WP-C + §4 BI-mapping; DR-124 unwind shape):
 
-  - Landing a URL declares EXACTLY the sd+ri pair with the BI-3/BI-4 field
-    contract and ZERO ``ci_target`` interactions (BI-1 — structurally
-    impossible: ``ingest_url`` has no ci/qa/em/cc target in its signature).
-  - The HTML body is the boilerplate-stripped clean text from ``clean_html``,
-    with ``extraction_method == "trafilatura"`` (PI-1 / ID-112.7).
+  - Landing a URL declares EXACTLY the ri row with the BI-3 field contract,
+    ZERO source_documents writes (DR-124 unwind — the synthetic sd mint is
+    retired), and ZERO ``ci_target`` interactions (BI-1 — structurally
+    impossible: ``ingest_url`` has no sd/ci/qa/em/cc target in its
+    signature).
+  - The HTML body is the boilerplate-stripped clean text from ``clean_html``
+    (PI-1 / ID-112.7).
   - A too-short extraction is a structured per-item failure
     (``cocoindex.url_extraction_rejected``) that lands ZERO partial rows
     (PI-5 / BI-19).
@@ -39,7 +42,6 @@ BI-19..BI-21).
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
 import json
 import logging
@@ -215,13 +217,14 @@ def _ingest(
     op_id: uuid.UUID | None = None,
     stage_counter: object | None = None,
     re_target: object | None = None,
-) -> tuple[_FakeTarget, _FakeTarget]:
+) -> _FakeTarget:
     """Drive ONE ``ingest_url`` invocation under bound flow meta.
 
-    ID-131 {131.11}: ``re_target`` (the polymorphic ``record_embeddings`` write
-    target) is a DEFAULTED 4th positional after ``sd_target``; when None the
-    reference-item embedding dual-write is skipped (guard), so the existing
-    sd+ri callers stay untouched.
+    DR-124 unwind: ``ingest_url`` takes (item, ri_target, re_target) — the
+    synthetic sd mint (and ``sd_target``) are retired. ``re_target`` (the
+    polymorphic ``record_embeddings`` write target, ID-131 {131.11}) stays a
+    DEFAULTED positional; when None the reference-item embedding dual-write
+    is skipped (guard).
     """
     from scripts.cocoindex_pipeline.flow_context import (
         bind_flow_meta,
@@ -229,7 +232,6 @@ def _ingest(
     )
 
     ri = _FakeTarget("reference_items")
-    sd = _FakeTarget("source_documents")
 
     async def _exercise() -> None:
         # id-400 (D-397-A Option C): the flow_* kwargs are retired from the
@@ -240,43 +242,36 @@ def _ingest(
             if stage_counter is not None:
                 async with bind_stage_counter(stage_counter):  # type: ignore[arg-type]
                     await flow.ingest_url(  # type: ignore[attr-defined]
-                        item, ri, sd, re_target
+                        item, ri, re_target
                     )
             else:
                 await flow.ingest_url(  # type: ignore[attr-defined]
-                    item, ri, sd, re_target
+                    item, ri, re_target
                 )
 
     asyncio.run(_exercise())
-    return ri, sd
+    return ri
 
 
-def _sd_upserts_from_pool(pool: _FakePool) -> list[dict]:
-    """Reconstruct source_documents rows from the raw-pool UPSERT capture.
-
-    S437 (id-131) FK-ordering fix: the URL sd PARENT no longer flows through
-    the engine ``sd_target``; it is written by ``_upsert_source_document`` as a
-    raw-pool autocommit ``INSERT ... ON CONFLICT (id)`` on the SAME DB_CTX pool
-    the SSRF/backlink paths use (``pool.conn.executed``). Each captured
-    ``source_documents`` INSERT's positional args are mapped back onto its
-    column names so the BI-4 field-contract assertions read the landed row
-    exactly as they did off ``sd_target.declare_row``.
-    """
-    rows: list[dict] = []
-    for sql, args in pool.conn.executed:
-        if "INSERT INTO public.source_documents" not in sql:
-            continue
-        cols_segment = sql.split("(", 1)[1].split(")", 1)[0]
-        columns = [c.strip() for c in cols_segment.split(",")]
-        rows.append(dict(zip(columns, args)))
-    return rows
+def _assert_no_sd_writes(pool: _FakePool) -> None:
+    """DR-124 unwind pin: the URL path must issue ZERO source_documents
+    INSERTs on the raw pool (the S437 `_upsert_source_document` call is
+    retired along with the synthetic `sd:{url}` mint)."""
+    sd_inserts = [
+        sql
+        for sql, _args in pool.conn.executed
+        if "INSERT INTO public.source_documents" in sql
+    ]
+    assert sd_inserts == [], (
+        "the URL path must not write source_documents (DR-124 unwind)"
+    )
 
 
-# ── Landing: the sd+ri evidence pair (BI-1/BI-3/BI-4) ───────────────────────
+# ── Landing: the ri evidence row (BI-1/BI-3; DR-124 shape) ──────────────────
 
 
 class TestUrlLandingDeclaresEvidencePair:
-    def test_landing_declares_exactly_sd_and_ri_with_field_contract(
+    def test_landing_declares_exactly_the_ri_row_with_field_contract(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
@@ -292,96 +287,19 @@ class TestUrlLandingDeclaresEvidencePair:
             _FIXTURE_HTML.decode("utf-8"), url=item.url
         )
 
-        ri, _sd = _ingest(flow, item, op_id=run_op_id, stage_counter=counter)
+        ri = _ingest(flow, item, op_id=run_op_id, stage_counter=counter)
 
-        # S437 (id-131): the sd PARENT lands via the raw-pool UPSERT
-        # (`_upsert_source_document`), NOT the engine `sd_target` — reconstruct
-        # it from the pool capture. The ri CHILD still flows through its target.
-        sd_rows = _sd_upserts_from_pool(handles["pool"])
-
-        # Exactly ONE row on each target — the evidence pair.
-        assert len(sd_rows) == 1, "expected one source_documents row"
+        # DR-124 unwind: EXACTLY one ri row; ZERO source_documents writes —
+        # the synthetic `sd:{url}` mint + its raw-pool UPSERT are retired.
         assert len(ri.rows) == 1, "expected one reference_items row"
+        _assert_no_sd_writes(handles["pool"])
 
-        encoded = expected_body.encode()
-
-        # Hard-coded uuid5 oracles over _KH_PIPELINE_DOC_NS
+        # Hard-coded uuid5 oracle over _KH_PIPELINE_DOC_NS
         # ("fbfaf1ff-1ee4-583c-9757-1674465b2ec1") for the pinned item.url
-        # "https://example.com/articles/insight" — frozen literals (not
+        # "https://example.com/articles/insight" — a frozen literal (not
         # re-derived from flow) so a namespace/seed drift fails loudly.
 
-        # BI-4: source_documents carries the URL identity + provenance.
-        sd_row = sd_rows[0]
-        assert sd_row["id"] == uuid.UUID(
-            "bd67461b-1e3c-5bbd-b277-4dc6efccc9ab"  # sd:{url}
-        )
-        assert sd_row["storage_path"] == item.url
-        assert sd_row["source_url"] == item.url, (
-            "storage_path = source_url = normalised URL (RESEARCH constraint 2)"
-        )
-        assert sd_row["filename"] == "insight", (
-            "filename must be the last URL path segment (BI-4)"
-        )
-        assert sd_row["mime_type"] == "text/html"
-        assert sd_row["file_size"] == len(encoded)
-        assert sd_row["content_hash"] == hashlib.sha256(encoded).hexdigest()
-        # ID-112.7: in-house Trafilatura clean — extraction_method 'trafilatura'.
-        assert sd_row["extraction_method"] == "trafilatura"
-        assert sd_row["op_id"] == run_op_id
-        # ID-129.2: the declared key set carries no retired share-id column.
-        # ID-131 {131.22} (G-PRODUCER-CLASS): `_upsert_source_document` is
-        # SHARED between the localfs content branch and this URL route — the
-        # producer's classification family columns now ride EVERY caller's
-        # INSERT, even though `ingest_url` does not classify onto
-        # source_documents itself (its own `reference_items` row already
-        # carries primary_domain/primary_subtopic on a DIFFERENT table —
-        # unaffected, out of 131.22's scope). All new columns default to None
-        # here; primary_domain/primary_subtopic fall back to the DB's own
-        # 'unclassified' DEFAULT via the `_upsert_source_document` guard,
-        # since that column is NOT NULL with no per-caller-omission path on a
-        # raw parameterised INSERT.
-        # ID-138 {138.10}: `_upsert_source_document` also carries the mutable
-        # path attribute (logical_path) + the admission lifecycle columns
-        # ({138.5} M1) on EVERY caller's INSERT. `ingest_url` leaves them at
-        # their defaults (logical_path/retention_class/origin_type → NULL;
-        # admission_status floored to 'admitted').
-        assert set(sd_row) == {
-            "id",
-            "storage_path",
-            "source_url",
-            "filename",
-            "mime_type",
-            "file_size",
-            "content_hash",
-            "op_id",
-            "extraction_method",
-            "content_type",
-            "primary_domain",
-            "primary_subtopic",
-            "secondary_domain",
-            "secondary_subtopic",
-            "ai_keywords",
-            "summary",
-            "suggested_title",
-            "classified_at",
-            "classification_confidence",
-            "classification_reasoning",
-            "captured_date",
-            "summary_data",
-            "logical_path",
-            "admission_status",
-            "retention_class",
-            "origin_type",
-        }
-        assert sd_row["primary_domain"] == "unclassified", (
-            "ingest_url does not classify onto source_documents — the NOT "
-            "NULL DEFAULT floor applies (131.22)"
-        )
-        assert sd_row["primary_subtopic"] == "unclassified"
-        assert sd_row["content_type"] is None
-        assert sd_row["classification_confidence"] is None
-
-        # BI-3: the full reference_items contract.
+        # BI-3: the reference_items contract (DR-124 shape).
         ri_row = ri.rows[0]
         assert ri_row["id"] == uuid.UUID(
             "d315a098-4fbc-554b-982f-396b2ecec8fe"  # ri:{url}
@@ -402,12 +320,19 @@ class TestUrlLandingDeclaresEvidencePair:
         assert ri_row["published_at"] == datetime.fromisoformat(
             "2026-01-02T03:04:05+00:00"
         ), "published_at round-trips the ledger's original value (BI-3)"
-        assert ri_row["primary_domain"] == "procurement"
-        assert ri_row["primary_subtopic"] == "tender_evaluation"
         assert ri_row["layer"] == "research"
-        assert ri_row["source_document_id"] == sd_row["id"]
         assert ri_row["ingestion_source"] == "rss_feed"
         assert ri_row["op_id"] == run_op_id
+
+        # DR-130/DR-124: the dropped columns are never declared.
+        assert "primary_domain" not in ri_row, (
+            "reference_items.primary_domain is dropped (DR-130)"
+        )
+        assert "primary_subtopic" not in ri_row
+        assert "source_document_id" not in ri_row, (
+            "reference_items.source_document_id is dropped — references are "
+            "standalone (DR-124 unwind)"
+        )
 
         # ID-127.24 (DR-036): reference_items.embedding was DROPPED from the
         # live schema (20260706120000_id131_drop_inline_vector_cols.sql) —
@@ -432,13 +357,14 @@ class TestUrlLandingDeclaresEvidencePair:
         # ID-112.7: the HTML route fetches raw bytes and cleans them in-process.
         assert handles["fetch_calls"] == [item.url]
 
-        # Inv-17 stage counters (WP-C step 8).
+        # Inv-17 stage counters — ONE postgres upsert now (the ri row; the
+        # sd upsert left with the DR-124 unwind).
         assert counter.counts == {
             "source_walk": 1,
             "binary_conversion": 1,
             "llm_extraction": 1,
             "embedding": 1,
-            "postgres_upsert": 2,
+            "postgres_upsert": 1,
         }
 
     def test_reference_item_embedding_is_dual_written_to_record_embeddings(
@@ -455,12 +381,11 @@ class TestUrlLandingDeclaresEvidencePair:
         run_op_id = uuid.uuid4()
 
         ri = _FakeTarget("reference_items")
-        sd = _FakeTarget("source_documents")
         re = _FakeTarget("record_embeddings")
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_url(item, ri, sd, re)
+                await flow.ingest_url(item, ri, re)
 
         asyncio.run(_exercise())
 
@@ -488,7 +413,7 @@ class TestUrlLandingDeclaresEvidencePair:
         flow = _flow_module()
         _wire(flow, monkeypatch)
         # _ingest omits re_target (defaults None) → guard skips the re write.
-        ri, _sd = _ingest(flow, _make_item())
+        ri = _ingest(flow, _make_item())
         assert len(ri.rows) == 1
 
     def test_ingest_url_signature_has_no_content_targets(self) -> None:
@@ -504,28 +429,28 @@ class TestUrlLandingDeclaresEvidencePair:
             assert "qa_target" not in params
             assert "em_target" not in params
             assert "cc_target" not in params
-            assert {"ri_target", "sd_target", "re_target"} <= params
+            # DR-124 unwind: sd_target is retired from the URL lane too —
+            # a source_documents write is now structurally impossible here.
+            assert "sd_target" not in params
+            assert {"ri_target", "re_target"} <= params
 
     def test_title_falls_back_to_classifier_suggested_title_when_empty(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
         _wire(flow, monkeypatch)
-        ri, _sd = _ingest(flow, _make_item(title=""))
+        ri = _ingest(flow, _make_item(title=""))
         assert ri.rows[0]["title"] == "Classifier title", (
             "empty ledger title must fall back to the classifier's "
             "suggested_title (D-10)"
         )
 
-    def test_filename_falls_back_to_hostname_for_root_urls(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_filename_falls_back_to_hostname_for_root_urls(self) -> None:
+        # DR-124 unwind: no sd row carries this any more — `_url_filename`
+        # survives as the Docling filename hint; pin its fallback directly.
         flow = _flow_module()
-        handles = _wire(flow, monkeypatch)
-        _ri, _sd = _ingest(flow, _make_item(url="https://example.com/"))
-        sd_rows = _sd_upserts_from_pool(handles["pool"])
-        assert sd_rows[0]["filename"] == "example.com", (
-            "no path segment ⇒ filename falls back to the hostname (BI-4)"
+        assert flow._url_filename("https://example.com/") == "example.com", (
+            "no path segment ⇒ filename hint falls back to the hostname"
         )
 
     def test_malformed_published_at_fails_the_item_loudly(
@@ -556,21 +481,16 @@ class TestUrlIdempotencyAndUpdate:
         handles = _wire(flow, monkeypatch)
         item = _make_item()
 
-        # S437 (id-131): both landings share ONE raw pool, so snapshot the sd
-        # UPSERT capture between them — the second landing appends a second row.
-        ri1, _sd1 = _ingest(flow, item)
-        sd_after_1 = _sd_upserts_from_pool(handles["pool"])
-        ri2, _sd2 = _ingest(flow, item)
-        sd_after_2 = _sd_upserts_from_pool(handles["pool"])
+        ri1 = _ingest(flow, item)
+        ri2 = _ingest(flow, item)
 
-        assert len(sd_after_1) == 1 and len(sd_after_2) == 2
-        assert sd_after_1[0]["id"] == sd_after_2[1]["id"]
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
-        # PI-8: the uuid5 seeds are URL-derived, unaffected by the cutover.
-        # Pinned to frozen literals over _KH_PIPELINE_DOC_NS for the item.url
+        # PI-8: the uuid5 seed is URL-derived, unaffected by the cutover.
+        # Pinned to a frozen literal over _KH_PIPELINE_DOC_NS for the item.url
         # "https://example.com/articles/insight" (not re-derived from flow).
-        assert sd_after_1[0]["id"] == uuid.UUID("bd67461b-1e3c-5bbd-b277-4dc6efccc9ab")
         assert ri1.rows[0]["id"] == uuid.UUID("d315a098-4fbc-554b-982f-396b2ecec8fe")
+        # DR-124 unwind: neither landing wrote source_documents.
+        _assert_no_sd_writes(handles["pool"])
 
     def test_changed_page_content_updates_body_under_same_pk(
         self, monkeypatch: pytest.MonkeyPatch
@@ -599,22 +519,18 @@ class TestUrlIdempotencyAndUpdate:
 
         item = _make_item()
         which["page"] = "v1"
-        ri1, _sd1 = _ingest(flow, item)
-        sd_after_1 = _sd_upserts_from_pool(handles["pool"])
+        ri1 = _ingest(flow, item)
         which["page"] = "v2"
-        ri2, _sd2 = _ingest(flow, item)
-        sd_after_2 = _sd_upserts_from_pool(handles["pool"])
+        ri2 = _ingest(flow, item)
 
-        # Same PKs — the UPSERT updates in place (D-4 / PI-8)…
+        # Same PK — the UPSERT updates in place (D-4 / PI-8)…
         assert ri1.rows[0]["id"] == ri2.rows[0]["id"]
-        assert sd_after_1[0]["id"] == sd_after_2[1]["id"]
-        # …with the re-cleaned body + recomputed hash riding the new declare.
+        # …with the re-cleaned body riding the new declare. (The content_hash
+        # assertion left with the sd row — DR-124 unwind: the hash fed only
+        # the retired synthetic sd row and is no longer persisted.)
         assert "First version body content." in ri1.rows[0]["body"]
         assert "Second version" in ri2.rows[0]["body"]
         assert ri1.rows[0]["body"] != ri2.rows[0]["body"]
-        assert sd_after_2[1]["content_hash"] == hashlib.sha256(
-            ri2.rows[0]["body"].encode()
-        ).hexdigest()
 
 
 # ── PDF route (BI-20 / D-12) ─────────────────────────────────────────────────
@@ -648,21 +564,15 @@ class TestUrlPdfRoute:
         monkeypatch.setattr(flow, "_docling_to_markdown", _fake_docling)
 
         item = _make_item(url="https://example.com/reports/annual.pdf")
-        ri, _sd = _ingest(flow, item)
+        ri = _ingest(flow, item)
 
         # The .pdf suffix short-circuits the sniff straight to Docling (BI-20).
         assert docling_calls == [(pdf_bytes, "annual.pdf")]
 
-        # S437 (id-131): the sd row lands via the raw-pool UPSERT, not sd_target.
-        sd_rows = _sd_upserts_from_pool(handles["pool"])
-        sd_row = sd_rows[0]
-        assert sd_row["extraction_method"] == "docling"
-        # ID-129.2: the retired share-id column is no longer declared.
-        assert "share_id" not in " ".join(sd_row)
-        assert sd_row["mime_type"] == "application/pdf"
-        assert sd_row["file_size"] == len(pdf_bytes)
-        assert sd_row["content_hash"] == hashlib.sha256(pdf_bytes).hexdigest()
+        # DR-124 unwind: the Docling markdown lands as the ri body; the
+        # mime/size/hash provenance died with the retired synthetic sd row.
         assert ri.rows[0]["body"] == "# PDF markdown"
+        _assert_no_sd_writes(handles["pool"])
 
     def test_head_sniff_detects_pdf_content_type_and_failure_assumes_html(
         self,
@@ -754,11 +664,10 @@ class TestUrlSsrfRejection:
         run_op_id = uuid.uuid4()
 
         with caplog.at_level(logging.ERROR, logger=flow.__name__):
-            ri, sd = _ingest(flow, item, op_id=run_op_id)
+            ri = _ingest(flow, item, op_id=run_op_id)
 
         # ZERO rows — the rejected item declares nothing (BI-21/BI-19).
         assert ri.rows == []
-        assert sd.rows == []
         assert fetch.await_count == 0, "rejected URL must never be fetched"
 
         # ONE ingestion_quality_log row via the raw pool (D-9).
@@ -810,7 +719,7 @@ class TestUrlBacklink:
         handles = _wire(flow, monkeypatch)
         item = _make_item()  # 2 workspaces, 2 raw ledger URLs
 
-        ri, _sd = _ingest(flow, item)
+        ri = _ingest(flow, item)
 
         pool: _FakePool = handles["pool"]
         updates = [
@@ -860,12 +769,12 @@ class TestHtmlQualityGate:
         assert flow.apply_quality_gate(cleaned).verdict is flow.GateVerdict.REJECT
 
         with caplog.at_level(logging.ERROR, logger=flow.__name__):
-            ri, sd = _ingest(flow, item, op_id=run_op_id)
+            ri = _ingest(flow, item, op_id=run_op_id)
 
         # BI-19: ZERO partial rows — the rejected item declares nothing, so the
         # next walk re-runs it (memo miss on a failure-aborted run).
         assert ri.rows == [], "a REJECT verdict must land no reference_items row"
-        assert sd.rows == [], "a REJECT verdict must land no source_documents row"
+        _assert_no_sd_writes(handles["pool"])
         # The HTML WAS fetched (the gate runs post-fetch).
         assert handles["fetch_calls"] == [item.url]
 
@@ -907,13 +816,12 @@ class TestHtmlQualityGate:
         )
 
         with caplog.at_level(logging.WARNING, logger=flow.__name__):
-            ri, _sd = _ingest(flow, item)
+            ri = _ingest(flow, item)
 
-        # WARN proceeds: the row still lands with the trafilatura provenance.
-        # S437 (id-131): the sd row lands via the raw-pool UPSERT, not sd_target.
-        sd_rows = _sd_upserts_from_pool(handles["pool"])
-        assert len(ri.rows) == 1 and len(sd_rows) == 1
-        assert sd_rows[0]["extraction_method"] == "trafilatura"
+        # WARN proceeds: the ri row still lands (the trafilatura provenance
+        # column died with the retired synthetic sd row — DR-124 unwind).
+        assert len(ri.rows) == 1
+        _assert_no_sd_writes(handles["pool"])
         assert handles["fetch_calls"] == [item.url]
 
         events = [

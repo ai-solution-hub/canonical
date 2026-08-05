@@ -2292,16 +2292,18 @@ class TestUrlPerItemFailureIsolation:
         asyncio.run(flow.app_main())
 
         ri_rows = targets["reference_items"].rows
-        # S437 (id-131): the URL sd PARENT lands via the raw-pool UPSERT, not
-        # the engine `sd_target` — reconstruct it from the pool capture.
+        # DR-124 unwind: the URL path lands reference_items ONLY — assert the
+        # synthetic sd mint stays retired.
         sd_rows = _sd_rows_from_pool(harness["pool"])
 
-        # 1. Sibling B's sd+ri pair lands; A lands ZERO rows (BI-19).
+        # 1. Sibling B's ri row lands; A lands ZERO rows (BI-19).
         assert [r["source_url"] for r in ri_rows] == [self._URL_B], (
             f"expected exactly URL B's reference_items row; got "
             f"{[r.get('source_url') for r in ri_rows]}"
         )
-        assert [r["source_url"] for r in sd_rows] == [self._URL_B]
+        assert sd_rows == [], (
+            "the URL path must not write source_documents (DR-124 unwind)"
+        )
         assert ri_rows[0]["title"] == "Beta"
 
         # 2. flow_status == 'completed_with_errors' (id-414 AC-1) — the
@@ -2380,18 +2382,17 @@ class TestUrlPerItemFailureIsolation:
         ):
             asyncio.run(flow.app_main())
 
-        # 1. Both items COMPLETED: the sd+ri evidence pairs stay declared —
+        # 1. Both items COMPLETED: the ri evidence rows stay declared —
         #    a raise here would have made the engine DISCARD them (the
         #    {75.16}-proven faulted-item contract), killing convergence.
         ri_rows = targets["reference_items"].rows
-        # S437 (id-131): the URL sd PARENT lands via the raw-pool UPSERT, not
-        # the engine `sd_target` — reconstruct it from the pool capture.
+        # DR-124 unwind: the URL path lands reference_items ONLY.
         sd_rows = _sd_rows_from_pool(harness["pool"])
         assert sorted(r["source_url"] for r in ri_rows) == sorted(
             [self._URL_A, self._URL_B]
         )
-        assert sorted(r["source_url"] for r in sd_rows) == sorted(
-            [self._URL_A, self._URL_B]
+        assert sd_rows == [], (
+            "the URL path must not write source_documents (DR-124 unwind)"
         )
 
         # 2. The backlink write was SKIPPED (deferred to walk 2) — never

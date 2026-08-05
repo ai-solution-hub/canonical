@@ -382,10 +382,14 @@ _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY = (
 # the payload so pre-pivot rows keep their evidence text for the producer;
 # retargeting this source to compose chunk bodies is pipeline-rebase-charter
 # scope.
+# DR-130 (DDL companion): the subject-classification family (primary_domain/
+# primary_subtopic/secondary_domain/secondary_subtopic/summary/
+# suggested_title) and source_url are DROPPED from source_documents — trimmed
+# from this SELECT in the same deploy window. Concept payloads simply lose
+# those keys (rows ride into ConceptRaw as opaque mappings; no keyed reads).
 _SOURCE_DOCUMENT_COLUMNS = (
-    "id, filename, logical_path, primary_domain, primary_subtopic, "
-    "secondary_domain, secondary_subtopic, content_type, summary, "
-    "suggested_title, publication_status, source_url, extraction_method, "
+    "id, filename, logical_path, content_type, "
+    "publication_status, extraction_method, "
     "extracted_text, created_at, updated_at"
 )
 
@@ -406,9 +410,19 @@ _SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS = (
     "LIMIT 1"
 )
 
+# DR-130: reference_items.primary_domain / primary_subtopic are DROPPED —
+# trimmed from this SELECT.
+# ⚠ DR-130 OPEN (UNDECIDABLE, escalated): the DDL companion ALSO drops
+# `reference_items.source_document_id` (DR-124 unwind — references are
+# standalone), which is this query's WHERE key AND the join key of the five
+# `LEFT JOIN reference_items ri ON ri.source_document_id = sd.id` clauses in
+# the version-fingerprint SQL below. After the drop there is NO remaining
+# ri↔sd join path (sd.source_url is dropped too). Whether the producer's
+# reference-items legs retire outright or re-key needs a producer-semantics
+# ruling — do not "fix" mechanically here.
 _SQL_REFERENCE_ITEMS_BY_SOURCE_DOCS = (
     "SELECT id, title, body, summary, source_url, published_at, "
-    "primary_domain, primary_subtopic, layer, source_document_id, "
+    "layer, source_document_id, "
     "ingestion_source, created_at, updated_at FROM reference_items "
     "WHERE source_document_id = ANY($1::uuid[]) ORDER BY id"
 )

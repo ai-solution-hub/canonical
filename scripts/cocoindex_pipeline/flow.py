@@ -43,7 +43,6 @@ References:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 import mimetypes
@@ -1383,40 +1382,15 @@ SOURCE_DOCUMENTS_SCHEMA = TableSchema(
         # `extract_source_provenance` (NOT the str-only convert_binary_to_markdown).
         # Nullable per the CHECK-enum migration `20260526074944_id42_provenance`.
         "extraction_method": ColumnDef(type="text", nullable=True),
-        # URL provenance (ID-75 BI-4; M1 §3 — 20260606121451_id75_reference_
-        # items_layer.sql). URL-sourced documents write the normalised URL
-        # (= storage_path, RESEARCH constraint 2); the localfs branch writes an
-        # explicit None.
-        "source_url": ColumnDef(type="text", nullable=True),
-        # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed
-        # off content_items onto source_documents. {131.9} M3 migration
-        # `20260628191700_id131_sd_classification_cols.sql` added these DB
-        # columns (types mirror content_items 1:1 per that migration's own
-        # comment); the companion fix migration
-        # `20260628191704_id131_sd_content_type_nullable.sql` relaxed
-        # content_type to nullable (a classification OUTPUT, unknown at
-        # ingest). Nullability here cross-checked against the applied
-        # `database.types.ts` source_documents Row (the in-worktree truth) —
-        # NOT re-derived from the content_items 1:1-mirror comment alone.
-        # `classification_model` is DELIBERATELY OMITTED — dropped per
-        # ratified D1/BI-11 (0 stored consumers; see the migration's own
-        # comment). The producer (`_upsert_source_document` below) only
-        # POPULATES the subset of these the Path-A `ClassificationExtraction`
-        # model (extraction.py) actually returns; the rest
-        # (secondary_domain/secondary_subtopic/ai_keywords/summary/
-        # captured_date/summary_data) are declared here for schema
-        # completeness but have no Path-A source today (cf. the richer TS
-        # `lib/ai/classify.ts` shape) and are left NULL by this producer.
-        "primary_domain": ColumnDef(type="text", nullable=True),
-        "primary_subtopic": ColumnDef(type="text", nullable=True),
-        "secondary_domain": ColumnDef(type="text", nullable=True),
-        "secondary_subtopic": ColumnDef(type="text", nullable=True),
+        # DR-130 (DDL companion migration): the subject-classification family
+        # (primary_domain/primary_subtopic/secondary_domain/secondary_subtopic/
+        # suggested_title/classification_confidence/classification_reasoning/
+        # classified_at/summary) and source_url are DROPPED from
+        # source_documents — their ColumnDefs are removed here in the same
+        # deploy window. `ai_keywords` / `content_type` / `captured_date` /
+        # `summary_data` are KEPT (content_type is the one surviving
+        # classification output the pipeline still writes).
         "ai_keywords": ColumnDef(type="text[]", nullable=True),
-        "summary": ColumnDef(type="text", nullable=True),
-        "suggested_title": ColumnDef(type="text", nullable=True),
-        "classified_at": ColumnDef(type="timestamptz", nullable=True),
-        "classification_confidence": ColumnDef(type="numeric", nullable=True),
-        "classification_reasoning": ColumnDef(type="text", nullable=True),
         "content_type": ColumnDef(type="text", nullable=True),
         "captured_date": ColumnDef(type="timestamptz", nullable=True),
         "summary_data": ColumnDef(type="jsonb", nullable=True),
@@ -1448,13 +1422,13 @@ REFERENCE_ITEMS_SCHEMA = TableSchema(
         "source_url": ColumnDef(type="text", nullable=False),
         # Original publication time from the ledger; never ingest time (BI-3).
         "published_at": ColumnDef(type="timestamptz", nullable=True),
-        "primary_domain": ColumnDef(type="text", nullable=True),
-        "primary_subtopic": ColumnDef(type="text", nullable=True),
+        # DR-130/DR-124 unwind: primary_domain / primary_subtopic /
+        # source_document_id are DROPPED from reference_items — references
+        # are standalone (no synthetic sd parent; the BI-15 provenance FK is
+        # retired with it).
         # v1 constant 'research' (D-10) — trigger-validated against
         # layer_vocabulary in M1.
         "layer": ColumnDef(type="text", nullable=True),
-        # Provenance chain integrity (BI-15) — RESTRICT FK in M1.
-        "source_document_id": ColumnDef(type="uuid", nullable=False),
         # Acquisition route — CV 13 semantics (BI-9 / D-11): 'rss_feed' v1.
         "ingestion_source": ColumnDef(type="text", nullable=False),
         "op_id": ColumnDef(type="uuid", nullable=True),
@@ -2264,9 +2238,6 @@ async def _ingest_content_branch(
         # and updates logical_path (see `_upsert_source_document`'s ON CONFLICT).
         storage_path=rel_path,
         logical_path=rel_path,
-        # ID-75 BI-4: a localfs file has NO source URL — explicit None so
-        # the localfs/URL provenance split is visible at the write site.
-        source_url=None,
         # ID-64.10/64.11 (S296): prod column is `content_hash` (rename); the
         # value is the same awaited file content-hash hex computed above.
         content_hash=content_fingerprint,
@@ -2281,28 +2252,14 @@ async def _ingest_content_branch(
         # Extraction provenance (ID-42.9 §WP-E) — nullable; only the Docling
         # path populates it (passthrough leaves it None).
         extraction_method=provenance.extraction_method,
-        # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed
-        # off content_items (the content_items table is dropped — DR-034/
-        # {127.25}). Only the fields the Path-A
-        # `ClassificationExtraction` model (extraction.py) actually returns
-        # are threaded through — secondary_domain/secondary_subtopic/
-        # ai_keywords/summary/captured_date/summary_data have no Path-A
-        # source today and are left at their `_upsert_source_document`
-        # defaults (None → NULL).
+        # DR-130: `content_type` is the ONE surviving classification write —
+        # the {131.22} subject-classification family (primary_domain/
+        # primary_subtopic/suggested_title/classification_confidence/
+        # classification_reasoning/classified_at) is dropped from
+        # source_documents by the DDL companion migration; the
+        # `ClassificationExtraction` ask itself SURVIVES because content_type
+        # (hard-gated, Inv-5) is consumed right here.
         content_type=content_type,
-        primary_domain=_field(classification, "primary_domain"),
-        primary_subtopic=_field(classification, "primary_subtopic"),
-        suggested_title=_field(classification, "suggested_title"),
-        classification_confidence=_field(
-            classification, "classification_confidence"
-        ),
-        # `rationale` is the Path-A model's free-text field — maps onto the
-        # DB's `classification_reasoning` column name.
-        classification_reasoning=_field(classification, "rationale"),
-        # `extracted_at` is the flow-stamped timestamp (`_stamp_if_model`
-        # above) — the natural "when was this classified" value; the LLM does
-        # not emit its own classified_at (bl-220 stamp-free core contract).
-        classified_at=_field(classification, "extracted_at"),
     )
     _bump("postgres_upsert")  # Inv-17: source_documents row upsert
 
@@ -2762,14 +2719,16 @@ async def _ingest_content_branch(
 # ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────
 # Lives beside `ingest_file` per D-6 (a separate flow_url.py would risk a
 # circular import against the schemas/extractors/counters this module owns).
-# The component declares the sd+ri EVIDENCE PAIR only — it has NO ci/qa/em/cc
-# target in its signature, making a `content_items` write structurally
-# impossible (BI-1). A content_items uuid5 seed is NEVER minted from a URL
-# (BI-2/BI-13) — the only seeds below are the sd/ri pair.
+# The component declares the ri EVIDENCE ROW only (DR-124 unwind — the
+# synthetic sd mint is gone) — it has NO ci/qa/em/cc target in its
+# signature, making a `content_items` write structurally impossible (BI-1).
+# A content_items uuid5 seed is NEVER minted from a URL (BI-2/BI-13) — the
+# only seed below is the ri row.
 
 
 def _url_filename(url: str) -> str:
-    """Derive `source_documents.filename` from a URL (BI-4 / WP-C step 5).
+    """Derive a filename hint from a URL (Docling conversion input; the
+    former `source_documents.filename` consumer left with the DR-124 unwind).
 
     The last URL path segment when one exists, else the hostname (a root URL
     like `https://example.com/` has no segment). Falls back to the raw URL if
@@ -3045,7 +3004,6 @@ async def _upsert_source_document(
     *,
     source_document_id: "uuid.UUID",
     storage_path: str,
-    source_url: str | None,
     filename: str,
     mime_type: str,
     file_size: int,
@@ -3058,119 +3016,58 @@ async def _upsert_source_document(
     # SEED-CONTRACT admission key and is NEVER updated on conflict. The lifecycle
     # columns are written on admission but PRESERVED on a re-walk conflict (not
     # clobbered — a tombstoned/curated row must not be resurrected, R(d)/DR-026).
-    # All default to None so the `ingest_url` call site keeps working unchanged;
-    # `admission_status` is NOT NULL in the DB so it is floored to 'admitted' on
-    # a fresh INSERT (mirrors the `primary_domain or "unclassified"` guard).
+    # All default to None; `admission_status` is NOT NULL in the DB so it is
+    # floored to 'admitted' on a fresh INSERT.
     logical_path: str | None = None,
     admission_status: str | None = None,
     retention_class: str | None = None,
     origin_type: str | None = None,
-    # ID-131 {131.22} (G-PRODUCER-CLASS): classification family, re-homed off
-    # content_items ({131.9} M3 added these DB columns; the companion fix
-    # migration relaxed content_type to nullable). ALL default to None so the
-    # pre-existing `ingest_url` call site (which does not classify onto
-    # source_documents — its `reference_items` row already carries its own
-    # primary_domain/primary_subtopic on a different table; out of THIS
-    # subtask's scope) keeps working unchanged. secondary_domain/
-    # secondary_subtopic/ai_keywords/summary/captured_date/summary_data have
-    # NO source in the Path-A `ClassificationExtraction` model (extraction.py)
-    # today (cf. the richer TS `lib/ai/classify.ts` shape) — accepted but not
-    # invented; callers that never classify leave them None → NULL.
+    # DR-130: `content_type` is the sole surviving classification column
+    # ({131.22}'s wider family — primary_domain/primary_subtopic/secondary_*/
+    # suggested_title/classification_confidence/classification_reasoning/
+    # classified_at/summary — plus source_url is DROPPED by the DDL companion
+    # migration). ai_keywords/captured_date/summary_data are KEPT columns with
+    # no Path-A source today — accepted but not invented; callers leave them
+    # None → NULL.
     content_type: str | None = None,
-    primary_domain: str | None = None,
-    primary_subtopic: str | None = None,
-    secondary_domain: str | None = None,
-    secondary_subtopic: str | None = None,
     ai_keywords: list[str] | None = None,
-    summary: str | None = None,
-    suggested_title: str | None = None,
-    classified_at: datetime | None = None,
-    classification_confidence: float | None = None,
-    classification_reasoning: str | None = None,
     captured_date: datetime | None = None,
     summary_data: dict[str, Any] | None = None,
 ) -> None:
     """Raw-pool autocommit UPSERT of the source_documents parent row.
 
-    S437 (id-131) FK-ordering fix, originally for the URL path only.
-    `reference_items.source_document_id` REFERENCES `source_documents(id)`
-    **ON DELETE RESTRICT** (migration
-    `20260606121451_id75_reference_items_layer.sql`) — a CROSS-TARGET FK the
-    cocoindex write-model (`cocoindex-write-model.md` §2 R1) says the engine's
-    uncoordinated per-target autocommit flush CANNOT order. Two live hazards
-    followed once id-131 made full-replace the ingest posture:
+    S438 (id-131 follow-on) INSERT-ordering fix: staging walk f1fd0add hit
+    the cross-target flush race on the LOCALFS content route —
+    `entity_mentions` / `entity_relationships` (both re-parented onto
+    `source_documents` by migration `20260628200000_id131_extract_reparent.sql`,
+    M2/BI-14) raced the sd parent and raised `ForeignKeyViolationError` on
+    their `*_source_document_id_fkey` constraints (the engine's per-target
+    autocommit flush order is uncoordinated — `cocoindex-write-model.md` §2
+    R1 — so the INSERT-ordering hazard applies regardless of the child's ON
+    DELETE action). Writing the sd row here, SYNCHRONOUSLY in-component on
+    the env-scope DB_CTX pool, commits the parent BEFORE the engine flushes
+    the child declares (`cc_target` / `em_target` / `er_target`).
 
-      * INSERT — the engine flushes `ri_target` before `sd_target`, so
-        `insert on reference_items violates ... source_document_id not present`;
-      * FULL-REPLACE — `update_blocking(full_reprocess=True)` delete-then-
-        re-exports every engine-declared `source_documents` row, and the sd
-        DELETE is BLOCKED by the surviving `reference_items` child (RESTRICT):
-        `update or delete on source_documents violates
-        reference_items_source_document_id_fkey`.
+    HISTORY: this helper was minted for the URL path (S437 — the
+    `reference_items.source_document_id` RESTRICT-FK hazards). The DR-124
+    unwind (DR-130 DDL companion) retired that caller entirely: the URL path
+    no longer mints a synthetic sd row — `reference_items` land standalone
+    and the `source_document_id` FK column itself is dropped. The localfs
+    content branch and `ingest_once` are the two surviving callers.
 
-    S438 (id-131 follow-on): staging walk f1fd0add hit the SAME INSERT-ordering
-    class on the LOCALFS content route — `entity_mentions` / `entity_relationships`
-    (both re-parented onto `source_documents` by migration
-    `20260628200000_id131_extract_reparent.sql`, M2/BI-14) raced the sd parent
-    and raised `ForeignKeyViolationError` on their
-    `*_source_document_id_fkey` constraints (CASCADE / SET NULL — not RESTRICT,
-    but the engine's per-target flush order is still uncoordinated, so the
-    INSERT-ordering hazard applies regardless of the child's ON DELETE action).
-    `_ingest_content_branch` (flow.py) now calls this SAME function — no
-    forked variant — with `source_url=None` (ID-75 BI-4: a localfs file has no
-    source URL).
+    Identity remains the deterministic per-item uuid5 (`sd:{rel_path}` —
+    write-model §2 R1), so `ON CONFLICT (id)` mirrors declare_row's PK-only
+    idempotent UPSERT. The raw write raises IN-COMPONENT on any fault, so the
+    per-item containment at the mount boundary (`bound_ingest_file`) tallies
+    it and the batch survives rather than a whole-TaskGroup abort.
 
-    The fix (no schema change per S437) takes the sd row OFF the
-    engine-managed `sd_target` and writes it here on the SAME env-scope DB_CTX
-    pool `_backlink_feed_articles` uses, but SYNCHRONOUSLY in-component
-    (autocommit) BEFORE the engine-declared children that follow (the URL
-    route's `ri_target.declare_row`; the localfs route's `cc_target` /
-    `em_target` / `er_target` declares). Two intended
-    consequences (as originally reasoned for the URL path — S437):
-
-      1. the sd parent is COMMITTED before the engine flushes the ri child, so
-         the INSERT race cannot recur — parent-before-child by construction;
-      2. the URL sd row is no longer engine-tracked, so full_reprocess never
-         issues the RESTRICT-blocked DELETE for it (the engine re-exports only
-         what it declares). `ri` stays engine-managed — its own delete never
-         BLOCKS, because every FK pointing at `reference_items` is non-RESTRICT:
-         `feed_articles.reference_item_id` is ON DELETE SET NULL;
-         `citations.cited_reference_item_id → reference_items` is ON DELETE
-         CASCADE (migration `20260628191703_id131_cite_ext_winrate_fix.sql`);
-         and the `reference_items.superseded_by` self-FK is ON DELETE SET NULL.
-         OPERATIONAL CAVEAT — non-blocking is NOT side-effect-free: now that
-         full_reprocess actually COMPLETES (the id-131 posture), the ri
-         delete-then-re-export FIRES the `citations → reference_items` CASCADE,
-         deleting the citation rows of every re-exported ri. Verify `citations`
-         is empty (or that the cascade is acceptable) before a live
-         full_reprocess of the URL ledger.
-
-    Identity remains the deterministic per-item uuid5 (`sd:{url}` for the URL
-    route, `sd:{rel_path}` for localfs — write-model §2 R1: the FK never
-    established the relationship — the uuid5 derivation does), so
-    `ON CONFLICT (id)` mirrors declare_row's PK-only idempotent UPSERT. The raw
-    write raises IN-COMPONENT on any fault, so the per-item containment at
-    each route's mount boundary (`bound_ingest_url` {80.9}; `bound_ingest_file`)
-    tallies it and the batch survives (converge-by-walk-2, {75.16}/{75.17} for
-    the URL route) rather than a whole-TaskGroup abort. Columns + on-conflict
-    set mirror the prior `sd_target.declare_row` payload exactly (all scalar —
-    no jsonb/vector, so no connection codec is needed; write-model §2 R2).
-
-    ID-131 {131.22} (G-PRODUCER-CLASS): the classification family (primary_
-    domain/primary_subtopic/content_type/suggested_title/classification_
-    confidence/classification_reasoning/classified_at, + the not-yet-sourced
-    secondary_domain/secondary_subtopic/ai_keywords/summary/captured_date/
-    summary_data) is now written HERE instead of onto the (now-dropped)
-    content_items table. `primary_domain` /
-    `primary_subtopic` guard with `or "unclassified"` below: both columns are
-    NOT NULL WITH DEFAULT 'unclassified' on source_documents, and an explicit
-    SQL NULL (an unguarded None) would violate NOT NULL where cocoindex's
-    `declare_row` would have simply OMITTED the column from its generated
-    INSERT (letting the DEFAULT apply) — this raw parameterised INSERT has no
-    such omission path, since every caller (content branch + `ingest_url`)
-    shares the SAME column list, so the guard is required here specifically.
-    `content_type` needs no such guard — the companion fix migration
-    (`20260628191704_id131_sd_content_type_nullable.sql`) made it nullable.
+    DR-130: the {131.22} subject-classification family (primary_domain/
+    primary_subtopic/secondary_domain/secondary_subtopic/suggested_title/
+    classification_confidence/classification_reasoning/classified_at/summary)
+    plus source_url are DROPPED from source_documents by the DDL companion
+    migration — their params, INSERT columns and ON CONFLICT SET entries are
+    removed here in the same deploy window. `content_type` survives (nullable
+    per `20260628191704_id131_sd_content_type_nullable.sql`; no guard needed).
     `summary_data` is the one jsonb param — encoded via `json.dumps` + an
     explicit `::jsonb` cast, mirroring `_log_ssrf_rejection`'s existing
     raw-pool jsonb precedent on this SAME `DB_CTX` pool (this call does NOT
@@ -3203,23 +3100,19 @@ async def _upsert_source_document(
         await conn.execute(
             "INSERT INTO public.source_documents "
             "(id, storage_path, content_hash, filename, mime_type, file_size, "
-            "op_id, extraction_method, source_url, content_type, "
-            "primary_domain, primary_subtopic, secondary_domain, "
-            "secondary_subtopic, ai_keywords, summary, suggested_title, "
-            "classified_at, classification_confidence, "
-            "classification_reasoning, captured_date, summary_data, "
+            "op_id, extraction_method, content_type, "
+            "ai_keywords, captured_date, summary_data, "
             # ID-138 {138.10}: the mutable path attribute + admission lifecycle
             # columns ({138.5} M1).
             "logical_path, admission_status, retention_class, origin_type) "
-            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, "
-            "$14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb, "
-            "$23, $24, $25, $26) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, "
+            "$13, $14, $15, $16) "
             "ON CONFLICT (id) DO UPDATE SET "
             # ID-138 {138.10} R(a): storage_path is the FROZEN SEED-CONTRACT
             # admission key — DELIBERATELY omitted from the update set so a
             # rename never moves it. logical_path is the MUTABLE current path;
-            # COALESCE preserves an existing value when a caller (e.g. the URL
-            # route) passes NULL, so a set path is never clobbered to NULL.
+            # COALESCE preserves an existing value when a caller passes NULL,
+            # so a set path is never clobbered to NULL.
             "logical_path = COALESCE(EXCLUDED.logical_path, "
             "public.source_documents.logical_path), "
             "content_hash = EXCLUDED.content_hash, "
@@ -3228,18 +3121,8 @@ async def _upsert_source_document(
             "file_size = EXCLUDED.file_size, "
             "op_id = EXCLUDED.op_id, "
             "extraction_method = EXCLUDED.extraction_method, "
-            "source_url = EXCLUDED.source_url, "
             "content_type = EXCLUDED.content_type, "
-            "primary_domain = EXCLUDED.primary_domain, "
-            "primary_subtopic = EXCLUDED.primary_subtopic, "
-            "secondary_domain = EXCLUDED.secondary_domain, "
-            "secondary_subtopic = EXCLUDED.secondary_subtopic, "
             "ai_keywords = EXCLUDED.ai_keywords, "
-            "summary = EXCLUDED.summary, "
-            "suggested_title = EXCLUDED.suggested_title, "
-            "classified_at = EXCLUDED.classified_at, "
-            "classification_confidence = EXCLUDED.classification_confidence, "
-            "classification_reasoning = EXCLUDED.classification_reasoning, "
             "captured_date = EXCLUDED.captured_date, "
             "summary_data = EXCLUDED.summary_data",
             # ID-138 {138.10} R(d)/DR-026: admission_status / retention_class /
@@ -3254,23 +3137,13 @@ async def _upsert_source_document(
             file_size,
             op_id,
             extraction_method,
-            source_url,
             content_type,
-            primary_domain or "unclassified",
-            primary_subtopic or "unclassified",
-            secondary_domain,
-            secondary_subtopic,
             ai_keywords,
-            summary,
-            suggested_title,
-            classified_at,
-            classification_confidence,
-            classification_reasoning,
             captured_date,
             json.dumps(summary_data) if summary_data is not None else None,
             logical_path,
             # admission_status is NOT NULL in the DB — floor to 'admitted' on a
-            # fresh INSERT (the URL route + any caller that omits it).
+            # fresh INSERT (any caller that omits it).
             admission_status or "admitted",
             retention_class,
             origin_type,
@@ -3629,11 +3502,13 @@ async def ingest_once(
     )
 
     content_type = _field(classification, "content_type") or "other"
+    # DR-130: content_type is the sole surviving classification write — the
+    # subject-classification family is dropped from source_documents (see
+    # `_upsert_source_document`).
     await _upsert_source_document(
         source_document_id=source_document_id,
         storage_path=rel_path,
         logical_path=rel_path,
-        source_url=None,
         content_hash=content_fingerprint,
         filename=_filename,
         mime_type=_source_mime,
@@ -3643,12 +3518,6 @@ async def ingest_once(
         retention_class="ingest_once",
         origin_type=origin_type,
         content_type=content_type,
-        primary_domain=_field(classification, "primary_domain"),
-        primary_subtopic=_field(classification, "primary_subtopic"),
-        suggested_title=_field(classification, "suggested_title"),
-        classification_confidence=_field(classification, "classification_confidence"),
-        classification_reasoning=_field(classification, "rationale"),
-        classified_at=_field(classification, "extracted_at"),
     )
 
     pool = coco.use_context(DB_CTX)
@@ -3824,14 +3693,18 @@ async def ingest_once(
 async def ingest_url(
     item: UrlItem,
     ri_target: Any,
-    sd_target: Any,
     re_target: Any = None,
 ) -> None:
-    """Ingest ONE passed URL: fetch → extract → declare the sd+ri pair.
+    """Ingest ONE passed URL: fetch → extract → declare the ri row.
+
+    DR-124 unwind (DR-130 DDL companion): the URL path lands
+    `reference_items` ONLY — the synthetic `sd:{url}` source_documents row
+    is no longer minted (`reference_items.source_document_id` is dropped;
+    references are standalone). `sd_target` left this signature with it.
 
     Mounted once per source item by `coco.mount_each` over
     `FeedUrlSource.items()` ({75.11} wiring) — cocoindex 1.0.3 calls it as
-    `ingest_url(UrlItem, ri_target, sd_target)`; the (key,value) key (the
+    `ingest_url(UrlItem, ri_target, re_target)`; the (key,value) key (the
     normalised URL) is consumed by `mount_each` for subpath routing and never
     reaches `fn` (the `ingest_file` precedent).
 
@@ -3842,8 +3715,8 @@ async def ingest_url(
     item (D-4): a bumped epoch re-fetches via the item-level (url, epoch) memo.
     id-400 (D-397-A Option C): the run context is OFF the kwargs (see
     `ingest_file` — the {75.17} per-walk-op_id memo bust is fixed), so an
-    unchanged (url, epoch) item memo-HITS across walks and its sd/ri rows keep
-    their last-materially-changed op_id (S265 restored). The step-7/8 backlink
+    unchanged (url, epoch) item memo-HITS across walks and its ri row keeps
+    its last-materially-changed op_id (S265 restored). The step-7/8 backlink
     deferral NO LONGER converges via a walk-2 re-run — the flow-scope
     `_reconcile_feed_article_backlinks` post-pass in `app_main` now owns that
     convergence (runs after `url_handle.ready()`, when the walk's ri rows are
@@ -3902,7 +3775,6 @@ async def ingest_url(
         await _ingest_url_body(
             item,
             ri_target,
-            sd_target,
             re_target,
             op_id=op_id,
             stage_counter=stage_counter,
@@ -3912,28 +3784,25 @@ async def ingest_url(
 async def _ingest_url_body(
     item: UrlItem,
     ri_target: Any,
-    sd_target: Any,
     re_target: Any = None,
     *,
     op_id: "uuid.UUID",
     stage_counter: Any,
 ) -> None:
-    """The WP-C steps 1-8 per-URL body of `ingest_url` (ID-75.10).
+    """The WP-C per-URL body of `ingest_url` (ID-75.10; DR-124 unwind).
 
     ORDERING (BI-19): `declare_row` runs only AFTER fetch + extraction
     succeed — a failed item lands NO partial rows, and because nothing was
     declared the next walk re-runs it (memo miss on a failure-aborted run).
-    NARROW EXCEPTION (S437, id-131): the step-5 sd write is now a raw-pool
-    autocommit, so a raise BETWEEN that commit and the step-6 ri declare can
-    leave one orphan sd row — benign and self-healing (the next walk re-runs
-    the item and the `sd:{url}` uuid5 UPSERTs the same row, ri included).
+    (The S437 orphan-sd caveat is gone with the sd mint — DR-124 unwind:
+    this body lands `reference_items` ONLY.)
 
     BACKLINK DEFERRAL ({75.17}): the step-7/8 backlink write races the
     engine's post-return target flush, so its
     `feed_articles_reference_item_id_fkey` violation on walk 1 is tolerated
     — narrowed by a `constraint_name` STRING COMPARE, never by asyncpg
     exception class (structured `cocoindex.url_backlink_deferred` log, item
-    completes, sd/ri flush) — and the backlink converges on walk 2's re-run.
+    completes, ri flushes) — and the backlink converges on walk 2's re-run.
     Every OTHER error in that write still raises into the BI-19 containment.
     """
 
@@ -3971,10 +3840,6 @@ async def _ingest_url_body(
         # PDF route (BI-20): SSRF-validated GET → Docling.
         pdf_bytes = await _fetch_url_bytes(item.url)
         markdown = await _docling_to_markdown(pdf_bytes, _url_filename(item.url))
-        extraction_method: str | None = "docling"
-        mime_type = "application/pdf"
-        file_size = len(pdf_bytes)
-        content_hash = hashlib.sha256(pdf_bytes).hexdigest()
     else:
         # HTML route (ID-112.7, PI-1): SSRF-validated GET → in-process
         # Trafilatura clean ({112.5} `clean_html`) → content-length gate. The
@@ -4032,12 +3897,10 @@ async def _ingest_url_body(
         # `reference_items.body` write (Markdown was never load-bearing on the
         # URL path; PI-1).
         markdown = cleaned
-        extraction_method = "trafilatura"
-        mime_type = "text/html"
-        encoded = markdown.encode()
-        file_size = len(encoded)
-        content_hash = hashlib.sha256(encoded).hexdigest()
     # Inv-17: one binary→markdown conversion completed for this item.
+    # (DR-124 unwind: the mime_type/file_size/content_hash/extraction_method
+    # locals both branches used to compute existed solely to feed the
+    # now-retired synthetic sd row — deleted with it.)
     _bump("binary_conversion")
 
     # ── Step 3: classification + embedding ───────────────────────────────────
@@ -4056,34 +3919,14 @@ async def _ingest_url_body(
     embedding = await embed_content_text(markdown)
     _bump("embedding")
 
-    # ── Step 4: deterministic PKs — a content_items seed is NEVER minted from
-    # a URL (BI-1/BI-2: re-landing the same URL UPSERTs the same sd+ri pair).
-    source_document_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"sd:{item.url}")
+    # ── Step 4: deterministic PK — re-landing the same URL UPSERTs the same
+    # ri row (BI-2 idempotency; uuid5 'ri:'+url on the SEED-CONTRACT NS).
+    # DR-124 unwind (DR-130 DDL companion): the synthetic `sd:{url}`
+    # source_documents mint + its `_upsert_source_document` call are GONE —
+    # the URL path lands `reference_items` ONLY.
     reference_item_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, f"ri:{item.url}")
 
-    # ── Step 5: source_documents row (BI-4) ──────────────────────────────────
-    # S437 (id-131): written via a raw-pool autocommit UPSERT — NOT
-    # `sd_target.declare_row` — so the sd PARENT is committed in-component
-    # BEFORE the engine flushes the `ri_target` child declared at step 6, and so
-    # full_reprocess never issues the RESTRICT-blocked DELETE for it. See
-    # `_upsert_source_document` for the full FK-ordering rationale (write-model
-    # §2 R1). `sd_target` is retained on the signature (mount_each positional
-    # contract) but the URL sd row no longer flushes through it.
-    await _upsert_source_document(
-        source_document_id=source_document_id,
-        # storage_path = source_url = normalised URL (RESEARCH constraint 2)
-        storage_path=item.url,
-        source_url=item.url,
-        filename=_url_filename(item.url),
-        mime_type=mime_type,
-        file_size=file_size,
-        content_hash=content_hash,
-        op_id=op_id,
-        extraction_method=extraction_method,
-    )
-    _bump("postgres_upsert")  # Inv-17: source_documents row upsert
-
-    # ── Step 6: reference_items row (the full BI-3 contract) ─────────────────
+    # ── Step 5: reference_items row (the BI-3 contract, DR-124 shape) ────────
     ri_target.declare_row(
         row={
             "id": reference_item_id,
@@ -4100,14 +3943,13 @@ async def _ingest_url_body(
                 if item.published_at
                 else None
             ),
-            "primary_domain": _field(classification, "primary_domain"),
-            "primary_subtopic": _field(classification, "primary_subtopic"),
+            # DR-130/DR-124: primary_domain / primary_subtopic /
+            # source_document_id are DROPPED columns — no longer written.
             "layer": "research",  # v1 constant (D-10)
             # ID-127.24 (DR-036): "embedding" REMOVED from this row dict — the
             # column was dropped from reference_items (20260706120000). The
             # `embedding` local var (computed above) now feeds ONLY the
             # record_embeddings dual-write below.
-            "source_document_id": source_document_id,
             "ingestion_source": item.ingestion_source,
             "op_id": op_id,
             # workspace_ids NEVER written (BI-7); created_at/updated_at
@@ -4137,7 +3979,7 @@ async def _ingest_url_body(
     # `feed_articles_reference_item_id_fkey` FK CANNOT yet be satisfied.
     # Tolerate EXACTLY that violation: log a structured deferral and let the
     # item COMPLETE — a raise would route into the BI-19 per-item containment,
-    # whose faulted-item contract DISCARDS the declared sd/ri rows ({75.16}
+    # whose faulted-item contract DISCARDS the declared ri row ({75.16}
     # probe), so every subsequent walk would re-hit the same race (zero
     # convergence — the S319 defect). id-400: convergence is now owned by the
     # flow-scope `_reconcile_feed_article_backlinks` post-pass in `app_main`
@@ -4559,16 +4401,16 @@ async def app_main() -> None:
 
         # Pin the subpath explicitly to "ingest_url" (the component identity)
         # — the named coroutine would otherwise auto-derive the subpath to
-        # "bound_ingest_url" from its `__name__`. `ingest_url` declares ONLY
-        # the sd+ri pair (no ci_target in its signature — BI-1 structural
-        # impossibility of a content_items write from a URL), plus the
-        # record_embeddings dual-write for the reference item (ID-131 {131.11}).
+        # "bound_ingest_url" from its `__name__`. DR-124 unwind: `ingest_url`
+        # declares ONLY the ri row (the synthetic sd mint is gone; no
+        # ci_target either — BI-1 structural impossibility of a content_items
+        # write from a URL), plus the record_embeddings dual-write for the
+        # reference item (ID-131 {131.11}).
         url_handle = await coco.mount_each(
             coco.component_subpath("ingest_url"),
             bound_ingest_url,
             url_source.items(),
             ri_target,
-            sd_target,
             re_target,
         )
         _record_walk_phase(walk_phases, "url_mount_dispatch", _phase_started)
