@@ -15,8 +15,6 @@ here at impl time — same exact count reproduced.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 # The Plane-2 stack (commonforms + torch closure) is heavyweight and only
@@ -33,23 +31,18 @@ from scripts.cocoindex_pipeline.form_extractors.pdf import (
     acroform_field_count,
     detect_pdf_fields,
 )
+from scripts.tests._fixture_manifest import fixture_path
 
-# DR-117 form-templates tree (Plane-2 fixtures — see test_form_extractors.py's
-# note on why a path-string grep cannot find this construction).
-_FIXTURE_DIR = (
-    Path(__file__).parent.parent
-    / "cocoindex_pipeline"
-    / "fixtures"
-    / "form-templates"
+# DR-117 form-templates tree (Plane-2 fixtures), resolved by manifest id via
+# scripts/tests/_fixture_manifest — the register is
+# docs/reference/testing/corpus-manifest.json (DR-118).
+_SQ_PDF_PATH = fixture_path(
+    "form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf"
 )
-_SQ_PDF_PATH = _FIXTURE_DIR / "sq-standard-selection-questionnaire" / "standard-selection-questionnaire-ppn-03-24.pdf"
-# Explicit, not `_FIXTURE_DIR.parent / "corrupt.pdf"`. The old form anchored a
-# tracked fixture to whatever directory happened to sit above the templates
-# tree, so this relocation would have silently re-pointed it at the pipeline's
-# whole fixtures root. corrupt.pdf now lives INSIDE the declared tree, which
-# also brings it under the id-406 manifest's completeness check — it had been
-# sitting one level above the registered root, invisible to every guard.
-_CORRUPT_PDF_PATH = _FIXTURE_DIR / "malformed" / "corrupt.pdf"
+# corrupt.pdf lives INSIDE the declared tree (not one level above it), which
+# keeps it under the id-406 manifest's completeness check — it had previously
+# sat above the registered root, invisible to every guard.
+_CORRUPT_PDF_PATH = fixture_path("form-templates/malformed/corrupt.pdf")
 
 _MEASURED_FIELD_COUNT = 198
 _MEASURED_TX_COUNT = 141

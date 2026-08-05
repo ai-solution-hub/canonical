@@ -18,7 +18,6 @@ DOCX + XLSX only.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 import pytest
 from docx import Document
@@ -31,9 +30,12 @@ from scripts.cocoindex_pipeline.form_extractors.shared import (
     FormMetadata,
 )
 from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extract
+from scripts.tests._fixture_manifest import fixture_path
 
 # ──────────────────────────────────────────────────────────────────────────
-# Fixture path — the DR-117 form-templates tree.
+# Fixture paths — resolved by manifest id via scripts/tests/_fixture_manifest
+# (the register is docs/reference/testing/corpus-manifest.json, DR-118; a tree
+# relocation is a manifest edit, not a per-test segment hunt).
 #
 # These are PLANE-2 fixtures: blank extraction forms consumed by the
 # commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/
@@ -41,20 +43,11 @@ from scripts.cocoindex_pipeline.form_extractors.xlsx import extract as xlsx_extr
 # walk). A Plane-1 test asserting extraction or entity_mentions wants a
 # Platform-corpus CONTENT document instead — see
 # __tests__/integration/cocoindex/_helpers/fixtures.ts for that split.
-#
-# Built segment-wise rather than as a path string, which is why the id-412
-# consumer census missed this file and its sibling
-# test_pdf_field_detection.py on the first pass: a grep for the old path
-# string cannot see either. If this tree moves again, grep for the SEGMENTS.
 # ──────────────────────────────────────────────────────────────────────────
 
-_FIXTURE_DIR = (
-    Path(__file__).parent.parent
-    / "cocoindex_pipeline"
-    / "fixtures"
-    / "form-templates"
+_EFA_XLSX_PATH = fixture_path(
+    "form-templates/itt-services-efa/evaluation-matrix-itt-vol8.xlsx"
 )
-_EFA_XLSX_PATH = _FIXTURE_DIR / "itt-services-efa" / "evaluation-matrix-itt-vol8.xlsx"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -449,7 +442,9 @@ class TestXlsxDedupScope:
 # (authored Q/A + placeholder grids).
 # ──────────────────────────────────────────────────────────────────────────
 
-_CHARNWOOD_DOCX_PATH = _FIXTURE_DIR / "itt-services-charnwood" / "ITT Services.docx"
+_CHARNWOOD_DOCX_PATH = fixture_path(
+    "form-templates/itt-services-charnwood/ITT Services.docx"
+)
 
 
 @pytest.fixture(scope="module")
@@ -881,9 +876,15 @@ class TestDR058UnseenRealFormsRegressionGate:
     """Real-corpus regression gate, measured against the owner-provided
     forms the id-52 archetypes never saw."""
 
-    _ANNEX_2_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_2_supplier_response.docx"
-    _ANNEX_3_PATH = _FIXTURE_DIR / "rfp-british-council" / "annex_3_pricing_approach.xlsx"
-    _CSP_PATH = _FIXTURE_DIR / "csp-cloud-security-principles" / "Cloud Security Principles Checklist V5_3.xlsx"
+    _ANNEX_2_PATH = fixture_path(
+        "form-templates/rfp-british-council/annex_2_supplier_response.docx"
+    )
+    _ANNEX_3_PATH = fixture_path(
+        "form-templates/rfp-british-council/annex_3_pricing_approach.xlsx"
+    )
+    _CSP_PATH = fixture_path(
+        "form-templates/csp-cloud-security-principles/Cloud Security Principles Checklist V5_3.xlsx"
+    )
 
     def test_annex_2_docx_yields_nonzero_fields(self) -> None:
         """British Council annex_2 supplier-response DOCX — measured ZERO
