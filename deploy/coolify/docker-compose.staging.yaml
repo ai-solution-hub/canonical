@@ -153,7 +153,6 @@ services:
       # app/api/internal/pipeline-runs/record), reconciled with the {66.13} cutover plan —
       # NOT the prod app URL. See the .env.staging.example note. Value injected by Coolify.
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
-      CRON_SECRET: ${CRON_SECRET}
 
       # --- Pipeline-trigger secret (ID-127.18, S436 D1 hardening#3) ---
       # Dedicated pipeline<->app boundary secret for doors 1/2/4 (/walk verify,

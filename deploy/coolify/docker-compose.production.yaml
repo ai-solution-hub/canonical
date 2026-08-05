@@ -131,7 +131,6 @@ services:
       # Best-effort POST; flow.py:_emit_pipeline_run_webhook reads from os.environ.
       # Value injected by Coolify ({66.10}).
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
-      CRON_SECRET: ${CRON_SECRET}
 
       # --- Pipeline-trigger secret (ID-127.18, S436 D1 hardening#3) ---
       # Dedicated pipeline<->app boundary secret for doors 1/2/4 (/walk verify,
