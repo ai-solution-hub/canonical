@@ -91,6 +91,15 @@ session.
    while the investigated assumption stood — however ratified-looking — is the
    assumption's carrier, not independent evidence for it (S528 GROUNDING §2a; ratified
    S535, DR-130's grounding).
+8. **Measure the CAUSING surface, as a distribution — never a mean from two totals.**
+   When growth or churn is written by a trigger or any indirect writer, the search key is
+   the table whose writes FIRE the mechanism, not the table that grew (the two searches
+   return disjoint results — S536 forensics: the symptom-table grep could never find
+   `seed-fixtures.ts`; the causing-table grep was one hit, the answer). A rate is a
+   per-row distribution, not `total ÷ population` (3000÷146 gave "~20/pair"; the real
+   shape was 10 pairs @ ~230, 87 @ zero — the mean described no pair). No instrument
+   loaded to run the query? **Dispatch someone who has it** rather than carrying a number
+   you did not measure. This line binds the Coordinator's own hands, not only briefs.
 
 **These readings are not evidence — say so in the brief:** consumer-counting (a consumer of
 a stale concept is evidence the rot spread); population or emptiness in **either**
