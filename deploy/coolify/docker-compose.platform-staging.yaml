@@ -78,9 +78,9 @@ services:
     # Inv-13: /stage is deliberately NOT routed — it stays compose-internal only.
     # This path scope (exactly /walk + /health + /extract) IS the public-exposure
     # guard: /walk is bearer-gated by the app itself (the route validates
-    # `Authorization: Bearer ${CRON_SECRET}`), /extract is bearer-gated on its OWN
+    # `Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}` — {127.18}), /extract is bearer-gated on its OWN
     # dedicated `Authorization: Bearer ${EXTRACT_API_TOKEN}` ({112.6}, a different
-    # blast radius from CRON_SECRET) and self-enforces a 20 MB per-route body cap,
+    # blast radius from the walk bearer) and self-enforces a 20 MB per-route body cap,
     # and /health is intentionally public-readable (liveness only — no data). Any
     # other path (incl. /stage) gets no router and Traefik 404s it at the edge.
     #
@@ -143,21 +143,19 @@ services:
       # deployment's app/api/internal/pipeline-runs/record) — NOT the production app URL.
       # Value injected by Coolify.
       PIPELINE_RUN_WEBHOOK_URL: ${PIPELINE_RUN_WEBHOOK_URL}
-      CRON_SECRET: ${CRON_SECRET}
 
       # --- Pipeline-trigger secret (ID-127.18, S436 D1 hardening#3) ---
       # Dedicated pipeline<->app boundary secret for doors 1/2/4 (/walk verify,
-      # pipeline-runs/record verify, outbound walk-nudge). ROTATION-SAFE
-      # DUAL-ACCEPT window: verifyPipelineTriggerAuth() / _walk_handler accept
-      # EITHER this OR the legacy shared CRON_SECRET until retire-shared lands
-      # (see lib/cron-auth.ts). Unset resolves to empty — safe additive default,
-      # dual-accept falls back to CRON_SECRET. Value injected by Coolify.
+      # pipeline-runs/record verify, outbound walk-nudge). The legacy shared
+      # CRON_SECRET dual-accept fallback was RETIRED at {127.18} (e867ceda4);
+      # this secret is the SOLE walk bearer, and the platform composes carry no
+      # CRON_SECRET row since id-357 (S534). Value injected by Coolify.
       PIPELINE_TRIGGER_SECRET: ${PIPELINE_TRIGGER_SECRET:-}
 
       # --- /extract pure-cleaner bearer ({112.6}) ---
       # DEDICATED bearer for the Traefik-reachable POST /extract route — a
-      # SEPARATE secret from CRON_SECRET (different blast radius: CRON_SECRET
-      # gates the corpus-walk trigger; EXTRACT_API_TOKEN gates only the
+      # SEPARATE secret from PIPELINE_TRIGGER_SECRET (different blast radius: the
+      # walk bearer gates the corpus-walk trigger; EXTRACT_API_TOKEN gates only the
       # stateless HTML cleaner). The route fails CLOSED (401) when this is unset.
       # Value injected by Coolify; never a literal here.
       EXTRACT_API_TOKEN: ${EXTRACT_API_TOKEN}
@@ -269,7 +267,6 @@ services:
       # --- Plane-1 extraction bridge (ID-145 {145.13}) ---
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       PIPELINE_TRIGGER_SECRET: ${PIPELINE_TRIGGER_SECRET:-}
-      CRON_SECRET: ${CRON_SECRET}
 
     # No volumes (stateless — see production service comment) and no
     # healthcheck (no HTTP surface).
