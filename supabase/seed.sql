@@ -275,7 +275,7 @@ ON CONFLICT (id) DO NOTHING;
 -- id-417 C6/B2: the weekly staging-reference-refresh workflow that used to
 -- populate these lookup tables from Platform prod is RETIRED. §4 below is now
 -- the sole source of the reference baseline (taxonomy_domains,
--- taxonomy_subtopics, layer_vocabulary, entity_aliases, taxonomy_sync_state),
+-- taxonomy_subtopics, layer_vocabulary, entity_aliases),
 -- so a fresh/reset DB always has the client-agnostic ontology CI depends on.
 -- Tables with user-referencing data use the deterministic fixtures above.
 -- form_requirement_templates is populated by ingest, not by seed.
@@ -398,10 +398,3 @@ VALUES
   ('3d88243a-bcff-4c9a-91ac-c0283324eea2', 'wordpress', 'WordPress', 'core', true),
   ('8d2a2b69-cd31-469e-a155-9395df9d5954', 'Wordpress', 'WordPress', 'core', true)
 ON CONFLICT (alias) DO NOTHING;
-
--- 4e. taxonomy_sync_state (1 row; only PK id available as conflict target)
-INSERT INTO public.taxonomy_sync_state
-  (id, last_sync_hash, last_sync_at, synced_by, created_at, updated_at)
-VALUES
-  ('e4aa0630-ac32-4ffb-b418-6c01848ecf71', '8e928ea13dfb5296be64b77d4baf0a69e9b7b3e3665763ba0937fb5510896914', '2026-04-28 10:39:45.7+00', 'workflow', '2026-04-22 07:02:51.23626+00', '2026-04-28 10:39:45.7+00')
-ON CONFLICT (id) DO NOTHING;

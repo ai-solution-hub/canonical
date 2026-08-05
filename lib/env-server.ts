@@ -66,10 +66,6 @@ const serverSchema = z.object({
   // -- Classification batch sizing (coerced from string env value)
   CLASSIFICATION_BATCH_SIZE: z.coerce.number().int().positive().default(25),
 
-  // -- Taxonomy sync
-  GITHUB_SYNC_TOKEN: z.string().min(1).optional().or(z.literal('')),
-  TAXONOMY_SYNC_CALLBACK_SECRET: z.string().min(1).optional().or(z.literal('')),
-
   // -- Sentry server-side (release tagging, source-map upload).
   //    Vercel→Sentry integration emits these UN-prefixed by default;
   //    keeping the bare names avoids a translation layer in CI.

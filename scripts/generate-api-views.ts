@@ -171,7 +171,6 @@ export const SURFACE_TABLES: readonly string[] = [
   'tag_morphology_drift_flags',
   'taxonomy_domains',
   'taxonomy_subtopics',
-  'taxonomy_sync_state',
   'template_completions',
   'tenant_config',
   'user_notification_prefs',
