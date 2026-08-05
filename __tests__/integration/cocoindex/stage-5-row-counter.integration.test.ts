@@ -71,6 +71,9 @@ const POLL_TIMEOUT_MS = 180_000;
 
 const FIXTURE_PATH = FORM_TEMPLATE.cspChecklistXlsx;
 
+/** Two awaited walks in `beforeAll`, plus slack. */
+const SETUP_BUDGET_MS = WALK_BUDGET_MS * 2 + 30_000;
+
 beforeAll(async () => {
   if (!ENABLED) return;
   // Two-doc corpus with a cross-document duplicate that forces >= 1 UPDATE.
@@ -84,7 +87,7 @@ beforeAll(async () => {
     destPath: `inv-11/${TEST_PREFIX}-B.xlsx`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
-}, WALK_BUDGET_MS * 2 + 30_000);
+}, SETUP_BUDGET_MS);
 
 afterAll(async () => {
   if (!ENABLED) return;

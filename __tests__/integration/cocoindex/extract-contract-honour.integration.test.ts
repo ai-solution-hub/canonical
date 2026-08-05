@@ -204,6 +204,10 @@ const POLL_TIMEOUT_MS = 180_000;
 // describe block skips.
 // ---------------------------------------------------------------------------
 
+/** One awaited walk PER fixture, plus the landing poll, plus slack. */
+const SETUP_BUDGET_MS =
+  WALK_BUDGET_MS * FIXTURES.length + POLL_TIMEOUT_MS + 30_000;
+
 beforeAll(async () => {
   if (!ENABLED) return;
   // Drop one fixture file of each extraction-kind into the pinned corpus
@@ -235,7 +239,7 @@ beforeAll(async () => {
   for (const row of polled) {
     seededContentIds.push(row.id);
   }
-}, WALK_BUDGET_MS * FIXTURES.length + POLL_TIMEOUT_MS + 30_000);
+}, SETUP_BUDGET_MS);
 
 afterAll(async () => {
   if (!ENABLED) return;
