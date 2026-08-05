@@ -20,9 +20,6 @@ vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
   scoreRelevance: vi.fn(),
 }));
-vi.mock('@/lib/ai/classify', () => ({
-  classifyContent: vi.fn(),
-}));
 
 const mockGenerateEmbedding = vi.fn();
 vi.mock('@/lib/ai/embed', async (importOriginal) => {

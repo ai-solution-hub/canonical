@@ -73,9 +73,6 @@ describe('lib/ai grounding-shape contract (B-INV-35)', () => {
 
   it('covers all nine lib/ai touchpoints', () => {
     const expected: AiTouchpointId[] = [
-      'classify.classifyContent',
-      'classify.classifyText',
-      'classify.validateEntities',
       'draft.analyseQuestion',
       'draft.draftResponse',
       'quality-check.runAIQualityCheck',
