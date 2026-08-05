@@ -3487,6 +3487,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      corpus_writer_fence_lease_renew: {
+        Args: {
+          p_holder?: string
+          p_holder_token: string
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
+      }
       corpus_writer_fence_release: {
         Args: { p_holder?: string }
         Returns: boolean
@@ -7722,6 +7730,14 @@ export type Database = {
           p_fence_name?: string
           p_holder?: string
           p_holder_token: string
+        }
+        Returns: boolean
+      }
+      corpus_writer_fence_lease_renew: {
+        Args: {
+          p_holder?: string
+          p_holder_token: string
+          p_ttl_seconds?: number
         }
         Returns: boolean
       }
