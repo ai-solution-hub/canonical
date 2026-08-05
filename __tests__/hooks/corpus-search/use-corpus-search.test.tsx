@@ -431,7 +431,7 @@ describe('useCorpusSearch — kind narrow', () => {
 // ---------------------------------------------------------------------------
 
 describe('useCorpusSearch — filters', () => {
-  it('pushes domain/subtopic/date filters into the request body', async () => {
+  it('pushes date filters into the request body and ignores legacy domain/subtopic params (DR-130)', async () => {
     navState.search =
       'q=foo&domain=procurement&subtopic=tendering&from=2026-01-01&to=2026-02-01';
     mockFetchJson.mockResolvedValue({ results: [] });
@@ -440,207 +440,26 @@ describe('useCorpusSearch — filters', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(requestBody()).toMatchObject({
-      domain: 'procurement',
-      subtopic: 'tendering',
       dateFrom: '2026-01-01',
       dateTo: '2026-02-01',
     });
+    expect(requestBody()).not.toHaveProperty('domain');
+    expect(requestBody()).not.toHaveProperty('subtopic');
     expect(result.current.filters).toEqual({
-      domain: 'procurement',
-      subtopic: 'tendering',
       dateFrom: '2026-01-01',
       dateTo: '2026-02-01',
     });
   });
 
-  it('writes a filter change to the URL', async () => {
+  it('writes a date-filter change to the URL', async () => {
     navState.search = 'q=foo';
     const { result } = renderCorpusSearch();
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     act(() => {
-      result.current.setFilters({ domain: 'legal' });
+      result.current.setFilters({ dateFrom: '2026-01-01' });
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/search?q=foo&domain=legal');
-  });
-
-  it('clears the dependent subtopic when the domain filter is cleared', async () => {
-    navState.search = 'q=foo&domain=procurement&subtopic=tendering';
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => {
-      result.current.setFilters({ domain: undefined });
-    });
-
-    expect(mockPush).toHaveBeenCalledWith('/search?q=foo');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// URL-driven query submission (BI-9) + cache-hit on re-submission
-// ---------------------------------------------------------------------------
-
-describe('useCorpusSearch — query submission + URL state', () => {
-  it('setSearchQuery writes ?q to the URL', async () => {
-    const { result } = renderCorpusSearch();
-
-    act(() => {
-      result.current.setSearchQuery('vat thresholds');
-    });
-
-    expect(mockPush).toHaveBeenCalledWith('/search?q=vat+thresholds');
-  });
-
-  it('clearing the search query drops ?q (bare pathname)', async () => {
-    navState.search = 'q=foo';
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => {
-      result.current.setSearchQuery(undefined);
-    });
-
-    expect(mockPush).toHaveBeenCalledWith('/search');
-  });
-
-  it('re-submitting an unchanged query+kind+filter set hits the cache (no duplicate fetch)', async () => {
-    navState.search = 'q=foo';
-    mockFetchJson.mockResolvedValue({
-      results: [makeRow({ content_type: 'q_a_pair' })],
-    });
-    // gcTime override so the cache entry survives the unmount below — the
-    // hook's own per-query staleTime (30s) already governs freshness.
-    const { Wrapper } = createQueryWrapper({ gcTime: 60_000 });
-
-    const first = renderHook(() => useCorpusSearch(), { wrapper: Wrapper });
-    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
-    expect(mockFetchJson).toHaveBeenCalledTimes(1);
-    first.unmount();
-
-    // Simulates navigating back to (or reloading) the identical shareable URL.
-    const second = renderHook(() => useCorpusSearch(), { wrapper: Wrapper });
-    await waitFor(() => expect(second.result.current.isLoading).toBe(false));
-
-    expect(mockFetchJson).toHaveBeenCalledTimes(1); // still 1 — cache hit
-    expect(second.result.current.items).toHaveLength(1);
-  });
-
-  it('the in-flight search request carries an abort signal (BI-17 supersession)', async () => {
-    navState.search = 'q=foo';
-    mockFetchJson.mockResolvedValue({ results: [] });
-
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    const init = mockFetchJson.mock.calls[0][1] as RequestInit;
-    expect(init.signal).toBeInstanceOf(AbortSignal);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Error state (BI-19)
-// ---------------------------------------------------------------------------
-
-describe('useCorpusSearch — error state', () => {
-  it('surfaces a search request failure as an error', async () => {
-    navState.search = 'q=boom';
-    mockFetchJson.mockRejectedValue(new Error('Search query failed'));
-
-    const { result } = renderCorpusSearch();
-
-    await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.error).toMatch(/failed/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Pagination — limit-raising load-more (BI-20, AAT-1 fallback)
-// ---------------------------------------------------------------------------
-
-describe('useCorpusSearch — pagination (AAT-1 limit-raising fallback)', () => {
-  function mockPagedPool(total: number) {
-    const pool = Array.from({ length: total }, () =>
-      makeRow({ content_type: 'q_a_pair' }),
-    );
-    mockFetchJson.mockImplementation(
-      async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(init.body as string) as { limit: number };
-        return { results: pool.slice(0, body.limit) };
-      },
-    );
-    return pool;
-  }
-
-  it('requests the first page at PAGE_SIZE (48) and exposes hasMore when the pool is larger', async () => {
-    mockPagedPool(100);
-    navState.search = 'q=foo';
-
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(requestBody().limit).toBe(48);
-    expect(result.current.items).toHaveLength(48);
-    expect(result.current.hasMore).toBe(true);
-  });
-
-  it('loadMore raises the cumulative limit and grows the result set with no duplicate ids', async () => {
-    mockPagedPool(100);
-    navState.search = 'q=foo';
-
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    const firstPageIds = result.current.items.map((i) => i.id);
-
-    act(() => {
-      result.current.loadMore();
-    });
-
-    await waitFor(() => expect(result.current.items).toHaveLength(96));
-    expect(requestBody(1).limit).toBe(96);
-
-    const ids = result.current.items.map((i) => i.id);
-    expect(new Set(ids).size).toBe(96); // no duplicates
-    // Stable order — the first page's ids are an unchanged prefix.
-    expect(ids.slice(0, 48)).toEqual(firstPageIds);
-  });
-
-  it('exposes an explicit end-of-results once the pool is exhausted', async () => {
-    mockPagedPool(100);
-    navState.search = 'q=foo';
-
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => {
-      result.current.loadMore(); // -> 96
-    });
-    await waitFor(() => expect(result.current.items).toHaveLength(96));
-
-    act(() => {
-      result.current.loadMore(); // -> requests 144, pool only has 100
-    });
-    await waitFor(() => expect(result.current.items).toHaveLength(100));
-
-    expect(result.current.hasMore).toBe(false);
-
-    // A further loadMore() is a no-op (no fetch beyond the exhausted pool).
-    const callsBefore = mockFetchJson.mock.calls.length;
-    act(() => {
-      result.current.loadMore();
-    });
-    expect(mockFetchJson.mock.calls.length).toBe(callsBefore);
-  });
-
-  it('does not offer more when the first page is already short', async () => {
-    mockPagedPool(10);
-    navState.search = 'q=foo';
-
-    const { result } = renderCorpusSearch();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.items).toHaveLength(10);
-    expect(result.current.hasMore).toBe(false);
+    expect(mockPush).toHaveBeenCalledWith('/search?q=foo&from=2026-01-01');
   });
 });

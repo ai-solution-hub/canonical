@@ -30,15 +30,11 @@ export type CorpusSearchResult =
       kind: 'answer';
       answerSnippet: string;
       scopeTags: string[];
-      primaryDomain: string | null;
-      primarySubtopic: string | null;
     })
   | (CorpusResultBase & {
       // document (source_document) → links into /documents/[id] (Surface B).
       kind: 'document';
       summary: string | null;
-      primaryDomain: string | null;
-      primarySubtopic: string | null;
     })
   | (CorpusResultBase & {
       // reference (reference_item) → links out to /reference/[id].
@@ -47,14 +43,12 @@ export type CorpusSearchResult =
     });
 
 /**
- * Surface A's reduced metadata filter set (BI-16) — domain / subtopic /
- * date, applied on top of a query to narrow the merged multi-grain result
- * list. Every field is optional; an empty object is a valid "no filters"
- * state (the default).
+ * Surface A's reduced metadata filter set (BI-16) — date range, applied on
+ * top of a query to narrow the merged multi-grain result list. Every field
+ * is optional; an empty object is a valid "no filters" state (the default).
+ * The former domain/subtopic filters retired with the subject axis (DR-130).
  */
 export interface CorpusSearchFilters {
-  domain?: string;
-  subtopic?: string;
   dateFrom?: string;
   dateTo?: string;
 }

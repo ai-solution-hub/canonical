@@ -140,8 +140,8 @@ export const SearchBodySchema = z.object({
   // vocabulary (answer|document|reference); the RPC maps it to arms, no
   // translation here.
   kind: z.enum(['answer', 'document', 'reference']).optional(),
-  domain: z.string().optional(),
-  subtopic: z.string().optional(),
+  // (domain/subtopic filters retired with the subject axis, DR-130 — the
+  // hybrid_search filter_domain/filter_subtopic RPC params drop with it.)
   // Boundary-normalisation fix (S460): the sole shipped caller is the
   // native <input type="date"> in corpus-search-controls.tsx, which emits
   // bare YYYY-MM-DD (no time component) via e.target.value — a

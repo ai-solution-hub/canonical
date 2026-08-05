@@ -61,8 +61,6 @@ interface RawCorpusSearchRow {
   title: string | null;
   suggested_title: string | null;
   summary: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
   /**
    * Per-arm value: the source_documents arm emits `sd.content_type` verbatim
    * — the DOCUMENT'S OWN taxonomy content-type value (e.g. 'guidance') —
@@ -121,8 +119,6 @@ function toCorpusSearchResult(row: RawCorpusSearchRow): CorpusSearchResult {
       // — the answer preview.
       answerSnippet: row.summary ?? '',
       scopeTags: row.scope_tag ?? [],
-      primaryDomain: row.primary_domain,
-      primarySubtopic: row.primary_subtopic,
     };
   }
 
@@ -140,8 +136,6 @@ function toCorpusSearchResult(row: RawCorpusSearchRow): CorpusSearchResult {
     kind: 'document',
     title,
     summary: row.summary,
-    primaryDomain: row.primary_domain,
-    primarySubtopic: row.primary_subtopic,
   };
 }
 
@@ -222,8 +216,6 @@ export function useCorpusSearch(): UseCorpusSearchReturn {
 
   const filters: CorpusSearchFilters = useMemo(
     () => ({
-      domain: searchParams.get('domain') ?? undefined,
-      subtopic: searchParams.get('subtopic') ?? undefined,
       dateFrom: searchParams.get('from') ?? undefined,
       dateTo: searchParams.get('to') ?? undefined,
     }),
@@ -250,8 +242,6 @@ export function useCorpusSearch(): UseCorpusSearchReturn {
           body: JSON.stringify({
             query: searchQuery,
             kind, // Forward-compatible §9 type/scope narrow param (AAT-1/AAT-2).
-            domain: filters.domain,
-            subtopic: filters.subtopic,
             dateFrom: filters.dateFrom,
             dateTo: filters.dateTo,
             limit: pageParam,
@@ -330,18 +320,6 @@ export function useCorpusSearch(): UseCorpusSearchReturn {
     (next: Partial<CorpusSearchFilters>) => {
       const params = new URLSearchParams(searchParams.toString());
 
-      if ('domain' in next) {
-        if (next.domain) params.set('domain', next.domain);
-        else {
-          params.delete('domain');
-          // Clearing the domain clears the dependent subtopic too.
-          params.delete('subtopic');
-        }
-      }
-      if ('subtopic' in next) {
-        if (next.subtopic) params.set('subtopic', next.subtopic);
-        else params.delete('subtopic');
-      }
       if ('dateFrom' in next) {
         if (next.dateFrom) params.set('from', next.dateFrom);
         else params.delete('from');

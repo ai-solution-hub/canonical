@@ -105,7 +105,7 @@ describe('SearchBodySchema', () => {
   // ID-144.6 (OBS-4 fix): kind/domain/subtopic/dateFrom/dateTo must be
   // RETAINED (previously silently stripped by Zod, so BI-16 filters never
   // reached the server).
-  it('should retain kind, domain, subtopic, dateFrom and dateTo when supplied', () => {
+  it('retains kind/dateFrom/dateTo and strips the retired domain/subtopic keys (DR-130)', () => {
     const result = SearchBodySchema.safeParse({
       query: 'test',
       kind: 'document',
@@ -117,8 +117,10 @@ describe('SearchBodySchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.kind).toBe('document');
-      expect(result.data.domain).toBe('finance');
-      expect(result.data.subtopic).toBe('invoicing');
+      // Legacy domain/subtopic keys from a stale client are silently
+      // stripped — the subject-axis filters retired with DR-130.
+      expect(result.data).not.toHaveProperty('domain');
+      expect(result.data).not.toHaveProperty('subtopic');
       expect(result.data.dateFrom).toBe('2026-01-01T00:00:00.000Z');
       expect(result.data.dateTo).toBe('2026-06-30T23:59:59.999Z');
     }

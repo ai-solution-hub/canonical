@@ -78,13 +78,8 @@ export const CorpusResultCard = memo(function CorpusResultCard({
         ? result.summary
         : null;
 
-  const domainBadges =
-    result.kind === 'answer' || result.kind === 'document'
-      ? [result.primaryDomain, result.primarySubtopic].filter(
-          (value): value is string => Boolean(value),
-        )
-      : [];
-
+  // (The former domain/subtopic badges retired with the subject axis,
+  // DR-130 — scope tags are the surviving badge row.)
   const scopeTags = result.kind === 'answer' ? result.scopeTags : [];
 
   return (
@@ -99,15 +94,6 @@ export const CorpusResultCard = memo(function CorpusResultCard({
           <KindIcon className="size-3 shrink-0" aria-hidden="true" />
           {kindLabel}
         </Badge>
-        {domainBadges.map((value, index) => (
-          <Badge
-            key={`${value}-${index}`}
-            variant="secondary"
-            className="text-[10px]"
-          >
-            {value}
-          </Badge>
-        ))}
         {scopeTags.map((tag) => (
           <Badge key={tag} variant="outline" className="text-[10px]">
             {tag}
