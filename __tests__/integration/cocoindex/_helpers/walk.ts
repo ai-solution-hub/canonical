@@ -44,7 +44,21 @@ const TERMINAL_REGISTRY_STATUSES = new Set([
   'fence_busy',
 ]);
 
-const DEFAULT_WALK_TIMEOUT_MS = 300_000;
+/**
+ * Default per-walk budget (ms) — the ceiling `requestWalk` / `awaitWalk` /
+ * `runWalk` each apply when the caller passes no `timeoutMs`.
+ *
+ * EXPORTED because a spec's Vitest hook budget is a function of it: a
+ * `beforeAll` that awaits N walks cannot be given less than `N *
+ * WALK_BUDGET_MS` without the hook expiring FIRST — which aborts the await
+ * while the walk is still running sidecar-side, so the next spec's
+ * `requestWalk` meets the single-flight 409 and burns its own budget
+ * re-requesting. Express hook budgets as multiples of this constant rather
+ * than as literals, so a change here propagates to every caller.
+ */
+export const WALK_BUDGET_MS = 300_000;
+
+const DEFAULT_WALK_TIMEOUT_MS = WALK_BUDGET_MS;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 /** 409 (walk already in flight) re-request backoff. */
 const IN_FLIGHT_RETRY_MS = 2_000;

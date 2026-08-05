@@ -60,6 +60,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import {
   assertOpIdRoundTrip,
   pollEntityMentionsFor,
@@ -108,12 +109,12 @@ beforeAll(async () => {
     destPath: `c54-freshness/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
-}, 60_000);
+}, WALK_BUDGET_MS * 2 + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'C-54 — canonical_name post-completion read-contract, stability, and Inv-7 op_id re-stamp',

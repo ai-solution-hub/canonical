@@ -77,6 +77,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { pollContentItemsFor, stageFixture } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { FORM_TEMPLATE } from './_helpers/fixtures';
 
 // ---------------------------------------------------------------------------
@@ -138,7 +139,7 @@ beforeAll(async () => {
     timeoutMs: POLL_TIMEOUT_MS,
   });
   for (const r of items) seededContentIds.push(r.id);
-}, POLL_TIMEOUT_MS + 30_000);
+}, WALK_BUDGET_MS + POLL_TIMEOUT_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -155,7 +156,7 @@ afterAll(async () => {
   // ID-131.19 M6 retirement: content_items DROPPED at M6; seededContentIds
   // holds source_documents.id values.
   await client.from('source_documents').delete().in('id', seededContentIds);
-}, 600_000);
+}, 30_000);
 
 // ---------------------------------------------------------------------------
 // The test — Inv-21 memo-hit determinism on re-ingest.

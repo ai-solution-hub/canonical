@@ -57,7 +57,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
-import { runWalk } from './_helpers/walk';
+import { WALK_BUDGET_MS, runWalk } from './_helpers/walk';
 import { KH_CANONICAL_PIPELINE_NAME } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -87,7 +87,7 @@ beforeAll(async () => {
     titlePrefix: TEST_PREFIX,
   });
   walkA = staged.walk ? { opId: staged.walk.opId } : null;
-}, 330_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -99,7 +99,7 @@ afterAll(async () => {
     // source_documents replaces it as the seeded-row cleanup target.
     await client.from('source_documents').delete().in('id', seededContentIds);
   }
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-15 + Inv-16 — memo-hit pipeline_runs landing AND audit-log silence on no-op',

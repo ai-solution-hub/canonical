@@ -39,7 +39,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
-import { runWalk } from './_helpers/walk';
+import { WALK_BUDGET_MS, runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -52,7 +52,6 @@ const ENABLED =
 const TEST_PREFIX = `[NM1-INGESTONCE-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 
-const WALK_BUDGET_MS = 300_000;
 const POLL_TIMEOUT_MS = 120_000;
 
 afterAll(async () => {

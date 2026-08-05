@@ -49,6 +49,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import {
   pollEntityMentionsFor,
   readEntityResolutionStageCount,
@@ -83,12 +84,12 @@ beforeAll(async () => {
     destPath: `inv-11/${TEST_PREFIX}-B.xlsx`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
-}, 60_000);
+}, WALK_BUDGET_MS * 2 + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-11 — stage_counts.entity_resolution equals the count of changed rows',

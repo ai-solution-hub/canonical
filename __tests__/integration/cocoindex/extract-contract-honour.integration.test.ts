@@ -79,6 +79,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 
 // ---------------------------------------------------------------------------
 // Env-gate — Inv-20 requires three things in concert:
@@ -194,6 +195,9 @@ const VALID_EXPECTED_RESPONSE_KINDS = ['mandatory', 'optional'] as const;
 const TEST_PREFIX = `[28.14-INV20-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 
+/** Landing poll ceiling for the staged fixtures (see the beforeAll below). */
+const POLL_TIMEOUT_MS = 180_000;
+
 // ---------------------------------------------------------------------------
 // Lifecycle — when ENABLED, ingest one fixture of each extraction-kind via
 // the fs-watch corpus drop. When DISABLED, beforeAll is a no-op and the
@@ -226,12 +230,12 @@ beforeAll(async () => {
   // by source_document_id), but a single landed row is sufficient evidence
   // that the staging pipeline is alive.
   const polled = await pollContentItemsFor(TEST_PREFIX, {
-    timeoutMs: 180_000,
+    timeoutMs: POLL_TIMEOUT_MS,
   });
   for (const row of polled) {
     seededContentIds.push(row.id);
   }
-}, 240_000);
+}, WALK_BUDGET_MS * FIXTURES.length + POLL_TIMEOUT_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -239,7 +243,7 @@ afterAll(async () => {
     titlePrefix: TEST_PREFIX,
     contentIds: seededContentIds,
   });
-}, 60_000);
+}, 30_000);
 
 // ---------------------------------------------------------------------------
 // The test — Inv-20 contract-honour.

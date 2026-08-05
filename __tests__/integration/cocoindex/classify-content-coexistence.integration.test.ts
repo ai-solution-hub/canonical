@@ -45,6 +45,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor } from './test-helpers';
 
 // PLANE MISMATCH — id-415's work list (measured by id-412, S524).
@@ -132,7 +133,7 @@ beforeAll(async () => {
     destPath: `inv-8/${TEST_PREFIX}.xlsx`,
     titlePrefix: TEST_PREFIX,
   });
-}, 60_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -149,7 +150,7 @@ afterAll(async () => {
       .eq('id', nullOpContentItemId);
   }
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-8 — Stage-5 never overwrites a NULL-op_id classifyContent row',

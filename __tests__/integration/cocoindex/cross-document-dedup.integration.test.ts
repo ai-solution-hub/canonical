@@ -35,6 +35,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -76,12 +77,12 @@ beforeAll(async () => {
     destPath: `inv-3-dedup/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
-}, 60_000);
+}, WALK_BUDGET_MS * 2 + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: TEST_PREFIX, contentIds: seededContentIds });
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-3 — cross-document dedup resolves surface variants to one canonical',

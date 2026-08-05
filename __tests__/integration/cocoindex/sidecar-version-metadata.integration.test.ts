@@ -48,6 +48,7 @@ import {
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -96,7 +97,7 @@ beforeAll(async () => {
     titlePrefix: TEST_PREFIX,
   });
   stagedWalkOpId = staged.walk?.opId ?? null;
-}, 330_000);
+}, WALK_BUDGET_MS + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
@@ -111,7 +112,7 @@ afterAll(async () => {
     // holds source_documents.id values.
     await client.from('source_documents').delete().in('id', seededContentIds);
   }
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-8 — sidecar version metadata in pipeline_runs.result',

@@ -37,6 +37,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor } from './test-helpers';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -79,13 +80,13 @@ beforeAll(async () => {
     destPath: `inv-21-w2/${W2_PREFIX}.md`,
     titlePrefix: W2_PREFIX,
   });
-}, 60_000);
+}, WALK_BUDGET_MS * 2 + 30_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   await dropFixture({ titlePrefix: W1_PREFIX, contentIds: seededContentIds });
   await dropFixture({ titlePrefix: W2_PREFIX, contentIds: seededContentIds });
-}, 600_000);
+}, 30_000);
 
 describe.skipIf(!ENABLED)(
   'Inv-21 — Stage-5 does not merge entities across workspace boundaries',

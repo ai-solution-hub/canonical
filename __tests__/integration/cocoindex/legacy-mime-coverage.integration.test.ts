@@ -33,7 +33,7 @@ import {
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
 import { FORM_TEMPLATE } from './_helpers/fixtures';
-import { runWalk } from './_helpers/walk';
+import { WALK_BUDGET_MS, runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -45,7 +45,6 @@ const ENABLED =
 
 const TEST_PREFIX = `[NM3-LEGACY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 
-const WALK_BUDGET_MS = 300_000;
 
 const LEGACY_FIXTURES = [
   {

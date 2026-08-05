@@ -45,6 +45,7 @@ import {
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
+import { WALK_BUDGET_MS } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -59,7 +60,6 @@ const ENABLED =
 const TEST_PREFIX = `[NM2-KEEPWATCH-${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
 const seededContentIds: string[] = [];
 
-const WALK_BUDGET_MS = 300_000;
 
 afterAll(async () => {
   if (!ENABLED) return;
