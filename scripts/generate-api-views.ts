@@ -235,7 +235,6 @@ const SURFACE_RPCS: readonly string[] = [
   'get_freshness_breakdown',
   'get_guide_content',
   'get_items_needing_layer',
-  'get_popular_keywords',
   'get_review_breakdown_stats',
   'get_user_display_names',
   'hybrid_search',
