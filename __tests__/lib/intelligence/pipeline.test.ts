@@ -1689,4 +1689,87 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
       );
     });
   });
+
+  // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token
+  // headers ride ALONGSIDE the bearer when configured, and are silently
+  // OMITTED otherwise — unlike the bearer, an absent CF_ACCESS_* pair must
+  // never skip, warn, or error. That no-op property is what keeps the
+  // ingress-cutover rollback DNS-only with no app redeploy.
+  describe('CF Access service-token headers ({127.20} — private-ingress-cutover §3.3)', () => {
+    it('sends CF-Access-* alongside the UNCHANGED bearer when both vars are set', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', 'cf-id.access');
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', 'cf-secret');
+      await primePassedArticleMocks();
+      const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+      const result = await runPipeline(supabase);
+
+      expect(result.totalArticlesPassed).toBe(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cocoindex-worker.example.com/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer test-pipeline-trigger-secret',
+            'CF-Access-Client-Id': 'cf-id.access',
+            'CF-Access-Client-Secret': 'cf-secret',
+          },
+        }),
+      );
+    });
+
+    it('no-op-safe: OMITS CF-Access-* and still fires the nudge with the unchanged bearer when the pair is unset', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', undefined);
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', undefined);
+      await primePassedArticleMocks();
+      const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+      const result = await runPipeline(supabase);
+
+      // The call proceeds exactly as before — no skip, no warn, no error.
+      expect(result.totalArticlesPassed).toBe(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cocoindex-worker.example.com/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
+        }),
+      );
+    });
+
+    it('id-389 empty-env hazard: treats empty-string CF_ACCESS_* as unset — headers omitted, nudge unchanged', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', '');
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', '   ');
+      await primePassedArticleMocks();
+      const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+      const result = await runPipeline(supabase);
+
+      // A compose/Vercel `${VAR:-}` passthrough must never send blank headers.
+      expect(result.totalArticlesPassed).toBe(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cocoindex-worker.example.com/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
+        }),
+      );
+    });
+
+    it('never sends a half pair: omits BOTH headers when only one of the pair is set', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', 'cf-id.access');
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', undefined);
+      await primePassedArticleMocks();
+      const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+      await runPipeline(supabase);
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cocoindex-worker.example.com/walk',
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
+        }),
+      );
+    });
+  });
 });

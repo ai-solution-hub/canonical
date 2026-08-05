@@ -467,6 +467,8 @@ describe('stageAndWalk', () => {
       delete process.env.COCOINDEX_WORKER_URL;
       delete process.env.PIPELINE_TRIGGER_SECRET;
       delete process.env.CRON_SECRET;
+      delete process.env.CF_ACCESS_CLIENT_ID;
+      delete process.env.CF_ACCESS_CLIENT_SECRET;
     });
 
     it('fires a POST to {COCOINDEX_WORKER_URL}/walk on the happy path when configured', async () => {
@@ -551,6 +553,80 @@ describe('stageAndWalk', () => {
       expect(loggerMocks.warn).toHaveBeenCalledWith(
         expect.objectContaining({ objectKey: input.destPath }),
         expect.stringContaining('COCOINDEX_WORKER_URL unset'),
+      );
+    });
+
+    // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token
+    // headers ride ALONGSIDE the bearer when configured, and are silently
+    // OMITTED otherwise — unlike the bearer, an absent CF_ACCESS_* pair must
+    // never skip, warn, or error. That no-op property is what keeps the
+    // ingress-cutover rollback DNS-only with no app redeploy.
+    it('{127.20}: sends CF-Access-* alongside the UNCHANGED bearer when both vars are set', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
+      process.env.CF_ACCESS_CLIENT_ID = 'cf-id.access';
+      process.env.CF_ACCESS_CLIENT_SECRET = 'cf-secret';
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer test-pipeline-trigger-secret',
+            'CF-Access-Client-Id': 'cf-id.access',
+            'CF-Access-Client-Secret': 'cf-secret',
+          },
+        }),
+      );
+    });
+
+    it('{127.20} no-op-safe: OMITS CF-Access-* and still nudges with the unchanged bearer when the pair is unset', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
+      delete process.env.CF_ACCESS_CLIENT_ID;
+      delete process.env.CF_ACCESS_CLIENT_SECRET;
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The call proceeds exactly as before — no skip, no warn, no error.
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
+        }),
+      );
+    });
+
+    it('{127.20} id-389 empty-env hazard: treats empty-string CF_ACCESS_* as unset — headers omitted, nudge unchanged', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
+      process.env.CF_ACCESS_CLIENT_ID = '';
+      process.env.CF_ACCESS_CLIENT_SECRET = '   ';
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // A compose/Vercel `${VAR:-}` passthrough must never send blank headers.
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://worker.example.test/walk',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-pipeline-trigger-secret' },
+        }),
       );
     });
   });

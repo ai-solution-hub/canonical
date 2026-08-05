@@ -133,4 +133,56 @@ describe('cleanViaWorker', () => {
       ExtractEndpointError,
     );
   });
+
+  // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token
+  // headers ride ALONGSIDE the dedicated bearer when configured, and are
+  // silently OMITTED otherwise — unlike the bearer config, an absent
+  // CF_ACCESS_* pair must never throw ExtractEndpointError. That no-op
+  // property is what keeps the ingress-cutover rollback DNS-only with no
+  // app redeploy.
+  describe('CF Access service-token headers ({127.20} — private-ingress-cutover §3.3)', () => {
+    it('sends CF-Access-* alongside the UNCHANGED dedicated bearer when both vars are set', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', 'cf-id.access');
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', 'cf-secret');
+
+      await cleanViaWorker(HTML, FINAL_URL);
+
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      const headers = init.headers as Record<string, string>;
+      // Bearer and Content-Type are byte-identical to the pre-cutover shape.
+      expect(headers['Authorization']).toBe('Bearer test-extract-token');
+      expect(headers['Content-Type']).toBe('text/html; charset=utf-8');
+      expect(headers['CF-Access-Client-Id']).toBe('cf-id.access');
+      expect(headers['CF-Access-Client-Secret']).toBe('cf-secret');
+    });
+
+    it('no-op-safe: OMITS CF-Access-* when the pair is unset — the call proceeds, no ExtractEndpointError', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', undefined);
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', undefined);
+
+      const result = await cleanViaWorker(HTML, FINAL_URL);
+
+      expect(result.verdict).toBe('ok');
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.headers).toEqual({
+        Authorization: 'Bearer test-extract-token',
+        'Content-Type': 'text/html; charset=utf-8',
+      });
+    });
+
+    it('id-389 empty-env hazard: treats empty-string CF_ACCESS_* as unset — headers omitted, call proceeds', async () => {
+      vi.stubEnv('CF_ACCESS_CLIENT_ID', '');
+      vi.stubEnv('CF_ACCESS_CLIENT_SECRET', '   ');
+
+      const result = await cleanViaWorker(HTML, FINAL_URL);
+
+      // A compose/Vercel `${VAR:-}` passthrough must never send blank headers.
+      expect(result.verdict).toBe('ok');
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(init.headers).toEqual({
+        Authorization: 'Bearer test-extract-token',
+        'Content-Type': 'text/html; charset=utf-8',
+      });
+    });
+  });
 });

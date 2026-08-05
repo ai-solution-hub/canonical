@@ -295,9 +295,27 @@ function nudgeCorpusRewalk(objectKey: string): void {
     return;
   }
 
+  // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token
+  // headers, sent ALONGSIDE the bearer (additive, never replacing). No-op-safe
+  // by design: unset CF_ACCESS_* simply omits the headers — never skips, warns
+  // or errors, unlike the bearer guards above. That property is what keeps the
+  // ingress-cutover rollback DNS-only with NO app redeploy. Empty-string values
+  // are treated as unset (trim + falsy — the id-389 empty-env hazard), so a
+  // compose/Vercel `${VAR:-}` passthrough can never send a blank header.
+  const cfAccessClientId = process.env.CF_ACCESS_CLIENT_ID?.trim();
+  const cfAccessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim();
+
   void fetch(`${workerUrl.replace(/\/$/, '')}/walk`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${pipelineTriggerSecret}` },
+    headers: {
+      Authorization: `Bearer ${pipelineTriggerSecret}`,
+      ...(cfAccessClientId && cfAccessClientSecret
+        ? {
+            'CF-Access-Client-Id': cfAccessClientId,
+            'CF-Access-Client-Secret': cfAccessClientSecret,
+          }
+        : {}),
+    },
     signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
   })
     .then((res) => {

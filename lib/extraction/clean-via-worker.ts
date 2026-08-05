@@ -95,6 +95,17 @@ export async function cleanViaWorker(
   const { workerUrl, token } = resolveExtractConfig();
   const endpoint = `${workerUrl}/extract?url=${encodeURIComponent(finalUrl)}`;
 
+  // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token
+  // headers, sent ALONGSIDE the bearer (additive, never replacing). No-op-safe
+  // by design: unset CF_ACCESS_* simply omits the headers — never throws the
+  // typed ExtractEndpointError the way unset bearer config does. That property
+  // is what keeps the ingress-cutover rollback DNS-only with NO app redeploy.
+  // Empty-string values are treated as unset (trim + falsy — the id-389
+  // empty-env hazard), so a compose/Vercel `${VAR:-}` passthrough can never
+  // send a blank header.
+  const cfAccessClientId = process.env.CF_ACCESS_CLIENT_ID?.trim();
+  const cfAccessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim();
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), EXTRACT_TIMEOUT_MS);
 
@@ -106,6 +117,12 @@ export async function cleanViaWorker(
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'text/html; charset=utf-8',
+        ...(cfAccessClientId && cfAccessClientSecret
+          ? {
+              'CF-Access-Client-Id': cfAccessClientId,
+              'CF-Access-Client-Secret': cfAccessClientSecret,
+            }
+          : {}),
       },
       body: html,
     });
