@@ -43,8 +43,6 @@ References:
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import contextvars
 import hashlib
 import json
 import logging
@@ -53,7 +51,6 @@ import os
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -745,100 +742,70 @@ KH_CANONICAL_PIPELINE_NAME = "kh_canonical_pipeline"
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# TEMPORARY DIAGNOSTIC — per-stage wall-clock (id-415, S535)
+# TEMPORARY DIAGNOSTIC — per-phase wall-clock bisect of `app_main` (id-415)
 #
-# WHY THIS EXISTS. Nightly run 30989321051 logged one clean corpus walk over
-# 14 files at `351s overall (fence-busy retries=0)` on the MOCK LLM tier —
-# ~25s/file. At that rate the cocoindex Vitest tier needs ~2.5h of walks
-# against a 90-minute job cap, so the nightly is cancelled every run. Nothing
-# in this pipeline records where those 351s go: `stage_counts` counts ROWS,
-# never milliseconds, and cocoindex 1.0.3 exposes no per-stage completion
-# callback (see `_empty_stage_counts` and `flow_context`'s stage-counter note).
-# The open question this answers is a fork in the road: if the time is Docling
-# (`binary_conversion`), the fix is the image/extractor and no test changes;
-# if it is spread evenly, the fix is architectural (one shared walk in a Vitest
-# globalSetup) and touches ~26 specs.
+# WHY THIS EXISTS. Nightly run 31036034294 ran twelve corpus walks at 399–465s
+# each. A walk that ingested ONE item with ZERO binary conversions cost 399s; a
+# walk that ingested FOURTEEN items with fourteen conversions cost 457s. 58s
+# covers 14x the document work, so ~400s is FIXED overhead paid per walk
+# invocation whether the walk processes anything or not. Per-document cost is a
+# rounding error and the Docling hypothesis is dead. `stage_counts` counts ROWS,
+# never milliseconds, so nothing in this pipeline attributes that fixed cost to
+# a phase.
 #
-# SCOPE FENCE. Logging ONLY. This deliberately does NOT touch the terminal
-# status resolution (`flow_status`, id-414's surface), the webhook payload
-# shape, or the `pipeline_runs` counter columns (DR-109 → id-410 / id-71).
+# THE CONSTRAINT THAT KILLED THE PREVIOUS ATTEMPT (6c6656dba, reverted in this
+# same commit). That diagnostic timed the PER-ITEM stages through a
+# `contextvars.ContextVar` bound in `app_main`. The binding is NOT visible where
+# the per-item components run — `ingest_file` executes inside `mount_each` on
+# the engine's `_LoopRunner` daemon thread, which is exactly why the existing
+# counters route through the `FlowRunContext` holder (module scope) rather than
+# a ContextVar; see `flow_context.py`. Every per-stage number it emitted was a
+# structural zero (`item_total.n == 0` on all 12 walks while
+# `stage_counts.source_walk` read 14/3/1/1/2 on those same walks) that read like
+# a finding. `walk_wall_ms` was the one valid number, because it was measured in
+# `app_main`'s own execution context.
 #
-# REMOVE OR PROMOTE DELIBERATELY once the question is answered — do not let it
-# accrete. Promotion means a real timing channel on the webhook, which is
-# id-414/id-410 ground, not a quiet edit here.
+# THIS DIAGNOSTIC THEREFORE TIMES ONLY `app_main`'s OWN FRAME. The accumulator
+# is a plain local `dict` in `app_main`, passed EXPLICITLY to the helper below —
+# no ContextVar, no holder, no thread crossing. It is structurally incapable of
+# repeating the mistake: every phase boundary brackets an expression evaluated
+# directly in `app_main`'s coroutine.
+#
+# WHERE THE OUTPUT LANDS. The nightly dumps container output with
+# `docker logs cocoindex-sidecar > /tmp/cocoindex-sidecar.log` and uploads it as
+# the `cocoindex-nightly-logs-<runId>` artefact. This line therefore reaches the
+# UPLOADED ARTEFACT ONLY — it NEVER appears in the GitHub job log. Download the
+# artefact to read it; looking in the job log costs a round trip and finds
+# nothing.
+#
+# SCOPE FENCE. Logging ONLY. Deliberately does NOT touch terminal status
+# resolution (`flow_status`, id-414's surface), the webhook payload shape
+# (id-414 / id-410, DR-109), or the `pipeline_runs` counter columns (DR-109
+# routes those to id-410 / id-71).
+#
+# REMOVE OR PROMOTE DELIBERATELY once the phases are attributed — promotion
+# means a real timing channel on the webhook, which is id-414/id-410 ground.
 # ──────────────────────────────────────────────────────────────────────────
 
-_stage_timings_var: contextvars.ContextVar[dict[str, list[float]] | None] = (
-    contextvars.ContextVar("_kh_flow_stage_timings_var", default=None)
-)
 
+def _record_walk_phase(
+    phases: dict[str, float], name: str, started: float
+) -> None:
+    """Record wall-clock ms for one `app_main` phase into an explicit dict.
 
-def _begin_stage_timings() -> dict[str, list[float]]:
-    """Bind a fresh accumulator for this flow run and return it.
+    `phases` is `app_main`'s own local dict, passed in by the caller. That
+    explicitness is the point: the accumulator cannot be resolved from ambient
+    state, so this helper is unusable from the per-item components whose
+    execution context does not see `app_main`'s bindings.
 
-    SET without a paired reset, deliberately — mirroring `begin_flow_run`'s
-    lifetime for exactly its stated reason: under `update_blocking(live=True)`
-    the fs-watch re-runs per-item components AFTER `app_main` returns, and
-    those re-runs must still find a bound accumulator. A scoped context
-    manager would unbind it at the wrong moment and silently drop their
-    samples. Walks are single-flight (`server.py` /walk lock), so each run
-    overwrites the previous run's binding with no interleaving.
+    Marker form (measure from `started`) rather than a context manager, so the
+    phase boundaries add no indentation to a body whose call shapes are
+    load-bearing. A phase that RAISES therefore records nothing — which is
+    itself the signal: on a failed walk the emitted line carries every phase
+    that completed, and `total_ms` minus their sum is the time spent inside the
+    phase that raised.
     """
-    timings: dict[str, list[float]] = {}
-    _stage_timings_var.set(timings)
-    return timings
-
-
-@contextlib.asynccontextmanager
-async def _time_stage(stage: str) -> AsyncGenerator[None]:
-    """Accumulate wall-clock (ms) for one stage of one item.
-
-    A no-op when no accumulator is bound, so the legacy/unit-test callers that
-    invoke the ingest helpers outside `app_main` are unaffected. Timed on
-    `perf_counter`, and the sample is recorded even when the body raises —
-    a stage that fails slowly is exactly what we are hunting.
-    """
-    started = time.perf_counter()
-    try:
-        yield
-    finally:
-        timings = _stage_timings_var.get()
-        if timings is not None:
-            timings.setdefault(stage, []).append(
-                (time.perf_counter() - started) * 1000.0
-            )
-
-
-def _record_stage_sample(stage: str, started: float) -> None:
-    """Record one elapsed sample for `stage`, measured from `started`.
-
-    The marker form of `_time_stage`, for spans covering several statements
-    where wrapping in `async with` would mean re-indenting a block this
-    diagnostic has no business rewriting. No-ops when nothing is bound.
-    """
-    timings = _stage_timings_var.get()
-    if timings is not None:
-        timings.setdefault(stage, []).append((time.perf_counter() - started) * 1000.0)
-
-
-def _summarise_stage_timings(
-    timings: dict[str, list[float]],
-) -> dict[str, dict[str, float | int]]:
-    """Collapse raw per-item samples to {stage: {n, total_ms, max_ms}}.
-
-    `max_ms` is carried because the question is whether ONE file dominates
-    (a bad fixture) or every file costs the same (a slow stage) — a mean
-    alone cannot tell those apart.
-    """
-    return {
-        stage: {
-            "n": len(samples),
-            "total_ms": round(sum(samples), 1),
-            "max_ms": round(max(samples), 1),
-        }
-        for stage, samples in sorted(timings.items())
-    }
-
+    phases[name] = round((time.perf_counter() - started) * 1000.0, 1)
 
 def _empty_stage_counts() -> dict[str, int]:
     """Return the canonical seven-stage counter map initialised to zero.
@@ -2067,24 +2034,18 @@ async def _ingest_file_body(
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
-    # id-415 S535 diagnostic: per-item wall-clock. `item_total` minus the
-    # inner stage samples is the unattributed remainder (declare/flush, DB).
-    _item_started = time.perf_counter()
-    try:
-        await _ingest_content_branch(
-            file,
-            rel_path,
-            qa_target,
-            sd_target,
-            em_target,
-            cc_target,
-            er_target,
-            re_target,
-            op_id=op_id,
-            _bump=_bump,
-        )
-    finally:
-        _record_stage_sample("item_total", _item_started)
+    await _ingest_content_branch(
+        file,
+        rel_path,
+        qa_target,
+        sd_target,
+        em_target,
+        cc_target,
+        er_target,
+        re_target,
+        op_id=op_id,
+        _bump=_bump,
+    )
 
 
 async def _ingest_content_branch(
@@ -2117,10 +2078,7 @@ async def _ingest_content_branch(
     comment above the call for the staging walk f1fd0add evidence.
     """
     # ── Stage 2: binary → markdown (per-MIME adapter, P-3) ──────────────────
-    # id-415 S535 diagnostic: this is the Docling call, and the leading
-    # hypothesis for where a 351s / 14-file walk actually goes.
-    async with _time_stage("binary_conversion"):
-        content_text = await convert_binary_to_markdown(file)
+    content_text = await convert_binary_to_markdown(file)
     # Inv-17: one binary→markdown conversion completed for this item.
     _bump("binary_conversion")
 
@@ -2141,12 +2099,6 @@ async def _ingest_content_branch(
     # keep working unchanged — see extraction.py's
     # `extract_with_memo_self_heal` docstring for why this call shape is
     # load-bearing.
-    #
-    # id-415 S535 diagnostic: marker form, so all four passes are timed as one
-    # span without re-indenting a block whose call shape is load-bearing (see
-    # the note directly above). On the mock tier this SHOULD be near-zero — if
-    # it is not, the mock LLM is not as cheap as the tier assumes.
-    _llm_started = time.perf_counter()
     classification = await extract_with_memo_self_heal(
         extract_classification,
         content_text,
@@ -2179,7 +2131,6 @@ async def _ingest_content_branch(
     # Inv-17: four Path-A LLM extraction passes ran for this content row
     # (classification + qa_form + entity_mentions + relationships) — mirrors the
     # per-pass semantic of `_record_extraction_success` (ID-28.16): +1 per pass.
-    _record_stage_sample("llm_extraction", _llm_started)  # id-415 S535 diagnostic
     _bump("llm_extraction", times=4)
 
     # ── Stage 6: declare rows (managed_by=USER row-level upserts) ───────────
@@ -4304,14 +4255,17 @@ async def app_main() -> None:
         taxonomy_miss_counter=flow_taxonomy_miss_counter,
         memo_heal_counter=flow_memo_heal_counter,
     )
-    # id-415 S535 diagnostic — bound alongside the counters above, same
-    # lifetime, same single-flight reasoning. Remove with the rest of the
-    # timing block once the walk-cost question is settled.
-    flow_stage_timings = _begin_stage_timings()
+    # id-415 walk-phase bisect (see `_record_walk_phase`) — a PLAIN LOCAL dict
+    # in this frame, never an ambient binding, so no per-item component can
+    # reach it and read a structural zero. `_walk_started` anchors `total_ms`;
+    # the idle-mode early returns above are BEFORE it, so an idle pass emits no
+    # line at all rather than a misleading near-zero one.
+    walk_phases: dict[str, float] = {}
     _walk_started = time.perf_counter()
 
     # Flow-start emission: `retry_count` is omitted (always 0 at flow start;
     # emitting 0 would suggest observability is present when it is not yet).
+    _phase_started = time.perf_counter()
     await _emit_pipeline_run_webhook(
         op_id=run_op_id,
         status="in_progress",
@@ -4320,6 +4274,7 @@ async def app_main() -> None:
         items_created=[],
         extractor_version=extractor_version,
     )
+    _record_walk_phase(walk_phases, "flow_start_webhook", _phase_started)
 
     flow_status: PipelineRunStatus = "completed"
     flow_error_message: str | None = None
@@ -4338,6 +4293,12 @@ async def app_main() -> None:
         # the table is dropped both envs; see the closed mount-set contract
         # test (test_cocoindex_ingest_once.py::
         # test_mount_table_target_closed_set_unchanged_by_this_subtask).
+        #
+        # id-415 phase `target_mounts`: the owner's Stage-6-prep candidate. All
+        # seven mounts are one phase because they are the same operation
+        # repeated — a per-table split would only say which table, and no
+        # hypothesis on the table.
+        _phase_started = time.perf_counter()
         qa_target = await mount_table_target(
             DB_CTX,
             "q_a_extractions",
@@ -4408,10 +4369,20 @@ async def app_main() -> None:
             RECORD_EMBEDDINGS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
+        _record_walk_phase(walk_phases, "target_mounts", _phase_started)
 
         # ── Stage 1: source walk (live fs-watch, nested recursive) ─────────
         # recursive=True required — default is False (CLAUDE.md gotcha).
         # live=True enables fs-watch for continuous incremental updates.
+        #
+        # id-415 phase `source_mount_dispatch`: `walk_dir` + `mount_each` up to
+        # the point the handle exists, SPLIT from `source_items_ready` below.
+        # The split is the measurement: it is NOT established which side of it
+        # the engine's source enumeration + memo fingerprinting pass runs on
+        # (cocoindex 1.0.3 exposes no callback that would say), and the two
+        # sides carry opposite remediations — enumeration cost is engine/config,
+        # per-item cost is the corpus. Do not collapse them.
+        _phase_started = time.perf_counter()
         source = localfs.walk_dir(
             source_path,
             live=True,
@@ -4496,9 +4467,18 @@ async def app_main() -> None:
             er_target,
             re_target,
         )
+        _record_walk_phase(walk_phases, "source_mount_dispatch", _phase_started)
         # Wait until every per-item component has processed (cold run) so the
         # rollup webhook below reflects a settled state.
+        #
+        # id-415 phase `source_items_ready`: ALL per-item work (conversion,
+        # extraction, chunking, embedding, row declares) is inside this await.
+        # Timing it HERE — in `app_main`'s own frame — is the only place the
+        # per-item cost is observable without crossing into the `_LoopRunner`
+        # thread that defeated 6c6656dba.
+        _phase_started = time.perf_counter()
         await handle.ready()
+        _record_walk_phase(walk_phases, "source_items_ready", _phase_started)
 
         # ── Stage 1b: URL source walk ({75.11} — TECH §3 WP-C wiring) ──────
         # Second Stage-1 source: the passed-URL ledger (`feed_articles WHERE
@@ -4509,6 +4489,12 @@ async def app_main() -> None:
         # the top of app_main (COCOINDEX_SOURCE_PATH unset/missing → early
         # return) also skips this URL enumeration; deployed workers always
         # mount the corpus, so v1 accepts it — do NOT split the gate.
+        # id-415 phase `url_mount_dispatch` / `url_items_ready`: the same split
+        # as the corpus source, for the same reason. This branch enumerates the
+        # `feed_articles WHERE passed = true` ledger — a DB read whose size is
+        # independent of how many corpus files changed, so it is a structural
+        # candidate for fixed per-walk cost.
+        _phase_started = time.perf_counter()
         url_source = FeedUrlSource(pool=coco.use_context(DB_CTX))
 
         # ID-66.19 named-closure discipline, verbatim from bound_ingest_file
@@ -4556,7 +4542,10 @@ async def app_main() -> None:
             sd_target,
             re_target,
         )
+        _record_walk_phase(walk_phases, "url_mount_dispatch", _phase_started)
+        _phase_started = time.perf_counter()
         await url_handle.ready()
+        _record_walk_phase(walk_phases, "url_items_ready", _phase_started)
 
         # ── Stage 1b epilogue: backlink convergence (id-400) ───────────────
         # The per-item step-7 backlink FK-defers on a walk-1 race (the ri row
@@ -4569,6 +4558,9 @@ async def app_main() -> None:
         # ledger row whose reference landed THIS walk backlinks now.
         # CONTAINED best-effort (mirrors the producer-trigger post-pass): a
         # reconcile fault must never fail the walk whose writes already landed.
+        # id-415 phase `url_backlink_reconcile`: a whole-ledger reconcile pass,
+        # not a delta pass — another structural fixed-cost candidate.
+        _phase_started = time.perf_counter()
         try:
             backlinked = await _reconcile_feed_article_backlinks(
                 coco.use_context(DB_CTX)
@@ -4589,6 +4581,7 @@ async def app_main() -> None:
                 run_op_id,
                 exc,
             )
+        _record_walk_phase(walk_phases, "url_backlink_reconcile", _phase_started)
 
         # ── Stage 4: embedding (vector(1024)) — LANDED (ID-49.2) ───────────
         # `ingest_file` computes a text-embedding-3-large vector(1024) PER CHUNK
@@ -4641,6 +4634,10 @@ async def app_main() -> None:
         # failure-injection finding). `from exc` preserves `__cause__`. The
         # wrapper still propagates inside the outer try, routing to the
         # `except Exception` rollup handler below.
+        #
+        # id-415 phase `stage5_resolution`: op_id-scoped, so it SHOULD track
+        # this walk's delta. If it does not, that is the finding.
+        _phase_started = time.perf_counter()
         try:
             resolved_count = await _run_stage_5_resolution(
                 meta=FlowRunMeta(op_id=run_op_id, source_document_id=None),
@@ -4649,6 +4646,7 @@ async def app_main() -> None:
             )
         except Exception as exc:  # noqa: BLE001 — re-wrap for classification
             raise _EntityResolutionStageError(str(exc)) from exc
+        _record_walk_phase(walk_phases, "stage5_resolution", _phase_started)
         _logger.info(
             json.dumps(
                 {
@@ -4677,6 +4675,29 @@ async def app_main() -> None:
         # The outer `except _QaDedupProposerStageError` therefore classifies +
         # emits the structured stage-error log and SWALLOWS the wrapper (does
         # NOT re-raise) — the walk continues to a successful flow-end webhook.
+        #
+        # id-415 phase `qa_dedup_proposer` — THIS IS THE ~400s, already measured
+        # from run 31036034294's uploaded sidecar log BEFORE this line was
+        # written. Between the `cocoindex.stage_5.resolved` and
+        # `cocoindex.qa_dedup.proposed` timestamps: 393.7s / 395.7s / 393.7s /
+        # 394.3s / 395.1s / 396.3s / 395.1s / 393.8s / 395.6s / 393.8s / 396.2s
+        # / 395.6s across the twelve walks — DEAD FLAT while `source_walk` moved
+        # 1..14 and `embedding` moved 0..100. That is the fixed overhead: the
+        # proposer reads the WHOLE published corpus and ignores the walk's
+        # delta by construction (ID-120 INV-2/6/7, the "confined widening").
+        # `candidate_pairs` was 3081 on every walk and `written` was 0 on every
+        # walk — ~394s spent to write nothing.
+        # The cost is NOT the cosine self-join: `EXPLAIN ANALYZE` of that exact
+        # query on Platform staging returns the same 3081 rows in 64ms. It is
+        # `_run_qa_dedup_proposer`'s step-4 loop, which issues ONE `conn.execute`
+        # per candidate pair — 3081 sequential round-trips to a remote Postgres
+        # at ~128ms each (394,000 / 3081 = 127.9ms, a network RTT).
+        # This phase marker stays so the fact is machine-readable per walk
+        # instead of needing log archaeology, and so the NEXT run confirms it
+        # rather than inheriting this session's reading. The FIX (batching the
+        # upsert, or gating the proposer off the walk) is ID-120's surface and
+        # is deliberately NOT made here.
+        _phase_started = time.perf_counter()
         try:
             try:
                 proposed_count = await _run_qa_dedup_proposer(
@@ -4706,6 +4727,7 @@ async def app_main() -> None:
                 source_document_id=None,
                 error_message=str(exc),
             )
+        _record_walk_phase(walk_phases, "qa_dedup_proposer", _phase_started)
 
         # ── Inv-13: per-row upsert logging — deferred to 28.25 ─────────────
         # cocoindex 1.0.3 exposes no per-row UPSERT completion callback
@@ -4794,28 +4816,6 @@ async def app_main() -> None:
         stage_counts["llm_extraction"] = flow_stage_counter.get("llm_extraction")
         stage_counts["postgres_upsert"] = flow_stage_counter.get("postgres_upsert")
 
-        # ── id-415 S535 TEMPORARY DIAGNOSTIC — per-stage wall-clock ─────────
-        # One structured line per walk, into the sidecar log the nightly already
-        # uploads as an artefact. Deliberately NOT on the webhook payload: that
-        # shape is id-414 / id-410 ground (DR-109) and this is a question, not a
-        # contract. `walk_wall_ms` is the whole run; `item_total` is the summed
-        # per-item work, so the difference is engine overhead (walk_dir, memo
-        # scan/skip, target flush) — which is itself a candidate answer.
-        _logger.info(
-            json.dumps(
-                {
-                    "event": "cocoindex.stage_timings_diagnostic",
-                    "op_id": str(run_op_id),
-                    "walk_wall_ms": round(
-                        (time.perf_counter() - _walk_started) * 1000.0, 1
-                    ),
-                    "stages": _summarise_stage_timings(flow_stage_timings),
-                    "stage_counts": stage_counts,
-                }
-            )
-        )
-        # ───────────────────────────────────────────────────────────────────
-
         # Flow-end emission (Inv-16 terminal row). `retry_count` reflects
         # real retry activity via the `bind_retry_counter` scope above.
         #
@@ -4826,6 +4826,11 @@ async def app_main() -> None:
         # per-item counts, that sum would inflate ~6x (source_walk +
         # binary_conversion + 3x llm_extraction + embedding + N postgres_upsert
         # per doc) and silently change the magnitude/meaning of the column.
+        #
+        # id-415 phase `flow_end_webhook`: one outbound HTTP POST to Vercel. It
+        # is best-effort (never raises — see the helper's docstring), which is
+        # what makes it safe to emit the bisect line AFTER it.
+        _phase_started = time.perf_counter()
         await _emit_pipeline_run_webhook(
             op_id=run_op_id,
             status=flow_status,
@@ -4848,7 +4853,12 @@ async def app_main() -> None:
             # "walk ran, zero memo self-heals" (omitted only at flow start).
             memo_heals=flow_memo_heal_counter.tally(),
         )
+        _record_walk_phase(walk_phases, "flow_end_webhook", _phase_started)
 
+        # id-415 phase `producer_trigger`: the delta read + the chained producer
+        # run. Delta-gated by design, so it SHOULD be near-zero on a no-change
+        # walk — included precisely so that claim is measured, not assumed.
+        _phase_started = time.perf_counter()
         # ID-132 {132.16} G-TRIGGER: producer post-walk chaining. Gated on a
         # CLEAN completion — a failed walk's source_documents deltas may be
         # partial/inconsistent, so a failed `flow_status` never chains a
@@ -4894,6 +4904,40 @@ async def app_main() -> None:
                     run_op_id,
                     exc,
                 )
+        _record_walk_phase(walk_phases, "producer_trigger", _phase_started)
+
+        # ── id-415 TEMPORARY DIAGNOSTIC — walk phase bisect ────────────────
+        # ONE structured line per walk, emitted LAST so it covers everything
+        # `app_main` does including the terminal webhook and the producer
+        # chain. Read it from the UPLOADED `cocoindex-nightly-logs-<runId>`
+        # artefact — the nightly's `docker logs cocoindex-sidecar >
+        # /tmp/cocoindex-sidecar.log` dump means container output NEVER reaches
+        # the GitHub job log (that lookup costs a round trip and finds nothing).
+        #
+        # `residual_ms` = total minus the attributed phases. On a clean walk it
+        # bounds everything unattributed (counter folds, local setup, scheduler
+        # slack); on a FAILED walk it also absorbs the phase that raised, since
+        # a raising phase records nothing — so a large residual plus a missing
+        # phase name localises the failure.
+        #
+        # Deliberately NOT on the webhook payload: that shape is id-414 /
+        # id-410 ground (DR-109), and this is a question, not a contract.
+        _walk_total_ms = round((time.perf_counter() - _walk_started) * 1000.0, 1)
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.walk_phase_bisect",
+                    "op_id": str(run_op_id),
+                    "total_ms": _walk_total_ms,
+                    "phases": dict(sorted(walk_phases.items())),
+                    "residual_ms": round(
+                        _walk_total_ms - sum(walk_phases.values()), 1
+                    ),
+                    "stage_counts": stage_counts,
+                }
+            )
+        )
+        # ───────────────────────────────────────────────────────────────────
 
 
 # ── Env-scope DB pool provisioning (28.22) ───────────────────────────────────
