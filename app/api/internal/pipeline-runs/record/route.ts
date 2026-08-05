@@ -145,11 +145,14 @@ const BodySchema = z.object({
    * per-item ingest faults — `_FlowItemFailureCounter.tally()` in
    * `scripts/cocoindex_pipeline/flow.py` emits `{'forms': n, 'content': m}`
    * as `payload["itemFailures"]` at flow end. Per-item faults ride a
-   * `completed` run (status `failed` is reserved for walk-wide faults —
-   * the bl-224 cascade inversion). An all-zero tally is meaningful ("walk
-   * ran, zero per-item faults") and distinguishable from the field being
-   * omitted entirely (flow-start emission / pre-80.9 sidecars). Sibling of
-   * ID-61.4's `errorDetail` + `taxonomyMisses` — strictly additive.
+   * `completed_with_errors` run since id-414 AC-1 (`_resolve_terminal_status`
+   * — a non-zero tally resolves the label; before that they rode a bare
+   * `completed`, the S522 silent-drop class); status `failed` stays reserved
+   * for walk-wide faults — the bl-224 cascade inversion. An all-zero tally
+   * is meaningful ("walk ran, zero per-item faults") and distinguishable
+   * from the field being omitted entirely (flow-start emission / pre-80.9
+   * sidecars). Sibling of ID-61.4's `errorDetail` + `taxonomyMisses` —
+   * strictly additive.
    *
    * ID-80.17 ({80.16} rider delta): `url` is the third branch, emitted by
    * `bound_ingest_url` (ID-75.11, the Stage-1b URL-source mount) — counter
