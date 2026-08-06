@@ -271,7 +271,7 @@ describe.skipIf(!ENABLED)(
       const client = await createLiveServiceClient();
       const { data, error } = await client
         .from('source_documents')
-        .select('id, content_type, primary_domain, classification_confidence')
+        .select('id, content_type')
         .ilike('filename', `${TEST_PREFIX}%`)
         .in('id', seededContentIds);
 
@@ -289,19 +289,9 @@ describe.skipIf(!ENABLED)(
         // non-empty; full taxonomy parity is policed by the parity guards.
         expect(typeof row.content_type).toBe('string');
         expect((row.content_type as string).length).toBeGreaterThan(0);
-
-        // primary_domain — non-empty string per Q-EX2.
-        expect(typeof row.primary_domain).toBe('string');
-
-        // classification_confidence ∈ [0, 1] per Q-EX2
-        // `ClassificationExtraction.classification_confidence`.
-        // Lands in source_documents.classification_confidence per Path A
-        // target-binding (ID-131.19 M6 retirement: content_items DROPPED).
-        const confidence = row.classification_confidence as number | null;
-        expect(confidence).not.toBeNull();
-        expect(typeof confidence).toBe('number');
-        expect(confidence!).toBeGreaterThanOrEqual(0);
-        expect(confidence!).toBeLessThanOrEqual(1);
+        // primary_domain / classification_confidence assertions retired with
+        // their columns (DR-130 — the subject-classification stage no longer
+        // writes source_documents; content_type is the surviving landed value).
       }
     });
 
