@@ -7,15 +7,12 @@ import {
   ReviewQueueParamsSchema,
   ReadMarkBodySchema,
   KBIntegrationBodySchema,
-  ActivityParamsSchema,
   QualityFlagsParamsSchema,
   PipelineRunsParamsSchema,
   ProcurementListParamsSchema,
   GovernanceReviewParamsSchema,
-  EntityCoOccurrenceParamsSchema,
 } from '@/lib/validation/schemas';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
-import type { EditIntent } from '@/lib/edit-intent/arbitrate';
 
 // Helper: generate a valid UUID for tests
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -624,12 +621,6 @@ describe.each(OFFSET_CLAMPING_SCHEMAS)(
 describe('S206 content_owner_id schema widening', () => {
   const VALID_OWNER_UUID = '11111111-2222-4333-8444-555555555555';
   const NON_UUID = 'not-a-uuid';
-
-  const baseItemCreate = {
-    title: 'Test',
-    content: 'Some content body',
-    content_type: 'note' as const,
-  };
 
   // (ItemCreateBodySchema (EP1) block removed — id-417: schema deleted.)
 

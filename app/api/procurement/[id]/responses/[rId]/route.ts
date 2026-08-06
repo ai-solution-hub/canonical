@@ -15,7 +15,6 @@ import {
   ProcurementResponseSchema,
   ResponseUpdateBodySchema,
 } from '@/lib/validation/schemas';
-import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import type { Database } from '@/supabase/types/database.types';
 import type {
   ProcurementResponseMetadata,

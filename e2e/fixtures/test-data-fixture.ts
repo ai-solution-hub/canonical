@@ -10,7 +10,6 @@ import {
   CORE_BID_QUESTIONS,
   CORE_BID_RESPONSES,
   BID_STATE_TRANSITIONS,
-  EMBEDDING_ITEM_INDICES,
   INTELLIGENCE_FEED_SOURCE,
   buildIntelligenceFeedArticles,
   buildEntityMentions,
@@ -105,8 +104,6 @@ export interface WorkerData {
    * ID of the seeded second `form_instances` row ("Cloud Migration RFP").
    * No live spec asserts on it by name — retained for card-count parity.
    */
-  projectId: string;
-  /** IDs of the 4 seeded bid questions (Technical, Experience, Social Value, Commercial). */
   questionIds: string[];
   /** IDs of the 2 seeded bid responses (approved, draft). */
   responseIds: string[];
@@ -120,15 +117,6 @@ export interface WorkerData {
    * ID of the seeded active scoring prompt (`feed_prompts` version 1) for the
    * intelligence workspace — without it the filter-rules page renders only its
    * "No filter rules configured" empty state.
-   */
-  intelligenceFeedPromptId: string;
-  /** IDs of the seeded feed articles (2 passed + 1 filtered). */
-  feedArticleIds: string[];
-  /**
-   * Freshness buckets this worker guarantees on the dashboard's Content Health
-   * strip, applied to `record_lifecycle` (post-M6 `source_documents` has no
-   * freshness columns). Dashboard counts are corpus-wide, so specs assert
-   * these as lower bounds.
    */
   seededFreshnessCounts: {
     fresh: number;
