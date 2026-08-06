@@ -596,7 +596,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const formInstanceIds = (formInstances ?? []).map((f) => f.id);
       const procurementId = formInstanceIds[0];
-      const projectId = formInstanceIds[1];
 
       // --- Workspace-item assignments: link items 0-3 to kb_section ---
       //
@@ -712,7 +711,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // (si-prompt-refinement.spec.ts). One active version is enough:
       // `is_active` is what the page resolves `activePrompt` from, and
       // `feed_prompts` is UNIQUE (workspace_id, version).
-      const { data: feedPrompt } = await supabase
+      await supabase
         .from('feed_prompts')
         .insert({
           workspace_id: intelligenceWorkspaceId,
@@ -728,8 +727,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .single()
         .throwOnError();
 
-      const intelligenceFeedPromptId = feedPrompt?.id ?? '';
-
       // Seed 3 feed articles (2 passed, 1 filtered)
       const articleShapes = buildIntelligenceFeedArticles(timestamps.now);
       const feedArticleInserts = articleShapes.map((shape) => ({
@@ -739,15 +736,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         feed_source_id: intelligenceFeedSourceId,
       }));
 
-      const { data: feedArticles } = await supabase
+      await supabase
         .from('feed_articles')
         .insert(feedArticleInserts)
         .select('id')
         .throwOnError();
-
-      const feedArticleIds = (feedArticles ?? []).map(
-        (a: { id: string }) => a.id,
-      );
 
       // --- Create documents for the 2 passed articles, linked to workspace ---
       //
