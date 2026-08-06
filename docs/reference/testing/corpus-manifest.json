@@ -66,7 +66,6 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/audit-log-shipping.integration.test.ts",
         "__tests__/integration/cocoindex/file-change-detection.integration.test.ts",
         "__tests__/integration/cocoindex/latency-budget.integration.test.ts",
         "__tests__/integration/cocoindex/memo-hit-pipeline-run.integration.test.ts",
@@ -162,14 +161,10 @@
       "staging_mode": "per-test",
       "consumers": [
         "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts",
-        "__tests__/integration/cocoindex/classify-content-coexistence.integration.test.ts",
         "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts",
         "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
         "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts",
         "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-round-trip.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-scoping.integration.test.ts",
-        "__tests__/integration/cocoindex/op-id-stamping.integration.test.ts",
         "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts",
         "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts",
         "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts",
@@ -220,7 +215,6 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/extract-memoisation.integration.test.ts",
         "scripts/cocoindex_pipeline/form_extractors/xlsx.py",
         "scripts/tests/test_form_extractors.py"
       ],
