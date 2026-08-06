@@ -2,25 +2,21 @@
 # Generated artifacts only — they flood the symbol graph (Interface/centrality noise)
 # without being hand-maintained code. Schema truth for DB types stays the generated
 # file itself (supabase/CLAUDE.md); memtrace just shouldn't graph it.
-supabase/types/database.types.ts
 lib/mcp/plugin-bundle.ts
-supabase/config.toml
+supabase/
 package.json
 docs/reference/testing/corpus-manifest.json
 search-evaluation.json
-e2e/fixtures/embeddings.json
+e2e/fixtures/
 .knip-baseline.json
 .type-drift-baseline.json
 .type-drift-report.md
-__tests__/fixtures/keyword-normalisation-cases.json
-__tests__/fixtures/eval-gold/procurement-drafting-eval-gold-standard.json
-__tests__/fixtures/ontology/ontology-cv-baselines.json
-__tests__/fixtures/reference-doc-paths.json
-__tests__/fixtures/eval-baselines/search.baseline.json
+__tests__/fixtures/
+__tests__/integration/cocoindex/_helpers/
+__tests__/integration/helpers/
+__tests__/integration/audit/record-run-discipline.test.ts
 .jscpd.json
 .gitnexus/
-node_modules/
-.next/
 .claude/
 .cocoindex_code/
 .design-sync/
@@ -28,7 +24,6 @@ node_modules/
 .gitignore
 .lavish/
 .user-scratch/
-.pytest_cache.
 eslint-rules/
 knip.config.ts
 mempalace.yaml
@@ -42,17 +37,14 @@ sentry.edge.config.ts
 sentry.server.config.ts
 eslint.config.mjs
 .github/workflows/identity-guard.yml
-__tests__/integration/audit/record-run-discipline.test.ts
 stryker.config.mjs
 .ast-dataflow/CLAUDE.md
 lib/mcp/CLAUDE.md
-supabase/CLAUDE.md
 CLAUDE.md
 vitest.config.ts
 vitest.integration.config.ts
 prettier.config.mjs
 eslint-suppressions.json
-.vercel/
 vercel.json
 tsconfig.json
 tsconfig.ci.json
@@ -60,3 +52,4 @@ skills-lock.json
 components.json
 lib/branding/clients/default.json
 pyproject.toml
+scripts/tests/fixtures/
