@@ -55,7 +55,7 @@ describe('fetchMatchedContentForDrafting', () => {
         title: 'What is your data retention policy?',
         content:
           'Q: What is your data retention policy?\n\nWe retain data for 7 years.\n\nDetailed retention schedule available.',
-        content_type: 'q_a_pair',
+        owner_kind: 'q_a_pair',
         summary: 'We retain data for 7 years.',
       },
     ]);
@@ -123,7 +123,7 @@ describe('fetchMatchedContentForDrafting', () => {
         id: 'ri-1',
         title: 'ISO 27001 Certificate',
         content: 'Full certificate text...',
-        content_type: 'reference_item',
+        owner_kind: 'reference_item',
         summary: 'Certification evidence',
       },
     ]);

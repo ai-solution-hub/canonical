@@ -122,8 +122,8 @@ export const POST = defineRoute(
       }
 
       // Fetch matched content (post-{131.16} BI-29: q_a_pairs + reference_items;
-      // `content_type` on each item doubles as the cited_kind discriminator
-      // for the citations writer below).
+      // `owner_kind` on each item IS the cited_kind discriminator for the
+      // citations writer below — DR-050 grain identity, not content_type).
       //
       // ID-145 {145.21} BI-37 — activates the dormant q_a_pair cite path: the
       // R7 substrate (TECH.md §4) is now the source of matched ids —
@@ -185,7 +185,7 @@ export const POST = defineRoute(
         }
 
         const matchedQAPairIds = matchedContent
-          .filter((item) => item.content_type === 'q_a_pair')
+          .filter((item) => item.owner_kind === 'q_a_pair')
           .map((item) => item.id);
 
         // ID-58 R1/R4: read the per-pair MAX(q_a_pair_history.version). A
@@ -360,7 +360,7 @@ export const POST = defineRoute(
             // {131.16} BI-29 re-anchor: matched items are now q_a_pairs
             // (primary) or reference_items (optional) — never content_items —
             // so cited_kind/the per-kind target column are derived from each
-            // item's `content_type` discriminator (set by
+            // item's `owner_kind` discriminator (set by
             // fetchMatchedContentForDrafting) rather than hardcoded to
             // 'content_item'. cited_content_item_id is NEVER written for new
             // citations going forward (the column + enum label survive to
@@ -380,7 +380,7 @@ export const POST = defineRoute(
                 for (const item of matchedContent) {
                   if (rowByItemId.has(item.id)) continue;
                   const citedTarget: CitedTarget =
-                    item.content_type === 'reference_item'
+                    item.owner_kind === 'reference_item'
                       ? {
                           cited_kind: 'reference_item',
                           cited_reference_item_id: item.id,

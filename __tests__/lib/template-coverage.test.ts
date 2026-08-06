@@ -45,9 +45,6 @@ function makeRequirement(
     description: 'H&S policy content',
     requirement_type: 'policy',
 
-
-
-
     matching_keywords: ['health and safety', 'h&s', 'safety policy'],
     matching_guidance: null,
     requirement_embedding: [0.1, 0.2, 0.3, 0.4, 0.5],
@@ -72,9 +69,7 @@ function makeContent(
     detail: null,
     title: 'Health and Safety Policy',
 
-
-
-    content_type: 'policy',
+    owner_kind: 'reference_item',
 
     embedding: [0.1, 0.2, 0.3, 0.4, 0.5], // identical to requirement = similarity 1.0
     ...overrides,
@@ -187,9 +182,6 @@ describe('matchRequirement', () => {
 
     const req = makeRequirement({ requirement_embedding: refEmb });
     const content = makeContent({
-
-
-
       embedding: partialEmb,
     });
     const result = matchRequirement(req, [content]);
@@ -207,9 +199,6 @@ describe('matchRequirement', () => {
       requirement_embedding: refEmb,
     });
     const content = makeContent({
-
-
-
       embedding: strongEmb,
     });
     const result = matchRequirement(req, [content]);
@@ -221,7 +210,7 @@ describe('matchRequirement', () => {
     const req = makeRequirement({ requirement_type: 'data' }); // threshold = 0
     const content = makeContent({
       content: 'Yes', // 3 chars — Q&A fragment
-      content_type: 'q_a_pair',
+      owner_kind: 'q_a_pair',
       embedding: [0.1, 0.2, 0.3, 0.4, 0.5], // identical = similarity 1.0
     });
     const result = matchRequirement(req, [content]);
@@ -239,15 +228,10 @@ describe('matchRequirement', () => {
 
   it('returns gap when no matching content exists', () => {
     const req = makeRequirement({
-
-
       matching_keywords: ['extremely specific term xyz123'],
       requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
     });
     const content = makeContent({
-
-
-
       embedding: [0.1, 0.1, 0.1, 0.1, 0.1], // low similarity
     });
     const result = matchRequirement(req, [content]);
@@ -301,7 +285,6 @@ describe('computeTemplateCoverage', () => {
         section_name: 'Technical',
         display_order: 2,
 
-
         matching_keywords: ['xyz123'],
         requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
       }),
@@ -337,7 +320,6 @@ describe('computeTemplateCoverage', () => {
       makeRequirement({
         id: 'req-1',
 
-
         matching_keywords: ['xyz'],
         requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
       }),
@@ -345,9 +327,6 @@ describe('computeTemplateCoverage', () => {
 
     const result = computeTemplateCoverage('Test', null, 'sq', requirements, [
       makeContent({
-
-
-
         embedding: [0.1, 0.1, 0.1, 0.1, 0.1],
       }),
     ]);
@@ -492,8 +471,6 @@ describe('fetchContentForMatching', () => {
             title: 'Safety Policy Document',
             body: 'Full text of the safety policy.',
             summary: 'Summary of the safety policy.',
-
-
           },
         ],
         error: null,
@@ -524,9 +501,7 @@ describe('fetchContentForMatching', () => {
       detail: null,
       title: 'What is your safety policy?',
 
-
-
-      content_type: 'q_a_pair',
+      owner_kind: 'q_a_pair',
 
       embedding: [0.1, 0.2, 0.3],
     });
@@ -539,9 +514,7 @@ describe('fetchContentForMatching', () => {
       detail: null,
       title: 'Safety Policy Document',
 
-
-
-      content_type: 'reference_item',
+      owner_kind: 'reference_item',
 
       embedding: [0.4, 0.5, 0.6],
     });
@@ -626,9 +599,6 @@ describe('fetchTemplateRequirements', () => {
             description: null,
             requirement_type: 'policy',
 
-
-
-
             matching_keywords: ['safety'],
             matching_guidance: null,
             is_mandatory: true,
@@ -647,9 +617,6 @@ describe('fetchTemplateRequirements', () => {
             requirement_text: 'Company registration number.',
             description: null,
             requirement_type: 'data',
-
-
-
 
             matching_keywords: [],
             matching_guidance: null,
@@ -728,9 +695,6 @@ describe('fetchTemplateRequirements', () => {
             requirement_text: 'Describe your safety policy.',
             description: null,
             requirement_type: 'policy',
-
-
-
 
             matching_keywords: [],
             matching_guidance: null,

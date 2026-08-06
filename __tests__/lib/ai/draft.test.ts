@@ -73,7 +73,7 @@ const testContent: DraftableContent[] = [
     title: 'Data Security Policy',
     content:
       '<p>We implement ISO 27001 controls across all systems. Data is encrypted at rest and in transit using AES-256.</p>',
-    content_type: 'policy',
+    owner_kind: 'reference_item',
     summary:
       'Comprehensive data security policy covering ISO 27001, encryption, and access controls.',
   },
@@ -82,7 +82,7 @@ const testContent: DraftableContent[] = [
     title: 'GDPR Compliance Framework',
     content:
       '<p>Our GDPR framework includes data mapping, DPIAs, and a dedicated Data Protection Officer.</p>',
-    content_type: 'article',
+    owner_kind: 'reference_item',
     summary:
       'GDPR compliance framework with data mapping, impact assessments, and DPO.',
   },
@@ -403,14 +403,14 @@ describe('Procurement Drafting Pipeline', () => {
           id: 'c-003',
           title: 'Item 3',
           content: 'Content 3',
-          content_type: 'article',
+          owner_kind: 'reference_item',
           summary: 'Summary 3',
         },
         {
           id: 'c-004',
           title: 'Item 4',
           content: 'Content 4',
-          content_type: 'article',
+          owner_kind: 'reference_item',
           summary: 'Summary 4',
         },
       ];
@@ -523,21 +523,21 @@ describe('Procurement Drafting Pipeline', () => {
           id: 'c-003',
           title: 'Item 3',
           content: 'Content 3',
-          content_type: 'article',
+          owner_kind: 'reference_item',
           summary: 'Summary 3',
         },
         {
           id: 'c-004',
           title: 'Item 4',
           content: 'Content 4',
-          content_type: 'article',
+          owner_kind: 'reference_item',
           summary: 'Summary 4',
         },
         {
           id: 'c-005',
           title: 'Item 5',
           content: 'Content 5',
-          content_type: 'article',
+          owner_kind: 'reference_item',
           summary: 'Summary 5',
         },
       ];

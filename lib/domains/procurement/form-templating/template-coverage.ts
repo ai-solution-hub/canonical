@@ -109,6 +109,20 @@ export interface TemplateRequirement {
  * re-homed) and are always null. id-417 / DR-130: the
  * primary_domain/primary_subtopic/ai_keywords/suggested_title fields retired
  * with the subject-taxonomy axis and the classification stage.
+ *
+ * id-417 OQ5 / DR-050: `owner_kind` was named `content_type` until S538. It
+ * never read `source_documents.content_type` — the two producers below
+ * synthesise it, hardcoding `'q_a_pair'` / `'reference_item'`, which are GRAIN
+ * kinds matching the `cited_target_kind` enum the citations writer consumes.
+ *
+ * The governing clause is DR-050's FIRST, not its second: "Result-grain
+ * identity in corpus search (**and any polymorphic multi-grain surface**) is
+ * carried by a dedicated `owner_kind` value." This matcher is exactly such a
+ * surface — it ranks q_a_pairs and reference_items in one result set. DR-050's
+ * second clause ("content_type remains the closed editorial taxonomy on
+ * source_documents only") is column-scoped and was NOT what this breached;
+ * citing it here would overstate, because no column was ever read. The values
+ * were always right and only the name was wrong.
  */
 export interface ContentItemForMatching {
   id: string;
@@ -116,7 +130,7 @@ export interface ContentItemForMatching {
   brief: string | null;
   detail: string | null;
   title: string;
-  content_type: string;
+  owner_kind: string;
   embedding: number[] | null;
 }
 
@@ -266,9 +280,9 @@ export function matchRequirement(
     // Content length — for Q&A pairs, use the full content (question + answer)
     const contentLength = (item.content ?? '').length;
 
-    // Q&A fragment check: if content_type is q_a_pair and content is very short
+    // Q&A fragment check: if owner_kind is q_a_pair and content is very short
     const isQAFragment =
-      item.content_type === 'q_a_pair' && contentLength < QA_FRAGMENT_THRESHOLD;
+      item.owner_kind === 'q_a_pair' && contentLength < QA_FRAGMENT_THRESHOLD;
 
     matches.push({
       id: item.id,
@@ -602,7 +616,7 @@ export async function fetchContentForMatching(
     brief: null,
     detail: null,
     title: row.question_text,
-    content_type: 'q_a_pair',
+    owner_kind: 'q_a_pair',
     embedding: embeddingById.get(row.id) ?? null,
   }));
 
@@ -612,7 +626,7 @@ export async function fetchContentForMatching(
     brief: null,
     detail: null,
     title: row.title,
-    content_type: 'reference_item',
+    owner_kind: 'reference_item',
     embedding: embeddingById.get(row.id) ?? null,
   }));
 

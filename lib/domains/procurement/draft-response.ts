@@ -81,8 +81,8 @@ export type DraftOutcome =
  * TECH.md D2/E5). Shared by every caller that dereferences these arrays
  * (`draftSingleQuestion` below; the draft-stream route and the regenerate
  * route each had their own duplicate content_items fetch pre-{131.16} — all
- * three now call this one function). `content_type` on the returned
- * {@link DraftableContent} doubles as the kind discriminator
+ * three now call this one function). `owner_kind` on the returned
+ * {@link DraftableContent} IS the grain discriminator (DR-050)
  * (`'q_a_pair' | 'reference_item'`) for callers that need to branch on it
  * (e.g. the `citations` table writer, which needs `cited_q_a_pair_id` vs
  * `cited_reference_item_id`).
@@ -138,7 +138,7 @@ export async function fetchMatchedContentForDrafting(
       ]
         .filter((part): part is string => Boolean(part))
         .join('\n\n'),
-      content_type: 'q_a_pair',
+      owner_kind: 'q_a_pair',
       summary: row.answer_standard,
     });
   }
@@ -148,7 +148,7 @@ export async function fetchMatchedContentForDrafting(
       id: row.id,
       title: row.title,
       content: row.body,
-      content_type: 'reference_item',
+      owner_kind: 'reference_item',
       summary: row.summary,
     });
   }

@@ -52,9 +52,19 @@ export interface DraftableQuestion {
   confidence_posture: string | null;
 }
 
-/** Content item shape needed for drafting (with full text) */
+/**
+ * Content item shape needed for drafting (with full text).
+ *
+ * id-417 OQ5 / DR-050: `owner_kind` was named `content_type` until S538. It is
+ * synthesised by `fetchMatchedContentForDrafting` as `'q_a_pair'` /
+ * `'reference_item'` — GRAIN kinds, matching the `cited_target_kind` enum the
+ * citations writer consumes — and never read `source_documents.content_type`.
+ * Governed by DR-050's first clause: result-grain identity on "any polymorphic
+ * multi-grain surface" is carried by `owner_kind`. Its column-scoped second
+ * clause is not what this breached — no column was read.
+ */
 export interface DraftableContent extends CitationSourceItem {
-  content_type: string | null;
+  owner_kind: string | null;
   summary: string | null;
 }
 
@@ -150,7 +160,7 @@ Use UK English throughout.`,
 Word limit: ${question.word_limit ?? 'No limit specified'}
 Section: ${question.section_name ?? 'Not specified'}
 Available KB content summaries:
-${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.summary}`).join('\n')}`,
+${matchedContent.map((c, i) => `${i + 1}. [${c.owner_kind}] ${c.title}: ${c.summary}`).join('\n')}`,
       },
     ],
     // Grounding shape: structured_output (B-INV-35,
