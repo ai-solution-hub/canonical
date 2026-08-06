@@ -61,43 +61,7 @@ describe('fetchSourceDocumentBodies', () => {
     expect(bodies.get(DOC_A)).toBe('Chunk body.');
   });
 
-  it('falls back to the reference_items body for a document with no chunks (URL route)', async () => {
-    const supabase = createMockSupabaseTableDispatch({
-      content_chunks: {
-        data: [chunkRow(DOC_A, 'Chunk body for A.', 0)],
-        error: null,
-      },
-      reference_items: {
-        data: [{ source_document_id: DOC_B, body: 'URL-route body for B.' }],
-        error: null,
-      },
-    });
 
-    const bodies = await fetchSourceDocumentBodies(supabase as never, [
-      DOC_A,
-      DOC_B,
-    ]);
-
-    expect(bodies.get(DOC_A)).toBe('Chunk body for A.');
-    expect(bodies.get(DOC_B)).toBe('URL-route body for B.');
-  });
-
-  it('falls back to the reference_items body when the chunks compose to only whitespace', async () => {
-    const supabase = createMockSupabaseTableDispatch({
-      content_chunks: {
-        data: [chunkRow(DOC_A, '   \n\t  ', 0)],
-        error: null,
-      },
-      reference_items: {
-        data: [{ source_document_id: DOC_A, body: 'Reference body.' }],
-        error: null,
-      },
-    });
-
-    const bodies = await fetchSourceDocumentBodies(supabase as never, [DOC_A]);
-
-    expect(bodies.get(DOC_A)).toBe('Reference body.');
-  });
 
   it('resolves a bodyless document (no chunks, no reference item) to null', async () => {
     const supabase = createMockSupabaseTableDispatch({
@@ -212,19 +176,6 @@ describe('fetchSourceDocumentBodies', () => {
     ).rejects.toThrowError(/content_chunks read failed: connection reset/);
   });
 
-  it('throws a plain Error when the reference_items fallback read fails', async () => {
-    const supabase = createMockSupabaseTableDispatch({
-      content_chunks: { data: [], error: null },
-      reference_items: {
-        data: null,
-        error: { message: 'permission denied' },
-      },
-    });
-
-    await expect(
-      fetchSourceDocumentBodies(supabase as never, [DOC_A]),
-    ).rejects.toThrowError(/reference_items read failed: permission denied/);
-  });
 });
 
 describe('fetchSourceDocumentBody', () => {

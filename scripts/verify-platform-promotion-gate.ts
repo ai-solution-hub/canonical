@@ -242,7 +242,7 @@ const LABELS: Record<GateId, string> = {
   G3: `source_documents(op_id=run) == ${N_CONTENT}+N_FEED`,
   G4: 'HEADLINE: content_chunks(op_id=run) > 0 AND every chunk embedded via record_embeddings',
   G5: 'q_a_extractions(op_id=run) >= 1, all source_document_id NOT NULL',
-  G6: `reference_items(op_id=run) == N_FEED (${N_FEED}), all source_document_id NOT NULL`,
+  G6: `reference_items(op_id=run) == N_FEED (${N_FEED})`,
   G7: 'connected only to a Platform DSN (prod or staging)',
   E: 'entity tier (informational — never gates; promoted to hard gate post-id-133)',
 };
@@ -342,18 +342,19 @@ export function evaluateG5(
 }
 
 export function evaluateG6(
-  rows: ReadonlyArray<{ source_document_id: string | null }> | null,
+  rows: ReadonlyArray<{ id: string }> | null,
   queryError: string | null,
 ): GateResult {
   if (queryError) return queryErrorGate('G6', LABELS.G6, queryError);
   const list = rows ?? [];
-  const nullCount = list.filter((r) => r.source_document_id == null).length;
-  const pass = list.length === N_FEED && nullCount === 0;
+  // DR-124: reference items are standalone — the evidence-pair NOT NULL half
+  // of this gate retired with reference_items.source_document_id.
+  const pass = list.length === N_FEED;
   return {
     id: 'G6',
     label: LABELS.G6,
     pass,
-    detail: `reference_items(op_id=run) = ${list.length}, expected ${N_FEED}, null source_document_id = ${nullCount}`,
+    detail: `reference_items(op_id=run) = ${list.length}, expected ${N_FEED}`,
   };
 }
 
@@ -637,11 +638,8 @@ async function main(): Promise<void> {
         .eq('op_id', opId),
       'gate.q_a_extractions.byOpId',
     ),
-    tryQuery<Array<{ id: string; source_document_id: string | null }>>(
-      client
-        .from('reference_items')
-        .select('id, source_document_id')
-        .eq('op_id', opId),
+    tryQuery<Array<{ id: string }>>(
+      client.from('reference_items').select('id').eq('op_id', opId),
       'gate.reference_items.byOpId',
     ),
     checkChunkEmbeddings(client, opId),

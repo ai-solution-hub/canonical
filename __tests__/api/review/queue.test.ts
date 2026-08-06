@@ -352,43 +352,6 @@ describe('GET /api/review/queue — document body as item content (id-392 M6)', 
     expect(contentById[BODYLESS_DOC_ID]).toBeNull();
   });
 
-  it('returns the reference_items body as content for a URL-ingested document with no chunks', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const urlDocRow = makeMockItem({ id: CHUNKED_DOC_ID });
-
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: [urlDocRow], error: null, count: 1 });
-        return resolve({ data: null, error: null, count: 0 });
-      },
-    );
-
-    stubBodyTables(
-      [],
-      [
-        {
-          source_document_id: CHUNKED_DOC_ID,
-          body: 'Reference body captured on the URL-ingest route.',
-        },
-      ],
-    );
-
-    const req = createTestRequest('/api/review/queue', {
-      searchParams: { status: 'all' },
-    });
-    const res = await getQueue(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.items).toHaveLength(1);
-    expect(json.items[0].content).toBe(
-      'Reference body captured on the URL-ingest route.',
-    );
-  });
 });
 
 // ===========================================================================

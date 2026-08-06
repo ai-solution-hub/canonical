@@ -227,15 +227,15 @@ describe('evaluateG5 (q_a_extractions)', () => {
 });
 
 describe('evaluateG6 (reference_items)', () => {
-  it('passes on exactly N_FEED rows all non-null', () => {
-    const rows = Array.from({ length: N_FEED }, (_, i) => ({
-      source_document_id: `sd-${i}`,
-    }));
+  it('passes on exactly N_FEED rows', () => {
+    // DR-124: the source_document_id NOT NULL half of G6 retired with the
+    // evidence pair — the gate is count-only now.
+    const rows = Array.from({ length: N_FEED }, (_, i) => ({ id: `ri-${i}` }));
     expect(evaluateG6(rows, null).pass).toBe(true);
   });
 
   it('fails when the count does not equal N_FEED', () => {
-    expect(evaluateG6([{ source_document_id: 'sd-1' }], null).pass).toBe(false);
+    expect(evaluateG6([{ id: 'ri-1' }], null).pass).toBe(false);
   });
 });
 

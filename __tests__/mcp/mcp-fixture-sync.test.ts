@@ -307,17 +307,6 @@ describe('MCP Resource Templates Fixture Sync', () => {
   });
 });
 
-describe('Classification Skill Inlined Content', () => {
-  const INLINED_FILE = join(PROJECT_ROOT, 'lib/ai/skills/inlined.generated.ts');
-
-  it('inlined skills bundle should contain Holder Disambiguation rule', () => {
-    const content = readFileSync(INLINED_FILE, 'utf8');
-    expect(
-      content,
-      'inlined.generated.ts must contain the Holder Disambiguation rule ported from classification-prompt.md',
-    ).toContain('Holder Disambiguation');
-  });
-});
 
 /**
  * ID-71 M38 born-evaluable forcing function (B-INV-38/13/40), extending the

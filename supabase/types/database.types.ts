@@ -1408,13 +1408,9 @@ export type Database = {
           is_mandatory: boolean | null
           matching_guidance: string | null
           matching_keywords: string[] | null
-          primary_domain: string | null
-          primary_subtopic: string | null
           question_number: number | null
           requirement_text: string | null
           requirement_type: string | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
           section_name: string | null
           section_ref: string | null
           sector_applicability: string[] | null
@@ -1433,13 +1429,9 @@ export type Database = {
           is_mandatory?: boolean | null
           matching_guidance?: string | null
           matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           question_number?: number | null
           requirement_text?: string | null
           requirement_type?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
           section_name?: string | null
           section_ref?: string | null
           sector_applicability?: string[] | null
@@ -1458,13 +1450,9 @@ export type Database = {
           is_mandatory?: boolean | null
           matching_guidance?: string | null
           matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           question_number?: number | null
           requirement_text?: string | null
           requirement_type?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
           section_name?: string | null
           section_ref?: string | null
           sector_applicability?: string[] | null
@@ -2528,7 +2516,6 @@ export type Database = {
         Row: {
           content_owner_id: string | null
           created_at: string | null
-          domain: string | null
           expiry_date: string | null
           freshness: string | null
           freshness_checked_at: string | null
@@ -2551,7 +2538,6 @@ export type Database = {
         Insert: {
           content_owner_id?: string | null
           created_at?: string | null
-          domain?: string | null
           expiry_date?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
@@ -2574,7 +2560,6 @@ export type Database = {
         Update: {
           content_owner_id?: string | null
           created_at?: string | null
-          domain?: string | null
           expiry_date?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
@@ -2619,10 +2604,7 @@ export type Database = {
           ingestion_source: string | null
           layer: string | null
           op_id: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
           published_at: string | null
-          source_document_id: string | null
           source_url: string | null
           summary: string | null
           superseded_by: string | null
@@ -2637,10 +2619,7 @@ export type Database = {
           ingestion_source?: string | null
           layer?: string | null
           op_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           published_at?: string | null
-          source_document_id?: string | null
           source_url?: string | null
           summary?: string | null
           superseded_by?: string | null
@@ -2655,10 +2634,7 @@ export type Database = {
           ingestion_source?: string | null
           layer?: string | null
           op_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           published_at?: string | null
-          source_document_id?: string | null
           source_url?: string | null
           summary?: string | null
           superseded_by?: string | null
@@ -2667,13 +2643,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "reference_items_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "reference_items_superseded_by_fkey"
             columns: ["superseded_by"]
@@ -2693,7 +2662,6 @@ export type Database = {
           filter_content_types: string[] | null
           filter_date_from: string | null
           filter_date_to: string | null
-          filter_domains: string[] | null
           filter_freshness: string[] | null
           id: string | null
           item_count: number | null
@@ -2711,7 +2679,6 @@ export type Database = {
           filter_content_types?: string[] | null
           filter_date_from?: string | null
           filter_date_to?: string | null
-          filter_domains?: string[] | null
           filter_freshness?: string[] | null
           id?: string | null
           item_count?: number | null
@@ -2729,7 +2696,6 @@ export type Database = {
           filter_content_types?: string[] | null
           filter_date_from?: string | null
           filter_date_to?: string | null
-          filter_domains?: string[] | null
           filter_freshness?: string[] | null
           id?: string | null
           item_count?: number | null
@@ -2830,15 +2796,11 @@ export type Database = {
       source_documents: {
         Row: {
           admission_status: string | null
-          ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
           auth: Json | null
           cadence: string | null
           captured_date: string | null
-          classification_confidence: number | null
-          classification_reasoning: string | null
-          classified_at: string | null
           content_hash: string | null
           content_type: string | null
           created_at: string | null
@@ -2855,36 +2817,23 @@ export type Database = {
           origin_type: string | null
           original_filename: string | null
           parent_id: string | null
-          pipeline_run_id: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
           publication_status: string | null
           retention_class: string | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          source_url: string | null
           status: string | null
           storage_path: string | null
-          suggested_title: string | null
-          summary: string | null
           summary_data: Json | null
           updated_at: string | null
           updated_by: string | null
           uploaded_by: string | null
           version: number | null
-          workspace_id: string | null
         }
         Insert: {
           admission_status?: string | null
-          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
           auth?: Json | null
           cadence?: string | null
           captured_date?: string | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
           content_hash?: string | null
           content_type?: string | null
           created_at?: string | null
@@ -2901,36 +2850,23 @@ export type Database = {
           origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
-          pipeline_run_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           publication_status?: string | null
           retention_class?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_url?: string | null
           status?: string | null
           storage_path?: string | null
-          suggested_title?: string | null
-          summary?: string | null
           summary_data?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           uploaded_by?: string | null
           version?: number | null
-          workspace_id?: string | null
         }
         Update: {
           admission_status?: string | null
-          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
           auth?: Json | null
           cadence?: string | null
           captured_date?: string | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
           content_hash?: string | null
           content_type?: string | null
           created_at?: string | null
@@ -2947,24 +2883,15 @@ export type Database = {
           origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
-          pipeline_run_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           publication_status?: string | null
           retention_class?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_url?: string | null
           status?: string | null
           storage_path?: string | null
-          suggested_title?: string | null
-          summary?: string | null
           summary_data?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           uploaded_by?: string | null
           version?: number | null
-          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -2982,24 +2909,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "source_documents_pipeline_run_id_fkey"
-            columns: ["pipeline_run_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_runs"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "source_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "source_documents_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -3047,107 +2960,6 @@ export type Database = {
             columns: ["decided_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      taxonomy_domains: {
-        Row: {
-          accepted_at: string | null
-          colour: string | null
-          created_at: string | null
-          description: string | null
-          display_name: string | null
-          display_order: number | null
-          id: string | null
-          is_active: boolean | null
-          key_signal: string | null
-          name: string | null
-          provenance: string | null
-          recommended_at: string | null
-          recommended_by: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          colour?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          id?: string | null
-          is_active?: boolean | null
-          key_signal?: string | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          colour?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          id?: string | null
-          is_active?: boolean | null
-          key_signal?: string | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Relationships: []
-      }
-      taxonomy_subtopics: {
-        Row: {
-          accepted_at: string | null
-          created_at: string | null
-          description: string | null
-          display_name: string | null
-          display_order: number | null
-          domain_id: string | null
-          id: string | null
-          is_active: boolean | null
-          name: string | null
-          provenance: string | null
-          recommended_at: string | null
-          recommended_by: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          domain_id?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          created_at?: string | null
-          description?: string | null
-          display_name?: string | null
-          display_order?: number | null
-          domain_id?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          provenance?: string | null
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "taxonomy_subtopics_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "taxonomy_domains"
             referencedColumns: ["id"]
           },
         ]
@@ -3676,13 +3488,6 @@ export type Database = {
           subtopic_filter: string
         }[]
       }
-      get_popular_keywords: {
-        Args: { p_limit?: number }
-        Returns: {
-          item_count: number
-          keyword: string
-        }[]
-      }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_user_display_names: {
         Args: { user_ids: string[] }
@@ -3696,9 +3501,7 @@ export type Database = {
           application_type?: string
           filter_date_from?: string
           filter_date_to?: string
-          filter_domain?: string
           filter_kind?: string
-          filter_subtopic?: string
           include_superseded?: boolean
           limit_count?: number
           query_embedding: string
@@ -3707,25 +3510,20 @@ export type Database = {
           visibility_filter?: string
         }
         Returns: {
-          ai_keywords: string[]
           author_name: string
           captured_date: string
-          classification_confidence: number
           content_type: string
           created_by: string
           id: string
           metadata: Json
           owner_kind: string
           platform: string
-          primary_domain: string
-          primary_subtopic: string
           priority: string
           scope_tag: string[]
           similarity: number
           snippet: string
           source_domain: string
           source_url: string
-          suggested_title: string
           summary: string
           thumbnail_url: string
           title: string
@@ -3858,10 +3656,7 @@ export type Database = {
           ingestion_source: string
           layer: string
           op_id: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
-          source_document_id: string
           source_url: string
           summary: string
           title: string
@@ -3871,15 +3666,8 @@ export type Database = {
       reference_ingest: {
         Args: {
           p_body: string
-          p_content_hash: string
           p_embedding: string
-          p_extraction_metadata?: Json
-          p_file_size: number
-          p_filename: string
-          p_mime_type: string
           p_op_id?: string
-          p_primary_domain: string
-          p_primary_subtopic: string
           p_published_at: string
           p_source_url: string
           p_summary: string
@@ -3887,10 +3675,7 @@ export type Database = {
         }
         Returns: {
           already_existed: boolean
-          primary_domain: string
-          primary_subtopic: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary: string
           title: string
@@ -3901,8 +3686,6 @@ export type Database = {
           p_ingestion_source?: string
           p_limit?: number
           p_offset?: number
-          p_primary_domain?: string
-          p_primary_subtopic?: string
           p_published_from?: string
           p_published_to?: string
         }
@@ -3910,11 +3693,8 @@ export type Database = {
           body_preview: string
           ingestion_source: string
           layer: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary_preview: string
           title: string
@@ -3928,11 +3708,8 @@ export type Database = {
           fulltext_score: number
           ingestion_source: string
           layer: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary_preview: string
           title: string
@@ -5470,13 +5247,9 @@ export type Database = {
           is_mandatory: boolean | null
           matching_guidance: string | null
           matching_keywords: string[] | null
-          primary_domain: string | null
-          primary_subtopic: string | null
           question_number: number | null
           requirement_text: string
           requirement_type: string
-          secondary_domain: string | null
-          secondary_subtopic: string | null
           section_name: string
           section_ref: string
           sector_applicability: string[] | null
@@ -5495,13 +5268,9 @@ export type Database = {
           is_mandatory?: boolean | null
           matching_guidance?: string | null
           matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           question_number?: number | null
           requirement_text: string
           requirement_type: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
           section_name: string
           section_ref: string
           sector_applicability?: string[] | null
@@ -5520,13 +5289,9 @@ export type Database = {
           is_mandatory?: boolean | null
           matching_guidance?: string | null
           matching_keywords?: string[] | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           question_number?: number | null
           requirement_text?: string
           requirement_type?: string
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
           section_name?: string
           section_ref?: string
           sector_applicability?: string[] | null
@@ -6677,7 +6442,6 @@ export type Database = {
         Row: {
           content_owner_id: string | null
           created_at: string
-          domain: string | null
           expiry_date: string | null
           freshness: string | null
           freshness_checked_at: string | null
@@ -6700,7 +6464,6 @@ export type Database = {
         Insert: {
           content_owner_id?: string | null
           created_at?: string
-          domain?: string | null
           expiry_date?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
@@ -6723,7 +6486,6 @@ export type Database = {
         Update: {
           content_owner_id?: string | null
           created_at?: string
-          domain?: string | null
           expiry_date?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
@@ -6768,10 +6530,7 @@ export type Database = {
           ingestion_source: string
           layer: string | null
           op_id: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
           published_at: string | null
-          source_document_id: string
           source_url: string
           summary: string | null
           superseded_by: string | null
@@ -6786,10 +6545,7 @@ export type Database = {
           ingestion_source: string
           layer?: string | null
           op_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           published_at?: string | null
-          source_document_id: string
           source_url: string
           summary?: string | null
           superseded_by?: string | null
@@ -6804,10 +6560,7 @@ export type Database = {
           ingestion_source?: string
           layer?: string | null
           op_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
           published_at?: string | null
-          source_document_id?: string
           source_url?: string
           summary?: string | null
           superseded_by?: string | null
@@ -6816,13 +6569,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "reference_items_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "source_documents"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "reference_items_superseded_by_fkey"
             columns: ["superseded_by"]
@@ -6842,7 +6588,6 @@ export type Database = {
           filter_content_types: string[] | null
           filter_date_from: string | null
           filter_date_to: string | null
-          filter_domains: string[] | null
           filter_freshness: string[] | null
           id: string
           item_count: number | null
@@ -6860,7 +6605,6 @@ export type Database = {
           filter_content_types?: string[] | null
           filter_date_from?: string | null
           filter_date_to?: string | null
-          filter_domains?: string[] | null
           filter_freshness?: string[] | null
           id?: string
           item_count?: number | null
@@ -6878,7 +6622,6 @@ export type Database = {
           filter_content_types?: string[] | null
           filter_date_from?: string | null
           filter_date_to?: string | null
-          filter_domains?: string[] | null
           filter_freshness?: string[] | null
           id?: string
           item_count?: number | null
@@ -7008,15 +6751,11 @@ export type Database = {
       source_documents: {
         Row: {
           admission_status: string
-          ai_keywords: string[] | null
           archived_at: string | null
           archived_by: string | null
           auth: Json | null
           cadence: string | null
           captured_date: string | null
-          classification_confidence: number | null
-          classification_reasoning: string | null
-          classified_at: string | null
           content_hash: string
           content_type: string | null
           created_at: string
@@ -7033,36 +6772,23 @@ export type Database = {
           origin_type: string | null
           original_filename: string | null
           parent_id: string | null
-          pipeline_run_id: string | null
-          primary_domain: string
-          primary_subtopic: string
           publication_status: string
           retention_class: string | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          source_url: string | null
           status: string
           storage_path: string
-          suggested_title: string | null
-          summary: string | null
           summary_data: Json | null
           updated_at: string | null
           updated_by: string | null
           uploaded_by: string | null
           version: number
-          workspace_id: string | null
         }
         Insert: {
           admission_status?: string
-          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
           auth?: Json | null
           cadence?: string | null
           captured_date?: string | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
           content_hash: string
           content_type?: string | null
           created_at?: string
@@ -7079,36 +6805,23 @@ export type Database = {
           origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
-          pipeline_run_id?: string | null
-          primary_domain?: string
-          primary_subtopic?: string
           publication_status?: string
           retention_class?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_url?: string | null
           status?: string
           storage_path: string
-          suggested_title?: string | null
-          summary?: string | null
           summary_data?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           uploaded_by?: string | null
           version?: number
-          workspace_id?: string | null
         }
         Update: {
           admission_status?: string
-          ai_keywords?: string[] | null
           archived_at?: string | null
           archived_by?: string | null
           auth?: Json | null
           cadence?: string | null
           captured_date?: string | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          classified_at?: string | null
           content_hash?: string
           content_type?: string | null
           created_at?: string
@@ -7125,24 +6838,15 @@ export type Database = {
           origin_type?: string | null
           original_filename?: string | null
           parent_id?: string | null
-          pipeline_run_id?: string | null
-          primary_domain?: string
-          primary_subtopic?: string
           publication_status?: string
           retention_class?: string | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_url?: string | null
           status?: string
           storage_path?: string
-          suggested_title?: string | null
-          summary?: string | null
           summary_data?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           uploaded_by?: string | null
           version?: number
-          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -7160,24 +6864,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "source_documents_pipeline_run_id_fkey"
-            columns: ["pipeline_run_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_runs"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "source_documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "source_documents_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -7225,107 +6915,6 @@ export type Database = {
             columns: ["decided_by"]
             isOneToOne: false
             referencedRelation: "user_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      taxonomy_domains: {
-        Row: {
-          accepted_at: string | null
-          colour: string | null
-          created_at: string
-          description: string | null
-          display_name: string | null
-          display_order: number
-          id: string
-          is_active: boolean | null
-          key_signal: string | null
-          name: string
-          provenance: string
-          recommended_at: string | null
-          recommended_by: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          colour?: string | null
-          created_at?: string
-          description?: string | null
-          display_name?: string | null
-          display_order?: number
-          id?: string
-          is_active?: boolean | null
-          key_signal?: string | null
-          name: string
-          provenance: string
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          colour?: string | null
-          created_at?: string
-          description?: string | null
-          display_name?: string | null
-          display_order?: number
-          id?: string
-          is_active?: boolean | null
-          key_signal?: string | null
-          name?: string
-          provenance?: string
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Relationships: []
-      }
-      taxonomy_subtopics: {
-        Row: {
-          accepted_at: string | null
-          created_at: string
-          description: string | null
-          display_name: string | null
-          display_order: number
-          domain_id: string
-          id: string
-          is_active: boolean | null
-          name: string
-          provenance: string
-          recommended_at: string | null
-          recommended_by: string | null
-        }
-        Insert: {
-          accepted_at?: string | null
-          created_at?: string
-          description?: string | null
-          display_name?: string | null
-          display_order?: number
-          domain_id: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          provenance: string
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Update: {
-          accepted_at?: string | null
-          created_at?: string
-          description?: string | null
-          display_name?: string | null
-          display_order?: number
-          domain_id?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          provenance?: string
-          recommended_at?: string | null
-          recommended_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "taxonomy_subtopics_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "taxonomy_domains"
             referencedColumns: ["id"]
           },
         ]
@@ -7979,13 +7568,6 @@ export type Database = {
           subtopic_filter: string
         }[]
       }
-      get_popular_keywords: {
-        Args: { p_limit?: number }
-        Returns: {
-          item_count: number
-          keyword: string
-        }[]
-      }
       get_review_breakdown_stats: { Args: never; Returns: Json }
       get_template_summary: {
         Args: { p_template_id: string }
@@ -8022,9 +7604,7 @@ export type Database = {
           application_type?: string
           filter_date_from?: string
           filter_date_to?: string
-          filter_domain?: string
           filter_kind?: string
-          filter_subtopic?: string
           include_superseded?: boolean
           limit_count?: number
           query_embedding: string
@@ -8033,25 +7613,20 @@ export type Database = {
           visibility_filter?: string
         }
         Returns: {
-          ai_keywords: string[]
           author_name: string
           captured_date: string
-          classification_confidence: number
           content_type: string
           created_by: string
           id: string
           metadata: Json
           owner_kind: string
           platform: string
-          primary_domain: string
-          primary_subtopic: string
           priority: string
           scope_tag: string[]
           similarity: number
           snippet: string
           source_domain: string
           source_url: string
-          suggested_title: string
           summary: string
           thumbnail_url: string
           title: string
@@ -8201,10 +7776,7 @@ export type Database = {
           ingestion_source: string
           layer: string
           op_id: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
-          source_document_id: string
           source_url: string
           summary: string
           title: string
@@ -8214,15 +7786,8 @@ export type Database = {
       reference_ingest: {
         Args: {
           p_body: string
-          p_content_hash: string
           p_embedding: string
-          p_extraction_metadata?: Json
-          p_file_size: number
-          p_filename: string
-          p_mime_type: string
           p_op_id?: string
-          p_primary_domain: string
-          p_primary_subtopic: string
           p_published_at: string
           p_source_url: string
           p_summary: string
@@ -8230,10 +7795,7 @@ export type Database = {
         }
         Returns: {
           already_existed: boolean
-          primary_domain: string
-          primary_subtopic: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary: string
           title: string
@@ -8244,8 +7806,6 @@ export type Database = {
           p_ingestion_source?: string
           p_limit?: number
           p_offset?: number
-          p_primary_domain?: string
-          p_primary_subtopic?: string
           p_published_from?: string
           p_published_to?: string
         }
@@ -8253,11 +7813,8 @@ export type Database = {
           body_preview: string
           ingestion_source: string
           layer: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary_preview: string
           title: string
@@ -8271,11 +7828,8 @@ export type Database = {
           fulltext_score: number
           ingestion_source: string
           layer: string
-          primary_domain: string
-          primary_subtopic: string
           published_at: string
           reference_id: string
-          source_document_id: string
           source_url: string
           summary_preview: string
           title: string
@@ -8295,83 +7849,6 @@ export type Database = {
         Returns: {
           source_document_id: string
           was_minted: boolean
-        }[]
-      }
-      search_content:
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              ai_keywords: string[]
-              author_name: string
-              captured_date: string
-              classification_confidence: number
-              content_type: string
-              id: string
-              platform: string
-              primary_domain: string
-              primary_subtopic: string
-              similarity: number
-              source_domain: string
-              suggested_title: string
-              summary: string
-              thumbnail_url: string
-              title: string
-            }[]
-          }
-        | {
-            Args: {
-              limit_count?: number
-              query_embedding: string
-              similarity_threshold?: number
-            }
-            Returns: {
-              ai_keywords: string[]
-              author_name: string
-              captured_date: string
-              classification_confidence: number
-              content_type: string
-              id: string
-              platform: string
-              primary_domain: string
-              primary_subtopic: string
-              similarity: number
-              source_domain: string
-              suggested_title: string
-              summary: string
-              thumbnail_url: string
-              title: string
-            }[]
-          }
-      search_content_chunks: {
-        Args: {
-          filter_overdue_review?: boolean
-          filter_review_due_within_days?: number
-          filter_source_document_id?: string
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-          visibility_filter?: string
-        }
-        Returns: {
-          char_count: number
-          chunk_id: string
-          content: string
-          heading_level: number
-          heading_path: string[]
-          heading_text: string
-          item_content_type: string
-          item_primary_domain: string
-          item_primary_subtopic: string
-          item_suggested_title: string
-          item_title: string
-          position: number
-          similarity: number
-          source_document_id: string
-          word_count: number
         }[]
       }
       search_for_form_response: {

@@ -86,30 +86,9 @@ export async function fetchSourceDocumentBodies(
     }
   }
 
-  // Reference-item leg — only for documents the chunk leg left bodyless.
-  const unresolved = uniqueIds.filter((id) => bodies.get(id) === null);
-  if (unresolved.length > 0) {
-    const { data, error } = await supabase
-      .from('reference_items')
-      .select('source_document_id, body')
-      .in('source_document_id', unresolved);
-    if (error) {
-      throw new Error(
-        `fetchSourceDocumentBodies: reference_items read failed: ${error.message}`,
-      );
-    }
-    for (const row of data ?? []) {
-      if (row.source_document_id === null) continue;
-      const body = row.body?.trim();
-      // First non-empty body wins — the URL route stages one reference_item
-      // per document, so multiples only arise from manual data and any
-      // non-empty one is a valid body.
-      if (body && bodies.get(row.source_document_id) === null) {
-        bodies.set(row.source_document_id, row.body);
-      }
-    }
-  }
-
+  // The reference-item fallback leg is retired (DR-124): reference items are
+  // standalone — no sd row is reference-minted, so no document resolves its
+  // body through a paired reference_items row any more.
   return bodies;
 }
 
