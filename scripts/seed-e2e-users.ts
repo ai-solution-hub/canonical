@@ -454,38 +454,36 @@ export async function seedPublicationReviewFixture(
   return { id: created.id, action: 'created' };
 }
 
-// ── Taxonomy + governance reference-data fixture (ID-128 {128.9}) ────────────
+// ── Governance reference-data fixture (ID-128 {128.9}) ──────────────────────
 //
-// Liam ratified treating taxonomy/governance reference data as AMBIENT → SEED
-// it deterministically so e2e/tests/settings-mutations.spec.ts can HARD-assert
-// equality (NOT `> 0`) against a known domain name (test-philosophy.md §2.1).
+// Liam ratified treating governance reference data as AMBIENT → SEED it
+// deterministically so e2e/tests/settings-mutations.spec.ts can HARD-assert
+// equality (NOT `> 0`) against a known domain value (test-philosophy.md §2.1).
 //
-// Two rows, seeded idempotently via lookup-then-insert (mirrors
+// One row, seeded idempotently via lookup-then-insert (mirrors
 // seedPublicationReviewFixture):
-//   1. public.taxonomy_domains — one active domain the Content Organisation
-//      settings tab renders as a DomainCard ("E2e Seeded Domain").
-//   2. public.governance_config — one Quality Review rule the Governance
+//   1. public.governance_config — one Quality Review rule the Governance
 //      settings tab renders as a config-list row.
 //
-// Idempotency: both rows are looked up by their UNIQUE business key
-// (taxonomy_domains.name / governance_config.domain). Found → return the
-// existing id WITHOUT mutating any column (the script re-runs every CI job).
-// Absent → INSERT. No destructive updates.
+// Idempotency: the row is looked up by its UNIQUE business key
+// (governance_config.domain). Found → return the existing id WITHOUT
+// mutating any column (the script re-runs every CI job). Absent → INSERT.
+// No destructive updates.
 //
-// The governance row stores the taxonomy *slug* verbatim in `domain`, matching
-// the real Add-Domain flow (governance-section.tsx submits the SelectItem
-// value = the taxonomy domain slug). `created_by`/`updated_by`/`reviewer_id`
-// are left NULL (all nullable FK→user_profiles) so the seed has no user
-// dependency. Preset column values come from the canonical PRESET_VALUES map
-// so this fixture never drifts from lib/governance/presets.ts.
+// id-417 / DR-130: the taxonomy_domains leg retired with the table (and the
+// Content Organisation settings UI it served). The governance row keeps the
+// historical slug value in `domain` (governance_config's own fate is
+// id-420/DR-127). `created_by`/`updated_by`/`reviewer_id` are left NULL
+// (all nullable FK→user_profiles) so the seed has no user dependency.
+// Preset column values come from the canonical PRESET_VALUES map so this
+// fixture never drifts from lib/governance/presets.ts.
 
-const E2E_TAXONOMY_DOMAIN_SLUG = 'e2e-seeded-domain';
-const E2E_GOVERNANCE_DOMAIN = E2E_TAXONOMY_DOMAIN_SLUG;
+const E2E_GOVERNANCE_DOMAIN = 'e2e-seeded-domain';
 
 /**
- * Seed (or verify) the deterministic taxonomy_domains + governance_config rows
- * consumed by e2e/tests/settings-mutations.spec.ts. Idempotent — re-runs return
- * the existing rows' ids without touching any column. See test-philosophy.md
+ * Seed (or verify) the deterministic governance_config row consumed by
+ * e2e/tests/settings-mutations.spec.ts. Idempotent — re-runs return the
+ * existing row's id without touching any column. See test-philosophy.md
  * §2.1 (ambient-as-seeded reference data).
  *
  * @param client  Supabase service-role client (RLS-bypassing).
@@ -493,48 +491,8 @@ const E2E_GOVERNANCE_DOMAIN = E2E_TAXONOMY_DOMAIN_SLUG;
 export async function seedTaxonomyGovernanceFixture(
   client: SupabaseServiceClient,
 ): Promise<{
-  taxonomy: { id: string; action: 'created' | 'already-exists' };
   governance: { id: string; action: 'created' | 'already-exists' };
 }> {
-  // ── taxonomy_domains ──────────────────────────────────────────────────
-  const { data: existingDomain, error: domainLookupErr } = await client
-    .from('taxonomy_domains')
-    .select('id')
-    .eq('name', E2E_TAXONOMY_DOMAIN_SLUG)
-    .maybeSingle();
-  if (domainLookupErr) {
-    throw new Error(
-      `taxonomy fixture lookup failed: ${domainLookupErr.message}`,
-    );
-  }
-
-  let taxonomy: { id: string; action: 'created' | 'already-exists' };
-  if (existingDomain) {
-    taxonomy = { id: existingDomain.id, action: 'already-exists' };
-  } else {
-    const { data: created, error: insertErr } = await client
-      .from('taxonomy_domains')
-      .insert({
-        name: E2E_TAXONOMY_DOMAIN_SLUG,
-        description:
-          'E2E fixture domain — exercises the Content Organisation settings tab.',
-        // High display_order so the fixture sorts after real domains and never
-        // collides with ambient reorder fixtures.
-        display_order: 9000,
-        is_active: true,
-        // 'baseline' renders no provenance badge — keeps the card minimal.
-        provenance: 'baseline',
-      })
-      .select('id')
-      .single();
-    if (insertErr || !created) {
-      throw new Error(
-        `taxonomy fixture insert failed: ${insertErr?.message ?? 'no row returned'}`,
-      );
-    }
-    taxonomy = { id: created.id, action: 'created' };
-  }
-
   // ── governance_config ─────────────────────────────────────────────────
   const { data: existingGov, error: govLookupErr } = await client
     .from('governance_config')
@@ -571,7 +529,7 @@ export async function seedTaxonomyGovernanceFixture(
     governance = { id: created.id, action: 'created' };
   }
 
-  return { taxonomy, governance };
+  return { governance };
 }
 
 // ── Test user definitions ──────────────────────────────────────────────────
@@ -916,42 +874,31 @@ async function main(): Promise<void> {
   console.log('\n→ Seeding taxonomy + governance fixture (ID-128 {128.9})…');
   if (dryRun) {
     console.log(
-      "  (dry-run — would seed taxonomy_domains 'e2e-seeded-domain' + a governance_config rule if missing)",
+      "  (dry-run — would seed a governance_config rule for 'e2e-seeded-domain' if missing)",
     );
   } else if (checkOnly) {
-    const { data: domainRow, error: domainErr } = await supabase
-      .from('taxonomy_domains')
-      .select('id')
-      .eq('name', 'e2e-seeded-domain')
-      .maybeSingle();
     const { data: govRow, error: govErr } = await supabase
       .from('governance_config')
       .select('id')
       .eq('domain', 'e2e-seeded-domain')
       .maybeSingle();
-    if (domainErr || govErr) {
+    if (govErr) {
       console.error(
-        `  ❌ taxonomy/governance fixture check failed: ${(domainErr ?? govErr)?.message}`,
+        `  ❌ governance fixture check failed: ${govErr.message}`,
       );
       process.exit(EXIT_GENERIC_ERROR);
     }
-    if (!domainRow || !govRow) {
+    if (!govRow) {
       console.error(
-        '  ❌ taxonomy/governance fixture missing. Re-run without --check to seed.',
+        '  ❌ governance fixture missing. Re-run without --check to seed.',
       );
       process.exit(EXIT_GENERIC_ERROR);
     }
-    console.log(
-      `  ✅ taxonomy + governance fixture present (domain: ${domainRow.id}, rule: ${govRow.id}).`,
-    );
+    console.log(`  ✅ governance fixture present (rule: ${govRow.id}).`);
   } else {
     try {
       const fixture = await seedTaxonomyGovernanceFixture(supabase);
-      const tIcon = fixture.taxonomy.action === 'created' ? '✨' : '➖';
       const gIcon = fixture.governance.action === 'created' ? '✨' : '➖';
-      console.log(
-        `  ${tIcon} taxonomy domain: ${fixture.taxonomy.action} (${fixture.taxonomy.id})`,
-      );
       console.log(
         `  ${gIcon} governance rule: ${fixture.governance.action} (${fixture.governance.id})`,
       );

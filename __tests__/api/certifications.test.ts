@@ -164,7 +164,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'some-document.docx',
-          suggested_title: 'Some Document',
+
         },
       ],
     );
@@ -206,7 +206,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'example-datacentre-cert-doc.docx',
-          suggested_title: 'Example Datacentre Cert Doc',
+
         },
       ],
     );
@@ -243,7 +243,7 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_3,
           filename: 'our-iso-9001-cert.docx',
-          suggested_title: 'Our ISO 9001 Cert',
+
         },
       ],
     );
@@ -258,9 +258,9 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
     expect(selfCerts).toHaveLength(1);
     expect(selfCerts[0].canonical_name).toBe('iso 9001');
     expect(selfCerts[0].holder).toBe('self');
-    // Evidence-link title resolves from source_documents.suggested_title
-    // (ID-131 {131.19} — falls back to filename when unset).
-    expect(selfCerts[0].content_items[0].title).toBe('Our ISO 9001 Cert');
+    // Evidence-link title resolves from source_documents.filename
+    // (id-417 / DR-130: suggested_title retired).
+    expect(selfCerts[0].content_items[0].title).toBe('our-iso-9001-cert.docx');
   });
 
   it('(d) includes mentions where metadata.holder === "supplier" in supplierCertifications', async () => {
@@ -302,12 +302,12 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'supplier-cert-doc.docx',
-          suggested_title: 'Supplier Cert Doc',
+
         },
         {
           id: UUID_4,
           filename: 'our-iso-9001.docx',
-          suggested_title: 'Our ISO 9001',
+
         },
       ],
     );

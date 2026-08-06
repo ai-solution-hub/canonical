@@ -208,11 +208,12 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
     const warnings: string[] = [];
     if (contentItemIds.length > 0) {
       // ID-131 {131.19} G-GOV-FACET: content_items is dying — evidence-link
-      // titles re-pointed onto source_documents id/filename/suggested_title,
-      // keyed on entity_mentions.source_document_id (already M2-renamed).
+      // titles re-pointed onto source_documents id/filename, keyed on
+      // entity_mentions.source_document_id (already M2-renamed). id-417 /
+      // DR-130: suggested_title retired — filename is the title.
       const { data: items, error: itemsError } = await supabase
         .from('source_documents')
-        .select('id, filename, suggested_title')
+        .select('id, filename')
         .in('id', contentItemIds);
       if (itemsError) {
         logger.error(
@@ -226,7 +227,7 @@ export const GET = defineRoute(CertificationReportResponseSchema, async () => {
       }
       contentItems = (items ?? []).map((item) => ({
         id: item.id,
-        title: item.suggested_title ?? item.filename,
+        title: item.filename,
       }));
     }
 
