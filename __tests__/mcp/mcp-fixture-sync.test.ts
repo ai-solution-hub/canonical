@@ -307,7 +307,6 @@ describe('MCP Resource Templates Fixture Sync', () => {
   });
 });
 
-
 /**
  * ID-71 M38 born-evaluable forcing function (B-INV-38/13/40), extending the
  * fixture-sync precedent above. The fixture-sync guards FAIL a tool/prompt that

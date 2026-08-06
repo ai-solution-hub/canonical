@@ -468,7 +468,9 @@ describe('GuideContent — mobile sidebar', () => {
 
     // Domain badges retired with the subject axis (DR-130)
     expect(mobileContent.queryByTestId('domain-badge')).not.toBeInTheDocument();
-    expect(desktopContent.queryByTestId('domain-badge')).not.toBeInTheDocument();
+    expect(
+      desktopContent.queryByTestId('domain-badge'),
+    ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

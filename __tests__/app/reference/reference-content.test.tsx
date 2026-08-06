@@ -65,7 +65,6 @@ function makeRow(overrides: Partial<ReferenceListItem> = {}) {
     source_url: 'https://example.com/a',
     published_at: '2026-01-15T00:00:00Z',
 
-
     layer: 'detail',
     ingestion_source: 'url_import',
 

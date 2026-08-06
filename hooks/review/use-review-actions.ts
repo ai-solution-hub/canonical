@@ -363,8 +363,7 @@ export function useReviewActions(
     async (note?: string) => {
       if (!currentItem || isVerifyPending) return;
 
-      const itemTitle =
-        currentItem.title ?? 'Item';
+      const itemTitle = currentItem.title ?? 'Item';
       const wasAlreadyVerified = !!currentItem.verified_at;
       const isLastItem = currentIndex >= queue.length - 1;
       const nextDisplayPosition = isLastItem
@@ -427,8 +426,7 @@ export function useReviewActions(
     async (details?: string) => {
       if (!currentItem || isFlagPending) return;
 
-      const itemTitle =
-        currentItem.title ?? 'Item';
+      const itemTitle = currentItem.title ?? 'Item';
       const isLastItem = currentIndex >= queue.length - 1;
       const nextDisplayPosition = isLastItem
         ? currentIndex + 1
@@ -496,8 +494,7 @@ export function useReviewActions(
       itemRecord.publication_status ?? currentItem.governance_review_status;
     if (draftStatus !== 'draft') return;
 
-    const itemTitle =
-      currentItem.title ?? 'Item';
+    const itemTitle = currentItem.title ?? 'Item';
 
     // Toast fires pre-mutate
     toast.success(`Published: ${itemTitle}`);

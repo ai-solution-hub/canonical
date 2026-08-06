@@ -318,7 +318,5 @@ describe('ContentOwnerManagement', () => {
         within(dialog).getByRole('button', { name: /cancel/i }),
       ).toBeInTheDocument();
     });
-
   });
-
 });

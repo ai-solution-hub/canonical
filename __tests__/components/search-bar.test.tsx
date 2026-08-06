@@ -384,7 +384,6 @@ describe('SearchBar', () => {
           id: 'item-003',
           title: 'ISO 27001 Certificate',
           content_type: 'reference_item',
-
         },
       ]);
       const user = userEvent.setup();

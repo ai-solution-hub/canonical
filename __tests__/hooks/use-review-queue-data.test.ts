@@ -287,8 +287,7 @@ describe('useReviewQueueData', () => {
     it('queueFiltersKey includes filters and sort for cache keying', () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(
-        () =>
-          useReviewQueueData({ status: 'flagged' }, 'quality_score_asc'),
+        () => useReviewQueueData({ status: 'flagged' }, 'quality_score_asc'),
         { wrapper: Wrapper },
       );
 

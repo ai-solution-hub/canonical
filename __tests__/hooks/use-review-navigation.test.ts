@@ -25,14 +25,12 @@ function makeQueueItem(
 
     summary: null,
 
-
     content_type: 'article',
     platform: 'web',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: '2026-01-01',
-
 
     priority: null,
     freshness: 'fresh',
@@ -43,7 +41,6 @@ function makeQueueItem(
 
     verified_at: null,
     verified_by: null,
-
 
     quality_score: null,
     last_reviewed_at: null,
@@ -494,10 +491,7 @@ describe('useReviewNavigation', () => {
 
   describe('currentSortedIndex', () => {
     it('reflects current item position in queue', () => {
-      const items = [
-        makeQueueItem({ id: 'z' }),
-        makeQueueItem({ id: 'a' }, 1),
-      ];
+      const items = [makeQueueItem({ id: 'z' }), makeQueueItem({ id: 'a' }, 1)];
       const queueQuery = makeMockQueueQuery();
 
       const { result } = renderHook(

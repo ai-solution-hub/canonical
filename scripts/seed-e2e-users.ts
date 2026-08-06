@@ -883,9 +883,7 @@ async function main(): Promise<void> {
       .eq('domain', 'e2e-seeded-domain')
       .maybeSingle();
     if (govErr) {
-      console.error(
-        `  ❌ governance fixture check failed: ${govErr.message}`,
-      );
+      console.error(`  ❌ governance fixture check failed: ${govErr.message}`);
       process.exit(EXIT_GENERIC_ERROR);
     }
     if (!govRow) {

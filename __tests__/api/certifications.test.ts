@@ -164,7 +164,6 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'some-document.docx',
-
         },
       ],
     );
@@ -206,7 +205,6 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'example-datacentre-cert-doc.docx',
-
         },
       ],
     );
@@ -243,7 +241,6 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_3,
           filename: 'our-iso-9001-cert.docx',
-
         },
       ],
     );
@@ -302,12 +299,10 @@ describe('GET /api/certifications — holder + source_entity filter', () => {
         {
           id: UUID_2,
           filename: 'supplier-cert-doc.docx',
-
         },
         {
           id: UUID_4,
           filename: 'our-iso-9001.docx',
-
         },
       ],
     );

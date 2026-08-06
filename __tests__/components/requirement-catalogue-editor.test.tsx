@@ -131,9 +131,6 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     description: null,
     requirement_type: 'policy',
 
-
-
-
     matching_keywords: ['safety', 'RIDDOR'],
     matching_guidance: 'Match on policy documents',
     is_mandatory: true,

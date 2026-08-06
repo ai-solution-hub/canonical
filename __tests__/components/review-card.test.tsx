@@ -164,7 +164,6 @@ describe('ReviewCard', () => {
       }),
     ).toBeInTheDocument();
   });
-
 });
 
 // ─── GovernanceBadge surfacing (P0-12) ──────────────────────────────────────

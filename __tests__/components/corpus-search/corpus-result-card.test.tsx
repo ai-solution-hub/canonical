@@ -118,7 +118,6 @@ describe('CorpusResultCard', () => {
         `/documents/${DOCUMENT_ID}`,
       );
     });
-
   });
 
   describe('reference kind', () => {

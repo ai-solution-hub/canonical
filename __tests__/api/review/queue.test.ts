@@ -172,23 +172,23 @@ describe('GET /api/review/queue — sort parameter', () => {
   it.each([[undefined], ['created_at'], ['quality_score_asc']])(
     'returns 200 when sort=%s',
     async (sort) => {
-    configureRole(mockSupabase, 'editor');
+      configureRole(mockSupabase, 'editor');
 
-    const mockItems = [makeMockItem()];
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: mockItems, error: null, count: 1 });
-        return resolve({ data: null, error: null, count: 0 });
-      },
-    );
+      const mockItems = [makeMockItem()];
+      let thenCallCount = 0;
+      mockSupabase._chain.then.mockImplementation(
+        (resolve: (v: unknown) => void) => {
+          thenCallCount++;
+          if (thenCallCount === 1)
+            return resolve({ data: mockItems, error: null, count: 1 });
+          return resolve({ data: null, error: null, count: 0 });
+        },
+      );
 
-    const req = createTestRequest('/api/review/queue', {
-      searchParams: sort ? { sort } : undefined,
-    });
-    const res = await getQueue(req);
+      const req = createTestRequest('/api/review/queue', {
+        searchParams: sort ? { sort } : undefined,
+      });
+      const res = await getQueue(req);
       expect(res.status).toBe(200);
     },
   );
@@ -351,7 +351,6 @@ describe('GET /api/review/queue — document body as item content (id-392 M6)', 
     // read).
     expect(contentById[BODYLESS_DOC_ID]).toBeNull();
   });
-
 });
 
 // ===========================================================================

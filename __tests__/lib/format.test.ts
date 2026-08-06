@@ -286,4 +286,3 @@ describe('formatSmartDate', () => {
 
 // (getConfidenceDisplay tests removed — id-417 / DR-130: the helper
 // retired with classification_confidence.)
-

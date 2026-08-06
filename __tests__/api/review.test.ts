@@ -143,13 +143,8 @@ describe('GET /api/review/queue', () => {
 
         summary: 'A summary',
 
-
-
-
         content_type: 'article',
         captured_date: '2026-01-01',
-
-
 
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',
@@ -244,13 +239,8 @@ describe('GET /api/review/queue', () => {
 
         summary: 'A summary',
 
-
-
-
         content_type: 'article',
         captured_date: '2026-01-01',
-
-
 
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',

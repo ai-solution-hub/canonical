@@ -61,8 +61,6 @@ describe('fetchSourceDocumentBodies', () => {
     expect(bodies.get(DOC_A)).toBe('Chunk body.');
   });
 
-
-
   it('resolves a bodyless document (no chunks, no reference item) to null', async () => {
     const supabase = createMockSupabaseTableDispatch({
       content_chunks: { data: [], error: null },
@@ -175,7 +173,6 @@ describe('fetchSourceDocumentBodies', () => {
       fetchSourceDocumentBodies(supabase as never, [DOC_A]),
     ).rejects.toThrowError(/content_chunks read failed: connection reset/);
   });
-
 });
 
 describe('fetchSourceDocumentBody', () => {
