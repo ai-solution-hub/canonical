@@ -62,11 +62,13 @@ export interface PayloadTableContract {
 }
 
 /**
- * The seven v1 canonical payload tables, in FK-dependency order
+ * The five v1 canonical payload tables, in FK-dependency order
  * (a table never appears before a table its fkRemap references).
  *
+ * id-417 / DR-130: taxonomy_domains/taxonomy_subtopics dropped (the
+ * subject-taxonomy axis retired) — removed from the contract.
+ *
  * Order rationale:
- *  - taxonomy_domains before taxonomy_subtopics (subtopics.domain_id -> domains).
  *  - layer_vocabulary / application_types / form_types are independent text/uuid
  *    natural-key tables with no inbound remap dependency among the payload set.
  *  - form_requirement_templates after form_types (its template_type FK is by TEXT
@@ -75,35 +77,6 @@ export interface PayloadTableContract {
  *  - reference_items last (independent natural key `source_url`).
  */
 export const PAYLOAD_CONTRACT: readonly PayloadTableContract[] = [
-  {
-    table: 'taxonomy_domains',
-    stableKey: ['name'],
-    fkRemap: null,
-    tombstone: 'delete-absent',
-  },
-  {
-    table: 'taxonomy_subtopics',
-    // stableKey is the non-FK identifying component only: the subtopic `name`.
-    // `domain_name` is NOT a stored column (it exists only as a SELECT alias in
-    // coverage-RPC RETURNS TABLE signatures) -- so it cannot be an ON CONFLICT
-    // target. The cross-DB identity is (resolved domain, subtopic name); the domain
-    // component is supplied by the fkRemap below, not by a stableKey column.
-    //
-    // Worker upsert target (so {95.13} builds the right ON CONFLICT without
-    // guessing): the ON CONFLICT column set = fkRemap-resolved FK column(s) UNION
-    // stableKey = (domain_id, name), which is the existing DB UNIQUE constraint
-    // `taxonomy_subtopics_domain_id_name_key`. The worker resolves the target-side
-    // `domain_id` via the fkRemap (look up the source row's domain `name`, find the
-    // target taxonomy_domains row with that `name`, use ITS uuid id) BEFORE the
-    // upsert, then conflicts on (domain_id, name).
-    stableKey: ['name'],
-    fkRemap: {
-      column: 'domain_id',
-      referencesTable: 'taxonomy_domains',
-      referencesStableKey: ['name'],
-    },
-    tombstone: 'delete-absent',
-  },
   {
     table: 'layer_vocabulary',
     stableKey: ['key'],
@@ -140,13 +113,8 @@ export const PAYLOAD_CONTRACT: readonly PayloadTableContract[] = [
   {
     table: 'reference_items',
     // `source_url` is UNIQUE (the canonical normalised-URL join contract, BI-4).
-    // NOTE: reference_items.source_document_id is a NOT NULL uuid FK to
-    // source_documents, which is a CLIENT-PROVENANCE table EXCLUDED from this
-    // contract. It is intentionally NOT modelled as an fkRemap here because the
-    // worker cannot remap to a table it does not propagate. Resolving this
-    // cross-class FK on the target is a {95.13} concern (e.g. seed a sentinel
-    // platform source_document, or scope reference_items propagation to the
-    // platform-reference subset). Flagged for {95.13}; not resolvable in {95.11}.
+    // (id-417 / DR-124: the former source_document_id FK note is obsolete —
+    // the column is dropped; a reference item is the record.)
     stableKey: ['source_url'],
     fkRemap: null,
     tombstone: 'delete-absent',

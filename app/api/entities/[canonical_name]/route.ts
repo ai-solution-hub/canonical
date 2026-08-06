@@ -101,16 +101,17 @@ export const GET = defineRoute(
         // ID-131 {131.19} G-GOV-FACET: content_items is dying — evidence-link
         // titles/content_type re-pointed onto source_documents, keyed on
         // entity_mentions.source_document_id (already M2-renamed). title has
-        // no direct SD column — derived from suggested_title/filename.
+        // no direct SD column — filename (id-417 / DR-130 retired
+        // suggested_title).
         const { data: items, error: itemsError } = await supabase
           .from('source_documents')
-          .select('id, filename, suggested_title, content_type')
+          .select('id, filename, content_type')
           .in('id', itemIds);
 
         if (!itemsError && items) {
           contentItems = items.map((item) => ({
             id: item.id,
-            title: item.suggested_title ?? item.filename,
+            title: item.filename,
             content_type: item.content_type,
           }));
         }

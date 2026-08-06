@@ -68,27 +68,22 @@ export const POST = defineRoute(
         ownerIds = (resolved ?? []).map((row) => row.id);
       } else if (filter) {
         // Query source_documents with filters to resolve IDs. ID-131
-        // {131.19}: primary_domain/primary_subtopic/content_type live on
-        // source_documents directly (M3); content_owner_id (unowned_only)
-        // lives on the record_lifecycle facet — only join it when needed.
+        // {131.19}: content_type lives on source_documents directly (M3);
+        // content_owner_id (unowned_only) lives on the record_lifecycle
+        // facet — only join it when needed. id-417 / DR-130: the
+        // domain/subtopic filter legs retired with the subject axis.
         const { data: items, error: queryError } = await (filter.unowned_only
           ? (() => {
               let q = supabase
                 .from('source_documents')
                 .select('id, record_lifecycle!inner(content_owner_id)')
                 .is('record_lifecycle.content_owner_id', null);
-              if (filter.domain) q = q.eq('primary_domain', filter.domain);
-              if (filter.subtopic)
-                q = q.eq('primary_subtopic', filter.subtopic);
               if (filter.content_type)
                 q = q.eq('content_type', filter.content_type);
               return q.limit(500);
             })()
           : (() => {
               let q = supabase.from('source_documents').select('id');
-              if (filter.domain) q = q.eq('primary_domain', filter.domain);
-              if (filter.subtopic)
-                q = q.eq('primary_subtopic', filter.subtopic);
               if (filter.content_type)
                 q = q.eq('content_type', filter.content_type);
               return q.limit(500);

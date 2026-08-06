@@ -7,10 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import {
-  ReviewStatsResponseSchema,
-  UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
-} from '@/lib/validation/schemas';
+import { ReviewStatsResponseSchema } from '@/lib/validation/schemas';
 import type { ReviewStatsResponse } from '@/types/review';
 import { NextResponse } from 'next/server';
 
@@ -36,37 +33,22 @@ export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
     // orthogonal — used only as the count badge for tab 6 of /review.
     //
     // Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (b), §12 OQ4.
-    // The unclassified-coverage count (ID-63.12) is the queryable mirror of
-    // the Inv-7 taxonomy-miss signal: non-archived content_items that landed
-    // on the 'unclassified' sentinel established by {63.11}
-    // (primary_domain='unclassified' OR primary_subtopic='unclassified').
-    // head:true + count:'exact' avoids transferring rows. Drives the count
-    // badge on the "Unclassified" tab of /review.
+    // id-417 / DR-130: the unclassified-coverage count (ID-63.12) retired
+    // with the subject-taxonomy axis — its sentinel columns are dropped.
     // ID-131 {131.19} G-GOV-FACET: content_items is dying — publication_status/
-    // archived_at/primary_domain/primary_subtopic now live on source_documents
-    // (M3 classification cols + BI-20 inline hot publication_status).
-    const [statsResult, awaitingResult, unclassifiedResult] = await Promise.all(
-      [
-        supabase.rpc('get_review_breakdown_stats'),
-        supabase
-          .from('source_documents')
-          .select('id', { count: 'exact', head: true })
-          .eq('publication_status', 'in_review')
-          .is('archived_at', null)
-          // BL-398 (S450): exclude tombstoned source_documents (GDPR
-          // erasure, ID-138 {138.5} DR-023) from the awaiting_publication
-          // badge count.
-          .neq('admission_status', 'tombstoned'),
-        supabase
-          .from('source_documents')
-          .select('id', { count: 'exact', head: true })
-          .is('archived_at', null)
-          // BL-398 (S450): same tombstone exclusion for the
-          // unclassified_coverage badge count.
-          .neq('admission_status', 'tombstoned')
-          .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
-      ],
-    );
+    // archived_at now live on source_documents.
+    const [statsResult, awaitingResult] = await Promise.all([
+      supabase.rpc('get_review_breakdown_stats'),
+      supabase
+        .from('source_documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('publication_status', 'in_review')
+        .is('archived_at', null)
+        // BL-398 (S450): exclude tombstoned source_documents (GDPR
+        // erasure, ID-138 {138.5} DR-023) from the awaiting_publication
+        // badge count.
+        .neq('admission_status', 'tombstoned'),
+    ]);
 
     if (statsResult.error) {
       logger.error(
@@ -88,22 +70,13 @@ export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
         { status: 500 },
       );
     }
-    if (unclassifiedResult.error) {
-      logger.error(
-        { err: unclassifiedResult.error },
-        'Failed to fetch unclassified_coverage count',
-      );
-      return NextResponse.json(
-        { error: 'Failed to fetch review statistics' },
-        { status: 500 },
-      );
-    }
-
     // The RPC returns the full ReviewStatsResponse shape (minus unverified +
-    // awaiting_publication — both computed in this handler).
+    // awaiting_publication — both computed in this handler). id-417 / DR-130:
+    // the RPC no longer emits a by_domain key (record_lifecycle.domain
+    // dropped) and the response shape retired it in lockstep.
     const stats = statsResult.data as Omit<
       ReviewStatsResponse,
-      'unverified' | 'awaiting_publication' | 'unclassified_coverage'
+      'unverified' | 'awaiting_publication'
     > & {
       total: number;
       verified: number;
@@ -114,7 +87,6 @@ export const GET = defineRoute(ReviewStatsResponseSchema, async () => {
       ...stats,
       unverified: stats.total - stats.verified,
       awaiting_publication: awaitingResult.count ?? 0,
-      unclassified_coverage: unclassifiedResult.count ?? 0,
     };
 
     return NextResponse.json(response);

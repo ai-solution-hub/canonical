@@ -177,10 +177,9 @@ export async function getGenerateEmbedding() {
   const { generateEmbedding } = await import('@/lib/ai/embed');
   return generateEmbedding;
 }
-export async function getClassifyContent() {
-  const { classifyContent } = await import('@/lib/ai/classify');
-  return classifyContent;
-}
+// (getClassifyContent deleted — id-417 / DR-130: its only caller was the
+// governance publish-time auto-classify leg, retired with the
+// classification stage.)
 export async function getGenerateSummary() {
   const { generateSummary } = await import('@/lib/ai/summarise');
   return generateSummary;

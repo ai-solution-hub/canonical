@@ -61,7 +61,6 @@ export function ReviewFilters({
     !hideStatusPills && filters.status && filters.status !== 'unverified'
       ? 1
       : 0,
-    filters.domain?.length ? 1 : 0,
     filters.content_type?.length ? 1 : 0,
     filters.source_file ? 1 : 0,
     filters.source_document_id ? 1 : 0,
@@ -69,16 +68,8 @@ export function ReviewFilters({
     filters.include_overdue ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
-  // Build domain options from stats
-  const domainOptions = stats?.by_domain
-    ? Object.entries(stats.by_domain)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([domain, counts]) => ({
-          value: domain,
-          label: domain,
-          count: counts.total,
-        }))
-    : [];
+  // id-417 / DR-130: the domain filter retired with the subject-taxonomy
+  // axis (stats no longer carry by_domain).
 
   // Build content type options from stats
   const contentTypeOptions = stats?.by_content_type
@@ -116,17 +107,6 @@ export function ReviewFilters({
 
   const handleStatusChange = (status: ReviewFiltersType['status']) => {
     onFiltersChange({ ...filters, status });
-  };
-
-  const handleDomainToggle = (domain: string) => {
-    const current = filters.domain ?? [];
-    const updated = current.includes(domain)
-      ? current.filter((d) => d !== domain)
-      : [...current, domain];
-    onFiltersChange({
-      ...filters,
-      domain: updated.length > 0 ? updated : undefined,
-    });
   };
 
   const handleContentTypeToggle = (contentType: string) => {
@@ -277,36 +257,6 @@ export function ReviewFilters({
                       {label}
                     </Button>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* Domain filter */}
-            {domainOptions.length > 0 && (
-              <div className="max-h-48 overflow-y-auto p-3">
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Domain
-                </h4>
-                <div className="flex flex-col gap-1">
-                  {domainOptions.map(({ value, label, count }) => {
-                    const isSelected = filters.domain?.includes(value) ?? false;
-                    return (
-                      <button
-                        key={value}
-                        onClick={() => handleDomainToggle(value)}
-                        aria-pressed={isSelected}
-                        className={cn(
-                          'flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
-                          isSelected && 'bg-accent font-medium',
-                        )}
-                      >
-                        <span className="truncate">{label}</span>
-                        <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             )}

@@ -37,12 +37,12 @@ export const POST = defineRoute(
       // Fetch items to check current governance_review_status. ID-131
       // {131.19} G-GOV-FACET: content_items is dying — governance_review_status
       // /content_owner_id live on the record_lifecycle facet (owner_kind=
-      // 'source_document'); title has no direct SD column — derived from
-      // suggested_title/filename below.
+      // 'source_document'); the title is the filename (suggested_title
+      // retired, id-417 / DR-130).
       const { data: rawItems, error: fetchErr } = await supabase
         .from('record_lifecycle')
         .select(
-          'source_document_id, governance_review_status, content_owner_id, source_documents!inner(id, filename, suggested_title)',
+          'source_document_id, governance_review_status, content_owner_id, source_documents!inner(id, filename)',
         )
         .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .in('source_document_id', itemIds);
@@ -62,9 +62,7 @@ export const POST = defineRoute(
           id: row.source_document_id!,
           governance_review_status: row.governance_review_status,
           content_owner_id: row.content_owner_id,
-          title:
-            row.source_documents!.suggested_title ??
-            row.source_documents!.filename,
+          title: row.source_documents!.filename,
         }));
 
       // Partition items into three groups

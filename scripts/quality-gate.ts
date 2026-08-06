@@ -105,8 +105,6 @@ export interface AuditContentExpected {
   baseline_date?: string;
   baseline_project?: string;
   file_groups: Record<string, AuditContentFileGroup>;
-  classification_confidence_threshold: number;
-  classification_confidence_min_ratio: number;
   required_entities: Array<{
     accept_any_of: string[];
     entity_type: string;
@@ -537,14 +535,10 @@ async function fetchNonDraftDocs<T extends { id: string }>(
   return rows.filter((r) => !draftIds.has(r.id));
 }
 
-/** Human-readable label for a source_documents row in diagnostics — the old
- *  content_items.title has no direct successor (BI-11); suggested_title is
- *  the classifier's title, filename the upload's. */
-function docLabel(r: {
-  suggested_title?: string | null;
-  filename?: string | null;
-}): string {
-  return (r.suggested_title ?? r.filename ?? '(untitled)').slice(0, 60);
+/** Human-readable label for a source_documents row in diagnostics —
+ *  filename (id-417 / DR-130 retired suggested_title). */
+function docLabel(r: { filename?: string | null }): string {
+  return (r.filename ?? '(untitled)').slice(0, 60);
 }
 
 /** bl-495: per-type non-draft corpus counts. Typed Q&A records moved off the
@@ -635,9 +629,8 @@ export async function embedding_coverage(
   try {
     const docs = await fetchNonDraftDocs<{
       id: string;
-      suggested_title: string | null;
       filename: string | null;
-    }>(ctx.sb, 'id, suggested_title, filename');
+    }>(ctx.sb, 'id, filename');
     const embeddedRows = await fetchAll<{ owner_id: string }>(
       ctx.sb,
       'record_embeddings',
@@ -677,10 +670,9 @@ export async function chunk_coverage(ctx: GateContext): Promise<CheckResult> {
   try {
     const items = await fetchNonDraftDocs<{
       id: string;
-      suggested_title: string | null;
       filename: string | null;
       content_type: string | null;
-    }>(ctx.sb, 'id, suggested_title, filename, content_type');
+    }>(ctx.sb, 'id, filename, content_type');
     if (items.length === 0) {
       return {
         name: 'chunk_coverage',
@@ -736,10 +728,12 @@ export async function entity_mention_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
+    // id-417 / DR-130: the classified_at gate retired with the
+    // classification stage — coverage is measured over all non-draft docs.
     const items = await fetchNonDraftDocs<{
       id: string;
       content_type: string | null;
-    }>(ctx.sb, 'id, content_type', (q) => q.not('classified_at', 'is', null));
+    }>(ctx.sb, 'id, content_type');
 
     const ids = items.map((r) => r.id);
     const mentionRows = await fetchAllInBatches<{ source_document_id: string }>(
@@ -801,10 +795,12 @@ export async function entity_relationship_coverage(
         `No thresholds for profile '${ctx.profileName}'`,
       );
     }
+    // id-417 / DR-130: the classified_at gate retired with the
+    // classification stage — coverage is measured over all non-draft docs.
     const items = await fetchNonDraftDocs<{
       id: string;
       content_type: string | null;
-    }>(ctx.sb, 'id, content_type', (q) => q.not('classified_at', 'is', null));
+    }>(ctx.sb, 'id, content_type');
 
     const ids = items.map((r) => r.id);
     const relRows = await fetchAllInBatches<{ source_document_id: string }>(
@@ -856,181 +852,14 @@ export async function entity_relationship_coverage(
   }
 }
 
-/** 3.6 classified_domains_not_empty — 0 empty-string classification cells. */
-export async function classified_domains_not_empty(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'classified_domains_not_empty');
-  try {
-    const { data, error } = await excludeArtefacts(
-      ctx.sb
-        .from('source_documents')
-        .select(
-          'id, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic',
-        )
-        .gt('classification_confidence', 0)
-        .or(
-          'primary_domain.eq.,primary_subtopic.eq.,secondary_domain.eq.,secondary_subtopic.eq.',
-        ),
-    ).limit(50);
-    if (error) throw error;
-    const rows = data ?? [];
-    const sample = rows
-      .slice(0, 10)
-      .map((r) => {
-        const bad: string[] = [];
-        if (r.primary_domain === '') bad.push('primary_domain');
-        if (r.primary_subtopic === '') bad.push('primary_subtopic');
-        if (r.secondary_domain === '') bad.push('secondary_domain');
-        if (r.secondary_subtopic === '') bad.push('secondary_subtopic');
-        return `${r.id} [${bad.join(',')}]`;
-      })
-      .join('; ');
-    return {
-      name: 'classified_domains_not_empty',
-      severity,
-      status: rows.length ? 'fail' : 'pass',
-      threshold: '0 rows with empty-string classification cells',
-      observed: `found=${rows.length}`,
-      diagnostic: rows.length
-        ? `Empty-string cells: ${sample} — check NULLIF handling in the classification pipeline`
-        : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('classified_domains_not_empty', severity, err);
-  }
-}
+// (Check 3.6 classified_domains_not_empty deleted — id-417 / DR-130: the
+// classification columns it audited are dropped.)
 
-/** 3.7 guide_domain_filter_resolves — every active guide resolves ≥1 item. */
-export async function guide_domain_filter_resolves(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'guide_domain_filter_resolves');
-  try {
-    const { data: guides, error: gerr } = await ctx.sb
-      .from('guides')
-      .select('id, name, slug, domain_filter')
-      .eq('is_published', true)
-      .not('domain_filter', 'is', null);
-    if (gerr) throw gerr;
-    const guideRows = guides ?? [];
-    if (guideRows.length === 0) {
-      return {
-        name: 'guide_domain_filter_resolves',
-        severity,
-        status: 'pass',
-        threshold: 'every published guide with domain_filter resolves ≥1 item',
-        observed: 'no published guides with domain_filter',
-        diagnostic: '',
-        duration_ms: now() - t0,
-      };
-    }
-    // bl-495: draft exclusion needs the record_lifecycle set — fetch it once,
-    // then count the non-draft documents per guide domain client-side.
-    const draftIds = await fetchDraftDocIds(ctx.sb);
-    const failures: string[] = [];
-    for (const g of guideRows) {
-      const domain = g.domain_filter as string;
-      const rows = await fetchAll<{ id: string }>(
-        ctx.sb,
-        'source_documents',
-        (q) => excludeArtefacts(q.select('id').eq('primary_domain', domain)),
-      );
-      const count = rows.filter((r) => !draftIds.has(r.id)).length;
-      if (count === 0) {
-        failures.push(`${g.slug}: domain_filter='${domain}' → 0 documents`);
-      }
-    }
-    return {
-      name: 'guide_domain_filter_resolves',
-      severity,
-      status: failures.length ? 'fail' : 'pass',
-      threshold: 'n_items ≥ 1 per published guide',
-      observed: `guides=${guideRows.length} unresolved=${failures.length}`,
-      diagnostic: failures.join('; '),
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('guide_domain_filter_resolves', severity, err);
-  }
-}
-
-/** 3.11 classified_but_no_confidence — partial-write detection. */
-export async function classified_but_no_confidence(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'classified_but_no_confidence');
-  try {
-    const rows = await fetchNonDraftDocs<{
-      id: string;
-      suggested_title: string | null;
-      filename: string | null;
-      classified_at: string | null;
-    }>(ctx.sb, 'id, suggested_title, filename, classified_at', (q) =>
-      q.not('classified_at', 'is', null).is('classification_confidence', null),
-    );
-    const sample = rows
-      .slice(0, 10)
-      .map((r) => `${r.id}: ${docLabel(r)} @ ${r.classified_at}`)
-      .join('; ');
-    return {
-      name: 'classified_but_no_confidence',
-      severity,
-      status: rows.length ? 'fail' : 'pass',
-      threshold:
-        '0 rows with classified_at != NULL AND classification_confidence = NULL',
-      observed: `found=${rows.length}`,
-      diagnostic: rows.length
-        ? `Partial classify writes: ${sample} — check classifier write path`
-        : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('classified_but_no_confidence', severity, err);
-  }
-}
-
-/** 3.12 summary_coverage — classified documents should have summary. */
-export async function summary_coverage(ctx: GateContext): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(ctx.profileDef, 'summary_coverage');
-  try {
-    const rows = await fetchNonDraftDocs<{
-      id: string;
-      suggested_title: string | null;
-      filename: string | null;
-      content_type: string | null;
-    }>(ctx.sb, 'id, suggested_title, filename, content_type', (q) =>
-      q.not('classified_at', 'is', null).is('summary', null),
-    );
-    const sample = rows
-      .slice(0, 10)
-      .map((r) => `${r.id}: ${docLabel(r)} [${r.content_type ?? '?'}]`)
-      .join('; ');
-    const ceiling = ctx.profileName === 'batch' ? 10 : 0;
-    return {
-      name: 'summary_coverage',
-      severity,
-      status: rows.length > ceiling ? 'fail' : 'pass',
-      threshold:
-        ceiling === 0
-          ? '0 classified rows without summary'
-          : `≤ ${ceiling} classified rows without summary (batch profile)`,
-      observed: `missing=${rows.length}`,
-      diagnostic:
-        rows.length > ceiling
-          ? `Classified items missing summary: ${sample} — check summariser runner`
-          : '',
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('summary_coverage', severity, err);
-  }
-}
+// (Checks 3.7 guide_domain_filter_resolves, 3.11 classified_but_no_confidence
+// and 3.12 summary_coverage deleted — id-417 / DR-130: they audited
+// sd.primary_domain / classified_at / classification_confidence / summary,
+// all dropped with the classification stage. guides.domain_filter itself is
+// KEPT but has no sd column left to resolve against.)
 
 // ---------------------------------------------------------------------------
 // Audit-content helpers
@@ -1156,77 +985,8 @@ export async function audit_per_file_qa_count(
   }
 }
 
-/** 3.2 audit_classification_confidence */
-export async function audit_classification_confidence(
-  ctx: GateContext,
-): Promise<CheckResult> {
-  const t0 = now();
-  const severity = severityFor(
-    ctx.profileDef,
-    'audit_classification_confidence',
-  );
-  try {
-    if (!ctx.auditContent) {
-      return makeSkip(
-        'audit_classification_confidence',
-        severity,
-        'audit-content config missing',
-      );
-    }
-    // bl-495: classification lives on the parent `source_documents` row
-    // (id-131 — Q&A pairs are no longer individually classified rows), so
-    // the hi-confidence ratio is now measured per DOCUMENT in each file
-    // group rather than per Q&A pair. Intent unchanged: the audit corpus
-    // must be classified with high confidence — granularity is coarser
-    // because that is where classification actually happens now.
-    const rows = await fetchAll<{
-      id: string;
-      filename: string;
-      classification_confidence: number | null;
-    }>(ctx.sb, 'source_documents', (q) =>
-      q.select('id, filename, classification_confidence'),
-    );
-    const byGroup: Record<string, { hi: number; total: number }> = {};
-    for (const r of rows) {
-      if (typeof r.filename !== 'string') continue;
-      const group = matchFileGroup(r.filename, ctx.auditContent.file_groups);
-      if (!group) continue;
-      byGroup[group] ??= { hi: 0, total: 0 };
-      byGroup[group].total += 1;
-      if (
-        typeof r.classification_confidence === 'number' &&
-        r.classification_confidence >=
-          ctx.auditContent.classification_confidence_threshold
-      ) {
-        byGroup[group].hi += 1;
-      }
-    }
-    const min = ctx.auditContent.classification_confidence_min_ratio;
-    const failures: string[] = [];
-    const lines: string[] = [];
-    for (const [group, { hi, total }] of Object.entries(byGroup)) {
-      const ratio = total === 0 ? 1 : hi / total;
-      const ok = ratio >= min;
-      lines.push(`${group}=${fmtRatio(ratio)}/≥${fmtRatio(min)}`);
-      if (!ok) {
-        failures.push(
-          `${group} hi-conf ratio=${fmtRatio(ratio)} (${hi}/${total}) below ${fmtRatio(min)}`,
-        );
-      }
-    }
-    return {
-      name: 'audit_classification_confidence',
-      severity,
-      status: failures.length ? 'fail' : 'pass',
-      threshold: `per-group hi-conf ratio ≥ ${fmtRatio(min)} (confidence ≥ ${ctx.auditContent.classification_confidence_threshold})`,
-      observed: lines.join(' '),
-      diagnostic: failures.join('; '),
-      duration_ms: now() - t0,
-    };
-  } catch (err) {
-    return makeFail('audit_classification_confidence', severity, err);
-  }
-}
+// (Check 3.2 audit_classification_confidence deleted — id-417 / DR-130:
+// classification_confidence dropped with the classification stage.)
 
 /** 3.3 audit_required_entities */
 export async function audit_required_entities(
@@ -1458,20 +1218,12 @@ export const GENERIC_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'chunk_coverage', fn: chunk_coverage },
   { name: 'entity_mention_coverage', fn: entity_mention_coverage },
   { name: 'entity_relationship_coverage', fn: entity_relationship_coverage },
-  { name: 'classified_domains_not_empty', fn: classified_domains_not_empty },
-  { name: 'guide_domain_filter_resolves', fn: guide_domain_filter_resolves },
-  { name: 'classified_but_no_confidence', fn: classified_but_no_confidence },
-  { name: 'summary_coverage', fn: summary_coverage },
 ];
 
 // bl-495 (id-131 drop): audit_cross_doc_dedup_ratio + audit_unresolved_dedup_24h
 // RETIRED — dedup family dropped, no successor (7 audit checks → 5).
 export const AUDIT_CHECKS: Array<{ name: string; fn: CheckFn }> = [
   { name: 'audit_per_file_qa_count', fn: audit_per_file_qa_count },
-  {
-    name: 'audit_classification_confidence',
-    fn: audit_classification_confidence,
-  },
   { name: 'audit_required_entities', fn: audit_required_entities },
   { name: 'audit_required_relationships', fn: audit_required_relationships },
   { name: 'audit_chunk_count_per_doc', fn: audit_chunk_count_per_doc },

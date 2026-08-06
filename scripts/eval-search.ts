@@ -7,7 +7,6 @@
  * Metrics:
  *   - MRR (Mean Reciprocal Rank)
  *   - Precision@5 and Precision@10
- *   - Domain accuracy: results match expected domains
  *   - Min results compliance: meets minimum result count
  *
  * Usage:
@@ -74,8 +73,9 @@ interface SearchTestCase {
   expectations: {
     min_results: number;
     max_results?: number;
-    expected_domains: string[];
-    expected_subtopics?: string[];
+    // (expected_domains/expected_subtopics survive in the fixture JSON but
+    // are no longer read — id-417 / DR-130: hybrid_search no longer
+    // projects domains.)
     expected_content_types?: string[];
     must_include_titles: string[];
     notes: string;
@@ -90,7 +90,6 @@ interface SearchTestCase {
 interface SearchResult {
   id: string;
   title: string;
-  primary_domain: string;
   similarity: number;
 }
 
@@ -101,7 +100,6 @@ interface CaseScore {
   result_count: number;
   min_results_met: boolean;
   max_results_met: boolean;
-  domain_accuracy: number;
   mrr_value: number;
   precision_at_5: number;
   precision_at_10: number;
@@ -185,20 +183,8 @@ function scoreCase(
     ? results.length <= testCase.expectations.max_results
     : true;
 
-  // Domain accuracy: proportion of results in expected domains
-  const expectedDomains = new Set(testCase.expectations.expected_domains);
-  const domainMatches = results.filter((r) =>
-    expectedDomains.has(r.primary_domain),
-  ).length;
-  const domainAccuracy =
-    results.length > 0 ? domainMatches / results.length : 0;
-
-  if (domainAccuracy < 0.5 && results.length > 0) {
-    const actualDomains = [...new Set(results.map((r) => r.primary_domain))];
-    details.push(
-      `Domain accuracy: ${(domainAccuracy * 100).toFixed(0)}% (expected: ${[...expectedDomains].join(', ')}, got: ${actualDomains.join(', ')})`,
-    );
-  }
+  // (Domain-accuracy metric retired — id-417 / DR-130: hybrid_search no
+  // longer projects primary_domain.)
 
   // MRR and Precision@K using relevance judgements
   let mrrValue = 0;
@@ -238,7 +224,6 @@ function scoreCase(
     result_count: results.length,
     min_results_met: minResultsMet,
     max_results_met: maxResultsMet,
-    domain_accuracy: domainAccuracy,
     mrr_value: mrrValue,
     precision_at_5: pAt5,
     precision_at_10: pAt10,
@@ -253,7 +238,6 @@ const SUITE_NAME = 'search';
 const THRESHOLDS: Record<string, { min?: number; max_drop?: number }> = {
   mrr: { min: 0.4, max_drop: 0.1 },
   precision_at_5: { min: 0.3, max_drop: 0.1 },
-  domain_accuracy: { min: 0.5, max_drop: 0.1 },
   min_results_compliance: { min: 0.8, max_drop: 0.05 },
 };
 
@@ -369,11 +353,6 @@ async function main() {
         casesWithJudgements.length
       : 0;
 
-  const avgDomainAcc =
-    scores.length > 0
-      ? scores.reduce((sum, s) => sum + s.domain_accuracy, 0) / scores.length
-      : 0;
-
   const minResultsCompliance =
     scores.length > 0
       ? scores.filter((s) => s.min_results_met).length / scores.length
@@ -383,7 +362,6 @@ async function main() {
     mrr: avgMrr,
     precision_at_5: avgPAt5,
     precision_at_10: avgPAt10,
-    domain_accuracy: avgDomainAcc,
     min_results_compliance: minResultsCompliance,
   };
 
@@ -443,29 +421,26 @@ async function main() {
     console.log('--- PER-CATEGORY BREAKDOWN ---\n');
     const byCategory = new Map<
       string,
-      { total: number; mrrSum: number; domainSum: number; minResultsOk: number }
+      { total: number; mrrSum: number; minResultsOk: number }
     >();
     for (const s of scores) {
       if (!byCategory.has(s.category)) {
         byCategory.set(s.category, {
           total: 0,
           mrrSum: 0,
-          domainSum: 0,
           minResultsOk: 0,
         });
       }
       const entry = byCategory.get(s.category)!;
       entry.total++;
       entry.mrrSum += s.mrr_value;
-      entry.domainSum += s.domain_accuracy;
       if (s.min_results_met) entry.minResultsOk++;
     }
     for (const [cat, data] of byCategory) {
       const avgCatMrr = data.total > 0 ? data.mrrSum / data.total : 0;
-      const avgCatDomain = data.total > 0 ? data.domainSum / data.total : 0;
       const minRate = data.total > 0 ? data.minResultsOk / data.total : 0;
       console.log(
-        `  ${cat.padEnd(20)} ${data.total} cases  MRR=${(avgCatMrr * 100).toFixed(0)}%  domain=${(avgCatDomain * 100).toFixed(0)}%  min_results=${(minRate * 100).toFixed(0)}%`,
+        `  ${cat.padEnd(20)} ${data.total} cases  MRR=${(avgCatMrr * 100).toFixed(0)}%  min_results=${(minRate * 100).toFixed(0)}%`,
       );
     }
     console.log('');
@@ -476,7 +451,7 @@ async function main() {
       for (const s of scores) {
         const status = s.min_results_met ? 'PASS' : 'FAIL';
         console.log(
-          `  [${status}] ${s.case_id}: "${s.query.slice(0, 50)}" => ${s.result_count} results  MRR=${s.mrr_value.toFixed(2)}  P@5=${s.precision_at_5.toFixed(2)}  domain=${(s.domain_accuracy * 100).toFixed(0)}%`,
+          `  [${status}] ${s.case_id}: "${s.query.slice(0, 50)}" => ${s.result_count} results  MRR=${s.mrr_value.toFixed(2)}  P@5=${s.precision_at_5.toFixed(2)}`,
         );
         for (const d of s.details) {
           console.log(`    ${d}`);

@@ -3,8 +3,9 @@
  *
  * Determines how well the KB covers a specific bid template by matching
  * each template requirement against content items using a 3-tier approach:
- *   1. Exact taxonomy match (domain + subtopic)
- *   2. Keyword overlap (requirement matching_keywords vs content ai_keywords)
+ *   (id-417 / DR-130: the taxonomy-match and ai_keywords-overlap tiers
+ *   retired with the subject-taxonomy axis — semantic similarity is the
+ *   matching signal.)
  *   3. Semantic similarity (pre-computed embeddings, cosine distance)
  *
  * Spec: docs/specs/template-driven-completeness-spec.md §3
@@ -12,10 +13,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import type {
-  FacetOwnerKind,
-  RecordEmbeddingsOwnerKind,
-} from '@/lib/validation/owner-kind';
+import type { RecordEmbeddingsOwnerKind } from '@/lib/validation/owner-kind';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -93,10 +91,6 @@ export interface TemplateRequirement {
   requirement_text: string;
   description: string | null;
   requirement_type: RequirementType;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
-  secondary_domain: string | null;
-  secondary_subtopic: string | null;
   matching_keywords: string[] | null;
   matching_guidance: string | null;
   requirement_embedding: number[] | null;
@@ -111,12 +105,10 @@ export interface TemplateRequirement {
  *
  * Post-{131.16} (BI-29/30/31): sourced from q_a_pairs (primary) and
  * reference_items (optional) instead of the retired content_items table.
- * `brief`/`detail`/`suggested_title` have no typed-record home (BI-11 —
- * IMS-vestige, never re-homed) and are always null; `ai_keywords` likewise
- * has no typed home on either table (neither ever carried a keyword array)
- * and stays null — matchRequirement's Tier 2 keyword-overlap check simply
- * never fires for these rows (explicit drift, not fabricated — mirrors the
- * BI-28 "no typed home" idiom used elsewhere in this refactor).
+ * `brief`/`detail` have no typed-record home (BI-11 — IMS-vestige, never
+ * re-homed) and are always null. id-417 / DR-130: the
+ * primary_domain/primary_subtopic/ai_keywords/suggested_title fields retired
+ * with the subject-taxonomy axis and the classification stage.
  */
 export interface ContentItemForMatching {
   id: string;
@@ -124,11 +116,7 @@ export interface ContentItemForMatching {
   brief: string | null;
   detail: string | null;
   title: string;
-  suggested_title: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
   content_type: string;
-  ai_keywords: string[] | null;
   embedding: number[] | null;
 }
 
@@ -251,11 +239,11 @@ export function matchRequirement(
   const contentLengthThreshold =
     CONTENT_LENGTH_THRESHOLDS[requirement.requirement_type] ?? 200;
 
-  // Score each content item against this requirement
+  // Score each content item against this requirement. id-417 / DR-130: the
+  // taxonomy-match and ai_keywords-overlap tiers retired with their source
+  // columns — semantic similarity is the sole scoring signal.
   interface ScoredMatch {
     id: string;
-    taxonomyMatch: boolean;
-    keywordOverlap: number;
     similarity: number;
     contentLength: number;
     isQAFragment: boolean;
@@ -264,46 +252,14 @@ export function matchRequirement(
   const matches: ScoredMatch[] = [];
 
   for (const item of contentItems) {
-    // --- Tier 1: Taxonomy match ---
-    const taxonomyMatch =
-      requirement.primary_domain !== null &&
-      requirement.primary_subtopic !== null &&
-      item.primary_domain !== null &&
-      item.primary_subtopic !== null &&
-      item.primary_domain.toLowerCase() ===
-        requirement.primary_domain.toLowerCase() &&
-      item.primary_subtopic.toLowerCase() ===
-        requirement.primary_subtopic.toLowerCase();
-
-    // --- Tier 2: Keyword overlap ---
-    let keywordOverlap = 0;
-    if (
-      requirement.matching_keywords &&
-      requirement.matching_keywords.length > 0 &&
-      item.ai_keywords
-    ) {
-      const reqKeywords = new Set(
-        requirement.matching_keywords.map((k) => k.toLowerCase()),
-      );
-      for (const kw of item.ai_keywords) {
-        if (reqKeywords.has(kw.toLowerCase())) {
-          keywordOverlap++;
-        }
-      }
-    }
-
-    // --- Tier 3: Semantic similarity ---
+    // --- Semantic similarity ---
     const similarity = cosineSimilarity(
       requirement.requirement_embedding,
       item.embedding,
     );
 
     // Skip items with no signal at all
-    if (
-      !taxonomyMatch &&
-      keywordOverlap === 0 &&
-      similarity < partialThreshold
-    ) {
+    if (similarity < partialThreshold) {
       continue;
     }
 
@@ -316,8 +272,6 @@ export function matchRequirement(
 
     matches.push({
       id: item.id,
-      taxonomyMatch,
-      keywordOverlap,
       similarity,
       contentLength,
       isQAFragment,
@@ -329,14 +283,8 @@ export function matchRequirement(
     return result;
   }
 
-  // Sort by composite score: taxonomy match first, then similarity, then keyword overlap
-  matches.sort((a, b) => {
-    const aScore =
-      (a.taxonomyMatch ? 1000 : 0) + a.similarity * 100 + a.keywordOverlap * 10;
-    const bScore =
-      (b.taxonomyMatch ? 1000 : 0) + b.similarity * 100 + b.keywordOverlap * 10;
-    return bScore - aScore;
-  });
+  // Sort by similarity
+  matches.sort((a, b) => b.similarity - a.similarity);
 
   const best = matches[0];
   result.best_similarity_score = best.similarity;
@@ -350,20 +298,10 @@ export function matchRequirement(
   if (best.isQAFragment) {
     // Q&A fragments are capped at partial regardless of other signals
     result.coverage_status = 'partial';
-  } else if (
-    best.taxonomyMatch &&
-    hasStrongSemantic &&
-    result.content_length_met
-  ) {
-    result.coverage_status = 'strong';
   } else if (hasStrongSemantic && result.content_length_met) {
-    // Strong semantic match alone can give strong coverage (spec: "semantic > 0.7")
+    // Strong semantic match alone gives strong coverage (spec: "semantic > 0.7")
     result.coverage_status = 'strong';
-  } else if (
-    best.taxonomyMatch ||
-    hasPartialSemantic ||
-    best.keywordOverlap > 0
-  ) {
+  } else if (hasPartialSemantic) {
     result.coverage_status = 'partial';
   } else {
     result.coverage_status = 'gap';
@@ -501,7 +439,7 @@ export async function fetchTemplateRequirements(
   let query = supabase
     .from('form_requirement_templates')
     .select(
-      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
+      'id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, matching_keywords, matching_guidance, is_mandatory, sector_applicability, word_limit_guidance, display_order',
     )
     .eq('template_name', templateName)
     .order('display_order');
@@ -564,10 +502,6 @@ export async function fetchTemplateRequirements(
     requirement_text: row.requirement_text,
     description: row.description,
     requirement_type: row.requirement_type as RequirementType,
-    primary_domain: row.primary_domain,
-    primary_subtopic: row.primary_subtopic,
-    secondary_domain: row.secondary_domain,
-    secondary_subtopic: row.secondary_subtopic,
     matching_keywords: row.matching_keywords,
     matching_guidance: row.matching_guidance,
     requirement_embedding: embeddingById.get(row.id) ?? null,
@@ -590,11 +524,9 @@ export async function fetchTemplateRequirements(
  * dropped `content_items.archived_at` IMS flag); reference_items carry no
  * `publication_status` at all (global, always-visible evidence layer — BI-19)
  * so no archived-style filter applies there. Vector reads come from
- * `record_embeddings` (BI-17 EMB-STORE), never an inline column. A q_a_pair's
- * `primary_domain` comes from the `record_lifecycle` facet (q_a_pairs carry no
- * `primary_domain` column of their own — BI-18/BI-19); `primary_subtopic` has
- * no facet equivalent and stays null (mirrors the `hybrid_search` q_a_pair-arm
- * precedent — explicit drift, not fabricated).
+ * `record_embeddings` (BI-17 EMB-STORE), never an inline column. (id-417 /
+ * DR-130: the record_lifecycle.domain facet lookup and the ri domain columns
+ * retired with the subject-taxonomy axis.)
  *
  * BLANK-VS-ANSWERED FORK (BI-30, id-80): PRESERVE. A blank form instrument
  * promotes zero q_a_pairs/reference_items rows, so this naturally returns an
@@ -610,9 +542,7 @@ export async function fetchContentForMatching(
       .from('q_a_pairs')
       .select('id, question_text, answer_standard, answer_advanced')
       .neq('publication_status', 'archived'),
-    supabase
-      .from('reference_items')
-      .select('id, title, body, summary, primary_domain, primary_subtopic'),
+    supabase.from('reference_items').select('id, title, body, summary'),
   ]);
 
   if (qaResult.error) {
@@ -660,32 +590,6 @@ export async function fetchContentForMatching(
     embeddingById.set(row.owner_id, embedding);
   }
 
-  // q_a_pairs' domain lives on the record_lifecycle facet (q_a_pairs carry no
-  // primary_domain column — BI-18/BI-19); reference_items has a native
-  // primary_domain column so needs no facet lookup.
-  const domainById = new Map<string, string | null>();
-  if (qaIds.length > 0) {
-    const facetResult = await supabase
-      .from('record_lifecycle')
-      .select('owner_id, domain')
-      .eq('owner_kind', 'q_a_pair' satisfies FacetOwnerKind)
-      .in('owner_id', qaIds);
-
-    if (facetResult.error) {
-      throw new Error(
-        `Failed to fetch record_lifecycle for matching: ${facetResult.error.message}`,
-      );
-    }
-
-    for (const row of facetResult.data ?? []) {
-      // owner_id is a STORED GENERATED column (COALESCE over the per-kind
-      // FKs) — never actually null for a row satisfying owner_kind='q_a_pair',
-      // but typed loosely by the generator. Guard defensively.
-      if (!row.owner_id) continue;
-      domainById.set(row.owner_id, row.domain);
-    }
-  }
-
   const qaItems: ContentItemForMatching[] = qaRows.map((row) => ({
     id: row.id,
     content: [
@@ -698,11 +602,7 @@ export async function fetchContentForMatching(
     brief: null,
     detail: null,
     title: row.question_text,
-    suggested_title: null,
-    primary_domain: domainById.get(row.id) ?? null,
-    primary_subtopic: null,
     content_type: 'q_a_pair',
-    ai_keywords: null,
     embedding: embeddingById.get(row.id) ?? null,
   }));
 
@@ -712,11 +612,7 @@ export async function fetchContentForMatching(
     brief: null,
     detail: null,
     title: row.title,
-    suggested_title: null,
-    primary_domain: row.primary_domain,
-    primary_subtopic: row.primary_subtopic,
     content_type: 'reference_item',
-    ai_keywords: null,
     embedding: embeddingById.get(row.id) ?? null,
   }));
 

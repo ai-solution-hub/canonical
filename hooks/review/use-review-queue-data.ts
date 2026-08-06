@@ -56,11 +56,6 @@ export function buildQueueParams(
   if (filters.source_file) params.set('source_file', filters.source_file);
   if (filters.source_document_id)
     params.set('source_document_id', filters.source_document_id);
-  if (filters.domain?.length) {
-    for (const d of filters.domain) {
-      params.append('domain', d);
-    }
-  }
   if (filters.content_type?.length) {
     for (const ct of filters.content_type) {
       params.append('content_type', ct);
@@ -71,10 +66,6 @@ export function buildQueueParams(
   // Only emit the param when on; off / undefined sends nothing so the
   // route falls through to its existing `verified_at IS NULL` predicate.
   if (filters.include_overdue) params.set('include_overdue', 'true');
-  // ID-63.12 — propagate the "Unclassified" tab to the queue route so it
-  // narrows to the 'unclassified' taxonomy sentinel rows ({63.11}). Only
-  // emit when on; off / undefined sends nothing.
-  if (filters.unclassified) params.set('unclassified', 'true');
   if (serverSort) params.set('sort', serverSort);
   return params;
 }

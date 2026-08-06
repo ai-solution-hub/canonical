@@ -17,15 +17,6 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
-// Confidence formatting
-// ---------------------------------------------------------------------------
-
-function formatConfidence(value: number | null): string | null {
-  if (value === null) return null;
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-// ---------------------------------------------------------------------------
 // Review-schedule formatting (T4-AC1/AC2/AC3)
 // ---------------------------------------------------------------------------
 
@@ -173,63 +164,6 @@ export default function PerItemTab() {
           <p className="text-xs text-muted-foreground">Item: {data.itemId}</p>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Classification card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Classification</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-0.5">
-                  <PerItemField
-                    label="Confidence"
-                    value={formatConfidence(data.classification.confidence)}
-                  />
-                  <PerItemField
-                    label="Primary"
-                    value={
-                      data.classification.primaryDomain
-                        ? `${data.classification.primaryDomain} / ${data.classification.primarySubtopic ?? '—'}`
-                        : null
-                    }
-                  />
-                  <PerItemField
-                    label="Secondary"
-                    value={
-                      data.classification.secondaryDomain
-                        ? `${data.classification.secondaryDomain} / ${data.classification.secondarySubtopic ?? '—'}`
-                        : null
-                    }
-                  />
-                  <PerItemField
-                    label="Classified at"
-                    value={
-                      data.classification.classifiedAt
-                        ? new Date(
-                            data.classification.classifiedAt,
-                          ).toLocaleDateString('en-GB')
-                        : null
-                    }
-                  />
-                </dl>
-                {data.classification.reasoning && (
-                  <div className="mt-3 border-t pt-3">
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      Reasoning
-                    </p>
-                    <p className="whitespace-pre-wrap text-xs text-foreground">
-                      {data.classification.reasoning}
-                    </p>
-                  </div>
-                )}
-                {!data.classification.confidence &&
-                  !data.classification.primaryDomain && (
-                    <p className="mt-2 text-xs italic text-muted-foreground/60">
-                      This item has not been classified.
-                    </p>
-                  )}
-              </CardContent>
-            </Card>
-
             {/* Processing card */}
             <Card>
               <CardHeader>
@@ -237,14 +171,6 @@ export default function PerItemTab() {
               </CardHeader>
               <CardContent>
                 <dl className="space-y-0.5">
-                  <PerItemField
-                    label="Classification model"
-                    value={
-                      data.processing.classificationModel
-                        ? `${data.processing.classificationModel}${data.processing.classificationModelSource === 'env_default' ? ' (current default)' : ''}`
-                        : null
-                    }
-                  />
                   <PerItemField
                     label="Embedding model"
                     value={

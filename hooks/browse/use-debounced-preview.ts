@@ -9,11 +9,11 @@ import {
   PREVIEW_MAX_RESULTS,
 } from '@/lib/search-history';
 
+// id-417 / DR-130: primary_domain retired from the preview shape.
 export interface PreviewResult {
   id: string;
   title: string;
   content_type: string;
-  primary_domain: string | null;
 }
 
 interface PreviewResponse {

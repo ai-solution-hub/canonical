@@ -381,7 +381,8 @@ export interface EvalItem {
  * assign, generate_summary, etc.) resolve a plain id against
  * `source_documents` first (lib/mcp/tools/content.ts ownerKind resolution),
  * so a source_documents row is the correct target. `title` has no
- * source_documents column — `suggested_title` is the M6 successor (BI-11).
+ * source_documents column — id-417 / DR-130 retired `suggested_title`, so
+ * `filename` (derived from EVAL_TITLE) is the identity/display key.
  * The item BODY is staged as a single position-0 `content_chunks` row
  * (id-392 M6 retarget): `source_documents.extracted_text` is legacy —
  * permanently NULL on the pipeline path and read by nothing — and every MCP
@@ -400,7 +401,6 @@ export async function createEvalItem(
   const { data, error } = await supabase
     .from('source_documents')
     .insert({
-      suggested_title: EVAL_TITLE,
       content_type: 'note',
       captured_date: new Date().toISOString(),
       // NOT NULL, no default (see the comment on EVAL_FILENAME above).
@@ -410,7 +410,7 @@ export async function createEvalItem(
       mime_type: EVAL_MIME_TYPE,
       storage_path: EVAL_STORAGE_PATH,
     })
-    .select('id, suggested_title')
+    .select('id, filename')
     .single();
 
   if (error || !data) {
@@ -437,7 +437,7 @@ export async function createEvalItem(
     );
   }
 
-  return { id: data.id, title: data.suggested_title ?? EVAL_TITLE };
+  return { id: data.id, title: EVAL_TITLE };
 }
 
 /**
@@ -488,10 +488,12 @@ export async function cleanupStaleEvalItems(
   const cutoffIso = new Date(
     Date.now() - safeMinAgeMinutes * 60_000,
   ).toISOString();
+  // id-417 / DR-130: suggested_title retired — the deterministic
+  // EVAL_FILENAME (lowercased '[MCP-EVAL] …' slug) is the scan key.
   const { data } = await supabase
     .from('source_documents')
     .select('id')
-    .like('suggested_title', '[MCP-EVAL]%')
+    .like('filename', 'mcp-eval-%')
     .lt('created_at', cutoffIso);
 
   if (!data || data.length === 0) return 0;

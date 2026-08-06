@@ -41,9 +41,10 @@ const EMPTY_ITEMS: CorpusSearchResult[] = [];
 // ---------------------------------------------------------------------------
 // The read-boundary mapping layer (AAT-2) — mirrors `toReferenceListItem`.
 //
-// `RawCorpusSearchRow` is the verified `hybrid_search` RPC row shape (24
-// columns; `supabase/migrations/20260710221255_id144_hybrid_search_projection_filters.sql`,
-// confirmed on disk at this HEAD) — the closest available fixture for "the
+// `RawCorpusSearchRow` is the verified `hybrid_search` RPC row shape (19
+// columns post id-417 / DR-130 — the domain/classification projections
+// retired; `supabase/migrations/20260805190000_id417_dr130_sd_ri_taxonomy_retirement.sql`
+// §10a, confirmed on disk at this HEAD) — the closest available fixture for "the
 // ACTUAL /api/search emit", since the route itself still returns
 // `results: z.array(z.unknown())` (untyped) pending {131.19}'s typed
 // envelope (Task-level dependency, NOT a sibling Subtask dep). Only the
@@ -59,7 +60,6 @@ const EMPTY_ITEMS: CorpusSearchResult[] = [];
 interface RawCorpusSearchRow {
   id: string;
   title: string | null;
-  suggested_title: string | null;
   summary: string | null;
   /**
    * Per-arm value: the source_documents arm emits `sd.content_type` verbatim
@@ -105,10 +105,9 @@ function resolveCorpusKind(ownerKind: string): CorpusKind {
 
 function toCorpusSearchResult(row: RawCorpusSearchRow): CorpusSearchResult {
   const kind = resolveCorpusKind(row.owner_kind);
-  // Prefer the classified `suggested_title` (BI-13 "classified title or
-  // filename"); q_a_pair/reference_item arms never set suggested_title, so
-  // this falls through to `title` for them unconditionally.
-  const title = row.suggested_title ?? row.title ?? '';
+  // id-417 / DR-130: suggested_title retired — `title` is the per-arm title
+  // (sd arm: filename; qa arm: question_text; ri arm: ri.title).
+  const title = row.title ?? '';
 
   if (kind === 'answer') {
     return {

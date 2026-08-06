@@ -83,7 +83,6 @@ export interface UseReviewQueueReturn {
  */
 export function useReviewQueue(
   statusOverride?: import('@/types/review').ReviewStatus,
-  unclassifiedOverride?: boolean,
 ): UseReviewQueueReturn {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -91,11 +90,7 @@ export function useReviewQueue(
   // -------------------------------------------------------------------------
   // 1. Session state (filters, progress, UI toggles, announcements)
   // -------------------------------------------------------------------------
-  const session = useReviewSession(
-    searchParams,
-    statusOverride,
-    unclassifiedOverride,
-  );
+  const session = useReviewSession(searchParams, statusOverride);
 
   // -------------------------------------------------------------------------
   // 2. Server data (queue via infinite query, stats, assignments)

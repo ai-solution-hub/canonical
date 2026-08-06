@@ -8,7 +8,6 @@ import type {
 import { fetchActiveProcurementWithStats } from '@/lib/domains/procurement/procurement-queries';
 import { formatRelativeDate } from '@/lib/format';
 import { getUserDisplayName } from '@/lib/users/self-display-name';
-import { UNCLASSIFIED_TAXONOMY_OR_PREDICATE } from '@/lib/validation/schemas';
 import { dedupeRecentWorkByEntity } from '@/lib/activity/recent-work';
 import {
   formResponseRowToTeamChange,
@@ -196,13 +195,8 @@ export interface UnifiedDashboardData {
     // content_items-era coverage feature has no home post content_items
     // retirement; see the migration comment in
     // supabase/migrations/20260706103000_id131_attention_counts_rewrite.sql.
-    /**
-     * Count of non-archived content_items on the taxonomy 'unclassified'
-     * sentinel (primary_domain='unclassified' OR primary_subtopic=
-     * 'unclassified'), per ID-63 {63.11}. Drives the dashboard
-     * taxonomy-coverage actionable-insight (ID-63.12).
-     */
-    unclassified_count: number;
+    // unclassified_count RETIRED (id-417 / DR-130) — the taxonomy
+    // 'unclassified' sentinel columns dropped with the subject axis.
   };
 
   /** Active procurements with stats */
@@ -477,19 +471,8 @@ export async function fetchUnifiedDashboardData(
               )
           : Promise.resolve({ data: [], error: null }),
 
-        // 5: Taxonomy-coverage gap (ID-63.12) — count of non-archived
-        // source_documents that landed on the 'unclassified' sentinel
-        // established by {63.11} (primary_domain='unclassified' OR
-        // primary_subtopic='unclassified'). ID-131 {131.19}: content_items is
-        // dying — primary_domain/primary_subtopic/archived_at live on
-        // source_documents (M3). head:true + count:'exact' avoids transferring
-        // rows. Mirrors the Inv-7 taxonomy-miss concept that the {63.8}
-        // flow-end webhook emits as its taxonomy-miss counter.
-        supabase
-          .from('source_documents')
-          .select('id', { count: 'exact', head: true })
-          .is('archived_at', null)
-          .or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE),
+        // (Query 5 — the ID-63.12 taxonomy-coverage gap count — retired
+        // with the subject axis, id-417 / DR-130.)
       ]),
       // Kept UNCHANGED — still workspace/`domain_metadata`-shaped — for the
       // `forms_summary` reorient derivation below (out of {145.20}'s
@@ -676,21 +659,6 @@ export async function fetchUnifiedDashboardData(
     errors.push('expiring_cert_count query failed');
   }
 
-  // Coverage gap count is now included in the attention counts RPC (query 0)
-
-  // --- Extract taxonomy-coverage gap count (query 5) — ID-63.12 ---
-  let unclassified_count = 0;
-  if (results[5].status === 'fulfilled') {
-    const { count, error } = results[5].value;
-    if (error) {
-      errors.push('unclassified_count query failed');
-    } else {
-      unclassified_count = count ?? 0;
-    }
-  } else {
-    errors.push('unclassified_count query failed');
-  }
-
   return {
     attention_sources: {
       governance_review_count,
@@ -701,7 +669,6 @@ export async function fetchUnifiedDashboardData(
       expiring_cert_count,
       expiring_content_date_count,
       unread_notification_count,
-      unclassified_count,
     },
     active_forms,
     freshness_summary,

@@ -46,10 +46,8 @@ const RequirementTemplateCreateSchema = z.object({
   requirement_text: z.string().trim().min(1, 'Requirement text is required'),
   description: z.string().trim().nullable().optional(),
   requirement_type: z.enum(REQUIREMENT_TYPES),
-  primary_domain: z.string().trim().nullable().optional(),
-  primary_subtopic: z.string().trim().nullable().optional(),
-  secondary_domain: z.string().trim().nullable().optional(),
-  secondary_subtopic: z.string().trim().nullable().optional(),
+  // (id-417 / DR-130: the four taxonomy fields retired with the
+  // subject-taxonomy axis — columns dropped.)
   matching_keywords: z.array(z.string()).nullable().optional(),
   matching_guidance: z.string().trim().nullable().optional(),
   is_mandatory: z.boolean().optional(),

@@ -415,10 +415,9 @@ export async function stageAndWalk(
 
         // ── Admission-minted identity (M2 resolver, R(id)) ──────────────────
         // The generated RPC Args type marks `p_mime_type` as required
-        // `string` even though the underlying column is NULLable — same
-        // generated-type quirk `lib/mcp/tools/content.ts`'s `reference_ingest`
-        // call casts around (B-25); the RPC body inserts straight into a
-        // nullable column, so this cast is safe (DB is source of truth).
+        // `string` even though the underlying column is NULLable; the RPC
+        // body inserts straight into a nullable column, so this cast is safe
+        // (DB is source of truth).
         const identityArgs = {
           p_content_hash: contentHash,
           p_rel_path: destPath,

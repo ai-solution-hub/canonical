@@ -34,11 +34,12 @@ export interface SummariseResult {
 }
 
 /** @public */
+// (id-417 / DR-130: the `domain` prompt input retired with the
+// subject-taxonomy axis.)
 export interface CallSummaryAIParams {
   content: string;
   title: string;
   contentType: string;
-  domain: string;
 }
 
 /** @public */
@@ -101,7 +102,7 @@ const SUMMARY_TOOL = {
 export async function callSummaryAI(
   params: CallSummaryAIParams,
 ): Promise<CallSummaryAIResult> {
-  const { title, contentType, domain } = params;
+  const { title, contentType } = params;
 
   // Truncate if very long
   const content =
@@ -115,7 +116,6 @@ export async function callSummaryAI(
   const prompt = `You are summarising content for a knowledge base.
 Content type: ${contentType}
 Title: ${title}
-Domain: ${domain}
 
 Rules:
 - 3 to 7 takeaways
@@ -192,16 +192,16 @@ export async function generateSummary(
   const { supabase, itemId, force, userId } = params;
 
   // Fetch the source document. ID-131 {131.17} G-IMS-DELETE KEEP-list:
-  // re-pointed off content_items onto source_documents (M3 gave SD the
-  // classification family, incl. summary/summary_data). `title` has no SD
+  // re-pointed off content_items onto source_documents. `title` has no SD
   // column of the same name — original_filename+filename are the nearest
   // analogs. The document BODY is composed from content_chunks /
   // reference_items (id-392 M6 retarget), not a source_documents column.
+  // id-417 / DR-130: the suggested_title/summary/primary_domain inputs
+  // retired with the classification stage; summary_data is the sole
+  // summary home.
   const { data: item, error: fetchError } = await supabase
     .from('source_documents')
-    .select(
-      'id, original_filename, filename, suggested_title, content_type, summary, primary_domain, summary_data',
-    )
+    .select('id, original_filename, filename, content_type, summary_data')
     .eq('id', itemId)
     .single();
 
@@ -223,23 +223,21 @@ export async function generateSummary(
   }
 
   const title = item.original_filename ?? item.filename;
-  const displayTitle = item.suggested_title || title || 'Untitled';
+  const displayTitle = title || 'Untitled';
   const contentType = item.content_type || 'article';
-  const domain = item.primary_domain || 'unknown';
 
   // Call the pure AI function
   const { summaryData } = await callSummaryAI({
     content: body,
     title: displayTitle,
     contentType,
-    domain,
   });
 
-  // Store in Supabase (also sync summary with the higher-quality executive)
+  // Store in Supabase. id-417 / DR-130: the sd.summary sync retired with the
+  // column — summary_data is the sole summary home.
   const updatePayload: Database['public']['Tables']['source_documents']['Update'] =
     {
       summary_data: toJson(summaryData),
-      summary: summaryData.executive,
     };
   if (userId) {
     updatePayload.updated_by = userId;

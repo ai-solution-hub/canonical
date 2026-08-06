@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { FileText, ExternalLink, ShieldCheck } from 'lucide-react';
+import { FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { PublicationStatusBadge } from '@/components/shared/publication-status-badge';
@@ -10,10 +10,11 @@ import type { ReviewQueueItem } from '@/types/review';
 /**
  * Per-row card for the "Awaiting publication" tab on /review.
  *
- * Spec §7 of `docs/specs/review-page-tabs-refactor-spec.md` describes the
- * card content as: title, domain/subtopic chips, source file, classification
- * confidence, ingest pipeline-run link, freshness signal (`updated_at`),
- * markdown preview (truncated). The publication-status badge from
+ * Spec §7 of `docs/specs/review-page-tabs-refactor-spec.md` described the
+ * card content as: title, source file, ingest pipeline-run link, freshness
+ * signal (`updated_at`), markdown preview (truncated). id-417 / DR-130: the
+ * domain/subtopic chips and classification-confidence badge retired with the
+ * subject-taxonomy axis. The publication-status badge from
  * `components/shared/publication-status-badge.tsx` is reused at the top of
  * the card.
  *
@@ -31,11 +32,6 @@ interface PublicationReviewCardProps {
 }
 
 const PREVIEW_CHARS = 480;
-
-function formatPercent(confidence: number | null): string | null {
-  if (confidence === null || Number.isNaN(confidence)) return null;
-  return `${Math.round(confidence * 100)}%`;
-}
 
 function formatUpdatedAt(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -59,7 +55,6 @@ export function PublicationReviewCard({
     return `${item.content.slice(0, PREVIEW_CHARS).trimEnd()}…`;
   }, [item.content]);
 
-  const confidencePercent = formatPercent(item.classification_confidence);
   const updatedAtLabel = formatUpdatedAt(item.last_reviewed_at);
 
   // Best-effort pipeline-run linking. The review-queue REST mapper does
@@ -87,34 +82,14 @@ export function PublicationReviewCard({
       {/* Header row: status badge + title */}
       <div className="flex flex-wrap items-start gap-2">
         <PublicationStatusBadge status={item.publication_status} />
-        {confidencePercent && (
-          <Badge
-            variant="outline"
-            className="gap-1 text-[11px] font-medium"
-            aria-label={`Classification confidence ${confidencePercent}`}
-          >
-            <ShieldCheck className="size-3" aria-hidden="true" />
-            {confidencePercent}
-          </Badge>
-        )}
       </div>
 
       <h2 className="mt-3 text-lg font-semibold text-foreground">
-        {item.title || item.suggested_title || 'Untitled'}
+        {item.title || 'Untitled'}
       </h2>
 
-      {/* Classification chips */}
+      {/* Content-type chip */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {item.primary_domain && (
-          <Badge variant="secondary" className="text-[11px]">
-            {item.primary_domain}
-          </Badge>
-        )}
-        {item.primary_subtopic && (
-          <Badge variant="outline" className="text-[11px]">
-            {item.primary_subtopic}
-          </Badge>
-        )}
         {item.content_type && (
           <Badge variant="outline" className="text-[11px]">
             {item.content_type.replace(/_/g, ' ')}

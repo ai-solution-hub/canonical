@@ -9,11 +9,7 @@ import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { VerificationBadge } from '@/components/shared/verification-badge';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { cn } from '@/lib/utils';
-import {
-  getDisplayTitle,
-  formatDateUK,
-  getConfidenceDisplay,
-} from '@/lib/format';
+import { getDisplayTitle, formatDateUK } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { ReviewHistorySection } from '@/components/review/review-history-section';
 import type { ReviewQueueItem } from '@/types/review';
@@ -126,7 +122,9 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
 
 /**
  * Single content item display card for the review workflow.
- * Shows domain, content type, classification, provenance, and verification status.
+ * Shows content type, provenance, and verification status.
+ * (id-417 / DR-130: the Classification section retired with the
+ * subject-taxonomy axis and classification-stage columns.)
  */
 export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
   function ReviewCard(
@@ -141,7 +139,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
     ref,
   ) {
     const title = getDisplayTitle({
-      suggested_title: item.suggested_title,
       title: item.title,
       content: item.content,
     });
@@ -152,7 +149,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
       ? (displayNames.get(item.verified_by) ?? null)
       : null;
 
-    const confidence = getConfidenceDisplay(item.classification_confidence);
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
 
     const sourceFile =
@@ -250,45 +246,6 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
             <CollapsibleContent key={item.id}>
               <ContentBody content={item.content} />
             </CollapsibleContent>
-          </section>
-
-          {/* Classification section */}
-          <section className="border-t border-border pt-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Classification
-            </h3>
-            <div className="flex flex-col gap-1 text-sm">
-              {item.primary_domain && (
-                <div>
-                  <span className="text-muted-foreground">Domain: </span>
-                  <span className="font-medium">{item.primary_domain}</span>
-                  {item.primary_subtopic && (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      &gt; {item.primary_subtopic}
-                    </span>
-                  )}
-                </div>
-              )}
-              {item.secondary_domain && (
-                <div>
-                  <span className="text-muted-foreground">Secondary: </span>
-                  <span className="font-medium">{item.secondary_domain}</span>
-                  {item.secondary_subtopic && (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      &gt; {item.secondary_subtopic}
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">Confidence: </span>
-                <span className={cn('font-medium', confidence.colourClass)}>
-                  {confidence.label}
-                </span>
-              </div>
-            </div>
           </section>
 
           {/* Provenance section */}

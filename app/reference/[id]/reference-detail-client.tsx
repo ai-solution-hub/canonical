@@ -5,20 +5,19 @@ import { ArrowLeft, ExternalLink, FileText, RefreshCcw } from 'lucide-react';
 import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDateUK, formatFileSize } from '@/lib/format';
-import type {
-  ReferenceDetail,
-  ReferenceSourceDocument,
-} from '@/types/reference';
+import { formatDateUK } from '@/lib/format';
+import type { ReferenceDetail } from '@/types/reference';
 
 /**
  * Read-only reference detail surface for `/reference/[id]` (ID-111.7).
  *
  * Renders the verbatim reference (title, markdown body via the shared
- * `ContentRenderer`, summary, domain/subtopic/layer badges, outbound
- * `source_url`, UK-formatted `published_at`) plus the B-28 provenance block.
- * No write/edit/governance/star/tag controls (PRODUCT.md B-3, B-24) — the only
- * interactive affordances are outbound links and the error-state retry.
+ * `ContentRenderer`, summary, layer badge, outbound `source_url`,
+ * UK-formatted `published_at`). No write/edit/governance/star/tag controls
+ * (PRODUCT.md B-3, B-24) — the only interactive affordances are outbound
+ * links and the error-state retry. (id-417 / DR-130 + DR-124: the
+ * domain/subtopic badges and the B-28 source_documents provenance block
+ * retired with the subject-taxonomy axis and the sd shell.)
  *
  * Spec: PRODUCT.md B-1..B-7, B-27, B-28, B-2, B-26; TECH.md Seam 2.
  */
@@ -41,47 +40,16 @@ function ingestionSourceLabel(
   }
 }
 
-/**
- * Map `source_documents.extraction_method` to a plain-language line (B-28).
- * The column is a CHECK-constrained text with producer-prefixed values
- * (`docling*`, `trafilatura*`); we surface the producer in plain
- * language and never the raw enum value.
- */
-function extractionMethodLabel(method: string | null): string | null {
-  if (!method) return null;
-  const lower = method.toLowerCase();
-  if (lower.startsWith('docling')) return 'Extracted via Docling';
-  if (lower.startsWith('trafilatura')) return 'Extracted via Trafilatura';
-  return 'Extracted from a source document';
-}
-
 interface ReferenceDetailClientProps {
   reference: ReferenceDetail;
-  /**
-   * The B-28 source_documents join result, or `null` when the secondary read
-   * failed (graceful degradation — the page still renders, falling back to the
-   * ingestion_source line only).
-   */
-  sourceDocument: ReferenceSourceDocument | null;
 }
 
 export function ReferenceDetailClient({
   reference,
-  sourceDocument,
 }: ReferenceDetailClientProps) {
   const publishedLabel = reference.published_at
     ? formatDateUK(reference.published_at)
     : 'No publication date';
-
-  const extractionLabel = sourceDocument
-    ? extractionMethodLabel(sourceDocument.extraction_method)
-    : null;
-  const landedLabel = sourceDocument
-    ? formatDateUK(sourceDocument.created_at)
-    : null;
-  const documentName = sourceDocument
-    ? (sourceDocument.original_filename ?? sourceDocument.filename)
-    : null;
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
@@ -100,19 +68,9 @@ export function ReferenceDetailClient({
           {reference.title}
         </h1>
 
-        {(reference.primary_domain ||
-          reference.primary_subtopic ||
-          reference.layer) && (
+        {reference.layer && (
           <div className="flex flex-wrap gap-2">
-            {reference.primary_domain && (
-              <Badge variant="secondary">{reference.primary_domain}</Badge>
-            )}
-            {reference.primary_subtopic && (
-              <Badge variant="outline">{reference.primary_subtopic}</Badge>
-            )}
-            {reference.layer && (
-              <Badge variant="outline">{reference.layer}</Badge>
-            )}
+            <Badge variant="outline">{reference.layer}</Badge>
           </div>
         )}
 
@@ -166,32 +124,6 @@ export function ReferenceDetailClient({
             <FileText className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>{ingestionSourceLabel(reference.ingestion_source)}</span>
           </li>
-          {documentName && (
-            <li className="flex items-start gap-2">
-              <FileText className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>
-                {documentName}
-                {sourceDocument && sourceDocument.file_size != null && (
-                  <span className="text-muted-foreground/80">
-                    {' '}
-                    ({formatFileSize(sourceDocument.file_size)})
-                  </span>
-                )}
-              </span>
-            </li>
-          )}
-          {extractionLabel && (
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>{extractionLabel}</span>
-            </li>
-          )}
-          {landedLabel && (
-            <li className="flex items-start gap-2">
-              <span className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>Fetched {landedLabel}</span>
-            </li>
-          )}
         </ul>
       </footer>
     </article>

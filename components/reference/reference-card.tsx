@@ -65,25 +65,11 @@ export const ReferenceCard = memo(function ReferenceCard({
       className="group flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3 transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--border)' }}
     >
-      {(reference.primary_domain ||
-        reference.primary_subtopic ||
-        reference.layer) && (
+      {reference.layer && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {reference.primary_domain && (
-            <Badge variant="secondary" className="text-[10px]">
-              {reference.primary_domain}
-            </Badge>
-          )}
-          {reference.primary_subtopic && (
-            <Badge variant="outline" className="text-[10px]">
-              {reference.primary_subtopic}
-            </Badge>
-          )}
-          {reference.layer && (
-            <Badge variant="outline" className="text-[10px]">
-              {reference.layer}
-            </Badge>
-          )}
+          <Badge variant="outline" className="text-[10px]">
+            {reference.layer}
+          </Badge>
         </div>
       )}
 

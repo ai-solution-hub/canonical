@@ -98,17 +98,8 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
               {item.title}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {item.primary_domain && (
-                <span>
-                  {item.primary_domain}
-                  {item.primary_subtopic ? ` > ${item.primary_subtopic}` : ''}
-                </span>
-              )}
               {sourceFile && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="truncate max-w-[200px]">{sourceFile}</span>
-                </>
+                <span className="truncate max-w-[200px]">{sourceFile}</span>
               )}
               {freshness && (
                 <>

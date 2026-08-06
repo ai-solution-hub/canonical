@@ -29,12 +29,13 @@ interface SearchBarProps {
 }
 
 // Flat dropdown item list used for ArrowUp/ArrowDown keyboard nav across
-// the Recent / Preview / See-all / Suggestion sections (spec §4.1).
+// the Recent / Preview / See-all sections (spec §4.1). id-417 / DR-130: the
+// Popular-topics (suggestion) section retired with sd.ai_keywords and the
+// get_popular_keywords RPC.
 type DropdownItem =
   | { type: 'recent'; value: string }
   | { type: 'preview'; result: PreviewResult }
-  | { type: 'see-all' }
-  | { type: 'suggestion'; value: string };
+  | { type: 'see-all' };
 
 /**
  * Preview-result destination, keyed by `content_type` (ID-135.23). The
@@ -74,8 +75,6 @@ export function SearchBar({
   const [query, setQuery] = useState(defaultValue);
   const [showRecent, setShowRecent] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const isAutoFocusing = useRef(autoFocus);
@@ -123,20 +122,6 @@ export function SearchBar({
     setRecentSearches(getRecentSearches());
   }, []);
 
-  const loadSuggestions = useCallback(async () => {
-    if (suggestionsLoaded) return;
-    try {
-      const res = await fetch('/api/search/suggestions');
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data.keywords ?? []);
-      }
-    } catch {
-      // Suggestions are non-critical -- fail silently
-    }
-    setSuggestionsLoaded(true);
-  }, [suggestionsLoaded]);
-
   // Build flat list of all dropdown items for keyboard navigation.
   // Preview results and the "See all results" button are interleaved
   // between recent searches and popular topics (spec §4.1).
@@ -155,12 +140,6 @@ export function SearchBar({
       // "See all results" footer counts as a navigable item
       if (previewResults.length > 0 || previewLoading) {
         allItems.push({ type: 'see-all' });
-      }
-    }
-    // Section 3: Popular topics (hidden when preview is showing per spec)
-    if (!showPreview) {
-      for (const kw of suggestions) {
-        allItems.push({ type: 'suggestion', value: kw });
       }
     }
   }
@@ -224,7 +203,6 @@ export function SearchBar({
   function handleDropdownItemActivate(item: DropdownItem) {
     switch (item.type) {
       case 'recent':
-      case 'suggestion':
         handleSelectRecent(item.value);
         break;
       case 'preview':
@@ -273,7 +251,7 @@ export function SearchBar({
   // Reset activeIndex when dropdown items change
   useEffect(() => {
     setActiveIndex(-1);
-  }, [recentSearches, suggestions, previewResults]);
+  }, [recentSearches, previewResults]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -300,7 +278,7 @@ export function SearchBar({
   const activeDescendantId =
     activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;
 
-  function renderDropdown(recentList: string[], suggestionList: string[]) {
+  function renderDropdown(recentList: string[]) {
     let itemIndex = -1;
 
     return (
@@ -421,41 +399,6 @@ export function SearchBar({
           </>
         )}
 
-        {/* Section 3: Popular topics (hidden when preview is showing) */}
-        {!showPreview && suggestionList.length > 0 && (
-          <>
-            {recentList.length > 0 && (
-              <div className="my-1.5 border-t border-border" />
-            )}
-            <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-              Popular topics
-            </p>
-            <div className="flex flex-wrap gap-1 px-1 py-1">
-              {suggestionList.map((kw) => {
-                itemIndex++;
-                const idx = itemIndex;
-                return (
-                  <div
-                    key={`suggestion-${kw}`}
-                    id={`search-option-${idx}`}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={activeIndex === idx}
-                    onClick={() => handleSelectRecent(kw)}
-                    onMouseEnter={() => setActiveIndex(idx)}
-                    className={`cursor-pointer rounded-full border border-border px-2.5 py-1 text-xs text-foreground transition-colors ${
-                      activeIndex === idx
-                        ? 'bg-accent'
-                        : 'bg-muted hover:bg-accent'
-                    }`}
-                  >
-                    {kw}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
       </div>
     );
   }
@@ -478,7 +421,6 @@ export function SearchBar({
               onFocus={() => {
                 if (isAutoFocusing.current) return;
                 loadRecent();
-                loadSuggestions();
                 setShowRecent(true);
               }}
               onKeyDown={(e) => {
@@ -497,7 +439,7 @@ export function SearchBar({
         </form>
         {dropdownVisible && (
           <div className="absolute top-full z-50 mt-2 w-full rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-border backdrop-blur-sm">
-            {renderDropdown(recentSearches, suggestions)}
+            {renderDropdown(recentSearches)}
           </div>
         )}
       </div>
@@ -525,7 +467,6 @@ export function SearchBar({
               }}
               onFocus={() => {
                 loadRecent();
-                loadSuggestions();
                 setShowRecent(true);
               }}
               onKeyDown={handleKeyDown}
@@ -541,7 +482,7 @@ export function SearchBar({
         </form>
         {dropdownVisible && (
           <div className="absolute top-full z-50 mt-1 w-full rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-border backdrop-blur-sm">
-            {renderDropdown(recentSearches, suggestions)}
+            {renderDropdown(recentSearches)}
           </div>
         )}
       </div>
@@ -562,7 +503,6 @@ export function SearchBar({
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => {
               loadRecent();
-              loadSuggestions();
               setShowRecent(true);
             }}
             onKeyDown={handleKeyDown}
@@ -581,7 +521,7 @@ export function SearchBar({
       </form>
       {dropdownVisible && (
         <div className="absolute top-full z-50 mt-1 w-full min-w-[240px] rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-border backdrop-blur-sm">
-          {renderDropdown(recentSearches, suggestions)}
+          {renderDropdown(recentSearches)}
         </div>
       )}
     </div>

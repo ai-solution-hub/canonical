@@ -54,24 +54,13 @@ for (const word of DOMAIN_UNCOUNTABLES) {
  */
 export const VALID_CONTENT_TYPES = CONTENT_TYPE_VALUES;
 
-export const VALID_PLATFORMS = [
-  'web',
-  'email',
-  'manual',
-  'upload',
-  'extraction',
-  'other',
-] as const;
-
-/** @public */
-export const VALID_SORT_FIELDS = [
-  'captured_date',
-  'classification_confidence',
-  'primary_domain',
-] as const;
+// (VALID_PLATFORMS deleted — id-417: content_items-era platform vocabulary;
+// measured test-only consumption.)
 
 /** @public */
 export const VALID_SORT_ORDERS = ['asc', 'desc'] as const;
+// (VALID_SORT_FIELDS deleted — id-417 / DR-130: two of its three fields were
+// retired columns and it had zero consumers.)
 
 export const VALID_REVIEW_ACTIONS = [
   'verify',
@@ -95,18 +84,10 @@ export const VALID_REVIEW_STATUSES = [
   'all',
 ] as const;
 
-/**
- * PostgREST `.or(...)` predicate matching content_items on the taxonomy
- * 'unclassified' sentinel — `primary_domain = 'unclassified'` OR
- * `primary_subtopic = 'unclassified'` (the NOT NULL DEFAULT 'unclassified'
- * sentinel established by ID-63 {63.11}). Single source of truth shared by the
- * three count/filter sites that MUST stay in lockstep: the /review queue route
- * ("Unclassified" tab narrowing), the /review stats route (tab count badge),
- * and the unified dashboard taxonomy-coverage insight. ID-63.12.
- * @public
- */
-export const UNCLASSIFIED_TAXONOMY_OR_PREDICATE =
-  'primary_domain.eq.unclassified,primary_subtopic.eq.unclassified';
+// (UNCLASSIFIED_TAXONOMY_OR_PREDICATE deleted — id-417 / DR-130: the
+// 'unclassified' sentinel columns are dropped; its three consumers — the
+// /review queue tab narrowing, the stats badge count and the dashboard
+// coverage insight — retired with the axis.)
 
 // ──────────────────────────────────────────
 // API Route Schemas
@@ -208,14 +189,12 @@ export const ReviewActionBodySchema = z.object({
 });
 
 /** GET /api/review/queue — validates status, limit, cursor only.
- *  Domain, content_type, and source_file are parsed separately via
- *  searchParams.getAll() in the route handler for proper array handling. */
+ *  content_type and source_file are parsed separately via
+ *  searchParams.getAll() in the route handler for proper array handling.
+ *  (id-417 / DR-130: 'confidence_asc' retired with
+ *  classification_confidence.) */
 /** @public */
-export const VALID_REVIEW_QUEUE_SORTS = [
-  'created_at',
-  'confidence_asc',
-  'quality_score_asc',
-] as const;
+export const VALID_REVIEW_QUEUE_SORTS = ['created_at', 'quality_score_asc'] as const;
 
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
@@ -241,17 +220,6 @@ export const ReviewQueueParamsSchema = z.object({
    * true. See S205 WP-E T2 plan §T2 (H-1).
    */
   include_overdue: z.string().optional(),
-  /**
-   * Optional opt-in narrowing (ID-63.12): when the literal string 'true', the
-   * queue is filtered to the taxonomy 'unclassified' sentinel rows
-   * (primary_domain='unclassified' OR primary_subtopic='unclassified', per
-   * {63.11}) so the /review "Unclassified" tab has a populated queue. The
-   * route compares the raw query-string value via
-   * `searchParams.get('unclassified')==='true'` (mirroring `include_overdue`
-   * / `assigned_to_me`); `z.coerce.boolean()` is unsafe because it coerces
-   * the literal 'false' to true.
-   */
-  unclassified: z.string().optional(),
 });
 
 /**
@@ -264,7 +232,7 @@ export const ReviewQueueParamsSchema = z.object({
  * because that schema's `status` field defaults to 'unverified' and would
  * mislead the route.
  *
- * Domain / content_type / source_file / source_document_id are intentionally
+ * content_type / source_file / source_document_id are intentionally
  * NOT validated here — they mirror the standard branch which parses arrays
  * via `searchParams.getAll(...)` outside the schema for proper repeated-key
  * handling. The route layer applies the same filter shape via Supabase
@@ -317,310 +285,10 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-/** POST /api/items -- create new content item */
-export const ItemCreateBodySchema = z.object({
-  title: z.string().trim().min(1, 'Title is required').max(500),
-  content: z.string().min(1, 'Content is required').max(500_000),
-  content_type: z.enum(VALID_CONTENT_TYPES as readonly [string, ...string[]]),
-
-  // Optional metadata
-  primary_domain: z.string().max(200).optional(),
-  primary_subtopic: z.string().trim().min(1).max(200).nullable().optional(),
-  secondary_domain: z.string().max(200).optional(),
-  secondary_subtopic: z.string().trim().min(1).max(200).nullable().optional(),
-  priority: z.enum(['high', 'medium', 'low']).optional(),
-  user_tags: z.array(z.string().max(100)).max(50).optional(),
-  ai_keywords: z.array(z.string().max(100)).max(50).optional(),
-  author_name: z.string().max(200).optional(),
-  source_url: z.string().url().max(2000).optional(),
-
-  // Progressive depth (optional)
-  brief: z.string().max(5000).optional(),
-  detail: z.string().max(50_000).optional(),
-  reference: z.string().max(50_000).optional(),
-
-  // AI options
-  auto_classify: z.boolean().default(true),
-  auto_summarise: z.boolean().default(true),
-  auto_embed: z.boolean().default(true),
-
-  // Governance
-  governance_review_status: z.enum(['draft']).optional(),
-  // S202 §5.2 Phase 2.5 (T8b) — UI client (post-T8a rewire) submits
-  // `publication_status: 'draft'` for save-as-draft. Without this field on
-  // the schema, Zod would silently strip the property and the API would
-  // create the item as published. Literal array mirrors
-  // `VALID_PUBLICATION_STATUSES` in `lib/governance/publication-transitions.ts`
-  // (drift pinned by `__tests__/lib/governance/publication-transitions.test.ts`).
-  publication_status: z
-    .enum(['draft', 'in_review', 'published', 'archived'])
-    .optional(),
-
-  // Ingestion source tracking. ID-107.3 — narrowed to the web-form-REACHABLE
-  // allow-list: a /api/items create body may only declare a source that a
-  // web form legitimately submits. `url_import` is stamped internally by
-  // /api/ingest/url (IngestUrlBodySchema, set in code) and is NOT
-  // web-form-reachable; route-internal/reserved sources (mcp_create,
-  // bid_outcome_integration, adopted_from_reference, system-stamped
-  // upload_autosplit) are stamped by their own code paths and MUST NOT be
-  // acceptable from an arbitrary body.
-  ingestion_source: z.enum(['manual', 'upload', 'upload_autosplit']).optional(),
-
-  // Source document linkage (for batch creation and lineage tracking)
-  source_document_id: z
-    .string()
-    .uuid('source_document_id must be a valid UUID')
-    .optional(),
-
-  // No-op. The on-ingest dedup pre-check this flag used to bypass was
-  // retired under ID-131.15 (G-DEDUP legacy dedup-family retirement,
-  // S446) — new items are always stamped 'clean'. Accepted for caller
-  // backwards-compatibility only.
-  skip_dedup: z.boolean().optional(),
-
-  // S206 WP-A Phase 2 (AC3.3) — content owner override. Admin-only;
-  // non-admins are silent-forced to the caller's userId via
-  // `resolveContentOwnerId()` in @/lib/auth/owner-default. KBIntegrationBodySchema
-  // is intentionally NOT widened (per H-4: route-side wiring only).
-  content_owner_id: z.string().uuid().optional(),
-});
-
-// (ClassifyBodySchema — POST /api/items/:id/classify — was retired under
-// ID-131.17 "17-final" [G-IMS-DELETE tail] alongside the deferred
-// app/api/items/[id]/classify/route.ts it validated: zero remaining
-// callers confirmed by rg.)
-
-/** PATCH /api/items/:id */
-export const ItemUpdateBodySchema = z
-  .object({
-    field: z.enum([
-      'suggested_title',
-      'ai_keywords',
-      'primary_domain',
-      'primary_subtopic',
-      'secondary_domain',
-      'secondary_subtopic',
-      'summary',
-      'author_name',
-      'content_type',
-      'platform',
-      'priority',
-      'user_tags',
-      'content',
-      'brief',
-      'detail',
-      'reference',
-      'answer_standard',
-      'answer_advanced',
-      'governance_review_status',
-      'expiry_date',
-      'lifecycle_type',
-      // S200 WP5 §5.5 Phase 1 — review cadence governance fields. Both are
-      // nullable in the DB and grouped with the lifecycle/governance cluster.
-      // `next_review_date` is an ISO-8601 date string; `review_cadence_days`
-      // is an integer in [1, 1095] mirroring the DB CHECK constraint.
-      'next_review_date',
-      'review_cadence_days',
-      // S186 WP-B.5 — supersession. Admin-only; the route branches
-      // before the generic update and calls setSupersession() instead.
-      // Value is the NEW item's UUID (successor), or null to un-supersede.
-      'superseded_by',
-      // S202 §5.2 Phase 2 (T6) — publication lifecycle. Editor + admin per
-      // §3.4 role-gate matrix; the route branches before the generic update
-      // and consumes `lib/governance/publication-transitions.ts`.
-      // Value is one of 'draft' | 'in_review' | 'published' | 'archived'.
-      'publication_status',
-    ]),
-    value: z.union([
-      z.string().max(500_000),
-      z.array(z.string().max(100)),
-      z.null(),
-    ]),
-    // Optional flags for content updates
-    regenerate_embedding: z.boolean().optional(),
-    reclassify: z.boolean().optional(),
-    // S152B WP3 / Q-3: optional free-text "why did you make this change?"
-    // captured from the admin edit UI and persisted to
-    // `content_history.change_reason`. NULL when the user leaves the
-    // field empty — the DB column is nullable. Canonical pipeline
-    // values (`initial_ingest`, `reclassify`, etc.) are set by the
-    // pipeline, not by this route.
-    change_reason: z.string().max(500).optional().nullable(),
-    // S202 §5.2 Phase 2 (T6) — optional human-readable reason stamped onto
-    // `content_items.archive_reason` when transitioning `published →
-    // archived`. Peer field (not part of the discriminated `value`) so it
-    // can flow through alongside `field='publication_status'`. Other
-    // transitions ignore the value (the helper at
-    // `lib/governance/publication-transitions.ts` only stamps it on the
-    // archive path).
-    archive_reason: z.string().max(500).optional(),
-    // ID-59 {59.8} / PC-7 (INV-13) — edit-intent canonical vocabulary (CV).
-    // Stamped onto `content_history.edit_intent` at the write site. The CV
-    // (`cosmetic | data | structural`) is the SINGLE source of truth in
-    // `lib/edit-intent/arbitrate.ts` (`EditIntent`); it is inlined here as a
-    // `z.enum` literal so this schema file stays free of cross-module imports
-    // (mirroring the `publication_status` literal above). INV-13 is enforced
-    // at BOTH this Zod boundary (out-of-CV -> 400) AND the DB CHECK
-    // constraint added in {59.5}. A runtime drift guard between this literal
-    // and `EditIntent` lives in the {59.8} route tests.
-    edit_intent: z.enum(['cosmetic', 'data', 'structural']).optional(),
-    // ID-59 {59.8} — per-actor edit intents for a collaborative (CRDT) save.
-    // When >=2 inputs are present the route arbitrates them (coerce each, then
-    // `arbitrateMany`) and persists the raw inputs to
-    // `content_history.arbitration_inputs` for audit. The per-actor `intent`
-    // is intentionally a free string here: untrusted/skewed client values are
-    // coerced to the unit element `'cosmetic'` by `coerceIntent` at the route,
-    // NOT rejected — so a malicious participant cannot 400 a legitimate merge.
-    arbitration_inputs: z
-      .array(
-        z.object({
-          actor: z.string().max(200),
-          intent: z.string().max(50),
-        }),
-      )
-      .max(100)
-      .optional(),
-  })
-  .superRefine((data, ctx) => {
-    // Reject null for NOT NULL columns
-    const NOT_NULL_FIELDS = ['content', 'suggested_title'];
-    if (data.value === null && NOT_NULL_FIELDS.includes(data.field)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Field '${data.field}' cannot be null`,
-        path: ['value'],
-      });
-    }
-    // Enforce field-specific max lengths
-    const LONG_TEXT_FIELDS = [
-      'content',
-      'brief',
-      'detail',
-      'reference',
-      'answer_standard',
-      'answer_advanced',
-    ];
-    if (
-      typeof data.value === 'string' &&
-      !LONG_TEXT_FIELDS.includes(data.field)
-    ) {
-      if (data.value.length > 5_000) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Value for field '${data.field}' must be at most 5,000 characters`,
-          path: ['value'],
-        });
-      }
-    }
-    // superseded_by must be a UUID string, a valid stringified null, or null.
-    if (data.field === 'superseded_by') {
-      const UUID_RE =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (data.value !== null && typeof data.value !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'superseded_by value must be a UUID string or null',
-          path: ['value'],
-        });
-      } else if (typeof data.value === 'string' && !UUID_RE.test(data.value)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'superseded_by value must be a valid UUID',
-          path: ['value'],
-        });
-      }
-    }
-    // S200 WP5 §5.5 Phase 1 — next_review_date must be NULL or an ISO-8601
-    // date string (YYYY-MM-DD). The DB column is `date` so the time-of-day
-    // portion is not relevant; we accept the calendar-date shape only.
-    if (data.field === 'next_review_date') {
-      if (data.value === null) {
-        // OK — explicit clear.
-      } else if (typeof data.value !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'next_review_date value must be an ISO-8601 date string or null',
-          path: ['value'],
-        });
-      } else {
-        const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-        const parsed = Date.parse(data.value);
-        // Round-trip check defends against logically-invalid dates that JS
-        // silently rolls over (e.g. '2026-02-30' → '2026-03-02'). The DB
-        // would reject the rolled value; rejecting here gives the user a
-        // clear Zod error instead of a delayed CHECK violation.
-        const roundTripValid =
-          ISO_DATE_RE.test(data.value) &&
-          !Number.isNaN(parsed) &&
-          new Date(parsed).toISOString().slice(0, 10) === data.value;
-        if (!roundTripValid) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'next_review_date value must be a valid ISO-8601 calendar date (YYYY-MM-DD)',
-            path: ['value'],
-          });
-        }
-      }
-    }
-    // S202 §5.2 Phase 2 (T6) — publication_status must be one of the four
-    // CHECK-enforced values. Null is rejected — the column is NOT NULL post
-    // S201/§5.2 Phase 1 (DEFAULT 'published'). Imported lazily as a literal
-    // array (mirroring `VALID_PUBLICATION_STATUSES` from
-    // `lib/governance/publication-transitions.ts`) so this schema file
-    // remains free of cross-module imports — the runtime drift guard lives
-    // in `__tests__/lib/governance/publication-transitions.test.ts`.
-    if (data.field === 'publication_status') {
-      if (data.value === null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'publication_status cannot be null',
-          path: ['value'],
-        });
-      } else if (
-        typeof data.value !== 'string' ||
-        !['draft', 'in_review', 'published', 'archived'].includes(data.value)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            "publication_status must be one of 'draft', 'in_review', 'published', 'archived'",
-          path: ['value'],
-        });
-      }
-    }
-    // S200 WP5 §5.5 Phase 1 — review_cadence_days must be NULL or an integer
-    // between 1 and 1095 (inclusive), mirroring the DB CHECK constraint.
-    // The schema's `value` union types this as string|string[]|null, so we
-    // coerce a numeric string and verify integer + range.
-    if (data.field === 'review_cadence_days') {
-      if (data.value === null) {
-        // OK — explicit clear.
-      } else if (typeof data.value !== 'string') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'review_cadence_days value must be an integer string or null',
-          path: ['value'],
-        });
-      } else {
-        const trimmed = data.value.trim();
-        // Reject empty strings, non-integer shapes, leading zeros are OK
-        // for parsing but only integer literals are accepted.
-        const INT_RE = /^-?\d+$/;
-        const n = INT_RE.test(trimmed) ? parseInt(trimmed, 10) : Number.NaN;
-        if (Number.isNaN(n) || !Number.isInteger(n) || n < 1 || n > 1095) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'review_cadence_days value must be an integer between 1 and 1095',
-            path: ['value'],
-          });
-        }
-      }
-    }
-  });
+// (ItemCreateBodySchema / ItemUpdateBodySchema deleted — id-417: the
+// /api/items routes they validated were retired under ID-131.17, both
+// schemas carried retired taxonomy/classification fields, and measured
+// consumption was test-only.)
 
 /** POST /api/workspaces */
 export const WorkspaceCreateBodySchema = z.object({
@@ -689,75 +357,10 @@ export const OAuthDecisionBodySchema = z.object({
   authorization_id: z.string().min(1, 'Missing authorisation_id'),
 });
 
-// ──────────────────────────────────────────
-// Inline Editing Allowlist
-// ──────────────────────────────────────────
-
-/**
- * Fields that can be edited via the item detail inline editor.
- * Any field not in this set will be rejected by saveEdit/updateField.
- */
-export const EDITABLE_FIELDS = new Set([
-  'suggested_title',
-  'ai_keywords',
-  'primary_domain',
-  'primary_subtopic',
-  'secondary_domain',
-  'secondary_subtopic',
-  'summary',
-  'author_name',
-  'content_type',
-  'platform',
-  'priority',
-  'user_tags',
-  'content',
-  'brief',
-  'detail',
-  'reference',
-  'answer_standard',
-  'answer_advanced',
-  'expiry_date',
-  'lifecycle_type',
-  'governance_review_status',
-  // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
-  'next_review_date',
-  'review_cadence_days',
-  // S202 §5.2 Phase 2 (T6) — publication lifecycle.
-  'publication_status',
-] as const);
-
-/** @public */
-export type EditableField =
-  | 'suggested_title'
-  | 'ai_keywords'
-  | 'primary_domain'
-  | 'primary_subtopic'
-  | 'secondary_domain'
-  | 'secondary_subtopic'
-  | 'summary'
-  | 'author_name'
-  | 'content_type'
-  | 'platform'
-  | 'priority'
-  | 'user_tags'
-  | 'content'
-  | 'brief'
-  | 'detail'
-  | 'reference'
-  | 'answer_standard'
-  | 'answer_advanced'
-  | 'expiry_date'
-  | 'lifecycle_type'
-  | 'governance_review_status'
-  // S200 WP5 §5.5 Phase 1 — review cadence governance fields.
-  | 'next_review_date'
-  | 'review_cadence_days'
-  // S202 §5.2 Phase 2 (T6) — publication lifecycle.
-  | 'publication_status';
-
-export function validateEditableField(field: string): field is EditableField {
-  return EDITABLE_FIELDS.has(field as EditableField);
-}
+// (Inline-editing allowlist — EDITABLE_FIELDS / EditableField /
+// validateEditableField — deleted, id-417: the content_items inline editor
+// it served is gone and half its fields were retired columns; measured
+// consumption was in-file only.)
 
 // ──────────────────────────────────────────
 // Structured Extraction
@@ -1715,14 +1318,14 @@ export const EntityTypeOverrideBodySchema = z.object({
 // Content Owner Assignment Schemas
 // ──────────────────────────────────────────
 
-/** POST /api/content-owners/bulk-assign — bulk assign content owner */
+/** POST /api/content-owners/bulk-assign — bulk assign content owner.
+ *  (id-417 / DR-130: the domain/subtopic filter legs retired with the
+ *  subject-taxonomy axis.) */
 export const BulkOwnerAssignSchema = z
   .object({
     item_ids: z.array(z.string().uuid()).min(1).max(500).optional(),
     filter: z
       .object({
-        domain: z.string().optional(),
-        subtopic: z.string().optional(),
         content_type: z.string().optional(),
         unowned_only: z.boolean().default(true),
       })
@@ -2204,13 +1807,11 @@ export const ReviewQueueResponseSchema = z.object({
   items: z.array(
     z.object({
       content: z.string().nullable(),
-      source_url: z.string().nullable(),
       verified_at: z.string().nullable(),
       verified_by: z.string().nullable(),
       last_reviewed_at: z.string().nullable(),
       id: z.string(),
       title: z.string(),
-      suggested_title: z.string().nullable(),
       summary: z.string().nullable(),
       content_type: z.string(),
       platform: z.string().nullable(),
@@ -2218,8 +1819,6 @@ export const ReviewQueueResponseSchema = z.object({
       source_domain: z.string().nullable(),
       thumbnail_url: z.string().nullable(),
       captured_date: z.string().nullable(),
-      ai_keywords: z.array(z.string()).nullable(),
-      classification_confidence: z.number().nullable(),
       priority: z.string().nullable(),
       user_tags: z.array(z.string()).nullable(),
       governance_review_status: z.string().nullable(),
@@ -2256,13 +1855,6 @@ export const ReviewStatsResponseSchema = z.object({
   draft: z.number(),
   overdue: z.number(),
   awaiting_publication: z.number(),
-  by_domain: z.record(
-    z.string(),
-    z.object({
-      total: z.number(),
-      verified: z.number(),
-    }),
-  ),
   by_content_type: z.record(
     z.string(),
     z.object({
@@ -2442,8 +2034,6 @@ export const ProcurementResponseSchema = z.object({
       id: z.string(),
       title: z.string().nullable(),
       content_type: z.string().nullable(),
-      primary_domain: z.string().nullable(),
-      primary_subtopic: z.string().nullable(),
       summary: z.string().nullable(),
       similarity: z.number().optional(),
     }),

@@ -12,7 +12,6 @@ import {
   PublicationReviewQueueParamsSchema,
   ReviewQueueParamsSchema,
   ReviewQueueResponseSchema,
-  UNCLASSIFIED_TAXONOMY_OR_PREDICATE,
 } from '@/lib/validation/schemas';
 import type { FacetOwnerKind } from '@/lib/validation/owner-kind';
 import { fetchSourceDocumentBodies } from '@/lib/source-documents/body';
@@ -24,25 +23,28 @@ export const maxDuration = 30;
 // ID-131 {131.19} G-GOV-FACET: content_items is dying. Each content_items
 // row was already 1:1 with its backing source_document (via the old
 // content_items.source_document_id FK), so `id` here is now the
-// source_documents id directly. Classification/content columns
-// (suggested_title, summary, primary_domain, primary_subtopic,
-// secondary_domain, secondary_subtopic, content_type, captured_date,
-// ai_keywords, classification_confidence, publication_status) live on
-// source_documents (M3). Governance/freshness columns (verified_at,
-// verified_by, freshness, governance_review_status, next_review_date,
-// review_cadence_days) live on the record_lifecycle facet (owner_kind=
-// 'source_document', joined via the FK — record_lifecycle has NO
-// source_document_id-alone UNIQUE constraint, so the embed types as an
-// array; there is at most one owner_kind='source_document' row per source
-// document by the facet's exactly-one-of + composite-unique design).
+// source_documents id directly. Content columns (content_type,
+// captured_date, publication_status) live on source_documents (M3).
+// Governance/freshness columns (verified_at, verified_by, freshness,
+// governance_review_status, next_review_date, review_cadence_days) live on
+// the record_lifecycle facet (owner_kind='source_document', joined via the
+// FK — record_lifecycle has NO source_document_id-alone UNIQUE constraint,
+// so the embed types as an array; there is at most one
+// owner_kind='source_document' row per source document by the facet's
+// exactly-one-of + composite-unique design).
+//
+// id-417 / DR-130: the subject-taxonomy axis and the classification-stage
+// by-products (primary/secondary domain + subtopic, suggested_title,
+// summary, ai_keywords, classification_confidence, source_url) retired —
+// columns dropped from source_documents; the ?domain= filter, the
+// 'unclassified' sentinel tab and the confidence sort retired with them.
 //
 // KNOWN OUT-OF-SCOPE DEGRADATIONS (documented, not fixed here — the fields
 // below have NO typed-record home post-refactor; TECH.md BI-11 drops
 // platform/author_name/source_domain/priority/user_tags/brief/detail/
 // reference with no replacement; quality_score/citation_count/metadata never
 // gained one either; thumbnail_url moved to reference_items only, D4):
-//   - `title` has no direct source_documents column — derived from
-//     suggested_title ?? filename (matches the hybrid_search convention).
+//   - `title` is the filename (suggested_title retired, DR-130).
 //   - `platform`, `author_name`, `source_domain`, `thumbnail_url`, `priority`
 //     always null; `user_tags` always []; `metadata` always null.
 //   - `quality_score` always null (no facet/SD column — see the {131.19}
@@ -67,17 +69,8 @@ export const maxDuration = 30;
 interface SourceDocumentReviewRow {
   id: string;
   filename: string;
-  suggested_title: string | null;
-  summary: string | null;
-  primary_domain: string;
-  primary_subtopic: string;
-  secondary_domain: string | null;
-  secondary_subtopic: string | null;
   content_type: string | null;
   captured_date: string | null;
-  ai_keywords: string[] | null;
-  classification_confidence: number | null;
-  source_url: string | null;
   publication_status: string;
   updated_at: string | null;
   record_lifecycle: Array<{
@@ -92,7 +85,7 @@ interface SourceDocumentReviewRow {
 
 /** Columns needed by mapToReviewQueueItem — excludes large/unused fields */
 const REVIEW_COLUMNS =
-  'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at, record_lifecycle!inner(verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days)';
+  'id, filename, content_type, captured_date, publication_status, updated_at, record_lifecycle!inner(verified_at, verified_by, freshness, governance_review_status, next_review_date, review_cadence_days)';
 
 export const GET = defineRoute(
   ReviewQueueResponseSchema,
@@ -134,12 +127,7 @@ export const GET = defineRoute(
       if (!validated.success) return validated.response;
 
       const { status, limit, offset, sort } = validated.data;
-      // Use getAll for repeated params (domain=a&domain=b) and fall back to
-      // comma-separated single values (domain=a,b) for backwards compatibility.
-      const domainParams = searchParams
-        .getAll('domain')
-        .flatMap((v) => v.split(','))
-        .filter(Boolean);
+      // id-417 / DR-130: the ?domain= filter retired with the subject axis.
       const contentTypeParams = searchParams
         .getAll('content_type')
         .flatMap((v) => v.split(','))
@@ -155,23 +143,19 @@ export const GET = defineRoute(
       // here because it returns true for any non-empty string including
       // the literal 'false'.
       const includeOverdue = searchParams.get('include_overdue') === 'true';
-      // ID-63.12: narrow the queue to the taxonomy 'unclassified' sentinel rows
-      // ({63.11}) so the /review "Unclassified" tab has a populated queue. Raw
-      // string compare mirrors include_overdue / assigned_to_me — only the
-      // literal 'true' is on.
-      const unclassifiedOnly = searchParams.get('unclassified') === 'true';
 
       // If assigned_to_me is active, look up the user's active assignments and
-      // merge their filter criteria (domains, content_types) into the query.
-      // Multiple assignments are unioned: items matching ANY assignment are shown.
-      let assignmentDomains: string[] = [];
+      // merge their filter criteria (content_types) into the query. Multiple
+      // assignments are unioned: items matching ANY assignment are shown.
+      // id-417 / DR-130: review_assignments.filter_domains dropped — the
+      // content-type axis is the remaining assignment filter here.
       let assignmentContentTypes: string[] = [];
       let hasAssignments = false;
 
       if (assignedToMe) {
         const { data: assignments, error: assignErr } = await supabase
           .from('review_assignments')
-          .select('filter_domains, filter_content_types')
+          .select('filter_content_types')
           .eq('reviewer_id', user.id)
           .eq('status', 'active');
 
@@ -190,14 +174,10 @@ export const GET = defineRoute(
           hasAssignments = true;
           // Union all assignment filters (items matching ANY assignment)
           for (const a of assignments) {
-            if (Array.isArray(a.filter_domains)) {
-              assignmentDomains.push(...a.filter_domains);
-            }
             if (Array.isArray(a.filter_content_types)) {
               assignmentContentTypes.push(...a.filter_content_types);
             }
           }
-          assignmentDomains = [...new Set(assignmentDomains)];
           assignmentContentTypes = [...new Set(assignmentContentTypes)];
         }
 
@@ -214,28 +194,10 @@ export const GET = defineRoute(
         }
       }
 
-      // Compute effective domain/content-type filters, merging assignment filters
+      // Compute effective content-type filters, merging assignment filters
       // with any explicit user-selected filters. This is needed for both the
       // standard and flagged query paths.
-      let effectiveDomainParams = domainParams;
       let effectiveContentTypeParams = contentTypeParams;
-
-      if (assignedToMe && assignmentDomains.length > 0) {
-        effectiveDomainParams =
-          domainParams.length > 0
-            ? domainParams.filter((d) => assignmentDomains.includes(d))
-            : assignmentDomains;
-        if (effectiveDomainParams.length === 0) {
-          // Intersection is empty — no results can match
-          return NextResponse.json({
-            items: [],
-            total: 0,
-            verified_count: 0,
-            flagged_count: 0,
-            has_more: false,
-          } satisfies ReviewQueueResponse);
-        }
-      }
 
       if (assignedToMe && assignmentContentTypes.length > 0) {
         effectiveContentTypeParams =
@@ -262,10 +224,8 @@ export const GET = defineRoute(
           supabase,
           limit,
           offset,
-          effectiveDomainParams,
           effectiveContentTypeParams,
           sourceDocumentIdParam,
-          sort,
         );
       }
 
@@ -323,10 +283,6 @@ export const GET = defineRoute(
 
       // Apply optional filters (using effective params that already account for
       // assignment filter intersection when assigned_to_me is active)
-      if (effectiveDomainParams.length > 0) {
-        query = query.in('primary_domain', effectiveDomainParams);
-      }
-
       if (effectiveContentTypeParams.length > 0) {
         query = query.in('content_type', effectiveContentTypeParams);
       }
@@ -338,24 +294,13 @@ export const GET = defineRoute(
         query = query.eq('id', sourceDocumentIdParam);
       }
 
-      // ID-63.12: when the "Unclassified" tab is active, narrow to the
-      // 'unclassified' taxonomy sentinel rows ({63.11}) so the tab lists the
-      // out-of-taxonomy content that needs reclassification.
-      if (unclassifiedOnly) {
-        query = query.or(UNCLASSIFIED_TAXONOMY_OR_PREDICATE);
-      }
-
       // Apply sort order. `quality_score_asc` has no column left to sort by
       // (ID-131 {131.19} — quality_score has no typed-record home) and falls
-      // back to the default order.
-      if (sort === 'confidence_asc') {
-        query = query.order('classification_confidence', {
-          ascending: true,
-          nullsFirst: true,
-        });
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
+      // back to the default order; `confidence_asc` retired with
+      // classification_confidence (id-417 / DR-130). `sort` currently has no
+      // live alternative — kept in the schema for the quality_score_asc no-op.
+      void sort;
+      query = query.order('created_at', { ascending: false });
       // Tiebreaker for stable ordering when sort column values are equal or null
       query = query.order('id', { ascending: true });
       // Offset-based pagination
@@ -463,10 +408,8 @@ async function handleFlaggedQuery(
   supabase: any,
   limit: number,
   offset: number,
-  effectiveDomainParams: string[],
   effectiveContentTypeParams: string[],
   sourceDocumentIdParam: string | null,
-  sort?: string,
 ) {
   // First, get the source_document_ids that have open review_needed flags.
   // ingestion_quality_log is now keyed by source_document_id (ID-131 {131.13}
@@ -515,10 +458,6 @@ async function handleFlaggedQuery(
     // ID-138 {138.5} DR-023) — see the standard-query comment above.
     .neq('admission_status', 'tombstoned');
 
-  if (effectiveDomainParams.length > 0) {
-    query = query.in('primary_domain', effectiveDomainParams);
-  }
-
   if (effectiveContentTypeParams.length > 0) {
     query = query.in('content_type', effectiveContentTypeParams);
   }
@@ -527,15 +466,9 @@ async function handleFlaggedQuery(
     query = query.eq('id', sourceDocumentIdParam);
   }
 
-  // Apply sort order (quality_score_asc is a documented no-op — see file header)
-  if (sort === 'confidence_asc') {
-    query = query.order('classification_confidence', {
-      ascending: true,
-      nullsFirst: true,
-    });
-  } else {
-    query = query.order('created_at', { ascending: false });
-  }
+  // Default sort (quality_score_asc is a documented no-op — see file header;
+  // confidence_asc retired with classification_confidence, id-417 / DR-130)
+  query = query.order('created_at', { ascending: false });
   // Tiebreaker for stable ordering
   query = query.order('id', { ascending: true });
   // Offset-based pagination
@@ -633,10 +566,7 @@ async function handlePublicationReviewQuery(
   if (!validated.success) return validated.response;
   const { limit, offset } = validated.data;
 
-  const domainParams = searchParams
-    .getAll('domain')
-    .flatMap((v) => v.split(','))
-    .filter(Boolean);
+  // id-417 / DR-130: the ?domain= slicer retired with the subject axis.
   const contentTypeParams = searchParams
     .getAll('content_type')
     .flatMap((v) => v.split(','))
@@ -654,7 +584,7 @@ async function handlePublicationReviewQuery(
   let query = supabase
     .from('source_documents')
     .select(
-      'id, filename, suggested_title, summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, captured_date, ai_keywords, classification_confidence, source_url, publication_status, updated_at',
+      'id, filename, content_type, captured_date, publication_status, updated_at',
       { count: 'exact' },
     )
     .eq('publication_status', 'in_review')
@@ -662,9 +592,6 @@ async function handlePublicationReviewQuery(
     // ID-138 {138.5} DR-023) — see the standard-query comment above.
     .neq('admission_status', 'tombstoned');
 
-  if (domainParams.length > 0) {
-    query = query.in('primary_domain', domainParams);
-  }
   if (contentTypeParams.length > 0) {
     query = query.in('content_type', contentTypeParams);
   }
@@ -797,11 +724,10 @@ function mapToReviewQueueItem(
   return {
     id: row.id,
     source_document_id: row.id,
-    title: row.suggested_title ?? row.filename,
-    suggested_title: row.suggested_title,
-    summary: row.summary,
-    primary_domain: row.primary_domain,
-    primary_subtopic: row.primary_subtopic,
+    // id-417 / DR-130: suggested_title + summary retired with the
+    // classification stage — filename is the title; summary has no source.
+    title: row.filename,
+    summary: null,
     // source_documents.content_type is nullable (post-{131.9} DROP NOT
     // NULL — a classification output unknown at ingest); ContentListItem's
     // content_type is non-null (inherited from the dying content_items
@@ -814,17 +740,12 @@ function mapToReviewQueueItem(
     source_domain: null,
     thumbnail_url: null,
     captured_date: row.captured_date,
-    ai_keywords: Array.isArray(row.ai_keywords) ? row.ai_keywords : [],
-    classification_confidence: row.classification_confidence,
     priority: null,
     user_tags: [],
     metadata: null,
     content,
-    source_url: row.source_url ?? null,
     verified_at: facet?.verified_at ?? null,
     verified_by: facet?.verified_by ?? null,
-    secondary_domain: row.secondary_domain ?? null,
-    secondary_subtopic: row.secondary_subtopic ?? null,
     freshness: facet?.freshness ?? null,
     governance_review_status: facet?.governance_review_status ?? null,
     next_review_date: facet?.next_review_date ?? null,

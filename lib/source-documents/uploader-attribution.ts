@@ -45,10 +45,10 @@
  * established doctrine:
  *   - `lib/upload/folder-drop.ts` fails the admission (its module header
  *     rejects partial success: "the bytes+row apply together or not at
- *     all");
- *   - `app/api/ingest/url/route.ts` degrades into its existing `warnings[]`
- *     channel (the evidence pair is already committed by the RPC; only the
- *     provenance label degrades).
+ *     all").
+ *   (The former `app/api/ingest/url/route.ts` caller retired with the
+ *   reference_ingest sd-shell mint — id-417 / DR-124: a reference item no
+ *   longer creates a source_documents row to attribute.)
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 

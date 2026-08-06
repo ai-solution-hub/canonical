@@ -93,16 +93,13 @@ export const GET = defineRoute(
       // (BI-29): source_record_ids now carries q_a_pair (primary) and
       // reference_item (optional) ids — never the retired content_items ids,
       // and never source_document ids (SD is provenance-only, not a match
-      // source — TECH.md D2/E5). q_a_pairs carry no primary_domain/
-      // primary_subtopic of their own; domain comes from the record_lifecycle
-      // facet (BI-18/BI-19) and subtopic has no facet equivalent (stays null,
-      // mirroring the hybrid_search q_a_pair-arm precedent).
+      // source — TECH.md D2/E5). id-417 / DR-130: the primary_domain/
+      // primary_subtopic fields retired with the subject-taxonomy axis
+      // (record_lifecycle.domain and the ri domain columns are dropped).
       let sourceContent: Array<{
         id: string;
         title: string | null;
         content_type: string | null;
-        primary_domain: string | null;
-        primary_subtopic: string | null;
         summary: string | null;
       }> = [];
 
@@ -119,44 +116,23 @@ export const GET = defineRoute(
           sb(
             supabase
               .from('reference_items')
-              .select('id, title, summary, primary_domain, primary_subtopic')
+              .select('id, title, summary')
               .in('id', sourceIds),
             'bids.response.detail.sourceContent.referenceItems',
           ),
         ]);
-
-        const qaIds = qaRows.map((row) => row.id);
-        const domainById = new Map<string, string | null>();
-        if (qaIds.length > 0) {
-          const facetRows = await sb(
-            supabase
-              .from('record_lifecycle')
-              .select('owner_id, domain')
-              .eq('owner_kind', 'q_a_pair' satisfies FacetOwnerKind)
-              .in('owner_id', qaIds),
-            'bids.response.detail.sourceContent.facet',
-          );
-          for (const row of facetRows) {
-            if (!row.owner_id) continue;
-            domainById.set(row.owner_id, row.domain);
-          }
-        }
 
         sourceContent = [
           ...qaRows.map((row) => ({
             id: row.id,
             title: row.question_text,
             content_type: 'q_a_pair',
-            primary_domain: domainById.get(row.id) ?? null,
-            primary_subtopic: null,
             summary: row.answer_standard,
           })),
           ...riRows.map((row) => ({
             id: row.id,
             title: row.title,
             content_type: 'reference_item',
-            primary_domain: row.primary_domain,
-            primary_subtopic: row.primary_subtopic,
             summary: row.summary,
           })),
         ];

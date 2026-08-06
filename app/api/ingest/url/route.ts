@@ -9,26 +9,22 @@ import { normaliseUrl } from '@/lib/extraction/url-normalise';
 import { validateUrl } from '@/lib/extraction/url-validation';
 import { logger, updateRequestContext, withRequestContext } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { attributeUploader } from '@/lib/source-documents/uploader-attribution';
 import { sb } from '@/lib/supabase/safe';
 import { parseBody } from '@/lib/validation';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
-import type { Database, Json } from '@/supabase/types/database.types';
+import type { Database } from '@/supabase/types/database.types';
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 export const maxDuration = 60;
 
 /**
- * Derive a non-empty filename for the source_documents provenance row.
- *
- * `source_documents.filename` is NOT NULL. The last path segment is preferred,
- * but a path-less URL (e.g. `https://host/`) has an empty last segment — fall
- * back to the host so a path-less URL still yields a non-empty filename (else
- * the RPC insert 500s on the NOT NULL constraint). ID-110 {110.6} ENG-FIX.
+ * Derive a non-empty title fallback from the URL (last path segment, else
+ * host). id-417 / DR-124: the source_documents provenance shell this used to
+ * name is gone — reference_ingest lands reference_items ONLY; this now only
+ * backstops an empty extracted title.
  */
-function deriveFilename(normalised: string): string {
+function deriveTitleFallback(normalised: string): string {
   try {
     const parsed = new URL(normalised);
     const segments = parsed.pathname.split('/').filter(Boolean);
@@ -49,16 +45,15 @@ const IngestUrlResponseSchema = z.union([
       title: z.string().nullable(),
     }),
   }),
-  // Newly-ingested reference (reduced response, TECH §3.1–§3.3). summary /
-  // primary_domain / primary_subtopic come from the reference_ingest RPC row
-  // and land in nullable columns, so model them nullable.
+  // Newly-ingested reference (reduced response, TECH §3.1–§3.3). summary
+  // comes from the reference_ingest RPC row and lands in a nullable column,
+  // so model it nullable. (id-417 / DR-130: the domain fields retired with
+  // the subject-taxonomy axis.)
   z.object({
     id: z.string(),
     title: z.string().nullable(),
     source_url: z.string(),
     summary: z.string().nullable(),
-    primary_domain: z.string().nullable(),
-    primary_subtopic: z.string().nullable(),
     warnings: z.array(z.string()),
   }),
 ]);
@@ -130,15 +125,12 @@ export const POST = withRequestContext(
         await import('@/lib/extraction/url');
       const warnings: string[] = [];
 
-      // `body` is the cleaned text; `extractor` drives the {112.9} RPC derivation
-      // of extraction_method; the metadata fields populate the source_documents
-      // provenance row.
+      // `body` is the cleaned text. (id-417 / DR-124: the extractor/mime/
+      // page-count provenance fields retired with the sd shell — the
+      // reference item IS the record.)
       let body: string;
       let title: string;
       let summarySource: string | null;
-      let extractor: 'trafilatura' | 'unpdf';
-      let mimeType: string;
-      let pageCount: number | undefined;
 
       let fetched: Awaited<ReturnType<typeof fetchForExtraction>>;
       try {
@@ -159,9 +151,6 @@ export const POST = withRequestContext(
         body = pdf.text;
         title = '';
         summarySource = null;
-        extractor = 'unpdf';
-        mimeType = 'application/pdf';
-        pageCount = pdf.pageCount;
       } else {
         // HTML: hand the already-fetched bytes to the B1 /extract pure cleaner.
         // SOFT COUPLE (load-bearing): an unreachable endpoint / non-2xx / unset
@@ -209,8 +198,6 @@ export const POST = withRequestContext(
         body = cleaned.text;
         title = meta.title;
         summarySource = meta.excerpt || meta.ogDescription || null;
-        extractor = 'trafilatura';
-        mimeType = 'text/html';
       }
 
       // 8. Embedding for reference_items.embedding
@@ -224,72 +211,32 @@ export const POST = withRequestContext(
         warnings.push('Embedding generation failed');
       }
 
-      // 9. Classification — POPULATE-UNLESS-ERROR (ID-110 {110.6} DELTA c).
-      // Run the pure classifyText() classifier UNCONDITIONALLY to populate
-      // primary_domain/primary_subtopic; pass NULL ONLY if it throws. The
-      // reference columns are nullable and reference_search projects both for a
-      // later backfill, but null-when-inconvenient is avoidable data skew, so we
-      // classify here in-request (the manual path is now lighter than before —
-      // no entity/temporal/summary passes).
-      let primaryDomain: string | null = null;
-      let primarySubtopic: string | null = null;
-      try {
-        const { classifyText } = await import('@/lib/ai/classify');
-        const classified = await classifyText({
-          supabase,
-          title,
-          content: body,
-        });
-        primaryDomain = classified.primary_domain;
-        primarySubtopic = classified.primary_subtopic;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        warnings.push(`Classification failed: ${msg}`);
-      }
+      // (Step 9 — classification — retired: id-417 / DR-130, the subject
+      // taxonomy and the classifyText stage are gone.)
 
-      // 10. Provenance fields for the source_documents row (TECH §1.4/§1.5).
-      // filename guarded non-empty (source_documents.filename NOT NULL — ENG-FIX).
-      // mimeType + extractor are resolved at the extraction branch above:
-      // HTML → text/html + 'trafilatura' (PI-11: drives the {112.9} RPC
-      // derivation of extraction_method); PDF → application/pdf + 'unpdf'.
-      const filename = deriveFilename(normalised);
-      const fileSize = Buffer.byteLength(body);
-      const contentHash = createHash('sha256').update(body).digest('hex');
-      const extractionMetadata: Json = {
-        extractor,
-        via: 'app_sync_url_import',
-        ...(pageCount && { page_count: pageCount }),
-      };
+      // 9. Title fallback: guarded non-empty (reference_items.title NOT NULL).
+      const titleFallback = deriveTitleFallback(normalised);
 
       // summary: the HTML path derives an excerpt / og:description locally; PDF
       // has none. References carry the feed-declared summary, so the excerpt is
-      // the closest manual-path equivalent (a full generateSummary pass is
-      // content_items-only).
+      // the closest manual-path equivalent.
       const summary = summarySource;
 
-      // 11. Write the evidence pair via the owner-gated reference_ingest RPC
-      // (atomic sd + ri, server-side uuid5 PKs, ON CONFLICT idempotency).
+      // 10. Land the reference via the owner-gated reference_ingest RPC
+      // (id-417 / DR-124: reference_items ONLY — no source_documents shell,
+      // server-side uuid5 PK, already_existed idempotency, record_embeddings
+      // dual-write).
       //
-      // The generated RPC Args type marks p_summary / p_primary_domain /
-      // p_primary_subtopic / p_embedding / p_published_at as required `string`
-      // because the type generator cannot infer SQL nullability — but the RPC
-      // body inserts each straight into a NULLABLE column, so NULL is valid at the
-      // DB. We cast the nullable fields at this boundary; the DB is the source of
-      // truth (migration 20260614010200).
+      // NOTE (post-regen straggler): the generated Args type still carries the
+      // OLD 14-param shape until the types regen after the id-417 migration
+      // applies; the cast below bridges that window and can then be dropped.
       const ingestArgs = {
         p_source_url: normalised,
-        p_title: title || filename,
+        p_title: title || titleFallback,
         p_body: body,
         p_summary: summary,
-        p_primary_domain: primaryDomain,
-        p_primary_subtopic: primarySubtopic,
         p_embedding: embeddingValue,
         p_published_at: null,
-        p_filename: filename,
-        p_mime_type: mimeType,
-        p_file_size: fileSize,
-        p_content_hash: contentHash,
-        p_extraction_metadata: extractionMetadata,
       };
       const ingested = await sb(
         supabase.rpc(
@@ -307,48 +254,8 @@ export const POST = withRequestContext(
         );
       }
 
-      // 11b. Attribute the synthetic source_documents row to the requesting
-      // user (id-407 — DECIDED, not defaulted).
-      //
-      // `reference_ingest` mints an sd row as the provenance shell for the
-      // reference (storage_path = source_url; no bytes were uploaded), and it
-      // is SECURITY DEFINER so it cannot stamp the actor itself without a
-      // migration. NULL would have been a defensible reading — nobody
-      // "uploaded" anything — but it is the WRONG one here:
-      //
-      //   * this RPC is the seam for the MANUAL single-URL import. Both live
-      //     callers (this route and lib/mcp/tools/content.ts) are gated on an
-      //     authenticated admin/editor and always have a real acting user;
-      //   * the AUTOMATED feed path does not come through here at all — it
-      //     mints its sd rows in the Python walk
-      //     (`scripts/cocoindex_pipeline/flow.py::_upsert_source_document`),
-      //     which deliberately leaves `uploaded_by` NULL. So "which writer
-      //     ran" already carries the system-vs-human distinction, and
-      //     nulling here would erase it rather than express it;
-      //   * `hybrid_search` projects this column as `created_by`, and for a
-      //     hand-imported URL the honest answer to "who put this in the
-      //     corpus" is the person who imported it — not 'System'.
-      //
-      // Gated on `already_existed === false` for the same fill-once reason
-      // the upload leg gates on `was_minted`: a repeat URL returns the prior
-      // row untouched, and that row keeps its original importer.
-      //
-      // Degrades into `warnings` rather than failing: the RPC has already
-      // committed the sd+ri evidence pair, so the reference is real and
-      // correct — only the provenance label falls back to 'System'. That
-      // matches this route's existing partial-failure doctrine (classification
-      // and embedding failures warn the same way) and is visible, not silent.
-      if (row.already_existed === false && row.source_document_id) {
-        try {
-          await attributeUploader(supabase, row.source_document_id, user.id);
-        } catch (err) {
-          warnings.push('Uploader attribution failed');
-          logger.error(
-            { err, sourceDocumentId: row.source_document_id, op: 'ingest_url' },
-            'reference_ingest source_documents row left unattributed',
-          );
-        }
-      }
+      // (Step 11b — sd attribution — retired with the sd shell, id-417 /
+      // DR-124: reference_ingest no longer mints a source_documents row.)
 
       // 12. Reduced response (TECH §3.1–§3.3) — no content_type / suggested_layer
       // / topic_suggestion / guide_section_suggestions / duplicate_matches.
@@ -357,8 +264,6 @@ export const POST = withRequestContext(
         title: row.title,
         source_url: normalised,
         summary: row.summary,
-        primary_domain: row.primary_domain,
-        primary_subtopic: row.primary_subtopic,
         warnings,
       });
     } catch (err) {

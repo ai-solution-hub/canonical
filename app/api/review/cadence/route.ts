@@ -15,6 +15,12 @@ export const maxDuration = 30;
 
 /**
  * Review cadence response shape — aggregate review health metrics.
+ *
+ * id-417 / DR-130: the per-domain breakdown (`by_domain`) and the
+ * `primary_domain` field on overdue items retired with the subject-taxonomy
+ * axis (source_documents.primary_domain dropped). The overdue threshold is
+ * now the single default — the governance_config per-domain timeout lookup
+ * retired with its match key (governance_config's own fate is id-420/DR-127).
  */
 export interface ReviewCadenceResponse {
   summary: {
@@ -29,20 +35,10 @@ export interface ReviewCadenceResponse {
   overdue_items: Array<{
     id: string;
     title: string;
-    primary_domain: string | null;
     verified_at: string | null;
     days_since_review: number;
     governance_review_status: string | null;
   }>;
-  by_domain: Record<
-    string,
-    {
-      total: number;
-      never_reviewed: number;
-      average_days: number;
-      overdue: number;
-    }
-  >;
 }
 
 const ReviewCadenceResponseSchema = z.object({
@@ -59,19 +55,9 @@ const ReviewCadenceResponseSchema = z.object({
     z.object({
       id: z.string(),
       title: z.string(),
-      primary_domain: z.string().nullable(),
       verified_at: z.string().nullable(),
       days_since_review: z.number(),
       governance_review_status: z.string().nullable(),
-    }),
-  ),
-  by_domain: z.record(
-    z.string(),
-    z.object({
-      total: z.number(),
-      never_reviewed: z.number(),
-      average_days: z.number(),
-      overdue: z.number(),
     }),
   ),
 });
@@ -90,13 +76,14 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
     // ID-131 {131.19} G-GOV-FACET: content_items is dying — verified_at/
     // governance_review_status live on the record_lifecycle facet (owner_kind
     // ='source_document'; q_a_pair owners excluded — this report has no SD
-    // equivalent for a q_a_pair title/domain, and pre-refactor content_items
-    // never included q_a_pairs either, so this preserves existing behaviour);
-    // title/suggested_title/primary_domain live on source_documents.
+    // equivalent for a q_a_pair title, and pre-refactor content_items never
+    // included q_a_pairs either, so this preserves existing behaviour);
+    // the title is source_documents.filename (suggested_title retired,
+    // id-417 / DR-130).
     const { data: rawItems, error: itemsError } = await supabase
       .from('record_lifecycle')
       .select(
-        'source_document_id, verified_at, governance_review_status, source_documents!inner(id, filename, suggested_title, primary_domain)',
+        'source_document_id, verified_at, governance_review_status, source_documents!inner(id, filename)',
       )
       .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .or(
@@ -116,39 +103,14 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
       .map((row) => ({
         id: row.source_document_id!,
         title: row.source_documents!.filename,
-        suggested_title: row.source_documents!.suggested_title,
-        primary_domain: row.source_documents!.primary_domain,
         verified_at: row.verified_at,
         governance_review_status: row.governance_review_status,
       }));
 
-    // Fetch governance config for per-domain timeout_days
-    const { data: configRows, error: configError } = await supabase
-      .from('governance_config')
-      .select('domain, timeout_days');
-
-    if (configError) {
-      logger.error({ err: configError }, 'Review cadence config query error');
-      // Non-fatal — fall back to default timeout
-    }
-
-    // Build domain timeout lookup (default 90 days for cadence overdue threshold)
+    // Cadence overdue threshold. id-417 / DR-130: the governance_config
+    // per-domain timeout lookup retired with its sd.primary_domain match key
+    // — every item now uses the single default.
     const DEFAULT_OVERDUE_DAYS = 90;
-    const domainTimeouts = new Map<string, number>();
-    if (configRows) {
-      for (const row of configRows) {
-        // governance_config.timeout_days is for review assignment timeout (default 7).
-        // For cadence "overdue" we use a higher threshold — 90 days by default.
-        // If a domain has a configured timeout, we use the larger of that and 90.
-        domainTimeouts.set(
-          row.domain,
-          Math.max(
-            row.timeout_days ?? DEFAULT_OVERDUE_DAYS,
-            DEFAULT_OVERDUE_DAYS,
-          ),
-        );
-      }
-    }
 
     const now = new Date();
     const allItems = items ?? [];
@@ -164,45 +126,16 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
 
     const overdueItems: ReviewCadenceResponse['overdue_items'] = [];
 
-    // Per-domain accumulators
-    const domainMap = new Map<
-      string,
-      {
-        total: number;
-        never_reviewed: number;
-        total_days: number;
-        reviewed_count: number;
-        overdue: number;
-      }
-    >();
-
     for (const item of allItems) {
-      const domain = item.primary_domain ?? 'Uncategorised';
-      const title = item.suggested_title ?? item.title ?? 'Untitled';
-
-      // Ensure domain entry exists
-      if (!domainMap.has(domain)) {
-        domainMap.set(domain, {
-          total: 0,
-          never_reviewed: 0,
-          total_days: 0,
-          reviewed_count: 0,
-          overdue: 0,
-        });
-      }
-      const domainStats = domainMap.get(domain)!;
-      domainStats.total++;
+      const title = item.title ?? 'Untitled';
 
       if (!item.verified_at) {
         neverReviewed++;
-        domainStats.never_reviewed++;
         // Never-reviewed items are always overdue
         overdueCount++;
-        domainStats.overdue++;
         overdueItems.push({
           id: item.id,
           title,
-          primary_domain: item.primary_domain,
           verified_at: null,
           days_since_review: -1, // Sentinel: never reviewed
           governance_review_status: item.governance_review_status,
@@ -217,22 +150,16 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
 
       totalDaysSinceReview += daysSince;
       reviewedItemCount++;
-      domainStats.total_days += daysSince;
-      domainStats.reviewed_count++;
 
       if (daysSince <= 7) reviewedLast7++;
       if (daysSince <= 30) reviewedLast30++;
       if (daysSince <= 90) reviewedLast90++;
 
-      // Check overdue against domain-specific or default threshold
-      const threshold = domainTimeouts.get(domain) ?? DEFAULT_OVERDUE_DAYS;
-      if (daysSince > threshold) {
+      if (daysSince > DEFAULT_OVERDUE_DAYS) {
         overdueCount++;
-        domainStats.overdue++;
         overdueItems.push({
           id: item.id,
           title,
-          primary_domain: item.primary_domain,
           verified_at: item.verified_at,
           days_since_review: daysSince,
           governance_review_status: item.governance_review_status,
@@ -251,20 +178,6 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
     // Limit overdue items to top 50 for response size
     const limitedOverdueItems = overdueItems.slice(0, 50);
 
-    // Build per-domain breakdown
-    const byDomain: ReviewCadenceResponse['by_domain'] = {};
-    for (const [domain, stats] of domainMap) {
-      byDomain[domain] = {
-        total: stats.total,
-        never_reviewed: stats.never_reviewed,
-        average_days:
-          stats.reviewed_count > 0
-            ? Math.round(stats.total_days / stats.reviewed_count)
-            : 0,
-        overdue: stats.overdue,
-      };
-    }
-
     const response: ReviewCadenceResponse = {
       summary: {
         total_items: allItems.length,
@@ -279,7 +192,6 @@ export const GET = defineRoute(ReviewCadenceResponseSchema, async () => {
             : 0,
       },
       overdue_items: limitedOverdueItems,
-      by_domain: byDomain,
     };
 
     return NextResponse.json(response);

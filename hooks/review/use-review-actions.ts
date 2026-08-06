@@ -145,7 +145,7 @@ export function useReviewActions(
     onSuccess: (_data, { itemId }) => {
       // Find item title for the success toast
       const item = queue.find((q) => q.id === itemId);
-      const title = item?.title ?? item?.suggested_title ?? 'Item';
+      const title = item?.title ?? 'Item';
       toast.success(`Undone: ${title}`);
       setLastAction(null);
     },
@@ -364,7 +364,7 @@ export function useReviewActions(
       if (!currentItem || isVerifyPending) return;
 
       const itemTitle =
-        currentItem.title ?? currentItem.suggested_title ?? 'Item';
+        currentItem.title ?? 'Item';
       const wasAlreadyVerified = !!currentItem.verified_at;
       const isLastItem = currentIndex >= queue.length - 1;
       const nextDisplayPosition = isLastItem
@@ -428,7 +428,7 @@ export function useReviewActions(
       if (!currentItem || isFlagPending) return;
 
       const itemTitle =
-        currentItem.title ?? currentItem.suggested_title ?? 'Item';
+        currentItem.title ?? 'Item';
       const isLastItem = currentIndex >= queue.length - 1;
       const nextDisplayPosition = isLastItem
         ? currentIndex + 1
@@ -497,7 +497,7 @@ export function useReviewActions(
     if (draftStatus !== 'draft') return;
 
     const itemTitle =
-      currentItem.title ?? currentItem.suggested_title ?? 'Item';
+      currentItem.title ?? 'Item';
 
     // Toast fires pre-mutate
     toast.success(`Published: ${itemTitle}`);

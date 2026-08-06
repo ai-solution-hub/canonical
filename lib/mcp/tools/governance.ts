@@ -46,7 +46,6 @@ import {
   type ToolExtra,
   toStructuredContent,
   getGenerateEmbedding,
-  getClassifyContent,
   defineTool,
   DESTRUCTIVE_WRITE_ANNOTATIONS,
   NON_IDEMPOTENT_WRITE_ANNOTATIONS,
@@ -137,7 +136,7 @@ export async function registerGovernanceTools(
         const sdRes = await tryQuery(
           supabase
             .from('source_documents')
-            .select('id, suggested_title, archived_at')
+            .select('id, filename, archived_at')
             .eq('id', args.id)
             .maybeSingle(),
           'mcp.governance.delete.resolve.source_document',
@@ -151,7 +150,7 @@ export async function registerGovernanceTools(
         if (isOk(sdRes) && sdRes.data) {
           ownerKind = 'source_document';
           item = {
-            title: sdRes.data.suggested_title,
+            title: sdRes.data.filename,
             // Composed body (content_chunks / reference_items — id-392).
             content: await fetchSourceDocumentBody(supabase, sdRes.data.id!),
             archivedAt: sdRes.data.archived_at,
@@ -369,7 +368,7 @@ export async function registerGovernanceTools(
         const [sdRows, qaRows, lifecycleRows] = await Promise.all([
           supabase
             .from('source_documents')
-            .select('id, suggested_title, publication_status, classified_at')
+            .select('id, filename, publication_status')
             .in('id', args.item_ids),
           supabase
             .from('q_a_pairs')
@@ -400,7 +399,6 @@ export async function registerGovernanceTools(
           title: string | null;
           content: string | null;
           publication_status: string | null;
-          classified_at: string | null;
           governanceReviewStatus: string | null;
           ownerKind: 'source_document' | 'q_a_pair';
         }
@@ -421,9 +419,8 @@ export async function registerGovernanceTools(
         const rowMap = new Map<string, GovernanceRow>();
         const sdRowsTyped = (sdRows.data ?? []) as Array<{
           id: string;
-          suggested_title: string | null;
+          filename: string | null;
           publication_status: string | null;
-          classified_at: string | null;
         }>;
         // Composed bodies (content_chunks / reference_items — id-392): the
         // SD `content` here only gates the publish-time auto-classify below.
@@ -434,10 +431,9 @@ export async function registerGovernanceTools(
         for (const r of sdRowsTyped) {
           rowMap.set(r.id, {
             id: r.id,
-            title: r.suggested_title,
+            title: r.filename,
             content: sdBodies.get(r.id) ?? null,
             publication_status: r.publication_status,
-            classified_at: r.classified_at,
             governanceReviewStatus: governanceStatusByOwnerId.get(r.id) ?? null,
             ownerKind: 'source_document',
           });
@@ -453,7 +449,6 @@ export async function registerGovernanceTools(
             title: r.question_text,
             content: r.answer_standard,
             publication_status: r.publication_status,
-            classified_at: null,
             governanceReviewStatus: governanceStatusByOwnerId.get(r.id) ?? null,
             ownerKind: 'q_a_pair',
           });
@@ -616,67 +611,11 @@ export async function registerGovernanceTools(
                 'mcp.governance.update_governance_status.facet_clear',
               );
 
-              // S183 WP1 G2 — first-time publish for draft-created items
-              // needs classification + chunks. Drafts bypass the AI pipeline
-              // in create_content_item, so an item with classified_at = NULL
-              // has no entity_mentions, entity_relationships, summary, or
-              // content_chunks. Running now fixes that so the item is fully
-              // searchable + richly linked the moment it becomes live.
-              // Non-fatal: failures log but do not un-publish. Classification
-              // is a document-level concept (source_documents.classified_at)
-              // — q_a_pairs have no classification axis, so this leg is
-              // source_document-only (ID-131 content-drift).
-              //
-              // Uses the service client (not the RLS-scoped MCP client) for
-              // parity with the API publish path and because classifyContent
-              // performs a delete-before-insert on entity_mentions which
-              // requires admin RLS — editor-role callers would silently
-              // no-op the delete otherwise.
-              if (
-                row.ownerKind === 'source_document' &&
-                !row.classified_at &&
-                row.content
-              ) {
-                const { createServiceClient } =
-                  await import('@/lib/supabase/server');
-                const { recordPipelineRun } =
-                  await import('@/lib/pipeline/record-run');
-                const publishServiceClient = createServiceClient();
-
-                let classifyStatus: 'completed' | 'failed' = 'completed';
-                let classifyError: string | null = null;
-                try {
-                  const classifyContent = await getClassifyContent();
-                  await classifyContent({
-                    supabase: publishServiceClient,
-                    itemId,
-                    force: true,
-                    userId,
-                  });
-                } catch (classifyErr) {
-                  classifyStatus = 'failed';
-                  classifyError =
-                    classifyErr instanceof Error
-                      ? classifyErr.message
-                      : 'Unknown classification error';
-                  logger.error(
-                    { err: classifyErr },
-                    `MCP publish classify failed for ${itemId}`,
-                  );
-                }
-                await recordPipelineRun({
-                  supabase: publishServiceClient,
-                  pipelineName: 'publish_classify',
-                  status: classifyStatus,
-                  itemsProcessed: 1,
-                  errorMessage: classifyError,
-                });
-
-                // Chunking removed (ID-56.11): cocoindex is the sole
-                // content_chunks writer and re-ingests the corpus natively
-                // (TECH §1 single-path). No app-side chunk regeneration on
-                // MCP publish.
-              }
+              // id-417 / DR-130: the S183 publish-time auto-classify leg
+              // retired with the classification stage (classified_at and the
+              // classification columns are dropped; lib/ai/classify.ts
+              // retires with the pipeline lane). First-time publish no
+              // longer triggers classification.
             } else {
               // Draft: set publication_status to 'draft' (S202 §5.2 Phase 2.5
               // rewire — rewired from governance_review_status per spec §6.5).
@@ -839,7 +778,7 @@ export async function registerGovernanceTools(
           supabase
             .from('source_documents')
             .select(
-              'id, publication_status, archived_at, archived_by, suggested_title',
+              'id, publication_status, archived_at, archived_by, filename',
             )
             .eq('id', args.item_id)
             .maybeSingle(),
@@ -867,7 +806,7 @@ export async function registerGovernanceTools(
           ownerKind = 'source_document';
           current = {
             publication_status: sdRes.data.publication_status,
-            title: sdRes.data.suggested_title,
+            title: sdRes.data.filename,
             // Composed body (content_chunks / reference_items — id-392).
             content: await fetchSourceDocumentBody(supabase, sdRes.data.id!),
           };
@@ -1167,13 +1106,13 @@ export async function registerGovernanceTools(
           const sdRes = await tryQuery(
             supabase
               .from('source_documents')
-              .select('suggested_title, updated_by')
+              .select('filename, updated_by')
               .eq('id', item.source_document_id)
               .maybeSingle(),
             'mcp.governance.review_governance_item.owner_source_document',
           );
           const sd = isOk(sdRes) ? sdRes.data : null;
-          displayTitle = sd?.suggested_title ?? '(untitled)';
+          displayTitle = sd?.filename ?? '(untitled)';
           ownerUpdatedBy = sd?.updated_by ?? null;
         } else if (
           item.owner_kind === ('q_a_pair' satisfies FacetOwnerKind) &&

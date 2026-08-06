@@ -54,7 +54,6 @@ export interface UseReviewSessionReturn {
 export function useReviewSession(
   searchParams: ReadonlyURLSearchParams,
   statusOverride?: ReviewFiltersType['status'],
-  unclassifiedOverride?: boolean,
 ): UseReviewSessionReturn {
   // -----------------------------------------------------------------------
   // Initialise filters from URL search params (for shareability / back-button)
@@ -62,15 +61,12 @@ export function useReviewSession(
 
   const initialFilters = useMemo((): ReviewFiltersType => {
     const status = searchParams.get('status');
-    const domain = searchParams.getAll('domain').filter(Boolean);
+    // id-417 / DR-130: the ?domain= and ?unclassified= filters retired with
+    // the subject-taxonomy axis.
     const content_type = searchParams.getAll('content_type').filter(Boolean);
     const source_file = searchParams.get('source_file');
     const source_document_id = searchParams.get('source_document_id');
     const assigned_to_me = searchParams.get('assigned_to_me') === 'true';
-    // ID-63.12 — the "Unclassified" tab passes unclassifiedOverride; the
-    // legacy URL parser path also honours `?unclassified=true` for deep links.
-    const unclassified =
-      unclassifiedOverride || searchParams.get('unclassified') === 'true';
 
     // statusOverride wins when provided (S215 ReviewTabs parent). Else
     // the legacy URL parser path runs unchanged.
@@ -84,12 +80,10 @@ export function useReviewSession(
 
     return {
       status: resolvedStatus,
-      domain: domain.length > 0 ? domain : undefined,
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,
       source_document_id: source_document_id ?? undefined,
       assigned_to_me: assigned_to_me || undefined,
-      unclassified: unclassified || undefined,
     };
     // Only compute once on mount — searchParams changes are handled by setFilters
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,16 +113,10 @@ export function useReviewSession(
     // Remove only the keys this hook owns. We must NOT clobber `?tab=` or
     // any other unrelated query parameter the page renderer added.
     params.delete('status');
-    params.delete('domain');
     params.delete('content_type');
     params.delete('source_file');
     params.delete('source_document_id');
     params.delete('assigned_to_me');
-    if (filters.domain?.length) {
-      for (const d of filters.domain) {
-        params.append('domain', d);
-      }
-    }
     if (filters.content_type?.length) {
       for (const ct of filters.content_type) {
         params.append('content_type', ct);
@@ -143,12 +131,6 @@ export function useReviewSession(
     if (filters.assigned_to_me) {
       params.set('assigned_to_me', 'true');
     }
-    // ID-63.12 — round-trip the Unclassified-tab filter for deep-link sharing.
-    params.delete('unclassified');
-    if (filters.unclassified) {
-      params.set('unclassified', 'true');
-    }
-
     const search = params.toString();
     const newPath = search ? `/review?${search}` : '/review';
     window.history.replaceState(null, '', newPath);

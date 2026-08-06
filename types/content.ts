@@ -18,21 +18,20 @@ import type { PublicationStatus } from '@/lib/governance/publication-transitions
 // removed.
 
 /** Display-optimised subset for list/grid views */
+// id-417 / DR-130: the subject-taxonomy + classification-by-product fields
+// (suggested_title, primary_domain, primary_subtopic, ai_keywords,
+// classification_confidence) retired with their source columns — no mapper
+// can populate them any more.
 export interface ContentListItem {
   id: string;
   title: string;
-  suggested_title: string | null;
   summary: string | null;
-  primary_domain: string;
-  primary_subtopic: string;
   content_type: string;
   platform: string | null;
   author_name: string | null;
   source_domain: string | null;
   thumbnail_url: string | null;
   captured_date: string | null;
-  ai_keywords: string[] | null;
-  classification_confidence: number | null;
   priority: string | null;
   freshness: string | null;
   user_tags: string[] | null;

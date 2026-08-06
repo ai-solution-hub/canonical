@@ -99,8 +99,6 @@ export interface ProcurementResponse {
     id: string;
     title: string | null;
     content_type: string | null;
-    primary_domain: string | null;
-    primary_subtopic: string | null;
     summary: string | null;
     similarity?: number;
   }>;

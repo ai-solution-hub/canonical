@@ -41,13 +41,12 @@ export function formatDateUK(dateString: string | null): string {
   }
 }
 
-/** Get display title — suggested_title, then title, then truncated content, then "Untitled" */
+/** Get display title — title, then truncated content, then "Untitled".
+ *  (id-417 / DR-130: the suggested_title leg retired with its column.) */
 export function getDisplayTitle(item: {
-  suggested_title?: string | null;
   title?: string | null;
   content?: string | null;
 }): string {
-  if (item.suggested_title?.trim()) return item.suggested_title.trim();
   if (item.title?.trim()) return item.title.trim();
   if (item.content?.trim())
     return (
@@ -107,28 +106,9 @@ export function formatSmartDate(dateString: string | null): string {
   }
 }
 
-/** Confidence label and colour based on classification score */
-export function getConfidenceDisplay(confidence: number | null): {
-  label: string;
-  colourClass: string;
-} {
-  if (confidence === null || confidence === undefined) {
-    return { label: 'Unknown', colourClass: 'text-muted-foreground' };
-  }
-  if (confidence >= 0.8) {
-    return {
-      label: 'High',
-      colourClass: 'text-success',
-    };
-  }
-  if (confidence >= 0.5) {
-    return {
-      label: 'Medium',
-      colourClass: 'text-status-warning',
-    };
-  }
-  return { label: 'Low', colourClass: 'text-destructive' };
-}
+// (getConfidenceDisplay retired — id-417 / DR-130: classification_confidence
+// dropped with the classification stage; its sole consumer was the review
+// card's Classification section, retired alongside.)
 
 /**
  * Display name overrides for content types that use underscores or

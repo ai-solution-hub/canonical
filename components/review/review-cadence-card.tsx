@@ -14,8 +14,9 @@ interface ReviewCadenceCardProps {
 }
 
 /**
- * Review cadence dashboard card — shows aggregate review health metrics,
- * domain breakdown, and overdue items.
+ * Review cadence dashboard card — shows aggregate review health metrics and
+ * overdue items. (id-417 / DR-130: the per-domain breakdown retired with the
+ * subject-taxonomy axis.)
  */
 export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
   const [data, setData] = useState<ReviewCadenceResponse | null>(null);
@@ -103,10 +104,7 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
 
   if (!data) return null;
 
-  const { summary, overdue_items, by_domain } = data;
-  const domainEntries = Object.entries(by_domain).sort(
-    ([, a], [, b]) => b.overdue - a.overdue || b.total - a.total,
-  );
+  const { summary, overdue_items } = data;
 
   // Clamp to 1% when there's any overdue work so the bar + label don't
   // show "0%" when a small overdue count is dwarfed by a large total
@@ -181,76 +179,6 @@ export function ReviewCadenceCard({ className }: ReviewCadenceCardProps) {
             </span>
           </div>
         </div>
-
-        {/* Domain breakdown table */}
-        {domainEntries.length > 0 && (
-          <div className="space-y-1.5">
-            <h4 className="text-xs font-medium text-muted-foreground">
-              By domain
-            </h4>
-            <div className="overflow-x-auto">
-              <table
-                className="w-full text-xs"
-                role="table"
-                aria-label="Review cadence by domain"
-              >
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="pb-1.5 pr-3 font-medium">Domain</th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">
-                      Total
-                    </th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">
-                      Unreviewed
-                    </th>
-                    <th className="pb-1.5 pr-3 text-right font-medium">
-                      Avg. days
-                    </th>
-                    <th className="pb-1.5 text-right font-medium">Overdue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {domainEntries.map(([domain, stats]) => (
-                    <tr
-                      key={domain}
-                      className="border-b border-border/50 last:border-0"
-                    >
-                      <td className="py-1.5 pr-3 font-medium">{domain}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">
-                        {stats.total}
-                      </td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">
-                        <span
-                          className={
-                            stats.never_reviewed > 0
-                              ? 'text-freshness-stale'
-                              : ''
-                          }
-                        >
-                          {stats.never_reviewed}
-                        </span>
-                      </td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">
-                        {stats.average_days > 0 ? stats.average_days : '\u2014'}
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        <span
-                          className={
-                            stats.overdue > 0
-                              ? 'font-semibold text-form-overdue'
-                              : ''
-                          }
-                        >
-                          {stats.overdue}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* Overdue items (collapsible) */}
         {overdue_items.length > 0 && (

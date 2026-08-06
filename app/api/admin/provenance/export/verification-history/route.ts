@@ -84,7 +84,7 @@ export const GET = defineRoute(
         supabase
           .from('verification_history')
           .select(
-            'id, source_document_id, action_type, performed_by, performed_at, note, source_documents!inner(suggested_title)',
+            'id, source_document_id, action_type, performed_by, performed_at, note, source_documents!inner(filename)',
           )
           .gte('performed_at', fromIso)
           .lte('performed_at', toIso)
@@ -135,7 +135,8 @@ export const GET = defineRoute(
             performed_by: performerId,
             performed_at: r.performed_at as string,
             note: r.note as string | null,
-            title: (sourceDocument?.suggested_title as string | null) ?? null,
+            // id-417 / DR-130: suggested_title retired — filename is the title.
+            title: (sourceDocument?.filename as string | null) ?? null,
             reviewer_name: nameInfo?.display_name ?? 'A team member',
             // governance_status is not sourced today — see the query comment
             // above (api.record_lifecycle doesn't exist until {131.19}).

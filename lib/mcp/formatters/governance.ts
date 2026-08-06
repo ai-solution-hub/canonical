@@ -94,43 +94,10 @@ export function formatGovernanceStatusUpdate(
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------------------
-// Governance queue outputSchema (get_governance_queue tool retired in ID-71.9;
-// the response schema is retained as the canonical wire-shape contract,
-// exercised by the output-schema smoke test).
-// ---------------------------------------------------------------------------
-
-/**
- * Zod schema for a single governance-queue row — mirrors the historical
- * `get_governance_queue` item shape. Consumed only by
- * `GovernanceQueueResponseSchema` below, so it is not exported.
- */
-const GovernanceQueueItemSchema = z.object({
-  id: z.string(),
-  title: z.string().nullable(),
-  suggested_title: z.string().nullable(),
-  primary_domain: z.string().nullable(),
-  governance_review_status: z.string().nullable(),
-  governance_review_due: z.string().nullable(),
-  governance_reviewer_id: z.string().nullable(),
-  updated_by: z.string().nullable(),
-  updated_at: z.string().nullable(),
-});
-
-/**
- * Zod schema for the `get_governance_queue` structured response envelope.
- * `review_status_filter` surfaces the resolved status set the tool appended to
- * the row payload, so the schema covers the actual wire shape.
- */
-export const GovernanceQueueResponseSchema = z.object({
-  items: z.array(GovernanceQueueItemSchema),
-  total: z.number(),
-  offset: z.number(),
-  limit: z.number(),
-  domain_filter: z.string().nullable(),
-  publication_status_filter: z.string().nullish(),
-  review_status_filter: z.array(z.string()),
-});
+// (GovernanceQueueItemSchema / GovernanceQueueResponseSchema deleted —
+// id-417 / DR-130. The get_governance_queue tool retired in ID-71.9; the
+// retained "wire-shape contract" schemas had zero measured consumers and
+// carried retired columns (suggested_title, primary_domain, domain_filter).)
 
 // ---------------------------------------------------------------------------
 // Governance review action (review_governance_item)

@@ -57,22 +57,13 @@ function mapQAPairToContentListItem(row: QAPairListRow): ContentListItem {
   return {
     id: row.id,
     title: row.question_text,
-    suggested_title: null,
     summary: null,
-    // q_a_pairs has no domain/subtopic column (that facet lives on
-    // record_lifecycle, currently zero-row) — empty string reads as
-    // "unclassified" to the UI's `item.primary_domain && <DomainBadge …>`
-    // conditional-rendering checks, same as null would for an optional field.
-    primary_domain: '',
-    primary_subtopic: '',
     content_type: 'q_a_pair',
     platform: null,
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: row.created_at,
-    ai_keywords: null,
-    classification_confidence: null,
     priority: null,
     freshness: null,
     user_tags: null,

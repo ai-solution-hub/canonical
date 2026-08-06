@@ -5,9 +5,10 @@
  * Detects items whose freshness changed and notifies admins + editors.
  * If >10 items transitioned, creates a summary notification instead.
  *
- * Phase 2 governance bridge: when auto_flag_on_freshness_transition is enabled
- * for a domain, items transitioning to stale or expired are also set to
- * governance review status 'pending' with a governance_review_needed notification.
+ * Phase 2 governance bridge: items transitioning to stale or expired are set
+ * to governance review status 'pending' with a governance_review_needed
+ * notification (id-417 / DR-130: the per-domain governance_config match
+ * retired with the subject-taxonomy axis — the global default rule applies).
  *
  * Also cleans up expired+dismissed notifications older than 30 days
  * (spec §10b.7).
@@ -40,7 +41,6 @@ interface TransitionItem {
   title: string;
   previous_freshness: FreshnessState;
   freshness: FreshnessState;
-  primary_domain: string | null;
   updated_at: string | null;
   lifecycle_type: string | null;
   content_owner_id: string | null;
@@ -50,8 +50,9 @@ interface TransitionItem {
 
 // ID-131 {131.19} G-GOV-FACET: content_items is dying — freshness/lifecycle
 // live on the record_lifecycle facet (owner_kind='source_document', freshness
-// axis is SD-only per D7); title/domain/updated_at live on the owning
-// source_documents row.
+// axis is SD-only per D7); title/updated_at live on the owning
+// source_documents row. id-417 / DR-130: suggested_title/primary_domain
+// retired with the subject-taxonomy axis — the title is the filename.
 interface FreshnessFacetRow {
   source_document_id: string | null;
   previous_freshness: FreshnessState | null;
@@ -63,20 +64,16 @@ interface FreshnessFacetRow {
   source_documents: {
     id: string;
     filename: string;
-    suggested_title: string | null;
-    primary_domain: string;
     updated_at: string | null;
   } | null;
 }
 
-interface GovConfig {
-  domain: string;
-  id: string;
-  auto_flag_on_freshness_transition: boolean | null;
-  auto_flag_cooldown_days: number | null;
-  reviewer_id: string | null;
-  timeout_days: number | null;
-}
+// id-417 / DR-130 (owner-ruled): the governance_config per-domain match leg
+// retired with sd.primary_domain — the auto-flag bridge below runs on the
+// global defaults (auto-flag on, 7-day cooldown, 7-day review timeout, no
+// assigned reviewer). governance_config's table fate is id-420/DR-127.
+const AUTO_FLAG_COOLDOWN_DAYS = 7;
+const GOVERNANCE_REVIEW_TIMEOUT_DAYS = 7;
 
 function transitionTitle(
   title: string,
@@ -97,20 +94,18 @@ function transitionTitle(
 
 function transitionMessage(
   title: string,
-  domain: string | null,
   from: FreshnessState,
   to: FreshnessState,
   updatedAt: string | null,
   lifecycleType: string | null,
 ): string {
-  const domainStr = domain ?? 'unclassified';
   const dateStr = updatedAt
     ? new Date(updatedAt).toLocaleDateString('en-GB')
     : 'unknown';
   const lcStr = lifecycleType ?? 'unspecified';
   // ID-131 {131.19}: generalised from "Content item" to "Source document" —
   // the freshness sweep is now source_document-owner-only (D7 per-axis).
-  return `Source document "${title}" in ${domainStr} transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
+  return `Source document "${title}" transitioned from ${from} to ${to}. Last updated: ${dateStr}. Lifecycle type: ${lcStr}.`;
 }
 
 /**
@@ -137,36 +132,6 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
     const cronWarnings: string[] = [];
 
-    // Fetch governance_config to build domain maps for auto-flagging.
-    // Without this map the cron silently uses default behaviour for every
-    // domain — fail loudly instead.
-    const { data: govConfigs, error: govConfigsError } = await supabase
-      .from('governance_config')
-      .select(
-        'id, domain, auto_flag_on_freshness_transition, auto_flag_cooldown_days, reviewer_id, timeout_days',
-      );
-
-    if (govConfigsError) {
-      logger.error(
-        { err: govConfigsError },
-        'freshness-transitions: failed to fetch governance_config',
-      );
-      return NextResponse.json(
-        {
-          error: 'Failed to fetch governance_config',
-          details: govConfigsError.message,
-        },
-        { status: 500 },
-      );
-    }
-
-    const govConfigMap = new Map<string, GovConfig>();
-    if (govConfigs) {
-      for (const config of govConfigs) {
-        govConfigMap.set(config.domain, config as GovConfig);
-      }
-    }
-
     // Find items where freshness changed (skip positive transitions to fresh).
     // ID-131 {131.19}: content_items is dying — freshness/previous_freshness/
     // lifecycle_type/content_owner_id/governance_review_status/verified_at
@@ -175,7 +140,7 @@ export async function GET(request: NextRequest) {
     const { data: transitions, error: queryError } = await supabase
       .from('record_lifecycle')
       .select(
-        'source_document_id, previous_freshness, freshness, lifecycle_type, content_owner_id, governance_review_status, verified_at, source_documents!inner(id, filename, suggested_title, primary_domain, updated_at)',
+        'source_document_id, previous_freshness, freshness, lifecycle_type, content_owner_id, governance_review_status, verified_at, source_documents!inner(id, filename, updated_at)',
       )
       .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .not('previous_freshness', 'is', null)
@@ -206,12 +171,9 @@ export async function GET(request: NextRequest) {
       .map(
         (row): TransitionItem => ({
           id: row.source_document_id!,
-          title:
-            row.source_documents!.suggested_title ??
-            row.source_documents!.filename,
+          title: row.source_documents!.filename,
           previous_freshness: row.previous_freshness!,
           freshness: row.freshness!,
-          primary_domain: row.source_documents!.primary_domain,
           updated_at: row.source_documents!.updated_at,
           lifecycle_type: row.lifecycle_type,
           content_owner_id: row.content_owner_id,
@@ -393,7 +355,6 @@ export async function GET(request: NextRequest) {
             ),
             message: transitionMessage(
               item.title,
-              item.primary_domain,
               item.previous_freshness,
               item.freshness,
               item.updated_at,
@@ -415,7 +376,6 @@ export async function GET(request: NextRequest) {
               ),
               message: transitionMessage(
                 item.title,
-                item.primary_domain,
                 item.previous_freshness,
                 item.freshness,
                 item.updated_at,
@@ -497,7 +457,6 @@ export async function GET(request: NextRequest) {
             ),
             message: transitionMessage(
               item.title,
-              item.primary_domain,
               item.previous_freshness,
               item.freshness,
               item.updated_at,
@@ -523,8 +482,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Governance bridge: auto-flag stale/expired items ─────────────────────
-    // For items transitioning to stale or expired, check if the domain's
-    // governance_config has auto_flag_on_freshness_transition enabled.
+    // id-417 / DR-130 (owner-ruled): the per-domain governance_config match
+    // retired with sd.primary_domain — every stale/expired transition runs
+    // the global default rule (auto-flag on, 7-day cooldown, 7-day timeout).
     // Aging transitions are notification-only — they do not trigger governance.
 
     let autoGovernanceTriggered = 0;
@@ -538,19 +498,11 @@ export async function GET(request: NextRequest) {
       const governanceFlagItems: Array<{
         itemId: string;
         title: string;
-        domain: string | null;
         reviewerId: string | null;
         timeoutDays: number;
-        govConfigId: string | null;
       }> = [];
 
       for (const item of governanceCandidates) {
-        const domainConfig = govConfigMap.get(item.primary_domain ?? '');
-        const autoFlagEnabled =
-          domainConfig?.auto_flag_on_freshness_transition ?? true;
-
-        if (!autoFlagEnabled) continue;
-
         // Guard: only flag items with null or 'approved' governance_review_status
         // Skip items in 'pending', 'changes_requested', or 'draft' state
         const status = item.governance_review_status;
@@ -559,9 +511,8 @@ export async function GET(request: NextRequest) {
         if (!eligibleForGovernance) continue;
 
         // Cooldown check: skip if verified_at is within cooldown period
-        const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
         const cooldownCutoff = new Date(
-          Date.now() - cooldownDays * 24 * 60 * 60 * 1000,
+          Date.now() - AUTO_FLAG_COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
         );
         const lastVerified = item.verified_at
           ? new Date(item.verified_at)
@@ -573,10 +524,8 @@ export async function GET(request: NextRequest) {
         governanceFlagItems.push({
           itemId: item.id,
           title: item.title,
-          domain: item.primary_domain,
-          reviewerId: domainConfig?.reviewer_id ?? null,
-          timeoutDays: domainConfig?.timeout_days ?? 7,
-          govConfigId: domainConfig?.id ?? null,
+          reviewerId: null,
+          timeoutDays: GOVERNANCE_REVIEW_TIMEOUT_DAYS,
         });
       }
 
@@ -625,22 +574,9 @@ export async function GET(request: NextRequest) {
             // Batch summary path: single notification per reviewer/admin
             batchSummaryNotification = true;
 
-            // Find the most-affected domain's governance_config ID for entity_id
-            const domainCounts = new Map<string, number>();
-            for (const item of flaggedItems) {
-              const d = item.domain ?? 'unclassified';
-              domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
-            }
-            let maxDomain = '';
-            let maxCount = 0;
-            domainCounts.forEach((count, domain) => {
-              if (count > maxCount) {
-                maxDomain = domain;
-                maxCount = count;
-              }
-            });
-            const summaryEntityId =
-              govConfigMap.get(maxDomain)?.id ?? flaggedItems[0].itemId;
+            // id-417 / DR-130: the most-affected-domain governance_config
+            // anchor retired with the axis — anchor on the first flagged item.
+            const summaryEntityId = flaggedItems[0].itemId;
 
             // Collect unique recipients (reviewers + admins)
             const recipientIds = new Set<string>(govAdminIds);
@@ -652,7 +588,7 @@ export async function GET(request: NextRequest) {
               (userId) => ({
                 userId,
                 type: 'governance_review_needed' as const,
-                entityType: 'domain',
+                entityType: 'content_item',
                 entityId: summaryEntityId,
                 title: `${flaggedItems.length} items flagged for freshness review`,
                 message: `The daily freshness scan flagged ${flaggedItems.length} items as stale or expired. Review them in the review queue.`,
@@ -782,7 +718,7 @@ async function checkDateExpiryReminders(
     const { data: expiringRows, error: expiringError } = await supabase
       .from('record_lifecycle')
       .select(
-        'source_document_id, expiry_date, content_owner_id, source_documents!inner(id, filename, suggested_title, primary_domain, archived_at)',
+        'source_document_id, expiry_date, content_owner_id, source_documents!inner(id, filename, archived_at)',
       )
       .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
       .not('expiry_date', 'is', null)
@@ -810,8 +746,6 @@ async function checkDateExpiryReminders(
       source_documents: {
         id: string;
         filename: string;
-        suggested_title: string | null;
-        primary_domain: string;
       } | null;
     }
 
@@ -827,12 +761,9 @@ async function checkDateExpiryReminders(
       )
       .map((row) => ({
         id: row.source_document_id!,
-        title:
-          row.source_documents!.suggested_title ??
-          row.source_documents!.filename,
+        title: row.source_documents!.filename,
         expiry_date: row.expiry_date,
         content_owner_id: row.content_owner_id,
-        primary_domain: row.source_documents!.primary_domain,
       }));
 
     if (qualifying.length > 0) {

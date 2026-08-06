@@ -8,21 +8,9 @@ import { z } from 'zod';
 // Types
 // ---------------------------------------------------------------------------
 
-interface DomainStats {
-  domain: string;
-  total_citations: number;
-  winning_citations: number;
-  losing_citations: number;
-  pending_citations: number;
-  win_rate: number;
-  unique_items_cited: number;
-  unique_procurements: number;
-  // ID-130 T-B7 — separate shortlist pass-rate (stage='shortlist' forms; distinct
-  // from the final-award win-rate denominator).
-  shortlist_total: number;
-  shortlist_passed: number;
-  shortlist_pass_rate: number;
-}
+// (DomainStats deleted — id-417 / DR-130: the per-domain win-rate scope
+// stood on record_lifecycle.domain, dropped; get_aggregate_win_rate_stats
+// now returns the 'overall' scope row only.)
 
 interface OverallStats {
   total_citations: number;
@@ -40,7 +28,6 @@ interface OverallStats {
 
 interface AggregateWinRateResponse {
   overall: OverallStats;
-  by_domain: DomainStats[];
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +49,6 @@ const WinRateStatsSchema = z.object({
 });
 const WinRateResponseSchema = z.object({
   overall: WinRateStatsSchema,
-  by_domain: z.array(WinRateStatsSchema.extend({ domain: z.string() })),
 });
 export const GET = defineRoute(WinRateResponseSchema, async () => {
   try {
@@ -90,9 +76,9 @@ export const GET = defineRoute(WinRateResponseSchema, async () => {
     type WinRateRow = Record<string, unknown> & { scope: string };
     const rows = (Array.isArray(data) ? data : []) as unknown as WinRateRow[];
 
-    // Separate overall from domain rows
+    // id-417 / DR-130: the RPC returns the 'overall' scope row only (the
+    // per-domain scope retired with record_lifecycle.domain).
     const overallRow = rows.find((r) => r.scope === 'overall');
-    const domainRows = rows.filter((r) => r.scope !== 'overall');
 
     // Build overall stats (default to zeros if no overall row)
     const overall: OverallStats = {
@@ -108,24 +94,7 @@ export const GET = defineRoute(WinRateResponseSchema, async () => {
       shortlist_pass_rate: Number(overallRow?.shortlist_pass_rate ?? 0),
     };
 
-    // Build domain stats, sorted by win_rate descending (not alphabetical)
-    const by_domain: DomainStats[] = domainRows
-      .map((r) => ({
-        domain: r.scope,
-        total_citations: Number(r.total_citations ?? 0),
-        winning_citations: Number(r.winning_citations ?? 0),
-        losing_citations: Number(r.losing_citations ?? 0),
-        pending_citations: Number(r.pending_citations ?? 0),
-        win_rate: Number(r.win_rate ?? 0),
-        unique_items_cited: Number(r.unique_items_cited ?? 0),
-        unique_procurements: Number(r.unique_procurements ?? 0),
-        shortlist_total: Number(r.shortlist_total ?? 0),
-        shortlist_passed: Number(r.shortlist_passed ?? 0),
-        shortlist_pass_rate: Number(r.shortlist_pass_rate ?? 0),
-      }))
-      .sort((a: DomainStats, b: DomainStats) => b.win_rate - a.win_rate);
-
-    const response: AggregateWinRateResponse = { overall, by_domain };
+    const response: AggregateWinRateResponse = { overall };
 
     return NextResponse.json(response);
   } catch (err) {

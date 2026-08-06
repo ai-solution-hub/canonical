@@ -174,9 +174,9 @@ function stableKeyIdentity(
 
 /**
  * Resolve the real ON CONFLICT column set for a table: the fkRemap-resolved FK
- * column(s) UNION the stableKey. For taxonomy_subtopics that is
- * `(domain_id, name)` (= DB constraint taxonomy_subtopics_domain_id_name_key);
- * for the others it is the stableKey itself.
+ * column(s) UNION the stableKey. (No current contract entry carries an fkRemap
+ * — id-417 / DR-130 removed the taxonomy tables that did — but the machinery
+ * is contract-generic and stays.)
  */
 export function conflictColumns(contract: PayloadTableContract): string[] {
   if (contract.fkRemap) {
@@ -216,7 +216,7 @@ async function fetchSourceRows(
 // ---------------------------------------------------------------------------
 // fkRemap resolution (bidirectional, bridged through the referenced natural key)
 //
-// The per-DB uuid FK (e.g. taxonomy_subtopics.domain_id) differs between source
+// A per-DB uuid FK differs between source
 // and target. We bridge it through the referenced row's NATURAL key:
 //   source FK uuid --(source referencesTable)--> natural key
 //   natural key    --(target referencesTable)--> target FK uuid

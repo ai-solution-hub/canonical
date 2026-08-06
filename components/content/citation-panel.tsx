@@ -14,12 +14,12 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { CitationEntry } from '@/types/procurement-metadata';
 
+// id-417 / DR-130: the primary_domain/primary_subtopic fields retired with
+// the subject-taxonomy axis.
 interface SourceContent {
   id: string;
   title: string | null;
   content_type: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
   summary: string | null;
   similarity?: number;
 }
@@ -156,14 +156,6 @@ export function CitationPanel({
                           className="text-[10px] px-1.5 py-0"
                         >
                           {source.content_type.replace(/_/g, ' ')}
-                        </Badge>
-                      )}
-                      {source?.primary_domain && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {source.primary_domain}
                         </Badge>
                       )}
                       {source?.similarity != null && (

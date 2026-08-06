@@ -31,13 +31,14 @@ export function escapeIlike(raw: string): string {
 
 export const maxDuration = 30;
 
+// id-417 / DR-130: primary_domain retired from the preview shape with the
+// subject-taxonomy axis.
 const PreviewSearchResponseSchema = z.object({
   results: z.array(
     z.object({
       id: z.string(),
       title: z.string().nullable(),
       content_type: z.string().nullable(),
-      primary_domain: z.string().nullable(),
     }),
   ),
   count: z.number(),
@@ -70,7 +71,8 @@ export const GET = defineRoute(
 
       // ID-131.11 G-SEARCH (AC12 / §9): typeahead preview over the typed
       // L-records substrate (content_items retired). ilike across
-      // source_documents (filename/summary), q_a_pairs
+      // source_documents (filename — id-417 / DR-130: the suggested_title/
+      // summary legs retired with the classification stage), q_a_pairs
       // (question_text/answer_standard), and reference_items (title/summary),
       // then merged. `sb()` throws on any Postgres error, so each result set is
       // the array on success.
@@ -78,8 +80,8 @@ export const GET = defineRoute(
         sb(
           supabase
             .from('source_documents')
-            .select('id, filename, suggested_title, primary_domain')
-            .or(`filename.ilike.%${escaped}%,summary.ilike.%${escaped}%`)
+            .select('id, filename')
+            .ilike('filename', `%${escaped}%`)
             .limit(limit),
           'source_documents.preview',
         ),
@@ -96,42 +98,35 @@ export const GET = defineRoute(
         sb(
           supabase
             .from('reference_items')
-            .select('id, title, primary_domain')
+            .select('id, title')
             .or(`title.ilike.%${escaped}%,summary.ilike.%${escaped}%`)
             .limit(limit),
           'reference_items.preview',
         ),
       ]);
 
-      // Merge into the unified 4-field preview shape. `content_type` carries
-      // the owner_kind so consumers can distinguish record classes. q_a_pairs
-      // carry no primary_domain column (it lives on the record_lifecycle
-      // facet), so it is null here — the preview is a lightweight typeahead,
-      // not a governance surface.
+      // Merge into the unified 3-field preview shape. `content_type` carries
+      // the owner_kind so consumers can distinguish record classes.
       type PreviewRow = {
         id: string;
         title: string | null;
         content_type: string;
-        primary_domain: string | null;
       };
       const merged: PreviewRow[] = [
         ...sourceDocs.map((d) => ({
           id: d.id,
-          title: d.suggested_title ?? d.filename,
+          title: d.filename,
           content_type: 'source_document',
-          primary_domain: d.primary_domain,
         })),
         ...qaPairs.map((qa) => ({
           id: qa.id,
           title: qa.question_text,
           content_type: 'q_a_pair',
-          primary_domain: null,
         })),
         ...refItems.map((ri) => ({
           id: ri.id,
           title: ri.title,
           content_type: 'reference_item',
-          primary_domain: ri.primary_domain,
         })),
       ];
 

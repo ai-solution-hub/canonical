@@ -6,7 +6,7 @@
  *
  * Usage:
  *   bun run scripts/kb-search.ts "memory solutions for LLM agents"
- *   bun run scripts/kb-search.ts "MCP server patterns" --limit 5 --domain "SECURITY"
+ *   bun run scripts/kb-search.ts "MCP server patterns" --limit 5
  *   bun run scripts/kb-search.ts "knowledge graphs for code" --full
  *   bun run scripts/kb-search.ts "RAG vs fine-tuning" --json
  *   bun run scripts/kb-search.ts "startup metrics" --threshold 0.3
@@ -23,21 +23,18 @@ loadScriptEnv(import.meta.url);
 
 // ── Types ──
 
+// id-417 / DR-130: the domain/keyword/classification projections retired
+// with the subject-taxonomy axis (hybrid_search §10a shape).
 interface SearchResult {
   id: string;
   title: string | null;
-  suggested_title: string | null;
   summary: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
   content_type: string | null;
   platform: string | null;
   author_name: string | null;
   source_domain: string | null;
   thumbnail_url: string | null;
   captured_date: string | null;
-  ai_keywords: string[] | null;
-  classification_confidence: number | null;
   metadata: Record<string, unknown> | null;
   similarity: number;
   snippet: string | null;
@@ -53,7 +50,6 @@ interface SummaryData {
 interface CliArgs {
   query: string;
   limit: number;
-  domain: string | null;
   full: boolean;
   json: boolean;
   threshold: number;
@@ -67,7 +63,6 @@ function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
   let query = '';
   let limit = 10;
-  let domain: string | null = null;
   let full = false;
   let json = false;
   let threshold = 0.25;
@@ -81,9 +76,6 @@ function parseArgs(): CliArgs {
     const arg = args[i];
     if (arg === '--limit' && args[i + 1]) {
       limit = parseInt(args[i + 1], 10);
-      i++;
-    } else if (arg === '--domain' && args[i + 1]) {
-      domain = args[i + 1];
       i++;
     } else if (arg === '--full') {
       full = true;
@@ -122,7 +114,6 @@ function parseArgs(): CliArgs {
   return {
     query,
     limit,
-    domain,
     full,
     json,
     threshold,
@@ -136,7 +127,6 @@ function printUsage(): void {
 
 Options:
   --limit N                Max results to return (default: 10)
-  --domain "NAME"          Filter by primary_domain (case-insensitive)
   --full                   Include executive summary for each result
   --json                   Output raw JSON instead of formatted text
   --threshold N            Similarity threshold 0-1 (default: 0.25)
@@ -151,7 +141,6 @@ Options:
 Examples:
   bun run scripts/kb-search.ts "memory solutions for LLM agents"
   bun run scripts/kb-search.ts "MCP server patterns" --limit 5
-  bun run scripts/kb-search.ts "startup metrics" --domain "BUSINESS & STRATEGY"
   bun run scripts/kb-search.ts "RAG vs fine-tuning" --full --json
   bun run scripts/kb-search.ts "ISO certification" --exclude-superseded
   bun run scripts/kb-search.ts "stack" --env=prod   # asserts prod-pointed env`);
@@ -197,16 +186,8 @@ function formatDate(dateStr: string | null): string {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const {
-    query,
-    limit,
-    domain,
-    full,
-    json,
-    threshold,
-    includeSuperseded,
-    env,
-  } = parseArgs();
+  const { query, limit, full, json, threshold, includeSuperseded, env } =
+    parseArgs();
 
   // Validate env
   const supabaseUrl =
@@ -270,15 +251,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  let filtered: SearchResult[] = (results as SearchResult[]) ?? [];
-
-  // 3. Optionally filter by domain
-  if (domain) {
-    const domainLower = domain.toLowerCase();
-    filtered = filtered.filter(
-      (r) => r.primary_domain?.toLowerCase() === domainLower,
-    );
-  }
+  // id-417 / DR-130: the --domain client-side filter retired with the
+  // subject-taxonomy axis.
+  const filtered: SearchResult[] = (results as SearchResult[]) ?? [];
 
   // 4. Optionally fetch summary_data for --full
   //
@@ -330,10 +305,9 @@ async function main(): Promise<void> {
   }
 
   // Formatted text output
-  const domainNote = domain ? ` | domain: "${domain}"` : '';
   const supersededNote = includeSuperseded ? '' : ' | excluding superseded';
   console.log(
-    `Found ${filtered.length} results (threshold: ${threshold}${domainNote}${supersededNote})\n`,
+    `Found ${filtered.length} results (threshold: ${threshold}${supersededNote})\n`,
   );
 
   if (filtered.length === 0) {
@@ -345,7 +319,7 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < filtered.length; i++) {
     const r = filtered[i];
-    const displayTitle = r.suggested_title || r.title || 'Untitled';
+    const displayTitle = r.title || 'Untitled';
     const sim = r.similarity.toFixed(2);
     const contentType = r.content_type || 'unknown';
     const platform = r.platform || 'unknown';
@@ -354,19 +328,11 @@ async function main(): Promise<void> {
       `${String(i + 1).padStart(3)}. [${sim}] "${truncate(displayTitle, 70)}" (${contentType}, ${platform})`,
     );
 
-    // Author + Domain line
+    // Author/date line
     const parts: string[] = [];
     if (r.author_name) parts.push(`Author: ${r.author_name}`);
-    parts.push(
-      `Domain: ${r.primary_domain || 'unclassified'}${r.primary_subtopic ? ' / ' + r.primary_subtopic : ''}`,
-    );
     if (r.captured_date) parts.push(`Date: ${formatDate(r.captured_date)}`);
-    console.log(`      ${parts.join(' | ')}`);
-
-    // Keywords
-    if (r.ai_keywords && r.ai_keywords.length > 0) {
-      console.log(`      Keywords: ${r.ai_keywords.join(', ')}`);
-    }
+    if (parts.length > 0) console.log(`      ${parts.join(' | ')}`);
 
     // Summary (--full mode)
     if (full) {

@@ -9,13 +9,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -50,7 +43,6 @@ export function ContentLibraryDrawer({
   const { results, isLoading, error, search } = useSearch();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContentTypeFilter>('all');
-  const [domainFilter, setDomainFilter] = useState<string>('all');
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +73,6 @@ export function ContentLibraryDrawer({
       const timer = setTimeout(() => {
         setQuery('');
         setTypeFilter('all');
-        setDomainFilter('all');
         setHasSearched(false);
       }, 300);
       return () => clearTimeout(timer);
@@ -103,7 +94,6 @@ export function ContentLibraryDrawer({
 
       debounceRef.current = setTimeout(() => {
         setHasSearched(true);
-        setDomainFilter('all');
         search(value, 0.3, 15);
       }, 300);
     },
@@ -117,24 +107,16 @@ export function ContentLibraryDrawer({
     };
   }, []);
 
-  // Compute unique domains from search results
-  const availableDomains = useMemo(
-    () =>
-      Array.from(
-        new Set(results.map((r) => r.primary_domain).filter(Boolean)),
-      ).sort() as string[],
-    [results],
-  );
+  // id-417 / DR-130: the client-side domain filter retired with the
+  // subject-taxonomy axis (hybrid_search no longer projects domains).
 
-  // Filter results client-side by content type and domain
+  // Filter results client-side by content type
   const filteredResults = useMemo(() => {
     return results.filter((r) => {
       if (typeFilter !== 'all' && r.content_type !== typeFilter) return false;
-      if (domainFilter !== 'all' && r.primary_domain !== domainFilter)
-        return false;
       return true;
     });
-  }, [results, typeFilter, domainFilter]);
+  }, [results, typeFilter]);
 
   // Group Q&A results by source document
   const groupedResults = useMemo(() => {
@@ -238,21 +220,6 @@ export function ContentLibraryDrawer({
           >
             Q&A pairs
           </button>
-          {hasSearched && results.length > 0 && (
-            <Select value={domainFilter} onValueChange={setDomainFilter}>
-              <SelectTrigger size="sm" className="h-6 gap-1 px-2 text-xs">
-                <SelectValue placeholder="All domains" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All domains</SelectItem>
-                {availableDomains.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
           {hasSearched && !isLoading && (
             <span className="ml-auto text-xs text-muted-foreground">
               {filteredResults.length} result

@@ -8,8 +8,7 @@
  * (`form_requirement_templates`) exposing every one of its domain fields —
  * `requirement_type`, `requirement_text`, `matching_keywords`,
  * `matching_guidance`, `is_mandatory`, `word_limit_guidance`, `section_ref`,
- * `sector_applicability`, domain/subtopic classification (`primary_domain`/
- * `primary_subtopic`/`secondary_domain`/`secondary_subtopic`), plus the
+ * `sector_applicability`, plus the
  * structural identification columns needed to persist a valid row
  * (`template_name`, `template_version`, `template_type`, `section_name`,
  * `question_number`, `description`, `is_current`, `display_order`).
@@ -89,10 +88,6 @@ const BLANK_FORM_VALUES = {
   requirementText: '',
   description: '',
   requirementType: REQUIREMENT_TYPES[0] as RequirementType,
-  primaryDomain: '',
-  primarySubtopic: '',
-  secondaryDomain: '',
-  secondarySubtopic: '',
   matchingKeywords: '',
   matchingGuidance: '',
   isMandatory: true,
@@ -118,10 +113,6 @@ function valuesFromRow(row: RequirementTemplateRow): FormValues {
     requirementText: row.requirement_text,
     description: row.description ?? '',
     requirementType: row.requirement_type as RequirementType,
-    primaryDomain: row.primary_domain ?? '',
-    primarySubtopic: row.primary_subtopic ?? '',
-    secondaryDomain: row.secondary_domain ?? '',
-    secondarySubtopic: row.secondary_subtopic ?? '',
     matchingKeywords: joinList(row.matching_keywords),
     matchingGuidance: row.matching_guidance ?? '',
     isMandatory: row.is_mandatory ?? true,
@@ -192,10 +183,6 @@ function RequirementTemplateFormPanel({
           requirement_text: values.requirementText.trim(),
           description: values.description.trim() || null,
           requirement_type: values.requirementType,
-          primary_domain: values.primaryDomain.trim() || null,
-          primary_subtopic: values.primarySubtopic.trim() || null,
-          secondary_domain: values.secondaryDomain.trim() || null,
-          secondary_subtopic: values.secondarySubtopic.trim() || null,
           matching_keywords: parseCommaList(values.matchingKeywords),
           matching_guidance: values.matchingGuidance.trim() || null,
           is_mandatory: values.isMandatory,
@@ -338,47 +325,6 @@ function RequirementTemplateFormPanel({
           </div>
         </fieldset>
 
-        {/* Domain/subtopic classification */}
-        <fieldset className="space-y-4">
-          <legend className="text-sm font-medium text-foreground">
-            Classification
-          </legend>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="rc-primary-domain">Primary domain</Label>
-              <Input
-                id="rc-primary-domain"
-                value={values.primaryDomain}
-                onChange={(e) => set('primaryDomain', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rc-primary-subtopic">Primary subtopic</Label>
-              <Input
-                id="rc-primary-subtopic"
-                value={values.primarySubtopic}
-                onChange={(e) => set('primarySubtopic', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rc-secondary-domain">Secondary domain</Label>
-              <Input
-                id="rc-secondary-domain"
-                value={values.secondaryDomain}
-                onChange={(e) => set('secondaryDomain', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="rc-secondary-subtopic">Secondary subtopic</Label>
-              <Input
-                id="rc-secondary-subtopic"
-                value={values.secondarySubtopic}
-                onChange={(e) => set('secondarySubtopic', e.target.value)}
-              />
-            </div>
-          </div>
-        </fieldset>
-
         {/* Matching */}
         <fieldset className="space-y-4">
           <legend className="text-sm font-medium text-foreground">
@@ -497,10 +443,6 @@ interface RequirementRowProps {
 }
 
 function RequirementRow({ row, canEdit, onEdit }: RequirementRowProps) {
-  const domainLabel = [row.primary_domain, row.primary_subtopic]
-    .filter(Boolean)
-    .join(' / ');
-
   return (
     <tr className="border-b transition-colors last:border-0">
       <td className="px-3 py-2 align-top">
@@ -514,9 +456,6 @@ function RequirementRow({ row, canEdit, onEdit }: RequirementRowProps) {
       </td>
       <td className="px-3 py-2 align-top">
         <Badge variant="outline">{row.requirement_type}</Badge>
-      </td>
-      <td className="px-3 py-2 align-top text-muted-foreground">
-        {domainLabel || '—'}
       </td>
       <td className="px-3 py-2 align-top">
         <span className="text-sm font-medium text-foreground">
@@ -660,7 +599,6 @@ export function RequirementCatalogueEditor({
                 <th className="px-3 py-2 font-medium">Template / Section</th>
                 <th className="px-3 py-2 font-medium">Requirement</th>
                 <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Domain / Subtopic</th>
                 <th className="px-3 py-2 font-medium">Mandatory</th>
                 <th className="px-3 py-2 font-medium text-right">Actions</th>
               </tr>

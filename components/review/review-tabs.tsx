@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   List,
   ClipboardList,
-  FileQuestion,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +52,6 @@ const VALID_TABS = [
   'verified-review',
   'verified-audit',
   'all',
-  'unclassified',
   'publication-review',
 ] as const;
 
@@ -84,9 +82,6 @@ const TAB_TO_STATUS: Record<
   'verified-review': 'unverified',
   'verified-audit': 'verified',
   all: 'all',
-  // ID-63.12 — the Unclassified tab shows every status, narrowed by the
-  // `unclassified` taxonomy-sentinel filter applied in ReviewContent.
-  unclassified: 'all',
 };
 
 interface TabSpec {
@@ -132,12 +127,6 @@ const TAB_SPECS: readonly TabSpec[] = [
     count: (s) => s?.total ?? null,
   },
   {
-    value: 'unclassified',
-    label: 'Unclassified',
-    icon: FileQuestion,
-    count: (s) => s?.unclassified_coverage ?? null,
-  },
-  {
     value: 'publication-review',
     label: 'Awaiting publication',
     icon: ClipboardList,
@@ -172,7 +161,7 @@ export function ReviewTabs() {
   // renders (which would otherwise infinite-loop because router.replace
   // updates searchParams).
   //
-  // Other deep-link filter params (`domain`, `content_type`, `source_file`,
+  // Other deep-link filter params (`content_type`, `source_file`,
   // `source_document_id`) are preserved so the publication-review tab's
   // deep-link contract from spec §5 third bullet still works.
   const didStripDefaultRef = useRef(false);
@@ -293,19 +282,8 @@ export function ReviewTabs() {
         </TabsContent>
       ))}
 
-      {/* Unclassified tab: reuses ReviewContent (status='all') but narrows the
-          queue to the 'unclassified' taxonomy sentinel rows ({63.11}) via
-          initialUnclassified. ID-63.12. */}
-      <TabsContent value="unclassified" className="mt-2">
-        {activeTab === 'unclassified' && (
-          <ReviewContent
-            key="unclassified"
-            initialStatus={TAB_TO_STATUS.unclassified}
-            initialUnclassified
-            hideStatusPills
-          />
-        )}
-      </TabsContent>
+      {/* id-417 / DR-130: the Unclassified tab retired with the
+          subject-taxonomy axis (its sentinel columns are dropped). */}
 
       {/* Tab 6: NEW PublicationReviewQueue. */}
       <TabsContent value="publication-review" className="mt-2">

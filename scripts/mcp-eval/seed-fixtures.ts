@@ -238,11 +238,12 @@ async function main(): Promise<void> {
       );
     }
 
-    // record_lifecycle: governance/domain facet only — the freshness axis
+    // record_lifecycle: governance facet only — the freshness axis
     // (freshness/lifecycle_type/expiry_date/review_cadence_days) is
     // source_document-only (record_lifecycle_freshness_axis_chk) and is
-    // never written for a q_a_pair owner; primary_subtopic/secondary_domain/
-    // secondary_subtopic have no facet equivalent (BI-18/19 explicit drift).
+    // never written for a q_a_pair owner. id-417 / DR-130: the `domain`
+    // facet column dropped with the subject-taxonomy axis (the seed item's
+    // primaryDomain now feeds only the deterministic embedding text).
     // `freshness`/`lifecycle_type` DEFAULT to 'fresh'/'evergreen' at the
     // column level (a content_items-era default retained on the table) —
     // MUST be explicitly nulled here or the axis CHECK
@@ -254,7 +255,6 @@ async function main(): Promise<void> {
         {
           owner_kind: 'q_a_pair',
           q_a_pair_id: item.id,
-          domain: item.primaryDomain,
           governance_review_status: 'approved',
           freshness: null,
           lifecycle_type: null,

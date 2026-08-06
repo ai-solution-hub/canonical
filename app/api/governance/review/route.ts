@@ -26,9 +26,10 @@ import { z } from 'zod';
 
 // ID-131 {131.19} G-GOV-FACET: content_items is dying — governance status/
 // due/reviewer/verified_at live on the record_lifecycle facet (owner_kind=
-// 'source_document', governance axis, BI-20); title/suggested_title/
-// primary_domain/updated_by/updated_at live on the owning source_documents
-// row.
+// 'source_document', governance axis, BI-20); title/updated_by/updated_at
+// live on the owning source_documents row. id-417 / DR-130:
+// suggested_title/primary_domain retired with the subject-taxonomy axis —
+// the title is the filename.
 type RecordLifecycleUpdate =
   Database['public']['Tables']['record_lifecycle']['Update'];
 
@@ -37,14 +38,12 @@ export const maxDuration = 30;
 // GET has two distinct 2xx shapes:
 //  - count_only=true → `{ count: number }` (also the Supabase-error fallback)
 //  - otherwise       → `data ?? []`, an array of facet+source_documents rows
-//    with the 9 selected columns. `id`/`title`/`primary_domain` are NOT NULL;
-//    the rest are nullable. `governance_review_status` is a plain text
-//    column → z.string().
+//    with the 7 selected columns. `id`/`title` are NOT NULL; the rest are
+//    nullable. `governance_review_status` is a plain text column →
+//    z.string().
 const GovernanceReviewItemSchema = z.object({
   id: z.string(),
   title: z.string(),
-  suggested_title: z.string().nullable(),
-  primary_domain: z.string(),
   governance_review_status: z.string().nullable(),
   governance_review_due: z.string().nullable(),
   governance_reviewer_id: z.string().nullable(),
@@ -89,7 +88,7 @@ export const GET = defineRoute(
       const { data, error } = await supabase
         .from('record_lifecycle')
         .select(
-          'source_document_id, governance_review_status, governance_review_due, governance_reviewer_id, source_documents!inner(id, filename, suggested_title, primary_domain, updated_by, updated_at)',
+          'source_document_id, governance_review_status, governance_review_due, governance_reviewer_id, source_documents!inner(id, filename, updated_by, updated_at)',
         )
         .eq('owner_kind', 'source_document' satisfies FacetOwnerKind)
         .eq('governance_review_status', 'pending')
@@ -109,8 +108,6 @@ export const GET = defineRoute(
         .map((row) => ({
           id: row.source_document_id!,
           title: row.source_documents!.filename,
-          suggested_title: row.source_documents!.suggested_title,
-          primary_domain: row.source_documents!.primary_domain,
           governance_review_status: row.governance_review_status,
           governance_review_due: row.governance_review_due,
           governance_reviewer_id: row.governance_reviewer_id,

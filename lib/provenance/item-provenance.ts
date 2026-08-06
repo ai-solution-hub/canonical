@@ -1,8 +1,10 @@
 /**
  * Server-side helper for per-item provenance data.
  *
- * Assembles classification, embedding, and bid-drafting provenance for a
- * single content item. Used by the provenance API route.
+ * Assembles embedding, review-schedule, and bid-drafting provenance for a
+ * single content item. Used by the provenance API route. (id-417 / DR-130:
+ * the classification provenance block retired with the classification stage
+ * — its source columns are dropped.)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -35,21 +37,8 @@ interface ProcurementDraftInfo {
 export interface ItemProvenanceResponse {
   itemId: string;
 
-  // Classification provenance
-  classification: {
-    confidence: number | null;
-    primaryDomain: string | null;
-    primarySubtopic: string | null;
-    secondaryDomain: string | null;
-    secondarySubtopic: string | null;
-    reasoning: string | null;
-    classifiedAt: string | null;
-  };
-
   // Processing provenance
   processing: {
-    classificationModel: string | null;
-    classificationModelSource: 'recorded' | 'env_default';
     embeddingModel: string | null;
     embeddingModelSource: 'recorded' | 'env_default';
   };
@@ -106,40 +95,19 @@ export async function getItemProvenance(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<ItemProvenanceResponse | null> {
-  // 1. Fetch classification columns from source_documents. ID-131 {131.17}
-  // G-IMS-DELETE KEEP-list: re-pointed off content_items (M3 gave SD the
-  // classification family). `classification_model`/`embedding_model` are
-  // NOT ported to source_documents (M3 D1: classification_model dropped as
-  // dead — 0 stored consumers; embedding_model has no SD analog either) —
-  // both now always resolve to their env-default. `next_review_date` /
-  // `review_cadence_days` / `verified_at` moved to the `record_lifecycle`
-  // governance facet (G-GOV-FACET, already landed under ID-131.12/.13) —
-  // fetched separately below by (owner_kind='source_document', owner_id).
+  // 1. Existence check (id-417 / DR-130: the classification column fetch
+  // retired with the classification stage — this is now a bare probe so a
+  // missing item still yields the route's 404).
   const item = await sb(
     supabase
       .from('source_documents')
-      .select(
-        `id,
-        classification_confidence,
-        primary_domain,
-        primary_subtopic,
-        secondary_domain,
-        secondary_subtopic,
-        classification_reasoning,
-        classified_at`,
-      )
+      .select('id')
       .eq('id', itemId)
       .maybeSingle(),
     'provenance.item.contentItem',
   );
 
   if (!item) return null;
-
-  // 2. classification_model is deliberately not re-homed onto
-  // source_documents (0 stored consumers) — always env-default going forward.
-  const classificationModel =
-    process.env.AI_CLASSIFICATION_MODEL ?? 'claude-opus-4-6';
-  const classificationModelSource: 'recorded' | 'env_default' = 'env_default';
 
   // 3. embedding_model has no source_documents analog — always env-default.
   const embeddingModel =
@@ -255,18 +223,7 @@ export async function getItemProvenance(
 
   return {
     itemId,
-    classification: {
-      confidence: item.classification_confidence,
-      primaryDomain: item.primary_domain,
-      primarySubtopic: item.primary_subtopic,
-      secondaryDomain: item.secondary_domain,
-      secondarySubtopic: item.secondary_subtopic,
-      reasoning: item.classification_reasoning,
-      classifiedAt: item.classified_at,
-    },
     processing: {
-      classificationModel,
-      classificationModelSource,
       embeddingModel,
       embeddingModelSource,
     },

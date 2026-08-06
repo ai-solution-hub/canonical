@@ -248,44 +248,8 @@ function ReferenceFilterControls({
 
   return (
     <div className="mt-4 flex flex-wrap items-end gap-3">
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="reference-filter-domain"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          Domain
-        </label>
-        <input
-          id="reference-filter-domain"
-          type="text"
-          value={filters.primary_domain ?? ''}
-          onChange={(e) =>
-            onChange({ primary_domain: e.target.value || undefined })
-          }
-          placeholder="Any domain"
-          className={controlClass}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="reference-filter-subtopic"
-          className="text-xs font-medium text-muted-foreground"
-        >
-          Subtopic
-        </label>
-        <input
-          id="reference-filter-subtopic"
-          type="text"
-          value={filters.primary_subtopic ?? ''}
-          onChange={(e) =>
-            onChange({ primary_subtopic: e.target.value || undefined })
-          }
-          placeholder="Any subtopic"
-          className={controlClass}
-        />
-      </div>
-
+      {/* id-417 / DR-130: the Domain/Subtopic filter inputs retired with the
+          subject-taxonomy axis. */}
       <div className="flex flex-col gap-1">
         <label
           htmlFor="reference-filter-source"

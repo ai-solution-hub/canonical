@@ -97,26 +97,13 @@ export async function registerResources(server: McpServer): Promise<void> {
           };
         }
 
-        let sourceContext: {
-          summary: string | null;
-        } | null = null;
-        if (qa.source_document_id) {
-          sourceContext = await sb(
-            supabase
-              .from('source_documents')
-              .select('summary')
-              .eq('id', qa.source_document_id)
-              .maybeSingle(),
-            'mcp.resources.qa_pair.read.source_context',
-          );
-        }
-
+        // id-417 / DR-130: the source-document `summary` context read retired
+        // with sd.summary (a classification-stage by-product; dropped).
         const item = {
           id: qa.id,
           question_text: qa.question_text,
           answer_standard: qa.answer_standard,
           answer_advanced: qa.answer_advanced,
-          summary: sourceContext?.summary ?? null,
         };
 
         return {

@@ -319,8 +319,8 @@ async function verifyPipelineUserShape(
 // selects exclusively from source_documents, and the Approve action
 // (app/api/review/publication-bulk-action/route.ts) writes
 // publication_status back onto source_documents. The rendered row title is
-// `suggested_title ?? filename` (mapToReviewQueueItem) — this fixture has
-// no suggested_title, so `filename` IS the deterministic match/display key,
+// `filename` (mapToReviewQueueItem — id-417 / DR-130 retired
+// suggested_title), so `filename` IS the deterministic match/display key,
 // mirroring the already-working analogous fixture in
 // e2e/tests/publication-bulk-action.e2e.spec.ts (seedInReviewSourceDocuments)
 // for the SAME tab.
@@ -431,9 +431,6 @@ export async function seedPublicationReviewFixture(
     .insert({
       filename: PUBLICATION_REVIEW_FIXTURE_TITLE,
       content_type: 'q_a_pair',
-      primary_domain: 'Technical Capability',
-      summary:
-        'E2E fixture row — exercises the awaiting-publication tab Approve + visibility-gating flow.',
       publication_status: 'in_review',
       mime_type: 'text/plain',
       file_size: 1,

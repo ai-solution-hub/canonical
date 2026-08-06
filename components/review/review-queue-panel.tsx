@@ -36,7 +36,6 @@ export function ReviewQueuePanel({
           const isCurrent = index === currentIndex;
           const isFlagged = item.governance_review_status === 'pending';
           const title = getDisplayTitle({
-            suggested_title: item.suggested_title,
             title: item.title,
             content: item.content,
           });

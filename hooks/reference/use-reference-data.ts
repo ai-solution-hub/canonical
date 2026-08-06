@@ -41,17 +41,15 @@ const SEARCH_STALE_TIME = 60_000;
 const EMPTY_ITEMS: ReferenceListItem[] = [];
 
 // ---------------------------------------------------------------------------
-// Filter model — the reduced, reference-appropriate set (PRODUCT.md B-16).
+// Filter model — the reduced, reference-appropriate set (PRODUCT.md B-16;
+// id-417 / DR-130: the primary_domain/primary_subtopic filters retired with
+// the subject-taxonomy axis).
 //
-// ONLY: primary_domain, primary_subtopic, ingestion_source, published_at range.
-// No workspace/entity/content_type/platform/author/freshness/quality/owner/
-// governance/starred/tags/preset dimensions (B-16 Non-goals).
+// ONLY: ingestion_source, published_at range.
 // ---------------------------------------------------------------------------
 
 /** @public */
 export interface ReferenceFilters {
-  primary_domain?: string;
-  primary_subtopic?: string;
   ingestion_source?: ReferenceIngestionSource;
   /** Inclusive lower bound on `published_at` (ISO date, e.g. `2026-01-01`). */
   published_from?: string;
@@ -118,11 +116,8 @@ function toReferenceListItem(row: RawReferenceRow): ReferenceListItem {
     body_preview: row.body_preview,
     source_url: row.source_url,
     published_at: row.published_at,
-    primary_domain: row.primary_domain,
-    primary_subtopic: row.primary_subtopic,
     layer: row.layer,
     ingestion_source: row.ingestion_source as ReferenceIngestionSource,
-    source_document_id: row.source_document_id,
     embedding_score: row.embedding_score,
     fulltext_score: row.fulltext_score,
   };
@@ -157,8 +152,6 @@ export function useReferenceData(): UseReferenceDataReturn {
   const filters: ReferenceFilters = useMemo(() => {
     const sourceRaw = searchParams.get('source');
     return {
-      primary_domain: searchParams.get('domain') ?? undefined,
-      primary_subtopic: searchParams.get('subtopic') ?? undefined,
       ingestion_source:
         sourceRaw && isIngestionSource(sourceRaw) ? sourceRaw : undefined,
       published_from: searchParams.get('from') ?? undefined,
@@ -168,8 +161,6 @@ export function useReferenceData(): UseReferenceDataReturn {
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filters.primary_domain) count++;
-    if (filters.primary_subtopic) count++;
     if (filters.ingestion_source) count++;
     if (filters.published_from || filters.published_to) count++;
     return count;
@@ -185,7 +176,7 @@ export function useReferenceData(): UseReferenceDataReturn {
   // -------------------------------------------------------------------------
 
   // `filtersKey` already encodes every filter value the queryFn reads
-  // (domain/subtopic/source/from/to); the lint rule cannot see through the
+  // (source/from/to); the lint rule cannot see through the
   // object indirection. Same pattern as `use-browse-data.ts`.
   /* eslint-disable @tanstack/query/exhaustive-deps -- filtersKey encodes all filter inputs to the queryFn */
   const listQuery = useInfiniteQuery<
@@ -201,8 +192,6 @@ export function useReferenceData(): UseReferenceDataReturn {
       const { data, error } = await supabase.rpc('reference_list', {
         p_limit: PAGE_SIZE,
         p_offset: pageParam,
-        p_primary_domain: filters.primary_domain,
-        p_primary_subtopic: filters.primary_subtopic,
         p_ingestion_source: filters.ingestion_source,
         p_published_from: filters.published_from,
         p_published_to: filters.published_to,
@@ -288,19 +277,6 @@ export function useReferenceData(): UseReferenceDataReturn {
     (next: Partial<ReferenceFilters>) => {
       const params = new URLSearchParams(searchParams.toString());
 
-      if ('primary_domain' in next) {
-        if (next.primary_domain) params.set('domain', next.primary_domain);
-        else {
-          params.delete('domain');
-          // Clearing the domain clears the dependent subtopic too.
-          params.delete('subtopic');
-        }
-      }
-      if ('primary_subtopic' in next) {
-        if (next.primary_subtopic)
-          params.set('subtopic', next.primary_subtopic);
-        else params.delete('subtopic');
-      }
       if ('ingestion_source' in next) {
         if (next.ingestion_source) params.set('source', next.ingestion_source);
         else params.delete('source');

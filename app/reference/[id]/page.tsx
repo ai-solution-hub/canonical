@@ -9,7 +9,6 @@ import {
 import type {
   ReferenceDetail,
   ReferenceIngestionSource,
-  ReferenceSourceDocument,
 } from '@/types/reference';
 import type { Database } from '@/supabase/types/database.types';
 
@@ -41,11 +40,10 @@ const UUID_RE =
  * A non-not-found RPC/transport error → a non-destructive error state with
  * retry, never a blank page (PRODUCT.md B-7).
  *
- * Secondary read (B-28, after the primary, since `source_document_id` is NOT
- * NULL): the `source_documents` row via `tryQuery`. On failure the page renders
- * WITHOUT the enriched provenance block, falling back to the `ingestion_source`
- * plain-language line (PRODUCT.md B-2) — it MUST NOT 404 or blank on a failed
- * enrichment.
+ * (The former B-28 secondary source_documents provenance read retired with
+ * ri.source_document_id — id-417 / DR-124: a reference item no longer has a
+ * source_documents shell. The `ingestion_source` plain-language line is the
+ * provenance surface.)
  *
  * Authenticated surface — `/reference/[id]` is NOT in `proxy.ts` publicRoutes
  * (PRODUCT.md B-6).
@@ -95,46 +93,21 @@ export default async function ReferenceDetailPage({
 
   // Narrow `ingestion_source` from the generated `string` to its
   // CHECK-constrained union (the deliberate exception documented in
-  // `types/reference.ts`); the rest of the row maps 1:1 to ReferenceDetail.
+  // `types/reference.ts`). Explicit field map (not a spread) so the shape is
+  // exact against both the pre- and post-regen generated row types (id-417).
   const reference: ReferenceDetail = {
-    ...rawReference,
+    id: rawReference.id,
+    title: rawReference.title,
+    body: rawReference.body,
+    summary: rawReference.summary,
+    source_url: rawReference.source_url,
+    published_at: rawReference.published_at,
+    layer: rawReference.layer,
     ingestion_source: rawReference.ingestion_source as ReferenceIngestionSource,
+    op_id: rawReference.op_id,
+    created_at: rawReference.created_at,
+    updated_at: rawReference.updated_at,
   };
 
-  // SECONDARY read (B-28) — source_documents provenance. `source_document_id`
-  // is NOT NULL, so a missing row is a genuine failure to enrich, not an
-  // expected null. Degrade gracefully: a failed enrichment must never 404 or
-  // blank the readable reference (TECH.md Seam 2).
-  let sourceDocument: ReferenceSourceDocument | null = null;
-  const sourceDocumentResult = await tryQuery<ReferenceSourceDocument | null>(
-    supabase
-      .from('source_documents')
-      .select(
-        'original_filename, filename, mime_type, file_size, extraction_method, source_url, created_at',
-      )
-      .eq('id', reference.source_document_id)
-      .maybeSingle(),
-    'reference.detail.source_document',
-  );
-
-  if (sourceDocumentResult.ok) {
-    sourceDocument = sourceDocumentResult.data;
-  } else {
-    logBestEffortWarn(
-      'reference.detail.source_document',
-      'source_documents enrichment read failed — degrading to ingestion_source line',
-      {
-        referenceId: id,
-        sourceDocumentId: reference.source_document_id,
-        code: sourceDocumentResult.error.code,
-      },
-    );
-  }
-
-  return (
-    <ReferenceDetailClient
-      reference={reference}
-      sourceDocument={sourceDocument}
-    />
-  );
+  return <ReferenceDetailClient reference={reference} />;
 }
