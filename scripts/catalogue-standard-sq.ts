@@ -45,10 +45,7 @@ interface TemplateRequirement {
     | 'narrative'
     | 'declaration'
     | 'reference';
-  primary_domain: string | null;
-  primary_subtopic: string | null;
-  secondary_domain: string | null;
-  secondary_subtopic: string | null;
+  // (id-417 / DR-130: the four taxonomy fields retired with their columns.)
   matching_keywords: string[];
   matching_guidance: string | null;
   is_mandatory: boolean;
@@ -129,10 +126,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Full name of the potential supplier submitting the information.',
     description: 'Company or organisation legal name',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'company name',
       'legal name',
@@ -155,10 +149,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     requirement_text: 'Registered office address (if applicable).',
     description: 'Registered office address of the organisation',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'registered office',
       'company address',
@@ -182,10 +173,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Trading status: (a) public limited company, (b) limited company, (c) limited liability partnership, (d) other partnership, (e) sole trader, (f) third sector, (g) other (please specify).',
     description: 'Legal trading status of the organisation',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'trading status',
       'company type',
@@ -209,10 +197,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     requirement_text: 'Date of registration in country of origin.',
     description: 'Date the organisation was registered/incorporated',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'date of registration',
       'incorporation date',
@@ -235,10 +220,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     requirement_text: 'Company registration number (if applicable).',
     description: 'Companies House registration number',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'company registration number',
       'Companies House',
@@ -261,10 +243,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     requirement_text: 'Head office DUNS number (if applicable).',
     description: 'Dun & Bradstreet DUNS number',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: ['DUNS number', 'Dun & Bradstreet', 'D-U-N-S'],
     matching_guidance: null,
     is_mandatory: false,
@@ -282,10 +261,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     requirement_text: 'Registered VAT number.',
     description: 'VAT registration number',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: ['VAT number', 'VAT registration', 'tax registration'],
     matching_guidance: null,
     is_mandatory: true,
@@ -304,10 +280,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Name and details of the relevant persons of significant control (PSC) as listed on the PSC register at Companies House or persons with a right to exercise significant influence or control. If you are a PSC-exempt company, please provide the name and details of the relevant registrable legal entity (RLE).',
     description: 'Persons of significant control or registrable legal entities',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: 'compliance',
-    secondary_subtopic: 'regulatory',
+
     matching_keywords: [
       'PSC',
       'persons of significant control',
@@ -333,10 +306,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Details of the immediate parent company: full name, registered office address (if applicable), company registration number (if applicable), head office DUNS number (if applicable), head office VAT number (if applicable).',
     description: 'Immediate parent company details',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'parent company',
       'holding company',
@@ -360,10 +330,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Details of the ultimate parent company: full name, registered office address (if applicable), company registration number (if applicable), head office DUNS number (if applicable), head office VAT number (if applicable).',
     description: 'Ultimate parent company details',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'ultimate parent company',
       'holding company',
@@ -387,10 +354,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Are you a Small or Medium Enterprise (SME)? (as defined by the European Commission).',
     description: 'SME status declaration',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'SME',
       'small business',
@@ -415,10 +379,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Are you a voluntary, community or social enterprise (VCSE)?',
     description: 'VCSE status declaration',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'VCSE',
       'social enterprise',
@@ -443,10 +404,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Are you a sheltered workshop, or a supplier who provides for the employment of disabled or disadvantaged persons?',
     description: 'Sheltered workshop or supported employment status',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'sheltered workshop',
       'supported employment',
@@ -470,10 +428,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Contact details: name, position, postal address, email, telephone.',
     description: 'Primary contact details for this procurement',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'contact details',
       'point of contact',
@@ -497,10 +452,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Is your organisation bidding as the lead contact for a group of economic operators? If yes, please provide details of the proposed arrangements and the composition of the group.',
     description: 'Consortium or group bidding arrangement details',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'company-info',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'consortium',
       'joint venture',
@@ -525,10 +477,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Are you proposing to use sub-contractors? If yes, please provide details of the proposed sub-contractors, including the percentage of the contract value that will be sub-contracted.',
     description: 'Sub-contracting arrangements and details',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'subcontractor',
       'sub-contracting',
@@ -553,10 +502,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Where you intend to sub-contract a proportion of the contract, please demonstrate how you have or will identify sub-contractors and how you manage them.',
     description: 'Sub-contractor identification and management approach',
     requirement_type: 'narrative',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'subcontractor management',
       'supply chain management',
@@ -587,10 +533,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Declaration of mandatory exclusion criminal offences in past 5 years',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'criminal conviction',
       'bribery',
@@ -618,10 +561,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Details of any mandatory exclusion convictions and self-cleaning measures',
     requirement_type: 'narrative',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'conviction details',
       'self-cleaning',
@@ -647,10 +587,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Declaration on breach of tax or social security payment obligations',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: 'corporate',
-    secondary_subtopic: 'financial',
+
     matching_keywords: [
       'tax compliance',
       'social security',
@@ -680,10 +617,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Judicial/administrative findings on tax or social security breach',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'tax breach',
       'social security',
@@ -709,10 +643,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Details of tax/social security breach and payment arrangements',
     requirement_type: 'narrative',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'outstanding tax',
       'payment arrangement',
@@ -737,10 +668,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Evidence of binding payment arrangement for outstanding tax/social security',
     requirement_type: 'evidence',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'binding arrangement',
       'tax payment evidence',
@@ -769,10 +697,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Declaration of discretionary exclusion grounds (environmental, social, labour, misconduct, competition, conflict of interest)',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'professional misconduct',
       'environmental breach',
@@ -799,10 +724,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Declaration on prior contract performance failures and misrepresentation',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'contract termination',
       'performance failure',
@@ -828,10 +750,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Details of discretionary exclusion issues and self-cleaning measures',
     requirement_type: 'narrative',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'self-cleaning',
       'remedial measures',
@@ -856,10 +775,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Declaration on insolvency, winding up, or administration proceedings',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: 'corporate',
-    secondary_subtopic: 'financial',
+
     matching_keywords: [
       'insolvency',
       'bankruptcy',
@@ -889,10 +805,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Please provide your annual turnover for the last two financial years.',
     description: 'Annual turnover figures for past two years',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'financial',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'annual turnover',
       'revenue',
@@ -917,10 +830,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Where turnover information is not available for the last two years (e.g. for newly formed companies), please state your date of incorporation and provide any evidence of financial standing such as a cash flow forecast.',
     description: 'Alternative financial evidence for newly formed companies',
     requirement_type: 'evidence',
-    primary_domain: 'corporate',
-    primary_subtopic: 'financial',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'cash flow forecast',
       'newly formed',
@@ -945,10 +855,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Please provide a copy of your most recent audited accounts, or if not available, your most recent unaudited accounts.',
     description: 'Most recent audited or unaudited company accounts',
     requirement_type: 'evidence',
-    primary_domain: 'corporate',
-    primary_subtopic: 'financial',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'audited accounts',
       'financial statements',
@@ -973,10 +880,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "Can you provide a credit reference or banker's reference if required?",
     description: 'Willingness to provide credit or banker reference',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'financial',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'credit reference',
       'banker reference',
@@ -1001,10 +905,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Where the contracting authority has stated a minimum level of economic and financial standing, please confirm whether you meet that requirement.',
     description: 'Declaration of meeting minimum financial standing thresholds',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'financial',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'financial standing',
       'minimum threshold',
@@ -1033,10 +934,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Up to three relevant contract references from past three years',
     requirement_type: 'reference',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'contract reference',
       'relevant experience',
@@ -1063,10 +961,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Where you cannot provide at least one example of relevant experience, please provide an explanation for this (e.g. organisation is a new start-up).',
     description: 'Explanation if no relevant contract references are available',
     requirement_type: 'narrative',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'new company',
       'startup',
@@ -1090,10 +985,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Where you intend to sub-contract a proportion of the contract, please provide relevant examples of work carried out by your proposed sub-contractors.',
     description: 'Sub-contractor relevant experience and references',
     requirement_type: 'reference',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: 'corporate',
-    secondary_subtopic: 'references',
+
     matching_keywords: [
       'subcontractor experience',
       'subcontractor reference',
@@ -1122,10 +1014,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Insurance coverage details and confirmation of meeting required levels',
     requirement_type: 'evidence',
-    primary_domain: 'corporate',
-    primary_subtopic: 'insurance',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'insurance',
       'employer liability',
@@ -1156,10 +1045,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Please confirm that you will comply with the requirements of the Data Protection Act 2018 (including the UK GDPR) when processing personal data on behalf of the contracting authority. Please describe your approach to data protection, including any relevant policies, procedures, and technical and organisational measures.',
     description: 'Data protection compliance approach and UK GDPR measures',
     requirement_type: 'policy',
-    primary_domain: 'security',
-    primary_subtopic: 'data-protection',
-    secondary_domain: 'compliance',
-    secondary_subtopic: 'regulatory',
+
     matching_keywords: [
       'data protection',
       'GDPR',
@@ -1187,10 +1073,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "Is your organisation registered with the Information Commissioner's Office (ICO)? If yes, please provide your ICO registration number.",
     description: 'ICO registration status and registration number',
     requirement_type: 'data',
-    primary_domain: 'compliance',
-    primary_subtopic: 'regulatory',
-    secondary_domain: 'security',
-    secondary_subtopic: 'data-protection',
+
     matching_keywords: [
       'ICO registration',
       'Information Commissioner',
@@ -1218,10 +1101,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Please provide details of your health and safety policy and arrangements. If you have five or more employees, please confirm that you have a written health and safety policy. Please describe your arrangements for ensuring the health and safety of your workers and any persons affected by your work activities.',
     description: 'Health and safety policy and workplace safety arrangements',
     requirement_type: 'policy',
-    primary_domain: 'compliance',
-    primary_subtopic: 'health-and-safety',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'health and safety',
       'H&S policy',
@@ -1249,10 +1129,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'History of H&S prosecutions or enforcement notices in past three years',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'health-and-safety',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'H&S prosecution',
       'enforcement notice',
@@ -1281,10 +1158,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Can you confirm that you will pay your sub-contractors within 30 days of a valid and undisputed invoice, in line with the Late Payment of Commercial Debts (Interest) Act 1998?',
     description: 'Commitment to 30-day payment terms for sub-contractors',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'prompt payment',
       '30-day payment',
@@ -1309,10 +1183,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'What are your current payment terms for your sub-contractors and supply chain?',
     description: 'Current payment terms offered to sub-contractors',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'payment terms',
       'supply chain payment',
@@ -1336,10 +1207,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Are you a signatory to the Prompt Payment Code? If yes, please provide details.',
     description: 'Prompt Payment Code signatory status',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'Prompt Payment Code',
       'payment practices',
@@ -1362,10 +1230,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'What is your average payment time (days) for invoices from sub-contractors and supply chain for the last reporting period?',
     description: 'Average payment days for sub-contractor invoices',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'average payment time',
       'payment days',
@@ -1389,10 +1254,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'What percentage of invoices were paid within 30 days in the last reporting period? What percentage were paid between 31 and 60 days? What percentage were paid in more than 60 days?',
     description: 'Payment performance statistics (30/60/60+ day breakdown)',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'payment statistics',
       'payment performance',
@@ -1417,10 +1279,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Publication of payment practices under Companies Act 2006 reporting duty',
     requirement_type: 'evidence',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: 'compliance',
-    secondary_subtopic: 'regulatory',
+
     matching_keywords: [
       'payment practices reporting',
       'Companies Act',
@@ -1445,10 +1304,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Commitment to flow down 30-day payment terms through supply chain',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'flow down',
       'payment clause',
@@ -1477,10 +1333,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'If you are bidding for a contract which is above the thresholds set out in PPN 06/21, you are required to provide a Carbon Reduction Plan. Please confirm that you have a Carbon Reduction Plan which meets the requirements of PPN 06/21 and provide a copy or link to the plan.',
     description: 'Carbon Reduction Plan as required by PPN 06/21',
     requirement_type: 'policy',
-    primary_domain: 'compliance',
-    primary_subtopic: 'environmental',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'carbon reduction plan',
       'PPN 06/21',
@@ -1507,10 +1360,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "Please confirm your organisation's commitment to achieving net zero by 2050 in respect of your UK operations.",
     description: 'Net zero 2050 commitment for UK operations',
     requirement_type: 'declaration',
-    primary_domain: 'compliance',
-    primary_subtopic: 'environmental',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'net zero',
       'net zero 2050',
@@ -1535,10 +1385,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Greenhouse gas emissions data (Scope 1, 2, 3) and environmental management',
     requirement_type: 'data',
-    primary_domain: 'compliance',
-    primary_subtopic: 'environmental',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'Scope 1',
       'Scope 2',
@@ -1564,10 +1411,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Have you set carbon reduction targets? If yes, please provide details of your targets, including baseline year and target year.',
     description: 'Carbon reduction targets with baseline and target years',
     requirement_type: 'data',
-    primary_domain: 'compliance',
-    primary_subtopic: 'environmental',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'carbon targets',
       'emission targets',
@@ -1592,10 +1436,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Do you hold any environmental management certifications (e.g. ISO 14001, EMAS, or equivalent)? If yes, please provide details.',
     description: 'Environmental management certifications (ISO 14001, EMAS)',
     requirement_type: 'evidence',
-    primary_domain: 'compliance',
-    primary_subtopic: 'environmental',
-    secondary_domain: 'compliance',
-    secondary_subtopic: 'certification',
+
     matching_keywords: [
       'ISO 14001',
       'EMAS',
@@ -1625,10 +1466,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Apprenticeship commitment under PPN 14/15 for contracts over 10m',
     requirement_type: 'statement',
-    primary_domain: 'corporate',
-    primary_subtopic: 'staffing',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'apprenticeship',
       'PPN 14/15',
@@ -1654,10 +1492,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "Please provide details of your organisation's approach to skills development, training, and investment in your workforce.",
     description: 'Workforce skills development and training approach',
     requirement_type: 'narrative',
-    primary_domain: 'corporate',
-    primary_subtopic: 'staffing',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'skills development',
       'workforce training',
@@ -1686,10 +1521,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "For contracts which involve the procurement of steel, please confirm that you will comply with the Government's steel procurement guidance and provide details of how you will ensure that steel is procured in accordance with the guidance.",
     description: 'Steel procurement compliance with government guidance',
     requirement_type: 'statement',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'steel procurement',
       'government guidance',
@@ -1714,10 +1546,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Please provide details of the origin and source of steel products that will be used in the delivery of this contract.',
     description: 'Steel sourcing and origin details for contract delivery',
     requirement_type: 'data',
-    primary_domain: 'corporate',
-    primary_subtopic: 'supply-chain',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'steel origin',
       'steel source',
@@ -1747,10 +1576,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Disclosure of prior contract terminations for poor performance',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'contract termination',
       'poor performance',
@@ -1774,10 +1600,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Has your organisation ever had a contract which was not renewed due to poor performance? If yes, please provide details.',
     description: 'Disclosure of contracts not renewed due to poor performance',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'contract not renewed',
       'non-renewal',
@@ -1801,10 +1624,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Has your organisation ever received any formal performance improvement notices or similar sanctions from a client? If yes, please provide details.',
     description: 'Disclosure of formal performance improvement notices',
     requirement_type: 'declaration',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'performance notice',
       'improvement notice',
@@ -1828,10 +1648,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'If you answered yes to any of the above questions on past performance, please describe the steps taken to address and resolve the issues.',
     description: 'Remedial steps taken to address past performance issues',
     requirement_type: 'narrative',
-    primary_domain: 'corporate',
-    primary_subtopic: 'references',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'remedial action',
       'corrective measures',
@@ -1855,10 +1672,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       "Please provide details of your organisation's quality management approach, including any quality management certifications held (e.g. ISO 9001 or equivalent).",
     description: 'Quality management approach and certifications (ISO 9001)',
     requirement_type: 'evidence',
-    primary_domain: 'methodology',
-    primary_subtopic: 'quality',
-    secondary_domain: 'compliance',
-    secondary_subtopic: 'certification',
+
     matching_keywords: [
       'quality management',
       'ISO 9001',
@@ -1888,10 +1702,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Modern Slavery Act 2015 statement publication requirement and link',
     requirement_type: 'evidence',
-    primary_domain: 'compliance',
-    primary_subtopic: 'modern-slavery',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'modern slavery',
       'Modern Slavery Act',
@@ -1918,10 +1729,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Measures to prevent modern slavery in business and supply chains',
     requirement_type: 'statement',
-    primary_domain: 'compliance',
-    primary_subtopic: 'modern-slavery',
-    secondary_domain: 'corporate',
-    secondary_subtopic: 'supply-chain',
+
     matching_keywords: [
       'modern slavery prevention',
       'human trafficking',
@@ -1948,10 +1756,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Whistleblowing and concern reporting process for modern slavery',
     requirement_type: 'statement',
-    primary_domain: 'compliance',
-    primary_subtopic: 'modern-slavery',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'whistleblowing',
       'reporting concerns',
@@ -1981,10 +1786,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
     description:
       'Formal declaration of accuracy and understanding of procurement process',
     requirement_type: 'declaration',
-    primary_domain: null,
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'declaration',
       'signatory',
@@ -2009,10 +1811,7 @@ const REQUIREMENTS: TemplateRequirement[] = [
       'Signatory details: name, role/position in organisation, date, signature. The person signing must be authorised to do so on behalf of the organisation.',
     description: 'Authorised signatory details for the questionnaire',
     requirement_type: 'data',
-    primary_domain: null,
-    primary_subtopic: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
+
     matching_keywords: [
       'signatory',
       'authorised representative',
@@ -2103,17 +1902,8 @@ async function main(): Promise<void> {
   }
   console.log('');
 
-  // Print domain distribution
-  const domains = new Map<string, number>();
-  for (const req of REQUIREMENTS) {
-    const domain = req.primary_domain || '(none)';
-    domains.set(domain, (domains.get(domain) || 0) + 1);
-  }
-  console.log('Domain distribution:');
-  for (const [domain, count] of domains) {
-    console.log(`  ${domain}: ${count}`);
-  }
-  console.log('');
+  // (id-417 / DR-130: the domain-distribution print retired with the
+  // taxonomy columns.)
 
   // Print requirement type distribution
   const types = new Map<string, number>();
@@ -2133,7 +1923,7 @@ async function main(): Promise<void> {
         `  [${req.display_order}] ${req.section_ref} Q${req.question_number}: ${req.requirement_text.slice(0, 80)}...`,
       );
       console.log(
-        `         type=${req.requirement_type} domain=${req.primary_domain || 'null'}/${req.primary_subtopic || 'null'} mandatory=${req.is_mandatory}`,
+        `         type=${req.requirement_type} mandatory=${req.is_mandatory}`,
       );
       console.log(`         keywords=[${req.matching_keywords.join(', ')}]`);
       console.log('');
