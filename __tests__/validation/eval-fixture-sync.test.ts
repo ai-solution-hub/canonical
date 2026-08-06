@@ -11,11 +11,14 @@
  * pass in {114.8} and the PRIVATE→PUBLIC flip in {114.14}. The
  * classification/entity/summarisation fixtures were retired in S531
  * (id-419 census) — stale content_items-keyed gold IDs, no consumer lane.
+ * `search-evaluation.json` retired in S538 (id-417) for the same defect:
+ * its relevance judgements were keyed on `content_item_id` against a table
+ * dropped at ID-131 M6, so every ranking metric it scored was structurally
+ * zero — a guard on a fixture that could never pass its own thresholds.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
 
 import { resolveEvalFixture } from '@/lib/eval/fixtures';
 
@@ -25,12 +28,5 @@ describe('Eval fixture sync', () => {
     expect(existsSync(path)).toBe(true);
     const data = JSON.parse(readFileSync(path, 'utf-8'));
     expect(data.length).toBeGreaterThanOrEqual(20);
-  });
-
-  it('search evaluation has 24+ test cases', () => {
-    const path = resolve(__dirname, '../../scripts/search-evaluation.json');
-    expect(existsSync(path)).toBe(true);
-    const data = JSON.parse(readFileSync(path, 'utf-8'));
-    expect(data.test_cases.length).toBeGreaterThanOrEqual(24);
   });
 });

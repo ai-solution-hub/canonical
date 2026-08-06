@@ -14,15 +14,18 @@
  *      entry maps a `suite_name` to the suite's `runAsEvalSuite` adapter (the
  *      function that runs the checks and returns a `SuiteRunOutcome`).
  *
- * Suites registered (7 total):
+ * Suites registered (6 total):
  *   — 3 mcp-eval suites:   l1 (protocol-compliance), l3 (response-quality),
  *                           l4 (functional-correctness)
- *   — 4 legacy eval suites: holder-rule-ts, procurement-drafting, search,
+ *   — 3 legacy eval suites: holder-rule-ts, procurement-drafting,
  *                           tag-morphology-adoption
  *
  * The classification-era suites (classification, entity-classification,
  * summarisation) were retired with the content_items-keyed golden eval lane
  * (id-419 wave, commit 14a4d4e36; id-344 closed done-by-events, S531 audit).
+ * `search` retired in S538 (id-417) for the same root defect — its fixture's
+ * relevance judgements were keyed on `content_item_id` against that same
+ * dropped table, so its ranking metrics were structurally zero.
  * Their `eval_touchpoints` rows may persist until deregistered — the runner
  * reports those as `no registered suite for suite_name: …` (infra, exit 2),
  * the same non-gating class as the placeholder infra-skip they replaced.
@@ -101,15 +104,6 @@ const SUITE_CONTRACTS: readonly AgentEvalContract[] = [
     kind: 'inline',
     owner: 'platform-team',
     suite_name: 'procurement-drafting',
-    grounding_shape: 'n/a',
-    severity_on_fail: 'warn',
-    variance_band: 0.03,
-  },
-  {
-    touchpoint_id: 'eval.search',
-    kind: 'inline',
-    owner: 'platform-team',
-    suite_name: 'search',
     grounding_shape: 'n/a',
     severity_on_fail: 'warn',
     variance_band: 0.03,
@@ -226,7 +220,6 @@ export function buildSuiteRegistry(): SuiteRegistry {
     // legacy suites — registered, placeholder infra-skip until DB-cutover
     'holder-rule-ts': legacySuiteFn('holder-rule-ts'),
     'procurement-drafting': legacySuiteFn('procurement-drafting'),
-    search: legacySuiteFn('search'),
     'tag-morphology-adoption': legacySuiteFn('tag-morphology-adoption'),
   };
 }

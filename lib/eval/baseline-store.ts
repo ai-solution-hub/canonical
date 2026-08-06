@@ -21,13 +21,14 @@
  *
  * CUTOVER: the flat-JSON path in `lib/eval/baseline.ts` is RETAINED until every
  * legacy suite is re-pointed at this store ({104.13}/{104.14}) and nightly is
- * green. `bootstrapBaselinesFromFixtures` is the one-shot that seeds the four
- * existing fixtures into rows so the DB store starts populated.
+ * green. The one-shot fixture bootstrap that seeded this store from
+ * `__tests__/fixtures/eval-baselines/*.json` is GONE (S538, id-417): the last
+ * surviving fixture was `search.baseline.json`, and the search eval retired
+ * with it — its relevance judgements were keyed on `content_items`, dropped at
+ * ID-131 M6, so every ranking metric it scored was structurally zero. A
+ * bootstrap with no fixtures left to seed is not a cutover aid.
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Tables, Json } from '@/supabase/types/database.types';
 import { sb } from '@/lib/supabase/safe';
@@ -81,14 +82,6 @@ export interface BaselineMetricDelta {
   current_value: number;
   /** Signed change `current_value - baseline_value` (negative = a drop). */
   delta: number;
-}
-
-/** Outcome summary returned by {@link bootstrapBaselinesFromFixtures}. */
-export interface BootstrapSummary {
-  /** How many fixture suites were seeded into `eval_baselines` rows. */
-  seeded: number;
-  /** The touchpoint ids seeded (one per fixture file). */
-  touchpoints: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -242,72 +235,4 @@ export function compareBaselines(
       delta: current_value - baseline_value,
     };
   });
-}
-
-// ---------------------------------------------------------------------------
-// bootstrap — seed the flat-JSON fixtures into rows (one-shot cutover)
-// ---------------------------------------------------------------------------
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-/** The flat-JSON baseline fixtures retained during the cutover window. */
-const FIXTURE_DIR = join(__dirname, '../../__tests__/fixtures/eval-baselines');
-
-/**
- * The legacy suite fixtures that seed the DB store. Each `suite` is the
- * fixture file stem AND the `touchpoint_id` the seeded row is keyed by.
- * The legacy flat-JSON store carried four (classification,
- * entity-classification, search, summarisation); the three classification-era
- * fixtures were deleted with the golden eval lane (14a4d4e36 / id-344,
- * S532 residue sweep) — `search` is the only surviving flat-JSON baseline.
- */
-const FIXTURE_SUITES = ['search'] as const;
-
-/** Shape of a flat-JSON baseline fixture (legacy `EvalBaseline` on disk). */
-interface FixtureBaseline {
-  suite_name: string;
-  created_at: string;
-  metrics: Record<string, number>;
-  thresholds: Record<string, BaselineThreshold>;
-}
-
-/** Read one flat-JSON baseline fixture from disk. */
-function readFixture(suite: string): FixtureBaseline {
-  const filePath = join(FIXTURE_DIR, `${suite}.baseline.json`);
-  return JSON.parse(readFileSync(filePath, 'utf-8')) as FixtureBaseline;
-}
-
-/**
- * One-shot cutover bootstrap: seed the surviving flat-JSON baseline
- * fixtures into `eval_baselines` rows so the DB store starts populated. Each
- * seeded row is keyed by the fixture suite name as its `touchpoint_id`, carries
- * the fixture's metrics + thresholds verbatim, and is attributed to `actor`
- * (e.g. a bootstrap operator id) at `registry_version` 1.
- *
- * Intended to run ONCE against an empty store; re-running re-inserts (the table
- * is append-only history, so duplicates surface as additional baseline rows the
- * cutover discards once nightly is green). NOT wired into the request path.
- */
-export async function bootstrapBaselinesFromFixtures(
-  supabase: SupabaseClient<Database>,
-  actor: string,
-): Promise<BootstrapSummary> {
-  const touchpoints: string[] = [];
-
-  for (const suite of FIXTURE_SUITES) {
-    const fixture = readFixture(suite);
-    await promoteBaseline(
-      supabase,
-      suite,
-      {
-        metrics: fixture.metrics,
-        thresholds: fixture.thresholds,
-        registryVersion: 1,
-      },
-      actor,
-    );
-    touchpoints.push(suite);
-  }
-
-  return { seeded: touchpoints.length, touchpoints };
 }

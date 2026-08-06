@@ -631,7 +631,7 @@ import { logger } from '@/lib/logger/client';
 // segment ANYWHERE in the absolute entry path
 // (`/(^|[/\\])scripts[/\\]/`), which — unlike every other
 // `process.argv[1]` self-invocation guard in this repo (those anchor to a
-// filename, e.g. `endsWith('eval-search.ts')`) — would false-positive
+// filename, e.g. `endsWith('eval-runner.ts')`) — would false-positive
 // on an ANCESTOR directory merely named `scripts` (e.g. a checkout under
 // `~/scripts/canonical`), suppressing the advisory app-wide for every entry
 // point (next dev/build, vitest included). Anchor to the REPO-RELATIVE entry

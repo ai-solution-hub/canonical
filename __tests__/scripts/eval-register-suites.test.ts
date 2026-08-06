@@ -5,7 +5,7 @@
  * retired with the golden eval lane — 14a4d4e36 / id-344):
  *   - each L1/L3/L4 suite is a registered touchpoint with a bound contract
  *     routing through eval-runner;
- *   - each of the 4 legacy suites is registered with a bound contract;
+ *   - each of the 3 legacy suites is registered with a bound contract;
  *   - `buildSuiteRegistry` returns a registry keyed by suite_name covering
  *     all 7 suites;
  *   - `registerAllSuites` calls `registerTouchpoint` once per contract (7
@@ -64,8 +64,8 @@ function storedRow(suite_name: string, touchpoint_id: string): Touchpoint {
 // ---------------------------------------------------------------------------
 
 describe('REGISTERED_SUITE_CONTRACTS', () => {
-  it('contains exactly 7 suite contracts (3 mcp-eval + 4 legacy)', () => {
-    expect(REGISTERED_SUITE_CONTRACTS).toHaveLength(7);
+  it('contains exactly 6 suite contracts (3 mcp-eval + 3 legacy)', () => {
+    expect(REGISTERED_SUITE_CONTRACTS).toHaveLength(6);
   });
 
   it('every contract satisfies the AgentEvalContract Zod schema (all 7 mandatory fields present)', () => {
@@ -88,11 +88,10 @@ describe('REGISTERED_SUITE_CONTRACTS', () => {
     expect(mcpSuiteNames).toEqual(['l1', 'l3', 'l4']);
   });
 
-  it('includes exactly the 4 legacy suite_names', () => {
+  it('includes exactly the 3 legacy suite_names', () => {
     const legacyNames = [
       'holder-rule-ts',
       'procurement-drafting',
-      'search',
       'tag-morphology-adoption',
     ].sort();
     const actual = REGISTERED_SUITE_CONTRACTS.filter(
@@ -140,8 +139,8 @@ describe('registerAllSuites', () => {
     //   2. currentRegistryVersion (then — direct array resolve)
     //   3. sb insert (single)
     // We configure maybeSingle → null (no existing row) + single → inserted
-    // row for each of the 7 contracts. We use mockResolvedValue (not Once)
-    // so all 7 calls share the same mock behaviour.
+    // row for each of the 6 contracts. We use mockResolvedValue (not Once)
+    // so all 6 calls share the same mock behaviour.
     supabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
     supabase._chain.single.mockResolvedValue({
       data: storedRow('l1', 'mcp-eval.l1'),
@@ -150,10 +149,10 @@ describe('registerAllSuites', () => {
 
     await registerAllSuites(supabase);
 
-    // 7 contracts × 1 maybeSingle pre-read each = 7 maybeSingle calls.
-    expect(supabase._chain.maybeSingle).toHaveBeenCalledTimes(7);
-    // 7 contracts × 1 insert each = 7 insert calls.
-    expect(supabase._chain.insert).toHaveBeenCalledTimes(7);
+    // 6 contracts × 1 maybeSingle pre-read each = 6 maybeSingle calls.
+    expect(supabase._chain.maybeSingle).toHaveBeenCalledTimes(6);
+    // 6 contracts × 1 insert each = 6 insert calls.
+    expect(supabase._chain.insert).toHaveBeenCalledTimes(6);
   });
 
   it('is a no-op (zero inserts) when every contract row already exists with an identical contract', async () => {
@@ -171,7 +170,7 @@ describe('registerAllSuites', () => {
       }),
     );
 
-    // The 7 contracts each pre-read their row. The mock returns the l1 row
+    // The 6 contracts each pre-read their row. The mock returns the l1 row
     // shape for ALL calls. For a real no-op the returned row must have the same
     // field values as the incoming contract — but since registry.ts compares
     // the VERSIONED_FIELDS one by one, a mismatch would trigger an update.
@@ -188,9 +187,9 @@ describe('registerAllSuites', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildSuiteRegistry', () => {
-  it('returns a registry with exactly 7 entries', () => {
+  it('returns a registry with exactly 6 entries', () => {
     const registry = buildSuiteRegistry();
-    expect(Object.keys(registry)).toHaveLength(7);
+    expect(Object.keys(registry)).toHaveLength(6);
   });
 
   it('contains entries for all 3 mcp-eval suites (l1, l3, l4)', () => {
@@ -200,12 +199,11 @@ describe('buildSuiteRegistry', () => {
     expect(typeof registry['l4']).toBe('function');
   });
 
-  it('contains entries for all 4 legacy suites', () => {
+  it('contains entries for all 3 legacy suites', () => {
     const registry = buildSuiteRegistry();
     const legacyNames = [
       'holder-rule-ts',
       'procurement-drafting',
-      'search',
       'tag-morphology-adoption',
     ];
     for (const name of legacyNames) {
@@ -217,12 +215,12 @@ describe('buildSuiteRegistry', () => {
 
   it('legacy suite fns return an infra outcome (not-yet-wired placeholder) without throwing', async () => {
     const registry = buildSuiteRegistry();
-    const tp = storedRow('search', 'eval.search');
-    const outcome = await registry['search']!(tp);
+    const tp = storedRow('holder-rule-ts', 'eval.holder-rule-ts');
+    const outcome = await registry['holder-rule-ts']!(tp);
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
       expect(outcome.kind).toBe('infra');
-      expect(outcome.reason).toContain('search');
+      expect(outcome.reason).toContain('holder-rule-ts');
     }
   });
 
