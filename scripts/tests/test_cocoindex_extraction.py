@@ -858,11 +858,9 @@ class TestNormaliseEntitySpan:
 
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _SCHEMAS_TS_PATH = _REPO_ROOT / "lib" / "validation" / "schemas.ts"
-# ID-133 BI-5: the TS `relationship` vocabulary is a UNION TYPE on the
-# `ExtractedRelationship` interface in `lib/ai/classify.ts` (NOT a
-# `const … as const` array), and the public mirror of both KG CVs lives in the
-# ontology baseline fixture — the third leg the parity guards bind.
-_CLASSIFY_TS_PATH = _REPO_ROOT / "lib" / "ai" / "classify.ts"
+# ID-133 BI-5: the public mirror of the KG CVs lives in the ontology baseline
+# fixture. (The former TS leg — the `ExtractedRelationship.relationship` union
+# in `lib/ai/classify.ts` — retired with the TS classification stage, DR-130.)
 _ONTOLOGY_BASELINES_FIXTURE_PATH = (
     _REPO_ROOT
     / "__tests__"
@@ -890,37 +888,6 @@ def _extract_ts_string_array(source: str, var_name: str) -> list[str]:
     body = match.group(1)
     # Extract single-quoted strings
     return re.findall(r"'([^']+)'", body)
-
-
-def _extract_ts_union_members(
-    source: str, interface_name: str, field_name: str
-) -> list[str]:
-    """Extract the single-quoted members of a TS string-literal UNION field.
-
-    ID-133 BI-5: `ExtractedRelationship.relationship` in `lib/ai/classify.ts`
-    is a `| 'holds' | 'complies_with' | …` union, NOT a `const … as const`
-    array, so `_extract_ts_string_array` cannot parse it. This sibling scopes
-    to the interface body, then to the named field's union (up to its
-    terminating `;`), and returns the quoted members in source order — so
-    JSDoc prose and sibling fields (e.g. `source_scope`) never leak in.
-    """
-    iface_pattern = re.compile(
-        rf"export\s+interface\s+{interface_name}\s*\{{(.*?)\}}",
-        re.DOTALL,
-    )
-    iface_match = iface_pattern.search(source)
-    if not iface_match:
-        raise ValueError(
-            f"Could not find interface {interface_name} in TS source"
-        )
-    body = iface_match.group(1)
-    field_pattern = re.compile(rf"\b{field_name}\s*:\s*(.*?);", re.DOTALL)
-    field_match = field_pattern.search(body)
-    if not field_match:
-        raise ValueError(
-            f"Could not find field {field_name} in interface {interface_name}"
-        )
-    return re.findall(r"'([^']+)'", field_match.group(1))
 
 
 def _fixture_baseline_keys(cv_name: str) -> list[str]:
@@ -974,35 +941,24 @@ class TestEntityTypeParity:
 
 
 class TestRelationshipParity:
-    """ID-133 BI-5 — relationship TRIPLE-bind (no equivalent guard existed).
+    """ID-133 BI-5 — relationship bind (was a TRIPLE-bind).
 
-    Binds the Python `RelationshipExtraction.relationship` Literal, the TS
-    `ExtractedRelationship.relationship` UNION (`lib/ai/classify.ts` — a union
-    type, not a `const … as const` array, so extracted via
-    `_extract_ts_union_members`), and the public `relationship` CV
-    baseline_values keys in the ontology baseline fixture. Any drift fails here.
+    Binds the Python `RelationshipExtraction.relationship` Literal to the
+    public `relationship` CV baseline_values keys in the ontology baseline
+    fixture. The third leg — the TS `ExtractedRelationship.relationship`
+    union in `lib/ai/classify.ts` — retired with the TS classification stage
+    (DR-130 wave): the Python pipeline is the sole relationship extractor.
     """
 
-    def test_python_literal_matches_ts_union_and_fixture(self) -> None:
+    def test_python_literal_matches_fixture(self) -> None:
         # Python source of truth — the Literal on the RelationshipExtraction core.
         python_relationships = list(
             get_args(
                 RelationshipExtraction.model_fields["relationship"].annotation
             )
         )
-        # TS source of truth — the ExtractedRelationship.relationship union.
-        ts_source = _CLASSIFY_TS_PATH.read_text()
-        ts_relationships = _extract_ts_union_members(
-            ts_source, "ExtractedRelationship", "relationship"
-        )
-        # Third leg — the public fixture baseline (ID-133 BI-5 / Decision A).
+        # The public fixture baseline (ID-133 BI-5 / Decision A).
         fixture_relationships = _fixture_baseline_keys("relationship")
-        assert python_relationships == ts_relationships, (
-            f"relationship parity drift between Python "
-            f"RelationshipExtraction Literal and TS "
-            f"ExtractedRelationship.relationship union. "
-            f"Python: {python_relationships}. TS: {ts_relationships}"
-        )
         assert python_relationships == fixture_relationships, (
             f"relationship parity drift between Python "
             f"RelationshipExtraction Literal and the public ontology fixture "
