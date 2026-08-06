@@ -5,7 +5,6 @@ import {
   QuestionExtractBodySchema,
   QuestionCreateBodySchema,
   QuestionUpdateBodySchema,
-  QuestionMatchBodySchema,
   CreateProcurementFormBodySchema,
   UpdateProcurementFormTypeBodySchema,
   PROCUREMENT_FORM_TYPE_KEYS,
@@ -370,46 +369,6 @@ describe('bid validation schemas', () => {
       const result = UpdateProcurementFormTypeBodySchema.safeParse({
         form_id: '550e8400-e29b-41d4-a716-446655440000',
         form_type: 'bid',
-      });
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('QuestionMatchBodySchema', () => {
-    it('accepts empty body (match all unmatched)', () => {
-      const result = QuestionMatchBodySchema.safeParse({});
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts specific question IDs', () => {
-      const result = QuestionMatchBodySchema.safeParse({
-        question_ids: [
-          '550e8400-e29b-41d4-a716-446655440000',
-          '550e8400-e29b-41d4-a716-446655440001',
-        ],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts force flag', () => {
-      const result = QuestionMatchBodySchema.safeParse({ force: true });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.force).toBe(true);
-      }
-    });
-
-    it('defaults force to false', () => {
-      const result = QuestionMatchBodySchema.safeParse({});
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.force).toBe(false);
-      }
-    });
-
-    it('rejects invalid UUIDs in question_ids', () => {
-      const result = QuestionMatchBodySchema.safeParse({
-        question_ids: ['not-a-uuid'],
       });
       expect(result.success).toBe(false);
     });

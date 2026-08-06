@@ -498,12 +498,6 @@ export const QuestionUpdateBodySchema = z.object({
   assigned_to: z.string().uuid().nullable().optional(),
 });
 
-/** POST /api/procurement/[id]/questions/match */
-export const QuestionMatchBodySchema = z.object({
-  question_ids: z.array(z.string().uuid()).optional(),
-  force: z.boolean().default(false),
-});
-
 // ──────────────────────────────────────────
 // Procurement Response Schemas (Phase 6B)
 // ──────────────────────────────────────────
@@ -667,7 +661,7 @@ export function parseProcurementMetadata(
  *
  * @public
  */
-export const FINAL_AWARD_FORM_TYPES = ['itt', 'tender', 'bid', 'rfp'] as const;
+export const FINAL_AWARD_FORM_TYPES = ['itt', 'tender', 'rfp'] as const;
 /** Shortlist-stage form types (mirror of `form_outcome_types.applicable_form_types`). @public */
 export const SHORTLIST_FORM_TYPES = [
   'psq',
@@ -712,7 +706,6 @@ const shortlistFormFields = {
 export const FormOutcomeSchema = z.discriminatedUnion('form_type', [
   z.object({ form_type: z.literal('itt'), ...finalAwardFormFields }),
   z.object({ form_type: z.literal('tender'), ...finalAwardFormFields }),
-  z.object({ form_type: z.literal('bid'), ...finalAwardFormFields }),
   z.object({ form_type: z.literal('rfp'), ...finalAwardFormFields }),
   z.object({ form_type: z.literal('psq'), ...shortlistFormFields }),
   z.object({ form_type: z.literal('questionnaire'), ...shortlistFormFields }),
@@ -2036,7 +2029,7 @@ export const ProcurementResponseSchema = z.object({
     z.object({
       id: z.string(),
       title: z.string().nullable(),
-      content_type: z.string().nullable(),
+      owner_kind: z.string().nullable(),
       summary: z.string().nullable(),
       similarity: z.number().optional(),
     }),
