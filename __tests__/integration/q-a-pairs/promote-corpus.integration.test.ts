@@ -55,13 +55,14 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 import { DB_OPTION } from '@/lib/supabase/schema';
 import { findProjectRoot } from '@/__tests__/integration/helpers/find-project-root';
+import { requireDisposableDatabase } from '@/__tests__/integration/helpers/supabase-client';
 
 import { promoteCorpusExtractions } from '@/lib/q-a-pairs/promote-corpus';
 import { generateEmbedding } from '@/lib/ai/embed';
@@ -234,6 +235,21 @@ async function seedPair(opts: { embedded?: boolean } = {}): Promise<string> {
 describe.skipIf(!RUN_INTEGRATION)(
   'ID-59 {59.22}/{59.23} promoteCorpusExtractions — integration',
   () => {
+    // S538 interlock. Every `promoteCorpusExtractions(db)` call below runs the
+    // UNSCOPED whole-corpus pass — that is the function's ratified semantics
+    // (`new` and `self_healing` candidates are "promoted wholesale via the
+    // existing Run promotion pass"), and its RPC takes no arguments. So this
+    // file publishes and EMBEDS every eligible row in whatever database it is
+    // pointed at, while its `afterEach` deletes only `seededPairIds` /
+    // `seededExtractionIds`.
+    //
+    // Against shared Platform staging that left 88 mock-tier pairs behind over
+    // eight nightlies, which then dominated `q_a_search` and the MCP `kb://qa/`
+    // list. Refuse to run anywhere disposability cannot be confirmed.
+    beforeAll(() => {
+      requireDisposableDatabase('promote-corpus.integration.test.ts');
+    });
+
     // -----------------------------------------------------------------------
     // Test 1: basic promotion — live unlinked extraction gets a draft pair
     //         then embed fires → pair reaches published with non-null embedding

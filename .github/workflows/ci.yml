@@ -1043,10 +1043,12 @@ jobs:
     # Dependabot-skip: hits real Supabase + Anthropic + OpenAI; all of these
     # come from `secrets.*` which are blocked for Dependabot PRs.
     name: Integration tests
-    # Per-job-type concurrency group — see `e2e-smoke` for rationale.
-    concurrency:
-      group: integration-staging-integration
-      cancel-in-progress: false
+    # S538 local-stack cutover: the per-job concurrency group is GONE, exactly
+    # as `integration-staging-e2e` went at DR-096. It existed solely because
+    # this job and integration-nightly.yml wrote real rows into the SAME
+    # staging Supabase project/tables and had to be serialised. Each run now
+    # provisions its own loopback stack, so there is nothing to serialise and
+    # integration jobs from different PRs run fully in parallel.
     needs: detect-changes
     # Real-API gate (ID-91 / bl-246) — push events only: a push that touches
     # no real-API-relevant path skips the suite (real Anthropic + OpenAI
@@ -1095,31 +1097,106 @@ jobs:
             bun install --frozen-lockfile
           fi
 
+      # ── Ephemeral Supabase stack (S538 cutover) ────────────────────────────
+      # Seven steps lifted verbatim from `e2e-smoke` above, which has run this
+      # shape since the DR-096 / {365.5} cutover. NO build and NO `next start`
+      # here: the integration suite imports route handlers in-process against a
+      # synthetic NextRequest, so it needs a DATABASE, not a server.
+      #
+      # Why this lane moved (S538): `promote-corpus.integration.test.ts` calls
+      # `promoteCorpusExtractions` — the platform's AUTHORITATIVE
+      # knowledge-admission gate (R2 / DR-025) — via a zero-argument RPC that
+      # claims every eligible row DB-wide, with teardown scoped to seeded ids.
+      # Against shared staging that published and EMBEDDED 88 mock-tier
+      # `q_a_pairs`, which then dominated `q_a_search` (median 10 of 20 results)
+      # and filled the MCP `kb://qa/` list 10 of 10. Scoping the RPC was ruled
+      # out: whole-corpus promotion is its ratified semantics. The defect was
+      # firing an operator batch mutation of a SHARED database from unattended
+      # CI, so the substrate is what changes.
+      #
+      # `environment: Staging` above is retained deliberately — it scopes the
+      # SECRETS (AI keys, CRON_SECRET, TEST_USER_*_PASSWORD), not the database.
+      - name: Setup Supabase CLI (pinned)
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          # Keep in lockstep with e2e-smoke + e2e-nightly: an unpinned bump can
+          # change the local demo credentials, which the assert below catches.
+          version: "2.109.1"
+
+      - name: Load local-stack constants
+        # Ambient SUPABASE_URL / *_PUBLISHABLE_KEY / SERVICE_ROLE_KEY /
+        # POSTGRES_PASSWORD for every step below — the Supabase CLI's public
+        # local demo constants (scripts/ci/local-stack.env), not secrets.
+        run: grep -vE '^(#|$)' scripts/ci/local-stack.env >> "$GITHUB_ENV"
+
+      - name: Disable heavy services for CI
+        # Flips `enabled = false` for studio/analytics/edge_runtime/realtime in
+        # supabase/config.toml (runner-local edit). `supabase start -x` is NOT
+        # sufficient: image pulls gate on config `enabled`, not the exclude
+        # list (supabase/cli#4088 — the exclude-still-pulls trap).
+        run: bun run scripts/ci/prepare-supabase-ci-config.ts
+
+      - name: Start local Supabase stack
+        run: |
+          nproc
+          free -h
+          time supabase start
+          free -h
+
+      - name: Assert running stack matches the pinned demo credentials
+        run: |
+          status_json="$(supabase status -o json)"
+          actual_anon="$(jq -r '.ANON_KEY' <<<"$status_json")"
+          actual_service="$(jq -r '.SERVICE_ROLE_KEY' <<<"$status_json")"
+          if [ "$actual_anon" != "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Local stack ANON_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          if [ "$actual_service" != "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Local stack SERVICE_ROLE_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          echo "Local stack credentials match the pinned constants."
+
+      - name: Reset database (migrations + seed.sql + buckets)
+        run: time supabase db reset
+
+      - name: Seed E2E users
+        # auth.users + user_roles only — seed.sql §5 defers users to this
+        # script by contract (DR-096: E2E users stay OUT of seed.sql). The
+        # emails are hardcoded identically in scripts/seed-e2e-users.ts and
+        # __tests__/integration/helpers/auth-session.ts.
+        env:
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
+        run: bun run seed:e2e-users
+
       - name: Run integration tests
         env:
-          # Mirror e2e-smoke env block (spec §2.2) — staging Supabase
-          # connection + TEST_USER_{1,2,3} credentials.
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # SUPABASE_URL / *_PUBLISHABLE_KEY / SERVICE_ROLE_KEY /
+          # POSTGRES_PASSWORD arrive AMBIENT from "Load local-stack constants"
+          # above — this runner's own loopback stack, not staging.
+          #
           # Server-side secrets the integration runner boots with
           # (lib/env-server.ts validates at module load — every Zod-required
           # field must be set or the first test import throws before any
           # `it()` runs).
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           # AI keys (ANTHROPIC + OPENAI) are required because integration tests import
           # lib/ai/classify + lib/ai/embed at module load. e2e-smoke also carries them
           # today for the same Zod-load reason.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
-          # cron-route Bearer-token gate.
+          # CRON_SECRET — Zod-boot only on this lane. The comment here used to
+          # cite review-cadence-lifecycle.integration.test.ts; that file no
+          # longer exists (S538).
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           # Mirror to NEXT_PUBLIC_* for the client schema (auth-session.ts
-          # sign-in path uses these).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          # sign-in path uses these). Local stack, per the ambient constants.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+            ${{ env.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}

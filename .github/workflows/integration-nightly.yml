@@ -22,12 +22,13 @@
 # once/day rather than per-push. workflow_dispatch exists for on-demand
 # triage reruns without waiting for the next scheduled window.
 #
-# Concurrency: shares the `integration-staging-integration` group with the
-# PR-blocking `integration` job in ci.yml (see ci.yml line ~948) — both
-# write real rows into the SAME staging Supabase project/tables
-# (intelligence-golden-path fixtures, q_a_pairs), so they must be serialised,
-# not run concurrently. Queue (no cancel) so a manual dispatch never clobbers
-# an in-flight scheduled or PR-triggered run.
+# Concurrency: NONE, since S538. This lane shared the
+# `integration-staging-integration` group with ci.yml's `integration` job
+# because both wrote real rows into the SAME staging Supabase project/tables
+# (intelligence-golden-path fixtures, q_a_pairs) and had to be serialised.
+# Both lanes now provision their own ephemeral loopback stack per run, so
+# there is nothing shared left to serialise — the same reasoning that removed
+# `integration-staging-e2e` at the DR-096 e2e cutover.
 #
 # Budget: no per-run cost cap beyond the existing gated-suite scope (~52
 # cases, same real-API cost profile as a single enabled PR integration run
@@ -54,10 +55,10 @@ on:
     - cron: "0 5 * * *"
   workflow_dispatch:
 
-concurrency:
-  # Shared with the PR-blocking `integration` job (ci.yml) — see header.
-  group: integration-staging-integration
-  cancel-in-progress: false
+# S538 local-stack cutover: the shared `integration-staging-integration` group
+# is GONE from both lanes. It existed only because this workflow and ci.yml's
+# `integration` job wrote real rows into the SAME staging project/tables. Each
+# run now provisions its own loopback stack, so there is nothing to serialise.
 
 jobs:
   integration:
@@ -94,30 +95,86 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # ── Ephemeral Supabase stack (S538 cutover) ────────────────────────────
+      # Same seven steps as ci.yml's `integration` job, which took them from
+      # `e2e-smoke`. Both lanes move together on purpose: leaving one on shared
+      # staging would put the PR gate and the nightly on different substrates.
+      #
+      # This lane is where the pollution was WRITTEN. `promote-corpus.
+      # integration.test.ts` fires `promoteCorpusExtractions` — the
+      # authoritative knowledge-admission gate (R2 / DR-025) — through a
+      # zero-argument RPC that claims every eligible row DB-wide, then tears
+      # down only its own seeded ids. Eight consecutive nightlies were matched
+      # to their published rows on timestamp; each run FAILED and published
+      # anyway. 88 mock `q_a_pairs` reached staging that way.
+      - name: Setup Supabase CLI (pinned)
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          version: "2.109.1"
+
+      - name: Load local-stack constants
+        run: grep -vE '^(#|$)' scripts/ci/local-stack.env >> "$GITHUB_ENV"
+
+      - name: Disable heavy services for CI
+        run: bun run scripts/ci/prepare-supabase-ci-config.ts
+
+      - name: Start local Supabase stack
+        run: |
+          nproc
+          free -h
+          time supabase start
+          free -h
+
+      - name: Assert running stack matches the pinned demo credentials
+        run: |
+          status_json="$(supabase status -o json)"
+          actual_anon="$(jq -r '.ANON_KEY' <<<"$status_json")"
+          actual_service="$(jq -r '.SERVICE_ROLE_KEY' <<<"$status_json")"
+          if [ "$actual_anon" != "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Local stack ANON_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          if [ "$actual_service" != "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Local stack SERVICE_ROLE_KEY differs from scripts/ci/local-stack.env — CLI pin drift? Update the env file together with the setup-cli version pin."
+            exit 1
+          fi
+          echo "Local stack credentials match the pinned constants."
+
+      - name: Reset database (migrations + seed.sql + buckets)
+        run: time supabase db reset
+
+      - name: Seed E2E users
+        env:
+          TEST_USER_1_PASSWORD: ${{ secrets.TEST_USER_1_PASSWORD }}
+          TEST_USER_2_PASSWORD: ${{ secrets.TEST_USER_2_PASSWORD }}
+          TEST_USER_3_PASSWORD: ${{ secrets.TEST_USER_3_PASSWORD }}
+          TEST_USER_4_PASSWORD: ${{ secrets.TEST_USER_4_PASSWORD }}
+        run: bun run seed:e2e-users
+
       - name: Run integration tests (gated cases enabled)
         env:
           # Mirror the ci.yml `integration` job env block exactly, plus the
-          # two gate flags below.
-          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # two gate flags below. SUPABASE_URL / *_PUBLISHABLE_KEY /
+          # SERVICE_ROLE_KEY / POSTGRES_PASSWORD arrive AMBIENT from "Load
+          # local-stack constants" — this runner's own loopback stack.
+          #
           # Server-side secrets the integration runner boots with
           # (lib/env-server.ts validates at module load — every Zod-required
           # field must be set or the first test import throws before any
           # `it()` runs).
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           # AI keys (ANTHROPIC + OPENAI) — required for module-load imports
           # AND now exercised for real by the gated cases below.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # CRON_SECRET — review-cadence-lifecycle.integration.test.ts asserts
-          # cron-route Bearer-token gate.
+          # CRON_SECRET — Zod-boot only on this lane. The comment here used to
+          # cite review-cadence-lifecycle.integration.test.ts; that file no
+          # longer exists (S538).
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           # Mirror to NEXT_PUBLIC_* for the client schema (auth-session.ts
-          # sign-in path uses these).
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          # sign-in path uses these). Local stack, per the ambient constants.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-            ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+            ${{ env.SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
           NEXT_PUBLIC_CLIENT_ID: ${{ vars.NEXT_PUBLIC_CLIENT_ID }}
           AI_EMBEDDING_MODEL: ${{ vars.AI_EMBEDDING_MODEL }}

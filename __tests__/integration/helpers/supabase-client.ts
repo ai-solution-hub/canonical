@@ -112,6 +112,76 @@ export function hasRealLiveDbCredentials(): boolean {
 }
 
 /**
+ * Fail LOUD when a corpus-mutating suite is pointed at a SHARED database.
+ *
+ * The TypeScript analogue of `require_disposable_dsn()` in
+ * `scripts/tests/test_cocoindex_stage_5_crossrun_integration.py` — the interlock
+ * the Python tier has had all along and this tier did not.
+ *
+ * Why it exists (S538). `promote-corpus.integration.test.ts` calls
+ * `promoteCorpusExtractions`, the platform's authoritative knowledge-admission
+ * gate (R2 / DR-025). Its RPC takes no arguments and claims every eligible row
+ * DB-wide — that is its ratified whole-corpus semantics, not a defect — while
+ * the test tears down only the ids it seeded. Run unattended by CI against
+ * shared Platform staging, it published and EMBEDDED 88 mock-tier `q_a_pairs`
+ * over eight nightlies. Those rows went on to dominate `q_a_search` (median 10
+ * of 20 results on every real query) and fill the MCP `kb://qa/` list 10 of 10.
+ *
+ * Both integration lanes now provision an ephemeral loopback stack, which fixes
+ * the instance. This fixes the CLASS: any future suite that mutates the corpus
+ * wholesale refuses to run against a non-disposable database, whatever the
+ * workflow happens to be pointing at that day.
+ *
+ * Call at the top of the suite (a `beforeAll`, or module scope behind the
+ * existing env gate). Loopback is the disposability signal — it is what both
+ * `supabase start` and local dev serve, and what no shared project can be.
+ *
+ * @param suiteName - named in the failure message so the offender is obvious.
+ */
+export function requireDisposableDatabase(suiteName: string): void {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!url) {
+    throw new Error(
+      `${suiteName}: refusing to run — neither SUPABASE_URL nor ` +
+        'NEXT_PUBLIC_SUPABASE_URL is set, so the target database cannot be ' +
+        'confirmed disposable.',
+    );
+  }
+
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(
+      `${suiteName}: refusing to run — SUPABASE_URL is not a parseable URL, ` +
+        'so the target database cannot be confirmed disposable.',
+    );
+  }
+
+  const isLoopback =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host === '[::1]' ||
+    host.endsWith('.localhost');
+
+  if (!isLoopback) {
+    throw new Error(
+      `${suiteName}: refusing to run against a NON-DISPOSABLE database ` +
+        `(host: ${host}).\n\n` +
+        'This suite mutates the corpus beyond the rows it seeds — it exercises ' +
+        'whole-corpus promotion, which is the authoritative knowledge-admission ' +
+        'gate (R2 / DR-025). Against a shared project it publishes and embeds ' +
+        'rows that nothing tears down, and they surface in q_a_search and the ' +
+        'MCP resource list.\n\n' +
+        'Run it against an ephemeral stack: `supabase start` locally, or the ' +
+        'local-stack steps both CI integration lanes now provision.',
+    );
+  }
+}
+
+/**
  * Detect when a Supabase error is a network-level failure (DNS lookup,
  * fetch abort) rather than a PostgREST application-level error.
  *
