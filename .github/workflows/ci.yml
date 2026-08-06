@@ -1109,10 +1109,17 @@ jobs:
       # claims every eligible row DB-wide, with teardown scoped to seeded ids.
       # Against shared staging that published and EMBEDDED 88 mock-tier
       # `q_a_pairs`, which then dominated `q_a_search` (median 10 of 20 results)
-      # and filled the MCP `kb://qa/` list 10 of 10. Scoping the RPC was ruled
-      # out: whole-corpus promotion is its ratified semantics. The defect was
-      # firing an operator batch mutation of a SHARED database from unattended
-      # CI, so the substrate is what changes.
+      # and filled the MCP `kb://qa/` list 10 of 10.
+      #
+      # Whether the RPC SHOULD be scoped is UNSETTLED and this change does not
+      # settle it: a route-file comment describes `new`/`self_healing` as
+      # "promoted wholesale via the existing Run promotion pass", while DR-099
+      # rules that "an unscoped global claim is a defect, not a default". Not
+      # reconciled — see the S538 retro. What holds independently of that
+      # ruling: the test's assertions are already per-seeded-row, so the sweep
+      # buys it nothing; and the defect fixed HERE is narrower than either
+      # reading — an operator batch mutation of a SHARED database fired by
+      # unattended CI. So the substrate is what changes.
       #
       # `environment: Staging` above is retained deliberately — it scopes the
       # SECRETS (AI keys, CRON_SECRET, TEST_USER_*_PASSWORD), not the database.

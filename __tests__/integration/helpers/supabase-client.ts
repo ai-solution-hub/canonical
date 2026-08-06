@@ -121,8 +121,17 @@ export function hasRealLiveDbCredentials(): boolean {
  * Why it exists (S538). `promote-corpus.integration.test.ts` calls
  * `promoteCorpusExtractions`, the platform's authoritative knowledge-admission
  * gate (R2 / DR-025). Its RPC takes no arguments and claims every eligible row
- * DB-wide — that is its ratified whole-corpus semantics, not a defect — while
- * the test tears down only the ids it seeded. Run unattended by CI against
+ * DB-wide. Whether that unscoped claim is CORRECT is unsettled and is
+ * deliberately not decided here: a route-file comment
+ * (`app/api/governance/promotion-candidates/[extractionId]/accept/route.ts:17-23`)
+ * describes `new` and `self_healing` candidates as "promoted wholesale via the
+ * existing Run promotion pass", while **DR-099 rules that "an unscoped global
+ * claim is a defect, not a default"**. Those have not been reconciled — see the
+ * S538 retro. What does NOT depend on that ruling: the test's own assertions
+ * are already per-seeded-row, so the corpus-wide sweep buys the test nothing.
+ * The defect this guard addresses is narrower and independent of both — an
+ * operator batch mutation of a SHARED database fired by unattended CI, with
+ * teardown scoped to only the ids the test seeded. Run against
  * shared Platform staging, it published and EMBEDDED 88 mock-tier `q_a_pairs`
  * over eight nightlies. Those rows went on to dominate `q_a_search` (median 10
  * of 20 results on every real query) and fill the MCP `kb://qa/` list 10 of 10.

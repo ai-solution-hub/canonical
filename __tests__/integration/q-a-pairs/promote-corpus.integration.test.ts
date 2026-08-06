@@ -236,12 +236,18 @@ describe.skipIf(!RUN_INTEGRATION)(
   'ID-59 {59.22}/{59.23} promoteCorpusExtractions — integration',
   () => {
     // S538 interlock. Every `promoteCorpusExtractions(db)` call below runs the
-    // UNSCOPED whole-corpus pass — that is the function's ratified semantics
-    // (`new` and `self_healing` candidates are "promoted wholesale via the
-    // existing Run promotion pass"), and its RPC takes no arguments. So this
-    // file publishes and EMBEDS every eligible row in whatever database it is
+    // UNSCOPED whole-corpus pass — its RPC takes no arguments — so this file
+    // publishes and EMBEDS every eligible row in whatever database it is
     // pointed at, while its `afterEach` deletes only `seededPairIds` /
     // `seededExtractionIds`.
+    //
+    // Whether the unscoped claim is CORRECT is UNSETTLED and this guard does
+    // not decide it: a route-file comment describes `new`/`self_healing` as
+    // "promoted wholesale via the existing Run promotion pass", while DR-099
+    // rules that "an unscoped global claim is a defect, not a default". Not
+    // reconciled — see the S538 retro. Independent of that ruling: every
+    // assertion here is already per-seeded-row, so the sweep buys this file
+    // nothing either way.
     //
     // Against shared Platform staging that left 88 mock-tier pairs behind over
     // eight nightlies, which then dominated `q_a_search` and the MCP `kb://qa/`
