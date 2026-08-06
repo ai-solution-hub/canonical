@@ -49,7 +49,7 @@ import {
   createLiveServiceClient,
   hasLiveDbCredentials,
 } from '../helpers/supabase-client';
-import { stageFixture } from './_helpers/fixture-staging';
+import { fetchChunkEmbedding, stageFixture } from './_helpers/fixture-staging';
 import { WALK_BUDGET_MS } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -178,13 +178,28 @@ describe.skipIf(!ENABLED)(
       POLL_TIMEOUT_MS + 30_000,
     );
 
-    it('record_embeddings row for the source_documents owner is non-null when status is succeeded (Inv-3 embedding-stage verifiability)', async () => {
+    it('the walked document lands a non-null chunk embedding when status is succeeded (Inv-3 embedding-stage verifiability)', async () => {
       const client = await createLiveServiceClient();
 
-      // ID-131.19 M6 retirement: content_items.embedding DROPPED at M6;
-      // vector storage moved to the separate record_embeddings table keyed
-      // by (owner_kind, owner_id) — resolve the source_documents id via
-      // filename first, then read its record_embeddings row.
+      // Inv-3 verifiability — "a run that completes MUST have written
+      // embeddings" — is LIVE. Its GRAIN moved, and this assertion did not
+      // follow it (S538).
+      //
+      // The read was `record_embeddings` at owner_kind='source_document'.
+      // That grain has no writer and is not owed one:
+      //   * `_declare_record_embedding(re_target, owner_kind='content_chunk',
+      //     …)` is the pipeline's only embedding sink (flow.py). The
+      //     document-level embedding was REMOVED at {127.25} / DR-034-DR-036,
+      //     which rules re-adding a document-level sink "a deliberate future
+      //     feature", not a re-point.
+      //   * `hybrid_search`'s source_documents arm is TEXT-ONLY by design
+      //     ("PROVENANCE anchor; TEXT-ONLY match — BI-29") and was
+      //     re-authored under DR-130 on 2026-08-05 keeping it vector-free.
+      // So a document-grain writer would have no reader. Measured on Platform
+      // staging: the last owner_kind='source_document' row was written
+      // 2026-07-27 and all 58 are orphans, while content_chunk embeddings were
+      // written by the most recent nightly walk. Reader outlived its model —
+      // this is a REPOINT, not a retirement, and not "wire the writer".
       const { data: docs, error: docsError } = await client
         .from('source_documents')
         .select('id')
@@ -196,24 +211,33 @@ describe.skipIf(!ENABLED)(
       expect(docs!.length).toBeGreaterThan(0);
       const sourceDocumentId = docs![0]!.id as string;
 
-      const { data, error } = await client
-        .from('record_embeddings')
-        .select('id, embedding')
-        .eq('owner_kind', 'source_document')
-        .eq('owner_id', sourceDocumentId)
-        .limit(1);
+      // Chunking precedes embedding in the canonical stage order, so a
+      // succeeded run with zero chunks is itself an Inv-3 failure — assert it
+      // here rather than letting the embedding read vacuously pass on an empty
+      // chunk set.
+      const { data: chunks, error: chunksError } = await client
+        .from('content_chunks')
+        .select('id')
+        .eq('source_document_id', sourceDocumentId);
 
-      expect(error).toBeNull();
-      expect(data).not.toBeNull();
-      expect(data!.length).toBeGreaterThan(0);
+      expect(chunksError).toBeNull();
+      expect(chunks).not.toBeNull();
+      expect(chunks!.length).toBeGreaterThan(0);
 
-      // Per Inv-3 verifiability: "a run that completes MUST have written
-      // embeddings" — now landing on record_embeddings (owner_kind =
-      // 'source_document') rather than the dropped content_items.embedding.
-      // Null embedding on a row with no matching failure row proves the
-      // embedding stage was skipped or silently failed.
-      const embedding = data![0]!.embedding;
-      expect(embedding).not.toBeNull();
+      // Every chunk of a succeeded run must carry a non-null vector. A null
+      // embedding on a chunk with no matching failure row proves the embedding
+      // stage was skipped or silently failed.
+      for (const chunk of chunks!) {
+        const row = await fetchChunkEmbedding(chunk.id as string);
+        expect(
+          row,
+          `expected a record_embeddings row for content_chunk ${chunk.id}`,
+        ).not.toBeNull();
+        expect(
+          row!.embedding,
+          `expected a non-null embedding for content_chunk ${chunk.id}`,
+        ).not.toBeNull();
+      }
     }, 30_000);
   },
 );

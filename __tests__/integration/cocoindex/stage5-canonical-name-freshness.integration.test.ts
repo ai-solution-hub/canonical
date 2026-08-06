@@ -94,18 +94,35 @@ const FIXTURE_PATH_B =
 const VARIANT_A = 'ISO 27001';
 const VARIANT_B = 'ISO27001';
 
-/** Two awaited walks in `beforeAll`, plus slack. */
-const SETUP_BUDGET_MS = WALK_BUDGET_MS * 2 + 30_000;
+/** One awaited walk in `beforeAll` (doc A stages without one), plus slack. */
+const SETUP_BUDGET_MS = WALK_BUDGET_MS + 30_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
   // Two fixtures sharing the TEST_PREFIX corpus — doc A carries 'ISO 27001',
   // doc B carries 'ISO27001'. Same two-doc certification corpus as the dedup
   // sibling, so Stage-5's cross-document UPDATE phase has something to resolve.
+  //
+  // Doc A stages with `walk: false` DELIBERATELY (S538). Since id-400
+  // (`3cd762a7d`) every `stageFixture` awaits its OWN corpus-wide walk — the
+  // background pump was deleted. Two awaited stagings therefore produced TWO
+  // op_ids, and this spec's assertions read `entity_mentions` scoped to ONE
+  // (see the op_id read below): under walk A only doc A's rows exist, so the
+  // doc-B row was always `undefined` and the cross-document claim could never
+  // be observed. The pipeline was doing the work — the run that walked doc B
+  // reported `entity_resolution: 1`, i.e. Stage-5 rewriting doc B's canonical
+  // to match doc A — but this spec was watching the wrong walk.
+  //
+  // Staging A without a walk and letting B's walk absorb BOTH documents
+  // restores the one-run/two-docs model C-54 is about. The alternative fix —
+  // widening the read to a `titlePrefix` scope — also goes green, but it
+  // would silently delete the op_id-scoping assertion, which is the invariant
+  // this spec exists to protect (Inv-5 / Inv-7).
   await stageFixture({
     fixturePath: FIXTURE_PATH_A,
     destPath: `c54-freshness/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
+    walk: false,
   });
   await stageFixture({
     fixturePath: FIXTURE_PATH_B,

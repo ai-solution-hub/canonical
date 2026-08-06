@@ -32,7 +32,7 @@ import {
   hasRealLiveDbCredentials,
 } from '../helpers/supabase-client';
 import { stageFixture } from './_helpers/fixture-staging';
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+import { FORM_TEMPLATE, SUPPLEMENTARY } from './_helpers/fixtures';
 import { WALK_BUDGET_MS, runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -53,8 +53,18 @@ const LEGACY_FIXTURES = [
   },
   {
     kind: 'doc' as const,
-    fixturePath: FORM_TEMPLATE.legacyRfpOnlinetdcopsDoc,
+    fixturePath: SUPPLEMENTARY.legacyRfpOnlinetdcopsDoc,
     destPath: `nm3-legacy/${TEST_PREFIX}-legacy.doc`,
+  },
+  {
+    // S538: rehomed here from extract-contract-honour, which used it as an
+    // `entity_mention` fixture. It is a prose RFP, not a form and not corpus
+    // content — and `.doc` has no ingest route, so it never landed there and
+    // that assertion was vacuous. NM-3 legacy containment is its real subject:
+    // two distinct .doc files prove containment is per-item, not per-format.
+    kind: 'doc' as const,
+    fixturePath: SUPPLEMENTARY.legacyRfpLearningPartnersDoc,
+    destPath: `nm3-legacy/${TEST_PREFIX}-legacy-rfp.doc`,
   },
 ];
 

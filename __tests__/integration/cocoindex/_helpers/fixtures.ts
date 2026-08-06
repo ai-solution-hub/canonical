@@ -102,6 +102,11 @@ export const CONTENT = {
  * your assertion is about content_chunks, entity_mentions or chunking, you want
  * {@link CONTENT} — a blank form has no content to extract, and a test that
  * asserts otherwise is measuring nothing.
+ *
+ * This header used to be false for two of its members (S538): the two British
+ * Council `.doc` RFPs are prose, not forms, and now live in
+ * {@link SUPPLEMENTARY}. "No prose to speak of" is a load-bearing claim — if a
+ * fixture added here has prose, it belongs in one of the other two planes.
  */
 export const FORM_TEMPLATE = {
   /** The CSP checklist. THE path that was hardcoded ~16 times, almost always as a stand-in for content it does not contain. */
@@ -132,11 +137,41 @@ export const FORM_TEMPLATE = {
   legacyEvaluationMatrixXls: path(
     'form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls',
   ),
-  /** Legacy binary Office — .doc (British Council online-TDC-ops RFP). Same no-Docling-route caveat as the .xls; the NM-3 legacy-containment subject. */
+} as const;
+
+/**
+ * PLANE 3 — SUPPLEMENTARY buyer narrative. Prose the bidder reads; NOT a form
+ * to fill in, and NOT client corpus content.
+ *
+ * These two lived in {@link FORM_TEMPLATE} until S538, which is how a 95k-char
+ * prose RFP came to be an `entity_mention` fixture. The const contradicted
+ * itself to say so: its header reads "blank extraction FORMS… no prose to
+ * speak of" while one member's own comment read "Rich named-entity surface."
+ * Measured with `textutil`: 36,515 and 95,117 characters of narrative.
+ *
+ * In the real British Council pack these RFPs are the buyer's SUPPLEMENTARY
+ * narrative and `annex_2_supplier_response.docx` / `annex_3_pricing_approach.xlsx`
+ * are the forms to complete. The pack is the live example behind id-404's
+ * reframe: *"how does the system decide what is a FORM to extract versus a
+ * SUPPLEMENTARY document that only provides context for the human or agent
+ * completing the form?"*
+ *
+ * This group names what these documents ARE. It asserts nothing about what the
+ * platform owes them — whether supplementary material is extracted, chunked,
+ * embedded or retrievable is a deferred owner ruling (S538 D5), and today the
+ * answer is measurably "nothing": `record_embeddings_owner_kind_chk` has no
+ * `form_attachment` member, so supplementary material cannot carry a vector.
+ *
+ * Use these ONLY where the test is about legacy-format containment or the
+ * form-versus-supplementary distinction itself. For entity or chunking
+ * assertions you want {@link CONTENT}.
+ */
+export const SUPPLEMENTARY = {
+  /** British Council online-TDC-ops RFP (.doc, 258,560 B). Buyer narrative; the NM-3 legacy-containment subject. No Docling route — id-404 owns the conversion path. */
   legacyRfpOnlinetdcopsDoc: path(
     'form-templates/rfp-british-council/rfp_onlinetdcops.doc',
   ),
-  /** Legacy binary Office — .doc (British Council learning-partners RFP). Rich named-entity surface; same no-Docling-route caveat. */
+  /** British Council learning-partners RFP (.doc, 140,800 B). Buyer narrative, entity-dense. No Docling route — id-404 owns the conversion path. */
   legacyRfpLearningPartnersDoc: path(
     'form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
   ),

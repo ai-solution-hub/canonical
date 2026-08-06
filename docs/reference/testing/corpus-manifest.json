@@ -274,9 +274,9 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts"
+        "__tests__/integration/cocoindex/legacy-mime-coverage.integration.test.ts"
       ],
-      "notes": ""
+      "notes": "Buyer SUPPLEMENTARY narrative (prose RFP), not a blank form — reclassified out of FORM_TEMPLATE into SUPPLEMENTARY at S538. Was extract-contract-honour's entity_mention fixture; .doc has no ingest route (adapters.py rejects it) so it never landed and that assertion was vacuous. Rehomed to NM-3 legacy containment, its real subject. Also the form-versus-supplementary example behind id-404."
     },
     {
       "id": "form-templates/rfp-british-council/rfp_onlinetdcops.doc",

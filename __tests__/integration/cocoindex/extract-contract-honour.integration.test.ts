@@ -68,7 +68,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // assertions for id-415); flipping this to a CONTENT fixture changes what the
 // body observes, so the fixture swap and the assertion repair land together
 // in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+import { CONTENT, FORM_TEMPLATE } from './_helpers/fixtures';
 
 import {
   createLiveServiceClient,
@@ -134,9 +134,24 @@ const FIXTURES: ReadonlyArray<{
     destSuffix: 'q_a_form.docx',
   },
   {
+    // S538 repoint. This was `FORM_TEMPLATE.legacyRfpLearningPartnersDoc` — a
+    // 95k-character prose RFP with no ingest route: `adapters.py` supports
+    // {.docx,.markdown,.md,.pdf,.txt,.xlsx} and raises on `.doc`, so the
+    // fixture NEVER landed. Its id therefore never entered `seededContentIds`,
+    // and the entity_mention assertion below looped over rows belonging to the
+    // OTHER two fixtures with no count assertion — the suite reported this file
+    // green while testing nothing about entity extraction.
+    //
+    // (Measured cost beyond the false green: because the staged bytes are never
+    // removed — the sidecar has no unstage route and `dropFixture` deletes DB
+    // rows only — the orphaned `.doc` re-failed on all 12-13 subsequent walks
+    // of every nightly run, one contained item failure each.)
+    //
+    // `namedClientEngagementsMd` is the corpus's richest named-entity surface
+    // and is Plane-1 CONTENT, which is what an entity assertion needs.
     kind: 'entity_mention',
-    fixturePath: FORM_TEMPLATE.legacyRfpLearningPartnersDoc,
-    destSuffix: 'entity_mention.doc',
+    fixturePath: CONTENT.namedClientEngagementsMd,
+    destSuffix: 'entity_mention.md',
   },
 ];
 
@@ -374,12 +389,23 @@ describe.skipIf(!ENABLED)(
 
       expect(error).toBeNull();
       expect(data).toBeTruthy();
-      // Per PRODUCT inv 3 + Inv-20 verifiability: entity_mention fires
-      // regardless of content_type but is allowed to produce zero rows
-      // when the document has no named entities. The Inv-20 contract
-      // therefore requires ≥0 rows, but the FIXTURE must contain entities
-      // (test seed responsibility) so the assertion is structural per-row
-      // rather than count-based.
+
+      // Per PRODUCT inv 3 + Inv-20: entity_mention fires regardless of
+      // content_type and MAY produce zero rows for a document with no named
+      // entities — so the CONTRACT is ≥0 rows and the per-row shape checks
+      // below are the substance.
+      //
+      // But "≥0 rows" made this test unfalsifiable (S538): the fixture never
+      // landed, the loop ran over other fixtures' rows, and the file reported
+      // green while asserting nothing about entity extraction. The seed is a
+      // test responsibility, so assert the seed held. `namedClientEngagementsMd`
+      // is the corpus's densest named-entity document; if it yields zero
+      // mentions the extractor is broken, not merely quiet.
+      expect(
+        data!.length,
+        'entity_mention fixture seeded no mentions — the fixture failed to land, or entity extraction is not running',
+      ).toBeGreaterThan(0);
+
       for (const row of data!) {
         // entity_type ∈ 12-value Literal per VALID_ENTITY_TYPES.
         expect(VALID_ENTITY_TYPES).toContain(row.entity_type);
