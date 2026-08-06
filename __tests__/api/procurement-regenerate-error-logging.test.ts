@@ -102,7 +102,6 @@ function arrangeHappyPathUpToPipeline() {
         question_text: 'Describe your approach.',
         word_limit: 500,
         section_name: 'Technical',
-        confidence_posture: null,
       },
       error: null,
     });

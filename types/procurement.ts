@@ -102,7 +102,6 @@ export interface ProcurementQuestion {
   question_text: string;
   word_limit: number | null;
   evaluation_weight: number | null;
-  confidence_posture: ConfidencePosture | null;
   status: QuestionStatus;
   has_variants: boolean;
   assigned_to: string | null;

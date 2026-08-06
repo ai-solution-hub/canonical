@@ -34,16 +34,16 @@ vi.mock('@/lib/format', () => ({
   }),
 }));
 
-const mockActiveBidsResult = vi.hoisted(() => ({
+const mockActiveProcurementsResult = vi.hoisted(() => ({
   current: {
-    workspaces: [] as unknown[],
+    forms: [] as unknown[],
     statsMap: new Map<string, unknown>(),
   },
 }));
 
 vi.mock('@/lib/domains/procurement/procurement-queries', () => ({
   fetchActiveProcurementWithStats: vi.fn(() =>
-    Promise.resolve(mockActiveBidsResult.current),
+    Promise.resolve(mockActiveProcurementsResult.current),
   ),
 }));
 
@@ -106,7 +106,7 @@ function setupDefaultMock(
     expiringContentDateCount?: number;
     certMentionsData?: unknown[];
     activityFeedData?: unknown[];
-    workspaces?: unknown[];
+    forms?: unknown[];
     statsMap?: Map<string, unknown>;
     /** ID-145 {145.20} BI-30 — raw `form_instances` rows for the new
      * dashboard active-items read (id, name, issuing_organisation,
@@ -277,15 +277,15 @@ function setupDefaultMock(
     error: null,
   });
 
-  // Configure bid mock
-  if (overrides.workspaces || overrides.statsMap) {
-    mockActiveBidsResult.current = {
-      workspaces: overrides.workspaces ?? [],
+  // Configure the active-procurements mock
+  if (overrides.forms || overrides.statsMap) {
+    mockActiveProcurementsResult.current = {
+      forms: overrides.forms ?? [],
       statsMap: overrides.statsMap ?? new Map(),
     };
   } else {
-    mockActiveBidsResult.current = {
-      workspaces: [],
+    mockActiveProcurementsResult.current = {
+      forms: [],
       statsMap: new Map(),
     };
   }
@@ -299,8 +299,8 @@ function setupDefaultMock(
 
 describe('fetchUnifiedDashboardData', () => {
   beforeEach(() => {
-    mockActiveBidsResult.current = {
-      workspaces: [],
+    mockActiveProcurementsResult.current = {
+      forms: [],
       statsMap: new Map(),
     };
   });
@@ -817,16 +817,17 @@ describe('fetchUnifiedDashboardData', () => {
     });
 
     const mock = setupDefaultMock({
-      workspaces: [
+      // id-417 (S538): flat `form_instances` columns — `deadline` / `buyer`
+      // (issuing_organisation) / `status` (workflow_state). The synthetic
+      // `domain_metadata` bag and `is_archived` flag this fixture used to carry
+      // were a workspace-era adapter shape, not anything the query returns.
+      forms: [
         {
           id: 'bid-x',
           name: 'Test Tender',
-          domain_metadata: {
-            deadline: '2026-03-20T00:00:00Z',
-            buyer: 'BigCo',
-            status: 'in_progress',
-          },
-          is_archived: false,
+          deadline: '2026-03-20T00:00:00Z',
+          buyer: 'BigCo',
+          status: 'in_progress',
           created_at: '2026-01-01',
           updated_at: '2026-03-01',
         },

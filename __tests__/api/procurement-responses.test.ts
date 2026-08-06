@@ -222,7 +222,6 @@ describe('Procurement Responses API', () => {
           question_text: 'What is your approach?',
           word_limit: 500,
           section_name: 'Technical',
-          confidence_posture: 'high',
         },
         error: null,
       });

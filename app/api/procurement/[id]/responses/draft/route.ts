@@ -91,9 +91,7 @@ export const POST = defineRoute(
       // (R7 substrate, BI-37), mirroring the {145.21} draft-stream route.
       let questionsQuery = supabase
         .from('form_questions')
-        .select(
-          'id, question_text, word_limit, section_name, confidence_posture',
-        )
+        .select('id, question_text, word_limit, section_name')
         .eq('form_instance_id', id);
 
       if (question_ids && question_ids.length > 0) {
@@ -136,15 +134,10 @@ export const POST = defineRoute(
       let totalTokens = 0;
 
       for (const question of questions) {
-        // Skip no_content questions unless forced
-        if (question.confidence_posture === 'no_content' && !force) {
-          results.push({
-            question_id: question.id,
-            status: 'skipped',
-            reason: 'no_content',
-          });
-          continue;
-        }
+        // S538: no pre-draft skip on match quality. The `confidence_posture`
+        // gate that stood here read a column whose sole writer was the
+        // now-deleted questions/match route; `question_matches` ({145.17}) is
+        // the sanctioned substrate, and draftSingleQuestion sources it itself.
 
         // Check for existing response unless forced
         if (!force) {

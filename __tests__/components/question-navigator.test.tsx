@@ -19,7 +19,6 @@ vi.mock('@/lib/utils', () => ({
 
 // Import AFTER mocks
 import { QuestionNavigator } from '@/components/procurement/question-navigator';
-import type { ConfidencePosture } from '@/components/procurement/question-navigator';
 
 // ---------------------------------------------------------------------------
 // Data factories
@@ -29,7 +28,6 @@ interface TestQuestion {
   id: string;
   question_text: string;
   section_name: string | null;
-  confidence_posture: ConfidencePosture | string | null;
   status: string | null;
 }
 
@@ -38,7 +36,6 @@ function makeQuestion(overrides: Partial<TestQuestion> = {}): TestQuestion {
     id: 'q-1',
     question_text: 'Describe your approach to delivery',
     section_name: 'Technical',
-    confidence_posture: 'strong_match',
     status: 'not_started',
     ...overrides,
   };
@@ -48,30 +45,25 @@ function makeQuestions(): TestQuestion[] {
   return [
     makeQuestion({
       id: 'q-1',
-      confidence_posture: 'strong_match',
       status: 'complete',
     }),
     makeQuestion({
       id: 'q-2',
-      confidence_posture: 'partial_match',
       status: 'ai_drafted',
       question_text: 'What is your methodology?',
     }),
     makeQuestion({
       id: 'q-3',
-      confidence_posture: 'needs_sme',
       status: 'not_started',
       question_text: 'Provide case studies',
     }),
     makeQuestion({
       id: 'q-4',
-      confidence_posture: 'no_content',
       status: 'not_started',
       question_text: 'Team structure',
     }),
     makeQuestion({
       id: 'q-5',
-      confidence_posture: 'strong_match',
       status: 'approved',
       question_text: 'Quality assurance',
     }),
@@ -232,50 +224,6 @@ describe('QuestionNavigator', () => {
     ).toBeInTheDocument();
   });
 
-  // ---- Jump-to posture badges ----
-
-  it('renders jump-to section heading', () => {
-    render(<QuestionNavigator {...defaultProps()} />);
-    expect(screen.getByText('Jump to')).toBeInTheDocument();
-  });
-
-  it('renders posture badges with counts', () => {
-    render(<QuestionNavigator {...defaultProps()} />);
-    expect(screen.getByText('Strong match')).toBeInTheDocument();
-    expect(screen.getByText('Partial match')).toBeInTheDocument();
-    expect(screen.getByText('Needs SME')).toBeInTheDocument();
-    expect(screen.getByText('No content')).toBeInTheDocument();
-  });
-
-  it('shows correct count for each posture', () => {
-    render(<QuestionNavigator {...defaultProps()} />);
-    // Strong match: q-1 and q-5 = 2
-    // Partial match: q-2 = 1
-    // Needs SME: q-3 = 1
-    // No content: q-4 = 1
-    const badges = screen.getAllByText('2');
-    expect(badges.length).toBeGreaterThanOrEqual(1); // At least the strong_match count
-  });
-
-  it('does not render posture badge when count is zero', () => {
-    const questions = [
-      makeQuestion({ id: 'q-1', confidence_posture: 'strong_match' }),
-    ];
-    render(<QuestionNavigator {...defaultProps({ questions })} />);
-    expect(screen.queryByText('Needs SME')).not.toBeInTheDocument();
-    expect(screen.queryByText('No content')).not.toBeInTheDocument();
-  });
-
-  it('calls onNavigate with first question of that posture when badge is clicked', async () => {
-    const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    render(<QuestionNavigator {...defaultProps({ onNavigate })} />);
-
-    // Click "Needs SME" badge — q-3 is index 2
-    await user.click(screen.getByText('Needs SME'));
-    expect(onNavigate).toHaveBeenCalledWith(2);
-  });
-
   // ---- Dot navigator ----
 
   it('renders a toolbar with question dots', () => {
@@ -325,7 +273,7 @@ describe('QuestionNavigator', () => {
     const toolbar = screen.getByRole('toolbar', { name: 'Question navigator' });
     const dots = within(toolbar).getAllByRole('button');
     expect(dots[0]).toHaveAttribute('title', 'Q1: Complete');
-    expect(dots[1]).toHaveAttribute('title', 'Q2: Partial match');
+    expect(dots[1]).toHaveAttribute('title', 'Q2: Incomplete');
   });
 
   // ---- Edge cases ----
@@ -338,12 +286,6 @@ describe('QuestionNavigator', () => {
     );
     expect(screen.getByText('Q1 of 0')).toBeInTheDocument();
     expect(screen.getByText('(0 complete)')).toBeInTheDocument();
-  });
-
-  it('handles questions with null confidence_posture as no_content', () => {
-    const questions = [makeQuestion({ id: 'q-1', confidence_posture: null })];
-    render(<QuestionNavigator {...defaultProps({ questions })} />);
-    expect(screen.getByText('No content')).toBeInTheDocument();
   });
 
   // ---- Custom className ----

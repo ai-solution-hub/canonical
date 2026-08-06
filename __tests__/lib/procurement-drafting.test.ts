@@ -86,7 +86,6 @@ const sampleQuestion: DraftableQuestion = {
     'Describe your approach to data security for cloud-hosted systems.',
   word_limit: 500,
   section_name: 'Technical Capability',
-  confidence_posture: null,
 };
 
 const sampleQuestionNoLimit: DraftableQuestion = {

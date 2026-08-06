@@ -14,7 +14,7 @@ import {
   formResponseRowToTeamChange,
   formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
-import { buildProcurementSummary } from '@/lib/activity/bid-summary';
+import { buildProcurementSummary } from '@/lib/activity/procurement-summary';
 
 // ---------------------------------------------------------------------------
 // Main data fetching function
@@ -214,12 +214,8 @@ export async function fetchReorientData(
   const latestRecentWork = dedupeRecentWorkByEntity(my_recent_work).slice(0, 5);
 
   // --- Extract active procurements with question stats (from shared helper) ---
-  const { workspaces: procurementWorkspaces, statsMap } =
-    activeProcurementsResult;
-  const forms_summary = buildProcurementSummary(
-    procurementWorkspaces,
-    statsMap,
-  );
+  const { forms: activeProcurements, statsMap } = activeProcurementsResult;
+  const forms_summary = buildProcurementSummary(activeProcurements, statsMap);
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;

@@ -110,18 +110,12 @@ const DRAFT_RESULT = {
 // id used throughout this suite).
 const MATCHED_QA_PAIR_ID = 'c1c1c1c1-1111-4111-8111-111111111111';
 
-function makeQuestion(
-  id: string,
-  overrides: Partial<{
-    confidence_posture: string | null;
-  }> = {},
-) {
+function makeQuestion(id: string) {
   return {
     id,
     question_text: `Question text for ${id}`,
     word_limit: 200,
     section_name: 'Section 1',
-    confidence_posture: overrides.confidence_posture ?? 'strong',
   };
 }
 
@@ -243,9 +237,11 @@ function configureSupabase(
   //       which the mock fulfils via the chainable .eq() returning the
   //       chain (which is awaitable via .then() default impl resolving
   //       to {data: [], error: null}).
-  let upsertIdx = 0;
-  for (const q of scenario.questions.data) {
-    if (q.confidence_posture === 'no_content') continue;
+  for (
+    let upsertIdx = 0;
+    upsertIdx < scenario.questions.data.length;
+    upsertIdx += 1
+  ) {
     // NB: some scenarios request skip-existing, but this test always queues —
     // it assumes the handler's branch reaches the upsert path. For
     // already-drafted skip cases, content/upsert mocks are simply not consumed.
@@ -255,7 +251,6 @@ function configureSupabase(
     );
     // b. form_responses.upsert.select.single
     const id = scenario.upsertedIds[upsertIdx];
-    upsertIdx += 1;
     if (id) {
       client._chain.single.mockResolvedValueOnce({
         data: { id },
@@ -762,54 +757,6 @@ describe('runFormDraftAllJob — form_draft_all handler (§5.4.1)', () => {
       // runDraftingPipeline only called 3 times (skipped questions don't
       // invoke the pipeline)
       expect(mockRunDraftingPipeline).toHaveBeenCalledTimes(3);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // confidence_posture='no_content' skip path.
-  // Spec §4.4 step 5 + handler L153-160.
-  // -------------------------------------------------------------------------
-
-  describe("confidence_posture='no_content' skip", () => {
-    it('no_content question pushed as status=skipped, reason=no_content; runDraftingPipeline NOT invoked', async () => {
-      const questions = [
-        makeQuestion(QUESTION_IDS[0], { confidence_posture: 'no_content' }),
-        makeQuestion(QUESTION_IDS[1], { confidence_posture: 'strong' }),
-      ];
-      configureSupabase(mockSupabase, {
-        bid: {
-          data: { id: BID_ID, workflow_state: 'drafting' },
-          error: null,
-        },
-        questions: { data: questions, error: null },
-        existing: [],
-        contentItems: [
-          {
-            id: 'c1c1c1c1-1111-4111-8111-111111111111',
-            suggested_title: 'Source 1',
-            content: 'Source content',
-            content_type: 'q_a_pair',
-            summary: null,
-          },
-        ],
-        upsertedIds: [RESPONSE_IDS[1]],
-        undraftedCount: 0,
-      });
-
-      const result = await runFormDraftAllJob(
-        makeBody(),
-        mockSupabase as unknown as SupabaseClient<Database>,
-        AUTH_CONTEXT,
-      );
-
-      expect(result.drafted).toBe(1);
-      expect(result.skipped).toBe(1);
-      expect(result.failed).toBe(0);
-      expect(result.results[0].status).toBe('skipped');
-      expect(result.results[0].reason).toBe('no_content');
-      expect(result.results[1].status).toBe('drafted');
-      // runDraftingPipeline only called for the strong question.
-      expect(mockRunDraftingPipeline).toHaveBeenCalledTimes(1);
     });
   });
 });

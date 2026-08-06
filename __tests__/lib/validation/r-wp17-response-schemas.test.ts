@@ -362,7 +362,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
             question_text: 'q',
             word_limit: null,
             section_name: null,
-            confidence_posture: null,
           },
         },
         invalid: {
@@ -379,7 +378,6 @@ const CASES_BY_GROUP: Record<string, SchemaCase[]> = {
             question_text: 'q',
             word_limit: null,
             section_name: null,
-            confidence_posture: null,
           },
         },
       },

@@ -327,7 +327,7 @@ export const POST = defineRoute(
         supabase
           .from('form_questions')
           .select(
-            'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
+            'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, assigned_to, created_by, created_at, updated_at',
           )
           .eq('form_instance_id', id)
           .eq('created_by', user.id)

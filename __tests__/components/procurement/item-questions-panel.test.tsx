@@ -48,7 +48,6 @@ function makeQuestion(
     question_text: `Question text for ${id}`,
     word_limit: null,
     evaluation_weight: null,
-    confidence_posture: null,
     status: 'pending',
     has_variants: false,
     assigned_to: null,
@@ -180,7 +179,6 @@ describe('ItemQuestionsPanel', () => {
 
   it('renders an approved question as Approved', () => {
     const question = makeQuestion({
-      confidence_posture: 'strong_match',
       response: { id: 'r-1', review_status: 'approved', word_count: 40 },
     });
     render(
@@ -200,7 +198,6 @@ describe('ItemQuestionsPanel', () => {
 
   it('renders a drafted (not yet approved) question as Drafted', () => {
     const question = makeQuestion({
-      confidence_posture: 'partial_match',
       response: { id: 'r-2', review_status: 'ai_drafted', word_count: 20 },
     });
     render(
@@ -218,31 +215,11 @@ describe('ItemQuestionsPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders a matched (no response yet) question as Matched, with its confidence badge', () => {
-    const question = makeQuestion({ confidence_posture: 'needs_sme' });
-    render(
-      <ItemQuestionsPanel
-        procurementId="form-1"
-        questions={[question]}
-        canEdit={true}
-        totalQuestions={1}
-      />,
-    );
-    const row = screen.getByTestId(`question-row-${question.id}`);
-    expect(within(row).getByText('Matched')).toBeInTheDocument();
-    expect(
-      within(row).getByTitle(
-        'Needs SME: No KB content. Route to subject matter expert.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('renders a zero-candidate question (no_content) as empty, honestly, alongside other states', () => {
+  it('renders a zero-candidate question as empty, honestly, alongside other states', () => {
     const approved = makeQuestion({
-      confidence_posture: 'strong_match',
       response: { id: 'r-1', review_status: 'approved', word_count: 40 },
     });
-    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    const empty = makeQuestion();
     render(
       <ItemQuestionsPanel
         procurementId="form-1"
@@ -263,8 +240,8 @@ describe('ItemQuestionsPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('treats a never-matched question (null confidence_posture) as empty too', () => {
-    const question = makeQuestion({ confidence_posture: null });
+  it('treats a question with no response as empty too', () => {
+    const question = makeQuestion();
     render(
       <ItemQuestionsPanel
         procurementId="form-1"
@@ -283,7 +260,7 @@ describe('ItemQuestionsPanel', () => {
   // ---- Zero-candidate manual-answer affordance ----
 
   it('offers the manual-answer affordance only for empty questions, and only when canEdit', () => {
-    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    const empty = makeQuestion();
     const { rerender } = render(
       <ItemQuestionsPanel
         procurementId="form-1"
@@ -309,26 +286,10 @@ describe('ItemQuestionsPanel', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('does not offer the manual-answer affordance for a matched question', () => {
-    const matched = makeQuestion({ confidence_posture: 'strong_match' });
-    render(
-      <ItemQuestionsPanel
-        procurementId="form-1"
-        questions={[matched]}
-        canEdit={true}
-        totalQuestions={1}
-      />,
-    );
-    expect(
-      screen.queryByRole('button', { name: 'Answer this question directly' }),
-    ).not.toBeInTheDocument();
-  });
-
   it('answers the question directly as the PRIMARY, deterministic act (no promotion requested)', async () => {
     const user = userEvent.setup();
     const onQuestionsChanged = vi.fn();
     const empty = makeQuestion({
-      confidence_posture: 'no_content',
       question_text: 'What is your approach to safeguarding?',
     });
     mockFetch.mockReturnValueOnce(
@@ -389,7 +350,6 @@ describe('ItemQuestionsPanel', () => {
   it('also promotes to the knowledge base as a SEPARATE, OPTIONAL act when the checkbox is checked', async () => {
     const user = userEvent.setup();
     const empty = makeQuestion({
-      confidence_posture: 'no_content',
       question_text: 'What is your approach to safeguarding?',
     });
     mockFetch
@@ -474,7 +434,7 @@ describe('ItemQuestionsPanel', () => {
 
   it('treats a promotion failure as non-blocking — the primary save still counts as a success', async () => {
     const user = userEvent.setup();
-    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    const empty = makeQuestion();
     mockFetch
       .mockReturnValueOnce(
         jsonResponse({
@@ -523,7 +483,7 @@ describe('ItemQuestionsPanel', () => {
 
   it('rejects saving an empty manual answer without calling the backend', async () => {
     const user = userEvent.setup();
-    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    const empty = makeQuestion();
     render(
       <ItemQuestionsPanel
         procurementId="form-1"
@@ -544,7 +504,7 @@ describe('ItemQuestionsPanel', () => {
 
   it('surfaces a primary-save backend failure honestly and keeps the answer editable', async () => {
     const user = userEvent.setup();
-    const empty = makeQuestion({ confidence_posture: 'no_content' });
+    const empty = makeQuestion();
     mockFetch.mockReturnValueOnce(
       jsonResponse(
         { error: 'This question already has a response' },

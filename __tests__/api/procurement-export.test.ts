@@ -154,7 +154,6 @@ function configureBidWithQuestions(procurementName = 'Test Procurement') {
             question_text: 'What is your approach?',
             word_limit: 500,
             evaluation_weight: 30,
-            confidence_posture: 'high',
             status: 'complete',
             form_responses: {
               id: '00000000-0000-4000-8000-000000000020',

@@ -37,7 +37,6 @@ export interface QuestionSummary {
   questionText: string;
   section: string | null;
   wordLimit: number | null;
-  confidencePosture: string;
   responseStatus: string | null;
 }
 
@@ -135,7 +134,6 @@ export function ProcurementContextProvider({
           questionText: q.question_text,
           section: q.section_name,
           wordLimit: q.word_limit,
-          confidencePosture: q.confidence_posture ?? 'no_content',
           responseStatus: q.response?.review_status ?? null,
         }),
       );

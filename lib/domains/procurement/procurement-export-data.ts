@@ -81,7 +81,6 @@ export async function fetchProcurementExportData(
       question_text,
       word_limit,
       evaluation_weight,
-      confidence_posture,
       status,
       form_responses (
         id,
@@ -159,7 +158,6 @@ export async function fetchProcurementExportData(
       question_text: q.question_text,
       word_limit: q.word_limit,
       evaluation_weight: q.evaluation_weight,
-      confidence_posture: q.confidence_posture,
       status: q.status,
       response_text: response?.response_text || null,
       response_text_advanced: response?.response_text_advanced || null,

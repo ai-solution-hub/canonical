@@ -756,31 +756,10 @@ function buildExportSummary(sections: GroupedSection[]): Paragraph[] {
     }),
   );
 
-  // Calculate average confidence
-  const confidenceScores: Record<string, number> = {
-    strong_match: 100,
-    partial_match: 60,
-    needs_sme: 30,
-    no_content: 0,
-  };
-  const questionsWithConfidence = allQuestions.filter(
-    (q) => q.confidence_posture && q.confidence_posture in confidenceScores,
-  );
-  const averageConfidence =
-    questionsWithConfidence.length > 0
-      ? Math.round(
-          questionsWithConfidence.reduce(
-            (sum, q) => sum + (confidenceScores[q.confidence_posture!] ?? 0),
-            0,
-          ) / questionsWithConfidence.length,
-        )
-      : 0;
-
   const summaryItems = [
     `Total Questions: ${totalQuestions}`,
     `Responses Completed: ${responsesCompleted}`,
     `Responses Pending: ${responsesPending}`,
-    `Average Confidence: ${averageConfidence}%`,
     `Export Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: enGB })}`,
   ];
 

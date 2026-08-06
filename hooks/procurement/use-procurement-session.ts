@@ -177,7 +177,6 @@ export function useProcurementSession(
         id: q.id,
         question_text: q.question_text,
         section_name: q.section_name,
-        confidence_posture: q.confidence_posture,
         status: q.status,
       })),
     [questions],

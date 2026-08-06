@@ -70,9 +70,7 @@ export const POST = defineRoute(
       // Fetch the question and verify it belongs to this bid
       const { data: question, error: questionError } = await supabase
         .from('form_questions')
-        .select(
-          'id, question_text, word_limit, section_name, confidence_posture',
-        )
+        .select('id, question_text, word_limit, section_name')
         .eq('id', existing.question_id)
         .eq('form_instance_id', id)
         .single();
@@ -116,7 +114,6 @@ export const POST = defineRoute(
         question_text: question.question_text,
         word_limit: question.word_limit,
         section_name: question.section_name,
-        confidence_posture: question.confidence_posture,
       };
 
       // Run the three-pass pipeline with regeneration instructions

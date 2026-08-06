@@ -32,8 +32,7 @@ import type { Database, Json } from '@/supabase/types/database.types';
 
 /**
  * The `form_questions` columns the drafting step reads. Mirrors the `select`
- * both callers issue (`id, question_text, word_limit, section_name,
- * confidence_posture`).
+ * both callers issue (`id, question_text, word_limit, section_name`).
  *
  * ID-145 {145.23}: `matched_record_ids` (dropped W1c STEP 4) is no longer a
  * field on this row — matches are sourced from `question_match_search`
@@ -45,7 +44,6 @@ export interface DraftableQuestionRow {
   question_text: string;
   word_limit: number | null;
   section_name: string | null;
-  confidence_posture: string | null;
 }
 
 /**
@@ -219,7 +217,6 @@ export async function draftSingleQuestion(
     question_text: question.question_text,
     word_limit: question.word_limit,
     section_name: question.section_name,
-    confidence_posture: question.confidence_posture,
   };
 
   // Run the three-pass drafting pipeline (throws propagate to the caller).

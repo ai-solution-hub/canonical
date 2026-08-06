@@ -13,7 +13,7 @@ import {
   formResponseRowToTeamChange,
   formResponseRowToRecentWork,
 } from '@/lib/activity/team-changes';
-import { buildProcurementSummary } from '@/lib/activity/bid-summary';
+import { buildProcurementSummary } from '@/lib/activity/procurement-summary';
 import { parseJsonb, FreshnessSummarySchema } from '@/lib/validation/jsonb';
 import { tryQuery } from '@/lib/supabase/safe';
 import {
@@ -594,12 +594,10 @@ export async function fetchUnifiedDashboardData(
   // --- Build active procurements — ID-145 {145.20} BI-30 ---
   // Sourced directly from `activeFormInstances` (form_instances,
   // non-terminal workflow_state) — NOT from the shared
-  // `fetchActiveProcurementWithStats` workspace/`domain_metadata` helper.
-  // `procurementWorkspaces`/`statsMap` below are kept ONLY for the
-  // `forms_summary` reorient derivation, which stays on the pre-{145.20}
-  // shape (out of this Subtask's scope).
-  const { workspaces: procurementWorkspaces, statsMap } =
-    activeProcurementsResult;
+  // `fetchActiveProcurementWithStats` helper.
+  // `activeProcurements`/`statsMap` below are kept ONLY for the
+  // `forms_summary` reorient derivation.
+  const { forms: activeProcurements, statsMap } = activeProcurementsResult;
   const active_forms: ActiveProcurementSummary[] = [...activeFormInstances];
 
   // Sort by deadline urgency (most urgent first)
@@ -617,10 +615,7 @@ export async function fetchUnifiedDashboardData(
   });
 
   // --- Build forms_summary for reorient (from the same bid data) ---
-  const forms_summary = buildProcurementSummary(
-    procurementWorkspaces,
-    statsMap,
-  );
+  const forms_summary = buildProcurementSummary(activeProcurements, statsMap);
 
   // --- Resolve user display name ---
   const { display_name: userDisplayName, has_display_name: hasDisplayName } =

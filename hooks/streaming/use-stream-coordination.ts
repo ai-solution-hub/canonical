@@ -12,7 +12,6 @@ import type { ResponseAction } from '@/components/procurement/response-actions';
 import type {
   ProcurementQuestion,
   ProcurementMetadata,
-  ConfidencePosture,
 } from '@/types/procurement';
 import type { CitationEntry, QualityData } from '@/types/procurement-metadata';
 
@@ -84,7 +83,6 @@ export interface NavigatorQuestion {
   id: string;
   question_text: string;
   section_name: string | null;
-  confidence_posture: ConfidencePosture | string | null;
   status: string | null;
 }
 
@@ -108,7 +106,6 @@ export interface ProcurementResponse {
     question_text: string;
     word_limit: number | null;
     section_name: string | null;
-    confidence_posture: string | null;
   };
 }
 

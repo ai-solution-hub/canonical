@@ -387,48 +387,6 @@ describe('POST /api/bids/:id/responses/draft', () => {
     expect(body.message).toBe('No questions to draft');
   });
 
-  it('skips no_content questions unless force is true', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { id: VALID_UUID, workflow_state: 'drafting' },
-      error: null,
-    });
-
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: [
-            {
-              id: VALID_UUID_2,
-              question_text: 'Test question',
-              word_limit: 200,
-              section_name: 'Section 1',
-              confidence_posture: 'no_content',
-              matched_record_ids: [],
-            },
-          ],
-          error: null,
-        }),
-    );
-
-    const req = createTestRequest(
-      `/api/procurement/${VALID_UUID}/responses/draft`,
-      {
-        method: 'POST',
-        body: { force: false },
-      },
-    );
-
-    const res = await draftPost(req, { params });
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.skipped).toBe(1);
-    expect(body.results[0].reason).toBe('no_content');
-    expect(mockRunDraftingPipeline).not.toHaveBeenCalled();
-  });
-
   it('skips already-drafted questions when force is false', async () => {
     configureRole(mockSupabase, 'editor');
 
@@ -446,7 +404,6 @@ describe('POST /api/bids/:id/responses/draft', () => {
               question_text: 'Test question',
               word_limit: 200,
               section_name: 'Section 1',
-              confidence_posture: 'strong',
               matched_record_ids: [],
             },
           ],
@@ -494,7 +451,6 @@ describe('POST /api/bids/:id/responses/draft', () => {
               question_text: 'Test question',
               word_limit: 200,
               section_name: 'Section 1',
-              confidence_posture: 'strong',
               matched_record_ids: [],
             },
           ],
@@ -550,7 +506,6 @@ describe('POST /api/bids/:id/responses/draft', () => {
               question_text: 'Test question',
               word_limit: 200,
               section_name: 'Section 1',
-              confidence_posture: 'strong',
               matched_record_ids: [],
             },
           ],
@@ -777,7 +732,6 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         question_text: 'Describe your approach.',
         word_limit: 500,
         section_name: 'Method',
-        confidence_posture: 'balanced',
       },
       error: null,
     });
@@ -969,7 +923,6 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         question_text: 'Describe your approach.',
         word_limit: 500,
         section_name: 'Method',
-        confidence_posture: 'balanced',
       },
       error: null,
     });
@@ -1119,7 +1072,6 @@ describe('POST /api/bids/:id/responses/draft-stream', () => {
         question_text: 'Describe your approach.',
         word_limit: 500,
         section_name: 'Method',
-        confidence_posture: 'balanced',
       },
       error: null,
     });
@@ -1630,7 +1582,6 @@ describe('POST /api/bids/:id/responses/:rId/regenerate', () => {
         question_text: 'Test question',
         word_limit: 200,
         section_name: 'Section 1',
-        confidence_posture: 'strong',
       },
       error: null,
     });

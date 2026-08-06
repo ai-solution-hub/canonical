@@ -219,7 +219,6 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_text: 'Describe your methodology',
         word_limit: 500,
         section_name: 'Technical',
-        confidence_posture: 'strong',
       },
       error: null,
     });
@@ -238,7 +237,6 @@ describe('GET /api/bids/:id/responses/:rId', () => {
     expect(json.question.question_text).toBe('Describe your methodology');
     expect(json.question.word_limit).toBe(500);
     expect(json.question.section_name).toBe('Technical');
-    expect(json.question.confidence_posture).toBe('strong');
     expect(json.response_text).toBe('<p>Our approach is...</p>');
     expect(json.citations).toEqual([]);
     expect(json.source_content).toEqual([]);
@@ -299,7 +297,6 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_text: 'Security certifications?',
         word_limit: 200,
         section_name: 'Security',
-        confidence_posture: 'partial',
       },
       error: null,
     });
@@ -349,7 +346,6 @@ describe('GET /api/bids/:id/responses/:rId', () => {
         question_text: 'Question?',
         word_limit: null,
         section_name: null,
-        confidence_posture: null,
       },
       error: null,
     });

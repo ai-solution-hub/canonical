@@ -187,7 +187,7 @@ export async function runFormDraftAllJob(
   // (R7 substrate, BI-37), mirroring the {145.21} draft-stream route.
   const { data: questions, error: questionsError } = await supabase
     .from('form_questions')
-    .select('id, question_text, word_limit, section_name, confidence_posture')
+    .select('id, question_text, word_limit, section_name')
     .eq('form_instance_id', form_id)
     .order('section_sequence', { ascending: true })
     .order('question_sequence', { ascending: true });
@@ -235,15 +235,8 @@ export async function runFormDraftAllJob(
   let totalTokens = 0;
 
   for (const question of questions) {
-    // Skip no_content questions (mirrors route.ts L153-160).
-    if (question.confidence_posture === 'no_content') {
-      results.push({
-        question_id: question.id,
-        status: 'skipped',
-        reason: 'no_content',
-      });
-      continue;
-    }
+    // No confidence_posture skip here — see the sibling draft route for why
+    // that gate was retired (S538).
 
     // Skip already-drafted if requested (mirrors route.ts L162-170).
     if (skip_existing && existingResponseIds.has(question.id)) {
@@ -327,7 +320,6 @@ export async function runFormDraftAllJob(
       .from('form_questions')
       .select('id', { count: 'exact', head: true })
       .eq('form_instance_id', form_id)
-      .neq('confidence_posture', 'no_content')
       .not(
         'id',
         'in',

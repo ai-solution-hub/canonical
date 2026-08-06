@@ -36,7 +36,6 @@ function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
     question_text: 'Describe your approach to data encryption.',
     word_limit: 500,
     evaluation_weight: 15,
-    confidence_posture: 'strong_match',
     status: 'complete',
     response_text:
       'Our approach to data encryption involves AES-256 for data at rest.',

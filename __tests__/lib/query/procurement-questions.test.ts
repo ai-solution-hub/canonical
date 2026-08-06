@@ -27,7 +27,6 @@ const QUESTION = {
   question_text: 'What is your approach?',
   word_limit: 500,
   evaluation_weight: null,
-  confidence_posture: 'strong_match',
   status: 'not_started',
   has_variants: false,
   assigned_to: null,

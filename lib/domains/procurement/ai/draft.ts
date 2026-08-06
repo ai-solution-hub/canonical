@@ -49,7 +49,6 @@ export interface DraftableQuestion {
   question_text: string;
   word_limit: number | null;
   section_name: string | null;
-  confidence_posture: string | null;
 }
 
 /**

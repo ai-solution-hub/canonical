@@ -64,7 +64,6 @@ const testQuestion: DraftableQuestion = {
   question_text: 'Describe your approach to data security and GDPR compliance.',
   word_limit: 500,
   section_name: 'Technical Capability',
-  confidence_posture: 'strong',
 };
 
 const testContent: DraftableContent[] = [

@@ -233,7 +233,6 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
         question_sequence: 1,
         word_limit: 500,
         evaluation_weight: null,
-        confidence_posture: null,
         assigned_to: null,
         created_by: 'test-user-id',
         created_at: '2026-01-01T00:00:00Z',

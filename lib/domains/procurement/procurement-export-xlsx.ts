@@ -64,19 +64,8 @@ const STATUS_LABELS: Record<string, string> = {
   ready_for_export: 'Ready for Export',
 };
 
-const CONFIDENCE_LABELS: Record<string, string> = {
-  strong_match: 'Strong Match',
-  partial_match: 'Partial Match',
-  needs_sme: 'Needs SME',
-  no_content: 'No Content',
-};
-
 function formatStatus(status: string): string {
   return STATUS_LABELS[status] || status;
-}
-
-function formatConfidence(posture: string | null): string {
-  return posture ? CONFIDENCE_LABELS[posture] || posture : '--';
 }
 
 // ---------------------------------------------------------------------------
@@ -139,41 +128,6 @@ function getStatusFill(status: string | null): ExcelJS.Fill {
   }
 }
 
-function getConfidenceFill(posture: string | null): ExcelJS.Fill {
-  switch (posture) {
-    case 'strong_match':
-      return {
-        type: 'pattern' as const,
-        pattern: 'solid',
-        fgColor: { argb: 'FFDCFCE7' },
-      };
-    case 'partial_match':
-      return {
-        type: 'pattern' as const,
-        pattern: 'solid',
-        fgColor: { argb: 'FFFEF3C7' },
-      };
-    case 'needs_sme':
-      return {
-        type: 'pattern' as const,
-        pattern: 'solid',
-        fgColor: { argb: 'FFDBEAFE' },
-      };
-    case 'no_content':
-      return {
-        type: 'pattern' as const,
-        pattern: 'solid',
-        fgColor: { argb: 'FFF3F4F6' },
-      };
-    default:
-      return {
-        type: 'pattern' as const,
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFFFFF' },
-      };
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Sheet builders
 // ---------------------------------------------------------------------------
@@ -181,8 +135,8 @@ function getConfidenceFill(posture: string | null): ExcelJS.Fill {
 /**
  * Build the "Procurement Responses" worksheet with all question data.
  *
- * 10 columns: Section, Q#, Question, Response, Word Count, Word Limit,
- * Compliance, Status, Confidence, Weight (%).
+ * 9 columns: Section, Q#, Question, Response, Word Count, Word Limit,
+ * Compliance, Status, Weight (%).
  */
 function buildResponsesSheet(
   workbook: ExcelJS.Workbook,
@@ -201,7 +155,6 @@ function buildResponsesSheet(
     { header: 'Word Limit', key: 'wordLimit', width: 14 },
     { header: 'Compliance', key: 'compliance', width: 14 },
     { header: 'Status', key: 'status', width: 16 },
-    { header: 'Confidence', key: 'confidence', width: 16 },
     { header: 'Weight (%)', key: 'weight', width: 12 },
   ];
 
@@ -235,7 +188,6 @@ function buildResponsesSheet(
       wordLimit: q.word_limit ?? '--',
       compliance: compliance !== null ? `${compliance}%` : 'N/A',
       status: formatStatus(q.review_status || q.status),
-      confidence: formatConfidence(q.confidence_posture),
       weight: q.evaluation_weight ?? '--',
     });
 
@@ -245,13 +197,13 @@ function buildResponsesSheet(
       cell.alignment = { vertical: 'top', wrapText: true };
     });
 
-    // Centre-align numeric and short-text columns (B, E, F, G, H, I, J)
-    const centreColumns = [2, 5, 6, 7, 8, 9, 10];
+    // Centre-align numeric and short-text columns (B, E, F, G, H, I)
+    const centreColumns = [2, 5, 6, 7, 8, 9];
     for (const colNum of centreColumns) {
       row.getCell(colNum).alignment = {
         horizontal: 'center',
         vertical: 'top',
-        wrapText: colNum === 8 || colNum === 9, // Wrap status and confidence
+        wrapText: colNum === 8, // Wrap status
       };
     }
 
@@ -271,16 +223,12 @@ function buildResponsesSheet(
     // Conditional formatting: status column (H)
     const statusCell = row.getCell(8);
     statusCell.fill = getStatusFill(q.review_status || q.status);
-
-    // Conditional formatting: confidence column (I)
-    const confidenceCell = row.getCell(9);
-    confidenceCell.fill = getConfidenceFill(q.confidence_posture);
   }
 
   // Auto-filter across all columns
   sheet.autoFilter = {
     from: { row: 1, column: 1 },
-    to: { row: questions.length + 1, column: 10 },
+    to: { row: questions.length + 1, column: 9 },
   };
 
   // Freeze header row and section column
@@ -373,37 +321,6 @@ function buildSummarySheet(
 
   for (const [label, value] of statsRows) {
     const row = sheet.addRow([label, value]);
-    row.getCell(1).font = { name: 'Calibri', size: 11, bold: true };
-    row.getCell(2).font = { name: 'Calibri', size: 11 };
-    row.getCell(2).alignment = { horizontal: 'left' };
-  }
-
-  // Spacer row (row 16)
-  sheet.addRow([]);
-
-  // Confidence breakdown heading (row 17)
-  const confTitle = sheet.addRow(['Confidence Breakdown']);
-  confTitle.getCell(1).font = { name: 'Calibri', size: 14, bold: true };
-  sheet.mergeCells(`A${confTitle.number}:B${confTitle.number}`);
-
-  // Count confidence postures
-  const confCounts: Record<string, number> = {
-    'Strong Match': 0,
-    'Partial Match': 0,
-    'Needs SME': 0,
-    'No Content': 0,
-  };
-
-  for (const q of questions) {
-    const label = formatConfidence(q.confidence_posture);
-    if (label in confCounts) {
-      confCounts[label]++;
-    }
-  }
-
-  // Confidence rows (rows 18–21)
-  for (const [label, count] of Object.entries(confCounts)) {
-    const row = sheet.addRow([label, count]);
     row.getCell(1).font = { name: 'Calibri', size: 11, bold: true };
     row.getCell(2).font = { name: 'Calibri', size: 11 };
     row.getCell(2).alignment = { horizontal: 'left' };

@@ -194,7 +194,10 @@ export const ReviewActionBodySchema = z.object({
  *  (id-417 / DR-130: 'confidence_asc' retired with
  *  classification_confidence.) */
 /** @public */
-export const VALID_REVIEW_QUEUE_SORTS = ['created_at', 'quality_score_asc'] as const;
+export const VALID_REVIEW_QUEUE_SORTS = [
+  'created_at',
+  'quality_score_asc',
+] as const;
 
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
@@ -2066,7 +2069,6 @@ export const ProcurementResponseSchema = z.object({
     question_text: z.string(),
     word_limit: z.number().nullable(),
     section_name: z.string().nullable(),
-    confidence_posture: z.string().nullable(),
   }),
 });
 

@@ -107,9 +107,7 @@ export const POST = defineRoute(
       // (R7 substrate, BI-37).
       const { data: question, error: qError } = await supabase
         .from('form_questions')
-        .select(
-          'id, question_text, word_limit, section_name, confidence_posture',
-        )
+        .select('id, question_text, word_limit, section_name')
         .eq('id', question_id)
         .eq('form_instance_id', id)
         .single();
@@ -219,7 +217,6 @@ export const POST = defineRoute(
         question_text: question.question_text,
         word_limit: question.word_limit,
         section_name: question.section_name,
-        confidence_posture: question.confidence_posture,
       };
 
       // Create the SSE stream

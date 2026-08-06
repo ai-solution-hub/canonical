@@ -10,7 +10,6 @@ import {
   Pencil,
   PenLine,
   RefreshCw,
-  Search,
   Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ConfidenceBadge } from '@/components/shared/confidence-badge';
 import { QuestionAnswerEditor } from '@/components/procurement/question-answer-editor';
 import { cn } from '@/lib/utils';
 import type { ProcurementQuestion } from '@/types/procurement';
@@ -26,15 +24,13 @@ import type { ProcurementQuestion } from '@/types/procurement';
 /**
  * ID-145 {145.44} (BI-40 — UI-vs-Claude split). Renders the question surfaces
  * consuming the {145.18} question shape: mixed per-question states
- * (drafted/approved/matched/empty) shown HONESTLY — no all-or-nothing
- * framing. A zero-candidate question (no usable match — `confidence_posture`
- * is `null`/`no_content`, i.e. no `question_matches` candidate cleared even
- * the minimal similarity bar, {145.17}) surfaces a manual-answer affordance
+ * (drafted/approved/empty) shown HONESTLY — no all-or-nothing
+ * framing. A question with no response surfaces a manual-answer affordance
  * with TWO acts (fix dispatch on the {145.44} Checker FAIL — BI-40's literal
  * contract): (1) the PRIMARY, deterministic act — save the answer directly
  * against this question via `POST /api/procurement/[id]/responses/manual`,
  * so the question leaves the "empty" state immediately, never contingent on
- * a later re-match clearing `MATCH_THRESHOLDS`; (2) an OPTIONAL, SEPARATE
+ * a later re-match; (2) an OPTIONAL, SEPARATE
  * secondary act — also add the same answer to the knowledge base as a
  * `manually_authored` `q_a_pairs` row via the existing `/api/q-a-pairs/batch`
  * route (ID-131 {131.21}), closing the BI-22 gap loop / feeding BI-24
@@ -66,7 +62,7 @@ export interface ItemQuestionsPanelProps {
 // Honest per-question state derivation (BI-40)
 // ---------------------------------------------------------------------------
 
-type QuestionRenderState = 'approved' | 'drafted' | 'matched' | 'empty';
+type QuestionRenderState = 'approved' | 'drafted' | 'empty';
 
 const QUESTION_STATE_CONFIG: Record<
   QuestionRenderState,
@@ -86,11 +82,6 @@ const QUESTION_STATE_CONFIG: Record<
     icon: CircleDot,
     className: 'text-status-warning',
   },
-  matched: {
-    label: 'Matched',
-    icon: Search,
-    className: 'text-primary',
-  },
   empty: {
     label: 'No match found',
     icon: FileQuestion,
@@ -101,11 +92,13 @@ const QUESTION_STATE_CONFIG: Record<
 /**
  * Derives the honest per-question render state from the {145.18} question
  * shape. Priority: an approved response outranks a merely-drafted one; a
- * drafted response (any review_status short of approved) outranks a bare
- * match candidate; a real match candidate (`confidence_posture` other than
- * `no_content`/`null` — `needs_sme` still means at least one candidate
- * cleared the minimal similarity bar, see `assessConfidence`) outranks
- * nothing at all.
+ * drafted response (any review_status short of approved) outranks nothing
+ * at all.
+ *
+ * S538: there is no longer a bare-match-candidate state between "drafted"
+ * and "empty". It was derived from `confidence_posture`, whose sole writer
+ * was the deleted questions/match route; `question_matches` ({145.17}) is
+ * the sanctioned substrate and carries no per-question posture.
  */
 function deriveQuestionState(
   question: ProcurementQuestion,
@@ -114,12 +107,6 @@ function deriveQuestionState(
     return question.response.review_status === 'approved'
       ? 'approved'
       : 'drafted';
-  }
-  if (
-    question.confidence_posture &&
-    question.confidence_posture !== 'no_content'
-  ) {
-    return 'matched';
   }
   return 'empty';
 }
@@ -383,9 +370,6 @@ function QuestionStateRow({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {state === 'matched' && question.confidence_posture && (
-            <ConfidenceBadge posture={question.confidence_posture} compact />
-          )}
           <QuestionStateBadge state={state} />
           {canEdit && (
             <Button

@@ -90,7 +90,7 @@ export const GET = defineRoute(
       const { data: questions, error: questionsError } = await supabase
         .from('form_questions')
         .select(
-          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, status, has_variants, assigned_to, created_by, created_at, updated_at',
+          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, status, has_variants, assigned_to, created_by, created_at, updated_at',
         )
         .eq('form_instance_id', id)
         .order('section_sequence', { ascending: true })
@@ -300,7 +300,7 @@ export const POST = defineRoute(
           created_by: user.id,
         })
         .select(
-          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
+          'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, assigned_to, created_by, created_at, updated_at',
         )
         .single();
 
@@ -360,7 +360,7 @@ async function handleBatchInsert(
     .from('form_questions')
     .insert(rows)
     .select(
-      'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, confidence_posture, assigned_to, created_by, created_at, updated_at',
+      'id, form_instance_id, section_name, section_sequence, question_text, question_sequence, word_limit, evaluation_weight, assigned_to, created_by, created_at, updated_at',
     );
 
   if (insertError) {

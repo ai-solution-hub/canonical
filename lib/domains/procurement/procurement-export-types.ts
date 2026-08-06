@@ -17,7 +17,6 @@ export interface ExportQuestion {
   question_text: string;
   word_limit: number | null;
   evaluation_weight: number | null;
-  confidence_posture: string | null;
   status: string;
   response_text: string | null;
   response_text_advanced: string | null;

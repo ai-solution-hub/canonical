@@ -34,7 +34,6 @@ function makeQuestion(overrides: Partial<ExportQuestion> = {}): ExportQuestion {
     question_text: 'Describe your approach to data encryption.',
     word_limit: 500,
     evaluation_weight: 15,
-    confidence_posture: 'strong_match',
     status: 'complete',
     response_text:
       '<p>Our approach to data encryption involves AES-256 for data at rest.</p>',
@@ -131,7 +130,7 @@ describe('generateProcurementXlsx', () => {
     expect(sheet.rowCount).toBe(3);
   });
 
-  it('should have 10 columns in the header row', async () => {
+  it('should have 9 columns in the header row', async () => {
     const buffer = await generateProcurementXlsx(makeMetadata(), [
       makeQuestion(),
     ]);
@@ -145,7 +144,7 @@ describe('generateProcurementXlsx', () => {
       columnCount++;
     });
 
-    expect(columnCount).toBe(10);
+    expect(columnCount).toBe(9);
   });
 
   it('should have data row count matching question count', async () => {
@@ -228,17 +227,6 @@ describe('generateProcurementXlsx', () => {
     expect(String(statusCell.value)).toBe('AI Drafted');
   });
 
-  it('should format confidence "strong_match" as "Strong Match"', async () => {
-    const question = makeQuestion({ confidence_posture: 'strong_match' });
-
-    const buffer = await generateProcurementXlsx(makeMetadata(), [question]);
-    const workbook = await loadWorkbook(buffer);
-    const sheet = workbook.getWorksheet('Procurement Responses')!;
-    const confidenceCell = sheet.getRow(2).getCell(9); // Column I
-
-    expect(String(confidenceCell.value)).toBe('Strong Match');
-  });
-
   it('should fall back to "General Questions" for null section_name', async () => {
     const question = makeQuestion({
       section_name: null as unknown as string,
@@ -258,26 +246,22 @@ describe('generateProcurementXlsx', () => {
         question_sequence: 1,
         review_status: 'approved',
         response_text: '<p>Done</p>',
-        confidence_posture: 'strong_match',
       }),
       makeQuestion({
         question_sequence: 2,
         review_status: 'ai_drafted',
         response_text: '<p>AI drafted</p>',
-        confidence_posture: 'partial_match',
       }),
       makeQuestion({
         question_sequence: 3,
         review_status: null,
         response_text: null,
         status: 'not_started',
-        confidence_posture: 'no_content',
       }),
       makeQuestion({
         question_sequence: 4,
         review_status: 'needs_review',
         response_text: '<p>Needs review</p>',
-        confidence_posture: 'needs_sme',
       }),
     ];
 
@@ -302,12 +286,6 @@ describe('generateProcurementXlsx', () => {
     expect(findRow('AI Drafted')?.getCell(2).value).toBe(1);
     expect(findRow('Not Started')?.getCell(2).value).toBe(1);
     expect(findRow('Needs Review')?.getCell(2).value).toBe(1);
-
-    // Confidence breakdown
-    expect(findRow('Strong Match')?.getCell(2).value).toBe(1);
-    expect(findRow('Partial Match')?.getCell(2).value).toBe(1);
-    expect(findRow('Needs SME')?.getCell(2).value).toBe(1);
-    expect(findRow('No Content')?.getCell(2).value).toBe(1);
   });
 
   it('should produce a valid XLSX with header row only when given empty questions', async () => {
