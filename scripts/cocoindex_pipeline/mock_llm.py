@@ -100,22 +100,8 @@ _CLASSIFICATION_PAYLOAD = extraction.ClassificationExtraction(
     rationale="MOCK canned response — id-389 tier-1 wiring substrate",
 ).model_dump_json()
 
-_QA_FORM_PAYLOAD = extraction.QAFormExtraction(
-    form_metadata=extraction.FormMetadata(
-        form_type="questionnaire",
-        form_format="md",
-        form_title="MOCK form (id-389 tier-1)",
-    ),
-    qa_pairs=[
-        # One ANSWERED pair so promotion-funnel wiring sees an eligible row
-        # (an unanswered pair is Class A — permanently unpromotable, id-370).
-        extraction.QAPair(
-            question_text="MOCK: what is your quality assurance policy?",
-            answer_text="MOCK: we operate an ISO 9001-aligned QA policy.",
-            expected_response_kind="mandatory",
-        )
-    ],
-).model_dump_json()
+# The Q&A payload is built PER CONTENT — see `_qa_form_payload` below for why
+# the former module-level constant could not stay.
 
 # Entity mentions and relationships are NOT static: their DB write targets
 # carry uniqueness constraints keyed on the extracted NAME
@@ -247,11 +233,50 @@ def _classification_payload(content_text: str) -> str:
 
 
 def _qa_form_payload(content_text: str) -> str:
-    # No observed uniqueness constraint on q_a_extractions question text
-    # (run 30310909744: zero violations from this class) — keep static
-    # until the DB proves otherwise.
-    del content_text
-    return _QA_FORM_PAYLOAD
+    # This payload was a single module-level constant, on the stated ground:
+    # "No observed uniqueness constraint on q_a_extractions question text
+    # (run 30310909744: zero violations from this class) — keep static until
+    # the DB proves otherwise."
+    #
+    # The DB has now proved otherwise, and not via a uniqueness violation.
+    # Every mock-tier document minted the SAME question/answer text, and the
+    # promotion funnel publishes AND EMBEDS what it promotes — so staging
+    # accumulated 88 published pairs whose embeddings are identical to six
+    # decimal places. Measured consequences (S538):
+    #   * a complete pairwise dedup clique — C(88,2) = 3828 candidate pairs at
+    #     cosine 1.0000, re-proposed on every walk, costing ~300s per walk and
+    #     writing nothing on 14 of 15 walks;
+    #   * q_a_search polluted on EVERY real query (median 10 of 20 results,
+    #     worst 17 of 20);
+    #   * the MCP `kb://qa/` resource list returning 10 identical rows of 10.
+    # The genuine corpus produces ZERO candidates at the 0.92 threshold
+    # (max observed similarity 0.8175), so the clique is entirely mock-made.
+    #
+    # The requirement was DETERMINISM, never sameness. Deriving from
+    # `content_text` — the same key the extractors memoise on, and the idiom
+    # the entity/relationship payloads above already use — keeps every
+    # assertion reproducible while giving each document a distinct vector.
+    tag = _content_tag(content_text)
+    return extraction.QAFormExtraction(
+        form_metadata=extraction.FormMetadata(
+            form_type="questionnaire",
+            form_format="md",
+            form_title=f"MOCK form {tag} (id-389 tier-1)",
+        ),
+        qa_pairs=[
+            # One ANSWERED pair so promotion-funnel wiring sees an eligible row
+            # (an unanswered pair is Class A — permanently unpromotable, id-370).
+            extraction.QAPair(
+                question_text=(
+                    f"MOCK {tag}: what is your quality assurance policy?"
+                ),
+                answer_text=(
+                    f"MOCK {tag}: we operate an ISO 9001-aligned QA policy."
+                ),
+                expected_response_kind="mandatory",
+            )
+        ],
+    ).model_dump_json()
 
 
 # Boot-time self-check: every canned payload must round-trip the EXACT
