@@ -53,3 +53,4 @@ components.json
 lib/branding/clients/default.json
 pyproject.toml
 scripts/tests/fixtures/
+.warp/

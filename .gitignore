@@ -166,3 +166,8 @@ ds-bundle/
 # MemTrace Code Intelligence
 .memdb/
 .memtrace/
+.claude/skills/memtrace-*/
+
+.warp/
+
+.claude/skills/gitnexus/

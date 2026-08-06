@@ -1,4 +1,5 @@
 <!-- gitnexus:start -->
+<!-- gitnexus:keep-->
 
 # GitNexus — Code Intelligence
 
@@ -53,4 +54,5 @@ impact, and navigate safely.
 | Tools, resources, schema reference           | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md`           |
 | Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md`             |
 
+<!-- gitnexus:keep-->
 <!-- gitnexus:end -->
