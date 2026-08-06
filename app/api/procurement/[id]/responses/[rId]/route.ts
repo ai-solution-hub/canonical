@@ -96,7 +96,7 @@ export const GET = defineRoute(
       let sourceContent: Array<{
         id: string;
         title: string | null;
-        content_type: string | null;
+        owner_kind: string | null;
         summary: string | null;
       }> = [];
 
@@ -123,13 +123,13 @@ export const GET = defineRoute(
           ...qaRows.map((row) => ({
             id: row.id,
             title: row.question_text,
-            content_type: 'q_a_pair',
+            owner_kind: 'q_a_pair',
             summary: row.answer_standard,
           })),
           ...riRows.map((row) => ({
             id: row.id,
             title: row.title,
-            content_type: 'reference_item',
+            owner_kind: 'reference_item',
             summary: row.summary,
           })),
         ];

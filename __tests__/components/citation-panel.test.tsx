@@ -31,9 +31,7 @@ function makeSource(overrides: Record<string, unknown> = {}) {
   return {
     id: 'src-1',
     title: 'Test Source',
-    content_type: 'article',
-    primary_domain: 'construction',
-    primary_subtopic: 'quality',
+    owner_kind: 'q_a_pair',
     summary: 'A summary of this source.',
     ...overrides,
   };

@@ -14,12 +14,13 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { CitationEntry } from '@/types/procurement-metadata';
 
-// id-417 / DR-130: the primary_domain/primary_subtopic fields retired with
-// the subject-taxonomy axis.
+// id-417: `owner_kind` is the grain of the cited record ('q_a_pair' |
+// 'reference_item'), synthesised by the responses route — never the
+// source_documents editorial column (DR-050 first clause).
 interface SourceContent {
   id: string;
   title: string | null;
-  content_type: string | null;
+  owner_kind: string | null;
   summary: string | null;
   similarity?: number;
 }
@@ -150,12 +151,12 @@ export function CitationPanel({
                           Source removed
                         </Badge>
                       )}
-                      {source?.content_type && (
+                      {source?.owner_kind && (
                         <Badge
                           variant="outline"
                           className="text-[10px] px-1.5 py-0"
                         >
-                          {source.content_type.replace(/_/g, ' ')}
+                          {source.owner_kind.replace(/_/g, ' ')}
                         </Badge>
                       )}
                       {source?.similarity != null && (

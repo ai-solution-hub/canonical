@@ -101,6 +101,13 @@ export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {
   similarity: number;
   snippet?: string | null;
   user_tags?: ContentListItem['user_tags'];
+  /**
+   * Result GRAIN — 'source_document' | 'q_a_pair' | 'reference_item'. Projected
+   * by hybrid_search (DR-050 / id-144 OD-2) and distinct from `content_type`,
+   * which stays the source_documents editorial value. Anything routing or
+   * filtering by kind reads this; `content_type` is display only.
+   */
+  owner_kind?: string | null;
 }
 
 // CONTENT_LIST_COLUMNS / CONTENT_DETAIL_COLUMNS RETIRED (ID-131.19, M6, S450

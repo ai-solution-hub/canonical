@@ -96,7 +96,7 @@ export interface ProcurementResponse {
   source_content: Array<{
     id: string;
     title: string | null;
-    content_type: string | null;
+    owner_kind: string | null;
     summary: string | null;
     similarity?: number;
   }>;

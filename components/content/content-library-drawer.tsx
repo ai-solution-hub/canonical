@@ -27,7 +27,10 @@ interface ContentLibraryDrawerProps {
     | null;
 }
 
-type ContentTypeFilter = 'all' | 'q_a_pair';
+// id-417 / DR-050: this filters the result GRAIN, not the source_documents
+// editorial `content_type`. hybrid_search projects `owner_kind` for exactly
+// this; `use-corpus-search.ts` already derives kind the same way.
+type GrainFilter = 'all' | 'q_a_pair';
 
 /**
  * Content Library Drawer — slides in from the right in the bid session page.
@@ -42,7 +45,7 @@ export function ContentLibraryDrawer({
 }: ContentLibraryDrawerProps) {
   const { results, isLoading, error, search } = useSearch();
   const [query, setQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<ContentTypeFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<GrainFilter>('all');
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,7 +116,7 @@ export function ContentLibraryDrawer({
   // Filter results client-side by content type
   const filteredResults = useMemo(() => {
     return results.filter((r) => {
-      if (typeFilter !== 'all' && r.content_type !== typeFilter) return false;
+      if (typeFilter !== 'all' && r.owner_kind !== typeFilter) return false;
       return true;
     });
   }, [results, typeFilter]);
