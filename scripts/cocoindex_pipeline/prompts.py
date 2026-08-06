@@ -47,8 +47,8 @@ References:
 from __future__ import annotations
 
 
-# ID-133 BI-3 (S451 owner-ratified freeze): content_type FIELD CONSTRAINTS
-# below trimmed from 15 to the 7-value stay-set — kept in exact bidirectional
+# ID-133 BI-3 (UNRATIFIED — see extraction.py): content_type FIELD CONSTRAINTS
+# below trimmed from 15 to the 7-value set — kept in exact bidirectional
 # parity with the inline `_VALID_CONTENT_TYPES` constant (DR-130;
 # scripts/cocoindex_pipeline/extraction.py) by
 # `TestPromptsEnumeratesEnums.test_classification_enumerates_content_types`

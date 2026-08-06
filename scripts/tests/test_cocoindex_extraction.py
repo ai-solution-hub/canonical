@@ -1018,9 +1018,9 @@ class TestExpectedResponseKindParity:
 class TestContentTypeGate:
     """Q-EX2 §5.4 — runtime validator vs the inline constant (DR-130).
 
-    ID-133 BI-3 (S451 owner-ratified freeze) trimmed the canonical
-    content_type list from 15 to 7 (the source_documents-editorial-shape
-    stay-set: article/blog/pdf/note/research/document/other). DR-130
+    ID-133 BI-3 (UNRATIFIED — see extraction.py) trimmed the canonical
+    content_type list from 15 to 7 (article/blog/pdf/note/research/
+    document/other). DR-130
     replaced the snapshot-backed load with the inline transitional
     `_VALID_CONTENT_TYPES` constant, pending the id-417 OQ5 content-type
     rework — pin the stay-set here so an accidental edit is loud.

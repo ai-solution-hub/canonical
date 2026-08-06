@@ -117,16 +117,15 @@ def _resolve_coco_deserialization_error() -> type[BaseException]:
 ANTHROPIC_MODEL = "claude-opus-4-6"
 
 
-# Content-type runtime validator (Q-EX2 TECH §2.2). DR-130 retired
-# `scripts/tests/fixtures/taxonomy_snapshot.json` entirely — this inline
-# frozenset is the TRANSITIONAL constant that replaces the snapshot's
-# `content_types` array (the values were hardcoded in the retired
-# `scripts/generate-taxonomy-snapshot.ts` generator, never DB-derived).
-# It is the ID-133 BI-3 stay-set (S451 owner-ratified), byte-equal to the
-# last snapshot's array. The value set is pending the id-417 OQ5
-# content-type rework — do not extend it here; that rework owns the
-# successor shape. TS mirror: `lib/ontology/content-type-registry.ts`
-# (`CONTENT_TYPE_VALUES`).
+# Content-type runtime validator (Q-EX2 TECH §2.2).
+#
+# UNRATIFIED. These 7 values are the IMS-fork inventory minus what ID-133 BI-3
+# moved to `concept_type`; nothing ever selected them. The "S451 owner-ratified
+# freeze" this comment used to claim was asserted in a commit message, not in
+# any ruling — S451's retro and continuation prompt do not mention content_type,
+# and `ontology/04-content-type.md` still reads "flagged for the owner before
+# the fixture is frozen". id-417 OQ5 owns the successor shape; do not extend
+# here. TS mirror: `lib/ontology/content-type-registry.ts`.
 _VALID_CONTENT_TYPES: frozenset[str] = frozenset(
     {
         "article",

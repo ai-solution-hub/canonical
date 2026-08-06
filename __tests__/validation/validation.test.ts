@@ -8,8 +8,8 @@ import {
 // inline-editing allowlist was deleted with its content_items-era editor.)
 
 describe('constant arrays', () => {
-  // ID-133 BI-3 (S451 owner-ratified freeze): content_type trimmed from 15 to
-  // the 7-value source_documents editorial-shape stay-set. q_a_pair migrated
+  // ID-133 BI-3 (UNRATIFIED — see scripts/cocoindex_pipeline/extraction.py):
+  // content_type trimmed from 15 to 7. q_a_pair migrated
   // out to its own Layer-5 class (32-q-a-pair.md); case_study/policy/
   // certification/compliance/methodology/capability/product_description
   // moved to the L-concept type discriminators (37-concept-type.md).
