@@ -597,26 +597,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const formInstanceIds = (formInstances ?? []).map((f) => f.id);
       const procurementId = formInstanceIds[0];
 
-      // --- Workspace-item assignments: link items 0-3 to kb_section ---
-      //
-      // ID-131.19 M6 retirement: `content_item_workspaces` (many-to-many
-      // junction) was DROPPED at M6 — `source_documents` now carries a
-      // direct `workspace_id` FK column instead. Of items 0-3, only indices
-      // 0 and 3 are `source_documents` rows (1 and 2 are `q_a_pairs`, which
-      // has no workspace_id column at all — this narrows the original
-      // 4-item link to 2; no live spec asserts on the q_a_pairs items'
-      // workspace membership).
-      const kbSectionItemIds = [itemIds[0], itemIds[3]].filter(
-        (id): id is string => Boolean(id) && sourceDocumentIds.includes(id),
-      );
-      if (kbSectionItemIds.length > 0) {
-        await supabase
-          .from('source_documents')
-          .update({ workspace_id: kbSectionId })
-          .in('id', kbSectionItemIds)
-          .throwOnError();
-      }
-
       // --- Procurement questions + responses (from centralised shapes) ---
       // id-130 renamed the bid-prefixed tables onto the form-domain model:
       // `bid_questions` → `form_questions` and `bid_responses` →
