@@ -41,10 +41,6 @@
   "regions": ["lhr1"],
   "crons": [
     {
-      "path": "/api/cron/freshness-transitions",
-      "schedule": "15 3 * * *"
-    },
-    {
       "path": "/api/cron/intelligence-cleanup",
       "schedule": "0 3 * * 0"
     },
