@@ -131,6 +131,25 @@ if (projectRoot) {
 // ---------------------------------------------------------------------------
 const RUN_INTEGRATION = Boolean(process.env.KH_RUN_INTEGRATION);
 
+/**
+ * `question_matches.question_kind` FKs `form_types.key` (ON DELETE RESTRICT),
+ * so this must be a LIVE catalogue key.
+ *
+ * It was hardcoded to `'bid'`, which migration
+ * `20260712065000_id145_bi8_retire_bid_creation_label.sql` DELETEd (ID-145
+ * BI-8/BI-12, S474) and which `supabase/seed.sql` then refuses to re-seed —
+ * deliberately, and it says so: "Seeding 'bid' here would silently resurrect
+ * the exact row that migration exists to retire." Every recompute therefore
+ * failed FK 23503, taking 10 integration cases down on every run since. Known
+ * and unowned since S501 (recorded verbatim in id-128: "It needs an owner or
+ * an explicit ruling").
+ *
+ * The kind is arbitrary to what these tests assert — they exercise storage and
+ * filtering of the value, not any semantics of it — so it just needs to be a
+ * real key. `'itt'` is core-provenance and present in seed.sql's seven.
+ */
+const PRIMARY_QUESTION_KIND = 'itt';
+
 // ---------------------------------------------------------------------------
 // Service-role client (bypasses RLS for setup/teardown).
 // ---------------------------------------------------------------------------
@@ -468,7 +487,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         p_form_question_id: formQuestionId,
         p_query: 'GDPR compliance documentation',
         p_query_embedding: JSON.stringify(queryEmbedding), // CLAUDE.md: must stringify
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,
@@ -483,11 +502,11 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       // Read the materialised edges back through the reader RPC — the
       // sanctioned access surface (ID-57.7 fix; see module docstring).
-      // A4 (question_kind stored verbatim): filtering by 'bid' returns both
-      // pairs, proving the caller-supplied kind was persisted as 'bid'.
+      // A4 (question_kind stored verbatim): filtering by that kind returns both
+      // pairs, proving the caller-supplied kind was persisted verbatim.
       const { data: matches, error: searchError } = await search({
         p_form_question_id: formQuestionId,
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
       });
       expect(searchError, `search failed: ${searchError?.message}`).toBeNull();
       expect(matches!.length, 'two candidate edges materialised').toBe(2);
@@ -584,7 +603,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         p_form_question_id: formQuestionId,
         p_query: 'information security ISO 27001',
         p_query_embedding: JSON.stringify(makeEmbedding(1.0, 0.0)),
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,
@@ -645,7 +664,7 @@ describe.skipIf(!RUN_INTEGRATION)(
 
       const baseArgs = {
         p_form_question_id: formQuestionId,
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,
@@ -738,7 +757,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         p_form_question_id: formQuestionId,
         p_query: 'completely unrelated procurement terminology',
         p_query_embedding: JSON.stringify(queryEmbedding),
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,
@@ -811,7 +830,7 @@ describe.skipIf(!RUN_INTEGRATION)(
         p_form_question_id: formQuestionId,
         p_query: 'anti-parallel clamp probe',
         p_query_embedding: JSON.stringify(antiParallelEmbedding),
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
         p_scope_tag: ['procurement'],
         p_anti_scope_tag: [],
         p_limit: 20,

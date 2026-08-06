@@ -121,6 +121,25 @@ if (projectRoot) {
 // ---------------------------------------------------------------------------
 const RUN_INTEGRATION = Boolean(process.env.KH_RUN_INTEGRATION);
 
+/**
+ * `question_matches.question_kind` FKs `form_types.key` (ON DELETE RESTRICT),
+ * so this must be a LIVE catalogue key.
+ *
+ * It was hardcoded to `'bid'`, which migration
+ * `20260712065000_id145_bi8_retire_bid_creation_label.sql` DELETEd (ID-145
+ * BI-8/BI-12, S474) and which `supabase/seed.sql` then refuses to re-seed —
+ * deliberately, and it says so: "Seeding 'bid' here would silently resurrect
+ * the exact row that migration exists to retire." Every recompute therefore
+ * failed FK 23503, taking 10 integration cases down on every run since. Known
+ * and unowned since S501 (recorded verbatim in id-128: "It needs an owner or
+ * an explicit ruling").
+ *
+ * The kind is arbitrary to what these tests assert — they exercise the
+ * FILTER, not any semantics of the value — so it just needs to be a real key.
+ * `'itt'` is core-provenance and present in seed.sql's seven.
+ */
+const PRIMARY_QUESTION_KIND = 'itt';
+
 // ---------------------------------------------------------------------------
 // Service-role client (bypasses RLS for setup/teardown).
 // ---------------------------------------------------------------------------
@@ -349,7 +368,7 @@ async function materialise(
     p_query_embedding: JSON.stringify(
       opts.queryEmbedding ?? makeEmbedding(1.0, 0.0),
     ),
-    p_question_kind: opts.questionKind ?? 'bid',
+    p_question_kind: opts.questionKind ?? PRIMARY_QUESTION_KIND,
     p_scope_tag: opts.scopeTag ?? ['procurement'],
     p_anti_scope_tag: [],
     p_limit: opts.limit ?? 20,
@@ -706,8 +725,8 @@ describe.skipIf(!RUN_INTEGRATION)(
         scopeTag: ['procurement'],
       });
 
-      // Discover a SECOND valid form_types key (other than 'bid') so the kind
-      // filter has something to discriminate against. Fall back gracefully if the
+      // Discover a SECOND valid form_types key so the kind filter has
+      // something to discriminate against. Fall back gracefully if the
       // catalogue only has one kind.
       const { data: kinds, error: kindsErr } = await db
         .from('form_types')
@@ -719,15 +738,15 @@ describe.skipIf(!RUN_INTEGRATION)(
       ).toBeNull();
       const otherKind = (kinds ?? [])
         .map((k) => k.key as string)
-        .find((k) => k !== 'bid');
+        .find((k) => k !== PRIMARY_QUESTION_KIND);
 
-      // Materialise the SAME corpus under the 'bid' kind.
-      await materialise(fq, { questionKind: 'bid' });
+      // Materialise the SAME corpus under the primary kind.
+      await materialise(fq, { questionKind: PRIMARY_QUESTION_KIND });
 
-      // Filtering by 'bid' returns the materialised pair.
+      // Filtering by that kind returns the materialised pair.
       const bidResult = await search({
         p_form_question_id: fq,
-        p_question_kind: 'bid',
+        p_question_kind: PRIMARY_QUESTION_KIND,
       });
       expect(bidResult.error).toBeNull();
       expect(bidResult.data!.map((r) => r.q_a_pair_id)).toEqual([pairBid]);
@@ -737,7 +756,7 @@ describe.skipIf(!RUN_INTEGRATION)(
       expect(allResult.error).toBeNull();
       expect(allResult.data!.map((r) => r.q_a_pair_id)).toEqual([pairBid]);
 
-      // Filtering by a DIFFERENT kind returns nothing (the edge is kind='bid').
+      // Filtering by a DIFFERENT kind returns nothing (the edge is the primary kind).
       if (otherKind) {
         const otherResult = await search({
           p_form_question_id: fq,
