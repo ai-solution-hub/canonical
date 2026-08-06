@@ -492,12 +492,9 @@ describeIfEnv(
         : before.data;
       const baselineCount = Number(beforeRow.at_risk_citation_count);
 
-      // Seed one at-risk citation: a source_document + reference_item pair,
-      // then a citation with cited_kind='reference_item'.
-      const sdId = await seedSourceDocument({
-        label: 'preflight-sd',
-        retentionClass: 'keep_and_watch',
-      });
+      // Seed one at-risk citation: a standalone reference_item (DR-124 — no
+      // paired source_documents row), then a citation with
+      // cited_kind='reference_item'.
       // reference_items.id has NO column default (DR-024 i) — mint the
       // registry-keyed id per the frozen SEED-CONTRACT (uuid5(NS, "ri:"+url),
       // the SAME formula scripts/cocoindex_pipeline/flow.py:3361 uses), keyed
@@ -510,7 +507,6 @@ describeIfEnv(
           title: `[${TEST_TAG}] preflight reference item`,
           body: 'disposable preflight-check body',
           source_url: preflightSourceUrl,
-          source_document_id: sdId,
           ingestion_source: 'url_import',
         })
         .select('id')
