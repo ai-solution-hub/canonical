@@ -63,25 +63,25 @@ DROP VIEW IF EXISTS api.review_assignments;
 --     they delegate to public), plus the two classification trigger legs
 -- ═════════════════════════════════════════════════════════════════════════
 
-DROP FUNCTION IF EXISTS api.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, text, text, timestamp with time zone, timestamp with time zone);
-DROP FUNCTION IF EXISTS api.reference_ingest(text, text, text, text, text, text, vector, timestamp with time zone, text, text, integer, text, jsonb, uuid);
+DROP FUNCTION IF EXISTS api.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, text, text, timestamp with time zone, timestamp with time zone);
+DROP FUNCTION IF EXISTS api.reference_ingest(text, text, text, text, text, text, extensions.vector, timestamp with time zone, text, text, integer, text, jsonb, uuid);
 DROP FUNCTION IF EXISTS api.reference_list(integer, integer, text, text, text, timestamp with time zone, timestamp with time zone);
-DROP FUNCTION IF EXISTS api.reference_search(text, vector, integer);
+DROP FUNCTION IF EXISTS api.reference_search(text, extensions.vector, integer);
 DROP FUNCTION IF EXISTS api.reference_get_verbatim(uuid);
 
-DROP FUNCTION IF EXISTS public.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, text, text, timestamp with time zone, timestamp with time zone);
-DROP FUNCTION IF EXISTS public.reference_ingest(text, text, text, text, text, text, vector, timestamp with time zone, text, text, integer, text, jsonb, uuid);
+DROP FUNCTION IF EXISTS public.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, text, text, timestamp with time zone, timestamp with time zone);
+DROP FUNCTION IF EXISTS public.reference_ingest(text, text, text, text, text, text, extensions.vector, timestamp with time zone, text, text, integer, text, jsonb, uuid);
 DROP FUNCTION IF EXISTS public.reference_list(integer, integer, text, text, text, timestamp with time zone, timestamp with time zone);
-DROP FUNCTION IF EXISTS public.reference_search(text, vector, integer);
+DROP FUNCTION IF EXISTS public.reference_search(text, extensions.vector, integer);
 DROP FUNCTION IF EXISTS public.reference_get_verbatim(uuid);
 
 -- IMS-era search RPCs: zero repo callers (measured — the MCP `find`
 -- consolidation replaced search_content/search_content_chunks; only comment
 -- mentions remain), bodies read sd.primary_domain/primary_subtopic and the
 -- classification columns dropped below. Retired outright, not replaced.
-DROP FUNCTION IF EXISTS public.search_content(vector, numeric, integer);
-DROP FUNCTION IF EXISTS public.search_content(vector, double precision, integer);
-DROP FUNCTION IF EXISTS public.search_content_chunks(vector, numeric, integer, uuid, boolean, integer, character varying);
+DROP FUNCTION IF EXISTS public.search_content(extensions.vector, numeric, integer);
+DROP FUNCTION IF EXISTS public.search_content(extensions.vector, double precision, integer);
+DROP FUNCTION IF EXISTS public.search_content_chunks(extensions.vector, numeric, integer, uuid, boolean, integer, character varying);
 
 -- get_popular_keywords aggregated sd.ai_keywords (dropped in §4 — owner
 -- ruling: the semantics axis narrows to embeddings + entity extraction).
@@ -261,7 +261,7 @@ ALTER TABLE public.review_assignments
 -- BI-29) now scores on filename only (suggested_title / summary /
 -- ai_keywords sources all dropped); its summary/snippet project NULL.
 CREATE FUNCTION public.hybrid_search(
-  query_embedding vector,
+  query_embedding extensions.vector,
   query_text text DEFAULT ''::text,
   similarity_threshold numeric DEFAULT 0.3,
   limit_count integer DEFAULT 10,
@@ -531,8 +531,8 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) TO authenticated, service_role;
 
 -- §10b reference_ingest — DR-124: lands reference_items ONLY. No sd mint, no
 -- doc-shell params (p_filename/p_mime_type/p_file_size/p_content_hash/
@@ -548,7 +548,7 @@ CREATE FUNCTION public.reference_ingest(
   p_title text,
   p_body text,
   p_summary text,
-  p_embedding vector,
+  p_embedding extensions.vector,
   p_published_at timestamp with time zone,
   p_op_id uuid DEFAULT NULL::uuid)
 RETURNS TABLE(reference_id uuid, title text, summary text, source_url text, already_existed boolean)
@@ -604,8 +604,8 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.reference_ingest(text, text, text, text, vector, timestamp with time zone, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.reference_ingest(text, text, text, text, vector, timestamp with time zone, uuid) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.reference_ingest(text, text, text, text, extensions.vector, timestamp with time zone, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reference_ingest(text, text, text, text, extensions.vector, timestamp with time zone, uuid) TO authenticated, service_role;
 
 -- §10c reference_list — domain filter params + domain/source_document_id
 -- output columns removed (DR-130 / DR-124); otherwise carried forward.
@@ -650,7 +650,7 @@ GRANT EXECUTE ON FUNCTION public.reference_list(integer, integer, text, timestam
 -- 42703 on every call). Domain/source_document_id outputs removed.
 CREATE FUNCTION public.reference_search(
   p_query text,
-  p_query_embedding vector,
+  p_query_embedding extensions.vector,
   p_limit integer DEFAULT 20)
 RETURNS TABLE(reference_id uuid, title text, summary_preview text, body_preview text, embedding_score numeric, fulltext_score numeric, source_url text, published_at timestamp with time zone, layer text, ingestion_source text)
 LANGUAGE plpgsql
@@ -709,8 +709,8 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.reference_search(text, vector, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.reference_search(text, vector, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.reference_search(text, extensions.vector, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reference_search(text, extensions.vector, integer) TO authenticated, service_role;
 
 -- §10e reference_get_verbatim — domain/source_document_id outputs removed;
 -- embedding still deliberately omitted (BI-16 payload discipline).
@@ -939,7 +939,7 @@ $function$;
 -- ═════════════════════════════════════════════════════════════════════════
 
 CREATE FUNCTION api.hybrid_search(
-  query_embedding vector,
+  query_embedding extensions.vector,
   query_text text DEFAULT ''::text,
   similarity_threshold numeric DEFAULT 0.3,
   limit_count integer DEFAULT 10,
@@ -962,15 +962,15 @@ AS $function$
   SELECT * FROM public.hybrid_search(query_embedding => query_embedding, query_text => query_text, similarity_threshold => similarity_threshold, limit_count => limit_count, include_superseded => include_superseded, visibility_filter => visibility_filter, application_type => application_type, filter_kind => filter_kind, filter_date_from => filter_date_from, filter_date_to => filter_date_to);
 $function$;
 
-REVOKE ALL ON FUNCTION api.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.hybrid_search(vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION api.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.hybrid_search(extensions.vector, text, numeric, integer, boolean, character varying, text, text, timestamp with time zone, timestamp with time zone) TO authenticated, service_role;
 
 CREATE FUNCTION api.reference_ingest(
   p_source_url text,
   p_title text,
   p_body text,
   p_summary text,
-  p_embedding vector,
+  p_embedding extensions.vector,
   p_published_at timestamp with time zone,
   p_op_id uuid DEFAULT NULL::uuid)
 RETURNS TABLE(reference_id uuid, title text, summary text, source_url text, already_existed boolean)
@@ -980,8 +980,8 @@ AS $function$
   SELECT * FROM public.reference_ingest(p_source_url => p_source_url, p_title => p_title, p_body => p_body, p_summary => p_summary, p_embedding => p_embedding, p_published_at => p_published_at, p_op_id => p_op_id);
 $function$;
 
-REVOKE ALL ON FUNCTION api.reference_ingest(text, text, text, text, vector, timestamp with time zone, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reference_ingest(text, text, text, text, vector, timestamp with time zone, uuid) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION api.reference_ingest(text, text, text, text, extensions.vector, timestamp with time zone, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.reference_ingest(text, text, text, text, extensions.vector, timestamp with time zone, uuid) TO authenticated, service_role;
 
 CREATE FUNCTION api.reference_list(
   p_limit integer DEFAULT 48,
@@ -1001,7 +1001,7 @@ GRANT EXECUTE ON FUNCTION api.reference_list(integer, integer, text, timestamp w
 
 CREATE FUNCTION api.reference_search(
   p_query text,
-  p_query_embedding vector,
+  p_query_embedding extensions.vector,
   p_limit integer DEFAULT 20)
 RETURNS TABLE(reference_id uuid, title text, summary_preview text, body_preview text, embedding_score numeric, fulltext_score numeric, source_url text, published_at timestamp with time zone, layer text, ingestion_source text)
 LANGUAGE sql
@@ -1010,8 +1010,8 @@ AS $function$
   SELECT * FROM public.reference_search(p_query => p_query, p_query_embedding => p_query_embedding, p_limit => p_limit);
 $function$;
 
-REVOKE ALL ON FUNCTION api.reference_search(text, vector, integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION api.reference_search(text, vector, integer) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION api.reference_search(text, extensions.vector, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION api.reference_search(text, extensions.vector, integer) TO authenticated, service_role;
 
 CREATE FUNCTION api.reference_get_verbatim(p_reference_id uuid)
 RETURNS TABLE(id uuid, title text, body text, summary text, source_url text, published_at timestamp with time zone, layer text, ingestion_source text, op_id uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
