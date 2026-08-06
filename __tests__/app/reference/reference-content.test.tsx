@@ -64,11 +64,11 @@ function makeRow(overrides: Partial<ReferenceListItem> = {}) {
     body_preview: 'Body preview.',
     source_url: 'https://example.com/a',
     published_at: '2026-01-15T00:00:00Z',
-    primary_domain: 'procurement',
-    primary_subtopic: 'tendering',
+
+
     layer: 'detail',
     ingestion_source: 'url_import',
-    source_document_id: '22222222-2222-4222-8222-222222222222',
+
     ...overrides,
   };
 }
@@ -189,8 +189,8 @@ describe('ReferenceContent — filters (server-side pushdown, B-16/B-17/B-31)', 
     expect(mockPush).toHaveBeenCalledWith('/reference?source=rss_feed');
   });
 
-  it('passes an active domain filter into the reference_list RPC param', async () => {
-    navState.search = 'domain=legal';
+  it('passes an active source filter into the reference_list RPC param', async () => {
+    navState.search = 'source=rss_feed';
     mockRpc.mockResolvedValue({ data: [makeRow()], error: null });
 
     renderContent();
@@ -198,7 +198,7 @@ describe('ReferenceContent — filters (server-side pushdown, B-16/B-17/B-31)', 
     await waitFor(() =>
       expect(mockRpc).toHaveBeenCalledWith(
         'reference_list',
-        expect.objectContaining({ p_primary_domain: 'legal' }),
+        expect.objectContaining({ p_ingestion_source: 'rss_feed' }),
       ),
     );
   });

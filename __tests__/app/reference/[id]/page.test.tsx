@@ -5,10 +5,15 @@
  * through its data-fetch branches by mocking only the I/O seam
  * (`@/lib/supabase/server` `createClient`) and `next/navigation.notFound`.
  * Everything below `createClient` — the `reference_get_verbatim` RPC primary
- * read, the B-28 `source_documents` secondary read via `tryQuery`, the
- * notFound/error branching, and the rendered provenance — runs unmocked.
+ * read, the notFound/error branching, and the rendered provenance — runs
+ * unmocked.
  *
- * Spec: PRODUCT.md B-1..B-7, B-27, B-28, B-2, B-26; TECH.md Seam 2.
+ * id-417 / DR-130 + DR-124: the domain/subtopic badges and the B-28
+ * source_documents secondary read retired with the subject-taxonomy axis
+ * and the sd shell — the ingestion_source plain-language line is the
+ * provenance surface.
+ *
+ * Spec: PRODUCT.md B-1..B-7, B-27, B-2, B-26; TECH.md Seam 2.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -46,10 +51,7 @@ vi.mock('next/link', () => ({
 
 // Import AFTER mocks
 import ReferenceDetailPage from '@/app/reference/[id]/page';
-import type {
-  ReferenceDetail,
-  ReferenceSourceDocument,
-} from '@/types/reference';
+import type { ReferenceDetail } from '@/types/reference';
 
 // ---------------------------------------------------------------------------
 // Data factories
@@ -67,10 +69,7 @@ function makeReference(
     summary: 'A concise summary of procurement trends.',
     source_url: 'https://example.com/procurement-trends',
     published_at: '2026-01-15T00:00:00Z',
-    primary_domain: 'procurement',
-    primary_subtopic: 'tendering',
     layer: 'detail',
-    source_document_id: '22222222-2222-4222-8222-222222222222',
     ingestion_source: 'url_import',
     op_id: 'op-1',
     created_at: '2026-01-16T00:00:00Z',
@@ -79,44 +78,13 @@ function makeReference(
   };
 }
 
-function makeSourceDocument(
-  overrides: Partial<ReferenceSourceDocument> = {},
-): ReferenceSourceDocument {
-  return {
-    original_filename: 'procurement-trends.html',
-    filename: 'procurement-trends.md',
-    mime_type: 'text/markdown',
-    file_size: 20480,
-    extraction_method: 'trafilatura_url',
-    source_url: 'https://example.com/procurement-trends',
-    created_at: '2026-01-16T09:30:00Z',
-    ...overrides,
-  };
-}
-
 /**
  * Build a mock Supabase client whose `rpc('reference_get_verbatim', ...)`
- * resolves to `rpcResult` and whose
- * `from('source_documents').select(...).eq(...).maybeSingle()` resolves to
- * `sdResult`. Both shapes match the real PostgREST `{ data, error }` envelope.
+ * resolves to `rpcResult` — the real PostgREST `{ data, error }` envelope.
  */
-function makeClient(opts: {
-  rpcResult: { data: unknown; error: unknown };
-  sdResult?: { data: unknown; error: unknown };
-}) {
-  const sdChain = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    maybeSingle: vi
-      .fn()
-      .mockResolvedValue(opts.sdResult ?? { data: null, error: null }),
-  };
-  sdChain.select.mockReturnValue(sdChain);
-  sdChain.eq.mockReturnValue(sdChain);
-
+function makeClient(opts: { rpcResult: { data: unknown; error: unknown } }) {
   return {
     rpc: vi.fn().mockResolvedValue(opts.rpcResult),
-    from: vi.fn().mockReturnValue(sdChain),
   };
 }
 
@@ -139,14 +107,11 @@ describe('ReferenceDetailPage', () => {
     });
   });
 
-  // ---- Happy path: body + metadata + B-28 provenance ----
+  // ---- Happy path: body + metadata ----
 
   it('renders the title, markdown body, and summary for an existing reference', async () => {
     mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: { data: makeSourceDocument(), error: null },
-      }),
+      makeClient({ rpcResult: { data: [makeReference()], error: null } }),
     );
 
     await renderPage();
@@ -165,45 +130,31 @@ describe('ReferenceDetailPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders domain, subtopic and layer badges when present', async () => {
+  it('renders the layer badge when present and omits it when null', async () => {
     mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: { data: makeSourceDocument(), error: null },
-      }),
+      makeClient({ rpcResult: { data: [makeReference()], error: null } }),
     );
 
     await renderPage();
 
-    expect(screen.getByText('procurement')).toBeInTheDocument();
-    expect(screen.getByText('tendering')).toBeInTheDocument();
     expect(screen.getByText('detail')).toBeInTheDocument();
   });
 
-  it('omits a badge when its column is null', async () => {
+  it('omits the layer badge when the column is null', async () => {
     mockCreateClient.mockResolvedValue(
       makeClient({
-        rpcResult: {
-          data: [makeReference({ primary_subtopic: null, layer: null })],
-          error: null,
-        },
-        sdResult: { data: makeSourceDocument(), error: null },
+        rpcResult: { data: [makeReference({ layer: null })], error: null },
       }),
     );
 
     await renderPage();
 
-    expect(screen.getByText('procurement')).toBeInTheDocument();
-    expect(screen.queryByText('tendering')).not.toBeInTheDocument();
     expect(screen.queryByText('detail')).not.toBeInTheDocument();
   });
 
   it('renders the source_url as an outbound link', async () => {
     mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: { data: makeSourceDocument(), error: null },
-      }),
+      makeClient({ rpcResult: { data: [makeReference()], error: null } }),
     );
 
     await renderPage();
@@ -217,76 +168,14 @@ describe('ReferenceDetailPage', () => {
     expect(link).toBeDefined();
   });
 
-  it('surfaces B-28 provenance: original filename, plain-language extraction method, landed date', async () => {
+  it('surfaces the ingestion_source plain-language provenance line (B-2)', async () => {
     mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: { data: makeSourceDocument(), error: null },
-      }),
+      makeClient({ rpcResult: { data: [makeReference()], error: null } }),
     );
 
     await renderPage();
 
-    // Prefers original_filename over filename.
-    expect(screen.getByText(/procurement-trends\.html/)).toBeInTheDocument();
-    // Plain-language extraction method, never the raw `trafilatura_url` enum.
-    expect(screen.getByText(/Extracted via Trafilatura/)).toBeInTheDocument();
-    expect(screen.queryByText(/trafilatura_url/)).not.toBeInTheDocument();
-    // Landed date in DD/MM/YYYY (created_at proxy for fetched-at).
-    expect(screen.getByText(/16\/01\/2026/)).toBeInTheDocument();
-    // Plus the ingestion_source plain-language line (B-2).
     expect(screen.getByText(/Imported from URL/)).toBeInTheDocument();
-  });
-
-  it('renders Docling extraction methods in plain language', async () => {
-    mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: {
-          data: makeSourceDocument({
-            extraction_method: 'docling_to_markdown',
-          }),
-          error: null,
-        },
-      }),
-    );
-
-    await renderPage();
-
-    expect(screen.getByText(/Extracted via Docling/)).toBeInTheDocument();
-    expect(screen.queryByText(/docling_to_markdown/)).not.toBeInTheDocument();
-  });
-
-  // ---- B-28 degradation: source_documents read fails ----
-
-  it('degrades to the ingestion_source line without 404 or blank when the source_documents read fails', async () => {
-    mockCreateClient.mockResolvedValue(
-      makeClient({
-        rpcResult: { data: [makeReference()], error: null },
-        sdResult: {
-          data: null,
-          error: { message: 'boom', code: 'PGRST500' },
-        },
-      }),
-    );
-
-    await renderPage();
-
-    // The reference still renders (no 404, no blank).
-    expect(
-      screen.getByRole('heading', {
-        level: 1,
-        name: 'UK SMB Procurement Trends 2026',
-      }),
-    ).toBeInTheDocument();
-    expect(mockNotFound).not.toHaveBeenCalled();
-    // Falls back to the ingestion_source plain-language line (B-2)...
-    expect(screen.getByText(/Imported from URL/)).toBeInTheDocument();
-    // ...and does NOT render the enriched source-doc block.
-    expect(
-      screen.queryByText(/procurement-trends\.html/),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Extracted via/)).not.toBeInTheDocument();
   });
 
   it('shows the RSS-feed plain-language line for rss_feed references', async () => {
@@ -296,7 +185,6 @@ describe('ReferenceDetailPage', () => {
           data: [makeReference({ ingestion_source: 'rss_feed' })],
           error: null,
         },
-        sdResult: { data: makeSourceDocument(), error: null },
       }),
     );
 
@@ -380,7 +268,6 @@ describe('ReferenceDetailPage', () => {
           data: [makeReference({ published_at: '2026-03-25T00:00:00Z' })],
           error: null,
         },
-        sdResult: { data: makeSourceDocument(), error: null },
       }),
     );
 
@@ -396,7 +283,6 @@ describe('ReferenceDetailPage', () => {
           data: [makeReference({ published_at: null })],
           error: null,
         },
-        sdResult: { data: makeSourceDocument(), error: null },
       }),
     );
 

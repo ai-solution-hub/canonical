@@ -89,15 +89,6 @@ describe('useReviewQueueData', () => {
       expect(params.get('source_document_id')).toBe('doc-123');
     });
 
-    it('appends multiple domain values', () => {
-      const params = buildQueueParams(
-        { domain: ['Technical', 'Commercial'] },
-        undefined,
-        0,
-      );
-      expect(params.getAll('domain')).toEqual(['Technical', 'Commercial']);
-    });
-
     it('appends multiple content_type values', () => {
       const params = buildQueueParams(
         { content_type: ['article', 'guidance'] },
@@ -108,18 +99,13 @@ describe('useReviewQueueData', () => {
     });
 
     it('includes sort when serverSort is provided', () => {
-      const params = buildQueueParams({}, 'confidence_asc', 40);
-      expect(params.get('sort')).toBe('confidence_asc');
+      const params = buildQueueParams({}, 'quality_score_asc', 40);
+      expect(params.get('sort')).toBe('quality_score_asc');
       expect(params.get('offset')).toBe('40');
     });
 
     it('omits empty arrays and undefined filters', () => {
-      const params = buildQueueParams(
-        { domain: [], content_type: [] },
-        undefined,
-        0,
-      );
-      expect(params.has('domain')).toBe(false);
+      const params = buildQueueParams({ content_type: [] }, undefined, 0);
       expect(params.has('content_type')).toBe(false);
       expect(params.has('sort')).toBe(false);
       expect(params.has('status')).toBe(false);
@@ -143,16 +129,14 @@ describe('useReviewQueueData', () => {
       const params = buildQueueParams(
         {
           status: 'unverified',
-          domain: ['Technical'],
           assigned_to_me: true,
         },
-        'confidence_asc',
+        'quality_score_asc',
         20,
       );
       expect(params.get('assigned_to_me')).toBe('true');
       expect(params.get('status')).toBe('unverified');
-      expect(params.getAll('domain')).toEqual(['Technical']);
-      expect(params.get('sort')).toBe('confidence_asc');
+      expect(params.get('sort')).toBe('quality_score_asc');
       expect(params.get('offset')).toBe('20');
     });
   });
@@ -230,7 +214,6 @@ describe('useReviewQueueData', () => {
           flagged: 0,
           unverified: 0,
           draft: 0,
-          by_domain: {},
           by_content_type: {},
           by_source_file: {},
           by_source_document: {},
@@ -305,18 +288,14 @@ describe('useReviewQueueData', () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(
         () =>
-          useReviewQueueData(
-            { status: 'flagged', domain: ['Technical'] },
-            'confidence_asc',
-          ),
+          useReviewQueueData({ status: 'flagged' }, 'quality_score_asc'),
         { wrapper: Wrapper },
       );
 
       expect(result.current.queueFiltersKey).toEqual(
         expect.objectContaining({
           status: 'flagged',
-          domain: ['Technical'],
-          sort: 'confidence_asc',
+          sort: 'quality_score_asc',
         }),
       );
     });

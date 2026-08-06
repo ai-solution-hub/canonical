@@ -42,7 +42,6 @@ const EXEMPT_ROUTE_PATTERNS = [
   '/api/plugin/',
   '/api/jobs/',
   '/api/dashboard/', // No user-supplied params
-  '/api/search/suggestions/', // Simple GET
   '/api/content-owners/stats/', // No user-supplied params
   '/api/coverage/templates/list/', // No user-supplied params
   '/api/certifications/', // Simple GET/POST using parseBody

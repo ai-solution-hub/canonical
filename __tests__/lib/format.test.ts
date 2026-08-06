@@ -8,7 +8,6 @@ import {
   formatSecondsToTimestamp,
   formatPlatform,
   formatSmartDate,
-  getConfidenceDisplay,
   formatContentType,
   formatDateShort,
   formatTimeShort,
@@ -69,33 +68,13 @@ describe('formatDateUK', () => {
 });
 
 describe('getDisplayTitle', () => {
-  it('should prefer suggested_title over title', () => {
+  it('should use the title when present', () => {
     expect(
       getDisplayTitle({
-        suggested_title: 'Suggested',
-        title: 'Original',
-        content: 'Some content',
-      }),
-    ).toBe('Suggested');
-  });
-
-  it('should fall back to title when suggested_title is null', () => {
-    expect(
-      getDisplayTitle({
-        suggested_title: null,
         title: 'Original Title',
         content: 'Some content',
       }),
     ).toBe('Original Title');
-  });
-
-  it('should fall back to title when suggested_title is empty', () => {
-    expect(
-      getDisplayTitle({
-        suggested_title: '   ',
-        title: 'Fallback Title',
-      }),
-    ).toBe('Fallback Title');
   });
 
   it('should fall back to truncated content when no title fields exist', () => {
@@ -111,13 +90,11 @@ describe('getDisplayTitle', () => {
 
   it('should return "Untitled" when all fields are null/empty', () => {
     expect(getDisplayTitle({})).toBe('Untitled');
-    expect(
-      getDisplayTitle({ suggested_title: null, title: null, content: null }),
-    ).toBe('Untitled');
+    expect(getDisplayTitle({ title: null, content: null })).toBe('Untitled');
   });
 
   it('should trim whitespace from titles', () => {
-    expect(getDisplayTitle({ suggested_title: '  Hello  ' })).toBe('Hello');
+    expect(getDisplayTitle({ title: '  Hello  ' })).toBe('Hello');
   });
 });
 
@@ -307,37 +284,6 @@ describe('formatSmartDate', () => {
   });
 });
 
-describe('getConfidenceDisplay', () => {
-  it('should return High for >= 0.8', () => {
-    const result = getConfidenceDisplay(0.82);
-    expect(result.label).toBe('High');
-    expect(result.colourClass).toContain('success');
-  });
+// (getConfidenceDisplay tests removed — id-417 / DR-130: the helper
+// retired with classification_confidence.)
 
-  it('should return Medium for >= 0.5', () => {
-    const result = getConfidenceDisplay(0.55);
-    expect(result.label).toBe('Medium');
-    expect(result.colourClass).toContain('warning');
-  });
-
-  it('should return Low for < 0.5', () => {
-    const result = getConfidenceDisplay(0.3);
-    expect(result.label).toBe('Low');
-    expect(result.colourClass).toContain('destructive');
-  });
-
-  it('should return Unknown for null', () => {
-    const result = getConfidenceDisplay(null);
-    expect(result.label).toBe('Unknown');
-    expect(result.colourClass).toContain('muted');
-  });
-
-  it('should not include percentage in any label', () => {
-    const high = getConfidenceDisplay(0.95);
-    const medium = getConfidenceDisplay(0.6);
-    const low = getConfidenceDisplay(0.2);
-    expect(high.label).not.toContain('%');
-    expect(medium.label).not.toContain('%');
-    expect(low.label).not.toContain('%');
-  });
-});

@@ -105,7 +105,6 @@ function setupDefaultMock(
     unverifiedCount?: number;
     expiringContentDateCount?: number;
     certMentionsData?: unknown[];
-    unclassifiedCount?: number;
     activityFeedData?: unknown[];
     workspaces?: unknown[];
     statsMap?: Map<string, unknown>;
@@ -165,14 +164,8 @@ function setupDefaultMock(
     });
   }
 
-  // [7] taxonomy-coverage gap (ID-63.12) — from('source_documents') head:true +
-  // count:'exact'. Always issued (no Promise.resolve short-circuit), so it
-  // always consumes the next from() call slot.
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.unclassifiedCount ?? 0,
-  });
+  // (Former slot [7] — the ID-63.12 taxonomy-coverage gap count — retired
+  // with the subject axis, id-417 / DR-130.)
 
   // Configure from() to return per-call chain
   let callIdx = 0;
@@ -356,36 +349,8 @@ describe('fetchUnifiedDashboardData', () => {
     expect(sources).not.toHaveProperty('coverage_gap_count');
   });
 
-  // ID-63.12 — taxonomy-coverage gap count flows from the new
-  // content_items 'unclassified' sentinel count query into attention_sources.
-  it('surfaces the unclassified taxonomy-coverage count in attention_sources', async () => {
-    const mock = setupDefaultMock({ unclassifiedCount: 6 });
-    const result = await fetchUnifiedDashboardData(
-      mock as never,
-      TEST_USER_ID,
-      true,
-      'admin',
-    );
-
-    expect(result.attention_sources.unclassified_count).toBe(6);
-    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the sentinel
-    // columns (primary_domain/primary_subtopic/archived_at) now live on
-    // source_documents, so the query must run against that table.
-    expect(mock.from).toHaveBeenCalledWith('source_documents');
-    expect(result.errors).not.toContain('unclassified_count query failed');
-  });
-
-  it('defaults unclassified_count to 0 when nothing is unclassified', async () => {
-    const mock = setupDefaultMock();
-    const result = await fetchUnifiedDashboardData(
-      mock as never,
-      TEST_USER_ID,
-      true,
-      'admin',
-    );
-
-    expect(result.attention_sources.unclassified_count).toBe(0);
-  });
+  // (unclassified_count tests removed — id-417 / DR-130: the taxonomy
+  // 'unclassified' sentinel count retired with its columns.)
 
   it('populates freshness summary from RPC data', async () => {
     const mock = setupDefaultMock({

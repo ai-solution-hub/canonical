@@ -35,7 +35,6 @@ function makeCadenceData(
       {
         id: '00000000-0000-4000-8000-000000000001',
         title: 'Stale Technology Article',
-        primary_domain: 'Technology',
         verified_at: '2025-12-01T00:00:00Z',
         days_since_review: 115,
         governance_review_status: null,
@@ -43,32 +42,11 @@ function makeCadenceData(
       {
         id: '00000000-0000-4000-8000-000000000002',
         title: 'Never Reviewed Item',
-        primary_domain: 'Operations',
         verified_at: null,
         days_since_review: -1,
         governance_review_status: null,
       },
     ],
-    by_domain: overrides.by_domain ?? {
-      Technology: {
-        total: 50,
-        never_reviewed: 10,
-        average_days: 40,
-        overdue: 12,
-      },
-      Operations: {
-        total: 30,
-        never_reviewed: 8,
-        average_days: 55,
-        overdue: 10,
-      },
-      'HR & People': {
-        total: 20,
-        never_reviewed: 2,
-        average_days: 30,
-        overdue: 3,
-      },
-    },
   };
 }
 
@@ -169,7 +147,6 @@ describe('ReviewCadenceCard', () => {
         average_days_since_review: 5,
       },
       overdue_items: [],
-      by_domain: {},
     });
     mockSuccessResponse(data);
 
@@ -201,25 +178,6 @@ describe('ReviewCadenceCard', () => {
   });
 
   // -- Domain breakdown table --
-
-  it('renders domain breakdown table with correct data', async () => {
-    mockSuccessResponse();
-
-    render(<ReviewCadenceCard />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Technology')).toBeInTheDocument();
-    });
-
-    const table = screen.getByRole('table', {
-      name: /review cadence by domain/i,
-    });
-    expect(table).toBeInTheDocument();
-
-    // Check domain names
-    expect(screen.getByText('Operations')).toBeInTheDocument();
-    expect(screen.getByText('HR & People')).toBeInTheDocument();
-  });
 
   // -- Overdue items collapsible --
 

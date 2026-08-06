@@ -25,11 +25,6 @@ const baseStats: ReviewStatsResponse = {
   draft: 5,
   overdue: 0,
   awaiting_publication: 0,
-  unclassified_coverage: 0,
-  by_domain: {
-    Technical: { total: 50, verified: 20 },
-    Commercial: { total: 50, verified: 10 },
-  },
   by_content_type: {
     article: { total: 60, verified: 20 },
     guidance: { total: 40, verified: 10 },
@@ -145,10 +140,10 @@ describe('ReviewFilters', () => {
     });
 
     it('composes assigned_to_me with other active filters in badge count', async () => {
-      // status=flagged (1) + domain (1) + assigned_to_me (1) = 3
+      // status=flagged (1) + content_type (1) + assigned_to_me (1) = 3
       renderFilters({
         status: 'flagged',
-        domain: ['Technical'],
+        content_type: ['article'],
         assigned_to_me: true,
       });
 

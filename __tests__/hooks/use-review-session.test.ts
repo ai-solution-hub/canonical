@@ -63,7 +63,6 @@ describe('useReviewSession', () => {
       const { result } = renderHook(() => useReviewSession(searchParams));
 
       expect(result.current.filters.status).toBe('unverified');
-      expect(result.current.filters.domain).toBeUndefined();
       expect(result.current.filters.content_type).toBeUndefined();
       expect(result.current.filters.source_file).toBeUndefined();
       expect(result.current.filters.source_document_id).toBeUndefined();
@@ -107,19 +106,6 @@ describe('useReviewSession', () => {
       const { result } = renderHook(() => useReviewSession(searchParams));
 
       expect(result.current.filters.status).toBe('unverified');
-    });
-
-    it('reads domain array from URL search params', () => {
-      const searchParams = makeSearchParams(
-        'domain=Technical&domain=Commercial',
-      );
-
-      const { result } = renderHook(() => useReviewSession(searchParams));
-
-      expect(result.current.filters.domain).toEqual([
-        'Technical',
-        'Commercial',
-      ]);
     });
 
     it('reads content_type array from URL search params', () => {
@@ -214,26 +200,6 @@ describe('useReviewSession', () => {
       expect(urlArg).toBe('/review');
     });
 
-    it('syncs domain filter to URL', () => {
-      const searchParams = makeSearchParams();
-
-      const { result } = renderHook(() => useReviewSession(searchParams));
-
-      act(() => {
-        result.current.setFilters({
-          status: 'unverified',
-          domain: ['Technical', 'Commercial'],
-        });
-      });
-
-      expect(mockReplaceState).toHaveBeenCalled();
-      const lastCall =
-        mockReplaceState.mock.calls[mockReplaceState.mock.calls.length - 1];
-      const urlArg = lastCall[2] as string;
-      expect(urlArg).toContain('domain=Technical');
-      expect(urlArg).toContain('domain=Commercial');
-    });
-
     it('syncs content_type filter to URL', () => {
       const searchParams = makeSearchParams();
 
@@ -300,7 +266,7 @@ describe('useReviewSession', () => {
       act(() => {
         result.current.handleFiltersChange({
           status: 'verified',
-          domain: ['Technical'],
+          content_type: ['article'],
         });
       });
 
@@ -310,7 +276,7 @@ describe('useReviewSession', () => {
       const urlArg = lastCall[2] as string;
       // status is NOT in the URL (tabs own it post-S215). Other filters do.
       expect(urlArg).not.toContain('status=');
-      expect(urlArg).toContain('domain=Technical');
+      expect(urlArg).toContain('content_type=article');
     });
 
     it('syncs assigned_to_me=true to URL', () => {
@@ -359,7 +325,7 @@ describe('useReviewSession', () => {
       act(() => {
         result.current.setFilters({
           status: 'flagged',
-          domain: ['Technical'],
+          content_type: ['article'],
           assigned_to_me: true,
         });
       });
@@ -370,7 +336,7 @@ describe('useReviewSession', () => {
       const urlArg = lastCall[2] as string;
       // status is NOT in the URL (tabs own it post-S215).
       expect(urlArg).not.toContain('status=');
-      expect(urlArg).toContain('domain=Technical');
+      expect(urlArg).toContain('content_type=article');
       expect(urlArg).toContain('assigned_to_me=true');
     });
   });

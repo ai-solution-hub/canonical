@@ -218,7 +218,6 @@ describe('forced_tool_strict touchpoints', () => {
       content: 'Some content to summarise that is long enough to be useful.',
       title: 'Doc',
       contentType: 'article',
-      domain: 'tech',
     });
 
     const call = mockCreate.mock.calls[0][0];

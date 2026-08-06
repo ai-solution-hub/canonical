@@ -104,7 +104,7 @@ describe('GET /api/analytics/win-rate', () => {
     expect(json.error).toBe('Unauthorised');
   });
 
-  it('returns aggregate stats with overall and per-domain breakdown', async () => {
+  it('returns aggregate stats for the overall scope (per-domain scope retired, id-417 / DR-130)', async () => {
     configureRole(mockSupabase, 'viewer');
 
     mockSupabase.rpc.mockResolvedValueOnce({
@@ -118,26 +118,6 @@ describe('GET /api/analytics/win-rate', () => {
           win_rate: '0.63',
           unique_items_cited: '16',
           unique_procurements: '8',
-        },
-        {
-          scope: 'compliance',
-          total_citations: '8',
-          winning_citations: '4',
-          losing_citations: '4',
-          pending_citations: '0',
-          win_rate: '0.50',
-          unique_items_cited: '5',
-          unique_procurements: '4',
-        },
-        {
-          scope: 'security',
-          total_citations: '12',
-          winning_citations: '9',
-          losing_citations: '3',
-          pending_citations: '0',
-          win_rate: '0.75',
-          unique_items_cited: '8',
-          unique_procurements: '6',
         },
       ],
       error: null,
@@ -154,12 +134,8 @@ describe('GET /api/analytics/win-rate', () => {
     expect(json.overall.win_rate).toBe(0.63);
     expect(json.overall.unique_procurements).toBe(8);
 
-    // Domain breakdown — sorted by win_rate descending
-    expect(json.by_domain).toHaveLength(2);
-    expect(json.by_domain[0].domain).toBe('security');
-    expect(json.by_domain[0].win_rate).toBe(0.75);
-    expect(json.by_domain[1].domain).toBe('compliance');
-    expect(json.by_domain[1].win_rate).toBe(0.5);
+    // The per-domain breakdown retired with record_lifecycle.domain.
+    expect(json.by_domain).toBeUndefined();
   });
 
   it('returns empty response (zero citations) gracefully', async () => {
@@ -187,7 +163,6 @@ describe('GET /api/analytics/win-rate', () => {
     const json = await res.json();
     expect(json.overall.total_citations).toBe(0);
     expect(json.overall.win_rate).toBe(0);
-    expect(json.by_domain).toEqual([]);
   });
 
   it('win rate excludes pending/withdrawn bids from denominator', async () => {
@@ -220,66 +195,6 @@ describe('GET /api/analytics/win-rate', () => {
     expect(json.overall.pending_citations).toBe(5);
   });
 
-  it('domain rows are sorted by win rate descending', async () => {
-    configureRole(mockSupabase, 'viewer');
-
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        {
-          scope: 'overall',
-          total_citations: '20',
-          winning_citations: '8',
-          losing_citations: '6',
-          pending_citations: '6',
-          win_rate: '0.57',
-          unique_items_cited: '10',
-          unique_procurements: '6',
-        },
-        {
-          scope: 'corporate',
-          total_citations: '4',
-          winning_citations: '1',
-          losing_citations: '2',
-          pending_citations: '1',
-          win_rate: '0.33',
-          unique_items_cited: '3',
-          unique_procurements: '2',
-        },
-        {
-          scope: 'security',
-          total_citations: '8',
-          winning_citations: '6',
-          losing_citations: '2',
-          pending_citations: '0',
-          win_rate: '0.75',
-          unique_items_cited: '5',
-          unique_procurements: '3',
-        },
-        {
-          scope: 'compliance',
-          total_citations: '8',
-          winning_citations: '4',
-          losing_citations: '4',
-          pending_citations: '0',
-          win_rate: '0.50',
-          unique_items_cited: '4',
-          unique_procurements: '3',
-        },
-      ],
-      error: null,
-    });
-
-    const res = await GET();
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.by_domain).toHaveLength(3);
-    // Sorted by win rate descending: security (0.75), compliance (0.50), corporate (0.33)
-    expect(json.by_domain[0].domain).toBe('security');
-    expect(json.by_domain[0].win_rate).toBe(0.75);
-    expect(json.by_domain[1].domain).toBe('compliance');
-    expect(json.by_domain[1].win_rate).toBe(0.5);
-    expect(json.by_domain[2].domain).toBe('corporate');
-    expect(json.by_domain[2].win_rate).toBe(0.33);
-  });
+  // (The domain-row sorting test retired with the per-domain scope —
+  // id-417 / DR-130.)
 });

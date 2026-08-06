@@ -70,8 +70,6 @@ function makeMockItem(
   overrides: {
     id?: string;
     title?: string | null;
-    suggested_title?: string | null;
-    primary_domain?: string | null;
     verified_at?: string | null;
     governance_review_status?: string | null;
   } = {},
@@ -79,8 +77,6 @@ function makeMockItem(
   const {
     id = UUID_1,
     title = 'Test Item',
-    suggested_title = 'Test Title',
-    primary_domain = 'Technology',
     verified_at = null,
     governance_review_status = null,
   } = overrides;
@@ -92,8 +88,6 @@ function makeMockItem(
     source_documents: {
       id,
       filename: title,
-      suggested_title,
-      primary_domain,
     },
   };
 }
@@ -268,7 +262,6 @@ describe('GET /api/review/cadence', () => {
 
     expect(json).toHaveProperty('summary');
     expect(json).toHaveProperty('overdue_items');
-    expect(json).toHaveProperty('by_domain');
 
     expect(json.summary).toEqual({
       total_items: 0,
@@ -281,7 +274,8 @@ describe('GET /api/review/cadence', () => {
     });
 
     expect(json.overdue_items).toEqual([]);
-    expect(json.by_domain).toEqual({});
+    // id-417 / DR-130: the per-domain breakdown retired with the axis.
+    expect(json).not.toHaveProperty('by_domain');
   });
 
   // -- Cadence calculation tests --
@@ -291,11 +285,7 @@ describe('GET /api/review/cadence', () => {
 
     const items = [
       makeMockItem({ id: UUID_1, verified_at: null }),
-      makeMockItem({
-        id: UUID_2,
-        verified_at: null,
-        primary_domain: 'Operations',
-      }),
+      makeMockItem({ id: UUID_2, verified_at: null }),
     ];
 
     let thenCallCount = 0;
@@ -378,74 +368,8 @@ describe('GET /api/review/cadence', () => {
     expect(json.summary.average_days_since_review).toBe(15);
   });
 
-  // -- Domain breakdown tests --
-
-  it('groups items by primary_domain', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const items = [
-      makeMockItem({
-        id: UUID_1,
-        primary_domain: 'Technology',
-        verified_at: daysAgo(5),
-      }),
-      makeMockItem({
-        id: UUID_2,
-        primary_domain: 'Technology',
-        verified_at: null,
-      }),
-      makeMockItem({
-        id: UUID_3,
-        primary_domain: 'Operations',
-        verified_at: daysAgo(100),
-      }),
-    ];
-
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) return resolve({ data: items, error: null });
-        return resolve({ data: [], error: null });
-      },
-    );
-
-    const res = await GET();
-    const json = await res.json();
-
-    expect(json.by_domain).toHaveProperty('Technology');
-    expect(json.by_domain).toHaveProperty('Operations');
-
-    expect(json.by_domain.Technology.total).toBe(2);
-    expect(json.by_domain.Technology.never_reviewed).toBe(1);
-    expect(json.by_domain.Technology.overdue).toBe(1); // never-reviewed counts as overdue
-
-    expect(json.by_domain.Operations.total).toBe(1);
-    expect(json.by_domain.Operations.overdue).toBe(1); // 100 > 90 days
-  });
-
-  it('groups items without a primary_domain under "Uncategorised"', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const items = [
-      makeMockItem({ id: UUID_1, primary_domain: null, verified_at: null }),
-    ];
-
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) return resolve({ data: items, error: null });
-        return resolve({ data: [], error: null });
-      },
-    );
-
-    const res = await GET();
-    const json = await res.json();
-
-    expect(json.by_domain).toHaveProperty('Uncategorised');
-    expect(json.by_domain.Uncategorised.total).toBe(1);
-  });
+  // (Domain-breakdown tests retired — id-417 / DR-130: by_domain and its
+  // sd.primary_domain source are gone.)
 
   // -- Overdue item ordering --
 
@@ -453,17 +377,9 @@ describe('GET /api/review/cadence', () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({
-        id: UUID_1,
-        verified_at: daysAgo(120),
-        suggested_title: 'Old',
-      }),
-      makeMockItem({ id: UUID_2, verified_at: null, suggested_title: 'Never' }),
-      makeMockItem({
-        id: UUID_3,
-        verified_at: daysAgo(200),
-        suggested_title: 'Oldest',
-      }),
+      makeMockItem({ id: UUID_1, verified_at: daysAgo(120), title: 'Old' }),
+      makeMockItem({ id: UUID_2, verified_at: null, title: 'Never' }),
+      makeMockItem({ id: UUID_3, verified_at: daysAgo(200), title: 'Oldest' }),
     ];
 
     let thenCallCount = 0;
@@ -508,7 +424,7 @@ describe('GET /api/review/cadence', () => {
     expect(json.error).toBe('Failed to fetch content items');
   });
 
-  it('falls back to default timeout when governance_config query fails', async () => {
+  it('uses the 90-day default threshold and never queries governance_config (id-417 / DR-130)', async () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
@@ -520,43 +436,27 @@ describe('GET /api/review/cadence', () => {
       (resolve: (v: unknown) => void) => {
         thenCallCount++;
         if (thenCallCount === 1) return resolve({ data: items, error: null });
-        // governance_config query fails
-        return resolve({ data: null, error: { message: 'Config error' } });
+        return resolve({ data: [], error: null });
       },
     );
 
     const res = await GET();
     const json = await res.json();
 
-    // Should still work, using 90-day default
     expect(res.status).toBe(200);
     expect(json.summary.overdue).toBe(1);
+    // The per-domain governance_config timeout lookup retired with the axis.
+    expect(mockSupabase.from).not.toHaveBeenCalledWith('governance_config');
   });
 
   // -- Display title fallback --
 
-  it('falls back from suggested_title to title to "Untitled" when displaying overdue items', async () => {
+  it('falls back from filename to "Untitled" when displaying overdue items (id-417: suggested_title retired)', async () => {
     configureRole(mockSupabase, 'editor');
 
     const items = [
-      makeMockItem({
-        id: UUID_1,
-        verified_at: null,
-        suggested_title: 'Suggested',
-        title: 'Title',
-      }),
-      makeMockItem({
-        id: UUID_2,
-        verified_at: null,
-        suggested_title: null,
-        title: 'Fallback Title',
-      }),
-      makeMockItem({
-        id: UUID_3,
-        verified_at: null,
-        suggested_title: null,
-        title: null,
-      }),
+      makeMockItem({ id: UUID_1, verified_at: null, title: 'Fallback Title' }),
+      makeMockItem({ id: UUID_2, verified_at: null, title: null }),
     ];
 
     let thenCallCount = 0;
@@ -572,7 +472,6 @@ describe('GET /api/review/cadence', () => {
     const json = await res.json();
 
     const titles = json.overdue_items.map((i: { title: string }) => i.title);
-    expect(titles).toContain('Suggested');
     expect(titles).toContain('Fallback Title');
     expect(titles).toContain('Untitled');
   });

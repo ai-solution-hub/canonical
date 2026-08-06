@@ -6,7 +6,6 @@
  * was untested at the unit level. This file exercises the four contract
  * points the spec + V_W1 finding called out:
  *   (a) default 200 response shape
- *   (b) domain filter merge with publication_status
  *   (c) limit/offset pagination
  *   (d) viewer role → 403
  *
@@ -71,27 +70,18 @@ function createMultiParamRequest(
 function makeMockItem(overrides: Record<string, unknown> = {}) {
   return {
     id: VALID_UUID,
-    title: 'Awaiting Item',
-    suggested_title: 'Suggested Title',
-    summary: 'A summary',
-    primary_domain: 'Technology',
-    primary_subtopic: 'AI',
-    secondary_domain: null,
-    secondary_subtopic: null,
+    filename: 'awaiting-item.pdf',
     content_type: 'q_a_pair',
     platform: 'manual',
     author_name: 'Author',
     source_domain: 'example.com',
     thumbnail_url: null,
     captured_date: '2026-01-01',
-    ai_keywords: ['test'],
-    classification_confidence: 0.9,
     quality_score: 72,
     priority: 'medium',
     user_tags: [],
     metadata: null,
     content: 'Some content',
-    source_url: 'https://example.com',
     verified_at: null,
     verified_by: null,
     freshness: 'fresh',
@@ -217,51 +207,8 @@ describe('GET /api/review/queue?publication_status=in_review (publication-review
     expect(pubFilter).toBeDefined();
   });
 
-  // -------------------------------------------------------------------------
-  // (b) Domain filter merge — both publication_status AND domain applied
-  // -------------------------------------------------------------------------
-  it('combines publication_status=in_review with the domain filter when both are supplied (b)', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1) {
-          return resolve({ data: [], error: null, count: 0 });
-        }
-        return resolve({ data: [], error: null, count: 0 });
-      },
-    );
-
-    const req = createMultiParamRequest('/api/review/queue', [
-      ['publication_status', 'in_review'],
-      ['domain', 'technical'],
-    ]);
-    const res = await getQueue(req);
-
-    expect(res.status).toBe(200);
-
-    // Both filters MUST land on the Supabase query.
-    const eqCalls = mockSupabase._chain.eq.mock.calls as Array<
-      [string, unknown]
-    >;
-    const pubFilter = eqCalls.find(
-      ([col, val]) => col === 'publication_status' && val === 'in_review',
-    );
-    expect(pubFilter).toBeDefined();
-
-    const inCalls = mockSupabase._chain.in.mock.calls as Array<
-      [string, string[]]
-    >;
-    const domainFilter = inCalls.find(
-      ([col, vals]) =>
-        col === 'primary_domain' &&
-        Array.isArray(vals) &&
-        vals.includes('technical'),
-    );
-    expect(domainFilter).toBeDefined();
-  });
+  // ((b) domain-filter merge test retired — id-417 / DR-130: the ?domain=
+  // slicer retired with the subject-taxonomy axis.)
 
   // -------------------------------------------------------------------------
   // (c) Pagination — limit + offset translate to range() call

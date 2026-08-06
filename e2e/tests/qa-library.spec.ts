@@ -300,101 +300,9 @@ test.describe('Q&A Library page', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Group 4: Domain filter
+  // (Group 4 — domain filter — retired, id-417 / DR-130: the subject-taxonomy
+  // axis and the library domain filter UI are gone.)
   // ---------------------------------------------------------------------------
-
-  test('domain filter dropdown is visible', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/library');
-    await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-      timeout: 20000,
-    });
-    // The domain filter trigger shows "All domains" — use button[role=combobox] with text
-    const domainTrigger = page
-      .locator('button[role="combobox"]')
-      .filter({ hasText: 'All domains' });
-    await expect(domainTrigger).toBeVisible();
-  });
-
-  // S457 finding (ID-128.16, de-flake pass): these two tests previously
-  // asserted that selecting a domain narrows the Q&A pair count, and that
-  // clearing it restores the full count. That assertion is on dead
-  // functionality, not a race: hooks/use-library-data.ts's queryFn applies
-  // NO domain clause at all (`domain` / `source_file` / `freshness` /
-  // `verified` are explicitly documented "honest no-ops" there, per
-  // ID-131.21 G-MANUAL-QA — richer filtering parity is deferred to id-135
-  // {135.22}). The item count never actually changes when a domain is
-  // selected; the two tests only ever "passed" when a concurrent worker's
-  // beforeAll/afterAll happened to shrink the corpus between the two count
-  // reads for an unrelated reason — a coincidence, not the behaviour under
-  // test. Rewritten to assert the one thing that IS real and stable today:
-  // the Select's own controlled value round-trips through the trigger's
-  // displayed label.
-  test('selecting a domain updates the filter trigger label', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/library');
-    await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-      timeout: 20000,
-    });
-
-    const domainTrigger = page
-      .locator('button[role="combobox"]')
-      .filter({ hasText: 'All domains' });
-    await domainTrigger.click();
-    // Pick the second option (first is "All domains")
-    const options = page.locator('[role="option"]');
-    const secondOption = options.nth(1);
-    const selectedDomain = (await secondOption.textContent())?.trim();
-    await secondOption.click();
-
-    // The trigger's displayed label now shows the selected domain, not the
-    // "All domains" placeholder.
-    expect(selectedDomain).toBeTruthy();
-    await expect(
-      page
-        .locator('button[role="combobox"]')
-        .filter({ hasText: selectedDomain ?? '' }),
-    ).toBeVisible({ timeout: 5000 });
-  });
-
-  test('clearing domain filter restores the All-domains trigger label', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/library');
-    await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-      timeout: 20000,
-    });
-
-    // Apply domain filter — pick the first non-"All" domain
-    const domainTrigger = page
-      .locator('button[role="combobox"]')
-      .filter({ hasText: 'All domains' });
-    await domainTrigger.click();
-    const options = page.locator('[role="option"]');
-    const secondOption = options.nth(1);
-    const selectedDomain = (await secondOption.textContent())?.trim();
-    await secondOption.click();
-
-    const filteredTrigger = page
-      .locator('button[role="combobox"]')
-      .filter({ hasText: selectedDomain ?? '' });
-    await expect(filteredTrigger).toBeVisible({ timeout: 5000 });
-
-    // Clear by selecting "All domains" — trigger label reverts.
-    await filteredTrigger.click();
-    await page
-      .locator('[role="option"]')
-      .filter({ hasText: 'All domains' })
-      .click();
-
-    await expect(
-      page
-        .locator('button[role="combobox"]')
-        .filter({ hasText: 'All domains' }),
-    ).toBeVisible({ timeout: 5000 });
-  });
 
   // ---------------------------------------------------------------------------
   // Group 5: Freshness filter
@@ -471,68 +379,15 @@ test.describe('Q&A Library page', () => {
     ).not.toBeVisible();
   });
 
-  // S457 finding (ID-128.16, de-flake pass): this test hard-coded
-  // "Service Delivery" as a domain group header, but no q_a_pairs-backed
-  // /library item carries a real domain today —
-  // hooks/use-library-data.ts's mapQAPairToContentListItem sets
-  // `primary_domain: ''` for every row (q_a_pairs has no domain column;
-  // per-pair classification parity is deferred to id-135 {135.22}), and
-  // components/shell/collapsible-group.tsx's groupItems() falls back to
-  // the literal key 'Unclassified' whenever primary_domain is falsy. So
-  // grouping by domain deterministically produces exactly ONE group,
-  // 'Unclassified', containing every item — "Service Delivery" can never
-  // appear. This was failing for a real, stable reason, not a flake;
-  // rewritten to assert the one true-today outcome (asserting on
-  // "Unclassified" also makes this test a tripwire: once id-135 {135.22}
-  // gives q_a_pairs real per-pair domains, this single-Unclassified-group
-  // assertion will start failing and need updating alongside that work).
-  test('grouping by domain creates a single Unclassified group', async ({
-    authenticatedPage: page,
-  }) => {
-    await page.goto('/library');
-    await expect(page.getByText(/\d+ Q&A pairs?/)).toBeVisible({
-      timeout: 20000,
-    });
+  // (The 'grouping by domain' test retired — id-417 / DR-130: the By-domain
+  // grouping option is gone; the library groups by source document now.
+  // Follow-up: an e2e for the By-source-document grouping.)
 
-    await page.getByRole('button', { name: /more filters/i }).click();
-    await expect(page.getByText('Additional Filters')).toBeVisible();
-
-    // Find grouping dropdown in the popover and select "By domain"
-    const popover = page.locator('[data-radix-popper-content-wrapper]');
-    const groupingTrigger = popover
-      .locator('button[role="combobox"]')
-      .filter({ hasText: 'No grouping' });
-    await groupingTrigger.click();
-    await page
-      .locator('[role="option"]')
-      .filter({ hasText: 'By domain' })
-      .click();
-
-    // Close the popover by pressing Escape
-    await page.keyboard.press('Escape');
-
-    // Exactly one collapsible group header renders, labelled Unclassified.
-    // A bare `button[aria-expanded]` ALSO matches every visible QARow's own
-    // per-item expand toggle (components/qa/qa-row.tsx) — and QARow rows
-    // can carry their own Badge/FreshnessBadge, so filtering on "has a
-    // badge" isn't precise enough either. `.border-l-4` is the one class
-    // exclusive to components/shell/collapsible-group.tsx's CollapsibleGroup
-    // header (QARow's expand button carries no such class).
-    const groupHeaders = page.locator('button[aria-expanded].border-l-4');
-    await expect(groupHeaders.filter({ hasText: 'Unclassified' })).toBeVisible({
-      timeout: 10000,
-    });
-    await expect(groupHeaders).toHaveCount(1);
-  });
-
-  // S457 finding (ID-128.16, de-flake pass): same root cause as the two
-  // domain-filter tests above — the count-decrease/count-restore
-  // assertions were testing a domain filter that never actually narrows the
-  // query (hooks/use-library-data.ts). "Clear all" is driven by
-  // useLibraryFilters' `activeCount` (a filters-state truthiness count, not
-  // a query-result count), so it genuinely appears once `filters.domain` is
-  // set and disappears once cleared — asserting on that UI round-trip is
-  // real, stable behaviour; asserting on the Q&A pair count is not.
+  // "Clear all" is driven by useLibraryFilters' `activeCount` (a
+  // filters-state truthiness count, not a query-result count) — asserting on
+  // that UI round-trip is real, stable behaviour. (id-417 / DR-130: the
+  // former domain-filter vehicle retired; the freshness filter is the
+  // surviving primary-filter vehicle.)
   test('clear filters button resets all filters', async ({
     authenticatedPage: page,
   }) => {
@@ -541,21 +396,15 @@ test.describe('Q&A Library page', () => {
       timeout: 20000,
     });
 
-    // Apply a domain filter to make "Clear all" appear
-    const domainTrigger = page
+    // Apply a freshness filter to make "Clear all" appear
+    const freshnessTrigger = page
       .locator('button[role="combobox"]')
-      .filter({ hasText: 'All domains' });
-    await domainTrigger.click();
-    // Pick the first non-"All" domain
-    const selectedDomain = (
-      await page.locator('[role="option"]').nth(1).textContent()
-    )?.trim();
-    await page.locator('[role="option"]').nth(1).click();
+      .filter({ hasText: 'All freshness' });
+    await freshnessTrigger.click();
+    await page.locator('[role="option"]').filter({ hasText: 'Fresh' }).click();
 
     await expect(
-      page
-        .locator('button[role="combobox"]')
-        .filter({ hasText: selectedDomain ?? '' }),
+      page.locator('button[role="combobox"]').filter({ hasText: 'Fresh' }),
     ).toBeVisible({ timeout: 5000 });
 
     // "Clear all" button should now be visible
@@ -563,12 +412,12 @@ test.describe('Q&A Library page', () => {
     await expect(clearAll).toBeVisible();
     await clearAll.click();
 
-    // The domain trigger reverts to the "All domains" placeholder, and
+    // The freshness trigger reverts to the "All freshness" placeholder, and
     // "Clear all" disappears now that no filter is active.
     await expect(
       page
         .locator('button[role="combobox"]')
-        .filter({ hasText: 'All domains' }),
+        .filter({ hasText: 'All freshness' }),
     ).toBeVisible({ timeout: 5000 });
     await expect(clearAll).not.toBeVisible();
   });
@@ -725,10 +574,7 @@ test.describe('Q&A Library page', () => {
     const searchInput = page.getByLabel('Search Q&A pairs');
     await expect(searchInput).toBeVisible();
 
-    const domainTrigger = page
-      .locator('button[role="combobox"]')
-      .filter({ hasText: 'All domains' });
-    await expect(domainTrigger).toBeVisible();
+    // (id-417 / DR-130: the domain filter trigger retired with the axis.)
     const freshnessTrigger = page
       .locator('button[role="combobox"]')
       .filter({ hasText: 'All freshness' });

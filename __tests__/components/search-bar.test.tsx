@@ -49,7 +49,6 @@ function createPreviewResponse(
     id: string;
     title: string;
     content_type: string;
-    primary_domain: string | null;
   }>,
 ) {
   return new Response(JSON.stringify({ results, count: results.length }), {
@@ -264,21 +263,8 @@ describe('SearchBar', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Compact variant suggestion parity (SD-9)
-  // ---------------------------------------------------------------------------
-  describe('compact variant suggestion parity', () => {
-    it('calls loadSuggestions on focus (parity with hero)', async () => {
-      // Both hero and compact should call loadSuggestions on focus.
-      // We verify this by checking that fetch is called when focusing compact.
-      const user = userEvent.setup();
-      renderSearchBar({ variant: 'compact' });
-      const input = screen.getByRole('combobox');
-      await user.click(input);
-      // loadSuggestions should have been triggered by focus
-      expect(globalThis.fetch).toHaveBeenCalledWith('/api/search/suggestions');
-    });
-  });
+  // (Compact-variant suggestion-parity test retired — id-417 / DR-130: the
+  // Popular-topics suggestions leg was deleted with /api/search/suggestions.)
 
   // ---------------------------------------------------------------------------
   // Preview dropdown tests (P1-30 Phase 3)
@@ -294,13 +280,11 @@ describe('SearchBar', () => {
         id: 'item-001',
         title: 'Risk Assessment Guide',
         content_type: 'q_a_pair',
-        primary_domain: 'Corporate',
       },
       {
         id: 'item-002',
         title: 'Risk Management Policy',
         content_type: 'source_document',
-        primary_domain: 'Technical',
       },
     ];
 
@@ -344,13 +328,11 @@ describe('SearchBar', () => {
       await act(async () => {});
       // Preview region should not exist
       expect(screen.queryByTestId('preview-results-region')).toBeNull();
-      // Popular topics should still be visible (suggestions loaded on focus)
-      await waitFor(() => {
-        expect(screen.queryByText('Popular topics')).toBeInTheDocument();
-      });
+      // (id-417: the Popular-topics section is retired and never renders.)
+      expect(screen.queryByText('Popular topics')).toBeNull();
     });
 
-    it('shows preview when query meets PREVIEW_MIN_QUERY_LENGTH and hides popular topics', async () => {
+    it('shows preview when query meets PREVIEW_MIN_QUERY_LENGTH', async () => {
       mockPreviewFetch();
       const user = userEvent.setup();
       renderSearchBar({ variant: 'inline' });
@@ -402,7 +384,7 @@ describe('SearchBar', () => {
           id: 'item-003',
           title: 'ISO 27001 Certificate',
           content_type: 'reference_item',
-          primary_domain: 'Compliance',
+
         },
       ]);
       const user = userEvent.setup();

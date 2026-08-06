@@ -298,8 +298,6 @@ describe('Freshness cron — date expiry reminders', () => {
           source_documents: {
             id: 'item-1',
             filename: 'iso-27001.pdf',
-            suggested_title: 'ISO 27001 Certificate',
-            primary_domain: 'compliance',
           },
         },
       ],
@@ -338,7 +336,8 @@ describe('Freshness cron — date expiry reminders', () => {
       expect(notification!.userId).toBe('owner-1');
       expect(notification!.entityType).toBe('content_item');
       expect(notification!.entityId).toBe('item-1');
-      expect(notification!.title).toContain('ISO 27001 Certificate');
+      // id-417 / DR-130: the title is the filename (suggested_title retired).
+      expect(notification!.title).toContain('iso-27001.pdf');
       expect(notification!.message).toContain('days remaining');
     }
   });
@@ -358,8 +357,8 @@ describe('Freshness cron — date expiry reminders', () => {
           source_documents: {
             id: 'item-2',
             filename: 'unowned-cert.pdf',
-            suggested_title: 'Unowned Certificate',
-            primary_domain: 'compliance',
+
+
           },
         },
       ],
@@ -399,8 +398,8 @@ describe('Freshness cron — date expiry reminders', () => {
           source_documents: {
             id: 'item-1',
             filename: 'already-notified.pdf',
-            suggested_title: 'Already Notified Item',
-            primary_domain: 'compliance',
+
+
           },
         },
       ],

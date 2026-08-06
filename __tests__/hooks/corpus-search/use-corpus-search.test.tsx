@@ -58,7 +58,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
   return {
     id: `1111111${idCounter}-1111-4111-8111-111111111111`,
     title: `Result ${idCounter}`,
-    suggested_title: null,
+
     summary: 'A short summary or answer preview.',
     primary_domain: 'procurement',
     primary_subtopic: 'tendering',
@@ -218,7 +218,7 @@ describe('useCorpusSearch — default ALL-grain search', () => {
     }
   });
 
-  it("maps a source_document owner_kind row to document, preferring suggested_title (content_type carries the SD's own taxonomy value)", async () => {
+  it("maps a source_document owner_kind row to document with the filename title (content_type carries the SD's own taxonomy value)", async () => {
     navState.search = 'q=foo';
     mockFetchJson.mockResolvedValue({
       results: [
@@ -226,7 +226,6 @@ describe('useCorpusSearch — default ALL-grain search', () => {
           content_type: 'guidance', // sd.content_type taxonomy value — decorative only, NOT read for routing
           owner_kind: 'source_document',
           title: 'raw-filename.pdf',
-          suggested_title: 'Procurement Guidance 2026',
           summary: 'Guidance summary text.',
         }),
       ],
@@ -237,7 +236,9 @@ describe('useCorpusSearch — default ALL-grain search', () => {
 
     const item = result.current.items[0];
     expect(item.kind).toBe('document');
-    expect(item.title).toBe('Procurement Guidance 2026');
+    // id-417 / DR-130: suggested_title retired — the sd arm's title IS the
+    // filename.
+    expect(item.title).toBe('raw-filename.pdf');
     if (item.kind === 'document') {
       expect(item.summary).toBe('Guidance summary text.');
     }

@@ -26,17 +26,14 @@ vi.mock('@/app/review/review-content', () => ({
   ReviewContent: ({
     initialStatus,
     hideStatusPills,
-    initialUnclassified,
   }: {
     initialStatus?: string;
     hideStatusPills?: boolean;
-    initialUnclassified?: boolean;
   }) => (
     <div
       data-testid="review-content-mock"
       data-initial-status={initialStatus ?? 'undef'}
       data-hide-status-pills={String(hideStatusPills ?? false)}
-      data-initial-unclassified={String(initialUnclassified ?? false)}
     >
       ReviewContent mock
     </div>
@@ -334,56 +331,14 @@ describe('ReviewTabs', () => {
       expect(auditTab).toBeInTheDocument();
     });
 
-    // ID-63.12 — the Unclassified tab badge reads unclassified_coverage and
-    // the tab mounts ReviewContent with the unclassified narrowing flag.
-    it('renders the unclassified_coverage count on the Unclassified tab (ID-63.12)', async () => {
+    // (Unclassified-tab tests retired — id-417 / DR-130: the tab and its
+    // sentinel filter are gone.)
+    it('does not render an Unclassified tab (id-417)', () => {
       setSearchParam('tab', null);
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          total: 100,
-          verified: 30,
-          flagged: 5,
-          unverified: 60,
-          draft: 5,
-          overdue: 0,
-          awaiting_publication: 7,
-          unclassified_coverage: 12,
-          by_domain: {},
-          by_content_type: {},
-          by_source_file: {},
-          by_source_document: {},
-        }),
-      });
-      const { Wrapper } = createQueryWrapper();
-      render(
-        <Wrapper>
-          <ReviewTabs />
-        </Wrapper>,
-      );
-
-      const unclassifiedTab = await screen.findByRole('tab', {
-        name: /unclassified.*12 items/i,
-      });
-      expect(unclassifiedTab).toBeInTheDocument();
-    });
-
-    it('mounts ReviewContent with the unclassified narrowing flag when the Unclassified tab is active (ID-63.12)', () => {
-      setSearchParam('tab', 'unclassified');
       renderTabs();
-
-      const unclassifiedTab = screen.getByRole('tab', {
-        name: /unclassified/i,
-      });
-      expect(unclassifiedTab).toHaveAttribute('aria-selected', 'true');
-
-      const reviewContentMock = screen.getByTestId('review-content-mock');
-      // status='all' (show every status) narrowed by the unclassified filter.
-      expect(reviewContentMock).toHaveAttribute('data-initial-status', 'all');
-      expect(reviewContentMock).toHaveAttribute(
-        'data-initial-unclassified',
-        'true',
-      );
+      expect(
+        screen.queryByRole('tab', { name: /unclassified/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

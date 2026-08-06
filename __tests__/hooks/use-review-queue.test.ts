@@ -158,29 +158,29 @@ function makeQueueItem(
   return {
     id: overrides.id ?? `item-${index}`,
     title: overrides.title ?? `Item ${index}`,
-    suggested_title: null,
+
     summary: null,
-    primary_domain: 'Technical',
-    primary_subtopic: 'unclassified',
+
+
     content_type: 'article',
     platform: 'web',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: '2026-01-01',
-    ai_keywords: null,
-    classification_confidence: 0.9,
+
+
     priority: null,
     freshness: 'fresh',
     user_tags: null,
     governance_review_status: null,
     metadata: null,
     content: null,
-    source_url: null,
+
     verified_at: null,
     verified_by: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
+
+
     quality_score: null,
     last_reviewed_at: null,
     publication_status: null,
@@ -228,7 +228,6 @@ function setupLoadedState(
           verified: 50,
           flagged: 10,
           unverified: 40,
-          by_domain: {},
           by_content_type: {},
           by_source_file: {},
           ...overrides.stats,
@@ -481,9 +480,9 @@ describe('useReviewQueue', () => {
 
     it('handleSelectItem selects the item at the given index', () => {
       const items = [
-        makeQueueItem({ id: 's1', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 's2', primary_domain: 'Alpha' }, 1),
-        makeQueueItem({ id: 's3', primary_domain: 'Middle' }, 2),
+        makeQueueItem({ id: 's1' }),
+        makeQueueItem({ id: 's2' }, 1),
+        makeQueueItem({ id: 's3' }, 2),
       ];
       setupLoadedState(items);
 
@@ -629,8 +628,8 @@ describe('useReviewQueue', () => {
   describe('queue ordering', () => {
     it('sortedQueue returns queue in server-provided order', () => {
       const items = [
-        makeQueueItem({ id: 'def1', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'def2', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 'def1' }),
+        makeQueueItem({ id: 'def2' }, 1),
       ];
       setupLoadedState(items);
 
@@ -644,9 +643,9 @@ describe('useReviewQueue', () => {
 
     it('sortedQueue reflects navigation sub-hook order', () => {
       const items = [
-        makeQueueItem({ id: 'dom1', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'dom2', primary_domain: 'Alpha' }, 1),
-        makeQueueItem({ id: 'dom3', primary_domain: 'Middle' }, 2),
+        makeQueueItem({ id: 'dom1' }),
+        makeQueueItem({ id: 'dom2' }, 1),
+        makeQueueItem({ id: 'dom3' }, 2),
       ];
       setupLoadedState(items);
 
@@ -676,13 +675,13 @@ describe('useReviewQueue', () => {
       act(() => {
         result.current.handleFiltersChange({
           status: 'verified',
-          domain: ['Technical'],
+          content_type: ['article'],
         });
       });
 
       expect(mockSessionReturn.handleFiltersChange).toHaveBeenCalledWith({
         status: 'verified',
-        domain: ['Technical'],
+        content_type: ['article'],
       });
     });
 
@@ -710,13 +709,13 @@ describe('useReviewQueue', () => {
       act(() => {
         result.current.setFilters({
           status: 'flagged',
-          domain: ['Commercial'],
+          content_type: ['guidance'],
         });
       });
 
       expect(mockSessionReturn.setFilters).toHaveBeenCalledWith({
         status: 'flagged',
-        domain: ['Commercial'],
+        content_type: ['guidance'],
       });
     });
   });
@@ -748,8 +747,8 @@ describe('useReviewQueue', () => {
   describe('computed values', () => {
     it('currentSortedIndex comes from navigation sub-hook', () => {
       const items = [
-        makeQueueItem({ id: 'ci1', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'ci2', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 'ci1' }),
+        makeQueueItem({ id: 'ci2' }, 1),
       ];
       setupLoadedState(items);
       mockNavReturn.currentSortedIndex = 1;
@@ -816,14 +815,17 @@ describe('useReviewQueue', () => {
 
   describe('orchestrator wiring', () => {
     it('passes session filters to data hook with undefined serverSort', () => {
-      mockSessionReturn.filters = { status: 'flagged', domain: ['Technical'] };
+      mockSessionReturn.filters = {
+        status: 'flagged',
+        content_type: ['article'],
+      };
 
       renderHook(() => useReviewQueue(), {
         wrapper: createWrapper(),
       });
 
       expect(vi.mocked(useReviewQueueData)).toHaveBeenCalledWith(
-        { status: 'flagged', domain: ['Technical'] },
+        { status: 'flagged', content_type: ['article'] },
         undefined,
       );
     });

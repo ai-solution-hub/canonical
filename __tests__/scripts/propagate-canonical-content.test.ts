@@ -110,10 +110,26 @@ function collectLog() {
   return { log: (e: PropagationLogEvent) => events.push(e), events };
 }
 
-const DOMAINS = PAYLOAD_CONTRACT.find((c) => c.table === 'taxonomy_domains')!;
-const SUBTOPICS = PAYLOAD_CONTRACT.find(
-  (c) => c.table === 'taxonomy_subtopics',
-)!;
+// id-417 / DR-130: the taxonomy tables left PAYLOAD_CONTRACT (dropped
+// tables), but the fkRemap machinery is contract-generic — DOMAINS/SUBTOPICS
+// below are SYNTHETIC contract fixtures (the exact shape the taxonomy
+// entries used to have) that keep the machinery covered against a mock DB.
+const DOMAINS = {
+  table: 'taxonomy_domains',
+  stableKey: ['name'],
+  fkRemap: null,
+  tombstone: 'delete-absent',
+} as const satisfies (typeof PAYLOAD_CONTRACT)[number];
+const SUBTOPICS = {
+  table: 'taxonomy_subtopics',
+  stableKey: ['name'],
+  fkRemap: {
+    column: 'domain_id',
+    referencesTable: 'taxonomy_domains',
+    referencesStableKey: ['name'],
+  },
+  tombstone: 'delete-absent',
+} as const satisfies (typeof PAYLOAD_CONTRACT)[number];
 const LAYER_VOCAB = PAYLOAD_CONTRACT.find(
   (c) => c.table === 'layer_vocabulary',
 )!;
@@ -127,8 +143,7 @@ describe('conflictColumns', () => {
     expect(conflictColumns(LAYER_VOCAB)).toEqual(['key']);
   });
 
-  it('unions the fkRemap FK column with the stableKey for taxonomy_subtopics', () => {
-    // (domain_id, name) = the DB UNIQUE constraint taxonomy_subtopics_domain_id_name_key
+  it('unions the fkRemap FK column with the stableKey for a remapped contract', () => {
     expect(conflictColumns(SUBTOPICS)).toEqual(['domain_id', 'name']);
   });
 });
@@ -457,8 +472,8 @@ describe('propagateTableToTarget — dry-run', () => {
   });
 });
 
-describe('propagateAllToTarget — FK-dependency order', () => {
-  it('iterates the contract in order: taxonomy_domains before taxonomy_subtopics', async () => {
+describe('propagateAllToTarget — contract iteration', () => {
+  it('iterates the contract tables in declared order and skips reference_items reads', async () => {
     const source = makeRecordingClient({
       // Empty sources everywhere -> upsert skipped, tombstone guarded, version
       // still recorded; we only assert ORDER of source reads here.
@@ -475,10 +490,10 @@ describe('propagateAllToTarget — FK-dependency order', () => {
     const sourceSelectOrder = source.calls
       .filter((c) => c.verb === 'select')
       .map((c) => c.table);
-    const domainsIdx = sourceSelectOrder.indexOf('taxonomy_domains');
-    const subtopicsIdx = sourceSelectOrder.indexOf('taxonomy_subtopics');
-    expect(domainsIdx).toBeGreaterThanOrEqual(0);
-    expect(subtopicsIdx).toBeGreaterThan(domainsIdx);
+    const layerIdx = sourceSelectOrder.indexOf('layer_vocabulary');
+    const frtIdx = sourceSelectOrder.indexOf('form_requirement_templates');
+    expect(layerIdx).toBeGreaterThanOrEqual(0);
+    expect(frtIdx).toBeGreaterThan(layerIdx);
 
     // reference_items must be skipped-loud: it is iterated but never read.
     expect(sourceSelectOrder).not.toContain('reference_items');
@@ -487,7 +502,7 @@ describe('propagateAllToTarget — FK-dependency order', () => {
   it('reports ok=false and surfaces the error when a target table fails loud', async () => {
     const source = makeRecordingClient({
       selects: {
-        taxonomy_domains: [{ data: null, error: { message: 'boom' } }],
+        layer_vocabulary: [{ data: null, error: { message: 'boom' } }],
       },
       fallback: { data: [], error: null, count: 0 },
     });

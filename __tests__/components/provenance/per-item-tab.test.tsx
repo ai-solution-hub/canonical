@@ -2,7 +2,7 @@
  * Component tests for the per-item provenance tab.
  *
  * Tests loading skeleton, error state, full data render,
- * no-classification items, and no-bid-response items.
+ * and no-bid-response items.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -50,18 +50,7 @@ function renderWithQuery(ui: React.ReactElement) {
 function buildFullData(): ItemProvenanceResponse {
   return {
     itemId: VALID_UUID,
-    classification: {
-      confidence: 0.86,
-      primaryDomain: 'health-safety',
-      primarySubtopic: 'cdm-regulations',
-      secondaryDomain: 'construction',
-      secondarySubtopic: 'procurement',
-      reasoning: 'The document sets out duty-holder responsibilities',
-      classifiedAt: '2026-04-10T12:00:00Z',
-    },
     processing: {
-      classificationModel: 'claude-opus-4-6',
-      classificationModelSource: 'recorded' as 'recorded' | 'env_default',
       embeddingModel: 'text-embedding-3-large',
       embeddingModelSource: 'recorded' as 'recorded' | 'env_default',
     },
@@ -184,14 +173,8 @@ describe('PerItemTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /look up/i }));
 
     await waitFor(() => {
-      // Classification card
-      expect(screen.getByText('Classification')).toBeInTheDocument();
-      expect(screen.getByText('86.0%')).toBeInTheDocument();
-      expect(screen.getByText(/health-safety/)).toBeInTheDocument();
-
       // Processing card
       expect(screen.getByText('Processing')).toBeInTheDocument();
-      expect(screen.getByText(/claude-opus-4-6/)).toBeInTheDocument();
       expect(screen.getByText(/text-embedding-3-large/)).toBeInTheDocument();
 
       // Drafting card
@@ -200,70 +183,6 @@ describe('PerItemTab', () => {
       expect(
         screen.getByText(/manchester schools refurb/i),
       ).toBeInTheDocument();
-    });
-  });
-
-  it('shows reasoning without truncation', async () => {
-    const fullData = buildFullData();
-    mockUseItemProvenance.mockReturnValue({
-      data: fullData,
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-
-    renderWithQuery(<PerItemTab />);
-
-    const input = screen.getByLabelText(/content item uuid/i);
-    fireEvent.change(input, { target: { value: VALID_UUID } });
-    fireEvent.click(screen.getByRole('button', { name: /look up/i }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('The document sets out duty-holder responsibilities'),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('renders "Not recorded" for null classification', async () => {
-    mockUseItemProvenance.mockReturnValue({
-      data: {
-        itemId: VALID_UUID,
-        classification: {
-          confidence: null,
-          primaryDomain: null,
-          primarySubtopic: null,
-          secondaryDomain: null,
-          secondarySubtopic: null,
-          reasoning: null,
-          classifiedAt: null,
-        },
-        processing: {
-          classificationModel: 'claude-opus-4-6',
-          classificationModelSource: 'env_default',
-          embeddingModel: 'text-embedding-3-large',
-          embeddingModelSource: 'env_default',
-        },
-        reviewSchedule: {
-          nextReviewDate: null,
-          reviewCadenceDays: null,
-          lastReviewedAt: null,
-        },
-        drafting: { recentDrafts: [], totalDraftCount: 0 },
-      },
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-
-    renderWithQuery(<PerItemTab />);
-
-    const input = screen.getByLabelText(/content item uuid/i);
-    fireEvent.change(input, { target: { value: VALID_UUID } });
-    fireEvent.click(screen.getByRole('button', { name: /look up/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/has not been classified/i)).toBeInTheDocument();
     });
   });
 
@@ -293,7 +212,6 @@ describe('PerItemTab', () => {
 
   it('shows model source qualifier for env_default', async () => {
     const data = buildFullData();
-    data.processing.classificationModelSource = 'env_default';
     data.processing.embeddingModelSource = 'env_default';
 
     mockUseItemProvenance.mockReturnValue({
@@ -311,9 +229,9 @@ describe('PerItemTab', () => {
 
     await waitFor(() => {
       const matches = screen.getAllByText(/current default/i);
-      expect(matches.length).toBeGreaterThanOrEqual(1);
-      // Both classification and embedding models should show the qualifier
-      expect(matches).toHaveLength(2);
+      // The embedding model shows the qualifier (id-417: the classification
+      // model row retired with the classification stage).
+      expect(matches).toHaveLength(1);
     });
   });
 

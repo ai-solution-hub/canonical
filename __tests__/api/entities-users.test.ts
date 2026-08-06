@@ -54,8 +54,6 @@ const { POST: entitiesSplitPost } =
 const { PATCH: entityTypePatch } =
   await import('@/app/api/entities/[canonical_name]/type/route');
 const { POST: embedPost } = await import('@/app/api/embed/route');
-const { GET: suggestionsGet } =
-  await import('@/app/api/search/suggestions/route');
 const { POST: displayNamesPost } =
   await import('@/app/api/users/display-names/route');
 
@@ -720,49 +718,8 @@ describe('POST /api/embed', () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// GET /api/search/suggestions
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe('GET /api/search/suggestions', () => {
-  it('returns 401 when unauthenticated', async () => {
-    configureUnauthenticated(mockSupabase);
-
-    const res = await suggestionsGet();
-    expect(res.status).toBe(401);
-  });
-
-  it('returns keywords on success', async () => {
-    // getAuthenticatedClient does not use rpc, so this mockResolvedValueOnce
-    // will be consumed by the route's own rpc call
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: [
-        { keyword: 'security', item_count: 15 },
-        { keyword: 'compliance', item_count: 10 },
-      ],
-      error: null,
-    });
-
-    const res = await suggestionsGet();
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.keywords).toEqual(['security', 'compliance']);
-  });
-
-  it('returns empty keywords array when RPC fails (graceful fallback)', async () => {
-    mockSupabase.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'RPC not found', code: '42883' },
-    });
-
-    const res = await suggestionsGet();
-    expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.keywords).toEqual([]);
-  });
-});
+// (GET /api/search/suggestions tests removed — id-417 / DR-130: the route
+// was deleted with get_popular_keywords and sd.ai_keywords.)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POST /api/users/display-names

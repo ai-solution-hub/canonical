@@ -3,7 +3,7 @@
  *
  * Spec: docs/specs/review-page-tabs-refactor-spec.md §7.
  * Card content per spec: title, domain/subtopic chips, source file,
- * classification confidence, ingest pipeline-run link, freshness signal
+ * ingest pipeline-run link, freshness signal
  * (`updated_at`), markdown preview (truncated), reuses
  * <PublicationStatusBadge />.
  */
@@ -16,26 +16,18 @@ function makeItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
   return {
     id: '11111111-1111-4111-8111-111111111111',
     title: 'Test in-review item',
-    suggested_title: null,
     summary: null,
-    primary_domain: 'Technical',
-    primary_subtopic: 'Architecture',
-    secondary_domain: null,
-    secondary_subtopic: null,
     content_type: 'q_a_pair',
     platform: 'manual',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: null,
-    ai_keywords: [],
-    classification_confidence: 0.87,
     quality_score: null,
     priority: null,
     user_tags: [],
     metadata: null,
     content: 'This is the body of the item awaiting publication.',
-    source_url: null,
     verified_at: null,
     verified_by: null,
     freshness: null,
@@ -49,16 +41,12 @@ function makeItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
 }
 
 describe('PublicationReviewCard', () => {
-  it('renders title, domain/subtopic chips, content type and confidence', () => {
+  it('renders title and content type', () => {
     render(<PublicationReviewCard item={makeItem()} />);
 
     expect(screen.getByText('Test in-review item')).toBeInTheDocument();
-    expect(screen.getByText('Technical')).toBeInTheDocument();
-    expect(screen.getByText('Architecture')).toBeInTheDocument();
     // content_type is rendered with underscores replaced by spaces.
     expect(screen.getByText(/q a pair/i)).toBeInTheDocument();
-    // Confidence is rounded to a percent.
-    expect(screen.getByText('87%')).toBeInTheDocument();
   });
 
   it('renders the publication-status badge for in_review items', () => {
@@ -79,16 +67,6 @@ describe('PublicationReviewCard', () => {
     expect(preview).toBeInTheDocument();
     // 480 chars + the ellipsis.
     expect(preview.textContent?.endsWith('…')).toBe(true);
-  });
-
-  it('falls back to suggested_title when title is empty', () => {
-    render(
-      <PublicationReviewCard
-        item={makeItem({ title: '', suggested_title: 'Suggested name' })}
-      />,
-    );
-
-    expect(screen.getByText('Suggested name')).toBeInTheDocument();
   });
 
   it('omits provenance row when metadata has no pipeline_run_id or ingest_source', () => {

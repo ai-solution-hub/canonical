@@ -26,7 +26,7 @@
  *   - BI-10/BI-20: the all-NULL default is unnarrowed (all grains returned)
  *     and the limit-raising load-more produces stable, dupe-free pages
  *     (the bl-431 OBS-3 `ORDER BY similarity DESC, id` tie-breaker).
- *   - API-layer PGRST202 guard: POST /api/search threads kind/domain/date
+ *   - API-layer PGRST202 guard: POST /api/search threads kind/date
  *     through to `api.hybrid_search` — proves the wrapper regen + the
  *     supabase-js `api` schema resolution (DR-030/DR-032); a stale wrapper
  *     would PGRST202 or silently ignore the new params.
@@ -48,9 +48,10 @@
  *     per-run TEST_TAG (`Date.now()`), so `query_text` ILIKE matches never
  *     cross-contaminate between describe blocks or prior/parallel runs.
  *   - Cleanup (afterAll) deletes in FK-safe order: record_embeddings (no FK,
- *     but must be deleted explicitly) → reference_items (FK RESTRICT to
- *     source_documents) → q_a_pairs → source_documents. record_lifecycle
- *     rows are NOT deleted explicitly — both owner FKs CASCADE.
+ *     but must be deleted explicitly) → reference_items → q_a_pairs →
+ *     source_documents (id-417 / DR-124: reference_items no longer FK to
+ *     source_documents). record_lifecycle rows are NOT deleted explicitly —
+ *     both owner FKs CASCADE.
  *
  * Prerequisites: `.env`/`.env.local` with NEXT_PUBLIC_SUPABASE_URL,
  * SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -116,14 +117,14 @@ function makeVector(length = 1024): number[] {
 
 const SHARED_VECTOR_STR = JSON.stringify(makeVector());
 
+// id-417 / DR-130: the domain/classification projections retired from the
+// RPC's return shape (§10a).
 interface HybridSearchRow {
   id: string;
   owner_kind: string;
   content_type: string;
   scope_tag: string[] | null;
   source_url: string | null;
-  primary_domain: string | null;
-  primary_subtopic: string | null;
   [key: string]: unknown;
 }
 
@@ -202,15 +203,9 @@ async function seedQaPair(opts: {
   validFrom?: string | null;
   /**
    * Links q_a_pairs.source_document_id (nullable, FK-less by design — ID-59
-   * {sidecar}) to an existing source_documents row. record_lifecycle.domain
-   * for a q_a_pair owner is NOT directly writable: `trg_record_lifecycle_
-   * domain_sync` (BEFORE INSERT OR UPDATE on record_lifecycle) unconditionally
-   * derives it from `q_a_pairs.source_document_id -> source_documents.
-   * primary_domain` (COALESCE'd to 'unclassified' when unset) — any direct
-   * `.update({ domain })` gets silently clobbered back by this trigger on the
-   * very next write. Pointing this at a source_documents row with the desired
-   * primary_domain is the only way to get a non-'unclassified' domain onto a
-   * seeded q_a_pair's record_lifecycle facet.
+   * {sidecar}) to an existing source_documents row. (id-417 / DR-130: the
+   * former record_lifecycle.domain sync trigger and column are gone — the
+   * link is pure provenance now.)
    */
   sourceDocumentId?: string;
 }): Promise<string> {
@@ -253,11 +248,11 @@ async function seedQaPair(opts: {
 async function seedSourceDocument(opts: {
   marker: string;
   contentType?: string | null;
-  primaryDomain?: string;
-  primarySubtopic?: string;
   capturedDate?: string | null;
 }): Promise<string> {
   const id = randomUUID();
+  // id-417 / DR-130: suggested_title/primary_domain/primary_subtopic retired
+  // — arm 1 matches on filename only, which carries the marker.
   const insert = await serviceClient
     .from('source_documents')
     .insert({
@@ -268,12 +263,9 @@ async function seedSourceDocument(opts: {
       content_hash: `${opts.marker}-${randomUUID()}`,
       storage_path: `test/id-144.8/${opts.marker}.md`,
       status: 'processed',
-      suggested_title: `[${opts.marker}] integration test document (id-144.8)`,
       content_type:
         opts.contentType === undefined ? 'article' : opts.contentType,
       publication_status: 'published',
-      primary_domain: opts.primaryDomain ?? 'unclassified',
-      primary_subtopic: opts.primarySubtopic ?? 'unclassified',
       captured_date:
         opts.capturedDate === undefined ? DEFAULT_DATE : opts.capturedDate,
     })
@@ -290,43 +282,39 @@ async function seedSourceDocument(opts: {
 
 async function seedReferenceItem(opts: {
   marker: string;
-  primaryDomain?: string;
-  primarySubtopic?: string;
   publishedAt?: string;
 }): Promise<{
   referenceId: string;
-  sourceDocumentId: string;
   sourceUrl: string;
 }> {
+  // id-417 / DR-124 + DR-130: the 7-param reference_ingest — no sd shell,
+  // no domain params.
   const sourceUrl = `https://id144-test.example.com/${opts.marker}-${randomUUID()}`;
   const { data, error } = await serviceClient.rpc('reference_ingest', {
     p_source_url: sourceUrl,
     p_title: `[${opts.marker}] integration test reference (id-144.8)`,
     p_body: `[${opts.marker}] integration test reference body content for id-144.8 coverage.`,
     p_summary: `[${opts.marker}] integration test reference summary (id-144.8)`,
-    p_primary_domain: opts.primaryDomain ?? 'unclassified',
-    p_primary_subtopic: opts.primarySubtopic ?? 'unclassified',
     p_embedding: SHARED_VECTOR_STR,
     p_published_at: opts.publishedAt ?? DEFAULT_DATE,
-    p_filename: `${opts.marker}.md`,
-    p_mime_type: 'text/markdown',
-    p_file_size: 128,
-    p_content_hash: `${opts.marker}-refhash-${randomUUID()}`,
-  });
+    // Post-regen straggler: the generated Args type still carries the OLD
+    // 14-param shape until the id-417 types regen; drop this cast then.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
   if (error || !data) {
     throw new Error(
       `seed reference_ingest (${opts.marker}) failed: ${error?.message ?? 'no data'}`,
     );
   }
-  const row = Array.isArray(data) ? data[0] : data;
+  const row = (Array.isArray(data) ? data[0] : data) as unknown as {
+    reference_id: string;
+  } | null;
   if (!row) {
     throw new Error(`seed reference_ingest (${opts.marker}) returned no row`);
   }
   seeded.referenceItemIds.push(row.reference_id);
-  seeded.sourceDocumentIds.push(row.source_document_id);
   return {
     referenceId: row.reference_id,
-    sourceDocumentId: row.source_document_id,
     sourceUrl,
   };
 }
@@ -444,48 +432,31 @@ describe('BI-15 filter_kind narrows before LIMIT (OBS-4 regression guard)', () =
 });
 
 // ---------------------------------------------------------------------------
-// BI-16: domain/subtopic/date filters + STRICT-EXCLUDE (DR-051)
+// BI-16: date filters + STRICT-EXCLUDE (DR-051). (The former
+// filter_domain/filter_subtopic legs retired with the subject axis —
+// id-417 / DR-130.)
 // ---------------------------------------------------------------------------
 
-describe('BI-16 domain/subtopic/date filters, STRICT-EXCLUDE undated rows (DR-051)', () => {
+describe('BI-16 date filters, STRICT-EXCLUDE undated rows (DR-051)', () => {
   const MARKER = `BI16${TEST_TAG}`;
-  const DOMAIN_A = `${MARKER}-domA`;
-  const DOMAIN_B = `${MARKER}-domB`;
-  const SUBTOPIC_A = `${MARKER}-subA`;
-  const SUBTOPIC_B = `${MARKER}-subB`;
   const IN_RANGE_DATE = '2026-02-10T00:00:00.000Z';
   const RANGE_FROM = '2026-02-01T00:00:00.000Z';
   const RANGE_TO = '2026-02-28T23:59:59.999Z';
 
-  let sdA: string; // domA/subA, captured_date IN RANGE
-  let sdB: string; // domB/subB, captured_date IN RANGE
-  let sdC: string; // domA/subA, captured_date NULL (undated)
-  let qaDated: string; // domain=domA (via source_document_id -> sdA), valid_from IN RANGE
-  let qaUndated: string; // domain=domA (via source_document_id -> sdA), valid_from NULL (undated)
+  let sdA: string; // captured_date IN RANGE
+  let sdC: string; // captured_date NULL (undated)
+  let qaDated: string; // valid_from IN RANGE
+  let qaUndated: string; // valid_from NULL (undated)
 
   beforeAll(async () => {
     sdA = await seedSourceDocument({
       marker: `${MARKER}-A`,
-      primaryDomain: DOMAIN_A,
-      primarySubtopic: SUBTOPIC_A,
-      capturedDate: IN_RANGE_DATE,
-    });
-    sdB = await seedSourceDocument({
-      marker: `${MARKER}-B`,
-      primaryDomain: DOMAIN_B,
-      primarySubtopic: SUBTOPIC_B,
       capturedDate: IN_RANGE_DATE,
     });
     sdC = await seedSourceDocument({
       marker: `${MARKER}-C`,
-      primaryDomain: DOMAIN_A,
-      primarySubtopic: SUBTOPIC_A,
       capturedDate: null,
     });
-    // record_lifecycle.domain for a q_a_pair owner is derived (write-time
-    // trigger) from q_a_pairs.source_document_id -> source_documents.
-    // primary_domain — link both to sdA (domain=DOMAIN_A) to get that domain
-    // synced onto their record_lifecycle facet (see seedQaPair jsdoc).
     qaDated = await seedQaPair({
       marker: `${MARKER}-QAD`,
       sourceDocumentId: sdA,
@@ -497,9 +468,6 @@ describe('BI-16 domain/subtopic/date filters, STRICT-EXCLUDE undated rows (DR-05
       validFrom: null,
     });
   }, 30_000);
-
-  // (The former filter_domain/filter_subtopic cases retired with the
-  // subject axis, DR-130 — the RPC params drop in the same wave.)
 
   it('filter_date_from/_to bound the result set; STRICT-EXCLUDE drops undated rows once a bound is set', async () => {
     const rows = await callHybridSearch({
@@ -594,34 +562,30 @@ describe('BI-10/BI-20 all-NULL default unchanged + stable dupe-free load-more pa
 
 describe('API-layer PGRST202 guard: POST /api/search filters take effect via api.hybrid_search', () => {
   const MARKER = `APILAYER${TEST_TAG}`;
-  const DOMAIN = `${MARKER}-dom`;
-  const OTHER_DOMAIN = `${MARKER}-other-dom`;
   const IN_RANGE_DATE = '2026-03-15T00:00:00.000Z';
+  const OUT_OF_RANGE_DATE = '2025-06-01T00:00:00.000Z';
   let matchId: string;
-  let excludedDomainId: string;
+  let excludedDateId: string;
 
   beforeAll(async () => {
     matchId = await seedSourceDocument({
       marker: `${MARKER}-match`,
-      primaryDomain: DOMAIN,
       capturedDate: IN_RANGE_DATE,
     });
-    excludedDomainId = await seedSourceDocument({
+    excludedDateId = await seedSourceDocument({
       marker: `${MARKER}-other`,
-      primaryDomain: OTHER_DOMAIN,
-      capturedDate: IN_RANGE_DATE,
+      capturedDate: OUT_OF_RANGE_DATE,
     });
     await signInAsTestUser(authCookies, 'admin');
   }, 30_000);
 
-  it('threads kind/domain/dateFrom/dateTo (bare dates) through to the RPC and narrows the response — no PGRST202', async () => {
+  it('threads kind/dateFrom/dateTo (bare dates) through to the RPC and narrows the response — no PGRST202 (id-417 / DR-130: the domain filter retired)', async () => {
     const res = await searchPost(
       new NextRequest('http://localhost/api/search', {
         method: 'POST',
         body: JSON.stringify({
           query: MARKER,
           kind: 'document',
-          domain: DOMAIN,
           // Bare dates — exercises the S460 route-boundary normalisation
           // (TECH §2.5) in the SAME call as the wrapper/params guard.
           dateFrom: '2026-03-01',
@@ -638,6 +602,6 @@ describe('API-layer PGRST202 guard: POST /api/search filters take effect via api
     };
     const ids = body.results.map((r) => r.id);
     expect(ids).toContain(matchId);
-    expect(ids).not.toContain(excludedDomainId);
+    expect(ids).not.toContain(excludedDateId);
   }, 30_000);
 });

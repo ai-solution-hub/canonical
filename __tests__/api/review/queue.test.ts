@@ -79,17 +79,8 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
   return {
     id: VALID_UUID,
     filename: 'test-item.pdf',
-    suggested_title: 'Suggested Title',
-    summary: 'A summary',
-    primary_domain: 'Technology',
-    primary_subtopic: 'AI',
-    secondary_domain: null,
-    secondary_subtopic: null,
     content_type: 'article',
     captured_date: '2026-01-01',
-    ai_keywords: ['test'],
-    classification_confidence: 0.9,
-    source_url: 'https://example.com',
     publication_status: 'published',
     updated_at: '2026-01-01T00:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
@@ -178,12 +169,9 @@ describe('GET /api/review/queue — sort parameter', () => {
   // The remaining unit-level guarantee is "the route accepts each sort
   // param value without erroring" — codified below.
 
-  it.each([
-    [undefined],
-    ['created_at'],
-    ['confidence_asc'],
-    ['quality_score_asc'],
-  ])('returns 200 when sort=%s', async (sort) => {
+  it.each([[undefined], ['created_at'], ['quality_score_asc']])(
+    'returns 200 when sort=%s',
+    async (sort) => {
     configureRole(mockSupabase, 'editor');
 
     const mockItems = [makeMockItem()];
@@ -201,7 +189,17 @@ describe('GET /api/review/queue — sort parameter', () => {
       searchParams: sort ? { sort } : undefined,
     });
     const res = await getQueue(req);
-    expect(res.status).toBe(200);
+      expect(res.status).toBe(200);
+    },
+  );
+
+  it('rejects the retired sort=confidence_asc (id-417 / DR-130)', async () => {
+    configureRole(mockSupabase, 'editor');
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { sort: 'confidence_asc' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -394,51 +392,13 @@ describe('GET /api/review/queue — document body as item content (id-392 M6)', 
 });
 
 // ===========================================================================
-// ID-63.12 — Unclassified tab queue branch
+// id-417 / DR-130 — the ID-63.12 unclassified sentinel filter retired
 // ===========================================================================
 
-describe('GET /api/review/queue — unclassified filter (ID-63.12)', () => {
+describe('GET /api/review/queue — unclassified filter retired (id-417)', () => {
   beforeEach(resetMocks);
 
-  it('returns the taxonomy-sentinel rows and applies the unclassified OR filter', async () => {
-    configureRole(mockSupabase, 'editor');
-
-    const sentinelItem = makeMockItem({
-      primary_domain: 'unclassified',
-      primary_subtopic: 'unclassified',
-    });
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => {
-        thenCallCount++;
-        if (thenCallCount === 1)
-          return resolve({ data: [sentinelItem], error: null, count: 1 });
-        return resolve({ data: null, error: null, count: 0 });
-      },
-    );
-
-    const req = createTestRequest('/api/review/queue', {
-      searchParams: { unclassified: 'true', status: 'all' },
-    });
-    const res = await getQueue(req);
-
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    // The sentinel row is RETURNED by the queue branch.
-    expect(json.items).toHaveLength(1);
-    expect(json.items[0].primary_domain).toBe('unclassified');
-
-    // The route MUST OR the two 'unclassified' predicates so a row that is
-    // unclassified on EITHER axis surfaces.
-    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
-    const sentinelOr = orCalls.find(([expr]) =>
-      expr.includes('primary_domain.eq.unclassified'),
-    );
-    expect(sentinelOr).toBeDefined();
-    expect(sentinelOr?.[0]).toContain('primary_subtopic.eq.unclassified');
-  });
-
-  it('does NOT apply the unclassified filter when the param is absent', async () => {
+  it('never applies the retired unclassified sentinel OR predicate', async () => {
     configureRole(mockSupabase, 'editor');
 
     let thenCallCount = 0;
@@ -451,8 +411,10 @@ describe('GET /api/review/queue — unclassified filter (ID-63.12)', () => {
       },
     );
 
+    // Even a legacy deep-link with ?unclassified=true must not produce the
+    // sentinel predicate (the columns are dropped).
     const req = createTestRequest('/api/review/queue', {
-      searchParams: { status: 'all' },
+      searchParams: { unclassified: 'true', status: 'all' },
     });
     const res = await getQueue(req);
     expect(res.status).toBe(200);

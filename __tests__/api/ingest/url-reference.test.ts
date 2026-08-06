@@ -201,7 +201,7 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(json).not.toHaveProperty('dedup_status');
   });
 
-  it('cleans HTML via the B1 /extract endpoint and records trafilatura provenance (PI-9/PI-11)', async () => {
+  it('cleans HTML via the B1 /extract endpoint (PI-9/PI-11)', async () => {
     const res = await POST(
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
@@ -214,19 +214,10 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
       'https://example.com/a',
     );
 
-    // extraction_metadata.extractor carries 'trafilatura' so the {112.9} RPC
-    // derivation writes extraction_method='trafilatura' (was 'readability').
-    const rpcArgs = client.rpc.mock.calls[0][1] as {
-      p_mime_type: string;
-      p_body: string;
-      p_extraction_metadata: Record<string, unknown>;
-    };
-    expect(rpcArgs.p_extraction_metadata).toMatchObject({
-      extractor: 'trafilatura',
-      via: 'app_sync_url_import',
-    });
-    // text/html mime for the HTML path; body is the Trafilatura-cleaned text.
-    expect(rpcArgs.p_mime_type).toBe('text/html');
+    // id-417 / DR-124: the sd-shell provenance params (p_mime_type /
+    // p_extraction_metadata / p_filename …) retired with the shell — the
+    // reference body is the cleaned text.
+    const rpcArgs = client.rpc.mock.calls[0][1] as { p_body: string };
     expect(rpcArgs.p_body).toBe('x'.repeat(800));
   });
 
@@ -271,31 +262,32 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     expect(json).not.toHaveProperty('duplicate_matches');
   });
 
-  it('passes NULL domain/subtopic (in-request classification retired, DR-130)', async () => {
+  it('calls the 7-param reference_ingest with no domain or sd-shell params (id-417 / DR-130 + DR-124)', async () => {
     const res = await POST(
       makeRequest({ url: 'https://example.com/a' }) as never,
     );
     expect(res.status).toBe(200);
-    expect(client.rpc).toHaveBeenCalledWith(
-      'reference_ingest',
-      expect.objectContaining({
-        p_primary_domain: null,
-        p_primary_subtopic: null,
-      }),
-    );
+    const rpcArgs = client.rpc.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(rpcArgs).sort()).toEqual([
+      'p_body',
+      'p_embedding',
+      'p_published_at',
+      'p_source_url',
+      'p_summary',
+      'p_title',
+    ]);
   });
 
-  it('derives a non-empty filename (host) for a path-less URL — no 500 (ENG-FIX)', async () => {
+  it('derives a non-empty title (host) for a path-less URL with no extracted title — no 500 (ENG-FIX)', async () => {
     const res = await POST(
       makeRequest({ url: 'https://example.com/' }) as never,
     );
     expect(res.status).toBe(200);
-    const rpcArgs = client.rpc.mock.calls[0][1] as { p_filename: string };
-    expect(rpcArgs.p_filename).toBe('example.com');
-    expect(rpcArgs.p_filename.length).toBeGreaterThan(0);
+    const rpcArgs = client.rpc.mock.calls[0][1] as { p_title: string };
+    expect(rpcArgs.p_title.length).toBeGreaterThan(0);
   });
 
-  it('keeps the PDF path in-process via unpdf (application/pdf, extractor unpdf) — never calls /extract', async () => {
+  it('keeps the PDF path in-process via unpdf — never calls /extract', async () => {
     fetchForExtractionMock.mockResolvedValueOnce({
       kind: 'pdf',
       buffer: new Uint8Array([1, 2, 3]).buffer,
@@ -309,16 +301,8 @@ describe('POST /api/ingest/url — reference-layer ingest (ID-110 {110.6})', () 
     // PDF body cleaned in-process — the pure cleaner is HTML-only.
     expect(extractPdfTextMock).toHaveBeenCalledTimes(1);
     expect(cleanViaWorkerMock).not.toHaveBeenCalled();
-    const rpcArgs = client.rpc.mock.calls[0][1] as {
-      p_mime_type: string;
-      p_extraction_metadata: Record<string, unknown>;
-    };
-    expect(rpcArgs.p_mime_type).toBe('application/pdf');
-    expect(rpcArgs.p_extraction_metadata).toMatchObject({
-      extractor: 'unpdf',
-      via: 'app_sync_url_import',
-      page_count: 3,
-    });
+    const rpcArgs = client.rpc.mock.calls[0][1] as { p_body: string };
+    expect(rpcArgs.p_body).toBe('y'.repeat(800));
   });
 
   it('returns url_already_exists when the URL is already a reference', async () => {

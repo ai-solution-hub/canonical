@@ -94,26 +94,6 @@ function configureAwaitingPublicationCount(count: number) {
 }
 
 /**
- * ID-63.12 — configure both parallel count queries in array order: the
- * awaiting_publication query (Promise.all index 1) resolves first, the
- * unclassified-coverage query (index 2) second. Both share the `_chain`
- * thenable, so two ordered `mockImplementationOnce` calls map to the two
- * head:true + count='exact' queries the route fires alongside the RPC.
- */
-function configureParallelCounts(opts: {
-  awaiting: number;
-  unclassified: number;
-}) {
-  mockSupabase._chain.then
-    .mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: opts.awaiting }),
-    )
-    .mockImplementationOnce((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null, count: opts.unclassified }),
-    );
-}
-
-/**
  * Configure the RPC to return a fully-shaped breakdown including the new
  * `overdue` field. Mirrors the JSON shape produced by the SQL RPC at
  * supabase/migrations/20260427230503_extend_review_breakdown_overdue.sql.
@@ -134,7 +114,6 @@ function configureRpcResponse(
       flagged: overrides.flagged ?? 5,
       draft: overrides.draft ?? 3,
       overdue: overrides.overdue ?? 7,
-      by_domain: {},
       by_content_type: {},
       by_source_file: {},
       by_source_document: {},
@@ -246,55 +225,26 @@ describe('GET /api/review/stats', () => {
     });
   });
 
-  // ID-63.12 — unclassified_coverage count must surface from the THIRD
-  // parallel head:true + count='exact' query: non-archived content_items on
-  // the 'unclassified' taxonomy sentinel ({63.11}). The /review "Unclassified"
-  // tab badge reads `stats?.unclassified_coverage` end-to-end.
-  describe('unclassified_coverage count (ID-63.12)', () => {
-    it('surfaces unclassified_coverage=N from the parallel sentinel count query', async () => {
-      configureRole(mockSupabase, 'admin');
-      configureRpcResponse({ overdue: 0 });
-      configureParallelCounts({ awaiting: 7, unclassified: 12 });
+  // (unclassified_coverage tests retired — id-417 / DR-130: the sentinel
+  // columns and the count leg are gone; the response no longer carries the
+  // field.)
+  it('does not emit the retired unclassified_coverage field (id-417)', async () => {
+    configureRole(mockSupabase, 'editor');
+    configureRpcResponse({ overdue: 0 });
+    configureAwaitingPublicationCount(0);
 
-      const res = await GET();
-      expect(res.status).toBe(200);
+    const res = await GET();
+    expect(res.status).toBe(200);
 
-      const body = await res.json();
-      expect(body.unclassified_coverage).toBe(12);
-      expect(body.awaiting_publication).toBe(7);
+    const body = await res.json();
+    expect(body).not.toHaveProperty('unclassified_coverage');
 
-      // The sentinel count must run against source_documents (ID-131
-      // {131.19} — content_items is dying), exclude archived rows
-      // (archived_at IS NULL), and OR the two 'unclassified' predicates.
-      expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
-
-      const isCalls = mockSupabase._chain.is.mock.calls as Array<
-        [string, unknown]
-      >;
-      const archivedFilter = isCalls.find(
-        ([col, val]) => col === 'archived_at' && val === null,
-      );
-      expect(archivedFilter).toBeDefined();
-
-      const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
-      const sentinelOr = orCalls.find(([expr]) =>
-        expr.includes('primary_domain.eq.unclassified'),
-      );
-      expect(sentinelOr).toBeDefined();
-      expect(sentinelOr?.[0]).toContain('primary_subtopic.eq.unclassified');
-    });
-
-    it('reports unclassified_coverage=0 when nothing is unclassified', async () => {
-      configureRole(mockSupabase, 'editor');
-      configureRpcResponse({ overdue: 0 });
-      configureParallelCounts({ awaiting: 0, unclassified: 0 });
-
-      const res = await GET();
-      expect(res.status).toBe(200);
-
-      const body = await res.json();
-      expect(body.unclassified_coverage).toBe(0);
-    });
+    // And the sentinel OR predicate is never applied.
+    const orCalls = mockSupabase._chain.or.mock.calls as Array<[string]>;
+    const sentinelOr = orCalls.find(([expr]) =>
+      expr.includes('primary_domain.eq.unclassified'),
+    );
+    expect(sentinelOr).toBeUndefined();
   });
 
   // ===========================================================================
@@ -305,10 +255,10 @@ describe('GET /api/review/stats', () => {
   // (__tests__/supabase/migrations/bl398-governance-tombstone-filter.test.ts).
   // ===========================================================================
   describe('tombstone exclusion (BL-398)', () => {
-    it('excludes tombstoned rows from both the awaiting_publication and unclassified_coverage count queries', async () => {
+    it('excludes tombstoned rows from the awaiting_publication count query', async () => {
       configureRole(mockSupabase, 'admin');
       configureRpcResponse({ overdue: 0 });
-      configureParallelCounts({ awaiting: 3, unclassified: 4 });
+      configureAwaitingPublicationCount(3);
 
       const res = await GET();
       expect(res.status).toBe(200);
@@ -319,7 +269,7 @@ describe('GET /api/review/stats', () => {
       const tombstoneFilters = neqCalls.filter(
         ([col, val]) => col === 'admission_status' && val === 'tombstoned',
       );
-      expect(tombstoneFilters.length).toBe(2);
+      expect(tombstoneFilters.length).toBe(1);
     });
   });
 });

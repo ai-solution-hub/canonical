@@ -50,30 +50,22 @@ function makeReviewItem(
   return {
     id: 'item-1',
     title: 'Default Title',
-    suggested_title: null,
     summary: null,
-    primary_domain: 'Corporate',
-    primary_subtopic: 'Company History',
     content_type: 'article',
     platform: 'web',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: '2026-01-15T10:00:00Z',
-    ai_keywords: null,
-    classification_confidence: 0.85,
     priority: null,
     freshness: 'fresh',
     user_tags: null,
     governance_review_status: null,
     metadata: null,
     content: 'This is the review content body.',
-    source_url: null,
     source_file: undefined,
     verified_at: null,
     verified_by: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
     quality_score: null,
     last_reviewed_at: null,
     publication_status: null,
@@ -87,31 +79,9 @@ describe('ReviewCard', () => {
     expect(screen.getByText('Default Title')).toBeInTheDocument();
   });
 
-  it('prefers suggested_title over title', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({ suggested_title: 'Better Title' })}
-        position={1}
-        total={5}
-      />,
-    );
-    expect(screen.getByText('Better Title')).toBeInTheDocument();
-  });
-
   it('shows position and total count', () => {
     render(<ReviewCard item={makeReviewItem()} position={3} total={25} />);
     expect(screen.getByText('#3 of 25')).toBeInTheDocument();
-  });
-
-  it('renders domain badge when primary_domain is set', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({ primary_domain: 'Technical' })}
-        position={1}
-        total={1}
-      />,
-    );
-    expect(screen.getAllByText('Technical').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows "No content available" when content is null', () => {
@@ -134,43 +104,6 @@ describe('ReviewCard', () => {
       />,
     );
     expect(screen.getByTestId('content-renderer')).toBeInTheDocument();
-  });
-
-  it('shows high classification confidence', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({ classification_confidence: 0.85 })}
-        position={1}
-        total={1}
-      />,
-    );
-    // Confidence appears in context summary and/or classification section
-    expect(screen.getAllByText('High').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows low confidence warning', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({ classification_confidence: 0.3 })}
-        position={1}
-        total={1}
-      />,
-    );
-    expect(screen.getAllByText('Low').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('shows secondary domain when present', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({
-          secondary_domain: 'Technical',
-          secondary_subtopic: 'Infrastructure',
-        })}
-        position={1}
-        total={1}
-      />,
-    );
-    expect(screen.getByText('Secondary:')).toBeInTheDocument();
   });
 
   it('shows verification status when verified', () => {
@@ -232,21 +165,6 @@ describe('ReviewCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the "unclassified" sentinel domain instead of hiding it (post-NOT-NULL {63.11})', () => {
-    render(
-      <ReviewCard
-        item={makeReviewItem({ primary_domain: 'unclassified' })}
-        position={1}
-        total={1}
-      />,
-    );
-    // primary_domain is NOT NULL post-{63.11}; the sentinel is truthy so the
-    // DomainBadge renders (the old null/'' hidden branch is now unreachable).
-    expect(
-      screen.getByRole('article', { name: /Review item/ }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Corporate')).not.toBeInTheDocument();
-  });
 });
 
 // ─── GovernanceBadge surfacing (P0-12) ──────────────────────────────────────

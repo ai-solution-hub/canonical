@@ -44,10 +44,10 @@ function makeRequirement(
     requirement_text: 'Describe your health and safety policy.',
     description: 'H&S policy content',
     requirement_type: 'policy',
-    primary_domain: 'compliance',
-    primary_subtopic: 'health-and-safety',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
+
+
+
     matching_keywords: ['health and safety', 'h&s', 'safety policy'],
     matching_guidance: null,
     requirement_embedding: [0.1, 0.2, 0.3, 0.4, 0.5],
@@ -71,11 +71,11 @@ function makeContent(
     brief: null,
     detail: null,
     title: 'Health and Safety Policy',
-    suggested_title: null,
-    primary_domain: 'compliance',
-    primary_subtopic: 'health-and-safety',
+
+
+
     content_type: 'policy',
-    ai_keywords: ['health and safety', 'workplace safety', 'risk assessment'],
+
     embedding: [0.1, 0.2, 0.3, 0.4, 0.5], // identical to requirement = similarity 1.0
     ...overrides,
   };
@@ -152,9 +152,9 @@ describe('cosineSimilarity', () => {
 // ---------------------------------------------------------------------------
 
 describe('matchRequirement', () => {
-  it('returns strong when taxonomy matches + high similarity + sufficient content', () => {
+  it('returns strong for high similarity + sufficient content', () => {
     const req = makeRequirement();
-    const content = makeContent(); // matching domain, subtopic, and identical embedding
+    const content = makeContent(); // identical embedding
     const result = matchRequirement(req, [content]);
 
     expect(result.coverage_status).toBe('strong');
@@ -163,7 +163,7 @@ describe('matchRequirement', () => {
     expect(result.content_length_met).toBe(true);
   });
 
-  it('returns partial when taxonomy matches but content below type threshold', () => {
+  it('returns partial when similarity is high but content below type threshold', () => {
     const req = makeRequirement({ requirement_type: 'policy' }); // needs 300 chars
     const content = makeContent({
       content: 'Short policy.', // ~13 chars, well below 300
@@ -175,7 +175,7 @@ describe('matchRequirement', () => {
     expect(result.content_length_met).toBe(false);
   });
 
-  it('returns partial when no taxonomy match but semantic > 0.35', () => {
+  it('returns partial when semantic similarity is between 0.35 and 0.55', () => {
     const refEmb = [0.1, 0.2, 0.3, 0.4, 0.5];
     // Analytically computed: ref + t*orth where t chosen so cos(ref, v) ≈ 0.45
     // (between partial threshold 0.35 and strong threshold 0.55)
@@ -187,9 +187,9 @@ describe('matchRequirement', () => {
 
     const req = makeRequirement({ requirement_embedding: refEmb });
     const content = makeContent({
-      primary_domain: 'other-domain',
-      primary_subtopic: 'other-subtopic',
-      ai_keywords: [],
+
+
+
       embedding: partialEmb,
     });
     const result = matchRequirement(req, [content]);
@@ -197,7 +197,7 @@ describe('matchRequirement', () => {
     expect(result.coverage_status).toBe('partial');
   });
 
-  it('returns strong when no taxonomy match but semantic > 0.55 + sufficient content', () => {
+  it('returns strong when semantic similarity > 0.55 + sufficient content', () => {
     const refEmb = [1, 0, 0, 0, 0];
     // Create a vector very close to reference for high similarity
     const strongEmb = [0.99, 0.01, 0.01, 0.01, 0.01];
@@ -207,32 +207,14 @@ describe('matchRequirement', () => {
       requirement_embedding: refEmb,
     });
     const content = makeContent({
-      primary_domain: 'other-domain',
-      primary_subtopic: 'other-subtopic',
-      ai_keywords: [],
+
+
+
       embedding: strongEmb,
     });
     const result = matchRequirement(req, [content]);
 
     expect(result.coverage_status).toBe('strong');
-  });
-
-  it('considers keyword overlap when taxonomy does not match', () => {
-    const req = makeRequirement({
-      matching_keywords: ['safety policy', 'risk assessment'],
-      requirement_embedding: null, // no embedding — semantic won't help
-    });
-    const content = makeContent({
-      primary_domain: 'other-domain',
-      primary_subtopic: 'other-subtopic',
-      ai_keywords: ['safety policy', 'workplace safety'],
-      embedding: null,
-    });
-    const result = matchRequirement(req, [content]);
-
-    // Keyword overlap = 1 → at least partial
-    expect(result.coverage_status).toBe('partial');
-    expect(result.matching_content_ids).toContain('ci-1');
   });
 
   it('caps Q&A pairs with < 20 char content at partial', () => {
@@ -257,15 +239,15 @@ describe('matchRequirement', () => {
 
   it('returns gap when no matching content exists', () => {
     const req = makeRequirement({
-      primary_domain: 'niche-domain',
-      primary_subtopic: 'niche-subtopic',
+
+
       matching_keywords: ['extremely specific term xyz123'],
       requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
     });
     const content = makeContent({
-      primary_domain: 'other-domain',
-      primary_subtopic: 'other-subtopic',
-      ai_keywords: ['unrelated'],
+
+
+
       embedding: [0.1, 0.1, 0.1, 0.1, 0.1], // low similarity
     });
     const result = matchRequirement(req, [content]);
@@ -318,8 +300,8 @@ describe('computeTemplateCoverage', () => {
         section_ref: 'Part 2',
         section_name: 'Technical',
         display_order: 2,
-        primary_domain: 'niche',
-        primary_subtopic: 'niche',
+
+
         matching_keywords: ['xyz123'],
         requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
       }),
@@ -354,8 +336,8 @@ describe('computeTemplateCoverage', () => {
     const requirements = [
       makeRequirement({
         id: 'req-1',
-        primary_domain: 'niche',
-        primary_subtopic: 'niche',
+
+
         matching_keywords: ['xyz'],
         requirement_embedding: [0.9, -0.9, 0.9, -0.9, 0.9],
       }),
@@ -363,9 +345,9 @@ describe('computeTemplateCoverage', () => {
 
     const result = computeTemplateCoverage('Test', null, 'sq', requirements, [
       makeContent({
-        primary_domain: 'other',
-        primary_subtopic: 'other',
-        ai_keywords: ['unrelated'],
+
+
+
         embedding: [0.1, 0.1, 0.1, 0.1, 0.1],
       }),
     ]);
@@ -510,8 +492,8 @@ describe('fetchContentForMatching', () => {
             title: 'Safety Policy Document',
             body: 'Full text of the safety policy.',
             summary: 'Summary of the safety policy.',
-            primary_domain: 'compliance',
-            primary_subtopic: 'health-and-safety',
+
+
           },
         ],
         error: null,
@@ -524,10 +506,6 @@ describe('fetchContentForMatching', () => {
           { owner_id: 'qa-1', embedding: '[0.1,0.2,0.3]' },
           { owner_id: 'ri-1', embedding: [0.4, 0.5, 0.6] },
         ],
-        error: null,
-      },
-      record_lifecycle: {
-        data: [{ owner_id: 'qa-1', domain: 'compliance' }],
         error: null,
       },
     });
@@ -545,11 +523,11 @@ describe('fetchContentForMatching', () => {
       brief: null,
       detail: null,
       title: 'What is your safety policy?',
-      suggested_title: null,
-      primary_domain: 'compliance',
-      primary_subtopic: null,
+
+
+
       content_type: 'q_a_pair',
-      ai_keywords: null,
+
       embedding: [0.1, 0.2, 0.3],
     });
 
@@ -560,22 +538,23 @@ describe('fetchContentForMatching', () => {
       brief: null,
       detail: null,
       title: 'Safety Policy Document',
-      suggested_title: null,
-      primary_domain: 'compliance',
-      primary_subtopic: 'health-and-safety',
+
+
+
       content_type: 'reference_item',
-      ai_keywords: null,
+
       embedding: [0.4, 0.5, 0.6],
     });
 
     // The retired content_items table must never be queried.
     expect(dispatch.from).not.toHaveBeenCalledWith('content_items');
 
-    // The re-pointed sources + satellites ARE queried.
+    // The re-pointed sources + satellites ARE queried. (id-417 / DR-130:
+    // the record_lifecycle domain-facet lookup retired with the axis.)
     expect(dispatch.from).toHaveBeenCalledWith('q_a_pairs');
     expect(dispatch.from).toHaveBeenCalledWith('reference_items');
     expect(dispatch.from).toHaveBeenCalledWith('record_embeddings');
-    expect(dispatch.from).toHaveBeenCalledWith('record_lifecycle');
+    expect(dispatch.from).not.toHaveBeenCalledWith('record_lifecycle');
 
     // Archived q_a_pairs are excluded (closest surviving analogue of the
     // dropped content_items.archived_at IMS flag — BI-29/30 note).
@@ -646,10 +625,10 @@ describe('fetchTemplateRequirements', () => {
             requirement_text: 'Describe your safety policy.',
             description: null,
             requirement_type: 'policy',
-            primary_domain: 'compliance',
-            primary_subtopic: 'health-and-safety',
-            secondary_domain: null,
-            secondary_subtopic: null,
+
+
+
+
             matching_keywords: ['safety'],
             matching_guidance: null,
             is_mandatory: true,
@@ -668,10 +647,10 @@ describe('fetchTemplateRequirements', () => {
             requirement_text: 'Company registration number.',
             description: null,
             requirement_type: 'data',
-            primary_domain: null,
-            primary_subtopic: null,
-            secondary_domain: null,
-            secondary_subtopic: null,
+
+
+
+
             matching_keywords: [],
             matching_guidance: null,
             is_mandatory: true,
@@ -749,10 +728,10 @@ describe('fetchTemplateRequirements', () => {
             requirement_text: 'Describe your safety policy.',
             description: null,
             requirement_type: 'policy',
-            primary_domain: null,
-            primary_subtopic: null,
-            secondary_domain: null,
-            secondary_subtopic: null,
+
+
+
+
             matching_keywords: [],
             matching_guidance: null,
             is_mandatory: true,

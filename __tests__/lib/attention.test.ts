@@ -14,7 +14,6 @@ import {
   produceExpiringCertItems,
   produceExpiringContentDateItems,
   produceUnreadNotificationItems,
-  produceTaxonomyCoverageItems,
   sortAttentionItems,
   filterByRole,
   buildAttentionItems,
@@ -54,7 +53,6 @@ function emptySourceData(): AttentionSourceData {
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
-    unclassified_count: 0,
   };
 }
 
@@ -411,41 +409,9 @@ describe('produceUnreadNotificationItems', () => {
 // content_items-era coverage-gap feature is retired per DR-034; see
 // lib/attention.ts's AttentionSourceData comment for the full rationale.
 
-// ID-63.12 — taxonomy-coverage gap insight (the 'unclassified' sentinel
-// established by {63.11}; tied to the Inv-7 taxonomy-miss concept from the
-// {63.8} flow-end webhook).
-describe('produceTaxonomyCoverageItems', () => {
-  it('returns empty for zero', () => {
-    expect(produceTaxonomyCoverageItems(0)).toEqual([]);
-  });
-
-  it('returns empty for negative counts', () => {
-    expect(produceTaxonomyCoverageItems(-2)).toEqual([]);
-  });
-
-  it('returns an info-severity editor/admin item for a positive count', () => {
-    const items = produceTaxonomyCoverageItems(4);
-    expect(items).toHaveLength(1);
-    expect(items[0].type).toBe('taxonomy_coverage');
-    expect(items[0].severity).toBe('info');
-    expect(items[0].role_visibility).toEqual(['admin', 'editor']);
-    expect(items[0].count).toBe(4);
-  });
-
-  it('routes to the /review Unclassified tab so the sentinel rows can be reclassified', () => {
-    const items = produceTaxonomyCoverageItems(7);
-    expect(items[0].action_url).toBe('/review?tab=unclassified');
-    // The count must appear in the human-readable title (UK English) so an
-    // editor sees how many rows fell outside the taxonomy.
-    expect(items[0].title).toContain('7');
-    expect(items[0].title).toContain('unclassified');
-  });
-
-  it('renders a singular title for a count of one', () => {
-    const items = produceTaxonomyCoverageItems(1);
-    expect(items[0].title).toBe('1 unclassified content item');
-  });
-});
+// (produceTaxonomyCoverageItems tests removed — id-417 / DR-130: the
+// taxonomy-coverage insight retired with the 'unclassified' sentinel
+// columns.)
 
 // ---------------------------------------------------------------------------
 // Sort and filter tests
@@ -587,7 +553,6 @@ describe('buildAttentionItems', () => {
     expiring_cert_count: 0,
     expiring_content_date_count: 0,
     unread_notification_count: 0,
-    unclassified_count: 0,
   };
 
   it('returns empty array for zero counts', () => {
@@ -643,13 +608,11 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1,
       expiring_content_date_count: 1,
       unread_notification_count: 10,
-      unclassified_count: 1,
     };
     const items = buildAttentionItems(data);
     // governance(1) + expired(1) + stale(1) + quality(1) + unverified(1) +
-    // cert(1) + content_date(1) + notifications(1) +
-    // taxonomy_coverage(1) = 9.
-    expect(items.length).toBe(9);
+    // cert(1) + content_date(1) + notifications(1) = 8.
+    expect(items.length).toBe(8);
     // First should be critical (governance)
     expect(items[0].severity).toBe('critical');
     // Last should be info (certs or taxonomy coverage)
@@ -669,7 +632,6 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1,
       expiring_content_date_count: 2,
       unread_notification_count: 8,
-      unclassified_count: 3,
     };
     const items = buildAttentionItems(data);
 
@@ -683,7 +645,6 @@ describe('buildAttentionItems', () => {
     expect(types.has('expiring_certification')).toBe(true);
     expect(types.has('expiring_content_date')).toBe(true);
     expect(types.has('unread_notifications')).toBe(true);
-    expect(types.has('taxonomy_coverage')).toBe(true);
   });
 
   it('returns items sorted by severity with no lower before higher', () => {
@@ -699,7 +660,6 @@ describe('buildAttentionItems', () => {
       expiring_cert_count: 1, // info
       expiring_content_date_count: 0,
       unread_notification_count: 0,
-      unclassified_count: 0,
     };
     const items = buildAttentionItems(data);
     const severities = items.map((i) => i.severity);

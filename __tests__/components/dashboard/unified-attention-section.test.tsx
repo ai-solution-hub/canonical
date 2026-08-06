@@ -79,8 +79,8 @@ function makeTestItems(): AttentionItem[] {
     makeItem({
       id: 'info-1',
       severity: 'info',
-      type: 'taxonomy_coverage',
-      title: '3 unclassified items',
+      type: 'unread_notifications',
+      title: '3 unread notifications',
       role_visibility: ['admin', 'editor'],
     }),
   ];
@@ -116,7 +116,7 @@ describe('UnifiedAttentionSection', () => {
         screen.getByText('2 quality flags unresolved'),
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(screen.getByText('3 unclassified items')).toBeInTheDocument();
+      expect(screen.getByText('3 unread notifications')).toBeInTheDocument();
     });
 
     it('omits tier headers for empty tiers', () => {
@@ -160,7 +160,7 @@ describe('UnifiedAttentionSection', () => {
         screen.getByText('2 quality flags unresolved'),
       ).toBeInTheDocument();
       expect(screen.getByText('10 unverified items')).toBeInTheDocument();
-      expect(screen.getByText('3 unclassified items')).toBeInTheDocument();
+      expect(screen.getByText('3 unread notifications')).toBeInTheDocument();
     });
 
     it('filters out editor/admin-only items for viewer role', () => {
@@ -180,7 +180,7 @@ describe('UnifiedAttentionSection', () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByText('10 unverified items')).not.toBeInTheDocument();
       expect(
-        screen.queryByText('3 unclassified items'),
+        screen.queryByText('3 unread notifications'),
       ).not.toBeInTheDocument();
     });
 

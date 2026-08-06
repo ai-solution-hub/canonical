@@ -128,7 +128,6 @@ describe.skipIf(!ENABLED)(
         content_hash: `${TEST_PREFIX}-non-pipeline-write`,
         storage_path: `test-fixtures/${TEST_PREFIX}/non-pipeline-write.txt`,
         content_type: 'note',
-        primary_domain: 'general',
         // op_id intentionally OMITTED — this is the non-pipeline write
         // path; op_id should remain NULL.
       } as Record<string, unknown>;

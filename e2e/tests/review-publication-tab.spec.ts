@@ -56,8 +56,8 @@ test.describe('Review page — awaiting-publication tab (S31 W3)', () => {
     // already-working analogous fixture in
     // publication-bulk-action.e2e.spec.ts, which seeds source_documents
     // for the same tab). `filename` is the match key — this fixture has
-    // no suggested_title, and the rendered title is
-    // `suggested_title ?? filename` (mapToReviewQueueItem).
+    // the rendered title is the filename (mapToReviewQueueItem —
+    // id-417 / DR-130 retired suggested_title).
     const supabase = createServiceClient();
     await supabase
       .from('source_documents')

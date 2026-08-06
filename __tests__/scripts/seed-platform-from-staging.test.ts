@@ -24,7 +24,7 @@ import type {
  * worker (`scripts/propagate-canonical-content.ts`). These tests assert the
  * wrapper's own contract — direction lock, dry-run default / explicit --apply,
  * fail-loud on missing creds, and that a dry-run delegates the WHOLE
- * PAYLOAD_CONTRACT producing a 6-table upsert plan + reference_items SKIP + 0
+ * PAYLOAD_CONTRACT producing a 4-table upsert plan + reference_items SKIP + 0
  * tombstone-deletes — WITHOUT touching a live DB. The worker's own per-table
  * mechanics are already covered by propagate-canonical-content.test.ts.
  *
@@ -92,7 +92,7 @@ function makeRecordingClient(opts?: {
         let res: Response;
         if (kind === 'select' && selects[table]?.length) {
           // Sticky: keep the LAST queued response so repeated selects of the
-          // same table (e.g. the fkRemap bridge re-reading taxonomy_domains
+          // same table (e.g. a version-ledger re-read
           // AFTER that table's own propagation step) still resolve rows.
           res =
             selects[table].length > 1
@@ -115,7 +115,7 @@ function collectLog() {
   return { log: (e: PropagationLogEvent) => events.push(e), events };
 }
 
-/** Non-reference_items contract tables — the 6 the seed should upsert. */
+/** Non-reference_items contract tables — the 4 the seed should upsert. */
 const SEEDED_TABLES: PayloadTableContract[] = PAYLOAD_CONTRACT.filter(
   (c) => c.table !== 'reference_items',
 );
@@ -185,30 +185,18 @@ describe('resolveSeedConfig — direction is LOCKED staging -> platform', () => 
 });
 
 describe('runSeed — dry-run plan over the full PAYLOAD_CONTRACT', () => {
-  it('plans a 6-table upsert set with reference_items SKIP and 0 tombstone-deletes', async () => {
+  it('plans a 4-table upsert set with reference_items SKIP and 0 tombstone-deletes', async () => {
     // Each canonical source table returns one row so the dry-run reports a
     // would-upsert; reference_items is skip-loud before any read.
+    // (id-417 / DR-130: the taxonomy pair and its fkRemap bridge left the
+    // contract.)
     const selects: Record<string, Response[]> = {};
     for (const c of SEEDED_TABLES) {
-      // taxonomy_subtopics needs a resolvable domain on BOTH sides for fkRemap,
-      // but in DRY-RUN fkRemap still resolves before the plan log, so supply a
-      // domain row keyed by name on both source and target.
       selects[c.table] = [{ data: [seedRow(c)], error: null }];
     }
-    // Domain rows for the subtopics fkRemap bridge (source uuid -> name).
-    selects.taxonomy_domains = [
-      { data: [{ id: 'src-domain', name: 'Procurement' }], error: null },
-    ];
 
     const source = makeRecordingClient({ selects });
-    const target = makeRecordingClient({
-      selects: {
-        // Target-side domain lookup for the fkRemap (name -> target uuid).
-        taxonomy_domains: [
-          { data: [{ id: 'tgt-domain', name: 'Procurement' }], error: null },
-        ],
-      },
-    });
+    const target = makeRecordingClient();
     const factory = lockedFactory(source, target);
     const { log, events } = collectLog();
 
@@ -221,11 +209,11 @@ describe('runSeed — dry-run plan over the full PAYLOAD_CONTRACT', () => {
 
     expect(result.ok).toBe(true);
 
-    // 6 tables planned for upsert, reference_items skipped.
+    // 4 tables planned for upsert, reference_items skipped.
     const planned = result.tables.filter((t) => !t.skipped);
     const skipped = result.tables.filter((t) => t.skipped);
-    expect(planned).toHaveLength(SEEDED_TABLES.length); // 6
-    expect(planned).toHaveLength(6);
+    expect(planned).toHaveLength(SEEDED_TABLES.length); // 4
+    expect(planned).toHaveLength(4);
     expect(skipped.map((t) => t.table)).toEqual(['reference_items']);
 
     // Dry-run: ZERO live tombstone-deletes and ZERO live upserts on the target.
@@ -271,17 +259,8 @@ describe('runSeed — dry-run plan over the full PAYLOAD_CONTRACT', () => {
     for (const c of SEEDED_TABLES) {
       selects[c.table] = [{ data: [seedRow(c)], error: null }];
     }
-    selects.taxonomy_domains = [
-      { data: [{ id: 'src-domain', name: 'Procurement' }], error: null },
-    ];
     const source = makeRecordingClient({ selects });
-    const target = makeRecordingClient({
-      selects: {
-        taxonomy_domains: [
-          { data: [{ id: 'tgt-domain', name: 'Procurement' }], error: null },
-        ],
-      },
-    });
+    const target = makeRecordingClient();
     const { log } = collectLog();
 
     await runSeed({

@@ -129,7 +129,7 @@ describe('GET /api/review/queue', () => {
     // verified_by, freshness, governance_review_status) living on the
     // embedded record_lifecycle!inner facet (row.record_lifecycle[0]), not
     // flat on the row. `title` in the response is derived from
-    // suggested_title ?? filename, not a flat `title` column.
+    // filename (suggested_title retired, id-417 / DR-130).
     //
     // id-392 M6: `source_documents.extracted_text` is permanently NULL on
     // the pipeline path and is no longer selected — each item's `content` is
@@ -140,17 +140,17 @@ describe('GET /api/review/queue', () => {
       {
         id: VALID_UUID,
         filename: 'test-item.pdf',
-        suggested_title: 'Test Item',
+
         summary: 'A summary',
-        primary_domain: 'Technology',
-        primary_subtopic: 'AI',
-        secondary_domain: null,
-        secondary_subtopic: null,
+
+
+
+
         content_type: 'article',
         captured_date: '2026-01-01',
-        ai_keywords: ['test'],
-        classification_confidence: 0.9,
-        source_url: 'https://example.com',
+
+
+
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',
         created_at: '2026-01-01T00:00:00Z',
@@ -213,8 +213,7 @@ describe('GET /api/review/queue', () => {
     const json = await res.json();
     expect(json.items).toHaveLength(1);
     expect(json.items[0].id).toBe(VALID_UUID);
-    expect(json.items[0].title).toBe('Test Item');
-    expect(json.items[0].primary_domain).toBe('Technology');
+    expect(json.items[0].title).toBe('test-item.pdf');
     // The item's content is the blank-line-joined chunk composition — NOT
     // the legacy extracted_text column (permanently NULL on the pipeline
     // path, no longer read).
@@ -242,17 +241,17 @@ describe('GET /api/review/queue', () => {
       {
         id: VALID_UUID,
         filename: 'flagged-item.pdf',
-        suggested_title: 'Flagged Item',
+
         summary: 'A summary',
-        primary_domain: 'Technology',
-        primary_subtopic: 'AI',
-        secondary_domain: null,
-        secondary_subtopic: null,
+
+
+
+
         content_type: 'article',
         captured_date: '2026-01-01',
-        ai_keywords: ['test'],
-        classification_confidence: 0.9,
-        source_url: 'https://example.com',
+
+
+
         publication_status: 'published',
         updated_at: '2026-01-01T00:00:00Z',
         created_at: '2026-01-01T00:00:00Z',

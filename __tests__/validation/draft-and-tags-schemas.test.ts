@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ItemCreateBodySchema,
   TagDeleteBodySchema,
   TagRenameBodySchema,
   TagMergeBodySchema,
@@ -11,55 +10,8 @@ import {
 // Draft extension schema tests
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('ItemCreateBodySchema - draft governance status', () => {
-  const baseItem = {
-    title: 'Test Item',
-    content: '<p>Some content</p>',
-    content_type: 'article' as const,
-    auto_classify: false,
-    auto_summarise: false,
-    auto_embed: false,
-  };
-
-  it('accepts items without governance_review_status (default)', () => {
-    const result = ItemCreateBodySchema.safeParse(baseItem);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.governance_review_status).toBeUndefined();
-    }
-  });
-
-  it('accepts governance_review_status = "draft"', () => {
-    const result = ItemCreateBodySchema.safeParse({
-      ...baseItem,
-      governance_review_status: 'draft',
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.governance_review_status).toBe('draft');
-    }
-  });
-
-  it('rejects governance_review_status = "approved" on create', () => {
-    const result = ItemCreateBodySchema.safeParse({
-      ...baseItem,
-      governance_review_status: 'approved',
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects governance_review_status = "pending" on create', () => {
-    const result = ItemCreateBodySchema.safeParse({
-      ...baseItem,
-      governance_review_status: 'pending',
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Tag management schema tests
-// ═══════════════════════════════════════════════════════════════════════════
+// (ItemCreateBodySchema tests removed — id-417: the schema was deleted with
+// the retired /api/items routes.)
 
 describe('TagDeleteBodySchema', () => {
   it('accepts valid delete body', () => {

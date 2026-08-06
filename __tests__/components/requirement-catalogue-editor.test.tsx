@@ -3,7 +3,7 @@
  * PRODUCT §H1/§H3/§H4; ID-145 BI-24/BI-47).
  *
  * Acceptance (testStrategy): the editor exposes every form_requirement_templates
- * domain field and persists via TanStack mutation; Schema Builder is not
+ * field and persists via TanStack mutation; Schema Builder is not
  * present in the surface; create/edit is admin/editor-gated (reviewer/viewer
  * read-only).
  */
@@ -130,10 +130,10 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     requirement_text: 'Describe your H&S policy.',
     description: null,
     requirement_type: 'policy',
-    primary_domain: 'Health & Safety',
-    primary_subtopic: 'Policy',
-    secondary_domain: null,
-    secondary_subtopic: null,
+
+
+
+
     matching_keywords: ['safety', 'RIDDOR'],
     matching_guidance: 'Match on policy documents',
     is_mandatory: true,
@@ -251,13 +251,12 @@ describe('RequirementCatalogueEditor — list rendering', () => {
     );
   });
 
-  it('renders row fields: requirement text, type badge, domain/subtopic, mandatory flag', () => {
+  it('renders row fields: requirement text, type badge, mandatory flag', () => {
     configureRole('viewer');
     render(<RequirementCatalogueEditor />);
 
     expect(screen.getByText('Describe your H&S policy.')).toBeInTheDocument();
     expect(screen.getByText('policy')).toBeInTheDocument();
-    expect(screen.getByText('Health & Safety / Policy')).toBeInTheDocument();
     // "Mandatory" also appears as the column header — scope to the row cell.
     expect(screen.getByText('Standard PSQ').closest('table')).toHaveTextContent(
       /Mandatory/,
@@ -266,8 +265,8 @@ describe('RequirementCatalogueEditor — list rendering', () => {
   });
 });
 
-describe('RequirementCatalogueEditor — form exposes every domain field (§H1)', () => {
-  it('renders the Add Requirement form with every domain + identification field', async () => {
+describe('RequirementCatalogueEditor — form exposes every field (§H1)', () => {
+  it('renders the Add Requirement form with every identification field', async () => {
     configureRole('admin');
     const user = userEvent.setup();
     render(<RequirementCatalogueEditor />);
@@ -287,11 +286,9 @@ describe('RequirementCatalogueEditor — form exposes every domain field (§H1)'
     expect(screen.getByLabelText(/^description$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/requirement type/i)).toBeInTheDocument();
 
-    // Domain/subtopic classification
-    expect(screen.getByLabelText(/primary domain/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/primary subtopic/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/secondary domain/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/secondary subtopic/i)).toBeInTheDocument();
+    // (id-417 / DR-130: the four domain/subtopic classification fields
+    // retired with the subject-taxonomy axis.)
+    expect(screen.queryByLabelText(/primary domain/i)).not.toBeInTheDocument();
 
     // Matching
     expect(screen.getByLabelText(/matching keywords/i)).toBeInTheDocument();

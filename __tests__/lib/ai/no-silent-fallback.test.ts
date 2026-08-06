@@ -69,7 +69,6 @@ describe('B-INV-36 — refusal is surfaced, never swallowed', () => {
         content: 'Long enough content for a summary call.',
         title: 'Doc',
         contentType: 'article',
-        domain: 'tech',
       }),
     ).rejects.toThrow();
   });
@@ -90,7 +89,6 @@ describe('B-INV-36 — max_tokens truncation is surfaced, never swallowed', () =
         content: 'Long enough content for a summary call.',
         title: 'Doc',
         contentType: 'article',
-        domain: 'tech',
       }),
     ).rejects.toThrow();
   });

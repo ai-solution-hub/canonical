@@ -63,11 +63,8 @@ function makeRow(overrides: Partial<ReferenceListItem> = {}) {
     body_preview: 'A short body preview.',
     source_url: 'https://example.com/a',
     published_at: '2026-01-15T00:00:00Z',
-    primary_domain: 'procurement',
-    primary_subtopic: 'tendering',
     layer: 'detail',
     ingestion_source: 'url_import',
-    source_document_id: '22222222-2222-4222-8222-222222222222',
     ...overrides,
   };
 }
@@ -114,8 +111,6 @@ describe('useReferenceData — default list mode', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const [, params] = mockRpc.mock.calls[0];
-    expect(params.p_primary_domain).toBeUndefined();
-    expect(params.p_primary_subtopic).toBeUndefined();
     expect(params.p_ingestion_source).toBeUndefined();
     expect(params.p_published_from).toBeUndefined();
     expect(params.p_published_to).toBeUndefined();
@@ -127,20 +122,6 @@ describe('useReferenceData — default list mode', () => {
 // ---------------------------------------------------------------------------
 
 describe('useReferenceData — filters (server-side pushdown)', () => {
-  it('pushes an active domain filter into the reference_list RPC param', async () => {
-    navState.search = 'domain=procurement';
-    mockRpc.mockResolvedValue({ data: [makeRow()], error: null });
-
-    const { result } = renderReferenceData();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(mockRpc).toHaveBeenCalledWith(
-      'reference_list',
-      expect.objectContaining({ p_primary_domain: 'procurement' }),
-    );
-    expect(result.current.activeFilterCount).toBe(1);
-  });
-
   it('pushes ingestion_source + date range as RPC params and ANDs them', async () => {
     navState.search = 'source=rss_feed&from=2026-01-01&to=2026-02-01';
     mockRpc.mockResolvedValue({ data: [makeRow()], error: null });
@@ -156,7 +137,7 @@ describe('useReferenceData — filters (server-side pushdown)', () => {
         p_published_to: '2026-02-01',
       }),
     );
-    // domain + date range absent; source + range = 2 active filter slots.
+    // source + range = 2 active filter slots.
     expect(result.current.activeFilterCount).toBe(2);
   });
 
@@ -165,22 +146,10 @@ describe('useReferenceData — filters (server-side pushdown)', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     act(() => {
-      result.current.setFilters({ primary_domain: 'legal' });
+      result.current.setFilters({ ingestion_source: 'rss_feed' });
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/reference?domain=legal');
-  });
-
-  it('clears the dependent subtopic when the domain filter is cleared', async () => {
-    navState.search = 'domain=procurement&subtopic=tendering';
-    const { result } = renderReferenceData();
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    act(() => {
-      result.current.setFilters({ primary_domain: undefined });
-    });
-
-    expect(mockPush).toHaveBeenCalledWith('/reference');
+    expect(mockPush).toHaveBeenCalledWith('/reference?source=rss_feed');
   });
 });
 

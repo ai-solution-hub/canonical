@@ -7,25 +7,16 @@ import { PAYLOAD_CONTRACT } from '@/scripts/propagation/payload-contract';
  * FK-dependency ordering, and that every entry carries a usable stable key.
  */
 describe('PAYLOAD_CONTRACT (PI-18 canonical-content propagation)', () => {
-  it('describes exactly the seven v1 canonical payload tables', () => {
-    expect(PAYLOAD_CONTRACT).toHaveLength(7);
+  it('describes exactly the five canonical payload tables (id-417 / DR-130: the taxonomy pair retired)', () => {
+    expect(PAYLOAD_CONTRACT).toHaveLength(5);
 
     expect(PAYLOAD_CONTRACT.map((e) => e.table)).toEqual([
-      'taxonomy_domains',
-      'taxonomy_subtopics',
       'layer_vocabulary',
       'application_types',
       'form_types',
       'form_requirement_templates',
       'reference_items',
     ]);
-  });
-
-  it('lists tables in FK-dependency order (taxonomy_domains before taxonomy_subtopics)', () => {
-    const order = PAYLOAD_CONTRACT.map((e) => e.table);
-    expect(order.indexOf('taxonomy_domains')).toBeLessThan(
-      order.indexOf('taxonomy_subtopics'),
-    );
   });
 
   it('orders every fkRemap target before the table that references it', () => {
@@ -61,20 +52,10 @@ describe('PAYLOAD_CONTRACT (PI-18 canonical-content propagation)', () => {
     }
   });
 
-  it('models the per-DB uuid FK on taxonomy_subtopics as a domain-name remap', () => {
-    const subtopics = PAYLOAD_CONTRACT.find(
-      (e) => e.table === 'taxonomy_subtopics',
-    );
-    expect(subtopics?.fkRemap).toEqual({
-      column: 'domain_id',
-      referencesTable: 'taxonomy_domains',
-      referencesStableKey: ['name'],
-    });
-    // stableKey is the non-FK identifying component only (`name`); the domain
-    // component comes from the fkRemap, not a stored `domain_name` column. The
-    // worker's ON CONFLICT target is the resolved FK UNION stableKey = (domain_id,
-    // name) = the DB UNIQUE constraint taxonomy_subtopics_domain_id_name_key.
-    expect(subtopics?.stableKey).toEqual(['name']);
+  it('carries no fkRemap entries after the taxonomy pair retired (id-417 / DR-130)', () => {
+    for (const entry of PAYLOAD_CONTRACT) {
+      expect(entry.fkRemap).toBeNull();
+    }
   });
 
   it('excludes client-provenance tables from the payload set', () => {

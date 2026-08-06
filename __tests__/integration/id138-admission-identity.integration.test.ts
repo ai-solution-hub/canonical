@@ -17,13 +17,12 @@
  *     the SAME id (was_minted=false), updates ONLY the mutable logical_path,
  *     and leaves storage_path (the frozen SEED-CONTRACT key) untouched.
  *   - a distinct content_hash mints a distinct id.
- *   - SEED-CONTRACT parity: the SAME string passed as this fn's p_rel_path and
- *     as the live `reference_ingest` fn's p_source_url mints the IDENTICAL id —
- *     both fns compute uuid_generate_v5(fbfaf1ff-1ee4-583c-9757-1674465b2ec1,
- *     'sd:' || value), so this is a real, executable proof that the new fn's
- *     formula matches the already-proven SQL precedent (and, by that
- *     precedent's own header comment, the Python pipeline's uuid.uuid5).
  *   - the mandatory `REVOKE EXECUTE ... FROM anon` is enforced.
+ *
+ * (The former SEED-CONTRACT parity leg — proving the formula against
+ * reference_ingest's sd mint — retired with id-417 / DR-124: reference_ingest
+ * no longer mints a source_documents shell, so there is no second sd-minting
+ * fn to prove parity against. The formula itself is unchanged.)
  *
  * @vitest-environment node
  */
@@ -40,9 +39,7 @@ const TEST_TAG = `id138-admission-identity-${Date.now()}`;
 let skip = false;
 let db: Awaited<ReturnType<typeof createLiveServiceClient>>;
 
-// Seeded-row registry for teardown (reference_items before source_documents —
-// reference_items.source_document_id is NOT NULL REFERENCES ... ON DELETE RESTRICT).
-const mintedReferenceItemIds: string[] = [];
+// Seeded-row registry for teardown.
 const mintedSourceDocumentIds: string[] = [];
 
 type MintResult = { source_document_id: string; was_minted: boolean };
@@ -72,9 +69,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (skip || !db) return;
-  if (mintedReferenceItemIds.length) {
-    await db.from('reference_items').delete().in('id', mintedReferenceItemIds);
-  }
   if (mintedSourceDocumentIds.length) {
     await db
       .from('source_documents')
@@ -196,57 +190,7 @@ describe('ID-138 {138.6} resolve_or_mint_source_identity — TECH.md §2.2 R(id)
     expect(rowA.source_document_id).not.toBe(rowB.source_document_id);
   });
 
-  it('SEED-CONTRACT parity: matches the SAME uuid5(namespace, "sd:"+value) formula the live reference_ingest fn already uses', async () => {
-    if (skip) return;
-    // reference_ingest computes v_sd_id := uuid_generate_v5(NAMESPACE, 'sd:' || p_source_url)
-    // (20260619130100_id112_reference_ingest_derive_method.sql:28-29) — the SAME
-    // namespace + "sd:" prefix formula this fn's header comment claims to match.
-    // Passing the SAME string as p_rel_path here and p_source_url there MUST
-    // therefore mint the IDENTICAL id if the formulas truly agree — a real,
-    // executable proof (no JS uuid5 reimplementation needed).
-    const sharedPathValue = `markdown/${TEST_TAG}-seed-contract-parity.md`;
-
-    const { data: minted, error: mintErr } = await db.rpc(
-      'resolve_or_mint_source_identity',
-      {
-        p_content_hash: `${TEST_TAG}-hash-seed-contract`,
-        p_rel_path: sharedPathValue,
-        p_filename: 'seed-contract.md',
-        p_mime_type: 'text/markdown',
-        p_file_size: 42,
-      },
-    );
-    expect(mintErr).toBeNull();
-    const mintedRow = firstRow<MintResult>(minted);
-    mintedSourceDocumentIds.push(mintedRow.source_document_id);
-
-    const { data: refIngest, error: refErr } = await db.rpc(
-      'reference_ingest',
-      {
-        p_source_url: sharedPathValue,
-        p_title: `[${TEST_TAG}] seed-contract parity`,
-        p_body: 'disposable parity-check body',
-        p_summary: null,
-        p_primary_domain: null,
-        p_primary_subtopic: null,
-        p_embedding: null,
-        p_published_at: null,
-        p_filename: 'seed-contract.md',
-        p_mime_type: 'text/markdown',
-        p_file_size: 42,
-        p_content_hash: `${TEST_TAG}-hash-seed-contract-refingest`,
-      },
-    );
-    expect(refErr).toBeNull();
-    const refRow = firstRow<{
-      reference_id: string;
-      source_document_id: string;
-    }>(refIngest);
-    mintedReferenceItemIds.push(refRow.reference_id);
-    mintedSourceDocumentIds.push(refRow.source_document_id);
-
-    expect(refRow.source_document_id).toBe(mintedRow.source_document_id);
-  });
+  // (SEED-CONTRACT parity leg retired — id-417 / DR-124; see header.)
 
   it('anon REVOKE is enforced — an anon-key client cannot call the function', async () => {
     if (skip) return;

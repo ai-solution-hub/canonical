@@ -36,11 +36,8 @@ function makeItem(
     body_preview: 'Body preview text.',
     source_url: 'https://example.com/a',
     published_at: '2026-01-15T00:00:00Z',
-    primary_domain: 'procurement',
-    primary_subtopic: 'tendering',
     layer: 'detail',
     ingestion_source: 'url_import',
-    source_document_id: '22222222-2222-4222-8222-222222222222',
     ...overrides,
   };
 }
@@ -67,21 +64,13 @@ describe('ReferenceCard', () => {
     expect(screen.getByText('Body preview text.')).toBeInTheDocument();
   });
 
-  it('renders domain, subtopic and layer badges when present', () => {
+  it('renders the layer badge when present', () => {
     render(<ReferenceCard reference={makeItem()} />);
-    expect(screen.getByText('procurement')).toBeInTheDocument();
-    expect(screen.getByText('tendering')).toBeInTheDocument();
     expect(screen.getByText('detail')).toBeInTheDocument();
   });
 
-  it('omits a badge when its column is null', () => {
-    render(
-      <ReferenceCard
-        reference={makeItem({ primary_subtopic: null, layer: null })}
-      />,
-    );
-    expect(screen.getByText('procurement')).toBeInTheDocument();
-    expect(screen.queryByText('tendering')).not.toBeInTheDocument();
+  it('omits the layer badge when the column is null', () => {
+    render(<ReferenceCard reference={makeItem({ layer: null })} />);
     expect(screen.queryByText('detail')).not.toBeInTheDocument();
   });
 

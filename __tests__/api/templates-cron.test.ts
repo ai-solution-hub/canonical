@@ -972,18 +972,15 @@ describe('GET /api/cron/freshness-transitions', () => {
         source_documents: {
           id: 'item-1',
           filename: 'test-item.pdf',
-          suggested_title: 'Test Item',
-          primary_domain: 'Engineering',
+
+
           updated_at: '2026-01-01T00:00:00Z',
         },
       },
     ];
 
-    // Governance config query
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-    // Content items query
+    // Content items query (id-417 / DR-130: the governance_config fetch
+    // retired with the per-domain match leg)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1021,17 +1018,14 @@ describe('GET /api/cron/freshness-transitions', () => {
       source_documents: {
         id: `item-${i}`,
         filename: `test-item-${i}.pdf`,
-        suggested_title: `Test Item ${i}`,
-        primary_domain: 'Engineering',
+
+
         updated_at: '2026-01-01T00:00:00Z',
       },
     }));
 
-    // Governance config query
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-    // Content items query
+    // Content items query (id-417 / DR-130: the governance_config fetch
+    // retired with the per-domain match leg)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1069,18 +1063,15 @@ describe('GET /api/cron/freshness-transitions', () => {
         source_documents: {
           id: 'item-1',
           filename: 'already-notified.pdf',
-          suggested_title: 'Already Notified',
-          primary_domain: null,
+
+
           updated_at: null,
         },
       },
     ];
 
-    // Governance config query
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-    // Content items query
+    // Content items query (id-417 / DR-130: the governance_config fetch
+    // retired with the per-domain match leg)
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1099,10 +1090,6 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('returns 500 when freshness query fails', async () => {
-    // Governance config query succeeds
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
     // Content items query fails
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>

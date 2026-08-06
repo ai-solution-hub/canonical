@@ -176,12 +176,13 @@ describe('wrap-define-route CLI scaffold', () => {
     // deleted the last 7 deferred legacy routes — app/api/items/route.ts,
     // app/api/items/[id]/route.ts, app/api/items/[id]/{metadata,classify,
     // archive,workspaces}/route.ts, app/api/items/batch/route.ts — retiring
-    // the app/api/items directory entirely). Hard floor: 150 to allow minor
-    // churn.
+    // the app/api/items directory entirely; was floor 150 before id-417 /
+    // DR-130 deleted app/api/search/suggestions). Hard floor: 145 to allow
+    // minor churn.
     const match = result.stdout.match(/(\d+) route\(s\) discovered/);
     expect(match).not.toBeNull();
     const count = match ? parseInt(match[1]!, 10) : 0;
-    expect(count).toBeGreaterThanOrEqual(150);
+    expect(count).toBeGreaterThanOrEqual(145);
   });
 
   it('honours --scope filter to a subdirectory', () => {

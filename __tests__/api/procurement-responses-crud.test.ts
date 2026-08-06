@@ -355,8 +355,8 @@ describe('GET /api/bids/:id/responses/:rId', () => {
     });
     // Post-{131.16} BI-29: the source resolves as a q_a_pair (the primary
     // match source) — q_a_pairs `.in()`, then reference_items `.in()` (no
-    // match here), then the record_lifecycle facet `.in()` for its domain
-    // (q_a_pairs carry no primary_domain column of their own).
+    // match here). (id-417 / DR-130: the record_lifecycle domain-facet
+    // lookup retired with record_lifecycle.domain.)
     mockSupabase._chain.then
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({
@@ -372,12 +372,6 @@ describe('GET /api/bids/:id/responses/:rId', () => {
       )
       .mockImplementationOnce((resolve: (v: unknown) => void) =>
         resolve({ data: [], error: null }),
-      )
-      .mockImplementationOnce((resolve: (v: unknown) => void) =>
-        resolve({
-          data: [{ owner_id: sourceId, domain: 'Information Security' }],
-          error: null,
-        }),
       );
 
     const req = createTestRequest(
@@ -393,7 +387,8 @@ describe('GET /api/bids/:id/responses/:rId', () => {
     expect(json.source_content[0].id).toBe(sourceId);
     expect(json.source_content[0].title).toBe('Are you ISO 27001 certified?');
     expect(json.source_content[0].content_type).toBe('q_a_pair');
-    expect(json.source_content[0].primary_domain).toBe('Information Security');
+    // id-417 / DR-130: the domain fields retired from the source shape.
+    expect(json.source_content[0]).not.toHaveProperty('primary_domain');
   });
 });
 

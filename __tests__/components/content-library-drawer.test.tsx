@@ -2,7 +2,7 @@
  * ContentLibraryDrawer Component Tests
  *
  * Tests the Content Library slide-in drawer — search, type filter chips,
- * loading/empty states, result rendering, and domain filter.
+ * loading/empty states and result rendering.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -20,7 +20,6 @@ const { mockSearch, mockSearchResults, mockIsLoading, mockError } = vi.hoisted(
         id: string;
         title: string;
         content_type: string;
-        primary_domain: string | null;
         similarity: number;
         summary: string | null;
         metadata: Record<string, unknown> | null;
@@ -69,25 +68,19 @@ function createSearchResult(
     id: string;
     title: string;
     content_type: string;
-    primary_domain: string | null;
     similarity: number;
   }> = {},
 ) {
   return {
     id: overrides.id ?? 'res-1',
     title: overrides.title ?? 'Test result',
-    suggested_title: null,
     summary: null,
-    primary_domain: overrides.primary_domain ?? 'Corporate',
-    primary_subtopic: null,
     content_type: overrides.content_type ?? 'article',
     platform: 'web',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: '2026-01-15',
-    ai_keywords: [],
-    classification_confidence: 0.9,
     priority: 'medium',
     freshness: 'fresh',
     user_tags: [],
@@ -216,17 +209,17 @@ describe('ContentLibraryDrawer', () => {
     });
   });
 
-  it('shows domain filter when results available', async () => {
+  it('never renders the retired domain filter (id-417 / DR-130)', async () => {
     mockSearchResults.value = [
-      createSearchResult({ id: 'r-1', primary_domain: 'Corporate' }),
-      createSearchResult({ id: 'r-2', primary_domain: 'Technical' }),
+      createSearchResult({ id: 'r-1' }),
+      createSearchResult({ id: 'r-2' }),
     ];
 
     render(<ContentLibraryDrawer {...defaultProps} questionText="test" />);
 
     await waitFor(() => {
-      // Domain filter select trigger should appear
-      expect(screen.getByText('All domains')).toBeInTheDocument();
+      expect(screen.getByTestId('result-r-1')).toBeInTheDocument();
     });
+    expect(screen.queryByText('All domains')).not.toBeInTheDocument();
   });
 });

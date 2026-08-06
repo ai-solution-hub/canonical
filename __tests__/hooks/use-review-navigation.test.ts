@@ -22,29 +22,29 @@ function makeQueueItem(
   return {
     id: overrides.id ?? `item-${index}`,
     title: overrides.title ?? `Item ${index}`,
-    suggested_title: null,
+
     summary: null,
-    primary_domain: 'Technical',
-    primary_subtopic: 'unclassified',
+
+
     content_type: 'article',
     platform: 'web',
     author_name: null,
     source_domain: null,
     thumbnail_url: null,
     captured_date: '2026-01-01',
-    ai_keywords: null,
-    classification_confidence: 0.9,
+
+
     priority: null,
     freshness: 'fresh',
     user_tags: null,
     governance_review_status: null,
     metadata: null,
     content: null,
-    source_url: null,
+
     verified_at: null,
     verified_by: null,
-    secondary_domain: null,
-    secondary_subtopic: null,
+
+
     quality_score: null,
     last_reviewed_at: null,
     publication_status: null,
@@ -210,9 +210,9 @@ describe('useReviewNavigation', () => {
   describe('queue ordering', () => {
     it('sortedQueue returns items in server-provided order', () => {
       const items = [
-        makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
-        makeQueueItem({ id: 'm', primary_domain: 'Middle' }, 2),
+        makeQueueItem({ id: 'z' }),
+        makeQueueItem({ id: 'a' }, 1),
+        makeQueueItem({ id: 'm' }, 2),
       ];
       const queueQuery = makeMockQueueQuery();
 
@@ -236,9 +236,9 @@ describe('useReviewNavigation', () => {
   describe('handleSelectItem', () => {
     it('selects item by index in the queue', () => {
       const items = [
-        makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
-        makeQueueItem({ id: 'm', primary_domain: 'Middle' }, 2),
+        makeQueueItem({ id: 'z' }),
+        makeQueueItem({ id: 'a' }, 1),
+        makeQueueItem({ id: 'm' }, 2),
       ];
       const queueQuery = makeMockQueueQuery();
 
@@ -495,8 +495,8 @@ describe('useReviewNavigation', () => {
   describe('currentSortedIndex', () => {
     it('reflects current item position in queue', () => {
       const items = [
-        makeQueueItem({ id: 'z', primary_domain: 'Zebra' }),
-        makeQueueItem({ id: 'a', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 'z' }),
+        makeQueueItem({ id: 'a' }, 1),
       ];
       const queueQuery = makeMockQueueQuery();
 

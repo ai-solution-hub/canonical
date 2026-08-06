@@ -335,10 +335,9 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .insert(
             sdShapeEntries.map(({ shape, index }) => ({
               filename: `${prefix} ${shape.title}`,
-              primary_domain: shape.primary_domain,
-              summary: shape.summary,
+              // id-417 / DR-130 + DR-124: primary_domain/summary/source_url
+              // retired from source_documents.
               content_type: shape.content_type,
-              source_url: shape.source_url ?? null,
               status: 'processed',
               // {128.14} Class 3 (S457 nightly diagnosis): source_documents
               // has 4 NOT-NULL no-default columns this insert omitted,
@@ -778,10 +777,8 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const intelSourceDocuments = passedArticleShapes.map((shape, i) => ({
         filename: `${prefix} ${shape.title}`,
         content_type: 'article',
-        primary_domain: 'Market Intelligence',
-        summary: shape.ai_summary ?? '',
-        source_url: shape.external_url,
-        workspace_id: intelligenceWorkspaceId,
+        // id-417: primary_domain/summary/source_url/workspace_id retired
+        // from source_documents (DR-130 / DR-124 / id-402).
         status: 'processed',
         // {128.14} Class 3 — same NOT-NULL fix as the sdShapeEntries insert
         // above (this is a SECOND, separate source_documents insert site

@@ -32,7 +32,8 @@ export const FRESHNESS_OFFSETS = {
 export interface ContentItemShape {
   title: string;
   content_type: string;
-  primary_domain: string;
+  // (id-417 / DR-130: primary_domain retired from source_documents; the
+  // fixture keeps `summary` for q_a_pairs-shaped consumers only.)
   summary: string;
   platform: string;
   content: string;
@@ -66,7 +67,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'IT Support Policy',
       content_type: 'article',
-      primary_domain: 'Service Delivery',
+
       summary: 'E2E test article about IT support policies and procedures.',
       platform: 'manual',
       source_url: 'https://e2e-test.example.com/it-support',
@@ -82,7 +83,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'What is your SLA?',
       content_type: 'q_a_pair',
-      primary_domain: 'Service Delivery',
+
       summary: 'Q&A pair about service level agreements.',
       platform: 'manual',
       content:
@@ -94,7 +95,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Project Management Approach',
       content_type: 'q_a_pair',
-      primary_domain: 'Technical Capability',
+
       summary: 'Q&A pair about project management methodology and governance.',
       platform: 'manual',
       content:
@@ -108,7 +109,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Cyber Essentials Compliance',
       content_type: 'policy',
-      primary_domain: 'Security & Compliance',
+
       summary:
         'Policy document covering Cyber Essentials certification requirements.',
       platform: 'manual',
@@ -122,7 +123,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Pricing Model Template',
       content_type: 'note',
-      primary_domain: 'Commercial',
+
       summary: 'Template for pricing model breakdowns in bid responses.',
       platform: 'manual',
       content:
@@ -158,7 +159,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'ISO 27001 Certification',
       content_type: 'certification',
-      primary_domain: 'Security & Compliance',
+
       summary:
         'ISO 27001 information security management system certification details.',
       platform: 'manual',
@@ -171,7 +172,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Case Study: NHS Digital',
       content_type: 'case_study',
-      primary_domain: 'Experience & Track Record',
+
       summary:
         'Case study demonstrating NHS Digital infrastructure modernisation project delivery.',
       platform: 'manual',
@@ -188,7 +189,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Cloud Migration Methodology',
       content_type: 'methodology',
-      primary_domain: 'Technical Capability',
+
       summary:
         'Our structured approach to cloud migration using the 6R framework.',
       platform: 'manual',
@@ -199,7 +200,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Social Value Framework',
       content_type: 'policy',
-      primary_domain: 'Social Value',
+
       summary:
         'Framework for delivering social value through public sector contracts.',
       platform: 'manual',
@@ -212,7 +213,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Data Protection Policy',
       content_type: 'policy',
-      primary_domain: 'Security & Compliance',
+
       summary:
         'Data protection policy covering GDPR compliance and data handling procedures.',
       platform: 'manual',
@@ -224,7 +225,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Staff CVs and Experience',
       content_type: 'other',
-      primary_domain: 'People & Skills',
+
       summary:
         'Overview of key staff qualifications and experience for bid submissions.',
       platform: 'manual',
@@ -235,7 +236,7 @@ export function buildCoreContentItems(timestamps: {
     {
       title: 'Environmental Policy',
       content_type: 'policy',
-      primary_domain: 'Sustainability',
+
       summary:
         'Environmental policy covering carbon reduction and sustainable operations.',
       platform: 'manual',
