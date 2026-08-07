@@ -52,7 +52,7 @@ vi.mock('@/lib/format', () => ({
 vi.mock('@/components/procurement/document-edit-lazy', async () => {
   const { usePersistSignedDocument } = await vi.importActual<
     typeof import('@/hooks/procurement/use-persist-signed-document')
-  >('@/components/procurement/extend/use-persist-signed-document');
+  >('@/hooks/procurement/use-persist-signed-document');
 
   function DocumentEditorPanelLazy(props: {
     procurementId: string;

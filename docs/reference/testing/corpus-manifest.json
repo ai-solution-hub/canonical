@@ -164,7 +164,6 @@
         "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts",
         "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
         "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts",
-        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts",
         "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts",
         "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts",
         "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts",
@@ -332,12 +331,13 @@
       "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-company-overview.md",
       "tree": "platform-corpus",
       "format": "md",
-      "sha256": "f62056cedbb3e55500a5567b8620cc18d5296872c1478f21639626b88ac265e8",
+      "sha256": "7a2cac9d2bc17d8ab5f40c72476511e14b7d1092cf24d94b7ddedd650ba8c2ac",
       "bytes": 2391,
       "fixture_class": "vendored-read-only",
       "staging_mode": "walked-baseline",
       "consumers": [
-        "__tests__/validation/corpus-manifest.test.ts"
+        "__tests__/validation/corpus-manifest.test.ts",
+        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts"
       ],
       "notes": ""
     },
