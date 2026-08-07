@@ -9,11 +9,11 @@ import {
   createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
-} from '../../../../helpers/mock-supabase';
+} from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
-} from '../../../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client

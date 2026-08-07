@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { createMockSupabaseClient } from '../../helpers/mock-supabase';
+import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
 
 // ─── Mock modules ──────────────────────────────────────────────────────────
 

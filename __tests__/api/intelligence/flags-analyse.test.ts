@@ -13,9 +13,9 @@ import {
   createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
-} from '../../helpers/mock-supabase';
-import { createTestParams } from '../../helpers/mock-next';
-import { createMockApiRequest } from '../../helpers/factories/api-request';
+} from '@/__tests__/helpers/mock-supabase';
+import { createTestParams } from '@/__tests__/helpers/mock-next';
+import { createMockApiRequest } from '@/__tests__/helpers/factories/api-request';
 
 // ---------------------------------------------------------------------------
 // Mocks

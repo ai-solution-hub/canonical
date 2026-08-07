@@ -15,8 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
-} from '../../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared mocks

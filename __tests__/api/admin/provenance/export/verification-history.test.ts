@@ -9,7 +9,7 @@ import { NextRequest } from 'next/server';
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
-} from '../../../../helpers/mock-supabase';
+} from '@/__tests__/helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Shared mock client + module mocks

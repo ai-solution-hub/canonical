@@ -1,0 +1,914 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createMockSupabaseClient,
+  configureRole,
+  configureUnauthenticated,
+} from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+
+// ---------------------------------------------------------------------------
+// Shared mock client — lazy references in vi.mock() avoid hoisting issues
+// ---------------------------------------------------------------------------
+
+const mockSupabase = createMockSupabaseClient();
+
+const {
+  mockCookies,
+  mockCheckRateLimit,
+  mockVerifyCronAuth,
+  mockGetUsersByRole,
+  mockCreateBulkNotifications,
+  mockGetExistingNotificationIds,
+  mockSimilarity,
+} = vi.hoisted(() => ({
+  mockCookies: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockVerifyCronAuth: vi.fn(),
+  mockGetUsersByRole: vi.fn(),
+  mockCreateBulkNotifications: vi.fn(),
+  mockGetExistingNotificationIds: vi.fn(),
+  mockSimilarity: vi.fn(),
+}));
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
+}));
+
+vi.mock('next/headers', () => ({
+  cookies: mockCookies,
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: mockCheckRateLimit,
+}));
+
+vi.mock('@/lib/cron-auth', () => ({
+  verifyCronAuth: mockVerifyCronAuth,
+  getUsersByRole: mockGetUsersByRole,
+}));
+
+vi.mock('@/lib/notifications', () => ({
+  createBulkNotifications: mockCreateBulkNotifications,
+  getExistingNotificationIds: mockGetExistingNotificationIds,
+}));
+
+vi.mock('@/lib/domains/procurement/form-templating/template-auto-map', () => ({
+  similarity: mockSimilarity,
+}));
+
+// Import route handlers AFTER all vi.mock() calls
+const { POST: autoMapPost } =
+  await import('@/app/api/procurement/[id]/templates/[templateId]/auto-map/route');
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/*` to `[id]/fields/*` -- `id` IS the form's
+// own PK, no more separate `templateId` segment.
+const { PATCH: fieldPatch } =
+  await import('@/app/api/procurement/[id]/fields/[fieldId]/route');
+const { POST: bulkUpdatePost } =
+  await import('@/app/api/procurement/[id]/fields/bulk-update/route');
+const { POST: fillPost } =
+  await import('@/app/api/procurement/[id]/templates/[templateId]/fill/route');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const VALID_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+const VALID_UUID_2 = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
+const VALID_UUID_3 = 'c3d4e5f6-a7b8-1012-9def-123456789012';
+
+// ---------------------------------------------------------------------------
+// Reset mocks before each test
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  // Re-wire next/headers mock
+  mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
+
+  // Re-wire Supabase client mocks
+  mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.auth.getUser.mockResolvedValue({
+    data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+    error: null,
+  });
+  mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+  // Chainable methods return the chain (including .filter used by freshness route)
+  const chainable = [
+    'select',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'eq',
+    'neq',
+    'in',
+    'is',
+    'not',
+    'ilike',
+    'contains',
+    'gte',
+    'lte',
+    'gt',
+    'lt',
+    'or',
+    'order',
+    'limit',
+    'range',
+    'filter',
+  ] as const;
+  for (const m of chainable) {
+    (
+      mockSupabase._chain as unknown as Record<string, ReturnType<typeof vi.fn>>
+    )[m] ??= vi.fn();
+    (
+      mockSupabase._chain as unknown as Record<string, ReturnType<typeof vi.fn>>
+    )[m].mockReturnValue(mockSupabase._chain);
+  }
+
+  // Terminal methods
+  mockSupabase._chain.single.mockReset();
+  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockReset();
+  mockSupabase._chain.maybeSingle.mockResolvedValue({
+    data: null,
+    error: null,
+  });
+  mockSupabase._chain.then.mockReset();
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
+  );
+
+  // External dependency defaults
+  mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 9 });
+  mockVerifyCronAuth.mockReturnValue(true);
+  mockGetUsersByRole.mockResolvedValue(['admin-1']);
+  mockCreateBulkNotifications.mockResolvedValue({ count: 0, error: null });
+  mockGetExistingNotificationIds.mockResolvedValue(new Set());
+  mockSimilarity.mockReturnValue(0.8);
+  // NOTE: Do NOT set a default configureRole() here. Each test must
+  // call configureRole() / configureUnauthenticated() explicitly so
+  // that the queued .single() calls are consumed in the correct order.
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/bids/:id/templates/:templateId/auto-map
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/bids/:id/templates/:templateId/auto-map', () => {
+  const params = createTestParams({ id: VALID_UUID, templateId: VALID_UUID_2 });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for invalid UUID in bid or template ID', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const badParams = createTestParams({
+      id: 'not-a-uuid',
+      templateId: VALID_UUID_2,
+    });
+    const req = createTestRequest(
+      '/api/procurement/not-a-uuid/templates/y/auto-map',
+      {
+        method: 'POST',
+        body: {},
+      },
+    );
+
+    const res = await autoMapPost(req, { params: badParams });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid ID/);
+  });
+
+  it('returns 429 when rate limited', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(429);
+  });
+
+  it('returns 404 when template not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Role lookup consumed first .single(), now template lookup:
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body.error).toBe('Template not found');
+  });
+
+  it('returns 409 when template not yet analysed', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'uploaded' },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(409);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/analysed/);
+  });
+
+  it('returns empty mapping result when no unmapped fields exist', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Template exists and is analysed
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // No unmapped fields returned
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.mapped).toBe(0);
+    expect(body.total).toBe(0);
+  });
+
+  it('maps fields to questions using similarity and updates mapped_count', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Template exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // Unmapped form_instance_fields rows -- ID-145 {145.14}: real writer
+    // output (e.g. PDF's pdfplumber-paired label text, {145.11}), not the
+    // structural no-op the route was before a field writer existed.
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 'field-1', question_text: 'Describe your experience' }],
+          error: null,
+        }),
+    );
+
+    // This form's form_questions rows
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { id: 'q-1', question_text: 'Describe your relevant experience' },
+          ],
+          error: null,
+        }),
+    );
+
+    // similarity returns 0.8 (above threshold)
+    mockSimilarity.mockReturnValue(0.8);
+
+    // Count query for mapped_count (returns via .then since head: true)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 1 }),
+    );
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: { threshold: 0.7 },
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.mapped).toBe(1);
+    expect(body.mappings).toHaveLength(1);
+    expect(body.mappings[0].confidence).toBe(0.8);
+    // BI-21/BI-26: auto-map leaves the field 'unreviewed' (not
+    // pre-confirmed) so the user can still review/adjust the mapping.
+    expect(body.mappings[0].field_id).toBe('field-1');
+    expect(body.mappings[0].question_id).toBe('q-1');
+  });
+
+  it('produces a per-field mapping over real form_instance_fields rows, not a no-op against an empty set', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Template exists and is analysed
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // Two real fields carrying non-empty question_text (PDF: pdfplumber-
+    // paired label text {145.11}; OOXML: cell labels {145.10}).
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { id: 'field-1', question_text: 'Company registration number' },
+            { id: 'field-2', question_text: 'Unrelated field text' },
+          ],
+          error: null,
+        }),
+    );
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 'q-1', question_text: 'Company registration number' }],
+          error: null,
+        }),
+    );
+
+    mockSimilarity
+      .mockReturnValueOnce(1.0) // field-1 vs q-1: exact match
+      .mockReturnValueOnce(0.1); // field-2 vs q-1: below threshold
+
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 1 }),
+    );
+
+    const req = createTestRequest('/api/procurement/x/templates/y/auto-map', {
+      method: 'POST',
+      body: { threshold: 0.7 },
+    });
+
+    const res = await autoMapPost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.total).toBe(2);
+    expect(body.mapped).toBe(1);
+    expect(body.unmapped).toBe(1);
+    expect(body.mappings[0].field_question_text).toBe(
+      'Company registration number',
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PATCH /api/procurement/:id/fields/:fieldId
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/[fieldId]` -- `id` IS the form's own PK, no
+// more separate `templateId` segment.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('PATCH /api/procurement/:id/fields/:fieldId', () => {
+  const params = createTestParams({
+    id: VALID_UUID_2,
+    fieldId: VALID_UUID_3,
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 when any UUID is invalid (double validation)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const badParams = createTestParams({
+      id: 'not-uuid',
+      fieldId: VALID_UUID_3,
+    });
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params: badParams });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid ID/);
+  });
+
+  it('returns 400 for invalid request body (FieldMappingUpdateSchema)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { mapping_status: 'invalid_status' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toBe('Validation failed');
+    expect(body.details).toBeDefined();
+  });
+
+  it('returns 404 when the form is not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form lookup (after role lookup)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
+    });
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body.error).toBe('Template not found');
+  });
+
+  it('returns 404 when field not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2 },
+      error: null,
+    });
+
+    // Field not found
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
+    });
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body.error).toBe('Field not found');
+  });
+
+  it('returns 200 with updated field data on success', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2 },
+      error: null,
+    });
+
+    // Field updated successfully
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_3,
+        question_id: VALID_UUID,
+        mapping_status: 'confirmed',
+        updated_at: '2026-03-14T12:00:00Z',
+      },
+      error: null,
+    });
+
+    // Count query for mapped_count recalculation
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 5 }),
+    );
+
+    const req = createTestRequest('/api/procurement/y/fields/z', {
+      method: 'PATCH',
+      body: { question_id: VALID_UUID, mapping_status: 'confirmed' },
+    });
+
+    const res = await fieldPatch(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID_3);
+    expect(body.mapping_status).toBe('confirmed');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/procurement/:id/fields/bulk-update
+// DR-075 (ID-147 TECH.md §6 row B, ratified S474): re-keyed + re-pathed from
+// `templates/[templateId]/fields/bulk-update` -- `id` IS the form's own PK.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/procurement/:id/fields/bulk-update', () => {
+  const params = createTestParams({ id: VALID_UUID_2 });
+
+  const validBody = {
+    mappings: [
+      {
+        field_id: VALID_UUID_3,
+        question_id: VALID_UUID,
+        mapping_status: 'confirmed' as const,
+      },
+    ],
+  };
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
+
+    const res = await bulkUpdatePost(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
+
+    const res = await bulkUpdatePost(req, { params });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const badParams = createTestParams({ id: 'bad' });
+
+    const req = createTestRequest('/api/procurement/bad/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
+
+    const res = await bulkUpdatePost(req, { params: badParams });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for empty mappings array', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: { mappings: [] },
+    });
+
+    const res = await bulkUpdatePost(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toBe('Validation failed');
+  });
+
+  it('returns 404 when the form is not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form lookup (after role lookup)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
+    });
+
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
+
+    const res = await bulkUpdatePost(req, { params });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 200 with updated count and mapped_count on success', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form exists
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2 },
+      error: null,
+    });
+
+    // Each field update succeeds (via .then)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: null, error: null }),
+    );
+
+    // Count query for mapped_count
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: null, error: null, count: 3 }),
+    );
+
+    const req = createTestRequest('/api/procurement/y/fields/bulk-update', {
+      method: 'POST',
+      body: validBody,
+    });
+
+    const res = await bulkUpdatePost(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.updated).toBe(1);
+    expect(body.mapped_count).toBe(3);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/bids/:id/templates/:templateId/fill
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/bids/:id/templates/:templateId/fill', () => {
+  const params = createTestParams({ id: VALID_UUID, templateId: VALID_UUID_2 });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 429 when rate limited', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(429);
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const badParams = createTestParams({ id: 'bad', templateId: VALID_UUID_2 });
+
+    const req = createTestRequest('/api/procurement/bad/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params: badParams });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when template not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Template lookup (after role lookup)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 409 when template not yet analysed', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID_2,
+        workspace_id: VALID_UUID,
+        storage_path: '/test.docx',
+        status: 'uploaded',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(409);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/analysed/);
+  });
+
+  // NOTE: "returns 400 when no fields have been mapped" was removed here —
+  // it duplicated __tests__/api/procurement-templates-fill.test.ts's
+  // "returns 400 when there are no outstanding mapped fields" (same form
+  // fetch -> empty fields -> 400 "No fields have been mapped" scenario,
+  // same route). Kept in exactly one place per {145.15} test sync.
+
+  it('returns 202 when fill job is queued successfully', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form exists and is analysed (form_instances, keyed on processing_status
+    // post-{145.15} form-first fill rewrite).
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // Confirmed fields (form_instance_fields, form_instance_id-keyed)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: 'f-1',
+              table_index: 0,
+              row_index: 1,
+              col_index: 1,
+              question_id: 'q-1',
+              word_limit: 200,
+              mapping_status: 'confirmed',
+              fill_status: 'pending',
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // Responses for questions
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              question_id: 'q-1',
+              response_text: 'Our experience spans 10 years.',
+              review_status: 'approved',
+              version: 1,
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // Job insert returns job ID
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'job-1' },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(202);
+
+    const body = await res.json();
+    expect(body.job_id).toBe('job-1');
+    expect(body.status).toBe('queued');
+    expect(body.fields_to_fill).toBe(1);
+  });
+
+  it('returns 500 and reverts template status when queue job insert fails', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Form exists (form_instances, processing_status-keyed)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID_2, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // Confirmed fields (form_instance_fields, form_instance_id-keyed)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: 'f-1',
+              table_index: 0,
+              row_index: 1,
+              col_index: 1,
+              question_id: 'q-1',
+              word_limit: null,
+              mapping_status: 'confirmed',
+              fill_status: 'pending',
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // Responses
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              question_id: 'q-1',
+              response_text: 'Answer text.',
+              review_status: 'approved',
+              version: 1,
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // Job insert fails
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Insert failed', code: '50000' },
+    });
+
+    const req = createTestRequest('/api/procurement/x/templates/y/fill', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await fillPost(req, { params });
+    expect(res.status).toBe(500);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/queue/i);
+  });
+});

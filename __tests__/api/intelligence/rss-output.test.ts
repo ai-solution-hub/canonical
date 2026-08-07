@@ -6,8 +6,8 @@
  *   GET /api/feeds/:workspaceId/rss/filtered  — near-miss filtered articles feed
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../../helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '../../helpers/mock-next';
+import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client

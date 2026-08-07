@@ -12,8 +12,8 @@ import {
   createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
-} from '../../helpers/mock-supabase';
-import { createTestRequest } from '../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 

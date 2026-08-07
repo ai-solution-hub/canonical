@@ -23,7 +23,7 @@ import { buildSignedPdfBytes } from '@/components/procurement/extend/build-signe
 import {
   usePersistSignedDocument,
   type PersistSignedDocumentResult,
-} from '@/components/procurement/extend/use-persist-signed-document';
+} from '@/hooks/procurement/use-persist-signed-document';
 
 /**
  * ID-147 {147.14} — forked E-Signature block (PRODUCT.md §F3/§F4/§F5,

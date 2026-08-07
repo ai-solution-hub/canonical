@@ -13,11 +13,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseTableDispatch,
   type MockSupabaseDispatch,
-} from '../../../helpers/mock-supabase';
+} from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
-} from '../../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-next';
 
 const PROPOSAL_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = 'test-user-id';

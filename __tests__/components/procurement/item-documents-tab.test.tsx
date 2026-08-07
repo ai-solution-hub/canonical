@@ -51,7 +51,7 @@ vi.mock('@/lib/format', () => ({
 // hardened attachments-route persistence lane rather than re-stubbing it.
 vi.mock('@/components/procurement/document-edit-lazy', async () => {
   const { usePersistSignedDocument } = await vi.importActual<
-    typeof import('@/components/procurement/extend/use-persist-signed-document')
+    typeof import('@/hooks/procurement/use-persist-signed-document')
   >('@/components/procurement/extend/use-persist-signed-document');
 
   function DocumentEditorPanelLazy(props: {

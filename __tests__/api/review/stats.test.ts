@@ -13,7 +13,7 @@ import {
   createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
-} from '../../helpers/mock-supabase';
+} from '@/__tests__/helpers/mock-supabase';
 import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------

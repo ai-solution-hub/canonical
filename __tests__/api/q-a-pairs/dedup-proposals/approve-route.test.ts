@@ -21,11 +21,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseTableDispatch,
   type MockSupabaseDispatch,
-} from '../../../helpers/mock-supabase';
+} from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
-} from '../../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client (configured per-test via _chains)

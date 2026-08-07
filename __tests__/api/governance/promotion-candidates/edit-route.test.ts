@@ -11,11 +11,11 @@
  * unit-tested in __tests__/lib/q-a-pairs/promotion-candidate-review.test.ts.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseTableDispatch } from '../../../helpers/mock-supabase';
+import { createMockSupabaseTableDispatch } from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
-} from '../../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-next';
 
 const EXTRACTION_ID = '11111111-1111-4111-8111-111111111111';
 const PAIR_ID = '22222222-2222-4222-8222-222222222222';
