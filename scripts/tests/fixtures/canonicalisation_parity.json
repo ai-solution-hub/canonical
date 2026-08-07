@@ -132,7 +132,7 @@
     "expected": "acme corp"
   },
   {
-    "raw": "ISO Certification",
+    "raw": "ISO 27001",
     "expected": "iso 27001"
   },
   {

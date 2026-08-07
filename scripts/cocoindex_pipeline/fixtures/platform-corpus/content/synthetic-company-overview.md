@@ -34,7 +34,7 @@ dependability, transparency, and continuous improvement — inform its quality-m
 system, its sustainability commitments, and its approach to social value. Ridgeway holds
 ISO 9001:2015 certification and two further accreditations covering facilities assurance
 and sustainable supply chain practice, described in the company's compliance and
-certifications record.
+certifications record. Ridgeway also holds ISO 27001.
 
 ## Governance
 

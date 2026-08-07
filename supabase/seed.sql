@@ -323,7 +323,7 @@ VALUES
   ('52c458fc-48ed-4afd-888d-62bc2902bc41', 'ISO 27000', 'ISO 27001', 'core', true),
   ('6c7b55ec-2d80-4a40-97a0-f33569926948', 'ISO 27001 2013', 'ISO 27001', 'core', true),
   ('29e2d519-73aa-4b7f-ac46-7a6439642e01', 'ISO 9001 2015', 'ISO 9001', 'core', true),
-  ('cf675a6c-07be-4bf5-837a-0a96b2037c19', 'ISO Certification', 'ISO 27001', 'core', true),
+  ('cf675a6c-07be-4bf5-837a-0a96b2037c19', 'ISO 27001', 'iso 27001', 'core', true),
   ('f517cbac-f762-4f0b-8cf7-70048a8797ba', 'Iso Certifications', 'ISO 27001', 'core', true),
   ('f2439cdd-7c7a-49fe-a9b0-03fe2418f8c7', 'Wcag 2 1 Aa', 'WCAG 2.1 AA', 'core', true),
   ('3d88243a-bcff-4c9a-91ac-c0283324eea2', 'wordpress', 'WordPress', 'core', true),

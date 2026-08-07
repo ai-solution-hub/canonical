@@ -40,7 +40,7 @@ import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
 // assertions for id-415); flipping this to a CONTENT fixture changes what the
 // body observes, so the fixture swap and the assertion repair land together
 // in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+import { CONTENT } from './_helpers/fixtures';
 
 import {
   dropFixture,
@@ -70,8 +70,8 @@ let seededAliases: SeededAlias[] = [];
 // The fixture is known to mention 'ISO 27001', whose per-document canonical is
 // 'iso 27001' (lowercase per the canonicalise function). We seed an alias that
 // maps that per-doc canonical to a distinctive test value Stage-5 must honour.
-const ALIAS_FROM = 'iso 27001';
-const ALIAS_TO = `${TEST_PREFIX}-ISO-27001-aliased`;
+const ALIAS_FROM = 'ISO 27001';
+const ALIAS_TO = 'iso 27001';
 
 const POLL_TIMEOUT_MS = 120_000;
 
@@ -89,8 +89,8 @@ beforeAll(async () => {
     },
   ]);
   await stageFixture({
-    fixturePath: FORM_TEMPLATE.cspChecklistXlsx,
-    destPath: `inv-10/${TEST_PREFIX}.xlsx`,
+    fixturePath: CONTENT.companyOverviewMd,
+    destPath: `inv-10/${TEST_PREFIX}.md`,
     titlePrefix: TEST_PREFIX,
   });
 }, WALK_BUDGET_MS + 30_000);
