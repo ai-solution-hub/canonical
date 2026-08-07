@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { mockTaxonomyContext } from '../helpers/mock-contexts';
+import { mockTaxonomyContext } from '@/__tests__/helpers/mock-contexts';
 
 // Mock taxonomy context (used by DomainBadge inside ReviewCard)
 vi.mock('@/contexts/taxonomy-context', () => ({

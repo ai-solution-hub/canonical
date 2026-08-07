@@ -21,9 +21,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../../../../helpers/mock-supabase';
-import { configureAuth } from '../../../../helpers/mock-auth';
-import { createTestRequest } from '../../../../helpers/mock-next';
+import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import { configureAuth } from '@/__tests__/helpers/mock-auth';
+import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock Supabase client

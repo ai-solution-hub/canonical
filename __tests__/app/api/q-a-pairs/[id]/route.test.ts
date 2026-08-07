@@ -25,9 +25,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
-} from '../../../../helpers/mock-supabase';
-import { configureAuth } from '../../../../helpers/mock-auth';
-import { createTestRequest } from '../../../../helpers/mock-next';
+} from '@/__tests__/helpers/mock-supabase';
+import { configureAuth } from '@/__tests__/helpers/mock-auth';
+import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 

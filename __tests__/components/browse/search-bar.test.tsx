@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createQueryWrapper } from '../helpers/query-wrapper';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({

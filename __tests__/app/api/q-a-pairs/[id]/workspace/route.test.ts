@@ -12,8 +12,8 @@
  * @vitest-environment node
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../../../../../helpers/mock-supabase';
-import { createTestRequest } from '../../../../../helpers/mock-next';
+import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
 const mockSupabase = createMockSupabaseClient();
 
