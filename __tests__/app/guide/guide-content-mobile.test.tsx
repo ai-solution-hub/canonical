@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { mockTaxonomyContext } from '../../helpers/mock-contexts';
+import { mockTaxonomyContext } from '@/__tests__/helpers/mock-contexts';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mock values referenced in vi.mock() factories

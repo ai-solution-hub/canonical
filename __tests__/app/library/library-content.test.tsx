@@ -12,8 +12,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { mockTaxonomyContext } from '../../helpers/mock-contexts';
-import { createQueryWrapper } from '../../helpers/query-wrapper';
+import { mockTaxonomyContext } from '@/__tests__/helpers/mock-contexts';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 import { installRadixPointerShims } from '@/__tests__/helpers/radix-pointer-shims';
 
 // ---------------------------------------------------------------------------
