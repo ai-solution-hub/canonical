@@ -4,7 +4,7 @@ title: "Canonical — Test Philosophy"
 
 # Canonical — Test Philosophy
 
-<!-- Last verified: 22/07/2026 (S491 W4 docs sweep — guard-test list refreshed (2 deleted guards removed, validation-sweep path corrected), audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
+<!-- Last verified: 07/08/2026 (§3 rewritten around the single mirror rule — test path equals production path; the prior `app/api/**` → `__tests__/api/**` row is reversed and the rationale recorded in §3.1. Adds §3.3 naming, §3.4 location-is-not-factoring, §3.5 codemod. Earlier: 22/07/2026 S491 W4 docs sweep — guard-test list refreshed, audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
 
 **Status:** Active reference.
 
@@ -66,19 +66,55 @@ Keep `it('calls X')` only when the side effect IS the observable behaviour and t
 
 ## 3. Test location rules
 
-The audit identified 25 mislocated test files. The rule:
+**One rule, no exceptions: a test's path under `__tests__/` equals its production path from the repo root.**
 
-| Production code lives in… | Tests live in… | Reason |
-|---|---|---|
-| `app/api/**/route.ts` | `__tests__/api/**` | HTTP-handler tests; exercise the route through its handler export. |
-| `app/**/page.tsx` (server components) | `__tests__/app/**` | Server component rendering tests; mock fetch at the route level. |
-| `components/**/*.tsx` | `__tests__/components/**` | Component rendering + interaction tests. |
-| `lib/<domain>/<file>.ts` | `__tests__/lib/<domain>/**` | Pure library tests; exercise the export. |
-| `lib/validation/*.ts` | `__tests__/lib/validation/**` | Schema-validation tests; deserve their own slice for the validation-sweep guard. |
-| `__tests__/integration/**` | (same — integration tier) | Real-Anthropic + real-Supabase tests; must hit the live Platform staging DB (`rbwqewalexrzgxtvcqrh`), never mocks. |
-| `e2e/tests/**` | (same — E2E tier) | Playwright end-to-end specs against staging deployment. |
+| Production module | Test path |
+|---|---|
+| `app/api/procurement/[id]/export/route.ts` | `__tests__/app/api/procurement/[id]/export/route.test.ts` |
+| `app/settings/page.tsx` | `__tests__/app/settings/page.test.tsx` |
+| `app/item/new/new-item-tabs.tsx` | `__tests__/app/item/new/new-item-tabs.test.tsx` |
+| `components/settings/settings-sidebar.tsx` | `__tests__/components/settings/settings-sidebar.test.tsx` |
+| `lib/domains/procurement/ai/<file>.ts` | `__tests__/lib/domains/procurement/ai/**` |
+| `lib/mcp/tools/review.ts` | `__tests__/lib/mcp/tools/review.test.ts` |
 
-A test file's location should be derivable from its production-code import. If a test under `__tests__/api/` exclusively imports from `lib/`, it is mislocated.
+Strip the `__tests__/` prefix and you have the production path. Directories mirror it exactly, **including `[param]` brackets** — `__tests__/app/api/refinement/touchpoints/[id]/`, never `.../touchpoints/id/`. Filenames are the production module's basename: `route.test.ts`, `page.test.tsx`, `new-item-tabs.test.tsx`. The parent directory name is never repeated in the filename (`procurement/[id]/export/route.test.ts`, not `procurement/procurement-export.test.ts`).
+
+### 3.1 Why the mirror, and why the earlier rule was wrong
+
+This section previously sent `app/api/**/route.ts` tests to `__tests__/api/**`, eliding the `app/` segment. That was reversed on 07/08/2026 after measuring the tree: of the 18 top-level directories under `__tests__/`, nine already mirrored a production directory exactly and six were test infrastructure with no production counterpart. Exactly three elided their production parent — `api` (for `app/api`), `validation` (for `lib/validation`) and `mcp` (for `lib/mcp`) — and those three were precisely the directories that had produced split trees, duplicate filenames and repeated confusion about where a new test belongs. The elision was the anomaly, not the fix.
+
+Next.js is explicitly unopinionated about test organisation, so this is a project convention rather than a framework requirement. Note that domain-first organisation cannot apply to the route surface: Next.js derives the URL from the path, so `app/api/**` stays layer-first permanently. Domain-first is correct for `lib/` and already holds there (`lib/domains/procurement/` ↔ `__tests__/lib/domains/procurement/`).
+
+### 3.2 Directories that mirror nothing
+
+Test infrastructure and tiers keep their own names, because there is no production path to mirror: `__tests__/helpers/`, `__tests__/fixtures/`, `__tests__/integration/` (real-Anthropic + real-Supabase tier; must hit the live Platform staging DB `rbwqewalexrzgxtvcqrh`, never mocks), `__tests__/build/`, `__tests__/workflows/` and `__tests__/pipeline/`. `e2e/tests/**` is its own Playwright tier outside `__tests__/`.
+
+`__tests__/guards/` is the agreed home for structural guards — tests that scan source as text rather than exercising an export, and so have no production module to mirror. It is not yet populated; the guards listed in §8 still sit in their original locations pending that move.
+
+Within the mirror, Next.js private-folder syntax groups without implying a route. `__tests__/app/api/_cross-cutting/` holds tests that deliberately reach several unrelated routes to prove a shared property — auth enforcement, validation behaviour — and so have no single production path.
+
+### 3.3 When one production module needs several test files
+
+Prefer **one test file per production module**. A second file covering the same module is usually a signal that the files are wrongly factored rather than that they need distinguishing names — see §3.4.
+
+The exception is a genuine variant of the same subject, where the aspect is carried as a dot-separated suffix on the module basename: `page.mobile.test.tsx` alongside `page.test.tsx`. Established instances include `__tests__/app/layout.branding.test.tsx` and the pair `__tests__/lib/client-config.branding.test.ts` / `client-config.loader.test.ts`. Hyphenated forms (`page-mobile`) are not used — a hyphen reads as part of the module name, and flattening it loses the aspect. Do not reach for a new dot-suffix to resolve a collision; resolve the factoring instead.
+
+### 3.4 Location is not factoring
+
+The mirror rule constrains *where* a file sits, not *what it covers*. Two failure modes survive a correct location:
+
+- **A multi-route file parked at its common ancestor.** `__tests__/app/api/guides/guides.test.ts` covers `guides/route.ts`, `guides/[slug]/route.ts` and `guides/[slug]/sections/route.ts`, and overlaps `guides/route.test.ts` on `GET /api/guides`. It is correctly located and wrongly factored; it should be split so each route has one test file.
+- **One route split across files by HTTP method.** Two files each testing a different verb on the same handler read as though they cover different routes. Merge them.
+
+When a mechanical move would land two files on the same path, that collision is the signal to review the factoring — not to invent a suffix.
+
+### 3.5 Tooling
+
+`scripts/codemods/align-test-paths.ts` derives the correct path for every test under `__tests__/app/` and moves it with `git mv`. Dry-run by default; `--apply` to write; `--scope` to restrict. Reports land in the gitignored `docs/generated/`.
+
+It resolves the subject under test from the AST, counting only imported `@/app/**` modules and excluding `vi.mock()` / `vi.doMock()` arguments — a mocked module is a dependency, not the subject. A regex approach cannot make that distinction and mis-routes files that mock a sibling module.
+
+It escalates rather than guesses: target collisions, occupied targets, files with no subject import, multi-route files whose filename is a naming decision, and catch-all buckets needing a content split. Escalated files are left byte-identical and listed in `docs/generated/align-test-paths-needs-manual.json`. Because it only validates location, a clean run is necessary but not sufficient — §3.4 still applies.
 
 ---
 
