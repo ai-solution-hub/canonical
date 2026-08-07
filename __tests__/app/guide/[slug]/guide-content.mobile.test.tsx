@@ -21,7 +21,7 @@ const { mockFetch, mockCanEdit, mockTaxonomy } = vi.hoisted(() => ({
   mockCanEdit: { value: false },
   mockTaxonomy: {
     value: null as ReturnType<
-      typeof import('../../helpers/mock-contexts').mockTaxonomyContext
+      typeof import('@/__tests__/helpers/mock-contexts').mockTaxonomyContext
     > | null,
   },
 }));

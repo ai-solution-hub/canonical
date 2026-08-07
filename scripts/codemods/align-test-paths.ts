@@ -27,7 +27,7 @@
  *   bun scripts/codemods/align-test-paths.ts --help
  */
 
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, basename, posix } from 'node:path';
 import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
@@ -165,7 +165,9 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
 
 // ── ts-morph project init ──────────────────────────────────────────────────
 
-export function createCodemodProject(tsConfigFilePath = 'tsconfig.json'): Project {
+export function createCodemodProject(
+  tsConfigFilePath = 'tsconfig.json',
+): Project {
   return new Project({
     tsConfigFilePath: resolve(process.cwd(), tsConfigFilePath),
     skipAddingFilesFromTsConfig: false,
@@ -317,13 +319,23 @@ export function derivePlan(
     const targetStem = basename(prod);
 
     // Already correct, either exactly or in dot-suffix aspect form.
-    const isAspectForm = stem.startsWith(`${targetStem}.`);
-    if (currentDir === targetDir && (stem === targetStem || isAspectForm)) {
+    const isDotAspect = stem.startsWith(`${targetStem}.`);
+    if (currentDir === targetDir && (stem === targetStem || isDotAspect)) {
       return { source: sourceRel, verdict: 'OK', subjects };
     }
 
-    // Preserve an existing aspect suffix when only the directory is wrong.
-    const finalStem = isAspectForm ? stem : targetStem;
+    // A hyphen-suffixed variant (`page-mobile`) carries a real aspect that must
+    // be preserved, not flattened to the bare module name. Renaming it to
+    // `page.test.tsx` would silently discard the fact that the file covers the
+    // mobile viewport specifically — and would then read as the canonical page
+    // test. Convert to the dot form the convention mandates.
+    const isHyphenAspect = stem.startsWith(`${targetStem}-`);
+    const finalStem = isDotAspect
+      ? stem
+      : isHyphenAspect
+        ? `${targetStem}.${stem.slice(targetStem.length + 1)}`
+        : targetStem;
+
     const target = `${targetDir}/${finalStem}${ext}`;
     return {
       source: sourceRel,
@@ -341,7 +353,8 @@ export function derivePlan(
   if (subjectBases.every((b) => BOUNDARY_MODULES.has(b))) {
     const targetDir = posix.join('__tests__', ancestor);
     const target = `${targetDir}/boundaries${ext}`;
-    if (sourceRel === target) return { source: sourceRel, verdict: 'OK', subjects };
+    if (sourceRel === target)
+      return { source: sourceRel, verdict: 'OK', subjects };
     return { source: sourceRel, target, verdict: 'BOUNDARY', subjects };
   }
 
@@ -351,7 +364,8 @@ export function derivePlan(
   if (ancestor === 'app' || ancestor === 'app/api') {
     const targetDir = '__tests__/app/api/_cross-cutting';
     const target = `${targetDir}/${stem}${ext}`;
-    if (sourceRel === target) return { source: sourceRel, verdict: 'OK', subjects };
+    if (sourceRel === target)
+      return { source: sourceRel, verdict: 'OK', subjects };
     return { source: sourceRel, target, verdict: 'CROSS_CUTTING', subjects };
   }
 
@@ -382,11 +396,13 @@ export function derivePlan(
  */
 export function detectCollisions(
   plans: AlignPlanEntry[],
-  fileExists: (rel: string) => boolean = (rel) => existsSync(resolve(process.cwd(), rel)),
+  fileExists: (rel: string) => boolean = (rel) =>
+    existsSync(resolve(process.cwd(), rel)),
 ): AlignPlanEntry[] {
   const byTarget = new Map<string, AlignPlanEntry[]>();
   for (const plan of plans) {
-    if (!plan.target || plan.verdict === 'MANUAL' || plan.verdict === 'OK') continue;
+    if (!plan.target || plan.verdict === 'MANUAL' || plan.verdict === 'OK')
+      continue;
     const group = byTarget.get(plan.target) ?? [];
     group.push(plan);
     byTarget.set(plan.target, group);
@@ -501,7 +517,9 @@ export function applyMoves(plans: AlignPlanEntry[]): {
 
   for (const plan of plans) {
     if (!MOVABLE.has(plan.verdict) || !plan.target) continue;
-    mkdirSync(resolve(process.cwd(), dirname(plan.target)), { recursive: true });
+    mkdirSync(resolve(process.cwd(), dirname(plan.target)), {
+      recursive: true,
+    });
     const result = spawnSync('git', ['mv', plan.source, plan.target], {
       encoding: 'utf8',
     });
@@ -566,7 +584,9 @@ export async function runAlign(
     const { moved, failures } = applyMoves(plans);
     console.log(`Moved ${moved.length} test file(s).`);
     for (const f of failures) {
-      console.warn(`[align-test-paths] could not move ${f.source}: ${f.message}`);
+      console.warn(
+        `[align-test-paths] could not move ${f.source}: ${f.message}`,
+      );
     }
     const formatStatus = runFormatPass(moved);
     if (formatStatus !== 0) {
@@ -578,7 +598,10 @@ export async function runAlign(
 
   const outputDir = resolveOutputDir(options.outputDir);
   const dryRunReportPath = resolve(outputDir, DRY_RUN_REPORT_FILENAME);
-  const needsManualReportPath = resolve(outputDir, NEEDS_MANUAL_REPORT_FILENAME);
+  const needsManualReportPath = resolve(
+    outputDir,
+    NEEDS_MANUAL_REPORT_FILENAME,
+  );
   mkdirSync(dirname(dryRunReportPath), { recursive: true });
 
   const reportContext = {
@@ -586,13 +609,15 @@ export async function runAlign(
     ...(args.scope ? { scope: args.scope } : {}),
   };
 
-  await Bun.write(
+  writeFileSync(
     dryRunReportPath,
     buildDryRunReport(plans, reportContext),
+    'utf8',
   );
-  await Bun.write(
+  writeFileSync(
     needsManualReportPath,
     `${JSON.stringify(buildNeedsManualReport(plans), null, 2)}\n`,
+    'utf8',
   );
 
   console.log(`Wrote ${dryRunReportPath}.`);

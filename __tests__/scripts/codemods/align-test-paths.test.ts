@@ -134,6 +134,31 @@ describe('derivePlan — single subject', () => {
     ]);
     expect(plan.target).toBe('__tests__/app/item/new/new-item-tabs.test.tsx');
   });
+
+  it('converts a hyphen-suffixed aspect to dot form rather than dropping it', () => {
+    // Flattening `page-mobile` to `page` would discard the fact that the file
+    // covers the mobile viewport, and would then read as the canonical page
+    // test for that route.
+    const plan = derivePlan(
+      '__tests__/app/procurement/[id]/session/page-mobile.test.tsx',
+      ['@/app/procurement/[id]/session/page'],
+    );
+    expect(plan.target).toBe(
+      '__tests__/app/procurement/[id]/session/page.mobile.test.tsx',
+    );
+  });
+
+  it('does not mistake a hyphenated module name for an aspect', () => {
+    // `source-documents-binary-url` shares no stem with the target `route`, so
+    // the hyphen rule must not fire.
+    const plan = derivePlan(
+      '__tests__/app/api/source-documents/source-documents-binary-url.test.ts',
+      ['@/app/api/source-documents/[id]/binary-url/route'],
+    );
+    expect(plan.target).toBe(
+      '__tests__/app/api/source-documents/[id]/binary-url/route.test.ts',
+    );
+  });
 });
 
 describe('derivePlan — several subjects', () => {
