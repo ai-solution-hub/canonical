@@ -6,7 +6,10 @@
  * terminal states block further transitions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '@/__tests__/helpers/mock-next';
 import {
   createMockSupabaseClient,
   configureRole as configureRoleHelper,

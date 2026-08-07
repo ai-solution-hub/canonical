@@ -16,7 +16,10 @@ import {
   createMockSupabaseClient,
   configureRole,
 } from '@/__tests__/helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '@/__tests__/helpers/mock-next';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared mocks

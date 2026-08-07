@@ -10,7 +10,10 @@ import {
   configureUnauthenticated,
 } from '@/__tests__/helpers/mock-supabase';
 import { configureAuth } from '@/__tests__/helpers/mock-auth';
-import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client

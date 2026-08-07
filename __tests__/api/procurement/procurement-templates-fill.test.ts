@@ -15,7 +15,10 @@ import {
   createMockSupabaseClient,
   configureRole,
 } from '@/__tests__/helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '@/__tests__/helpers/mock-next';
 import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 const mockSupabase = createMockSupabaseClient();

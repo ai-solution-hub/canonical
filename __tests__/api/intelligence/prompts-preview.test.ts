@@ -12,7 +12,10 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '@/__tests__/helpers/mock-supabase';
-import { createTestRequest, createTestParams } from '@/__tests__/helpers/mock-next';
+import {
+  createTestRequest,
+  createTestParams,
+} from '@/__tests__/helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Mock scoreRelevance BEFORE importing the route. vi.hoisted keeps the mock

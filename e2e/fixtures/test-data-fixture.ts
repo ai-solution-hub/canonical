@@ -553,14 +553,14 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         };
       });
 
-      const { data: workspaces } = await supabase
+      // Seeded for their side effect only — no downstream reference needs the
+      // returned ids (the procurement umbrella that used to hang off
+      // workspaces[0] was deleted by ID-145 {145.6} W1e, below).
+      await supabase
         .from('workspaces')
         .insert(workspaceInserts)
         .select('id')
         .throwOnError();
-
-      const workspaceIds = (workspaces ?? []).map((w) => w.id);
-      const kbSectionId = workspaceIds[0];
 
       // --- Seed the procurement items (from centralised shapes) ---
       //
