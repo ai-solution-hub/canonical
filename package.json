@@ -187,7 +187,7 @@
     "prettier": "^3.8.3",
     "tailwindcss": "^4",
     "tinyglobby": "^0.2.16",
-    "typescript": "^5",
+    "typescript": "^7",
     "vitest": "^4.1.6",
     "yaml": "^2.9.0"
   }
