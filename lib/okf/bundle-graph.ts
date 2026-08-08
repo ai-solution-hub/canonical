@@ -67,6 +67,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/lib/logger';
 import { parseOkfDocument, OkfDocumentError } from '@/lib/okf/okf-document';
+// The union id scheme lives in its own Node-free module so the CLIENT can
+// apply the identical namespacing when resolving a link target out of a
+// concept body — see `lib/okf/union-id.ts`.
+import { namespaceUnionId } from '@/lib/okf/union-id';
 
 const INDEX_NAME = 'index.md';
 // BI-11 (TECH.md:444): a KH bundle also carries a bundle-root `log.md`
@@ -538,13 +542,6 @@ export function buildBundleGraph(
 export interface UnionBundleSource {
   bundleId: string;
   root: string;
-}
-
-const UNION_ID_SEPARATOR = '::';
-
-/** Namespace a per-bundle concept/edge id for the union graph. */
-export function namespaceUnionId(bundleId: string, id: string): string {
-  return `${bundleId}${UNION_ID_SEPARATOR}${id}`;
 }
 
 /**

@@ -437,6 +437,38 @@ export type PipelineRunReadStatus =
   | 'failed';
 
 /**
+ * The terminal statuses under which a walk RAN THE STAGES — the default filter
+ * for every stage-count read.
+ *
+ * NM-5 forbids the status-BLIND read because it resolves the `in_progress` row
+ * whose `stage_counts` is all zeros. It does not say "filter on `completed`",
+ * and the difference cost id-415 a nightly. Once id-414 made a walk with
+ * contained per-item drops resolve to `completed_with_errors`, a
+ * `completed`-only filter started missing runs that had executed every stage —
+ * `stage-5-attach-point` (Inv-1) failed exactly this way in run 31271744240,
+ * and its own diagnostic said so: *"row(s) exist but carry status
+ * ["completed_with_errors"], not 'completed' (cause 2 — the status filter, not
+ * the stage)"*.
+ *
+ * `failed` is deliberately absent: a failed run may have stopped before the
+ * stage, so its counters are not evidence the stage ran. A caller asserting
+ * about a failed run passes `'failed'` explicitly and means it.
+ */
+export const TERMINAL_STAGES_RAN: readonly PipelineRunReadStatus[] = [
+  'completed',
+  'completed_with_errors',
+];
+
+/** Normalise the status argument, preserving "one status" callers unchanged. */
+function statusList(
+  status: PipelineRunReadStatus | readonly PipelineRunReadStatus[],
+): PipelineRunReadStatus[] {
+  return Array.isArray(status)
+    ? [...status]
+    : [status as PipelineRunReadStatus];
+}
+
+/**
  * Read `pipeline_runs.result.stage_counts.entity_resolution` for a given
  * op_id, STATUS-FILTERED (id-400 NM-5 — default `'completed'`). Returns
  * `undefined` when no row with that op_id+status exists (e.g. the run is
@@ -446,7 +478,9 @@ export type PipelineRunReadStatus =
  */
 export async function readEntityResolutionStageCount(
   opId: string,
-  status: PipelineRunReadStatus = 'completed',
+  status:
+    | PipelineRunReadStatus
+    | readonly PipelineRunReadStatus[] = TERMINAL_STAGES_RAN,
 ): Promise<number | undefined> {
   return readStageCount(opId, 'entity_resolution', status);
 }
@@ -463,25 +497,36 @@ export async function readEntityResolutionStageCount(
 export async function readStageCount(
   opId: string,
   stage: string,
-  status: PipelineRunReadStatus = 'completed',
+  status:
+    | PipelineRunReadStatus
+    | readonly PipelineRunReadStatus[] = TERMINAL_STAGES_RAN,
 ): Promise<number | undefined> {
   if (!hasRealLiveDbCredentials()) {
     throw new Error(
       'readStageCount: live DB credentials are not real (or absent). Gate the caller first.',
     );
   }
+  const wanted = statusList(status);
   const client = await createLiveServiceClient();
-  const { data: run, error } = await client
+  // `.in(...)` rather than `.eq(...)`, and no `.maybeSingle()`: accepting more
+  // than one terminal status means the query can legitimately match more than
+  // one row, and `maybeSingle()` would turn that into a query ERROR rather than
+  // a result. Pick deterministically instead — earliest wanted status wins, so
+  // a `completed` row is preferred over a `completed_with_errors` one.
+  const { data: rows, error } = await client
     .from('pipeline_runs')
-    .select('result')
+    .select('status, result')
     .eq('op_id', opId)
-    .eq('status', status)
-    .maybeSingle();
+    .in('status', wanted);
   if (error) {
     throw new Error(
       `readStageCount: query failed — ${error.message ?? String(error)}`,
     );
   }
+  const run =
+    wanted
+      .map((s) => (rows ?? []).find((r) => r.status === s))
+      .find((r) => r !== undefined) ?? null;
   const result = (run?.result as Record<string, unknown> | null) ?? null;
   const stageCounts =
     (result?.stage_counts as Record<string, unknown> | undefined) ?? undefined;
@@ -512,8 +557,11 @@ export async function readStageCount(
 export async function explainMissingStageCount(
   opId: string,
   stage: string,
-  status: PipelineRunReadStatus = 'completed',
+  status:
+    | PipelineRunReadStatus
+    | readonly PipelineRunReadStatus[] = TERMINAL_STAGES_RAN,
 ): Promise<string> {
+  const wanted = statusList(status);
   try {
     const client = await createLiveServiceClient();
     const { data: rows, error } = await client
@@ -527,17 +575,21 @@ export async function explainMissingStageCount(
       return `stage_counts.${stage} absent: NO pipeline_runs row for op_id ${opId} (cause 1 — the run never recorded).`;
     }
     const statuses = rows.map((r) => r.status as string);
-    const match = rows.find((r) => r.status === status);
+    const match =
+      wanted
+        .map((s) => rows.find((r) => r.status === s))
+        .find((r) => r !== undefined) ?? undefined;
     if (!match) {
       return (
         `stage_counts.${stage} absent: pipeline_runs row(s) for op_id ${opId} exist but carry status ` +
-        `${JSON.stringify(statuses)}, not '${status}' (cause 2 — the status filter, not the stage). ` +
-        `A 'completed_with_errors' walk still ran the stage.`
+        `${JSON.stringify(statuses)}, none of ${JSON.stringify(wanted)} (cause 2 — the status filter, ` +
+        `not the stage). Note a run that reached a terminal state OTHER than these still ran its ` +
+        `stages; only 'failed' is genuine evidence it may not have.`
       );
     }
     const result = (match.result as Record<string, unknown> | null) ?? null;
     if (!result) {
-      return `stage_counts.${stage} absent: the '${status}' row has a NULL result JSONB (cause 3).`;
+      return `stage_counts.${stage} absent: the '${match.status}' row has a NULL result JSONB (cause 3).`;
     }
     const stageCounts = result.stage_counts as
       | Record<string, unknown>

@@ -45,6 +45,7 @@
  * below) is left unchanged as a defensive fallback.
  */
 import { resolveInternalMdLink } from '@/lib/okf/resolve-internal-link';
+import { namespaceUnionId, splitUnionId } from '@/lib/okf/union-id';
 
 // `](target.md)` or `](target.md#anchor)` — same shape as bundle-graph.ts's LINK_RE.
 const MD_LINK_RE = /\]\(([^)\s]+\.md)((?:#[A-Za-z0-9_-]*)?)\)/g;
