@@ -44,7 +44,7 @@ import { config as loadDotenv } from 'dotenv';
 
 import {
   loadCorpusManifest,
-  walkedBaselinePathPrefixes,
+  walkedBaselineTargets,
 } from '@/lib/corpus/fixture-manifest';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
@@ -179,11 +179,22 @@ function matchesDeclaredManifest(row: CandidateRow): boolean {
 }
 
 /**
- * The corpus-relative directories the walked baseline occupies, from the
- * manifest (`content/`, `qa/`, `edge/`). Never re-typed here — "no third list".
+ * Every path a walked-baseline document may legitimately be filed under, from
+ * the manifest — its corpus path AND, where the verify driver also stages it,
+ * its `verify_dest`.
+ *
+ * PREFIXES ARE NOT ENOUGH, and assuming they were shipped this guard broken.
+ * `storage_path` is frozen at MINT, and whichever staging minted first won the
+ * name — so a Platform-corpus document can be filed under `verify/…`.
+ * Measured on staging: `synthetic-capability-statement.pdf` and
+ * `synthetic-sector-intel.docx` both carry `storage_path = verify/…`. A guard
+ * keyed on the corpus DIRECTORY prefixes (`content/`, `edge/`, `qa/`) cannot see
+ * them, while `selectCandidates` — which includes `verify/` as a test family —
+ * selects them for deletion. Exact membership is the only sound test.
  */
-const WALKED_BASELINE_PREFIXES =
-  walkedBaselinePathPrefixes(loadCorpusManifest());
+const WALKED_BASELINE_PATHS: ReadonlySet<string> = new Set(
+  walkedBaselineTargets(loadCorpusManifest()).flatMap((t) => t.acceptablePaths),
+);
 
 /**
  * NM-6, as ratified: *"the sweep step fails the run if its scope guard would
@@ -191,21 +202,21 @@ const WALKED_BASELINE_PREFIXES =
  * enforcing D1's owner amendment *"showcase/platform content is never
  * sweep-eligible"* (`specs/id-396-corpus-model/TECH.md:107-111`, S511).
  *
- * This asserts the INVARIANT, not the selection predicate. Re-checking
- * selection against itself is a tautology that can never fail — which is what
- * the guard became the moment selection was narrowed to `storage_path`, and why
- * narrowing alone was not the whole fix. A guard that cannot fire is not a
- * guard.
+ * This asserts the INVARIANT, not the selection predicate. Re-checking selection
+ * against itself is a tautology that can never fail — which is what the guard
+ * became the moment selection was narrowed to `storage_path`, and why narrowing
+ * alone was not the fix. A guard that cannot fire is not a guard.
  *
- * It fires on the condition S511 D1 forbids: a candidate whose FROZEN
- * `storage_path` places it in the walked baseline. That is reachable in
- * practice — `resolve_or_mint_source_identity` entangles a corpus row with a
- * test's paths on any byte-identical re-stage — so this is a live check, not a
- * ceremonial one.
+ * It tests EITHER stored path against exact manifest membership. `logical_path`
+ * is included deliberately even though selection ignores it: a corpus document
+ * whose logical_path still names a baseline file is showcase content whatever
+ * its storage_path says, and this guard's job is to refuse, not to select.
  */
 function isShowcasePlatformContent(row: CandidateRow): boolean {
-  const storagePath = row.storage_path ?? '';
-  return WALKED_BASELINE_PREFIXES.some((p) => storagePath.startsWith(p));
+  return (
+    WALKED_BASELINE_PATHS.has(row.storage_path ?? '') ||
+    WALKED_BASELINE_PATHS.has(row.logical_path ?? '')
+  );
 }
 
 /**
