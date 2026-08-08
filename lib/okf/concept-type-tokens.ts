@@ -48,7 +48,14 @@ const KNOWN_TYPES = [
   'navigation',
 ] as const;
 
-export type OkfConceptType = (typeof KNOWN_TYPES)[number];
+// No `OkfConceptType` narrow union is derived from `KNOWN_TYPES` on purpose.
+// Concept `type` is an OPEN string everywhere it matters — the producer's
+// closed-set check is per-run and bundle-class-scoped (see the parity note in
+// `lib/ontology/concept-schema.ts`), `conceptTypeTokenVars` deliberately
+// widens to `readonly string[]` so an unmapped type falls back to the default
+// token, and `<GraphLegend>`/the type filter enumerate the SERVER-computed
+// `types: string[]` from the actual bundle. A narrow alias here would have no
+// place to apply itself.
 
 /** CSS custom-property names for one concept type's badge/node colours. */
 export interface ConceptTypeTokenVars {
@@ -77,10 +84,137 @@ export function conceptTypeTokenVars(type: string): ConceptTypeTokenVars {
   return DEFAULT_VARS;
 }
 
+// ---------------------------------------------------------------------------
+// Canvas-renderable colour normalisation
+//
+// Every token in `domain-tokens.css` is authored in `oklch()`, deliberately —
+// it is what makes one lightness/chroma pair reusable across a hue ramp
+// (`oklch(0.93 0.04 var(--hue-okf-concept-topic))`). `getComputedStyle` on a
+// custom property substitutes the `var()` and returns the rest VERBATIM, so a
+// caller receives `oklch(.93 .04 210)`.
+//
+// The DOM is fine with that. Cytoscape is not: it renders to a 2D canvas and
+// parses colours with its own parser, which understands hex, `rgb()`/`rgba()`,
+// `hsl()`/`hsla()` and named colours — and nothing from CSS Color 4. It rejects
+// the value and logs two lines per element, the second of which is misleading:
+//
+//   The style property `background-color: oklch(.93 .04 160)` is invalid
+//   Do not assign mappings to elements without corresponding data (i.e. ele
+//   `certifications/sscm` has no mapping for property `border-color` with data
+//   field `borderColor`); try a `[borderColor]` selector to limit scope …
+//
+// The second message reads like a missing-data bug and is not one — `color`
+// and `borderColor` are set on every element by `toElements`. Cytoscape drops
+// the mapping when it cannot parse the mapped VALUE, then reports the element
+// as having no mapping. Chasing the `[borderColor]` selector the message
+// suggests would be chasing a symptom.
+//
+// So the colours are normalised where they are read, not where they are used:
+// one boundary, every consumer covered, and the tokens stay authored in oklch.
+// ---------------------------------------------------------------------------
+
+/** CSS Color 4 functions Cytoscape's canvas parser rejects. Legacy syntax is passed through untouched. */
+const MODERN_COLOR_FN = /\b(?:oklch|oklab|lch|lab|hwb|color|color-mix)\(/i;
+
+let normalisingContext: CanvasRenderingContext2D | null | undefined;
+
+/** A module-scoped 1x1 context used purely as a colour converter. `null` once known unavailable (jsdom). */
+function colorParsingContext(): CanvasRenderingContext2D | null {
+  if (normalisingContext !== undefined) return normalisingContext;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    normalisingContext =
+      canvas.getContext('2d', { willReadFrequently: true }) ?? null;
+  } catch {
+    // jsdom throws rather than returning null ("getContext() not implemented").
+    normalisingContext = null;
+  }
+  return normalisingContext;
+}
+
+/**
+ * Drop the memoised parsing context.
+ *
+ * Test-only, and the memo is why it has to exist: the context is resolved once
+ * and cached, and under jsdom the first resolution caches `null` — so a test
+ * that stubs a canvas afterwards would be stubbing something never consulted
+ * again. Exported rather than reached for via module internals so the coupling
+ * is visible from both sides.
+ */
+export function resetRenderableColorContextForTests(): void {
+  normalisingContext = undefined;
+}
+
+/** Paint `value` over `under` on the 1x1 canvas and read the resulting pixel. */
+function paintedPixel(
+  ctx: CanvasRenderingContext2D,
+  value: string,
+  under: string,
+): Uint8ClampedArray {
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = under;
+  // An unparseable colour leaves fillStyle at `under` — that is the whole
+  // detection mechanism, and it is why `under` differs between the two probes.
+  ctx.fillStyle = value;
+  ctx.fillRect(0, 0, 1, 1);
+  return ctx.getImageData(0, 0, 1, 1).data;
+}
+
+/**
+ * Convert a CSS colour into the legacy syntax Cytoscape's canvas parser reads.
+ *
+ * Uses the browser as the converter — but by PAINTING the colour and reading
+ * the pixel back, not by round-tripping `fillStyle`. The round-trip is the
+ * obvious approach and it does not work: Chrome parses `oklch()` perfectly well
+ * and then serialises `fillStyle` back as `oklch(…)`, because CSS Color 4 says
+ * a non-legacy colour keeps its colour space. Measured, not assumed —
+ * `fillStyle = 'oklch(0.93 0.04 160)'` reads back as exactly that string, so a
+ * round-trip normaliser would have been a silent no-op in production while
+ * passing every jsdom test with a stubbed canvas.
+ *
+ * A painted pixel has no such freedom: it is four sRGB bytes, and sRGB is what
+ * the renderer was going to clamp to anyway.
+ *
+ * **Returns the input unchanged whenever conversion is not possible** — no
+ * canvas (jsdom, SSR), or a browser that cannot parse the value either. That is
+ * a deliberate no-op rather than a throw or a substituted colour: this function
+ * exists to make a renderer's life easier, so it must never be the reason a
+ * colour goes missing. A caller that gets its input back is no worse off than
+ * before this function existed.
+ */
+export function toRenderableColor(value: string): string {
+  if (!value || !MODERN_COLOR_FN.test(value)) return value;
+  const ctx = colorParsingContext();
+  if (!ctx) return value;
+  try {
+    // Two DIFFERENT underlying colours settle parseable-vs-ignored exactly: if
+    // the value painted, both pixels match; if it was ignored, each probe
+    // painted its own underlay. (One probe would misjudge a colour that happens
+    // to paint TO that underlay — `oklch(0 0 0)` under black is a real case.)
+    const first = paintedPixel(ctx, value, '#010203');
+    const second = paintedPixel(ctx, value, '#040506');
+    const painted =
+      first[0] === second[0] &&
+      first[1] === second[1] &&
+      first[2] === second[2] &&
+      first[3] === second[3];
+    if (!painted) return value;
+    const [r, g, b, a] = first;
+    return a === 255
+      ? `rgb(${r}, ${g}, ${b})`
+      : `rgba(${r}, ${g}, ${b}, ${(a! / 255).toFixed(3)})`;
+  } catch {
+    return value;
+  }
+}
+
 /**
  * Resolve a concept type's badge colours to concrete CSS colour strings by
  * reading the custom properties off `document.documentElement` — Cytoscape's
- * canvas renderer needs a real colour string, not a `var()` reference.
+ * canvas renderer needs a real colour string, not a `var()` reference, and not
+ * a CSS Color 4 function either (see {@link toRenderableColor}).
  * Returns `null` outside a browser (SSR) — callers fall back to a default.
  */
 export function resolveConceptTypeColor(
@@ -94,7 +228,7 @@ export function resolveConceptTypeColor(
   const bg = styles.getPropertyValue(vars.bg).trim();
   const text = styles.getPropertyValue(vars.text).trim();
   if (!bg || !text) return null;
-  return { bg, text };
+  return { bg: toRenderableColor(bg), text: toRenderableColor(text) };
 }
 
 /**
@@ -137,7 +271,11 @@ export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
     .trim();
   const edge = styles.getPropertyValue(GRAPH_CHROME_VARS.edge).trim();
   if (!fallbackNode || !selectedBorder || !edge) return null;
-  return { fallbackNode, selectedBorder, edge };
+  return {
+    fallbackNode: toRenderableColor(fallbackNode),
+    selectedBorder: toRenderableColor(selectedBorder),
+    edge: toRenderableColor(edge),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +330,7 @@ export function resolveIriScopeBorderColor(
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue(IRI_SCOPE_BORDER_VARS[iriScope])
     .trim();
-  return value || fallbackColor;
+  return value ? toRenderableColor(value) : fallbackColor;
 }
 
 /**
@@ -216,5 +354,5 @@ export function resolveEdgeRelationshipColor(
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue('--okf-graph-edge-cites')
     .trim();
-  return value || fallbackColor;
+  return value ? toRenderableColor(value) : fallbackColor;
 }

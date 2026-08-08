@@ -35,6 +35,7 @@ import cytoscape, {
 import {
   resolveConceptTypeColor,
   resolveGraphChromeColors,
+  toRenderableColor,
   bundleClassShape,
   resolveIriScopeBorderColor,
   resolveEdgeRelationshipColor,
@@ -55,6 +56,11 @@ type LayoutName = (typeof LAYOUTS)[number];
 // be read (SSR, or a test environment that never loaded
 // `app/styles/domain-tokens.css`) — mirror those tokens' light-mode :root
 // values so the un-themed fallback still reads as the same colour family.
+//
+// These bypass the resolvers, so they are wrapped in `toRenderableColor` at
+// every use site below rather than left raw: Cytoscape's canvas parser rejects
+// `oklch()`, and a FALLBACK that the renderer cannot read is the worst possible
+// place for that to be true — it fires exactly when nothing else worked.
 const FALLBACK_NODE_COLOR = 'oklch(0.65 0.012 48)'; // --okf-graph-node-fallback
 const SELECTED_BORDER_COLOR = 'oklch(0.6 0.14 70)'; // --okf-graph-selected-border
 const EDGE_COLOR = 'oklch(0.82 0.014 48)'; // --okf-graph-edge
@@ -73,8 +79,10 @@ function toElements(
   edges: OkfBundleGraphEdge[],
 ): ElementDefinition[] {
   const chrome = resolveGraphChromeColors();
-  const fallbackNodeColor = chrome?.fallbackNode ?? FALLBACK_NODE_COLOR;
-  const fallbackEdgeColor = chrome?.edge ?? EDGE_COLOR;
+  const fallbackNodeColor =
+    chrome?.fallbackNode ?? toRenderableColor(FALLBACK_NODE_COLOR);
+  const fallbackEdgeColor =
+    chrome?.edge ?? toRenderableColor(EDGE_COLOR);
   const nodeElements: ElementDefinition[] = nodes.map((n) => ({
     data: {
       ...n.data,
@@ -170,7 +178,8 @@ export function ConceptGraph({
   useEffect(() => {
     if (!containerRef.current) return;
     const chrome = resolveGraphChromeColors();
-    const selectedBorderColor = chrome?.selectedBorder ?? SELECTED_BORDER_COLOR;
+    const selectedBorderColor =
+      chrome?.selectedBorder ?? toRenderableColor(SELECTED_BORDER_COLOR);
     const cy = cytoscape({
       container: containerRef.current,
       elements,
