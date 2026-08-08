@@ -74,15 +74,21 @@ import requests
 # ──────────────────────────────────────────────────────────────────────────
 #
 # Each tuple is (fixture_path_in_repo_checkout, dest_path, title_prefix):
-#   - fixture_path: repo-relative path under docs/testing/test-data/** whose
-#     RAW BYTES are read and POSTed as the multipart `file` part.
-#   - dest_path:    corpus-relative target the /stage route writes to.
+#   - fixture_path: repo-relative path whose RAW BYTES are read and POSTed as
+#     the multipart `file` part. The `docs/testing/test-data/**` tree this once
+#     named was deleted in the S521-S522 fixture relocation; fixture trees now
+#     live with the code that owns them (DR-117).
+#   - dest_path:    corpus-relative target the /stage route writes to. MUST sit
+#     under a sweep selection prefix (lib/corpus/sweep-scope.ts) and MUST NOT be
+#     a path any walked-baseline document can be filed under — the manifest
+#     guard asserts both.
 #   - title_prefix: informational prefix the caller embeds in the dest filename
 #     (the /stage route does NO in-byte title injection — OQ-62-6).
 #
 # Sets are keyed by name so `--fixtures <set>` selects which tuples to stage.
-# The default `templates` set draws from the committed
-# docs/testing/test-data/templates/** corpus.
+# Every path below is mirrored in docs/reference/testing/corpus-manifest.json as
+# a `verify_dest`; `__tests__/guards/corpus-manifest.test.ts` fails if the two
+# drift apart.
 
 
 @dataclass(frozen=True)
@@ -95,30 +101,57 @@ class FixtureTuple:
 
 
 FIXTURE_SETS: dict[str, tuple[FixtureTuple, ...]] = {
+    # The `templates` set stages FORM TEMPLATES, which is what its name says and
+    # what `.github/workflows/cocoindex-nightly.yml` declares it stages ("STAGED
+    # PER TEST — form-extraction templates (DR-117:
+    # scripts/cocoindex_pipeline/fixtures/form-templates/)").
+    #
+    # It was briefly repointed at three Platform-corpus CONTENT documents
+    # (c3286753f) to give the verify lane real prose. That was a mistake with two
+    # measured consequences, and the second one killed the nightly outright:
+    #
+    #   1. It bought no coverage. The nightly already walks the whole Platform
+    #      corpus (id-412 W3), and content-hash-first identity means staging the
+    #      same bytes at a second path can never produce a second row — it
+    #      resolves onto the corpus row. The "verify-lane copy" was the corpus
+    #      row wearing a different name.
+    #   2. It put walked-baseline documents inside the sweep's `verify/`
+    #      selection scope. `storage_path` freezes at mint, so whichever staging
+    #      the walk reached first won the name, and two corpus documents ended up
+    #      frozen at `verify/…`. The sweep then selected them on every run while
+    #      the NM-6 showcase guard refused to delete them — abort with zero
+    #      deletes, before the build, on every single run.
+    #
+    # The three fixtures below preserve the set's ACTUAL purpose: prove the
+    # `/stage` -> walk -> row path works across the three converter MIME routes
+    # (xlsx / pdf / docx), which is what the census gate's verify-lane checks
+    # assert. They carry bytes distinct from every walked-baseline document
+    # (DR-133), so no staging of them can ever resolve onto a corpus row.
     "templates": (
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
-                "synthetic-sector-spend.xlsx"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/"
+                "itt-services-efa/evaluation-matrix-itt-vol8.xlsx"
             ),
-            dest_path="verify/synthetic-sector-spend.xlsx",
-            title_prefix="VERIFY-SYN-XLSX",
+            dest_path="verify/evaluation-matrix-itt-vol8.xlsx",
+            title_prefix="VERIFY-ITT-XLSX",
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
-                "synthetic-capability-statement.pdf"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/"
+                "sq-standard-selection-questionnaire/"
+                "standard-selection-questionnaire-ppn-03-24.pdf"
             ),
-            dest_path="verify/synthetic-capability-statement.pdf",
-            title_prefix="VERIFY-SYN-PDF",
+            dest_path="verify/standard-selection-questionnaire-ppn-03-24.pdf",
+            title_prefix="VERIFY-SQ-PDF",
         ),
         FixtureTuple(
             fixture_path=(
-                "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/"
-                "synthetic-sector-intel.docx"
+                "scripts/cocoindex_pipeline/fixtures/form-templates/"
+                "rfp-british-council/annex_2_supplier_response.docx"
             ),
-            dest_path="verify/synthetic-sector-intel.docx",
-            title_prefix="VERIFY-SYN-DOCX",
+            dest_path="verify/annex_2_supplier_response.docx",
+            title_prefix="VERIFY-BC-DOCX",
         ),
     ),
 }

@@ -45,8 +45,10 @@ import {
   loadCorpusManifest,
   verifyDriverDestPaths,
   walkedBaselinePathPrefixes,
+  walkedBaselinePathSet,
   type FixtureEntry,
 } from '@/lib/corpus/fixture-manifest';
+import { SWEEP_STORAGE_PATH_PREFIX_FAMILIES } from '@/lib/corpus/sweep-scope';
 
 const manifest = loadCorpusManifest();
 const treeById = new Map(manifest.trees.map((t) => [t.id, t]));
@@ -328,9 +330,9 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
         ...src.matchAll(/fixture_path=\(([\s\S]*?)\),/g),
       ].map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((s) => s[1]).join(''));
       expect(driverPaths.length).toBeGreaterThan(0);
-      // verify_dest presence is the staged-set marker (not staging_mode):
-      // the staged files are platform-corpus content docs since S527, and
-      // those keep staging_mode 'walked-baseline' per the S522 invariant.
+      // verify_dest presence is the staged-set marker, not staging_mode: the
+      // driver's fixtures are form templates, which are already `per-test`
+      // because individual specs stage them too. A file can be staged by both.
       const declared = manifest.fixtures
         .filter((f) => f.verify_dest !== undefined)
         .map((f) => f.path);
@@ -429,15 +431,48 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
 
     it('never overlaps the verify-lane dest paths the sweep DOES delete', () => {
       // The sweep deletes `verify/…` rows and must never delete `content/…`
-      // ones, so the two namespaces have to stay disjoint. If a future
-      // verify_dest were ever written under a baseline prefix, the sweep and
-      // the S511 guard would contradict each other and the guard would abort
-      // every run.
+      // ones, so the two namespaces have to stay disjoint.
       const prefixes = walkedBaselinePathPrefixes(manifest);
       const collisions = verifyDriverDestPaths(manifest).filter((dest) =>
         prefixes.some((p) => dest.startsWith(p)),
       );
       expect(collisions).toEqual([]);
+    });
+
+    /**
+     * THE SAME INVARIANT, IN THE DIRECTION IT ACTUALLY BREAKS.
+     *
+     * The assertion above was written to stop the sweep and the NM-6 showcase
+     * guard contradicting each other, and it cannot do it. It asks whether a
+     * `verify/…` dest sits under a baseline DIRECTORY prefix (`content/`,
+     * `qa/`, `edge/`), which is impossible by construction — so it passes
+     * vacuously.
+     *
+     * The break runs the other way. `acceptablePaths` is what the NM-6 guard
+     * protects, and it included the three `verify_dest` values, every one of
+     * which starts with the sweep's `verify/` SELECTION prefix. The sweep
+     * therefore selected two Platform-corpus rows on every run and the guard
+     * refused to let them go: abort, zero deletes, nightly dead at step 1,
+     * indefinitely. The guard meant to prevent that watched a direction the
+     * defect never travelled in.
+     *
+     * Compare the two lists that actually govern the collision: every path the
+     * NM-6 guard protects, against every prefix the sweep claims.
+     */
+    it('no protected baseline path sits inside a sweep selection prefix', () => {
+      const protectedPaths = [...walkedBaselinePathSet(manifest)];
+      expect(protectedPaths.length).toBeGreaterThan(0);
+
+      const collisions = protectedPaths.filter((p) =>
+        SWEEP_STORAGE_PATH_PREFIX_FAMILIES.some((prefix) =>
+          p.startsWith(prefix),
+        ),
+      );
+      expect(
+        collisions,
+        'the sweep would select these rows and the NM-6 guard would refuse to delete them — ' +
+          'every nightly run aborts with zero deletes until one list changes',
+      ).toEqual([]);
     });
   });
 });

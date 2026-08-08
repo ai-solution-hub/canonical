@@ -116,12 +116,14 @@ for (const destPath of DRIVER_MANIFEST_DEST_PATHS) {
 // (synthetic-company-overview.md; the sweep's mutable-path predicate, fixed
 // separately under S511 D1).
 //
-// Accepts EITHER the corpus path or the verify_dest: content-hash identity
-// guarantees one row but does not determine which of a document's names was
-// frozen as storage_path at mint, and since S527 the verify driver stages three
-// of these into the verify lane too. Measured on staging: two landed under
-// `content/`, one under `verify/`. Asserting the corpus path alone would report
-// a false loss for that one.
+// Accepts every path in `acceptablePaths`, which is normally just the corpus
+// path. It is a set because content-hash identity guarantees one row but does
+// not determine which of a document's names was frozen as storage_path at mint.
+// That ambiguity was real while the verify driver staged three corpus content
+// documents into `verify/` — two landed under `content/`, one under `verify/`.
+// The driver now stages form templates, so no walked-baseline document has a
+// second acceptable path; the set shape is kept because the hazard belongs to
+// content-hash identity, not to that one misconfiguration.
 for (const target of walkedBaselineTargets(loadCorpusManifest())) {
   await assertExactlyOne(
     target.corpusPath,
