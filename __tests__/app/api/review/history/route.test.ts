@@ -5,6 +5,12 @@
  * database query construction, user_roles display name resolution,
  * and correct response shaping.
  *
+ * Merged from the former `history/history.test.ts` + `history/review-history.
+ * test.ts` pair: both covered the same single GET handler, and eight of the
+ * nine cases in `history.test.ts` were assertion-for-assertion duplicates of
+ * cases here. Its one unique case — the existence-check short circuit — is
+ * kept below under "Existence check".
+ *
  * NOTE — W-RD' integration-tier migration (S44 W2-RD-api).
  *
  * The following contracts previously asserted via chain-method shape have been
@@ -23,8 +29,8 @@
  *   `__tests__/integration/review-history.integration.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
+import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
 // ─── Mock modules ──────────────────────────────────────────────────────────
 
@@ -47,8 +53,12 @@ vi.mock('@/lib/supabase/server', () => ({
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const ANOTHER_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-ef1234567890';
 
-function makeRequest(url: string): NextRequest {
-  return new NextRequest(`http://localhost${url}`);
+/** GET /api/review/history, optionally scoped to an `item_id`. */
+function makeRequest(itemId?: string) {
+  return createTestRequest(
+    '/api/review/history',
+    itemId === undefined ? {} : { searchParams: { item_id: itemId } },
+  );
 }
 
 const sampleHistoryRows = [
@@ -115,9 +125,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(401);
   });
@@ -132,9 +140,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(403);
   });
@@ -143,7 +149,7 @@ describe('GET /api/review/history', () => {
 
   it('returns 400 when item_id is missing', async () => {
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(makeRequest('/api/review/history'));
+    const response = await GET(makeRequest());
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -152,9 +158,7 @@ describe('GET /api/review/history', () => {
 
   it('returns 400 when item_id is not a valid UUID', async () => {
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest('/api/review/history?item_id=not-a-uuid'),
-    );
+    const response = await GET(makeRequest('not-a-uuid'));
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -163,9 +167,7 @@ describe('GET /api/review/history', () => {
 
   it('returns 400 for a partial UUID', async () => {
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest('/api/review/history?item_id=00000000-0000-0000'),
-    );
+    const response = await GET(makeRequest('00000000-0000-0000'));
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -193,9 +195,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -250,9 +250,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     const body = await response.json();
     expect(body.history[0].resolution_notes).toBe(
@@ -266,9 +264,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -286,9 +282,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     const body = await response.json();
     expect(body.history[0].created_by_name).toBeNull();
@@ -307,9 +301,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     // Should still return 200 — display name lookup failure is non-fatal
     expect(response.status).toBe(200);
@@ -327,13 +319,34 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${ANOTHER_UUID}`),
-    );
+    const response = await GET(makeRequest(ANOTHER_UUID));
 
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.history).toEqual([]);
+  });
+
+  // ── Existence check ──────────────────────────────────────────────────────
+
+  it('returns empty history without querying the log when item_id does not resolve to a source_documents row', async () => {
+    // ID-131 {131.19}: item_id IS the source_documents id directly now —
+    // there's no more "content item with no backing source document"
+    // indirection. The equivalent not-found case is simply: no row exists
+    // for this id (PostgREST returns PGRST116 on `.single()` for zero rows).
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows returned' },
+    });
+
+    const { GET } = await import('@/app/api/review/history/route');
+    const response = await GET(makeRequest(VALID_UUID));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.history).toEqual([]);
+    // The ingestion_quality_log query never ran — its `.then()` mock (which
+    // would populate the history rows) was never consumed.
+    expect(mockSupabase._chain.then).not.toHaveBeenCalled();
   });
 
   // ── Error handling ───────────────────────────────────────────────────────
@@ -345,9 +358,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(500);
     const body = await response.json();
@@ -358,9 +369,7 @@ describe('GET /api/review/history', () => {
     mockGetAuthorisedClient.mockRejectedValue(new Error('Unexpected crash'));
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
 
     expect(response.status).toBe(500);
     const body = await response.json();
@@ -386,9 +395,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
     const body = await response.json();
     const entry = body.history[0];
 
@@ -413,9 +420,7 @@ describe('GET /api/review/history', () => {
     );
 
     const { GET } = await import('@/app/api/review/history/route');
-    const response = await GET(
-      makeRequest(`/api/review/history?item_id=${VALID_UUID}`),
-    );
+    const response = await GET(makeRequest(VALID_UUID));
     const body = await response.json();
 
     expect(body).toHaveProperty('history');

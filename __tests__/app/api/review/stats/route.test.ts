@@ -7,6 +7,10 @@
  * count badge reads `stats?.overdue` end-to-end through this route.
  *
  * Plan: docs/plans/p0-document-control-phase-3-ui-plan.md v1.1 §T0 (T0-AC4).
+ *
+ * The auth-gate and full-breakdown pass-through cases came from the
+ * `GET /api/review/stats` section of the former `review/review.test.ts`, which
+ * covered three unrelated routes from one file.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -134,6 +138,9 @@ describe('GET /api/review/stats', () => {
 
     const res = await GET();
     expect(res.status).toBe(401);
+
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -171,6 +178,74 @@ describe('GET /api/review/stats', () => {
 
     const body = await res.json();
     expect(body.overdue).toBe(0);
+  });
+
+  // The whole RPC breakdown reaches the client unaltered apart from the two
+  // handler-computed fields (unverified = total - verified, and
+  // awaiting_publication from the parallel count query).
+  //
+  // FACTORING NOTE (unsettled): `by_domain` is asserted here because the test
+  // this came from asserted it, but the route's own comment (route.ts:73-76)
+  // says id-417 / DR-130 retired it — the RPC no longer emits it and
+  // `ReviewStatsResponseSchema` does not declare it. It survives only because
+  // `defineRoute` is a pass-through validator over a non-strict `z.object`, so
+  // an unknown key the mock injects is neither stripped nor rejected. Whether
+  // "unknown RPC keys reach the client" is a requirement or an accident was
+  // not settled here.
+  it('returns 200 with the full stats breakdown', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // The route calls a single RPC: get_review_breakdown_stats
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: {
+        total: 100,
+        verified: 60,
+        flagged: 5,
+        draft: 3,
+        overdue: 4,
+        by_domain: {
+          Technology: { total: 2, verified: 1 },
+          Business: { total: 1, verified: 1 },
+        },
+        by_content_type: {
+          article: { total: 2, verified: 2 },
+          q_a_pair: { total: 1, verified: 0 },
+        },
+        by_source_file: {
+          'import-batch-1.docx': { total: 2, verified: 1 },
+        },
+        by_source_document: {},
+      },
+      error: null,
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+
+    expect(json.total).toBe(100);
+    expect(json.verified).toBe(60);
+    expect(json.flagged).toBe(5);
+    expect(json.unverified).toBe(40);
+    expect(json.draft).toBe(3);
+
+    expect(json.by_domain).toEqual({
+      Technology: { total: 2, verified: 1 },
+      Business: { total: 1, verified: 1 },
+    });
+
+    expect(json.by_content_type).toEqual({
+      article: { total: 2, verified: 2 },
+      q_a_pair: { total: 1, verified: 0 },
+    });
+
+    expect(json.by_source_file).toEqual({
+      'import-batch-1.docx': { total: 2, verified: 1 },
+    });
+
+    // Verify the RPC was called
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_review_breakdown_stats');
   });
 
   // V_W1 Finding 3 fix — awaiting_publication count must surface from the

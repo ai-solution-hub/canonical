@@ -1,13 +1,21 @@
 /**
- * Tests for verification_history recording in POST /api/review/action.
+ * POST /api/review/action — the single handler in
+ * `app/api/review/action/route.ts`.
  *
- * Verifies that verify, unverify, and flag actions all create entries
- * in the verification_history table, and that notes are properly passed.
+ * Covers the auth gate, request validation, the per-action write contract
+ * (record_lifecycle facet + source_documents stamp + ingestion_quality_log),
+ * verification_history recording, the ID-152 owner-aware existence lookup, and
+ * the id-327 failure-honesty paths.
+ *
+ * The auth/validation/per-action-write block came from the
+ * `POST /api/review/action` section of the former `review/review.test.ts`,
+ * which covered three unrelated routes from one file.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
+  configureUnauthenticated,
 } from '@/__tests__/helpers/mock-supabase';
 import { createTestRequest } from '@/__tests__/helpers/mock-next';
 
@@ -391,10 +399,14 @@ describe('POST /api/review/action — verification_history recording', () => {
 
     const res = await postAction(req);
     expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
 
     // No history row is written for the no-op skip action — content-of-write
     // is observable here as the absence of any action_type/performed_by row.
     expect(recordedHistoryInsert()).toBeNull();
+    // Nor any other write: skip touches no table at all.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+    expect(mockSupabase._chain.insert).not.toHaveBeenCalled();
   });
 
   it('does not record verification_history for publish action (action_type CHECK constraint gap — ID-131 B3-ext)', async () => {
@@ -469,6 +481,12 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
     });
     const res = await postAction(req);
     expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
+
+    // Both tables are actually written — the payload finders below identify
+    // the two writes by shape, so name the tables explicitly too.
+    expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
+    expect(mockSupabase.from).toHaveBeenCalledWith('record_lifecycle');
 
     const facetPayload = facetUpdatePayload();
     expect(facetPayload).toMatchObject({ verified_by: 'test-user-id' });
@@ -495,6 +513,7 @@ describe('POST /api/review/action — record_lifecycle / source_documents write 
     });
     const res = await postAction(req);
     expect(res.status).toBe(200);
+    expect((await res.json()).success).toBe(true);
 
     expect(facetUpdatePayload()).toEqual({
       verified_at: null,
@@ -1212,5 +1231,206 @@ describe('POST /api/review/action — audit-write failure reporting (id-327)', (
 
     expect(res.status).toBe(200);
     expect(telemetryMocks.logBestEffortWarn).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auth gate, request validation, and the per-action write contract for the
+// actions whose payloads no other block asserts (flag's quality-log row and
+// publish's governance_review_status clear). Was the
+// `POST /api/review/action` section of review.test.ts.
+// ---------------------------------------------------------------------------
+
+describe('POST /api/review/action — auth, validation and per-action writes', () => {
+  beforeEach(resetMocks);
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(401);
+
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorised');
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'verify' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for invalid action type', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'delete' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'action' })]),
+    );
+  });
+
+  it('returns 400 for missing item_id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { action: 'verify' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'item_id' })]),
+    );
+  });
+
+  it('returns 400 for non-UUID item_id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: 'not-a-uuid', action: 'verify' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+  });
+
+  // NOTE — "flag an item with no backing source document" (pre-ID-131 test)
+  // is dropped, not just weakened. Pre-refactor, content_items.source_
+  // document_id could be NULL, decoupling a content item from any source
+  // document; ingestion_quality_log/verification_history writes were then
+  // skipped (nothing to key them by). Post-ID-131 {131.19}, source_documents
+  // IS the top-level identity — the fetch at route.ts:50-54 selects the row's
+  // own `id`, which is never null for a row that exists — so
+  // `sourceDocumentId` can no longer be null/absent once the initial fetch
+  // succeeds. The scenario this test asserted is now structurally
+  // unreachable, not just untested.
+
+  it('returns 200 on successful flag action', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the item fetch
+    // is now `.from('source_documents').select('id').eq('id', item_id)`
+    // (route.ts:50-54), so `sourceDocumentId = item.id` collapses to the
+    // same value as the request's item_id. There is no more indirection
+    // through a separate content_items.source_document_id column.
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: {
+        item_id: VALID_UUID,
+        action: 'flag',
+        flag_details: 'Needs review — content seems outdated',
+      },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    // Persistence contract: VOID insert, response is only { success: true }.
+    // The new quality-log row (flag_type/severity/details/created_by) is never
+    // read back, so this insert-payload assert is the only proof flagging
+    // records a review_needed/warning entry with the operator's note attached.
+    // ingestion_quality_log is keyed by source_document_id (ID-131 {131.13}
+    // G-GOV-FACET-B rename), which now resolves directly to the fetched
+    // source_documents id (item_id).
+    expect(mockSupabase.from).toHaveBeenCalledWith('ingestion_quality_log');
+    expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_document_id: VALID_UUID,
+        flag_type: 'review_needed',
+        severity: 'warning',
+        details: { notes: 'Needs review — content seems outdated' },
+        created_by: 'test-user-id',
+      }),
+    );
+  });
+
+  // ID-131 endgame B3-ext (S447): 'publish' re-points the linear
+  // review-queue "Publish" quick-action off the doomed
+  // `PATCH /api/items/[id]` route onto this facet write.
+  it('returns 200 on successful publish action', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: 'facet-row-id' }], error: null }),
+    );
+
+    const req = createTestRequest('/api/review/action', {
+      method: 'POST',
+      body: { item_id: VALID_UUID, action: 'publish' },
+    });
+
+    const res = await postAction(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+
+    // Persistence contract: publish clears governance_review_status on the
+    // record_lifecycle facet AND stamps updated_by on source_documents —
+    // same two-table split as verify/unverify above.
+    expect(mockSupabase.from).toHaveBeenCalledWith('source_documents');
+    expect(mockSupabase.from).toHaveBeenCalledWith('record_lifecycle');
+
+    const updateCalls = mockSupabase._chain.update.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const facetUpdate = updateCalls.find(
+      ([payload]) => 'governance_review_status' in payload,
+    );
+    expect(facetUpdate?.[0]).toEqual({ governance_review_status: null });
+    const sourceDocUpdate = updateCalls.find(
+      ([payload]) =>
+        'updated_by' in payload && !('governance_review_status' in payload),
+    );
+    expect(sourceDocUpdate?.[0]).toEqual(
+      expect.objectContaining({ updated_by: 'test-user-id' }),
+    );
   });
 });

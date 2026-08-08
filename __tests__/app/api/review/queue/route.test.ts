@@ -1,19 +1,26 @@
 /**
- * Review Queue API — sort parameter, quality_score, assigned_to_me, and
- * document-body composition tests.
+ * GET /api/review/queue — the single handler in `app/api/review/queue/route.ts`.
  *
- * Tests server-side sorting by confidence and quality score,
- * verifies quality_score is included in the response,
- * tests the assigned_to_me filter intersection logic,
- * and verifies each item's `content` is the composed document body
- * (content_chunks / reference_items — id-392 M6).
+ * The route has two query shapes behind one GET export: the standard
+ * governance-review queue, and the publication-review branch that
+ * `?publication_status=in_review` pivots into (route.ts:114-120). Both are
+ * covered here, because both are the same production module.
+ *
+ * Merged from three files that all imported this handler:
+ * `review/queue.test.ts` (sort params, quality_score, assigned_to_me,
+ * document-body composition, tombstone exclusion, orthogonality),
+ * `review/queue-publication.test.ts` (the publication-review branch), and the
+ * `GET /api/review/queue` block of `review/review.test.ts` (auth envelope +
+ * response envelope + the flagged-branch join key).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
+  configureUnauthenticated,
 } from '@/__tests__/helpers/mock-supabase';
 import { createTestRequest } from '@/__tests__/helpers/mock-next';
+import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -101,6 +108,11 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
 
 function resetMocks() {
   vi.clearAllMocks();
+  // The route rate-limits 20 GETs/min per user (route.ts:100) and the
+  // in-memory counter leaks across tests. With three files' worth of cases now
+  // in one file the merged suite exceeds 20 calls, so each test must start
+  // from a clean store.
+  _resetRateLimitStore();
 
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
@@ -154,6 +166,174 @@ function resetMocks() {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// ===========================================================================
+// Auth gate and the standard-branch response envelope (was review.test.ts).
+// ===========================================================================
+
+describe('GET /api/review/queue — auth and response envelope', () => {
+  beforeEach(resetMocks);
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/review/queue');
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorised');
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/review/queue');
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 200 with queue items on success', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // ID-131 {131.19} G-GOV-FACET: content_items is dying — the queue's base
+    // table is now source_documents, with governance columns (verified_at,
+    // verified_by, freshness, governance_review_status) living on the
+    // embedded record_lifecycle!inner facet (row.record_lifecycle[0]), not
+    // flat on the row. `title` in the response is derived from
+    // filename (suggested_title retired, id-417 / DR-130).
+    //
+    // id-392 M6: `source_documents.extracted_text` is permanently NULL on
+    // the pipeline path and is no longer selected — each item's `content` is
+    // the composed document body (content_chunks.content ordered by
+    // position, joined with blank lines; reference_items.body fallback) via
+    // fetchSourceDocumentBodies.
+    const mockItems = [makeMockItem()];
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        // 1: source_documents queue query
+        if (thenCallCount === 1) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        // 2: verified count, 3: flagged count (progress bar)
+        if (thenCallCount === 2) {
+          return resolve({ data: null, error: null, count: 5 });
+        }
+        if (thenCallCount === 3) {
+          return resolve({ data: null, error: null, count: 2 });
+        }
+        // 4: content_chunks body leg (fetchSourceDocumentBodies)
+        if (thenCallCount === 4) {
+          return resolve({
+            data: [
+              {
+                source_document_id: VALID_UUID,
+                content: 'First chunk of the extracted body.',
+                position: 0,
+              },
+              {
+                source_document_id: VALID_UUID,
+                content: 'Second chunk of the extracted body.',
+                position: 1,
+              },
+            ],
+            error: null,
+          });
+        }
+        // 5+: fetchLastReviewedDates (verification_history)
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue');
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].id).toBe(VALID_UUID);
+    expect(json.items[0].title).toBe('test-item.pdf');
+    // The item's content is the blank-line-joined chunk composition — NOT
+    // the legacy extracted_text column (permanently NULL on the pipeline
+    // path, no longer read).
+    expect(json.items[0].content).toBe(
+      'First chunk of the extracted body.\n\nSecond chunk of the extracted body.',
+    );
+    expect(json.total).toBe(1);
+    expect(json.verified_count).toBe(5);
+    expect(json.flagged_count).toBe(2);
+    expect(json.has_more).toBe(false);
+  });
+
+  // ingestion_quality_log is now keyed by source_document_id (ID-131 {131.13}
+  // G-GOV-FACET-B rename), so handleFlaggedQuery's content_items lookup must
+  // join on source_document_id instead of id — content_items.id and
+  // ingestion_quality_log's flagged ids are no longer the same identifier.
+  it('returns flagged items joined via source_document_id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const mockFlaggedDocIds = [
+      { source_document_id: 'doc-1' },
+      { source_document_id: 'doc-2' },
+    ];
+    const mockItems = [makeMockItem({ filename: 'flagged-item.pdf' })];
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        // 1: ingestion_quality_log flagged source_document_ids
+        if (thenCallCount === 1) {
+          return resolve({ data: mockFlaggedDocIds, error: null });
+        }
+        // 2: source_documents filtered by the flagged ids
+        if (thenCallCount === 2) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        // 3: verified count, 4: flagged count (progress bar)
+        if (thenCallCount === 3) {
+          return resolve({ data: null, error: null, count: 3 });
+        }
+        if (thenCallCount === 4) {
+          return resolve({ data: null, error: null, count: 2 });
+        }
+        // 5+: content_chunks + reference_items body legs (both empty — a
+        // bodyless doc; id-392 M6) and fetchLastReviewedDates
+        // (verification_history)
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { status: 'flagged' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].id).toBe(VALID_UUID);
+    // A document with no content_chunks and no reference_items body has no
+    // composable body — content is null, never the legacy extracted_text.
+    expect(json.items[0].content).toBeNull();
+    expect(json.total).toBe(1);
+
+    // ID-131 {131.19}: content_items is dying — every content_item was
+    // already 1:1 with its backing source_document, so the route now
+    // filters source_documents directly by `id` (its own primary key), not
+    // by a separate `source_document_id` column (handleFlaggedQuery,
+    // route.ts:491).
+    expect(mockSupabase._chain.in).toHaveBeenCalledWith('id', [
+      'doc-1',
+      'doc-2',
+    ]);
+  });
+});
 
 describe('GET /api/review/queue — sort parameter', () => {
   beforeEach(resetMocks);
@@ -705,5 +885,245 @@ describe('GET /api/review/queue — orthogonality with governance_review_status 
     expect(json.items).toHaveLength(1);
     expect(json.items[0].id).toBe(orthogonalRow.id);
     expect(json.items[0].governance_review_status).toBe('pending');
+  });
+});
+
+// ===========================================================================
+// Publication-review branch — GET /api/review/queue?publication_status=in_review
+// (was queue-publication.test.ts).
+//
+// V_W1 Finding 2 fix — `handlePublicationReviewQuery` (route.ts:475-560) was
+// untested at the unit level. This block exercises the contract points the
+// spec + V_W1 finding called out:
+//   (a) default 200 response shape
+//   (c) limit/offset pagination
+//   (d) viewer role -> 403
+//
+// Spec: docs/specs/review-page-tabs-refactor-spec.md §8 (f).
+// ===========================================================================
+
+/**
+ * The publication-review branch reads a different projection from the standard
+ * queue branch, so it keeps its own row factory rather than reusing
+ * `makeMockItem` above.
+ */
+function makePublicationItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: VALID_UUID,
+    filename: 'awaiting-item.pdf',
+    content_type: 'q_a_pair',
+    platform: 'manual',
+    author_name: 'Author',
+    source_domain: 'example.com',
+    thumbnail_url: null,
+    captured_date: '2026-01-01',
+    quality_score: 72,
+    priority: 'medium',
+    user_tags: [],
+    metadata: null,
+    content: 'Some content',
+    verified_at: null,
+    verified_by: null,
+    freshness: 'fresh',
+    governance_review_status: null,
+    next_review_date: null,
+    review_cadence_days: null,
+    publication_status: 'in_review',
+    created_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('GET /api/review/queue?publication_status=in_review (publication-review branch)', () => {
+  beforeEach(resetMocks);
+
+  // -------------------------------------------------------------------------
+  // (a) Default 200 response — admin auth, no extra filters
+  // -------------------------------------------------------------------------
+  it('returns 200 with ReviewQueueResponse shape when admin requests in_review queue (a)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    const mockItems = [
+      makePublicationItem({ publication_status: 'in_review', id: VALID_UUID }),
+    ];
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        // First call = source_documents query, subsequent = verification_history
+        if (thenCallCount === 1) {
+          return resolve({ data: mockItems, error: null, count: 1 });
+        }
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review' },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    // Shape: ReviewQueueResponse with verified_count + flagged_count both
+    // hard-coded to 0 because the publication-review tab is orthogonal to
+    // governance state per spec §6.7 line 1196.
+    expect(json).toMatchObject({
+      items: expect.any(Array),
+      total: 1,
+      verified_count: 0,
+      flagged_count: 0,
+      has_more: false,
+    });
+    expect(json.items).toHaveLength(1);
+    expect(json.items[0].id).toBe(VALID_UUID);
+    expect(json.items[0].publication_status).toBe('in_review');
+
+    // The route MUST filter on publication_status='in_review'.
+    const eqCalls = mockSupabase._chain.eq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const pubFilter = eqCalls.find(
+      ([col, val]) => col === 'publication_status' && val === 'in_review',
+    );
+    expect(pubFilter).toBeDefined();
+  });
+
+  // ((b) domain-filter merge test retired — id-417 / DR-130: the ?domain=
+  // slicer retired with the subject-taxonomy axis.)
+
+  // -------------------------------------------------------------------------
+  // (c) Pagination — limit + offset translate to range() call
+  // -------------------------------------------------------------------------
+  it('paginates via range(offset, offset+limit-1) for limit=5 offset=10 (c)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    let thenCallCount = 0;
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => {
+        thenCallCount++;
+        if (thenCallCount === 1) {
+          return resolve({ data: [], error: null, count: 0 });
+        }
+        return resolve({ data: [], error: null, count: 0 });
+      },
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: {
+        publication_status: 'in_review',
+        limit: '5',
+        offset: '10',
+      },
+    });
+    const res = await getQueue(req);
+
+    expect(res.status).toBe(200);
+
+    // Per the publication-review branch helper, `query.range(offset, offset+limit-1)`.
+    // With limit=5 + offset=10, the call MUST be range(10, 14).
+    const rangeCalls = mockSupabase._chain.range.mock.calls as Array<
+      [number, number]
+    >;
+    expect(rangeCalls).toContainEqual([10, 14]);
+  });
+
+  it('clamps limit to max 100 when caller requests 500', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review', limit: '500' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    // limit=500 → clamped to 100, offset default 0 → range(0, 99)
+    const rangeCalls = mockSupabase._chain.range.mock.calls as Array<
+      [number, number]
+    >;
+    expect(rangeCalls).toContainEqual([0, 99]);
+  });
+
+  // -------------------------------------------------------------------------
+  // (d) Auth fail — viewer role → 403
+  // -------------------------------------------------------------------------
+  it('returns 403 for viewer role (d)', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // Bonus: verifies the publication-review branch BYPASSES the verified_at
+  // and governance filters that drive the standard queue branch (per spec
+  // §6.7 line 1196 + route comment at route.ts:46-48).
+  // -------------------------------------------------------------------------
+  it('does NOT add a verified_at IS NULL filter (orthogonal to verification axis)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review' },
+    });
+    await getQueue(req);
+
+    const isCalls = mockSupabase._chain.is.mock.calls as Array<
+      [string, unknown]
+    >;
+    const verifiedAtIsNull = isCalls.find(
+      ([col, val]) => col === 'verified_at' && val === null,
+    );
+    expect(verifiedAtIsNull).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // BL-398 (S450) — tombstoned source_documents must be excluded even on the
+  // publication-review branch (GDPR erasure, ID-138 {138.5} DR-023).
+  // -------------------------------------------------------------------------
+  it('excludes tombstoned rows (BL-398)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null, count: 0 }),
+    );
+
+    const req = createTestRequest('/api/review/queue', {
+      searchParams: { publication_status: 'in_review' },
+    });
+    const res = await getQueue(req);
+    expect(res.status).toBe(200);
+
+    const neqCalls = mockSupabase._chain.neq.mock.calls as Array<
+      [string, unknown]
+    >;
+    const tombstoneFilter = neqCalls.find(
+      ([col, val]) => col === 'admission_status' && val === 'tombstoned',
+    );
+    expect(tombstoneFilter).toBeDefined();
   });
 });
