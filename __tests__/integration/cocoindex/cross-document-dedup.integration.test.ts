@@ -35,6 +35,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { ENTITY_VARIANTS } from './_helpers/fixtures';
 import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor } from './test-helpers';
 
@@ -69,14 +70,12 @@ beforeAll(async () => {
   // distinct-bytes, so each staging lands its own source_documents row
   // (the F4 hash-collapse gap never triggers).
   await stageFixture({
-    fixturePath:
-      'scripts/tests/fixtures/entity-variants/certification-variant-space.md',
+    fixturePath: ENTITY_VARIANTS.certificationSpacedMd,
     destPath: `inv-3-dedup/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
-    fixturePath:
-      'scripts/tests/fixtures/entity-variants/certification-variant-nospace.md',
+    fixturePath: ENTITY_VARIANTS.certificationCompactMd,
     destPath: `inv-3-dedup/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });

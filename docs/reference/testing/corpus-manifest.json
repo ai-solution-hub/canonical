@@ -3,22 +3,16 @@
   "generated_by": "id-406 / DR-118 - hand-curated register; sha256 + bytes are mechanical, fixture_class / staging_mode / consumers / notes are declared",
   "trees": [
     {
-      "id": "platform-corpus",
-      "root": "scripts/cocoindex_pipeline/fixtures/platform-corpus",
-      "synthetic": true,
-      "notes": "The vendored synthetic Platform corpus. THE walked baseline (S522 owner ruling): id-412 stages this tree onto /cocoindex-state/corpus and the supervised /walk ingests it. Every file is synthetic - no client IP."
-    },
-    {
-      "id": "form-templates",
-      "root": "scripts/cocoindex_pipeline/fixtures/form-templates",
-      "synthetic": false,
-      "notes": "Real product form inputs (blank extraction forms, NOT content documents) plus the malformed/ negative fixture. PLANE 2: consumed by the commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/, reached in production via scripts/bid_worker.py \u2014 NOT by the cocoindex walk. Staged on demand by the tests that genuinely exercise form extraction. Relocated here by id-412 at S524 per DR-117."
-    },
-    {
       "id": "cocoindex-chunking",
       "root": "__tests__/fixtures/cocoindex-chunking",
       "synthetic": false,
       "notes": "Chunking-boundary pair, staged via stageFixture(). DISCREPANCY, filed not papered over: id-396 TECH section 2 lists this tree as vendored-read-only ('never staged; consumed as files'); on disk it IS staged per-test (see file-change-detection.integration.test.ts). The disk wins - the spec's example was wrong, not the code."
+    },
+    {
+      "id": "entity-variants",
+      "root": "scripts/tests/fixtures/entity-variants",
+      "synthetic": false,
+      "notes": "Minimal-pair content docs whose ONLY certification-shaped token is one surface variant of the same entity ('ISO 27001' vs 'ISO27001'). They are the substrate for Stage-5 cross-document resolution: a test needs two documents that DISAGREE on surface form and AGREE on referent. Deliberately distinct-bytes (S507 retarget, cross-document-dedup:67) so each staging mints its own source_documents row — resolve_or_mint_source_identity is content-hash-first, so byte-identical fixtures would collapse to ONE row and the cross-document assertion would be unsatisfiable. That property is why this tree exists and must be preserved by anything added to it. synthetic=false: the content is synthetic but the basenames predate the synthetic- convention and two integration specs pin them; renaming is a separate change."
     },
     {
       "id": "eval-gold",
@@ -30,13 +24,25 @@
       "id": "extraction",
       "root": "scripts/tests/fixtures/extraction",
       "synthetic": false,
-      "notes": "HTML/expected-text parity pairs. Read directly by pytest and the TS parity test. STILL NOT MERGED with scripts/fixtures/, but re-reconciled at S536 (id-412 AC-8) because the S524 note here was WRONG on the why: it endorsed the article copy's header reasoning ('copied rather than referenced in-place so the seed's URL cannot rot') as 'correct and surviving the cocoindex pivot'. In fact the copy never protected anything from this tree \u2014 what made ANY referenced repo path move-rot-prone was FEED_ARTICLE_SEED pinning `main` (bl-372's rot vector rebuilt as a filesystem freeze). Since S536 that URL pins commit 87febe72d, the served artefact is that commit's immutable snapshot, and the content duplication with platform-feed-seed-article.html is inert history. The trees stay separate on DR-117 grounds, not rot-prevention grounds: this tree is extraction-parity evidence owned by the extract path's tests; scripts/fixtures/ holds served-then-seeded platform-feed artefacts owned by the seed \u2014 different requirements, different owning domains, so they file apart."
+      "notes": "HTML/expected-text parity pairs. Read directly by pytest and the TS parity test. STILL NOT MERGED with scripts/fixtures/, but re-reconciled at S536 (id-412 AC-8) because the S524 note here was WRONG on the why: it endorsed the article copy's header reasoning ('copied rather than referenced in-place so the seed's URL cannot rot') as 'correct and surviving the cocoindex pivot'. In fact the copy never protected anything from this tree — what made ANY referenced repo path move-rot-prone was FEED_ARTICLE_SEED pinning `main` (bl-372's rot vector rebuilt as a filesystem freeze). Since S536 that URL pins commit 87febe72d, the served artefact is that commit's immutable snapshot, and the content duplication with platform-feed-seed-article.html is inert history. The trees stay separate on DR-117 grounds, not rot-prevention grounds: this tree is extraction-parity evidence owned by the extract path's tests; scripts/fixtures/ holds served-then-seeded platform-feed artefacts owned by the seed — different requirements, different owning domains, so they file apart."
+    },
+    {
+      "id": "form-templates",
+      "root": "scripts/cocoindex_pipeline/fixtures/form-templates",
+      "synthetic": false,
+      "notes": "Real product form inputs (blank extraction forms, NOT content documents) plus the malformed/ negative fixture. PLANE 2: consumed by the commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/, reached in production via scripts/bid_worker.py — NOT by the cocoindex walk. Staged on demand by the tests that genuinely exercise form extraction. Relocated here by id-412 at S524 per DR-117."
+    },
+    {
+      "id": "platform-corpus",
+      "root": "scripts/cocoindex_pipeline/fixtures/platform-corpus",
+      "synthetic": true,
+      "notes": "The vendored synthetic Platform corpus. THE walked baseline (S522 owner ruling): id-412 stages this tree onto /cocoindex-state/corpus and the supervised /walk ingests it. Every file is synthetic - no client IP."
     },
     {
       "id": "platform-feed-seeds",
       "root": "scripts/fixtures",
       "synthetic": false,
-      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched. SETTLED HOME ruling (id-412 AC-8, S536): the tree stays at scripts/fixtures/, and the S524 'this tree's repo PATH IS A LIVE URL' reason is NARROWED to the atom half. The ARTICLE URL now pins commit 87febe72d, so it serves an immutable snapshot; the working copy is only the authoring source for a future re-pin and could move without rotting anything. The ATOM's path IS still a live URL \u2014 FEED_SOURCE_SEED.url tracks `main` because the served atom body must name the article URL byte-equal to FEED_ARTICLE_SEED.externalUrl (lib/intelligence/pipeline.ts dedupes polled items by external_url), so SHA-pinning the feed needs an atom ALREADY merged with a SHA-pinned href: a two-commit, merge-ordered migration plus a DB backfill (feed_sources.url and landed feed_articles.external_url rows are matched by URL), deliberately deferred beyond AC-8's one-constant fix. Until that migration the atom must not move or rename, and a DR-117-conformant relocation of the tree stays blocked on it. Re-pin rule and the already-seeded-DB caveat: FEED_ARTICLE_SEED's doc comment; the href/constant lockstep is guarded by __tests__/scripts/seed-platform-feed.test.ts."
+      "notes": "Platform-feed seed article + atom feed consumed by scripts/seed-platform-feed.ts to seed the DB. Processed, never walked or watched. SETTLED HOME ruling (id-412 AC-8, S536): the tree stays at scripts/fixtures/, and the S524 'this tree's repo PATH IS A LIVE URL' reason is NARROWED to the atom half. The ARTICLE URL now pins commit 87febe72d, so it serves an immutable snapshot; the working copy is only the authoring source for a future re-pin and could move without rotting anything. The ATOM's path IS still a live URL — FEED_SOURCE_SEED.url tracks `main` because the served atom body must name the article URL byte-equal to FEED_ARTICLE_SEED.externalUrl (lib/intelligence/pipeline.ts dedupes polled items by external_url), so SHA-pinning the feed needs an atom ALREADY merged with a SHA-pinned href: a two-commit, merge-ordered migration plus a DB backfill (feed_sources.url and landed feed_articles.external_url rows are matched by URL), deliberately deferred beyond AC-8's one-constant fix. Until that migration the atom must not move or rename, and a DR-117-conformant relocation of the tree stays blocked on it. Re-pin rule and the already-seeded-DB caveat: FEED_ARTICLE_SEED's doc comment; the href/constant lockstep is guarded by __tests__/scripts/seed-platform-feed.test.ts."
     }
   ],
   "fixtures": [
@@ -73,6 +79,38 @@
         "__tests__/integration/cocoindex/sidecar-version-metadata.integration.test.ts"
       ],
       "notes": ""
+    },
+    {
+      "id": "entity-variants/certification-variant-nospace.md",
+      "path": "scripts/tests/fixtures/entity-variants/certification-variant-nospace.md",
+      "tree": "entity-variants",
+      "format": "md",
+      "sha256": "3e3b5f56a64c402089c24e4dda2059f5de273ee7c16b992a0e6d9b8b1c2b2db9",
+      "bytes": 719,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/cross-document-dedup.integration.test.ts",
+        "__tests__/integration/cocoindex/stage5-canonical-name-freshness.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-row-counter.integration.test.ts"
+      ],
+      "notes": "Variant B — the COMPACT surface form 'ISO27001'. Pairs with certification-variant-space.md; the two must never be edited to share a surface form or to become byte-identical."
+    },
+    {
+      "id": "entity-variants/certification-variant-space.md",
+      "path": "scripts/tests/fixtures/entity-variants/certification-variant-space.md",
+      "tree": "entity-variants",
+      "format": "md",
+      "sha256": "822cfd034e1f539dec655df098f9692034d408c157b982d162acace3178f9a47",
+      "bytes": 727,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/cross-document-dedup.integration.test.ts",
+        "__tests__/integration/cocoindex/stage5-canonical-name-freshness.integration.test.ts",
+        "__tests__/integration/cocoindex/stage-5-row-counter.integration.test.ts"
+      ],
+      "notes": "Variant A — the SPACED surface form 'ISO 27001'. Pairs with certification-variant-nospace.md; the two must never be edited to share a surface form or to become byte-identical."
     },
     {
       "id": "eval-gold/procurement-drafting-eval-gold-standard.json",
@@ -217,7 +255,7 @@
         "scripts/cocoindex_pipeline/form_extractors/xlsx.py",
         "scripts/tests/test_form_extractors.py"
       ],
-      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling \u2014 a blank extraction form is not a content document; register updated S530."
+      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling — a blank extraction form is not a content document; register updated S530."
     },
     {
       "id": "form-templates/malformed/corrupt.pdf",
@@ -231,7 +269,7 @@
       "consumers": [
         "scripts/tests/test_pdf_field_detection.py"
       ],
-      "notes": "Deliberately malformed PDF \u2014 the negative fixture for detect_pdf_fields' typed-error path (Inv-17). Registered by id-412 at S524: it was TRACKED but sat one level ABOVE the declared tree root, so the register's completeness check and the orphan rule both looked straight past it. It was also reached via `_FIXTURE_DIR.parent / 'corrupt.pdf'`, anchoring it to whatever directory happened to sit above the templates tree; the consumer now names it explicitly."
+      "notes": "Deliberately malformed PDF — the negative fixture for detect_pdf_fields' typed-error path (Inv-17). Registered by id-412 at S524: it was TRACKED but sat one level ABOVE the declared tree root, so the register's completeness check and the orphan rule both looked straight past it. It was also reached via `_FIXTURE_DIR.parent / 'corrupt.pdf'`, anchoring it to whatever directory happened to sit above the templates tree; the consumer now names it explicitly."
     },
     {
       "id": "form-templates/rfp-british-council/annex_2_supplier_response.docx",
@@ -246,7 +284,7 @@
         "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
         "scripts/tests/test_form_extractors.py"
       ],
-      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling \u2014 a blank extraction form is not a content document; register updated S530."
+      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling — a blank extraction form is not a content document; register updated S530."
     },
     {
       "id": "form-templates/rfp-british-council/annex_3_pricing_approach.xlsx",
@@ -306,7 +344,7 @@
         "scripts/seed-id145-w1f-exemplar.ts",
         "scripts/tests/test_pdf_field_detection.py"
       ],
-      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling \u2014 a blank extraction form is not a content document; register updated S530."
+      "notes": "Form-extraction per-test fixture. Was verify-driver until S527 (c3286753f) repointed verify_driver.py FIXTURE_SETS['templates'] at platform-corpus CONTENT docs per the S522 corpus-content ruling — a blank extraction form is not a content document; register updated S530."
     },
     {
       "id": "platform-corpus/content/synthetic-capability-statement.pdf",
@@ -323,7 +361,7 @@
         "scripts/verify-platform-promotion-gate.ts",
         "scripts/cocoindex_pipeline/verify_driver.py"
       ],
-      "notes": "Member of the vendored walked baseline (staging_mode stays walked-baseline \u2014 the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "notes": "Member of the vendored walked baseline (staging_mode stays walked-baseline — the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
       "verify_dest": "verify/synthetic-capability-statement.pdf"
     },
     {
@@ -412,7 +450,7 @@
         "scripts/verify-platform-promotion-gate.ts",
         "scripts/cocoindex_pipeline/verify_driver.py"
       ],
-      "notes": "Member of the vendored walked baseline (staging_mode stays walked-baseline \u2014 the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "notes": "Member of the vendored walked baseline (staging_mode stays walked-baseline — the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
       "verify_dest": "verify/synthetic-sector-intel.docx"
     },
     {
@@ -428,7 +466,7 @@
         "__tests__/validation/corpus-manifest.test.ts",
         "scripts/cocoindex_pipeline/verify_driver.py"
       ],
-      "notes": "id-412 (W6/W8): the Platform corpus had .pdf, .docx and .md but NO .xlsx, so ~16 tests staged a blank CSP extraction FORM as their content document. This is the content-side XLSX they repoint to \u2014 a synthetic sector-spend workbook (two sheets: a figures table plus a prose methodology sheet), NOT a form. Docling extracts it to 4238 chars of table markdown. Owner ruling S524 moved this fixture from id-415 to id-412: the repoint cannot land before the fixture exists. Member of the vendored walked baseline (staging_mode stays walked-baseline \u2014 the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
+      "notes": "id-412 (W6/W8): the Platform corpus had .pdf, .docx and .md but NO .xlsx, so ~16 tests staged a blank CSP extraction FORM as their content document. This is the content-side XLSX they repoint to — a synthetic sector-spend workbook (two sheets: a figures table plus a prose methodology sheet), NOT a form. Docling extracts it to 4238 chars of table markdown. Owner ruling S524 moved this fixture from id-415 to id-412: the repoint cannot land before the fixture exists. Member of the vendored walked baseline (staging_mode stays walked-baseline — the S522 invariant holds for the whole tree); verify_dest records that verify_driver.py FIXTURE_SETS['templates'] ALSO stages this file into the verify lane since S527 (c3286753f) repointed the driver at content docs. scripts/cocoindex-census-gate.ts asserts exactly one source_documents row per verify_dest.",
       "verify_dest": "verify/synthetic-sector-spend.xlsx"
     },
     {

@@ -176,3 +176,45 @@ export const SUPPLEMENTARY = {
     'form-templates/rfp-british-council/rfp_-_learning_partners_osch.doc',
   ),
 } as const;
+
+/**
+ * ENTITY VARIANTS — a minimal pair for Stage-5 cross-document resolution.
+ *
+ * Two content docs whose ONLY certification-shaped token is one surface variant
+ * of the SAME entity: `ISO 27001` and `ISO27001`. A test that asserts Stage-5
+ * resolved two surface forms to one canonical needs exactly this — documents
+ * that DISAGREE on surface form and AGREE on referent.
+ *
+ * ## Why these are not in {@link CONTENT}, and why that is load-bearing
+ *
+ * Every `CONTENT` member is a **walked-baseline** fixture: the nightly seeds and
+ * walks the whole `platform-corpus` tree BEFORE the Vitest tier runs, so each
+ * one is already an admitted `source_documents` row. `resolve_or_mint_source_identity`
+ * is content-hash-first and, on a resolve, rewrites `logical_path` ONLY —
+ * `filename` is never re-written (`20260703160100_id138_admission_identity_fn.sql:48-67`).
+ * Re-staging a baseline doc under a test prefix therefore resolves onto the
+ * BASELINE row, whose filename carries no prefix, and `pollContentItemsFor`'s
+ * `filename ILIKE '<prefix>%'` can never match it.
+ *
+ * These fixtures are `staging_mode: per-test` and **deliberately distinct-bytes**
+ * from anything in the baseline, so each staging mints its own row. That
+ * property was discovered the hard way at S507 — the CSP XLSX staged here
+ * before contains NEITHER surface form, which made the assertion *"structurally
+ * unsatisfiable for ANY extractor"* (`cross-document-dedup.integration.test.ts:67`).
+ * Do not "tidy" these into the platform corpus, and do not let the two files
+ * converge on a shared surface form or on identical bytes.
+ *
+ * Note the entity_type subtlety: `mock_llm.py` echoes certification-shaped
+ * tokens as `entity_type='standard'` DELIBERATELY, because
+ * `canonicalise_entity_name`'s ISO normaliser fires only for `certification`
+ * and would pre-unify the variants per-document — collapsing them before
+ * Stage-5 ever sees a pair.
+ */
+export const ENTITY_VARIANTS = {
+  /** Carries the SPACED surface form `ISO 27001` and no other cert-shaped token. */
+  certificationSpacedMd: path('entity-variants/certification-variant-space.md'),
+  /** Carries the COMPACT surface form `ISO27001` and no other cert-shaped token. */
+  certificationCompactMd: path(
+    'entity-variants/certification-variant-nospace.md',
+  ),
+} as const;

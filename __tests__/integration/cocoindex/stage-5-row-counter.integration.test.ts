@@ -34,15 +34,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
 
-// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
-// This file asserts Stage-5 per-row delta counter — plane 1, the cocoindex walk — but stages a
-// blank extraction FORM, which is a plane-2 input with no prose to extract.
-// All 16 CSP-staging tests measured the same way; none exercise form-field
-// extraction. id-412 repoints the PATH only (its Surfaces line reserves
-// assertions for id-415); flipping this to a CONTENT fixture changes what the
-// body observes, so the fixture swap and the assertion repair land together
-// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+// PLANE MISMATCH RESOLVED (id-415, S539). This file asserts the Stage-5 per-row
+// delta counter — plane 1, the cocoindex walk — and used to stage a blank
+// extraction FORM, a plane-2 input with no prose to extract.
+//
+// The carried candidate was `CONTENT.sectorSpendXlsx`. It is the WRONG fix and
+// was not taken: every `CONTENT` member is a walked-baseline doc the nightly
+// admits before the Vitest tier runs, so re-staging one under a test prefix
+// content-hash-resolves onto the baseline row and the prefix poll never
+// matches. See the ENTITY_VARIANTS docblock in `_helpers/fixtures.ts`.
+//
+// This counter also needs more than "real prose": it counts rows whose
+// canonical Stage-5 CHANGED, so the corpus must carry one entity under two
+// surface forms. That is exactly what the entity-variants pair is for.
+import { ENTITY_VARIANTS } from './_helpers/fixtures';
 
 import {
   dropFixture,
@@ -69,22 +74,35 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 180_000;
 
-const FIXTURE_PATH = FORM_TEMPLATE.cspChecklistXlsx;
-
 /** Two awaited walks in `beforeAll`, plus slack. */
 const SETUP_BUDGET_MS = WALK_BUDGET_MS * 2 + 30_000;
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  // Two-doc corpus with a cross-document duplicate that forces >= 1 UPDATE.
+  // Two-doc corpus whose docs carry the SAME entity under DIFFERENT surface
+  // forms — the only shape that makes Stage-5 rewrite a canonical, which is
+  // what this counter counts.
+  //
+  // This used to stage ONE fixture (the CSP form) twice, at `-A.xlsx` and
+  // `-B.xlsx`. That could not produce two rows, let alone a rewrite:
+  // `resolve_or_mint_source_identity` is content-hash-first, so byte-identical
+  // bytes at two paths resolve to ONE source_documents row
+  // (`20260703160100_id138_admission_identity_fn.sql:48`) — `items.length >= 2`
+  // was unsatisfiable by construction. And the fixture is a blank extraction
+  // form carrying no certification-shaped token at all, so even with two rows
+  // there would have been nothing for Stage-5 to resolve.
+  //
+  // The entity-variants pair fixes both halves at once, and is the same
+  // substrate the cross-document-dedup and canonical-name-freshness siblings
+  // already stage.
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `inv-11/${TEST_PREFIX}-A.xlsx`,
+    fixturePath: ENTITY_VARIANTS.certificationSpacedMd,
+    destPath: `inv-11/${TEST_PREFIX}-A.md`,
     titlePrefix: `${TEST_PREFIX}-A`,
   });
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `inv-11/${TEST_PREFIX}-B.xlsx`,
+    fixturePath: ENTITY_VARIANTS.certificationCompactMd,
+    destPath: `inv-11/${TEST_PREFIX}-B.md`,
     titlePrefix: `${TEST_PREFIX}-B`,
   });
 }, SETUP_BUDGET_MS);

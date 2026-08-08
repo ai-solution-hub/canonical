@@ -60,6 +60,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
+import { ENTITY_VARIANTS } from './_helpers/fixtures';
 import { WALK_BUDGET_MS } from './_helpers/walk';
 import {
   assertOpIdRoundTrip,
@@ -84,10 +85,8 @@ const POLL_TIMEOUT_MS = 180_000;
 // (S507 retarget, id-389 content-echo): the CSP XLSX previously used here
 // contains neither surface form, making the corpus unsatisfiable for any
 // extractor. Doc A carries 'ISO 27001', doc B carries 'ISO27001'.
-const FIXTURE_PATH_A =
-  'scripts/tests/fixtures/entity-variants/certification-variant-space.md';
-const FIXTURE_PATH_B =
-  'scripts/tests/fixtures/entity-variants/certification-variant-nospace.md';
+const FIXTURE_PATH_A = ENTITY_VARIANTS.certificationSpacedMd;
+const FIXTURE_PATH_B = ENTITY_VARIANTS.certificationCompactMd;
 
 // The two surface variants of the SAME entity Stage-5 should dedup across docs
 // (mirrors the cross-document-dedup sibling corpus).
