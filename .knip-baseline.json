@@ -1,12 +1,12 @@
 {
   "$schema-note": "Counts-only baseline for scripts/check-knip-baseline.ts \u2014 CI fails when any current count exceeds its baseline. Raise or ratchet in a dedicated commit with the attribution in the COMMIT MESSAGE; per-raise archaeology was trimmed from this file S483 (owner request) and lives in this file's git history. Update procedure: docs/runbooks/ci.md \u00a76.",
   "capturedAt": "2026-08-09",
-  "capturedFromCommit": "exports 41->40 RATCHET: namespaceUnionId (lib/okf/bundle-graph.ts) resolved by WIRING, not suppression — the union id scheme moved to lib/okf/union-id.ts so the client can re-apply the same namespace when resolving a link target, giving the export a real cross-file consumer. Prior: S531 re-capture (types 29->30 was a capture artefact, not drift).",
+  "capturedFromCommit": "OKF/ontology sweep RATCHET: exports 41->37, types 30->17, with ZERO @public suppressions added. Every finding was resolved by wiring, un-exporting or deleting, each verdict measured rather than argued: (a) namespaceUnionId WIRED — the union id scheme moved to lib/okf/union-id.ts so the client re-applies the same namespace when resolving a link target (fixes dead citation links in <UnionGraphView>); (b) the three /api/okf routes now annotate their success payload, which both closes an unchecked server/client contract (the `| NextResponse` arm made the return annotation decorative) and gives OkfResource*Result real consumers; (c) OkfBundleNavConcept WIRED into bundle-nav.tsx, replacing a hand-duplicated NavRow; (d) OkfConceptType + useOkfBundleQuery DELETED (zero consumers since birth); (e) the 7 bundle-graph types + BundleNavConcept UN-EXPORTED — server-only, so @public would have been a false claim; (f) RecordEmbeddingsOwnerKindSchema + CitedKindSchema DELETED (ID-151 shipped a Zod enum per domain to match its goal-line template; only FacetOwnerKind's column takes untrusted input). Prior: S531 re-capture (types 29->30 was a capture artefact, not drift).",
   "counts": {
     "dependencies": 1,
     "devDependencies": 0,
-    "exports": 40,
-    "types": 30,
+    "exports": 37,
+    "types": 17,
     "unlisted": 0,
     "binaries": 0,
     "duplicates": 0,
