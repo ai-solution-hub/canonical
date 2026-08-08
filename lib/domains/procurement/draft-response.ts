@@ -156,6 +156,56 @@ export async function fetchMatchedContentForDrafting(
     .filter((item): item is DraftableContent => item !== undefined);
 }
 
+type CitationInsert = Database['public']['Tables']['citations']['Insert'];
+
+/** The `citations` columns identifying WHAT a form-response citation points at. */
+export type CitedTarget = Pick<
+  CitationInsert,
+  'cited_kind' | 'cited_q_a_pair_id' | 'cited_reference_item_id'
+>;
+
+/**
+ * Map one matched drafting item onto its `citations` target columns.
+ *
+ * Total by construction, because the alternative is silent corruption: the
+ * previous inline form was `owner_kind === 'reference_item' ? … : q_a_pair`,
+ * so ANY other value — `null`, a kind this writer does not cite, a future
+ * grain — became a `q_a_pair` citation. Such a row satisfies both the
+ * `cited_target_kind` enum and `citations_cited_one_of_chk`, so no database
+ * constraint can reject it, and it inflates the Inv-14 win-rate RPC's
+ * `COUNT(DISTINCT cited_q_a_pair_id)`.
+ *
+ * Returns `null` (caller SKIPS the row) rather than throwing: a citation is
+ * drafting metadata, and losing one anomalous row beats failing a draft the
+ * user is waiting on — but it must never be recorded as the WRONG row.
+ */
+export function citedTargetForDraftItem(
+  item: Pick<DraftableContent, 'id' | 'owner_kind'>,
+): CitedTarget | null {
+  switch (item.owner_kind) {
+    case 'q_a_pair':
+      return { cited_kind: 'q_a_pair', cited_q_a_pair_id: item.id };
+    case 'reference_item':
+      return { cited_kind: 'reference_item', cited_reference_item_id: item.id };
+    default: {
+      // Exhaustive over `DraftCitedKind`: adding a third drafting grain fails
+      // to compile HERE, instead of quietly citing it as a q_a_pair. The
+      // runtime arm still stands because a value can reach us from data rather
+      // than from a literal.
+      const unhandled: never = item.owner_kind;
+      logger.warn(
+        {
+          op: 'procurement.citations.unknown-owner-kind',
+          ownerKind: unhandled,
+          itemId: item.id,
+        },
+        'citedTargetForDraftItem: skipping citation for an uncitable grain',
+      );
+      return null;
+    }
+  }
+}
+
 /**
  * Draft a single procurement question: fetch its matched content, run the
  * drafting pipeline, upsert the response, and mark the question `ai_drafted`.

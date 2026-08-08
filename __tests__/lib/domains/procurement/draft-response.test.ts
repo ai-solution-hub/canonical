@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createMockSupabaseTable } from '@/__tests__/helpers/mock-supabase';
-import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-response';
+import {
+  citedTargetForDraftItem,
+  fetchMatchedContentForDrafting,
+} from '@/lib/domains/procurement/draft-response';
 
 /**
  * {131.16} BI-29: `fetchMatchedContentForDrafting` resolves
@@ -214,4 +217,48 @@ describe('fetchMatchedContentForDrafting', () => {
       ),
     ).rejects.toThrow('Failed to fetch matched reference_items: timeout');
   });
+});
+
+/**
+ * The citations writer's grain mapping. This existed inline in
+ * `draft-stream/route.ts` as `owner_kind === 'reference_item' ? … : q_a_pair`,
+ * so every other value — `null`, an uncitable kind, a future grain — was
+ * recorded as a `q_a_pair` citation. Such a row is valid against both the
+ * `cited_target_kind` enum and `citations_cited_one_of_chk`, so NO database
+ * constraint can reject it, and it inflates the Inv-14 win-rate RPC's
+ * `COUNT(DISTINCT cited_q_a_pair_id)`.
+ */
+describe('citedTargetForDraftItem', () => {
+  it('cites a matched q_a_pair against the q_a_pair column', () => {
+    expect(
+      citedTargetForDraftItem({ id: 'qa-1', owner_kind: 'q_a_pair' }),
+    ).toEqual({ cited_kind: 'q_a_pair', cited_q_a_pair_id: 'qa-1' });
+  });
+
+  it('cites a matched reference_item against the reference_item column', () => {
+    expect(
+      citedTargetForDraftItem({ id: 'ri-1', owner_kind: 'reference_item' }),
+    ).toEqual({
+      cited_kind: 'reference_item',
+      cited_reference_item_id: 'ri-1',
+    });
+  });
+
+  it.each([
+    ['null', null],
+    ['an uncitable grain', 'source_document'],
+    ['a kind this writer does not know', 'content_chunk'],
+  ])(
+    'declines to cite %s rather than recording it as a q_a_pair',
+    (_label, ownerKind) => {
+      // Cast deliberately: the union now forbids these, so this stands in for a
+      // value arriving from data rather than from one of our own literals.
+      const item = {
+        id: 'x-1',
+        owner_kind: ownerKind,
+      } as unknown as Parameters<typeof citedTargetForDraftItem>[0];
+
+      expect(citedTargetForDraftItem(item)).toBeNull();
+    },
+  );
 });

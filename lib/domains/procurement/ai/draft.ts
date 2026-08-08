@@ -25,6 +25,7 @@ import {
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { assertSuccessfulStop } from '@/lib/ai/stop-reason';
 import { AIServiceError } from '@/lib/ai/errors';
+import type { DraftCitedKind } from '@/lib/validation/owner-kind';
 
 // ──────────────────────────────────────────
 // Types
@@ -63,7 +64,14 @@ export interface DraftableQuestion {
  * clause is not what this breached — no column was read.
  */
 export interface DraftableContent extends CitationSourceItem {
-  owner_kind: string | null;
+  /**
+   * Narrowed to the two drafting grains (was `string | null`). The doc above
+   * always claimed these were the only values `fetchMatchedContentForDrafting`
+   * synthesises; typing it as a bare string meant nothing enforced that, and
+   * the citations writer's fallback silently recorded anything else as a
+   * `q_a_pair`. See `citedTargetForDraftItem`.
+   */
+  owner_kind: DraftCitedKind;
   summary: string | null;
 }
 

@@ -6,7 +6,10 @@ import {
   analyseQuestion,
   draftResponseStreaming,
 } from '@/lib/domains/procurement/ai/draft';
-import { fetchMatchedContentForDrafting } from '@/lib/domains/procurement/draft-response';
+import {
+  citedTargetForDraftItem,
+  fetchMatchedContentForDrafting,
+} from '@/lib/domains/procurement/draft-response';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import { checkResponseQuality } from '@/lib/ai/quality-check';
 import { getModelForTier } from '@/lib/anthropic';
@@ -370,19 +373,14 @@ export const POST = defineRoute(
 
                 // Seed one base row per distinct matched item (no span).
                 const rowByItemId = new Map<string, CitationInsert>();
-                type CitedTarget = Pick<
-                  CitationInsert,
-                  'cited_kind' | 'cited_q_a_pair_id' | 'cited_reference_item_id'
-                >;
                 for (const item of matchedContent) {
                   if (rowByItemId.has(item.id)) continue;
-                  const citedTarget: CitedTarget =
-                    item.owner_kind === 'reference_item'
-                      ? {
-                          cited_kind: 'reference_item',
-                          cited_reference_item_id: item.id,
-                        }
-                      : { cited_kind: 'q_a_pair', cited_q_a_pair_id: item.id };
+                  // Total mapping (`citedTargetForDraftItem`) rather than an
+                  // else-branch default: an uncitable grain is SKIPPED, never
+                  // silently recorded as a q_a_pair (which no DB constraint
+                  // would reject, and which would inflate Inv-14's win rate).
+                  const citedTarget = citedTargetForDraftItem(item);
+                  if (!citedTarget) continue;
                   rowByItemId.set(item.id, {
                     citing_kind: 'form_response',
                     citing_form_response_id: responseId,
