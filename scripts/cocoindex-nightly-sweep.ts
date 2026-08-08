@@ -298,7 +298,7 @@ if (showcaseViolations.length > 0) {
   console.error(
     `NM-6 SCOPE-GUARD VIOLATION: ${showcaseViolations.length} candidate row(s) ` +
       'are SHOWCASE/PLATFORM CONTENT — their frozen storage_path is inside the ' +
-      `walked baseline (${WALKED_BASELINE_PREFIXES.join(', ')}). D1's owner ` +
+      `walked baseline (${WALKED_BASELINE_PATHS}). D1's owner ` +
       'amendment (S511, id-396/TECH.md:107-111) is that showcase/platform ' +
       'content is NEVER sweep-eligible. ABORTING WITH ZERO DELETES (this fails ' +
       'the run by design).\n' +
