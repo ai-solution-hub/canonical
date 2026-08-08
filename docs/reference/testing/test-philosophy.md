@@ -115,12 +115,16 @@ A collision is not always a pair. Applying the mirror rule to `lib/validation/sc
 
 **A collision means "same route". It never means "same behaviour".** Resolve it by comparing assertions, not filenames. `guides.test.ts` and `guides/route.test.ts` both hit `GET /api/guides` and shared *zero* assertions: one proved the retired `?include=stats` leg is inert, the other proved auth and filtering. The merge was a union, and treating it as de-duplication would have silently deleted a regression guard. Where a genuine duplicate does exist, prefer folding the incoming case's extra assertions onto the survivor over keeping two near-twins.
 
-A third hazard, observed merging the D-8 URL-normalisation parity file into `__tests__/lib/extraction/url-normalise.test.ts`: **an inert `vi.mock()` becomes live on merge.** The incoming file mocked `@/lib/logger` and `@/lib/intelligence/rate-limiter` — vestigial from when `normaliseUrl` lived in `content-extractor.ts`. `vi.mock()` hoists to the top of whatever file it lands in, so carrying those two lines across would have silently applied them to the surviving file's other block. Check what the *subject* actually imports before carrying a mock into a merge; here the subject imports nothing at all, and dropping both was confirmed by execution.
+### The merge hazards, and the one principle behind them
 
-Two further hazards specific to merging, both of which pass on the day and fail later:
+**A test file boundary is a silent isolation boundary. Merging two files merges everything it was isolating — and the merged file passes on the day while already being wrong.** That single property produced every merge hazard observed in the 2b/workstream-3 pass. It fails later, under someone else's change, which is what makes it worth naming rather than learning twice:
 
-- **Fixture shapes can be load-bearing.** Unifying a sparse fixture with a fully-populated one looks like tidying. In the guides case, nine projected columns are marked `.optional()` in the route *because* the sparse assertions exist. Check the production module before normalising fixtures.
-- **Per-file shared state can cross a threshold on merge.** `review/queue/route.ts` rate-limits 20 GETs/min and the counter persists across tests within a file. Two files of 13 and 7 calls each passed alone; merged, they sat exactly at the cap — green that day, 429 on the next case added. Reset such state in `beforeEach` and say why.
+- **`vi.mock()` hoists into whatever file it lands in, so an inert mock becomes live.** The D-8 URL-normalisation parity file mocked `@/lib/logger` and `@/lib/intelligence/rate-limiter` — vestigial from when `normaliseUrl` lived in `content-extractor.ts`, and dead where they sat. Carried across, they would have applied to the surviving file's other block. Check what the *subject* actually imports; here it imports nothing at all, and dropping both was confirmed by execution.
+- **Module-level mutable state accumulates per file, so two under-cap files can merge to over-cap.** `review/queue/route.ts` rate-limits 20 GETs/min on an in-memory counter that persists across tests within a file. Two files of 13 and 7 calls each passed alone; merged they sat exactly at the cap — green that day, 429 on the next case anyone added. Reset such state in `beforeEach` and say why.
+
+One further hazard is not about isolation but is easy to mistake for tidying:
+
+- **Fixture shapes can be load-bearing on the production contract.** Unifying a sparse fixture with a fully-populated one looks like cleanup. In the guides case, nine projected columns are marked `.optional()` in the route *because* the sparse assertions exist, and the route's own comment named the test as the reason. Normalising the fixtures would have been a production-contract change. Read the production module first.
 
 ### 3.5 Tooling
 
@@ -128,7 +132,9 @@ Two further hazards specific to merging, both of which pass on the day and fail 
 
 It resolves the subject under test from the AST, counting only imported `@/app/**` modules and excluding `vi.mock()` / `vi.doMock()` arguments — a mocked module is a dependency, not the subject. A regex approach cannot make that distinction and mis-routes files that mock a sibling module.
 
-It escalates rather than guesses: target collisions, occupied targets, files with no subject import, multi-route files whose filename is a naming decision, and catch-all buckets needing a content split. Escalated files are left byte-identical and listed in `docs/generated/align-test-paths-needs-manual.json`. Because it only validates location, a clean run is necessary but not sufficient — §3.4 still applies.
+It escalates rather than guesses: target collisions, occupied targets, files with no subject import, multi-route files whose filename is a naming decision, and catch-all buckets needing a content split. Escalated files are left byte-identical and listed in `docs/generated/align-test-paths-needs-manual.json`.
+
+**A clean run is weaker evidence than it looks.** The codemod checks that a test's path matches its *imports*; it never checks that the imported production module *exists*. `__tests__/app/api/procurement/[id]/export/route.test.ts` reported OK against an `app/api/procurement/[id]/export/route.ts` that has never existed. So a clean run means "derivable", not "correct" — §3.4 still applies, and a location guard built on this tool must add an existence check rather than inherit the gap.
 
 ---
 
