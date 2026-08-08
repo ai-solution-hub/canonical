@@ -89,7 +89,9 @@ Next.js is explicitly unopinionated about test organisation, so this is a projec
 
 Test infrastructure and tiers keep their own names, because there is no production path to mirror: `__tests__/helpers/`, `__tests__/fixtures/`, `__tests__/integration/` (real-Anthropic + real-Supabase tier; must hit the live Platform staging DB `rbwqewalexrzgxtvcqrh`, never mocks), `__tests__/build/`, `__tests__/workflows/` and `__tests__/pipeline/`. `e2e/tests/**` is its own Playwright tier outside `__tests__/`.
 
-`__tests__/guards/` is the home for structural guards — tests that scan source or tracked bytes rather than exercising an export, and so have no production module to mirror. §8 lists what lives there and what has not moved yet.
+`__tests__/guards/` holds the structural guards — tests that scan source or tracked bytes rather than exercising an export, and so have no production module to mirror. See §8 for the current set and for the test of what belongs there.
+
+The three directories that used to elide their production parent are all gone: `__tests__/api/` merged into `__tests__/app/api/`, and `__tests__/validation/` and `__tests__/mcp/` split between their mirror homes (`__tests__/lib/validation/`, `__tests__/lib/mcp/`) and `__tests__/guards/`. Every remaining top-level directory either mirrors a production path or is listed above.
 
 A guard may still *import* a production module as a **helper** — a path resolver or a manifest loader — without that module being its subject. `corpus-manifest.test.ts` loads `@/lib/corpus/fixture-manifest` and `eval-fixture-sync.test.ts` calls `resolveEvalFixture`, but neither asserts on that module's behaviour; the assertions are about the fixture bytes on disk. The distinguishing question is what the assertions are *about*, and the giveaway is that the real subject tests already exist at the mirror paths (`__tests__/lib/eval/fixtures.test.ts` covers `resolveEvalFixture` itself).
 
