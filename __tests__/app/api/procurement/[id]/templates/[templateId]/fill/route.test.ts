@@ -14,14 +14,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
+  configureUnauthenticated,
 } from '@/__tests__/helpers/mock-supabase';
 import {
   createTestRequest,
   createTestParams,
 } from '@/__tests__/helpers/mock-next';
-import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 const mockSupabase = createMockSupabaseClient();
+
+const { mockCheckRateLimit } = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockSupabase),
@@ -30,6 +34,12 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({ getAll: () => [], set: () => {} }),
+}));
+
+// The limiter is stubbed at the boundary so the 429 branch is reachable
+// without exhausting a real window; every other test gets `allowed: true`.
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: mockCheckRateLimit,
 }));
 
 vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -66,7 +76,7 @@ const CHAINABLE_METHODS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  _resetRateLimitStore();
+  mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 9 });
 
   mockSupabase._chain.single.mockReset();
   mockSupabase._chain.then.mockReset();
@@ -100,11 +110,56 @@ function requestAndParams() {
 }
 
 describe('POST /api/procurement/[id]/templates/[templateId]/fill', () => {
-  it('returns 404 when the form does not exist', async () => {
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const { req, params } = requestAndParams();
+    const res = await fillTemplate(req, { params });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 400 for invalid UUID', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(
+      `/api/procurement/bad/templates/${FORM_ID}/fill`,
+      { method: 'POST', body: {} },
+    );
+    const params = createTestParams({ id: 'bad', templateId: FORM_ID });
+    const res = await fillTemplate(req, { params });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 429 when rate limited', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
+
+    const { req, params } = requestAndParams();
+    const res = await fillTemplate(req, { params });
+
+    expect(res.status).toBe(429);
+  });
+
+  it('returns 404 when the form row is absent', async () => {
     configureRole(mockSupabase, 'editor');
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: null,
       error: null,
+    });
+
+    const { req, params } = requestAndParams();
+    const res = await fillTemplate(req, { params });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when the form lookup errors', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Not found', code: 'PGRST116' },
     });
 
     const { req, params } = requestAndParams();
@@ -124,6 +179,9 @@ describe('POST /api/procurement/[id]/templates/[templateId]/fill', () => {
     const res = await fillTemplate(req, { params });
 
     expect(res.status).toBe(409);
+
+    const json = await res.json();
+    expect(json.error).toMatch(/analysed/);
   });
 
   it('returns 400 when there are no outstanding mapped fields', async () => {
@@ -227,6 +285,8 @@ describe('POST /api/procurement/[id]/templates/[templateId]/fill', () => {
     expect(res.status).toBe(202);
     const json = await res.json();
     expect(json.job_id).toBe('job-1');
+    expect(json.status).toBe('queued');
+    expect(json.fields_to_fill).toBe(1);
 
     expect(mockSupabase.from).toHaveBeenCalledWith('processing_queue');
     const insertArg = mockSupabase._chain.insert.mock.calls[0][0] as {
@@ -243,5 +303,71 @@ describe('POST /api/procurement/[id]/templates/[templateId]/fill', () => {
     }>;
     expect(fieldMappings).toHaveLength(1);
     expect(fieldMappings[0].field_id).toBe(FIELD_ID);
+  });
+
+  it('returns 500 and reverts the form status when the queue insert fails', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // 1. form fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: FORM_ID, processing_status: 'analysed' },
+      error: null,
+    });
+
+    // 2. fields fetch
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              id: FIELD_ID,
+              table_index: 0,
+              row_index: 1,
+              col_index: 1,
+              question_id: QUESTION_ID,
+              word_limit: null,
+              mapping_status: 'confirmed',
+              fill_status: 'pending',
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // 3. responses fetch
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            {
+              question_id: QUESTION_ID,
+              response_text: 'Answer text.',
+              review_status: 'approved',
+              version: 1,
+            },
+          ],
+          error: null,
+        }),
+    );
+
+    // 4. processing_queue job insert fails
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Insert failed', code: '50000' },
+    });
+
+    const { req, params } = requestAndParams();
+    const res = await fillTemplate(req, { params });
+
+    expect(res.status).toBe(500);
+
+    const json = await res.json();
+    expect(json.error).toMatch(/queue/i);
+
+    // The status write to 'filling' is compensated back to the status the
+    // form held before the fill attempt.
+    expect(mockSupabase._chain.update).toHaveBeenCalledWith({
+      processing_status: 'analysed',
+    });
   });
 });
