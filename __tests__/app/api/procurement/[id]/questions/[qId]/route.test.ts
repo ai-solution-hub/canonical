@@ -191,6 +191,9 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
       params: createTestParams({ id: 'not-a-uuid', qId: QUESTION_UUID }),
     });
     expect(response.status).toBe(400);
+
+    const body = await response.json();
+    expect(body.error).toContain('Invalid bid ID');
   });
 
   it('PATCH returns 400 for an invalid question id', async () => {
@@ -204,6 +207,9 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
       params: createTestParams({ id: FORM_UUID, qId: 'not-a-uuid' }),
     });
     expect(response.status).toBe(400);
+
+    const body = await response.json();
+    expect(body.error).toContain('Invalid question ID');
   });
 
   it('PATCH returns 400 when the body has no fields to update', async () => {
@@ -217,6 +223,9 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
       params: createTestParams({ id: FORM_UUID, qId: QUESTION_UUID }),
     });
     expect(response.status).toBe(400);
+
+    const body = await response.json();
+    expect(body.error).toBe('No fields to update');
   });
 
   // =========================================================================
@@ -291,6 +300,9 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
       params: createTestParams({ id: FORM_UUID, qId: QUESTION_UUID }),
     });
     expect(response.status).toBe(404);
+
+    const body = await response.json();
+    expect(body.error).toBe('Question not found for this bid');
 
     // A failed update never reaches the recompute step.
     expect(mockSupabase.rpc).not.toHaveBeenCalled();
@@ -403,6 +415,45 @@ describe('Procurement Single Question API (PATCH/DELETE)', () => {
       params: createTestParams({ id: FORM_UUID, qId: QUESTION_UUID }),
     });
     expect(response.status).toBe(401);
+  });
+
+  it('DELETE returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const request = createTestRequest(
+      `/api/procurement/${FORM_UUID}/questions/${QUESTION_UUID}`,
+      { method: 'DELETE' },
+    );
+    const response = await deleteQuestion(request, {
+      params: createTestParams({ id: FORM_UUID, qId: QUESTION_UUID }),
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it('DELETE returns 400 for an invalid bid id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const request = createTestRequest(
+      `/api/procurement/not-a-uuid/questions/${QUESTION_UUID}`,
+      { method: 'DELETE' },
+    );
+    const response = await deleteQuestion(request, {
+      params: createTestParams({ id: 'not-a-uuid', qId: QUESTION_UUID }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('DELETE returns 400 for an invalid question id', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const request = createTestRequest(
+      `/api/procurement/${FORM_UUID}/questions/not-a-uuid`,
+      { method: 'DELETE' },
+    );
+    const response = await deleteQuestion(request, {
+      params: createTestParams({ id: FORM_UUID, qId: 'not-a-uuid' }),
+    });
+    expect(response.status).toBe(400);
   });
 
   it('DELETE returns 500 on a database error', async () => {
