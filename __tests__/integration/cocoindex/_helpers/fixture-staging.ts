@@ -86,6 +86,19 @@ export interface StageFixtureArgs {
    * (e.g. batching several stages before ONE shared walk).
    */
   walk?: boolean;
+  /**
+   * Request the absorbing walk in cocoindex's full-reprocess update mode
+   * (`POST /walk` body `{ full_reprocess: true }`) instead of the default
+   * memo-respecting pass.
+   *
+   * The directive belongs to `/walk`, NOT to `destPath`. `destPath` is a
+   * corpus-relative path written VERBATIM, so a `?fullReprocess=1` suffix
+   * would land in the filename and break extension routing — `POST /stage`
+   * names that a 400 (`server.py::parse_stage_dest_path`, id-414 W5), and its
+   * one allowlisted suffix is `?failStage5=<mode>`. Ignored when
+   * `walk: false`, since there is then no walk to configure.
+   */
+  fullReprocess?: boolean;
   /** Walk budget override (ms) — forwarded to `runWalk`. */
   walkTimeoutMs?: number;
 }
@@ -176,7 +189,10 @@ export async function stageFixture(
   // one walk per staging is bounded at the mock-tier corpus size.
   let walk: WalkResult | undefined;
   if (args.walk !== false) {
-    walk = await runWalk({ timeoutMs: args.walkTimeoutMs });
+    walk = await runWalk({
+      fullReprocess: args.fullReprocess,
+      timeoutMs: args.walkTimeoutMs,
+    });
   }
 
   return {

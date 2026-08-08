@@ -20,10 +20,13 @@
  *      carry a NEW op_id (C != A) — the reprocess re-ran every function and
  *      re-stamped.
  *
- * The full_reprocess directive is carried on the dest path
- * (`?fullReprocess=1`) — the fixture-staging service runs the pipeline in
- * cocoindex's full-reprocess update mode for that staging. A service that does
- * not support it 4xxs and the env-gate skip masks it.
+ * The full_reprocess directive rides on the WALK, not on the dest path:
+ * `stageFixture({ fullReprocess: true })` forwards it to `POST /walk` as
+ * `{ full_reprocess: true }`. It cannot ride on `destPath` — that is written
+ * verbatim under the corpus root, so a `?fullReprocess=1` suffix would land in
+ * the filename and break extension routing, which `POST /stage` rejects with a
+ * named 400 (`server.py::parse_stage_dest_path`, id-414 W5; the sole
+ * allowlisted suffix is `?failStage5=<mode>`).
  *
  * Env-gate: COCOINDEX_STAGING_URL + COCOINDEX_FIXTURE_STAGING_URL +
  * COCOINDEX_SOURCE_PATH + live Supabase. Skip-clean where unwired.
@@ -134,8 +137,9 @@ describe.skipIf(!ENABLED)(
         // and re-stamps op_id. The rows now carry a NEW op_id C != A.
         await stageFixture({
           fixturePath: FIXTURE_PATH,
-          destPath: `${DEST}?fullReprocess=1`,
+          destPath: DEST,
           titlePrefix: TEST_PREFIX,
+          fullReprocess: true,
         });
         // Poll the original content_items' mentions until at least one of the
         // original rows shows a new op_id (the full_reprocess re-stamp).

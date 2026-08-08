@@ -128,8 +128,9 @@ describe.skipIf(!ENABLED)(
         // otherwise skip the per-item rewrites).
         await stageFixture({
           fixturePath: FIXTURE_PATH,
-          destPath: `${DEST}?fullReprocess=1`,
+          destPath: DEST,
           titlePrefix: TEST_PREFIX,
+          fullReprocess: true,
         });
         const items2 = await pollContentItemsFor(TEST_PREFIX, {
           timeoutMs: POLL_TIMEOUT_MS,
