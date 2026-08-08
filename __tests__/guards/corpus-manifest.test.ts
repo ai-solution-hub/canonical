@@ -500,6 +500,13 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
      * been attributed to it, which is exactly what was true of the CSP
      * checklist until S543. Deleting an entry here is the goal; adding one
      * needs a reason written beside it.
+     *
+     * The SQ PDF was listed here for about ten minutes: repointing
+     * sidecar-mime-coverage to its own fixtures left sidecar-cold-start as the
+     * sole consumer, and the stale-waiver check below caught the entry before
+     * it could become folklore. That is the check earning its keep on its first
+     * run, which is worth recording — a waiver list nobody prunes is how the
+     * CSP checklist accumulated ten consumers.
      */
     const KNOWN_SHARED_PENDING_SPLIT = new Map<string, string>([
       [
@@ -517,10 +524,6 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       [
         'entity-variants/certification-variant-nospace.md',
         'Cross-document minimal pair shared by 3 Stage-5 specs. Splitting means one distinct-token PAIR per spec, not one document.',
-      ],
-      [
-        'form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
-        'Shared by sidecar-cold-start and sidecar-mime-coverage. Both are form-plane specs, so the split needs a second real form PDF rather than a content document.',
       ],
     ]);
 
@@ -592,8 +595,14 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       'per-test-content/synthetic-inv-09-admin-merge-run-b.md',
     ]);
 
+    // Text formats only. A .pdf / .docx / .xlsx read as UTF-8 is byte soup, and
+    // running a token regex over it would produce matches that mean nothing —
+    // the tokens in a binary fixture live in the CONVERTED text, which only the
+    // pipeline can see. The binary legs carry their own tokens (registered in
+    // the manifest notes) and are covered by the uniqueness rule in review, not
+    // here. Asserting where the check can actually read is the honest scope.
     const perTestContent = manifest.fixtures.filter(
-      (e) => e.tree === 'per-test-content',
+      (e) => e.tree === 'per-test-content' && e.format === 'md',
     );
 
     it('the tree is registered and non-empty', () => {

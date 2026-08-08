@@ -58,7 +58,7 @@ import {
   pollContentItemsFor,
   stageFixture,
 } from './_helpers/fixture-staging';
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+import { PER_TEST_CONTENT } from './_helpers/fixtures';
 import { WALK_BUDGET_MS, runWalk } from './_helpers/walk';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
@@ -78,9 +78,24 @@ const seededContentIds: string[] = [];
 const POLL_TIMEOUT_MS = 180_000;
 
 // MIME-set-to-fixture map. HTML is excluded — it is not a file-corpus MIME
-// (ID-75 WP-D / ID-112.7); HTML lands via the URL source instead. Each
-// fixture below is a real, checked-in file already proven to ingest via
-// other enabled cocoindex integration tests in this directory.
+// (ID-75 WP-D / ID-112.7); HTML lands via the URL source instead.
+//
+// id-415 (S543): every leg is now a per-test CONTENT document of that MIME,
+// written for this spec and staged by nothing else. Two reasons, and the
+// second is the one that was actually breaking things.
+//
+// Inv-7's claim is that each MIME extracts to NON-EMPTY content_chunks. Three
+// of the four legs were blank extraction FORMS, which is a weak subject for
+// that claim: a form can chunk while carrying no content anyone would want
+// extracted, so the assertion could pass over a document that proves nothing
+// about extraction quality.
+//
+// And every leg was SHARED — the markdown fixture with five other specs, the
+// PDF with sidecar-cold-start. Identity is content-hash first, so shared bytes
+// mean a shared source_documents row: storage_path frozen by the first stager,
+// filename overwritten by the last, later stagings memo-SKIPping entirely.
+// That is what failed five specs in nightly run 31271744240, and this spec was
+// inside the same hazard while passing.
 type MimeKind = 'pdf' | 'docx' | 'xlsx' | 'markdown';
 
 const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
@@ -88,22 +103,22 @@ const MIME_SET: { kind: MimeKind; fileSuffix: string; fixturePath: string }[] =
     {
       kind: 'markdown',
       fileSuffix: '.md',
-      fixturePath: '__tests__/fixtures/cocoindex-chunking/short-clause.md',
+      fixturePath: PER_TEST_CONTENT.mimeCoverageMd,
     },
     {
       kind: 'pdf',
       fileSuffix: '.pdf',
-      fixturePath: FORM_TEMPLATE.selectionQuestionnairePdf,
+      fixturePath: PER_TEST_CONTENT.mimeCoveragePdf,
     },
     {
       kind: 'docx',
       fileSuffix: '.docx',
-      fixturePath: FORM_TEMPLATE.supplierResponseDocx,
+      fixturePath: PER_TEST_CONTENT.mimeCoverageDocx,
     },
     {
       kind: 'xlsx',
       fileSuffix: '.xlsx',
-      fixturePath: FORM_TEMPLATE.pricingApproachXlsx,
+      fixturePath: PER_TEST_CONTENT.mimeCoverageXlsx,
     },
   ];
 

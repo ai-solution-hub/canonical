@@ -81,7 +81,6 @@
         "__tests__/integration/cocoindex/file-change-detection.integration.test.ts",
         "__tests__/integration/cocoindex/latency-budget.integration.test.ts",
         "__tests__/integration/cocoindex/memo-hit-pipeline-run.integration.test.ts",
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
         "__tests__/integration/cocoindex/sidecar-version-metadata.integration.test.ts"
       ],
       "notes": ""
@@ -278,7 +277,6 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
         "scripts/cocoindex_pipeline/verify_driver.py",
         "scripts/tests/test_form_extractors.py"
       ],
@@ -295,7 +293,6 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
         "scripts/tests/test_form_extractors.py"
       ],
       "notes": ""
@@ -339,7 +336,6 @@
       "staging_mode": "per-test",
       "consumers": [
         "__tests__/integration/cocoindex/sidecar-cold-start.integration.test.ts",
-        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts",
         "scripts/cocoindex_pipeline/verify_driver.py",
         "scripts/seed-id145-w1f-exemplar.ts",
         "scripts/tests/test_pdf_field_detection.py"
@@ -514,6 +510,62 @@
         "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts"
       ],
       "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-mime-coverage-docx.docx",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-mime-coverage-docx.docx",
+      "tree": "per-test-content",
+      "format": "docx",
+      "sha256": "ec523ff4ad4d10ec2330606b74d15682cc05c627a386d9d77429063103324702",
+      "bytes": 37495,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts"
+      ],
+      "notes": "DOCX leg of Inv-7's MIME matrix. Token EMS 14064. Inv-7 asserts each MIME extracts to NON-EMPTY content_chunks; it staged blank extraction forms until S543, which is a weak subject for that claim and shared those forms with other specs besides. Real content, one owner (DR-133 amended)."
+    },
+    {
+      "id": "per-test-content/synthetic-mime-coverage-markdown.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-mime-coverage-markdown.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "4639bec50026e3af428fe0ff09940968ecd55c1dd589bb96c14b85c72e3937b8",
+      "bytes": 1927,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts"
+      ],
+      "notes": "Markdown leg of Inv-7's MIME matrix. Token IIP 60001. Inv-7 asserts each MIME extracts to NON-EMPTY content_chunks; it staged blank extraction forms until S543, which is a weak subject for that claim and shared those forms with other specs besides. Real content, one owner (DR-133 amended)."
+    },
+    {
+      "id": "per-test-content/synthetic-mime-coverage-pdf.pdf",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-mime-coverage-pdf.pdf",
+      "tree": "per-test-content",
+      "format": "pdf",
+      "sha256": "558b0712d7af28b31185628467bc216480187699913dc86dc78678943a2a9c33",
+      "bytes": 2752,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts"
+      ],
+      "notes": "PDF leg of Inv-7's MIME matrix. Token SFG 20000. Inv-7 asserts each MIME extracts to NON-EMPTY content_chunks; it staged blank extraction forms until S543, which is a weak subject for that claim and shared those forms with other specs besides. Real content, one owner (DR-133 amended)."
+    },
+    {
+      "id": "per-test-content/synthetic-mime-coverage-xlsx.xlsx",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-mime-coverage-xlsx.xlsx",
+      "tree": "per-test-content",
+      "format": "xlsx",
+      "sha256": "953da73d74f057a53fa5313f334605882d8b437042631c1daabe36abbee87caa",
+      "bytes": 5767,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/sidecar-mime-coverage.integration.test.ts"
+      ],
+      "notes": "XLSX leg of Inv-7's MIME matrix — a real data workbook, not a blank grid. Token LRQ 39001. Inv-7 asserts each MIME extracts to NON-EMPTY content_chunks; it staged blank extraction forms until S543, which is a weak subject for that claim and shared those forms with other specs besides. Real content, one owner (DR-133 amended)."
     },
     {
       "id": "per-test-content/synthetic-per-doc-canonicalisation.md",

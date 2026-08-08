@@ -300,4 +300,12 @@ export const PER_TEST_CONTENT = {
   perDocCanonicalisationMd: path(
     'per-test-content/synthetic-per-doc-canonicalisation.md',
   ),
+  /** Inv-7 MIME matrix — markdown leg. One token: `IIP 60001`. */
+  mimeCoverageMd: path('per-test-content/synthetic-mime-coverage-markdown.md'),
+  /** Inv-7 MIME matrix — PDF leg. One token: `SFG 20000`. */
+  mimeCoveragePdf: path('per-test-content/synthetic-mime-coverage-pdf.pdf'),
+  /** Inv-7 MIME matrix — DOCX leg. One token: `EMS 14064`. */
+  mimeCoverageDocx: path('per-test-content/synthetic-mime-coverage-docx.docx'),
+  /** Inv-7 MIME matrix — XLSX leg. A real data workbook, not a blank grid. One token: `LRQ 39001`. */
+  mimeCoverageXlsx: path('per-test-content/synthetic-mime-coverage-xlsx.xlsx'),
 } as const;
