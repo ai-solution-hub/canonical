@@ -32,15 +32,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { hasRealLiveDbCredentials } from '../helpers/supabase-client';
 
-// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
-// This file asserts entity alias resolution — plane 1, the cocoindex walk — but stages a
-// blank extraction FORM, which is a plane-2 input with no prose to extract.
-// All 16 CSP-staging tests measured the same way; none exercise form-field
-// extraction. id-412 repoints the PATH only (its Surfaces line reserves
-// assertions for id-415); flipping this to a CONTENT fixture changes what the
-// body observes, so the fixture swap and the assertion repair land together
-// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { CONTENT } from './_helpers/fixtures';
+// id-415 (S543): repointed off the shared blank CSP form onto this spec's OWN
+// per-test CONTENT document. Two defects ended together here. The form was a
+// plane-2 input carrying no prose, so a plane-1 assertion over it was measuring
+// nothing; and TEN specs staged that one file, which content-hash-first identity
+// collapsed onto a single source_documents row — storage_path frozen by the first
+// stager, filename overwritten by the last, later stagings memo-SKIPped entirely.
+// Nightly run 31271744240 failed five of the ten out of that shared row. DR-133
+// as amended: one distinct-bytes document, one consuming spec.
+import { PER_TEST_CONTENT } from './_helpers/fixtures';
 
 import {
   dropFixture,
@@ -67,11 +67,17 @@ const TEST_PREFIX = `[53.14-INV10-${Date.now()}-${Math.random().toString(36).sli
 const seededContentIds: string[] = [];
 let seededAliases: SeededAlias[] = [];
 
-// The fixture is known to mention 'ISO 27001', whose per-document canonical is
-// 'iso 27001' (lowercase per the canonicalise function). We seed an alias that
-// maps that per-doc canonical to a distinctive test value Stage-5 must honour.
-const ALIAS_FROM = 'ISO 27001';
-const ALIAS_TO = 'iso 27001';
+// The alias SOURCE is this fixture's own certification token; the alias TARGET
+// is a value Stage-5 can only produce by consulting the preloaded map.
+//
+// That distinction is the assertion. Until S543 the target was `'iso 27001'` —
+// the lowercase of the source, which IS the per-document canonical
+// `canonicalise_entity_name` produces unaided. The row therefore carried the
+// expected value whether or not the alias map was preloaded at all, so the test
+// passed identically with the mechanism under test removed. A distinctive target
+// is what makes a pass mean something.
+const ALIAS_FROM = 'AAB 27019';
+const ALIAS_TO = 'aab-27019-alias-target';
 
 const POLL_TIMEOUT_MS = 120_000;
 
@@ -89,7 +95,7 @@ beforeAll(async () => {
     },
   ]);
   await stageFixture({
-    fixturePath: CONTENT.companyOverviewMd,
+    fixturePath: PER_TEST_CONTENT.inv10LegacyAliasPreloadMd,
     destPath: `inv-10/${TEST_PREFIX}.md`,
     titlePrefix: TEST_PREFIX,
   });

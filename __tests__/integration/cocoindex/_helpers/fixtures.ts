@@ -218,3 +218,86 @@ export const ENTITY_VARIANTS = {
     'entity-variants/certification-variant-nospace.md',
   ),
 } as const;
+
+/**
+ * PER-TEST CONTENT — one prose document per CONSUMING SPEC. Never shared.
+ *
+ * ## Why this exists, and why "just use {@link CONTENT}" is the trap
+ *
+ * Every {@link CONTENT} member is a **walked-baseline** document, already an
+ * admitted `source_documents` row before the Vitest tier starts. Staging one
+ * under a test prefix resolves onto the baseline row (identity is content-hash
+ * FIRST) and `filename` is never re-written, so a prefix-keyed poll cannot find
+ * it. DR-133 ruled that at S539.
+ *
+ * What DR-133 did NOT originally say — and what nightly run `31271744240`
+ * measured — is that the same collapse happens between any two specs staging
+ * identical bytes, baseline or not. **Ten specs staged
+ * `FORM_TEMPLATE.cspChecklistXlsx`.** They shared one row: `storage_path` froze
+ * to whichever staged first, `filename` was overwritten by whichever staged
+ * last, and because `ingest_file` is `memo=True`, every later staging of those
+ * bytes produced no rows at all. Five of the ten failed, and *which* five was
+ * decided by Vitest's file scheduling. DR-133 was amended at S543 to cover this
+ * second axis: **distinct from the baseline AND from every other per-test
+ * fixture.**
+ *
+ * ## The rule, stated so it is checkable
+ *
+ * One document, one spec. A member of this group appearing in two spec files is
+ * the defect — not a hazard to be handled carefully, the defect itself.
+ * `__tests__/guards/corpus-manifest.test.ts` enforces it from the manifest's
+ * `consumers` array, which is why adding a fixture means registering it rather
+ * than dropping a file in the tree.
+ *
+ * ## What the documents carry, and why it is not decoration
+ *
+ * The id-389 mock extractor echoes tokens matching `[A-Z]{2,6} ?[0-9]{3,6}`
+ * **verbatim, at their real offsets**, and those echoes are the mentions these
+ * specs observe. Each document's token(s) are its alone, chosen to be far from
+ * every other fixture's and from the baseline's. Change a token and you change
+ * what its spec measures. The mock scans the whole converted document including
+ * HTML comments — so naming another fixture's token in a comment publishes it as
+ * a mention, which is a mistake this tree already made and caught once.
+ */
+export const PER_TEST_CONTENT = {
+  /** Inv-1 attach-point. One token: `BSI 45001`. */
+  inv01AttachPointMd: path('per-test-content/synthetic-inv-01-stage5-attach-point.md'),
+  /** Inv-7 op_id memo. One token: `BRE 21930`. Staged three times at ONE dest — that is the behaviour under test. */
+  inv07OpIdMemoMd: path('per-test-content/synthetic-inv-07-op-id-memo.md'),
+  /** Inv-9 run A. SPACED `IEC 62443`. Pairs with {@link inv09AdminMergeRunBMd}. */
+  inv09AdminMergeRunAMd: path('per-test-content/synthetic-inv-09-admin-merge-run-a.md'),
+  /** Inv-9 run B. COMPACT `IEC62443` — the near-match run A's admin pin must survive. */
+  inv09AdminMergeRunBMd: path('per-test-content/synthetic-inv-09-admin-merge-run-b.md'),
+  /** Inv-10 alias preload. One token: `AAB 27019`, the alias source. */
+  inv10LegacyAliasPreloadMd: path(
+    'per-test-content/synthetic-inv-10-legacy-alias-preload.md',
+  ),
+  /** Inv-12 Stage-5 failure non-destructive. One token: `TSC 22301`. */
+  inv12Stage5FailureMd: path(
+    'per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md',
+  ),
+  /** Inv-14 PairResolver determinism. BOTH forms — `CYE 14001` + `CYE14001` — in one document, because the tier-break needs an ambiguous pair. */
+  inv14PairResolverMd: path(
+    'per-test-content/synthetic-inv-14-pair-resolver-determinism.md',
+  ),
+  /** Inv-17 context_snippet. One token: `SEC 27017`, occurring in real prose so the snippet is genuine evidence. */
+  inv17ContextSnippetMd: path('per-test-content/synthetic-inv-17-context-snippet.md'),
+  /** Inv-20 unresolved mention. One token: `QMX 88231`, deliberately unlike every other token anywhere. Do not add a second. */
+  inv20UnresolvedMentionMd: path(
+    'per-test-content/synthetic-inv-20-unresolved-mention.md',
+  ),
+  /** extract-contract-honour, classification shape. One token: `CHAS 19650`. */
+  extractContractClassificationMd: path(
+    'per-test-content/synthetic-extract-contract-classification.md',
+  ),
+  /** extract-contract-honour, entity_mention shape. One token: `NSI 50001`. */
+  extractContractEntityMentionMd: path(
+    'per-test-content/synthetic-extract-contract-entity-mention.md',
+  ),
+  /** Memo-hit idempotency. One token: `NQA 13485`. */
+  memoHitIdempotencyMd: path('per-test-content/synthetic-memo-hit-idempotency.md'),
+  /** Per-document canonicalisation. One token: `UKAS 17025`. */
+  perDocCanonicalisationMd: path(
+    'per-test-content/synthetic-per-doc-canonicalisation.md',
+  ),
+} as const;

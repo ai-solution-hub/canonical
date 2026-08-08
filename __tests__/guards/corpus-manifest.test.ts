@@ -475,4 +475,183 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       ).toEqual([]);
     });
   });
+
+  /**
+   * DR-133 AS AMENDED (S543) — ONE PER-TEST FIXTURE, ONE CONSUMING SPEC.
+   *
+   * The original ruling covered the test ↔ walked-baseline axis. Nightly run
+   * `31271744240` measured the second axis: **ten** integration specs staged
+   * `form-templates/csp-cloud-security-principles/Cloud Security Principles
+   * Checklist V5_3.xlsx`. Identity is content-hash FIRST, so all ten shared one
+   * `source_documents` row — `storage_path` frozen by the first stager,
+   * `filename` overwritten by the last, and `ingest_file`'s `memo=True` meaning
+   * every later staging produced no rows at all. Five specs failed and which
+   * five was decided by Vitest's file scheduling.
+   *
+   * The manifest already carried the evidence: that entry's `consumers` array
+   * listed all ten, in plain sight, for months. Nothing read it as a violation
+   * because nothing had been told it was one. This is that check.
+   */
+  describe('per-test fixtures are not shared between specs (DR-133, amended S543)', () => {
+    /**
+     * Pre-existing sharing, enumerated so it is countable and shrinking rather
+     * than invisible. Every entry is a REAL instance of the same defect that
+     * broke run `31271744240`; each survives only because no failure has yet
+     * been attributed to it, which is exactly what was true of the CSP
+     * checklist until S543. Deleting an entry here is the goal; adding one
+     * needs a reason written beside it.
+     */
+    const KNOWN_SHARED_PENDING_SPLIT = new Map<string, string>([
+      [
+        'cocoindex-chunking/long-terms.md',
+        'Chunking-boundary fixture shared by 3 specs. Unowned — no task claims the chunking tree.',
+      ],
+      [
+        'cocoindex-chunking/short-clause.md',
+        'Chunking-boundary fixture shared by 5 specs. Unowned — no task claims the chunking tree.',
+      ],
+      [
+        'entity-variants/certification-variant-space.md',
+        'Cross-document minimal pair shared by 3 Stage-5 specs. Splitting means one distinct-token PAIR per spec, not one document.',
+      ],
+      [
+        'entity-variants/certification-variant-nospace.md',
+        'Cross-document minimal pair shared by 3 Stage-5 specs. Splitting means one distinct-token PAIR per spec, not one document.',
+      ],
+      [
+        'form-templates/sq-standard-selection-questionnaire/standard-selection-questionnaire-ppn-03-24.pdf',
+        'Shared by sidecar-cold-start and sidecar-mime-coverage. Both are form-plane specs, so the split needs a second real form PDF rather than a content document.',
+      ],
+    ]);
+
+    /** Consumers that actually STAGE — Python tests and scripts read fixtures without minting a row. */
+    const stagingConsumers = (e: FixtureEntry) =>
+      e.consumers.filter(
+        (c) => c.startsWith('__tests__/integration/') && c.endsWith('.test.ts'),
+      );
+
+    it('no per-test fixture is staged by more than one integration spec', () => {
+      const shared = manifest.fixtures
+        .filter((e) => e.staging_mode === 'per-test')
+        .map((e) => ({ id: e.id, specs: stagingConsumers(e) }))
+        .filter(
+          (e) => e.specs.length > 1 && !KNOWN_SHARED_PENDING_SPLIT.has(e.id),
+        );
+
+      expect(
+        shared,
+        'each of these per-test fixtures is staged by several specs, so they share ONE ' +
+          'source_documents row: storage_path freezes to whichever spec stages first, filename ' +
+          'is overwritten by whichever stages last, and every later staging memo-SKIPs. Give each ' +
+          'spec its own distinct-bytes fixture, or add it to KNOWN_SHARED_PENDING_SPLIT with a ' +
+          'reason. Do NOT resolve this by making the specs run in a particular order.',
+      ).toEqual([]);
+    });
+
+    it('every KNOWN_SHARED_PENDING_SPLIT entry is still a real, still-shared fixture', () => {
+      // A waiver that outlives its defect is worse than no waiver: it teaches
+      // the next reader that the list is noise.
+      const stale = [...KNOWN_SHARED_PENDING_SPLIT.keys()].filter((id) => {
+        const entry = manifest.fixtures.find((f) => f.id === id);
+        return !entry || stagingConsumers(entry).length <= 1;
+      });
+      expect(
+        stale,
+        'these waivers no longer describe anything — the fixture was split, renamed or removed. ' +
+          'Delete the entry.',
+      ).toEqual([]);
+    });
+  });
+
+  /**
+   * THE PER-TEST CONTENT TREE'S TOKENS ARE WHAT ITS SPECS MEASURE.
+   *
+   * `mock_llm.py::_echo_entity_tokens` echoes every token matching
+   * `[A-Z]{2,6} ?[0-9]{3,6}` verbatim at its real offsets, and those echoes are
+   * the `entity_mentions` rows these specs assert over. Two consequences that
+   * are not obvious from reading a fixture:
+   *
+   * 1. Two fixtures sharing a token produce mentions that near-match across
+   *    documents. For `inv-20-unresolved-mention.md`, whose whole assertion is
+   *    `stage_counts.entity_resolution === 0`, that is fatal.
+   * 2. The extractor sees the WHOLE converted document, including HTML
+   *    comments. Naming another fixture's token in a comment publishes it as a
+   *    mention. That mistake was made while authoring this tree and caught by
+   *    running this regex over the files — which is why it is a guard now and
+   *    not a habit.
+   */
+  describe('per-test-content entity tokens (S543)', () => {
+    const CERT_TOKEN = /\b[A-Z]{2,6} ?\d{3,6}\b/g;
+    const tokensOf = (e: FixtureEntry) =>
+      new Set(readFileSync(abs(e), 'utf8').match(CERT_TOKEN) ?? []);
+
+    /** The one fixture that pairs two surface forms ON PURPOSE — Inv-14's tier-break needs an ambiguous pair. */
+    const DELIBERATE_INTERNAL_PAIR = new Set([
+      'per-test-content/synthetic-inv-14-pair-resolver-determinism.md',
+      'per-test-content/synthetic-inv-09-admin-merge-run-a.md',
+      'per-test-content/synthetic-inv-09-admin-merge-run-b.md',
+    ]);
+
+    const perTestContent = manifest.fixtures.filter(
+      (e) => e.tree === 'per-test-content',
+    );
+
+    it('the tree is registered and non-empty', () => {
+      expect(perTestContent.length).toBeGreaterThan(0);
+    });
+
+    it('no per-test-content document shares a token with the walked baseline', () => {
+      const baselineTokens = new Set<string>();
+      for (const e of manifest.fixtures.filter(
+        (f) => f.staging_mode === 'walked-baseline' && f.format === 'md',
+      )) {
+        for (const t of tokensOf(e)) baselineTokens.add(t);
+      }
+      expect(baselineTokens.size).toBeGreaterThan(0);
+
+      const offenders = perTestContent
+        .map((e) => ({
+          id: e.id,
+          shared: [...tokensOf(e)].filter((t) => baselineTokens.has(t)),
+        }))
+        .filter((o) => o.shared.length > 0);
+
+      expect(
+        offenders,
+        'these per-test documents name a token the walked baseline also carries, so their ' +
+          'mentions near-match a corpus document. Choose a token no other fixture uses — and ' +
+          'note the extractor reads HTML comments too, so an example token in a comment counts.',
+      ).toEqual([]);
+    });
+
+    it('no token appears in two per-test-content documents, outside the declared pairs', () => {
+      const owner = new Map<string, string>();
+      const clashes: { token: string; a: string; b: string }[] = [];
+      for (const e of perTestContent) {
+        if (DELIBERATE_INTERNAL_PAIR.has(e.id)) continue;
+        for (const t of tokensOf(e)) {
+          const prior = owner.get(t);
+          if (prior) clashes.push({ token: t, a: prior, b: e.id });
+          else owner.set(t, e.id);
+        }
+      }
+      expect(
+        clashes,
+        'one token, one document — a token in two documents makes two specs measure each ' +
+          "other's fixtures",
+      ).toEqual([]);
+    });
+
+    it('inv-20 carries exactly one token, because its assertion is that nothing resolves', () => {
+      const inv20 = perTestContent.find((e) =>
+        e.id.endsWith('inv-20-unresolved-mention.md'),
+      );
+      expect(inv20).toBeDefined();
+      expect(
+        [...tokensOf(inv20!)],
+        'Inv-20 asserts stage_counts.entity_resolution === 0. A second token gives Stage-5 ' +
+          'something to resolve and the assertion stops being about unresolved mentions.',
+      ).toHaveLength(1);
+    });
+  });
 });

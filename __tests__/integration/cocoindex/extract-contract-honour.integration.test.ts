@@ -60,15 +60,23 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
-// This file asserts classification + q_a_form extraction shape — plane 1, the cocoindex walk — but stages a
-// blank extraction FORM, which is a plane-2 input with no prose to extract.
-// All 16 CSP-staging tests measured the same way; none exercise form-field
-// extraction. id-412 repoints the PATH only (its Surfaces line reserves
-// assertions for id-415); flipping this to a CONTENT fixture changes what the
-// body observes, so the fixture swap and the assertion repair land together
-// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { CONTENT, FORM_TEMPLATE } from './_helpers/fixtures';
+// id-415 (S543): repointed off the shared blank CSP form AND off the walked
+// baseline, onto this spec's own per-test CONTENT documents. Both DR-133 axes
+// were live in this one file at once, which is why it is worth naming them apart.
+//
+// The classification fixture was the blank CSP form — a plane-2 input with no
+// prose, staged simultaneously by TEN specs that content-hash-first identity
+// collapsed onto one source_documents row.
+//
+// The entity_mention fixture was `CONTENT.namedClientEngagementsMd`, a WALKED
+// BASELINE document. Its bytes resolve onto the corpus row rather than minting a
+// new one, so this spec's teardown was deleting a Platform-corpus document. In
+// nightly run 31271744240 dropFixture refused, by design, and the spec failed in
+// afterAll naming the row it had been about to destroy:
+//   f151eeb7 storage_path="content/synthetic-named-client-engagements.md"
+//            logical_path="inv-20/[28.14-INV20-...]-entity_mention.md"
+// That refusal is the fix working. This repoint is what makes it unnecessary.
+import { FORM_TEMPLATE, PER_TEST_CONTENT } from './_helpers/fixtures';
 
 import {
   createLiveServiceClient,
@@ -125,8 +133,8 @@ const FIXTURES: ReadonlyArray<{
 }> = [
   {
     kind: 'classification',
-    fixturePath: FORM_TEMPLATE.cspChecklistXlsx,
-    destSuffix: 'classification.xlsx',
+    fixturePath: PER_TEST_CONTENT.extractContractClassificationMd,
+    destSuffix: 'classification.md',
   },
   {
     kind: 'q_a_form',
@@ -134,23 +142,13 @@ const FIXTURES: ReadonlyArray<{
     destSuffix: 'q_a_form.docx',
   },
   {
-    // S538 repoint. This was `FORM_TEMPLATE.legacyRfpLearningPartnersDoc` — a
-    // 95k-character prose RFP with no ingest route: `adapters.py` supports
-    // {.docx,.markdown,.md,.pdf,.txt,.xlsx} and raises on `.doc`, so the
-    // fixture NEVER landed. Its id therefore never entered `seededContentIds`,
-    // and the entity_mention assertion below looped over rows belonging to the
-    // OTHER two fixtures with no count assertion — the suite reported this file
-    // green while testing nothing about entity extraction.
-    //
-    // (Measured cost beyond the false green: because the staged bytes are never
-    // removed — the sidecar has no unstage route and `dropFixture` deletes DB
-    // rows only — the orphaned `.doc` re-failed on all 12-13 subsequent walks
-    // of every nightly run, one contained item failure each.)
-    //
-    // `namedClientEngagementsMd` is the corpus's richest named-entity surface
-    // and is Plane-1 CONTENT, which is what an entity assertion needs.
+    // S538 repointed this off a `.doc` with no ingest route, which had made the
+    // assertion vacuous; S543 repoints it again, off the walked baseline. The
+    // reasons stack rather than replace: an entity assertion needs Plane-1 prose
+    // (S538) that is ALSO distinct from every walked-baseline document (DR-133),
+    // and `namedClientEngagementsMd` satisfied only the first.
     kind: 'entity_mention',
-    fixturePath: CONTENT.namedClientEngagementsMd,
+    fixturePath: PER_TEST_CONTENT.extractContractEntityMentionMd,
     destSuffix: 'entity_mention.md',
   },
 ];
@@ -398,9 +396,11 @@ describe.skipIf(!ENABLED)(
       // But "≥0 rows" made this test unfalsifiable (S538): the fixture never
       // landed, the loop ran over other fixtures' rows, and the file reported
       // green while asserting nothing about entity extraction. The seed is a
-      // test responsibility, so assert the seed held. `namedClientEngagementsMd`
-      // is the corpus's densest named-entity document; if it yields zero
-      // mentions the extractor is broken, not merely quiet.
+      // test responsibility, so assert the seed held.
+      // `extract-contract-entity-mention.md` carries a certification-shaped
+      // token the mock extractor echoes verbatim at its real offsets, so a zero
+      // here means the fixture failed to land or extraction is not running —
+      // not that the document happened to be quiet.
       expect(
         data!.length,
         'entity_mention fixture seeded no mentions — the fixture failed to land, or entity extraction is not running',

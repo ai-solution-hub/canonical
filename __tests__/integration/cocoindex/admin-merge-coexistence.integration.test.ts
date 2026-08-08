@@ -69,15 +69,21 @@ import {
 import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor, UUID_V4_REGEX } from './test-helpers';
 
-// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
-// This file asserts entity_mentions admin-merge pinning — plane 1, the cocoindex walk — but stages a
-// blank extraction FORM, which is a plane-2 input with no prose to extract.
-// All 16 CSP-staging tests measured the same way; none exercise form-field
-// extraction. id-412 repoints the PATH only (its Surfaces line reserves
-// assertions for id-415); flipping this to a CONTENT fixture changes what the
-// body observes, so the fixture swap and the assertion repair land together
-// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+// id-415 (S543): repointed off the shared blank CSP form onto this spec's OWN
+// per-test CONTENT pair. Two defects ended together here. The form was a plane-2
+// input carrying no prose, so a plane-1 assertion over it was measuring nothing;
+// and TEN specs staged that one file, which content-hash-first identity collapsed
+// onto a single source_documents row. Nightly run 31271744240 failed five of the
+// ten out of that shared row, this spec among them.
+//
+// This spec needed a PAIR rather than one document, and that is not a detail of
+// the split. Run A and run B were staging IDENTICAL bytes at two dest paths, so
+// they resolved to ONE row: "run B" was never a second document, and Stage-5 had
+// no near-match to attempt. The assertion — that Stage-5 never reverts an
+// admin-merged canonical — could not fail, because nothing was asking it to. The
+// pair below carries the SPACED and COMPACT surface forms of one standard, so run
+// B genuinely gives Stage-5 something to resolve against the pin.
+import { PER_TEST_CONTENT } from './_helpers/fixtures';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -96,13 +102,14 @@ let opIdA: string | null = null;
 
 const POLL_TIMEOUT_MS = 120_000;
 
-const FIXTURE_PATH = FORM_TEMPLATE.cspChecklistXlsx;
+const FIXTURE_RUN_A = PER_TEST_CONTENT.inv09AdminMergeRunAMd;
+const FIXTURE_RUN_B = PER_TEST_CONTENT.inv09AdminMergeRunBMd;
 
 beforeAll(async () => {
   if (!ENABLED) return;
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: `inv-9/${RUN_A_PREFIX}.xlsx`,
+    fixturePath: FIXTURE_RUN_A,
+    destPath: `inv-9/${RUN_A_PREFIX}.md`,
     titlePrefix: RUN_A_PREFIX,
   });
 }, WALK_BUDGET_MS + 30_000);
@@ -169,8 +176,8 @@ describe.skipIf(!ENABLED)(
 
         // Run B: a NEW corpus; its Stage-5 pass (op_id B) runs to completion.
         await stageFixture({
-          fixturePath: FIXTURE_PATH,
-          destPath: `inv-9/${RUN_B_PREFIX}.xlsx`,
+          fixturePath: FIXTURE_RUN_B,
+          destPath: `inv-9/${RUN_B_PREFIX}.md`,
           titlePrefix: RUN_B_PREFIX,
         });
         const itemsB = await pollContentItemsFor(RUN_B_PREFIX, {

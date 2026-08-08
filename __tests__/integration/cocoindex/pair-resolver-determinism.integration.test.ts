@@ -47,15 +47,15 @@ import {
 import { WALK_BUDGET_MS } from './_helpers/walk';
 import { pollEntityMentionsFor } from './test-helpers';
 
-// PLANE MISMATCH — id-415's work list (measured by id-412, S524).
-// This file asserts canonical pair-resolver determinism — plane 1, the cocoindex walk — but stages a
-// blank extraction FORM, which is a plane-2 input with no prose to extract.
-// All 16 CSP-staging tests measured the same way; none exercise form-field
-// extraction. id-412 repoints the PATH only (its Surfaces line reserves
-// assertions for id-415); flipping this to a CONTENT fixture changes what the
-// body observes, so the fixture swap and the assertion repair land together
-// in id-415. Candidate: CONTENT.sectorSpendXlsx (same MIME, real content).
-import { FORM_TEMPLATE } from './_helpers/fixtures';
+// id-415 (S543): repointed off the shared blank CSP form onto this spec's OWN
+// per-test CONTENT document. Two defects ended together here. The form was a
+// plane-2 input carrying no prose, so a plane-1 assertion over it was measuring
+// nothing; and TEN specs staged that one file, which content-hash-first identity
+// collapsed onto a single source_documents row — storage_path frozen by the first
+// stager, filename overwritten by the last, later stagings memo-SKIPped entirely.
+// Nightly run 31271744240 failed five of the ten out of that shared row. DR-133
+// as amended: one distinct-bytes document, one consuming spec.
+import { PER_TEST_CONTENT } from './_helpers/fixtures';
 
 const HAS_STAGING_URL = Boolean(process.env.COCOINDEX_STAGING_URL);
 const HAS_SOURCE_PATH = Boolean(process.env.COCOINDEX_SOURCE_PATH);
@@ -70,8 +70,8 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 180_000;
 
-const FIXTURE_PATH = FORM_TEMPLATE.cspChecklistXlsx;
-const DEST = `inv-14/${TEST_PREFIX}.xlsx`;
+const FIXTURE_PATH = PER_TEST_CONTENT.inv14PairResolverMd;
+const DEST = `inv-14/${TEST_PREFIX}.md`;
 
 beforeAll(async () => {
   if (!ENABLED) return;

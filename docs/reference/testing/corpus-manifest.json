@@ -33,6 +33,12 @@
       "notes": "Real product form inputs (blank extraction forms, NOT content documents) plus the malformed/ negative fixture. PLANE 2: consumed by the commonforms-era extractors in scripts/cocoindex_pipeline/form_extractors/, reached in production via scripts/bid_worker.py — NOT by the cocoindex walk. Staged on demand by the tests that genuinely exercise form extraction. Relocated here by id-412 at S524 per DR-117."
     },
     {
+      "id": "per-test-content",
+      "root": "scripts/cocoindex_pipeline/fixtures/per-test-content",
+      "synthetic": true,
+      "notes": "Per-test CONTENT documents: real prose, one document per CONSUMING SPEC, each with certification-shaped tokens that are its alone. Filed under the pipeline's own fixtures root as a sibling of platform-corpus/ and form-templates/ per DR-117 (fixture trees are filed by owning domain, never under scripts/tests/, which the cocoindex move would orphan). Exists because DR-133's rule cannot be met by sharing: identity is content-hash FIRST, so two specs staging identical bytes share one source_documents row - storage_path freezes to the first stager, filename is overwritten by the last, and later stagings memo-SKIP and produce no rows. Nightly run 31271744240 had ten specs on one blank form and five failed out of the single row that resulted. One document, one spec: adding a consumer to an entry in this tree is the defect, not the fix."
+    },
+    {
       "id": "platform-corpus",
       "root": "scripts/cocoindex_pipeline/fixtures/platform-corpus",
       "synthetic": true,
@@ -198,20 +204,9 @@
       "fixture_class": "staged-ephemeral",
       "staging_mode": "per-test",
       "consumers": [
-        "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts",
-        "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts",
-        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts",
-        "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts",
-        "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts",
-        "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-failure-non-destructive.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-op-id-memo.integration.test.ts",
-        "__tests__/integration/cocoindex/stage-5-row-counter.integration.test.ts",
-        "__tests__/integration/cocoindex/unresolved-mention-retains-canonical.integration.test.ts",
         "scripts/tests/test_form_extractors.py"
       ],
-      "notes": ""
+      "notes": "S543: the eleven integration specs that staged this blank form as their content document were repointed to per-test-content/ (DR-133 as amended). Ten of them shared THIS entry simultaneously, which is the collision that failed five specs in nightly run 31271744240. Remaining consumer is the Python form-extraction test, which reads the file as the form it is."
     },
     {
       "id": "form-templates/itt-services-charnwood/ITT Evaluation Matrix.xls",
@@ -353,6 +348,188 @@
       "verify_dest": "verify/standard-selection-questionnaire-ppn-03-24.pdf"
     },
     {
+      "id": "per-test-content/synthetic-extract-contract-classification.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-extract-contract-classification.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "1e23af98630cc925ccd780a8f6c8695a4bdf21e6eae3eae906621befa8e339b4",
+      "bytes": 3552,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts"
+      ],
+      "notes": "Backs extract-contract-honour's classification-shape assertion; replaced FORM_TEMPLATE.cspChecklistXlsx at S543."
+    },
+    {
+      "id": "per-test-content/synthetic-extract-contract-entity-mention.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-extract-contract-entity-mention.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "8867d37facac4378dadebb2a4c9c7e0aabfb3de90f1271d615c2cd1ee0c7e86a",
+      "bytes": 3562,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/extract-contract-honour.integration.test.ts"
+      ],
+      "notes": "Backs extract-contract-honour's entity_mention-shape assertion; replaced the walked-baseline synthetic-named-client-engagements.md at S543, whose bytes resolved onto the corpus row and made dropFixture refuse teardown in run 31271744240."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-01-stage5-attach-point.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-01-stage5-attach-point.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "2a602bd582c2d43af53d164c33550e38a26b76c596af8e370d00e6753defbcba",
+      "bytes": 3591,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/stage-5-attach-point.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-07-op-id-memo.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-07-op-id-memo.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "78460b5ed666e63208542a0bc6f1f90ddc13fdff4580a3836d814abe152c4538",
+      "bytes": 3618,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/stage-5-op-id-memo.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-09-admin-merge-run-a.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-09-admin-merge-run-a.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "95c23a73353ed564915c8002c41f390b1b5584ad437c8c45ceea204a1a5d55f6",
+      "bytes": 3691,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts"
+      ],
+      "notes": "Run A of the Inv-9 near-match pair - SPACED surface form. Pairs with synthetic-inv-09-admin-merge-run-b.md; the two must never be edited to share a surface form or to become byte-identical."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-09-admin-merge-run-b.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-09-admin-merge-run-b.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "897f5ddaa0072ece03f1c0482185932e5ea77ffa0d743a712b9752ef8a05c3a6",
+      "bytes": 3672,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/admin-merge-coexistence.integration.test.ts"
+      ],
+      "notes": "Run B of the Inv-9 near-match pair - COMPACT surface form. Pairs with synthetic-inv-09-admin-merge-run-a.md; the two must never be edited to share a surface form or to become byte-identical."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-10-legacy-alias-preload.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-10-legacy-alias-preload.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "d89f9f5fc3af15b6882fd4eb806fe31c1f5196eaae14a3f2123edde0d0de10f2",
+      "bytes": 3601,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "17408a4fed4acdb392fac0d7c893e3905c51256034e02f0426b16c7dca14b72c",
+      "bytes": 3564,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/stage-5-failure-non-destructive.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-14-pair-resolver-determinism.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-14-pair-resolver-determinism.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "5d1ce2bf416795c19a5bad7c7e923d37ec0dad4248bef9510193e0347e6ab643",
+      "bytes": 3679,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts"
+      ],
+      "notes": "Carries BOTH surface forms of one standard in a single document, because the PairResolver tier-break Inv-14 measures is invoked by an ambiguous near-match pair."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-17-context-snippet.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-17-context-snippet.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "03baa3122c791d66ad9386df96c4b23c528434bbd056551a1c5d1ad276be9053",
+      "bytes": 3628,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/context-snippet-populated.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-inv-20-unresolved-mention.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-20-unresolved-mention.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "fcba463bbaf37e49c4174fc29d826aff4a522f86717bedb40fd09da6e5e2bef8",
+      "bytes": 3961,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/unresolved-mention-retains-canonical.integration.test.ts"
+      ],
+      "notes": "Carries exactly ONE certification-shaped token, deliberately unlike every token in every other tree, because Inv-20 asserts stage_counts.entity_resolution == 0. Naming another fixture's token even inside an HTML comment would break it - the mock extractor scans the whole converted document."
+    },
+    {
+      "id": "per-test-content/synthetic-memo-hit-idempotency.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-memo-hit-idempotency.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "b5522ee17c87c95480f1e7130df4a85afacd7ed921439ffe475d36bd4015ae6a",
+      "bytes": 3523,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/idempotency-memo-hit.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
+      "id": "per-test-content/synthetic-per-doc-canonicalisation.md",
+      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-per-doc-canonicalisation.md",
+      "tree": "per-test-content",
+      "format": "md",
+      "sha256": "4ba03235b84f179ad8c0b4dbc328db4f02d18c56b35db5f85dec98ded1142e20",
+      "bytes": 3546,
+      "fixture_class": "staged-ephemeral",
+      "staging_mode": "per-test",
+      "consumers": [
+        "__tests__/integration/cocoindex/per-doc-canonicalisation.integration.test.ts"
+      ],
+      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
+    },
+    {
       "id": "platform-corpus/content/synthetic-capability-statement.pdf",
       "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/content/synthetic-capability-statement.pdf",
       "tree": "platform-corpus",
@@ -378,10 +555,9 @@
       "fixture_class": "vendored-read-only",
       "staging_mode": "walked-baseline",
       "consumers": [
-        "__tests__/guards/corpus-manifest.test.ts",
-        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts"
+        "__tests__/guards/corpus-manifest.test.ts"
       ],
-      "notes": ""
+      "notes": "S543: de-listed as a per-test fixture. A walked-baseline document staged under a test prefix resolves onto the corpus row (DR-133); dropFixture refused that teardown in run 31271744240 rather than deleting the corpus document. Its consuming spec now stages a distinct-bytes per-test document."
     },
     {
       "id": "platform-corpus/content/synthetic-compliance-certifications.md",
@@ -424,7 +600,7 @@
       "consumers": [
         "__tests__/guards/corpus-manifest.test.ts"
       ],
-      "notes": ""
+      "notes": "S543: de-listed as a per-test fixture. A walked-baseline document staged under a test prefix resolves onto the corpus row (DR-133); dropFixture refused that teardown in run 31271744240 rather than deleting the corpus document. Its consuming spec now stages a distinct-bytes per-test document."
     },
     {
       "id": "platform-corpus/content/synthetic-product-catalogue.md",
