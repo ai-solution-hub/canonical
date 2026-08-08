@@ -213,6 +213,12 @@ export async function pollEntityMentionsFor(
     await sleep(pollIntervalMs);
   }
 
+  // id-415 AC-6/7. A bare timeout message is what made the S538 mention-drop
+  // UNDECIDABLE: by the time anyone could look, `afterAll` had run `dropFixture`
+  // and the evidence was gone. Capture it HERE, inside the deadline, while the
+  // rows (or their absence) are still exactly as the pipeline left them.
+  const forensics = await captureEntityMentionForensics(client, opts, deadline);
+
   throw new Error(
     `pollEntityMentionsFor: timed out after ${timeoutMs}ms waiting for >= ${minRows} entity_mentions row(s) (scope: ${JSON.stringify(
       {
@@ -220,8 +226,135 @@ export async function pollEntityMentionsFor(
         contentItemIds: opts.contentItemIds,
         titlePrefix: opts.titlePrefix,
       },
-    )})`,
+    )})\n${forensics}`,
   );
+}
+
+/**
+ * Snapshot the state a timed-out `pollEntityMentionsFor` was looking at, so the
+ * failure carries its own evidence instead of needing a bespoke re-run.
+ *
+ * It answers the four questions that separate the candidate causes, and it is
+ * deliberately scope-WIDENING — the poll's own scope is the thing under
+ * suspicion, so re-asking the same question adds nothing:
+ *
+ *   1. `entity_mentions` for the documents, ignoring op_id — distinguishes
+ *      "rows exist but carry a different op_id" (a re-stamp) from "no rows"
+ *      (a drop, or an ingest that never produced any).
+ *   2. `source_documents` — does the row still exist, and under which
+ *      `logical_path`/`filename`? A content_hash-first resolve
+ *      (`resolve_or_mint_source_identity`, id-138) rewrites `logical_path`
+ *      only, so a prefix-keyed poll misses a row that is present and healthy.
+ *   3. `content_chunks` counts — separates "this item never ingested" from
+ *      "this item ingested but produced no entities", which have different
+ *      causes and different owners.
+ *   4. `pipeline_runs` covering the poll window — which walks actually ran,
+ *      and did any reach a terminal error.
+ *
+ * Never throws: a diagnostic that can mask the failure it describes is worse
+ * than none. Every probe degrades to a noted error line.
+ */
+async function captureEntityMentionForensics(
+  client: Awaited<ReturnType<typeof createLiveServiceClient>>,
+  opts: PollEntityMentionsOpts,
+  deadline: number,
+): Promise<string> {
+  const lines: string[] = [
+    '--- id-415 forensics (captured before teardown) ---',
+  ];
+  const note = (label: string, err: unknown): void => {
+    lines.push(`  ${label}: PROBE FAILED — ${String(err)}`);
+  };
+
+  try {
+    // Resolve the document scope independently of the poll's own key.
+    let docIds: string[] = opts.contentItemIds ?? [];
+    if (docIds.length === 0 && opts.titlePrefix) {
+      const { data } = await client
+        .from('source_documents')
+        .select('id')
+        .ilike('filename', `${opts.titlePrefix}%`);
+      docIds = (data ?? []).map((r) => r.id as string);
+    }
+    if (docIds.length === 0 && opts.opId) {
+      const { data } = await client
+        .from('entity_mentions')
+        .select('source_document_id')
+        .eq('op_id', opts.opId);
+      docIds = [
+        ...new Set((data ?? []).map((r) => r.source_document_id as string)),
+      ];
+    }
+    lines.push(`  resolved source_document_ids: ${JSON.stringify(docIds)}`);
+
+    if (docIds.length > 0) {
+      // (1) mentions regardless of op_id — re-stamp vs drop.
+      try {
+        const { data } = await client
+          .from('entity_mentions')
+          .select('id, source_document_id, op_id, canonical_name, entity_type')
+          .in('source_document_id', docIds);
+        lines.push(
+          `  entity_mentions for those documents, ANY op_id: ${data?.length ?? 0} row(s)` +
+            (data && data.length > 0 ? ` — ${JSON.stringify(data)}` : ''),
+        );
+      } catch (err) {
+        note('entity_mentions (any op_id)', err);
+      }
+
+      // (2) do the documents still exist, and where do they point?
+      try {
+        const { data } = await client
+          .from('source_documents')
+          .select('id, filename, logical_path, storage_path, op_id, created_at')
+          .in('id', docIds);
+        lines.push(
+          `  source_documents: ${data?.length ?? 0} row(s) — ${JSON.stringify(data ?? [])}`,
+        );
+      } catch (err) {
+        note('source_documents', err);
+      }
+
+      // (3) did the items ingest at all?
+      try {
+        const { data } = await client
+          .from('content_chunks')
+          .select('source_document_id')
+          .in('source_document_id', docIds);
+        const perDoc = new Map<string, number>();
+        for (const row of data ?? []) {
+          const key = row.source_document_id as string;
+          perDoc.set(key, (perDoc.get(key) ?? 0) + 1);
+        }
+        lines.push(
+          `  content_chunks per source_document: ${JSON.stringify(Object.fromEntries(perDoc))}`,
+        );
+      } catch (err) {
+        note('content_chunks', err);
+      }
+    }
+
+    // (4) which walks covered the poll window?
+    try {
+      const windowStart = new Date(deadline - 15 * 60_000).toISOString();
+      const { data } = await client
+        .from('pipeline_runs')
+        .select('op_id, status, started_at, completed_at, result')
+        .gte('started_at', windowStart)
+        .order('started_at', { ascending: true });
+      lines.push(
+        `  pipeline_runs since ${windowStart}: ${(data ?? [])
+          .map((r) => `${r.op_id}=${r.status}`)
+          .join(', ')}`,
+      );
+    } catch (err) {
+      note('pipeline_runs', err);
+    }
+  } catch (err) {
+    note('forensics', err);
+  }
+
+  return lines.join('\n');
 }
 
 function toPolledEntityMentionRow(
@@ -354,6 +487,71 @@ export async function readStageCount(
     (result?.stage_counts as Record<string, unknown> | undefined) ?? undefined;
   const value = stageCounts?.[stage];
   return typeof value === 'number' ? value : undefined;
+}
+
+/**
+ * Explain, in one line, WHY `readStageCount` returned `undefined`.
+ *
+ * `undefined` conflates four different failures, and a caller asserting
+ * `expect(count).toBeDefined()` reports the least useful of all possible
+ * messages — "expected undefined to be defined" — which is how the id-415
+ * attach-point failure arrived with no cause attached. The four are:
+ *
+ *   1. no `pipeline_runs` row for that op_id at all;
+ *   2. a row exists but under a DIFFERENT terminal status — most often
+ *      `completed_with_errors`, which a status-filtered read silently misses
+ *      even though the walk ran and the stage executed;
+ *   3. the row's `result` JSONB or its `stage_counts` dict is absent;
+ *   4. `stage_counts` is present but carries no key for this stage — the only
+ *      one of the four that actually means "the stage did not run".
+ *
+ * Pass the result as the assertion message so the distinction survives into CI
+ * output. Never throws: a diagnostic that can mask its subject is worse than
+ * none.
+ */
+export async function explainMissingStageCount(
+  opId: string,
+  stage: string,
+  status: PipelineRunReadStatus = 'completed',
+): Promise<string> {
+  try {
+    const client = await createLiveServiceClient();
+    const { data: rows, error } = await client
+      .from('pipeline_runs')
+      .select('status, result, started_at, completed_at')
+      .eq('op_id', opId);
+    if (error) {
+      return `stage_counts.${stage} absent; diagnostic query failed — ${error.message ?? String(error)}`;
+    }
+    if (!rows || rows.length === 0) {
+      return `stage_counts.${stage} absent: NO pipeline_runs row for op_id ${opId} (cause 1 — the run never recorded).`;
+    }
+    const statuses = rows.map((r) => r.status as string);
+    const match = rows.find((r) => r.status === status);
+    if (!match) {
+      return (
+        `stage_counts.${stage} absent: pipeline_runs row(s) for op_id ${opId} exist but carry status ` +
+        `${JSON.stringify(statuses)}, not '${status}' (cause 2 — the status filter, not the stage). ` +
+        `A 'completed_with_errors' walk still ran the stage.`
+      );
+    }
+    const result = (match.result as Record<string, unknown> | null) ?? null;
+    if (!result) {
+      return `stage_counts.${stage} absent: the '${status}' row has a NULL result JSONB (cause 3).`;
+    }
+    const stageCounts = result.stage_counts as
+      | Record<string, unknown>
+      | undefined;
+    if (!stageCounts) {
+      return `stage_counts.${stage} absent: result JSONB carries no stage_counts dict (cause 3). result keys: ${JSON.stringify(Object.keys(result))}`;
+    }
+    return (
+      `stage_counts.${stage} absent: stage_counts is present but has no '${stage}' key ` +
+      `(cause 4 — the stage genuinely did not run). Keys present: ${JSON.stringify(Object.keys(stageCounts))}`
+    );
+  } catch (err) {
+    return `stage_counts.${stage} absent; diagnostic threw — ${String(err)}`;
+  }
 }
 
 // ---------------------------------------------------------------------------

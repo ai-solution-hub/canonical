@@ -52,6 +52,7 @@ import {
 import { WALK_BUDGET_MS } from './_helpers/walk';
 import {
   pollEntityMentionsFor,
+  explainMissingStageCount,
   readEntityResolutionStageCount,
   UUID_V4_REGEX,
 } from './test-helpers';
@@ -118,7 +119,12 @@ describe.skipIf(!ENABLED)(
         // PRESENT on the completed run (>= 0). A missing counter would mean
         // the run never reached the Stage-5 fold-back at flow end.
         const count = await readEntityResolutionStageCount(opId!);
-        expect(count).toBeDefined();
+        expect(
+          count,
+          count === undefined
+            ? await explainMissingStageCount(opId!, 'entity_resolution')
+            : undefined,
+        ).toBeDefined();
         expect(count!).toBeGreaterThanOrEqual(0);
       },
       POLL_TIMEOUT_MS + 30_000,
