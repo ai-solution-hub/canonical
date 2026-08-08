@@ -12,14 +12,37 @@
  * > Stage-5 pass on a different run. Verifiable: an admin merge on rows from
  * > op_id = A is NEVER reverted by a subsequent run op_id = B."
  *
- * Test strategy (the op_id-scoping consequence at the data layer):
+ * Test strategy:
  *   1. Complete run A (pipeline corpus); capture op_id A + a row to "merge".
- *   2. Apply an admin-merge effect — UPDATE the run-A row's canonical_name to a
- *      distinctive admin value (the merge_entities RPC's net effect on
- *      canonical_name). The op_id stays A (admin curation does not re-stamp).
+ *   2. Apply the admin-merge effect — UPDATE the run-A row's canonical_name to
+ *      a distinctive admin value AND stamp the curation pin, which is what the
+ *      merge route does. The op_id stays A (admin curation does not re-stamp).
  *   3. Stage run B (a NEW corpus) and let its Stage-5 pass complete.
  *   4. Re-read the admin-merged run-A row; assert its canonical_name is STILL
- *      the admin value — run B's Stage-5 (op_id B) did not revert it.
+ *      the admin value — the later walk did not revert it.
+ *
+ * ## Why step 2 stamps the pin (the fix this docblock records)
+ *
+ * The strategy above used to stop at the bare `canonical_name` UPDATE, calling
+ * that "the merge_entities RPC's net effect". It is not: `merge_entities`
+ * commits the canonical change, and then `/api/entities/merge` stamps the
+ * surviving rows via `pin_entity_mentions` (`route.ts:88-115`, id-405 migration
+ * `20260730150743`). The pin is the mechanism the pipeline honours —
+ * `flow.py:2929` carries pinned mentions forward on re-ingest and `stage_5.py:117`
+ * excludes them from the write-back domain, both filtering on
+ * `(metadata->>'curation_pinned') = 'true'`.
+ *
+ * So the old simulation was the merge MINUS its protection, and it reproduced
+ * precisely the symptom the merge route's own comment says the pin closes:
+ * "census #41 failure #1 (admin merge reverted on a later walk)". The invariant's
+ * original op_id-scoping rationale (below) predates the pin — this test was
+ * written at S277 and the pin landed at id-400/id-405. An admin-merged row in
+ * the current system IS a pinned row, so a faithful simulation stamps it.
+ *
+ * Inv-9's original rationale, kept for provenance:
+ * > "Stage-5's op_id scoping (Inv-5) ensures a row admin-merged on a prior run
+ * > (older op_id) is NEVER overwritten by a later Stage-5 pass on a different
+ * > run."
  *
  * Env-gate: COCOINDEX_STAGING_URL + COCOINDEX_FIXTURE_STAGING_URL +
  * COCOINDEX_SOURCE_PATH + live Supabase. Skip-clean where unwired.
@@ -27,7 +50,8 @@
  * References:
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-9.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-11, §3.
- *   - app/api/entities/merge/route.ts:48-52 (merge_entities RPC — canonical UPDATE).
+ *   - app/api/entities/merge/route.ts:88-115 (merge_entities + the pin stamp).
+ *   - scripts/cocoindex_pipeline/flow.py:2904 / stage_5.py:117 (the pin's honourers).
  *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 
@@ -116,16 +140,32 @@ describe.skipIf(!ENABLED)(
         });
         expect(runAMentions.length).toBeGreaterThan(0);
 
-        // Apply the admin-merge effect on a run-A row: UPDATE canonical_name to
-        // a distinctive admin value (the net effect of merge_entities). op_id
-        // stays A — admin curation does not re-stamp op_id.
+        // Apply the admin-merge effect on a run-A row, BOTH halves of it:
+        // (1) merge_entities' canonical UPDATE, then (2) the curation pin the
+        // merge route stamps immediately after. op_id stays A — admin curation
+        // does not re-stamp op_id. See the docblock for why (2) is not optional.
         const client = await createLiveServiceClient();
-        mergedRowId = runAMentions[0]!.id;
+        const mergedRow = runAMentions[0]!;
+        mergedRowId = mergedRow.id;
         const { error: mergeErr } = await client
           .from('entity_mentions')
           .update({ canonical_name: ADMIN_CANONICAL })
           .eq('id', mergedRowId);
         expect(mergeErr).toBeNull();
+
+        // The same RPC `/api/entities/merge` calls, with the same arguments —
+        // matched on the EFFECTIVE type, which is what merge_entities writes.
+        const { data: pinnedCount, error: pinErr } = await client.rpc(
+          'pin_entity_mentions',
+          {
+            p_canonical_name: ADMIN_CANONICAL,
+            p_entity_type: mergedRow.entity_type,
+          },
+        );
+        expect(pinErr).toBeNull();
+        // An unpinned survivor is the census #41 symptom itself, so a zero here
+        // means the test is no longer testing what it claims.
+        expect(pinnedCount).toBeGreaterThanOrEqual(1);
 
         // Run B: a NEW corpus; its Stage-5 pass (op_id B) runs to completion.
         await stageFixture({
