@@ -618,9 +618,14 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
         # observable in its capture list. ────────────────────────────────────
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
+        # S543: names ACME Ltd, which is what `_fake_entities` returns. The
+        # engine walk must produce its OWN entity_mentions row for the orphan-
+        # cleanup contrast below to have a subject, and flow.py now refuses a
+        # mention the document does not support (Inv-17). "Unrelated" here means
+        # unrelated to the ingest_once SOURCE, not devoid of entities.
         keep_and_watch_text = (
             "# Uploaded policy document\n\nUnrelated body text for the "
-            "keep-and-watch engine-path contrast source.\n"
+            "keep-and-watch engine-path contrast source. Filed by ACME Ltd.\n"
         )
 
         async def _fake_convert(file: object) -> str:

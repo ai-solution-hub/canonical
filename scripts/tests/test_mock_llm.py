@@ -222,12 +222,41 @@ class TestContentEcho:
         echoed = [m.entity_name for m in mentions[1:]]
         assert echoed == ["AA 111", "BB 222", "CC 333", "DD 444", "EE 555"]
 
-    def test_tag_mention_is_retained_and_content_unique(self) -> None:
+    def test_canary_mention_is_retained_anchored_and_content_unique(self) -> None:
+        """The always-present canary is a real slice of its own document.
+
+        It used to be `MOCK Org <sha12>` — a name occurring nowhere in the text,
+        carrying the span (0, len(name)). Under the S543 ruling flow.py refuses
+        a mention it cannot anchor, because a row with no context_snippet cannot
+        evidence that its parent document was read. A synthesised canary would
+        therefore produce no row at all, and Inv-17 could not pass on the mock
+        tier under any fixture.
+
+        The canary's JOB is unchanged and is what this asserts: still first,
+        still a function of content_text so two documents cannot collide on a
+        natural key. Anchoring is the added requirement, not a replacement.
+        """
         first = self._mentions(self._CONTENT)[0]
         other = self._mentions("entirely different content")[0]
-        assert first.entity_name.startswith("MOCK Org ")
-        assert other.entity_name.startswith("MOCK Org ")
+
+        # Anchored: the declared span holds exactly the name it claims.
+        assert (
+            self._CONTENT[first.source_span_start : first.source_span_end]
+            == first.entity_name
+        )
+        assert first.entity_name in self._CONTENT
+
+        # Still content-unique — the property the old hash provided.
         assert first.entity_name != other.entity_name
+
+    def test_a_document_with_no_usable_line_yields_no_canary(self) -> None:
+        """No anchor is available, so no canary — and that is the correct answer.
+
+        Emitting an unanchored row here would be reintroducing exactly what the
+        S543 ruling refuses, one layer lower down.
+        """
+        assert self._mentions("") == []
+        assert self._mentions("ab") == []
 
     def test_echoed_variants_keep_distinct_per_doc_canonicals(self) -> None:
         # The Stage-5 testability property: the two surface variants must

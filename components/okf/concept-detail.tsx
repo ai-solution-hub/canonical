@@ -28,6 +28,7 @@ import {
   normaliseInternalMdLinksForStreamdown,
   INTERNAL_LINK_MARKER,
 } from '@/lib/okf/prepare-streamdown-content';
+import { splitUnionId } from '@/lib/okf/union-id';
 import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 import { useResource } from '@/hooks/okf/use-resource';
 import type { OkfBundleGraphNode } from '@/lib/query/okf';
@@ -134,9 +135,11 @@ export function ConceptDetail({
         // this bundle) falls back to a plain anchor — marker stripped back to
         // the bundle-root-relative path rather than leaking the internal
         // prefix (matches the reference's fallback-to-external behaviour).
+        // `splitUnionId` also strips the `{132.49}` union `bundleId::` prefix,
+        // which is just as internal as the marker itself.
         const resolvedHref =
           href && isMarked
-            ? `/${href.slice(INTERNAL_LINK_MARKER.length)}`
+            ? `/${splitUnionId(href.slice(INTERNAL_LINK_MARKER.length)).conceptId}`
             : href;
         return (
           <a
@@ -177,6 +180,13 @@ export function ConceptDetail({
   }
 
   const tokenVars = conceptTypeTokenVars(node.data.type);
+  // `{132.49}` union nodes carry a `bundleId::` qualifier on their id. Show
+  // the owning bundle as its own field and the bare concept id in the header
+  // — in the UNION view the bundle is real, useful provenance (several
+  // bundles are merged, and two of them may hold the same concept path),
+  // but the `::` join is internal syntax the reader should never see. The
+  // per-bundle viewer serves un-namespaced ids, so it renders unchanged.
+  const { bundleId, conceptId } = splitUnionId(node.data.id);
 
   return (
     <article
@@ -193,10 +203,16 @@ export function ConceptDetail({
           {node.data.type}
         </Badge>
         <h1 className="mt-1 text-lg font-semibold">{node.data.label}</h1>
-        <div className="text-xs text-muted-foreground">{node.data.id}</div>
+        <div className="text-xs text-muted-foreground">{conceptId}</div>
       </header>
 
       <dl className="mb-4 grid grid-cols-[90px_1fr] gap-x-3 gap-y-1 text-sm">
+        {bundleId !== null && (
+          <>
+            <dt className="text-muted-foreground">Bundle</dt>
+            <dd>{bundleId}</dd>
+          </>
+        )}
         <dt className="text-muted-foreground">Description</dt>
         <dd>{node.data.description || '—'}</dd>
         <dt className="text-muted-foreground">Resource</dt>

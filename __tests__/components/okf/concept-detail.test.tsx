@@ -118,6 +118,90 @@ describe('ConceptDetail', () => {
     expect(link).toHaveAttribute('href', '/tables/orphan.md');
   });
 
+  // {132.49} union-graph regression. `<UnionGraphView>` passes namespaced
+  // node ids (`acme::…`) and a `knownConceptIds` set of the same shape. These
+  // two link forms previously resolved WITHOUT the namespace, missed the set,
+  // and rendered as dead anchors that navigated the reader off the app.
+  // Exercised through the real Streamdown render so the `::` is proven to
+  // survive its bundled rehype-harden URL pass.
+  const UNION_NODE: OkfBundleGraphNode = {
+    data: { ...ORDERS_NODE.data, id: 'acme::services/orders' },
+  };
+  const UNION_KNOWN = new Set([
+    'acme::services/orders',
+    'acme::domain/customer',
+    'acme::glossary',
+  ]);
+
+  it('names the owning bundle as its own field, without internal join syntax', () => {
+    renderDetail({
+      node: UNION_NODE,
+      body: 'Body.',
+      knownConceptIds: UNION_KNOWN,
+      backlinks: [],
+    });
+
+    expect(screen.getByText('Bundle')).toBeInTheDocument();
+    expect(screen.getByText('acme')).toBeInTheDocument();
+    expect(screen.getByText('services/orders')).toBeInTheDocument();
+    expect(screen.queryByText('acme::services/orders')).not.toBeInTheDocument();
+  });
+
+  it('omits the bundle field when viewing a single bundle', () => {
+    // The per-bundle viewer has only one bundle in scope, so naming it would
+    // be noise — ids there are un-namespaced and must render as before.
+    renderDetail();
+
+    expect(screen.queryByText('Bundle')).not.toBeInTheDocument();
+    expect(screen.getByText('tables/orders')).toBeInTheDocument();
+  });
+
+  it('navigates within the same bundle when a union link climbs a directory', () => {
+    const onNavigate = vi.fn();
+    renderDetail({
+      node: UNION_NODE,
+      body: 'See [customer](../domain/customer.md).',
+      knownConceptIds: UNION_KNOWN,
+      backlinks: [],
+      onNavigate,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'customer' }));
+
+    expect(onNavigate).toHaveBeenCalledWith('acme::domain/customer');
+  });
+
+  it('navigates within the same bundle from a union citation-trailer link', () => {
+    const onNavigate = vi.fn();
+    renderDetail({
+      node: UNION_NODE,
+      body: '# Citations\n\n[1] [glossary](/glossary.md)',
+      knownConceptIds: UNION_KNOWN,
+      backlinks: [],
+      onNavigate,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'glossary' }));
+
+    expect(onNavigate).toHaveBeenCalledWith('acme::glossary');
+  });
+
+  it('hides the internal bundle prefix on a union link with no matching concept', () => {
+    renderDetail({
+      node: UNION_NODE,
+      body: 'See the [orphan](../domain/orphan.md) concept.',
+      knownConceptIds: UNION_KNOWN,
+      backlinks: [],
+    });
+
+    // Falls back to a plain anchor, but the `acme::` qualifier is internal
+    // bookkeeping and must not surface in a URL the reader can see.
+    expect(screen.getByRole('link', { name: 'orphan' })).toHaveAttribute(
+      'href',
+      '/domain/orphan.md',
+    );
+  });
+
   it('renders the "Cited by" backlinks section and navigates on click', () => {
     const onNavigate = vi.fn();
     renderDetail({ onNavigate });

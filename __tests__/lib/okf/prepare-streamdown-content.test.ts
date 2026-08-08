@@ -116,3 +116,66 @@ describe('normaliseInternalMdLinksForStreamdown', () => {
     ).toBe('Plain body text.');
   });
 });
+
+/**
+ * {132.49} union-graph regression. `<UnionGraphView>` renders bodies whose
+ * concept id is namespaced (`acme::services/orders`). A target resolved
+ * WITHOUT that namespace can never match a union node id, so the link
+ * degrades to a dead off-app anchor. The `..` and bundle-absolute cases
+ * below are the two that regressed; the same-directory case always worked
+ * (the separator happens to ride along in the first path segment) and is
+ * pinned here so a future refactor cannot quietly break it.
+ */
+describe('normaliseInternalMdLinksForStreamdown — union-namespaced bodies', () => {
+  it('keeps the owning bundle on a link into the same directory', () => {
+    expect(
+      normaliseInternalMdLinksForStreamdown(
+        '[Billing](./billing.md)',
+        'acme::services/orders',
+      ),
+    ).toBe(`[Billing](${INTERNAL_LINK_MARKER}acme::services/billing.md)`);
+  });
+
+  it('keeps the owning bundle on a link that climbs out of its directory', () => {
+    expect(
+      normaliseInternalMdLinksForStreamdown(
+        '[Customer](../domain/customer.md)',
+        'acme::services/orders',
+      ),
+    ).toBe(`[Customer](${INTERNAL_LINK_MARKER}acme::domain/customer.md)`);
+  });
+
+  it('keeps the owning bundle on a bundle-absolute citation-trailer link', () => {
+    // SPEC §5.1 — the form the producer writes under `# Citations`.
+    expect(
+      normaliseInternalMdLinksForStreamdown(
+        '[Glossary](/glossary.md)',
+        'acme::services/orders',
+      ),
+    ).toBe(`[Glossary](${INTERNAL_LINK_MARKER}acme::glossary.md)`);
+  });
+
+  it('resolves within the owning bundle, never into a sibling bundle', () => {
+    // Two bundles can carry the identical concept path; climbing above the
+    // bundle root must not silently address the other one.
+    expect(
+      normaliseInternalMdLinksForStreamdown(
+        '[Escape](../../../glossary.md)',
+        'acme::services/orders',
+      ),
+    ).toBe(`[Escape](${INTERNAL_LINK_MARKER}acme::glossary.md)`);
+  });
+
+  it('leaves per-bundle viewer bodies exactly as before', () => {
+    // Un-namespaced ids must be byte-identical to the pre-union behaviour.
+    expect(
+      normaliseInternalMdLinksForStreamdown(
+        '[Customer](../domain/customer.md) and [Glossary](/glossary.md)',
+        'services/orders',
+      ),
+    ).toBe(
+      `[Customer](${INTERNAL_LINK_MARKER}domain/customer.md) and ` +
+        `[Glossary](${INTERNAL_LINK_MARKER}glossary.md)`,
+    );
+  });
+});

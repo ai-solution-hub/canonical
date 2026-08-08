@@ -178,21 +178,81 @@ def _echo_entity_tokens(content_text: str) -> list[tuple[str, int, int]]:
     return out
 
 
+# ── The per-document canary must be ANCHORED (S543) ─────────────────────────
+#
+# The canary used to be a synthesised name, `MOCK Org <sha12>`, carrying the
+# span (0, len(name)). That span is in-bounds and points at the document's
+# opening characters, which have nothing to do with the entity — so
+# `entity_context.span_brackets_entity` rejects it, the name itself occurs
+# nowhere in the text, and the snippet resolves to `''`.
+#
+# Under the S543 owner ruling an unanchored mention is refused at the declare
+# site, because a row with no snippet cannot evidence that its parent document
+# was read and so cannot be citable provenance. A synthesised canary would
+# therefore produce NO row at all — and Inv-17 could never have passed on the
+# mock tier under any fixture, which is what the invariant's "the pipeline
+# satisfies the clause, the test asserts the prose" standoff was really made of.
+#
+# The canary's JOB is unaffected by this: it exists to keep the always-present
+# row's constraint-keyed fields a function of `content_text`, so two documents
+# can never collide on a natural key. A slice of the document satisfies that
+# just as well as a hash of it, and is anchored by construction — no document
+# can fail to contain its own first line.
+
+
+_ANCHOR_MAX_CHARS = 90
+_ANCHOR_MIN_CHARS = 3
+
+
+def _document_anchor(content_text: str) -> tuple[str, int, int] | None:
+    """A short, real substring of `content_text` with its true offsets.
+
+    Takes the first substantial line — heading markers stripped — and, when
+    that line is longer than `_ANCHOR_MAX_CHARS`, a word-boundary PREFIX of it.
+    The prefix matters: a first draft skipped any line over the cap, which
+    silently produced no canary at all for a single-paragraph document, and the
+    mock's own suite caught it. Truncating keeps the anchor real (a prefix of a
+    line is still a substring of the document) while bounding the name.
+
+    Returns None only when the document has no line of at least
+    `_ANCHOR_MIN_CHARS`, in which case the payload carries just its echoed
+    tokens.
+    """
+    for raw in content_text.splitlines():
+        line = raw.strip().lstrip("#").strip()
+        if len(line) < _ANCHOR_MIN_CHARS:
+            continue
+        surface = line
+        if len(surface) > _ANCHOR_MAX_CHARS:
+            head = surface[:_ANCHOR_MAX_CHARS]
+            cut = head.rfind(" ")
+            surface = (head[:cut] if cut >= _ANCHOR_MIN_CHARS else head).rstrip()
+        start = content_text.find(surface)
+        if start == -1 or len(surface) < _ANCHOR_MIN_CHARS:
+            continue
+        return surface, start, start + len(surface)
+    return None
+
+
 def _entity_mentions_payload(content_text: str) -> str:
-    # The per-content-tag mention is KEPT (always first): it is the row that
-    # never near-matches anything (the Inv-20 'unresolved mention retains
-    # canonical' substrate) and the uniqueness canary the PR #140 win rests
-    # on. Echoed mentions follow in first-occurrence order.
-    tag_name = f"MOCK Org {_content_tag(content_text)}"
-    mentions = [
-        extraction.EntityMentionExtraction(
-            entity_type="organisation",
-            entity_name=tag_name,
-            source_span_start=0,
-            source_span_end=len(tag_name),
-            mention_confidence=0.9,
+    # The per-document canary is KEPT and stays FIRST: it is the row that never
+    # near-matches anything (the Inv-20 'unresolved mention retains canonical'
+    # substrate) and the uniqueness canary the PR #140 win rests on. It is now a
+    # real slice of the document rather than a synthesised name — see above.
+    # Echoed mentions follow in first-occurrence order.
+    mentions = []
+    anchor = _document_anchor(content_text)
+    if anchor is not None:
+        surface, start, end = anchor
+        mentions.append(
+            extraction.EntityMentionExtraction(
+                entity_type="organisation",
+                entity_name=surface,
+                source_span_start=start,
+                source_span_end=end,
+                mention_confidence=0.9,
+            )
         )
-    ]
     for surface, start, end in _echo_entity_tokens(content_text):
         mentions.append(
             extraction.EntityMentionExtraction(
@@ -213,9 +273,21 @@ def _relationships_payload(content_text: str) -> str:
     # tuple (the NULLS-NOT-DISTINCT orphan-collision class stays dead). The
     # SOURCE echoes the first content surface form when one exists, so
     # relationship rows carry a realistic endpoint for md-fixture corpora.
+    #
+    # S543: the no-echo fallback source is the document anchor rather than the
+    # synthesised `MOCK Org <tag>`. Relationship rows are not subject to the
+    # Inv-17 anchoring rule — that governs entity_mentions — but a source
+    # endpoint naming a string the document never contains was only ever an
+    # artefact of the old canary, and the anchor is a function of content_text
+    # in exactly the same way the tag was.
     tag = _content_tag(content_text)
     echoes = _echo_entity_tokens(content_text)
-    source = echoes[0][0] if echoes else f"MOCK Org {tag}"
+    anchor = _document_anchor(content_text)
+    source = (
+        echoes[0][0]
+        if echoes
+        else (anchor[0] if anchor is not None else f"MOCK Org {tag}")
+    )
     return json.dumps(
         [
             extraction.RelationshipExtraction(

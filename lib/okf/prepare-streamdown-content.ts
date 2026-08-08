@@ -43,6 +43,16 @@
  * internal `.md` target — `resolveInternalMdLink` only returns `null` for
  * external/absolute/non-`.md` hrefs, already excluded by the regex + guard
  * below) is left unchanged as a defensive fallback.
+ *
+ * **{132.49} union-graph namespacing.** The deployment-level union graph
+ * serves NAMESPACED node ids (`acme::services/orders` — `lib/okf/union-id.ts`),
+ * so a target resolved here must carry the same namespace or it can never
+ * match a union node. Resolution therefore runs against the bare
+ * bundle-relative half and re-applies the `bundleId` afterwards. Getting
+ * this wrong is not cosmetic: `..`-climbing links consumed the namespace
+ * segment, and the SPEC §5.1 bundle-absolute (`/foo.md`) citation-trailer
+ * form never acquired one, so BOTH rendered as dead off-app anchors in
+ * `<UnionGraphView>` while working fine in the per-bundle viewer.
  */
 import { resolveInternalMdLink } from '@/lib/okf/resolve-internal-link';
 import { namespaceUnionId, splitUnionId } from '@/lib/okf/union-id';
@@ -73,7 +83,15 @@ export function normaliseInternalMdLinksForStreamdown(
   markdown: string,
   currentPath: string,
 ): string {
-  const currentId = stripMdSuffix(currentPath);
+  // In the UNION graph ({132.49}) `currentPath` arrives namespaced
+  // (`acme::services/orders`). Resolve against the BARE bundle-relative id,
+  // then re-apply the namespace, so the result matches the namespaced node
+  // ids the union route actually serves. Un-namespaced ids (the per-bundle
+  // `<BundleViewer>`, and `<FileRenderPane>`'s file paths) split to
+  // `bundleId: null` and `requalify` is the identity — behaviour unchanged.
+  const { bundleId, conceptId } = splitUnionId(stripMdSuffix(currentPath));
+  const requalify = (id: string) =>
+    bundleId === null ? id : namespaceUnionId(bundleId, id);
 
   return markdown.replace(
     MD_LINK_RE,
@@ -84,13 +102,15 @@ export function normaliseInternalMdLinksForStreamdown(
       if (target.startsWith('/')) {
         // SPEC §5.1 bundle-absolute — strip the leading `/` and mark.
         const id = stripMdSuffix(target.replace(/^\/+/, ''));
-        return id ? `](${INTERNAL_LINK_MARKER}${id}.md${anchor})` : full;
+        return id
+          ? `](${INTERNAL_LINK_MARKER}${requalify(id)}.md${anchor})`
+          : full;
       }
 
-      const resolvedId = resolveInternalMdLink(currentId, `${target}${anchor}`);
+      const resolvedId = resolveInternalMdLink(conceptId, `${target}${anchor}`);
       if (!resolvedId) return full;
 
-      return `](${INTERNAL_LINK_MARKER}${resolvedId}.md${anchor})`;
+      return `](${INTERNAL_LINK_MARKER}${requalify(resolvedId)}.md${anchor})`;
     },
   );
 }

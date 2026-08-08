@@ -3047,7 +3047,13 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
     145 em — every staged fixture starved, nightly hard-down).
     """
 
-    _MARKDOWN = "# Same\n\nByte-identical body staged twice."
+    # S543: the body NAMES the entity the fake extractor returns. Under the
+    # Inv-17 ruling flow.py refuses a mention whose surface form does not
+    # occur in content_text, so a fixture claiming "ACME Ltd" about a document
+    # that never says it now produces no em/er rows at all — and this class
+    # asserts about those rows' PRIMARY KEYS, not about anchoring. The claim
+    # was always unsupported; nothing had cared until the pipeline started to.
+    _MARKDOWN = "# Same\n\nByte-identical body staged twice by ACME Ltd."
 
     @classmethod
     def _ingest(

@@ -882,6 +882,80 @@ def _empty_stage_counts() -> dict[str, int]:
     }
 
 
+
+# ── Inv-17: an unanchored mention is not an admissible record (owner, S543) ──
+
+
+def _admissible_context_snippet(
+    *,
+    content_text: str,
+    entity_name: str,
+    span_start: int | None,
+    span_end: int | None,
+    source_document_id: Any,
+    rel_path: str,
+    op_id: Any,
+) -> str | None:
+    """The mention's context snippet, or ``None`` when the mention is unanchored.
+
+    ``None`` means REFUSE THE ROW. That is a change of kind, not of strictness,
+    and the reason is what ``context_snippet`` is FOR rather than what it is.
+
+    Its live consumer is ``producer/enrich.py``: a mention's snippet is
+    genuinely-read content from the parent ``source_documents`` row, which is
+    what mints that parent an anchor and makes it **citable provenance** in the
+    bundle. A row whose snippet is empty carries no evidence that its document
+    was read at all, so it cannot support a citation — and an uncitable record
+    is not one the knowledge base should admit. Owner ruling, S543.
+
+    An empty snippet means exactly one thing: the extractor returned a name
+    whose surface form does not occur in ``content_text``, and whose declared
+    span does not bracket it either (``entity_context.span_brackets_entity``
+    checks the slice, not merely the bounds). Either the extractor normalised
+    the name into something the document never says, or it synthesised one.
+    Both are claims about the document that the document does not support.
+
+    The refusal is LOGGED PER MENTION and is never silent — id-414's rule. It is
+    deliberately NOT counted as an item failure: the item ingested correctly and
+    one claim about it was refused, so reddening the run would misreport a
+    working ingest. Today that log is the whole surface. ``stage_counts`` is a
+    fixed seven-key map the webhook route enforces via Zod, so an eighth counter
+    is a contract change rather than an edit here.
+
+    A PINNED row never reaches this function. An admin-curated canonical is a
+    human decision, and the walk changes nothing on it.
+    """
+    snippet = entity_context_for_mention(
+        content_text, entity_name, span_start, span_end
+    )
+    if snippet:
+        return snippet
+    _logger.warning(
+        json.dumps(
+            {
+                "event": "cocoindex.entity_mention.unanchored_refused",
+                "op_id": str(op_id) if op_id is not None else None,
+                "source_document_id": (
+                    str(source_document_id)
+                    if source_document_id is not None
+                    else None
+                ),
+                "rel_path": rel_path,
+                "entity_name": entity_name,
+                "source_span_start": span_start,
+                "source_span_end": span_end,
+                "reason": (
+                    "the entity surface form does not occur in content_text and the "
+                    "declared span does not bracket it, so the row would carry an "
+                    "empty context_snippet and could not evidence that its parent "
+                    "document was read (Inv-17, owner ruling S543)"
+                ),
+            }
+        )
+    )
+    return None
+
+
 # ── Inv-16 / Inv-17 stage-count recorders (P-7 — ID-28.16) ───────────────────
 
 
@@ -2562,15 +2636,24 @@ async def _ingest_content_branch(
                 }
             )
             continue
-        # Inv-17 (S539): span-derived when the extractor's span actually brackets
-        # the name, else the name search, else ''. The spans land in `metadata`
-        # immediately below — they were being written and ignored.
-        context_snippet = entity_context_for_mention(
-            content_text,
-            mention.entity_name,
-            mention.source_span_start,
-            mention.source_span_end,
+        # Inv-17: span-derived when the extractor's span actually brackets the
+        # name (S539), else the name search — and REFUSED when neither anchors
+        # it (S543). The spans land in `metadata` immediately below.
+        context_snippet = _admissible_context_snippet(
+            content_text=content_text,
+            entity_name=mention.entity_name,
+            span_start=mention.source_span_start,
+            span_end=mention.source_span_end,
+            source_document_id=source_document_id,
+            rel_path=rel_path,
+            op_id=op_id,
         )
+        if context_snippet is None:
+            # Unanchored: no evidence the document was read, so no record.
+            # `continue` and not a placeholder row — a row with a fabricated
+            # snippet is worse than an absent one, because it reads as
+            # provenance downstream.
+            continue
         # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
         # are PRESERVED, holder keys are added (never overwriting a span key).
         # Non-cert / no-signal mentions resolve to {} so only span keys remain.
@@ -3615,12 +3698,17 @@ async def ingest_once(
             mention = _stamp_if_model(
                 mention, op_id=op_id, source_document_id=source_document_id
             )
-            context_snippet = entity_context_for_mention(
-                content_text,
-                mention.entity_name,
-                mention.source_span_start,
-                mention.source_span_end,
+            context_snippet = _admissible_context_snippet(
+                content_text=content_text,
+                entity_name=mention.entity_name,
+                span_start=mention.source_span_start,
+                span_end=mention.source_span_end,
+                source_document_id=source_document_id,
+                rel_path=rel_path,
+                op_id=op_id,
             )
+            if context_snippet is None:
+                continue
             await _insert_entity_mention_row(
                 conn,
                 mention_id=uuid.uuid5(
