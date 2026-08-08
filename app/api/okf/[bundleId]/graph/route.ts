@@ -78,7 +78,14 @@ export const GET = defineRoute(
         ? parseBundleLog(fs.readFileSync(logPath, 'utf-8'))
         : [];
 
-      return NextResponse.json({ ...graph, nav, log });
+      // Annotated, not inlined: the `| NextResponse` arm below (needed for the
+      // error paths) is `NextResponse<unknown>`, which swallows ANY body — so
+      // the return-type annotation alone cannot check this payload. Naming the
+      // wire type here is what makes the compiler hold the server-side build
+      // (`lib/okf/bundle-graph.ts`, `parse-index.ts`) and its hand-written
+      // client mirror in `lib/query/okf.ts` to the same shape.
+      const payload: OkfBundleEnvelope = { ...graph, nav, log };
+      return NextResponse.json(payload);
     } catch (err) {
       return NextResponse.json(
         { error: safeErrorMessage(err, 'Failed to build bundle graph') },

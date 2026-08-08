@@ -96,11 +96,18 @@ const CONTEXT_FILENAME = 'context.jsonld';
 // concept fixture already uses.
 const CITATIONS_HEADING_RE = /^ {0,3}(#{1,6})[ \t]+Citations[ \t]*$/im;
 
-export type BundleClassSignal = 'client' | 'platform' | 'unknown';
-export type IriScope = 'base' | 'client' | 'unmapped';
-export type EdgeRelationship = 'cites' | 'related';
+// These types describe this module's INTERNAL construction of the Cytoscape
+// payload. They are not exported: this module is server-only (Node `fs`, see
+// the doc above) and so is definitionally not client-importable surface. The
+// client's mirror of these shapes lives in `lib/query/okf.ts` as the `Okf*`
+// wire types, and the two are held together by the payload annotations in
+// `app/api/okf/[bundleId]/graph/route.ts` and `app/api/okf/union-graph/route.ts`
+// — not by sharing a declaration.
+type BundleClassSignal = 'client' | 'platform' | 'unknown';
+type IriScope = 'base' | 'client' | 'unmapped';
+type EdgeRelationship = 'cites' | 'related';
 
-export interface BundleGraphNodeData {
+interface BundleGraphNodeData {
   id: string;
   label: string;
   type: string;
@@ -121,11 +128,11 @@ export interface BundleGraphNodeData {
   iriScope: IriScope;
 }
 
-export interface BundleGraphNode {
+interface BundleGraphNode {
   data: BundleGraphNodeData;
 }
 
-export interface BundleGraphEdgeData {
+interface BundleGraphEdgeData {
   id: string;
   source: string;
   target: string;
@@ -133,7 +140,7 @@ export interface BundleGraphEdgeData {
   relationship: EdgeRelationship;
 }
 
-export interface BundleGraphEdge {
+interface BundleGraphEdge {
   data: BundleGraphEdgeData;
 }
 

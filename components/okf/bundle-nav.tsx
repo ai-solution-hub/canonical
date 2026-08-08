@@ -22,13 +22,17 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
-import type { OkfBundleGraphNode, OkfBundleNavTheme } from '@/lib/query/okf';
+import type {
+  OkfBundleGraphNode,
+  OkfBundleNavConcept,
+  OkfBundleNavTheme,
+} from '@/lib/query/okf';
 
-interface NavRow {
-  title: string;
-  path: string;
-  description: string;
-}
+// The rows this nav renders ARE `index.md` concept entries — the same shape
+// the route serves as `OkfBundleNavTheme.concepts`. Aliased rather than
+// re-declared so a field added to the wire type reaches the fallback path
+// (`nodesToGroups`) too, instead of drifting from it silently.
+type NavRow = OkfBundleNavConcept;
 
 interface NavGroup {
   key: string;

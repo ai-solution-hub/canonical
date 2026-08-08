@@ -10,6 +10,14 @@
  * `<BundleLog>` their own named hook + narrowly-typed `data`. All three
  * share `queryKeys.okf.bundle(bundleId)`, so TanStack Query dedupes the
  * network request across the three call sites — no extra round-trips.
+ *
+ * There is deliberately NO full-envelope hook for a consumer's top-level
+ * loading/error guard. A `select` that throws sets a PER-OBSERVER error
+ * (query-core's `#selectError`), so a subscription without `select` can never
+ * observe it: measured against a null envelope, a plain `useQuery` on this key
+ * reports SUCCESS while all three selectors below report error. Guarding on
+ * one of these three (as `<BundleViewer>` does) is therefore strictly safer
+ * than guarding on the raw query, not merely equivalent to it.
  */
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
@@ -27,14 +35,6 @@ export interface OkfBundleGraph {
   edges: OkfBundleGraphEdge[];
   bodies: Record<string, string>;
   types: string[];
-}
-
-function useOkfBundleQuery(bundleId: string) {
-  return useQuery({
-    queryKey: queryKeys.okf.bundle(bundleId),
-    queryFn: () => fetchOkfBundle(bundleId),
-    enabled: !!bundleId,
-  });
 }
 
 /** The concept graph (nodes/edges/bodies/types) — `<ConceptGraph>`. */
@@ -75,7 +75,3 @@ export function useBundleLog(bundleId: string) {
     select: (data): OkfBundleLogEntry[] => data.log,
   });
 }
-
-// Exported for callers that want the full envelope + shared loading/error
-// state in one subscription (e.g. `<BundleViewer>`'s top-level guard).
-export { useOkfBundleQuery };

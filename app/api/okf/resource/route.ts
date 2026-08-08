@@ -29,7 +29,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseCanonicalResourceUri } from '@/lib/okf/parse-canonical-uri';
 import { tryQuery } from '@/lib/supabase/safe';
 import { parseSearchParams } from '@/lib/validation';
-import type { OkfResourceResult } from '@/lib/query/okf';
+import type {
+  OkfResourceListResult,
+  OkfResourceRecordResult,
+  OkfResourceResult,
+} from '@/lib/query/okf';
 
 const resourceQuerySchema = z.object({ uri: z.string().min(1) });
 
@@ -80,7 +84,15 @@ export const GET = defineRoute(
             { status: 404 },
           );
         }
-        return NextResponse.json({ table: ref.table, record: result.data });
+        // Annotated rather than inlined — the `| NextResponse` error arm is
+        // `NextResponse<unknown>` and would accept any body, so naming the
+        // wire type is what actually checks this payload against what
+        // `<ConceptDetail>`'s resource chip narrows on.
+        const payload: OkfResourceRecordResult = {
+          table: ref.table,
+          record: result.data,
+        };
+        return NextResponse.json(payload);
       }
 
       // q_a_pairs — a filtered LIST, never a row (BI-8).
@@ -103,10 +115,11 @@ export const GET = defineRoute(
             { status: 500 },
           );
         }
-        return NextResponse.json({
+        const payload: OkfResourceListResult = {
           table: 'q_a_pairs',
           records: result.data ?? [],
-        });
+        };
+        return NextResponse.json(payload);
       }
 
       // Unreachable: the parser only returns the scopeTag q_a_pairs shape

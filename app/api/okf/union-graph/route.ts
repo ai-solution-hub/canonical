@@ -52,7 +52,11 @@ export const GET = defineRoute(
         root: resolveOkfBundleRoot(bundleId),
       }));
 
-      const graph = buildUnionBundleGraph(sources);
+      // Annotated for the same reason as the per-bundle graph route: the
+      // `| NextResponse` error arm is `NextResponse<unknown>` and would accept
+      // any body, so this is the only line holding the server build and its
+      // client mirror (`lib/query/okf.ts`) to one shape.
+      const graph: OkfUnionGraphEnvelope = buildUnionBundleGraph(sources);
 
       return NextResponse.json(graph);
     } catch (err) {

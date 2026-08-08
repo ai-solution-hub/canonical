@@ -26,8 +26,13 @@ const HEADING_RE = /^(#{2,3})\s+(.+?)\s*$/;
 const CONCEPT_BULLET_RE =
   /^[*-]\s*\[(.+?)\]\(([^)\s]+\.md)\)(?:\s*[-—]\s*(.*))?$/;
 
-/** One concept entry under a theme/subtheme heading. */
-export interface BundleNavConcept {
+/**
+ * One concept entry under a theme/subtheme heading. Not exported — it is
+ * reachable through `BundleNavTheme.concepts`, and the client's mirror of
+ * this shape is `OkfBundleNavConcept` in `lib/query/okf.ts`, held to it by
+ * the payload annotation in `app/api/okf/[bundleId]/graph/route.ts`.
+ */
+interface BundleNavConcept {
   title: string;
   /** Bundle-root-relative concept id (`.md` suffix stripped) — matches `BundleGraphNodeData.id`. */
   path: string;
