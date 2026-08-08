@@ -209,3 +209,90 @@ def test_byte_parity_with_typescript_port(
 def test_context_radius_constant_is_80() -> None:
     # Spec-locked at 80 chars per TECH §P-5 and TS source ln 31.
     assert CONTEXT_RADIUS == 80
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Span-validated derivation (Inv-17, S539).
+#
+# The extraction prompt states the contract twice (prompts.py:171, :196):
+# `content_text[source_span_start:source_span_end]` MUST equal entity_name.
+# Nothing enforces it — extraction.py validates only `Field(ge=0)`. These tests
+# pin the check that turns the claim into evidence.
+# ──────────────────────────────────────────────────────────────────────────
+
+from scripts.cocoindex_pipeline.entity_context import (  # noqa: E402
+    entity_context_for_mention,
+    span_brackets_entity,
+)
+
+
+class TestSpanBracketsEntity:
+    def test_accepts_a_span_that_holds_the_name(self) -> None:
+        text = "We are certified to ISO 27001 by an accredited body."
+        assert span_brackets_entity(text, "ISO 27001", 20, 29) is True
+
+    def test_accepts_case_and_whitespace_insensitively(self) -> None:
+        text = "Certified to ISO 27001 annually."
+        assert span_brackets_entity(text, "  iso 27001 ", 13, 22) is True
+
+    def test_rejects_an_in_bounds_span_pointing_elsewhere(self) -> None:
+        # The mock's tag row: source_span_start=0, source_span_end=len(name).
+        # Perfectly in bounds, and about the wrong text entirely.
+        text = "# Team Structure and Delivery Model\n\nOur teams are..."
+        assert span_brackets_entity(text, "MOCK Org 0aaac9d6d05f", 0, 21) is False
+
+    def test_rejects_out_of_bounds_inverted_and_missing_spans(self) -> None:
+        text = "Certified to ISO 27001."
+        assert span_brackets_entity(text, "ISO 27001", 13, 9_999) is False
+        assert span_brackets_entity(text, "ISO 27001", 22, 13) is False
+        assert span_brackets_entity(text, "ISO 27001", 13, 13) is False
+        assert span_brackets_entity(text, "ISO 27001", -1, 9) is False
+        assert span_brackets_entity(text, "ISO 27001", None, 22) is False
+        assert span_brackets_entity(text, "ISO 27001", 13, None) is False
+
+
+class TestEntityContextForMention:
+    def test_span_resolves_the_occurrence_the_extractor_meant(self) -> None:
+        """The whole point: a name search returns the FIRST match, not the right one."""
+        text = (
+            "ISO 27001 is mentioned here in the introduction. "
+            + ("filler. " * 40)
+            + "The certificate for ISO 27001 covers the hosting estate."
+        )
+        second = text.rindex("ISO 27001")
+        span_snippet = entity_context_for_mention(
+            text, "ISO 27001", second, second + len("ISO 27001")
+        )
+        search_snippet = extract_entity_context(text, "ISO 27001")
+        assert "hosting estate" in span_snippet
+        assert "hosting estate" not in search_snippet
+        assert span_snippet != search_snippet
+
+    def test_falls_back_to_the_name_search_when_the_span_is_untrustworthy(
+        self,
+    ) -> None:
+        text = "Our ISMS is certified to ISO 27001 by an accredited body."
+        assert entity_context_for_mention(
+            text, "ISO 27001", 0, 4
+        ) == extract_entity_context(text, "ISO 27001")
+
+    def test_absent_span_reproduces_the_prior_behaviour_exactly(self) -> None:
+        text = "Certified to ISO 27001 annually, renewed each year."
+        assert entity_context_for_mention(text, "ISO 27001") == (
+            extract_entity_context(text, "ISO 27001")
+        )
+
+    def test_empty_is_a_truthful_result_not_a_failure(self) -> None:
+        """A synthesised or normalised name genuinely does not occur in the text.
+
+        Substituting unrelated text to avoid an empty string would corrupt the
+        one live requirement for this column (producer/enrich.py:407 — the
+        snippet is the evidence the parent document was genuinely read).
+        """
+        text = "# Team Structure and Delivery Model\n\nOur teams are..."
+        assert entity_context_for_mention(text, "MOCK Org 0aaac9d6d05f", 0, 21) == ""
+
+    def test_is_idempotent(self) -> None:
+        text = "Certified to ISO 27001 by an accredited body."
+        first = entity_context_for_mention(text, "ISO 27001", 13, 22)
+        assert entity_context_for_mention(text, "ISO 27001", 13, 22) == first

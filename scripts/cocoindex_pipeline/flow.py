@@ -98,7 +98,7 @@ from scripts.cocoindex_pipeline.canonicalisation import (
     canonicalise_for_relationship,
     prime_alias_cache_from_db_rows,
 )
-from scripts.cocoindex_pipeline.entity_context import extract_entity_context
+from scripts.cocoindex_pipeline.entity_context import entity_context_for_mention
 # ID-112.7 — the worker HTML branch cleans fetched HTML IN-PROCESS via the
 # single shared Trafilatura cleaner ({112.5}), replacing the retired
 # fetch+extract sidecar hop (PI-1). NO HTTP hop to a sidecar extractor — the
@@ -2562,7 +2562,15 @@ async def _ingest_content_branch(
                 }
             )
             continue
-        context_snippet = extract_entity_context(content_text, mention.entity_name)
+        # Inv-17 (S539): span-derived when the extractor's span actually brackets
+        # the name, else the name search, else ''. The spans land in `metadata`
+        # immediately below — they were being written and ignored.
+        context_snippet = entity_context_for_mention(
+            content_text,
+            mention.entity_name,
+            mention.source_span_start,
+            mention.source_span_end,
+        )
         # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
         # are PRESERVED, holder keys are added (never overwriting a span key).
         # Non-cert / no-signal mentions resolve to {} so only span keys remain.
@@ -3607,8 +3615,11 @@ async def ingest_once(
             mention = _stamp_if_model(
                 mention, op_id=op_id, source_document_id=source_document_id
             )
-            context_snippet = extract_entity_context(
-                content_text, mention.entity_name
+            context_snippet = entity_context_for_mention(
+                content_text,
+                mention.entity_name,
+                mention.source_span_start,
+                mention.source_span_end,
             )
             await _insert_entity_mention_row(
                 conn,
