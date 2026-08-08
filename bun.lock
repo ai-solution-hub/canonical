@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "ims",
+      "name": "canonical",
       "dependencies": {
         "@anthropic-ai/sdk": "0.96.0",
         "@base-ui/react": "^1.4.1",
@@ -127,8 +127,6 @@
         "jsdom": "^28.1.0",
         "knip": "^6.13.1",
         "prettier": "^3.8.3",
-        "react-markdown": "^10.1.0",
-        "remark-gfm": "^4.0.1",
         "tailwindcss": "^4",
         "tinyglobby": "^0.2.16",
         "typescript": "^5",
