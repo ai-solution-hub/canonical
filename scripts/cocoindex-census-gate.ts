@@ -29,6 +29,7 @@ import { config as loadDotenv } from 'dotenv';
 import {
   loadCorpusManifest,
   verifyDriverDestPaths,
+  walkedBaselineTargets,
 } from '@/lib/corpus/fixture-manifest';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
@@ -73,29 +74,60 @@ const client = createLooseScriptClient(supabaseUrl, serviceRoleKey);
 
 let failures = 0;
 const counts: Record<string, number> = {};
-for (const destPath of DRIVER_MANIFEST_DEST_PATHS) {
+
+async function assertExactlyOne(
+  label: string,
+  paths: string[],
+  lossHint: string,
+): Promise<void> {
+  const filter = paths
+    .flatMap((p) => [`storage_path.eq.${p}`, `logical_path.eq.${p}`])
+    .join(',');
   const { data, error } = await client
     .from('source_documents')
     .select('id')
-    .or(`storage_path.eq.${destPath},logical_path.eq.${destPath}`);
+    .or(filter);
   if (error) {
-    console.error(
-      `census gate: query failed for ${destPath}: ${error.message}`,
-    );
+    console.error(`census gate: query failed for ${label}: ${error.message}`);
     process.exit(2);
   }
-  const n = (data ?? []).length;
-  counts[destPath] = n;
+  // Distinct ids: a document filed under BOTH its corpus path and its
+  // verify_dest is ONE row matching two disjuncts, not two rows.
+  const n = new Set((data ?? []).map((r) => r.id as string)).size;
+  counts[label] = n;
   if (n !== 1) {
     failures += 1;
     console.error(
-      `census gate FAIL: ${destPath} resolves to ${n} source_documents ` +
-        'row(s), expected exactly 1 ' +
-        (n === 0
-          ? '(staging/walk loss)'
-          : '(identity split — the F4 UniqueViolation class)'),
+      `census gate FAIL: ${label} resolves to ${n} source_documents row(s), ` +
+        `expected exactly 1 ${n === 0 ? lossHint : '(identity split — the F4 UniqueViolation class)'}`,
     );
   }
+}
+
+// (1) The verify-lane copies — the gate's original scope.
+for (const destPath of DRIVER_MANIFEST_DEST_PATHS) {
+  await assertExactlyOne(destPath, [destPath], '(staging/walk loss)');
+}
+
+// (2) id-412 AC-10, added S539: the WALKED BASELINE — the corpus this lane
+// exists to walk. The gate checked 3 of 11 documents, all of them verify-lane
+// copies, so a green gate said nothing about the Platform corpus. It missed a
+// document that had been deleted twice and stayed missing for five days
+// (synthetic-company-overview.md; the sweep's mutable-path predicate, fixed
+// separately under S511 D1).
+//
+// Accepts EITHER the corpus path or the verify_dest: content-hash identity
+// guarantees one row but does not determine which of a document's names was
+// frozen as storage_path at mint, and since S527 the verify driver stages three
+// of these into the verify lane too. Measured on staging: two landed under
+// `content/`, one under `verify/`. Asserting the corpus path alone would report
+// a false loss for that one.
+for (const target of walkedBaselineTargets(loadCorpusManifest())) {
+  await assertExactlyOne(
+    target.corpusPath,
+    target.acceptablePaths,
+    '(walked-baseline document absent — the walk did not admit it, or something deleted it)',
+  );
 }
 
 console.log(

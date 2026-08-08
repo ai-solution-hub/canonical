@@ -189,6 +189,68 @@ export function verifyDriverDestPaths(manifest: CorpusManifest): string[] {
  * these, which is a check that can FAIL, unlike re-testing the selection
  * predicate against itself.
  */
+/**
+ * The corpus-relative paths of every walked-baseline fixture — `content/x.md`,
+ * `qa/y.md`, … — i.e. where the walk sees them once `sync-platform-corpus.sh`
+ * has staged the tree root onto `/cocoindex-state/corpus`.
+ *
+ * These are what the nightly census gate must assert land as `source_documents`
+ * rows. It previously asserted only `verifyDriverDestPaths` — 3 of 11 — so a
+ * green gate certified the verify-driver copies and said nothing about the
+ * Platform corpus, which is the corpus the lane exists to walk (id-412 AC-10:
+ * "`source_documents` rows land for the corpus content docs").
+ */
+export interface WalkedBaselineTarget {
+  /** Manifest fixture id, for attributable gate output. */
+  id: string;
+  /** Corpus-relative path — where the walk sees the file. */
+  corpusPath: string;
+  /**
+   * Every path this ONE document may legitimately be filed under. Content-hash
+   * identity guarantees one row; it does NOT determine which of the document's
+   * names got frozen as `storage_path` at mint, and since S527 the verify
+   * driver also stages three of these into the verify lane. Whichever staging
+   * minted first won the name — measured on staging: two of the three landed
+   * under `content/`, one under `verify/`. A gate asserting only the corpus
+   * path reports a false loss for that one.
+   */
+  acceptablePaths: string[];
+}
+
+/**
+ * Every walked-baseline document with the paths it may legitimately carry.
+ *
+ * The census gate must assert exactly one `source_documents` row per entry.
+ * It previously asserted only `verifyDriverDestPaths` — 3 of 11 — so a green
+ * gate certified the verify-driver copies and said nothing about the Platform
+ * corpus, which is the corpus the lane exists to walk (id-412 AC-10: "`source_documents`
+ * rows land for the corpus content docs").
+ */
+export function walkedBaselineTargets(
+  manifest: CorpusManifest,
+): WalkedBaselineTarget[] {
+  const rootsById = new Map(manifest.trees.map((t) => [t.id, t.root]));
+  return manifest.fixtures
+    .filter((f) => f.staging_mode === 'walked-baseline')
+    .map((f) => {
+      const root = rootsById.get(f.tree);
+      if (!root || !f.path.startsWith(`${root}/`)) {
+        throw new Error(
+          `corpus manifest: walked-baseline fixture ${f.id} has path "${f.path}" outside its declared tree root "${root ?? '<undeclared>'}"`,
+        );
+      }
+      const corpusPath = f.path.slice(root.length + 1);
+      return {
+        id: f.id,
+        corpusPath,
+        acceptablePaths: f.verify_dest
+          ? [corpusPath, f.verify_dest]
+          : [corpusPath],
+      };
+    })
+    .sort((a, b) => a.corpusPath.localeCompare(b.corpusPath));
+}
+
 export function walkedBaselinePathPrefixes(manifest: CorpusManifest): string[] {
   const rootsById = new Map(manifest.trees.map((t) => [t.id, t.root]));
   const prefixes = new Set<string>();
