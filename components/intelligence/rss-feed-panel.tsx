@@ -118,8 +118,8 @@ export function RssFeedPanel({
       ? window.location.origin
       : clientEnv.NEXT_PUBLIC_APP_URL;
 
-  const passedUrl = `${baseUrl}/api/feeds/${workspaceId}/rss`;
-  const filteredUrl = `${baseUrl}/api/feeds/${workspaceId}/rss/filtered`;
+  const passedUrl = `${baseUrl}/api/intelligence/workspaces/${workspaceId}/rss`;
+  const filteredUrl = `${baseUrl}/api/intelligence/workspaces/${workspaceId}/rss/filtered`;
 
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">

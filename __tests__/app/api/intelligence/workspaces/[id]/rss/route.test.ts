@@ -1,9 +1,8 @@
 /**
- * API route tests for RSS output endpoints.
+ * API route tests for the passed-articles RSS feed.
  *
- * Routes tested:
- *   GET /api/feeds/:workspaceId/rss           — passed articles feed
- *   GET /api/feeds/:workspaceId/rss/filtered  — near-miss filtered articles feed
+ * Route tested:
+ *   GET /api/intelligence/workspaces/:id/rss — passed articles feed
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '@/__tests__/helpers/mock-supabase';
@@ -31,11 +30,10 @@ vi.mock('next/headers', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Import route handlers AFTER mocks
+// Import route handler AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { GET as passedGET } from '@/app/api/feeds/[workspaceId]/rss/route';
-import { GET as filteredGET } from '@/app/api/feeds/[workspaceId]/rss/filtered/route';
+import { GET as passedGET } from '@/app/api/intelligence/workspaces/[id]/rss/route';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -61,15 +59,6 @@ const MOCK_ARTICLE = {
   published_at: '2025-04-01T10:00:00Z',
   ingested_at: '2025-04-01T12:00:00Z',
   feed_sources: { name: 'GOV.UK' },
-};
-
-const MOCK_FILTERED_ARTICLE = {
-  ...MOCK_ARTICLE,
-  id: 'c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f',
-  title: 'General Education News',
-  relevance_score: 0.45,
-  ai_summary: null,
-  relevance_reasoning: 'Marginally relevant — general sector news.',
 };
 
 // ---------------------------------------------------------------------------
@@ -101,7 +90,7 @@ function configureArticles(articles: unknown[]) {
 // Tests: Passed articles feed
 // ---------------------------------------------------------------------------
 
-describe('GET /api/feeds/:workspaceId/rss', () => {
+describe('GET /api/intelligence/workspaces/:id/rss', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset chain defaults
@@ -116,9 +105,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([MOCK_ARTICLE]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
 
     expect(res.status).toBe(200);
@@ -131,9 +122,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([MOCK_ARTICLE]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
     const body = await res.text();
 
@@ -148,9 +141,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
     const body = await res.text();
 
@@ -162,9 +157,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([MOCK_ARTICLE]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
     const body = await res.text();
 
@@ -181,9 +178,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
   it('returns 404 for non-existent workspace', async () => {
     configureWorkspaceNotFound();
 
-    const req = createTestRequest('/api/feeds/nonexistent/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/nonexistent/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: 'nonexistent' }),
+      params: createTestParams({ id: 'nonexistent' }),
     });
 
     expect(res.status).toBe(404);
@@ -193,9 +192,11 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
 
     expect(res.headers.get('Cache-Control')).toBe(
@@ -216,105 +217,14 @@ describe('GET /api/feeds/:workspaceId/rss', () => {
     configureWorkspaceFound();
     configureArticles([articleNoSummary]);
 
-    const req = createTestRequest('/api/feeds/' + WORKSPACE_ID + '/rss');
+    const req = createTestRequest(
+      '/api/intelligence/workspaces/' + WORKSPACE_ID + '/rss',
+    );
     const res = await passedGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
+      params: createTestParams({ id: WORKSPACE_ID }),
     });
     const body = await res.text();
 
     expect(body).toContain('Directly relevant to safeguarding sector.');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Tests: Filtered (near-miss) articles feed
-// ---------------------------------------------------------------------------
-
-describe('GET /api/feeds/:workspaceId/rss/filtered', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) =>
-        resolve({ data: [], error: null, count: 0 }),
-    );
-  });
-
-  it('returns 200 with application/rss+xml Content-Type', async () => {
-    configureWorkspaceFound();
-    configureArticles([MOCK_FILTERED_ARTICLE]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    const res = await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toBe(
-      'application/rss+xml; charset=utf-8',
-    );
-  });
-
-  it('includes "Near Misses" in channel title', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    const res = await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-    const body = await res.text();
-
-    expect(body).toContain('Filtered Articles (Near Misses)');
-  });
-
-  it('describes feed purpose in channel description', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    const res = await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-    const body = await res.text();
-
-    expect(body).toContain('false negatives');
-  });
-
-  // NOTE — passed=false filter + relevance_score DESC ordering + default
-  // 20-row limit for near-misses are route-handler invariants migrated to
-  // W-RD' integration coverage. See remediation-plan.md §3.5.
-
-  it('returns 404 for non-existent workspace', async () => {
-    configureWorkspaceNotFound();
-
-    const req = createTestRequest('/api/feeds/nonexistent/rss/filtered');
-    const res = await filteredGET(req, {
-      params: createTestParams({ workspaceId: 'nonexistent' }),
-    });
-
-    expect(res.status).toBe(404);
-  });
-
-  it('caches the feed for 15 minutes via Cache-Control headers', async () => {
-    configureWorkspaceFound();
-    configureArticles([]);
-
-    const req = createTestRequest(
-      '/api/feeds/' + WORKSPACE_ID + '/rss/filtered',
-    );
-    const res = await filteredGET(req, {
-      params: createTestParams({ workspaceId: WORKSPACE_ID }),
-    });
-
-    expect(res.headers.get('Cache-Control')).toBe(
-      'public, max-age=900, s-maxage=900',
-    );
   });
 });

@@ -4,7 +4,7 @@
  * Verifies that the filtered (near-miss) RSS feed row carries a clear
  * competitive-intelligence warning, while the passed feed row does not.
  *
- * SI-M7: The filtered feed at /api/feeds/[workspaceId]/rss/filtered is
+ * SI-M7: The filtered feed at /api/intelligence/workspaces/[id]/rss/filtered is
  * fully public (no auth) and exposes relevance reasoning. Users must be
  * warned that sharing the URL leaks evaluation criteria to competitors.
  */
