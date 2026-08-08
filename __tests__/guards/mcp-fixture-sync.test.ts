@@ -10,11 +10,11 @@ import {
   PROMPT_COUNT,
   STATIC_RESOURCE_URIS,
   RESOURCE_TEMPLATE_URIS,
-} from '../../scripts/mcp-eval/fixtures';
+} from '@/scripts/mcp-eval/fixtures';
 import {
   missingBornEvaluableArtefacts,
   type TouchpointChange,
-} from '../../scripts/lib/mcp-parser';
+} from '@/scripts/lib/mcp-parser';
 import type { AgentEvalContract } from '@/lib/eval/contract';
 
 const PROJECT_ROOT = join(__dirname, '../..');

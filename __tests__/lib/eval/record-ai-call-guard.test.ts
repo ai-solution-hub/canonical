@@ -6,7 +6,7 @@
  * `recordAiCall(` literal — otherwise its cost + outcome signal never reach the
  * `ai_call_events` substrate (M4) and the cost-tab rollup (T17) silently
  * undercounts. This guard FAILS such a touchpoint, the same forcing-function
- * shape as `__tests__/mcp/mcp-fixture-sync.test.ts` (which FAILS a tool in
+ * shape as `__tests__/guards/mcp-fixture-sync.test.ts` (which FAILS a tool in
  * source but absent from the canonical fixtures). ID-71 M38 extends this pattern.
  *
  * Two sources of truth, mirroring the MCP fixture-sync precedent:

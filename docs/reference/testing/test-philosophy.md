@@ -4,7 +4,7 @@ title: "Canonical — Test Philosophy"
 
 # Canonical — Test Philosophy
 
-<!-- Last verified: 08/08/2026 (§3.4 rewritten after the 2b factoring pass executed: the guides example is now historical, a third failure mode is named — a test at a path with no production module, which the codemod also passes — and the collision-means-same-route-not-same-behaviour rule plus the two merge hazards (load-bearing fixture shapes, per-file shared state crossing a threshold) are recorded. Verified by executing the splits, not by review: 16 escalations to 3, 1249 tests green under __tests__/app/api. Earlier: 07/08/2026 §3 rewritten around the single mirror rule — test path equals production path; the prior `app/api/**` → `__tests__/api/**` row is reversed and the rationale recorded in §3.1. Adds §3.3 naming, §3.4 location-is-not-factoring, §3.5 codemod. Earlier: 22/07/2026 S491 W4 docs sweep — guard-test list refreshed, audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
+<!-- Last verified: 08/08/2026 (workstream 3: `__tests__/guards/` populated — §8's guard list re-pointed there and extended to five entries, §3.2 records that a guard may import a production module as a *helper* without that module being its subject, and that the subject test (not the filename) decides. Verified by executing the moves, not by review: the D-8 URL-normalisation parity file was measured to import and execute `normaliseUrl`, failed the source-scanning test, and went to its mirror path instead. Earlier: 08/08/2026 §3.4 rewritten after the 2b factoring pass executed: the guides example is now historical, a third failure mode is named — a test at a path with no production module, which the codemod also passes — and the collision-means-same-route-not-same-behaviour rule plus the two merge hazards (load-bearing fixture shapes, per-file shared state crossing a threshold) are recorded. Verified by executing the splits, not by review: 16 escalations to 3, 1249 tests green under __tests__/app/api. Earlier: 07/08/2026 §3 rewritten around the single mirror rule — test path equals production path; the prior `app/api/**` → `__tests__/api/**` row is reversed and the rationale recorded in §3.1. Adds §3.3 naming, §3.4 location-is-not-factoring, §3.5 codemod. Earlier: 22/07/2026 S491 W4 docs sweep — guard-test list refreshed, audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
 
 **Status:** Active reference.
 
@@ -89,7 +89,9 @@ Next.js is explicitly unopinionated about test organisation, so this is a projec
 
 Test infrastructure and tiers keep their own names, because there is no production path to mirror: `__tests__/helpers/`, `__tests__/fixtures/`, `__tests__/integration/` (real-Anthropic + real-Supabase tier; must hit the live Platform staging DB `rbwqewalexrzgxtvcqrh`, never mocks), `__tests__/build/`, `__tests__/workflows/` and `__tests__/pipeline/`. `e2e/tests/**` is its own Playwright tier outside `__tests__/`.
 
-`__tests__/guards/` is the agreed home for structural guards — tests that scan source as text rather than exercising an export, and so have no production module to mirror. It is not yet populated; the guards listed in §8 still sit in their original locations pending that move.
+`__tests__/guards/` is the home for structural guards — tests that scan source or tracked bytes rather than exercising an export, and so have no production module to mirror. §8 lists what lives there and what has not moved yet.
+
+A guard may still *import* a production module as a **helper** — a path resolver or a manifest loader — without that module being its subject. `corpus-manifest.test.ts` loads `@/lib/corpus/fixture-manifest` and `eval-fixture-sync.test.ts` calls `resolveEvalFixture`, but neither asserts on that module's behaviour; the assertions are about the fixture bytes on disk. The distinguishing question is what the assertions are *about*, and the giveaway is that the real subject tests already exist at the mirror paths (`__tests__/lib/eval/fixtures.test.ts` covers `resolveEvalFixture` itself).
 
 Within the mirror, Next.js private-folder syntax groups without implying a route. `__tests__/app/api/_cross-cutting/` holds tests that deliberately reach several unrelated routes to prove a shared property — auth enforcement, validation behaviour — and so have no single production path.
 
@@ -192,10 +194,15 @@ Mock at the seam where the SUT meets the outside world (HTTP, DB, Anthropic SDK)
 
 ## 8. Guard tests are tests too
 
-Guard tests fail the build when structural drift is introduced. They protect the test discipline itself. The current guard-test surface includes:
+Guard tests fail the build when structural drift is introduced. They protect the test discipline itself. A guard scans source or tracked bytes rather than exercising an export, so it has no production module to mirror and lives in `__tests__/guards/` (§3.2):
 
-- `__tests__/mcp/mcp-fixture-sync.test.ts` — MCP tool/resource/prompt registrations match the inventory file.
-- `__tests__/validation/validation-sweep.test.ts` — every API route reading `searchParams` or body must use `parseBody` / `parseSearchParams` from `@/lib/validation`, never inline `.safeParse()`.
+- `__tests__/guards/mcp-fixture-sync.test.ts` — MCP tool/resource/prompt registrations match the inventory file.
+- `__tests__/guards/validation-sweep.test.ts` — every API route reading `searchParams` or body must use `parseBody` / `parseSearchParams` from `@/lib/validation`, never inline `.safeParse()`.
+- `__tests__/guards/corpus-manifest.test.ts` — the corpus fixture register (`docs/reference/testing/corpus-manifest.json`) covers exactly the tracked fixture bytes, every fixture declares a live consumer (the orphan rule), and `verify_driver.py`'s `FIXTURE_SETS` agrees with it.
+- `__tests__/guards/eval-fixture-sync.test.ts` — the eval gold-standard fixtures exist and are not truncated.
+- `__tests__/guards/procurement-form-reanchor-guard.test.ts` — the two procurement umbrella write routes never persist the form-anchored engagement keys back into `workspaces.domain_metadata` (ID-130 T-B9 dual-writer guard).
+
+Not every guard has moved yet. `__tests__/docs/` still holds four source-scanning guards (`test-classname-token-coupling`, `test-impl-shaped-titles`, `strict-tool-schema-subset`, `user-scratch-citations`) that import no production module and so meet the same test; rehoming them is an open follow-up, not a ruling that `__tests__/docs/` is correct. The test of whether a file belongs here is its **subject**, not its name or its self-description: the D-8 URL-normalisation parity guard was proposed for this directory and rejected, because it *executes* `normaliseUrl` against a shared fixture rather than reading source. Its subject is a production module, so the mirror rule wins and it lands at `__tests__/lib/extraction/url-normalise.test.ts`.
 
 (Former guards `no-app-guc-rls-policy.test.ts` and `pipeline-parity.test.ts` were deliberately retired — the first with the migration squash, the second with the obsolete `kb_pipeline` removal.)
 

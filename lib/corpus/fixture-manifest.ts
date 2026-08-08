@@ -14,7 +14,7 @@
  * directory was deleted in the S521–S522 fixture relocation).
  *
  * WHY THE PATH RESOLVES HERE AND NOWHERE ELSE: there are two consumers — the
- * guard (`__tests__/validation/corpus-manifest.test.ts`) and the census gate
+ * guard (`__tests__/guards/corpus-manifest.test.ts`) and the census gate
  * (`scripts/cocoindex-census-gate.ts`, whose hardcoded `DRIVER_MANIFEST_DEST_PATHS`
  * this replaces). The manifest is a *sibling* of the test-standards docs rather
  * than a child of `__tests__/`, so both reach it by a relative path out of their

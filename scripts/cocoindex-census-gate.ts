@@ -14,7 +14,7 @@
  * verify_driver.py FIXTURE_SETS `templates`, mirrored here by hand; that mirror
  * is gone. verify_driver.py still holds the staging tuples (it does the
  * staging), but it is no longer the source of truth for WHICH fixtures are in
- * the set, and `__tests__/validation/corpus-manifest.test.ts` asserts the two
+ * the set, and `__tests__/guards/corpus-manifest.test.ts` asserts the two
  * agree in both directions — so the three lists cannot drift apart.
  *
  * Each dest path must resolve to EXACTLY ONE source_documents row post-run.
@@ -53,7 +53,7 @@ for (const envFile of ['.env.local', '.env']) {
  * was expected to stage, and which consumers are now uncovered.
  *
  * Sourcing it from the manifest also means the census gate and
- * `__tests__/validation/corpus-manifest.test.ts` read the SAME file, so the two
+ * `__tests__/guards/corpus-manifest.test.ts` read the SAME file, so the two
  * lists can no longer drift apart. The manifest guard enforces that every
  * `verify-driver` entry declares a `verify_dest` in the flat `verify/<basename>`
  * scheme (`c64be60b`).

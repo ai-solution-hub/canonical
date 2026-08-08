@@ -49,7 +49,7 @@ import precomputedEmbeddings from './embeddings.json';
  * body-less in the manifest". **The manifest now EXISTS** (id-406, S523):
  * `docs/reference/testing/corpus-manifest.json` — DR-118, not the spec's dead
  * `docs/testing/` path — with its guard at
- * `__tests__/validation/corpus-manifest.test.ts`. So the "declared body-less"
+ * `__tests__/guards/corpus-manifest.test.ts`. So the "declared body-less"
  * half is expressible for the first time. Bodies still come from the shapes
  * here; re-pointing them is a deliberate follow-up, not an oversight (see
  * `seedDocumentBodies`).
@@ -154,7 +154,7 @@ export interface WorkerData {
  * path id-396 TECH §1 specified under the old `docs/testing/` tree; both halves
  * of that are now false and that tree is gone. The register is
  * `docs/reference/testing/corpus-manifest.json` (DR-118), its guard is
- * `__tests__/validation/corpus-manifest.test.ts`, and the loader is
+ * `__tests__/guards/corpus-manifest.test.ts`, and the loader is
  * `lib/corpus/fixture-manifest.ts`.
  *
  * What that unblocks: D4 reads "sourced from manifest corpus files, OR

@@ -46,7 +46,7 @@ export function parseBody<T extends z.ZodType>(
  * (e.g. `FeedSourceCreateSchema` whose `.superRefine` makes a network
  * call to validate web URLs). Wraps `schema.parseAsync()` so route files
  * never have to call `.safeParseAsync(` directly — the validation-sweep
- * guard rail (`__tests__/validation/validation-sweep.test.ts`) bans
+ * guard rail (`__tests__/guards/validation-sweep.test.ts`) bans
  * inline `.safeParse(` and would otherwise reject async usage too.
  *
  * S222 W3-A §2.3.4 D-4 introduces the first async refinement — pre-insert

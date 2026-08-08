@@ -20,7 +20,7 @@
 // been deleted, along with the `{138.12}` T4 re-point that had moved them onto
 // the `corpus` Storage bucket. No app code derives or mints a Q&A sidecar path
 // any more — the prefix stays RESERVED (guarded by the RATIFY-2 assertion in
-// `__tests__/validation/corpus-manifest.test.ts`), but no
+// `__tests__/guards/corpus-manifest.test.ts`), but no
 // writer targets it. This restores the KH-DB-only contract `TECH.md` never
 // stopped specifying for UC6.
 //

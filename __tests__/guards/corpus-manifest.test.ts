@@ -1,5 +1,5 @@
 /**
- * __tests__/validation/corpus-manifest.test.ts
+ * __tests__/guards/corpus-manifest.test.ts
  *
  * id-406 — the conformance guard for the corpus fixture manifest. The
  * generalisation of `__tests__/integration/cocoindex/platform-corpus-shape.test.ts`
@@ -12,12 +12,15 @@
  * DR-117 removed the scatter the rest of it was compensating for, so what
  * remains is an **orphan-and-integrity register, not a location register**.
  *
- * TIER: this lives in `__tests__/validation/`, not `__tests__/integration/`,
- * per TECH §1. It reads only the filesystem and `git ls-files` — no DB, no
+ * TIER: this lives in `__tests__/guards/`, not `__tests__/integration/`, per
+ * TECH §1 (it sat in `__tests__/validation/` until the guards directory was
+ * created). It reads only the filesystem and `git ls-files` — no DB, no
  * sidecar, no network — so it belongs in the always-on lane rather than the
  * integration lane the source guard sat in. That tier move is deliberate: the
  * source guard's placement under `integration/cocoindex/` meant a pure
- * filesystem assertion was gated behind integration substrate.
+ * filesystem assertion was gated behind integration substrate. It scans source
+ * (`verify_driver.py`) and tracked bytes rather than exercising an export, so
+ * it has no production module to mirror — hence `guards/`.
  *
  * WHY `git ls-files` AND NOT A FILESYSTEM WALK: the corpus is defined by what is
  * COMMITTED. The source guard recursed the working tree, so the gitignored

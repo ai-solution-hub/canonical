@@ -84,7 +84,7 @@ const UUID_RE =
 /**
  * DELETE query params — same UUID semantics as the inline `UUID_RE` guards,
  * routed through the central `parseSearchParams` per the validation-sweep
- * guard rail (`__tests__/validation/validation-sweep.test.ts`).
+ * guard rail (`__tests__/guards/validation-sweep.test.ts`).
  */
 const DeleteAttachmentParamsSchema = z.object({
   attachmentId: z.string().regex(UUID_RE, 'attachmentId must be a valid UUID'),
