@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient } from '@/lib/mcp/auth';
+import { VALID_ENTITY_TYPES } from '@/lib/validation/schemas';
 import { formatEntitySummary } from '@/lib/mcp/formatters';
 import { truncateResponse } from '@/lib/mcp/formatters';
 import type {
@@ -48,9 +49,13 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
         entity_type: z
           .string()
           .optional()
-          .describe(
-            'Filter by entity type: organisation, certification, regulation, framework, capability, person, technology, project, sector',
-          ),
+          // Derived from the ratified set, never re-typed: this description
+          // had drifted to 9 of the 12 types, omitting product, standard and
+          // methodology — and `standard` is the only type the pipeline
+          // extracts organically today, so the omission hid the live one.
+          // The extractor prompt (scripts/cocoindex_pipeline/prompts.py:168)
+          // already enumerates all 12; this is the surface that fell behind.
+          .describe(`Filter by entity type: ${VALID_ENTITY_TYPES.join(', ')}`),
       },
       annotations: READ_ONLY_ANNOTATIONS,
     },
