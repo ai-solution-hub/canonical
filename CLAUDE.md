@@ -6,6 +6,8 @@ Guidance for Claude Code in this repository. Directory-scoped context lives in n
 
 Canonical (formerly Knowledge Hub) is a knowledge base platform where the core value is high-quality, structured data accessible by AI. First domain applications: procurement + sector intelligence for UK SMBs; next is Sales Proposals.**Team:** Liam (product owner, non-developer — verification gates are his eyes on the code) + Claude Code as development partner.
 
+**Platform isn't live**
+
 ## Commands
 
 | Command | Description |
@@ -19,8 +21,6 @@ Canonical (formerly Knowledge Hub) is a knowledge base platform where the core v
 
 MCP eval + plugin/app build commands: see `lib/mcp/CLAUDE.md`. Type regen: see`supabase/CLAUDE.md`. Use `gh-axi` for GitHub and `chrome-devtools-axi` for browser automation.
 
-**Turbopack is the default bundler** in Next 16 for both `next dev` and `next build` — no `--turbopack` flag, and `--webpack` would split dev from the Vercel prod build (which Sentry's debug-ID source maps depend on). Do not opt out.
-
 **Parallel dev servers.** Next locks per *directory*, not per port, so a second `next dev` in the SAME checkout needs its own build root: `NEXT_DIST_DIR=.next-1 bun dev` (slots `.next-1`..`.next-4` — those names only; any other name dirties `tsconfig.json`). Full rules — worktrees, port collisions, `portless`: the **`run-canonical`** skill.
 
 ## Architecture
@@ -31,9 +31,10 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 
 ## Environment & Database
 
-- `.env.local` targets the **Platform staging** DB (`rbwqewalexrzgxtvcqrh`,`PLATFORM_PROJECT_REF`) — the local-dev + CI target since the staging-first cutover. The platform runs separate **staging** + **prod** DBs (Platform prod `zjqbrdctesqvouboziae`),and each client its own prod + staging project; the full four-DB topology + client refs live in the private runbook. Prod-targeted CLI work opts in via `--env=prod`. Runbook:`${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
+- `.env.local` targets the **Platform staging** DB (`rbwqewalexrzgxtvcqrh`,`PLATFORM_PROJECT_REF`) — the local-dev + CI target since the staging-first cutover. The platform runs separate **staging** + **prod** DBs (Platform prod `zjqbrdctesqvouboziae`), and each client has its own prod + staging project; the full four-DB topology + client refs live in the private runbook. Prod-targeted CLI work opts in via `--env=prod`. Runbook:`${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/local-development.md`.
 - Schema is canonically the generated types (`Tables<'x'>` / `Enums<'x'>` from`supabase/types/database.types.ts` + JSONB overrides). Migration/DDL/project-ref/RLS discipline: `supabase/CLAUDE.md`.
 - Interactive CLIs (e.g. `supabase db push`) hang background shells — run foreground.
+- Use `supabase link --project-ref {ID}` to link to a database - credentials are cached, so `supabase db push` works.
 
 ## Conventions (cross-cutting)
 
@@ -42,8 +43,6 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Auth:** `getAuthorisedClient()` returns `{ success: boolean }` — check`auth.success`, route failures via the `authFailureResponse(auth)` helper.
 - **Data fetching:** TanStack Query exclusively (keys/fetchers in `lib/query/`).
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
-- **Review and governance are ONE concern — settled in the schema, not by a DR.** `record_lifecycle` (ID-131 {131.6}, `20260628190000_id131_record_lifecycle_facet.sql`) declares two axes, and names the first one *"Review/Governance axis"* — a single axis, spanning both `{source_document, q_a_pair}`, carrying `governance_review_status` / `governance_review_due`. The genuinely separate axis is **freshness/expiry/review-cadence**, which is `source_document`-ONLY (`q_a_pairs` carry no freshness clock — enforced by `record_lifecycle_freshness_axis_chk`, D7). So the real cut is review+governance vs freshness — NOT content-quality vs freshness/ownership, which is how this line read until S521 and which splits the wrong pair. The `/review` and `/api/governance/review` route split matches neither axis (`/api/review/` holds `cadence` + `assignments`, i.e. freshness); it is an artefact of the original IMS fork. Target shape is id-71 {71.9}'s one faceted queue. No DR is needed — DR-041 is a *navigation* ruling (which zone a surface renders in) and makes no claim about concern boundaries; DR-034 is about the retired content_items-era coverage feature and explicitly RETAINS governance. Cite the migration, not either DR.
-- Guard hooks enforce: no unquoted heredocs containing `!`, no client names in filenames/commands (private denylist), sentinel-gated `.claude/{agents,skills}` edits.
 - The Read-tool deny on `supabase/types/database.types.ts` in `.claude/settings.json` is deliberate (DR-022, re-homed S504): the generated file is huge and generated — query types via `Tables<'x'>` or `sed`-range reads, and never "fix" the deny.
 
 ## Orchestration & Sub-agents
@@ -52,54 +51,28 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Never `git stash` in a dispatch worktree** — the stash ref list is global across worktrees; use a WIP commit on the agent's own branch instead.
 - **ALWAYS check worktree **`git status`** before removing it.**
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
-- **Intent (ACP) sessions:** permission prompts never surface in Intent — a user-level PreToolUse hook (`~/.claude/hooks/intent-acp-autoallow.sh`) auto-allows tool calls when cwd is under `~/intent/workspaces/`. Claude Code's force-ask files (`.claude/settings*.json`, `.claude/hooks/`, `.claude/skills/`, `.claude/agents/`) can NOT be auto-allowed for **Write/Edit** — those stall until Intent's ~30-min watchdog kills the turn. **Bash-mediated writes DO go through** (author to a temp file, splice with python3 — proven S502, commit `747b5e3d` authored in an Intent workspace), and since S506 the sentinel guard covers the Bash shape too (`e393786f` + settings Bash matcher): Bash commands targeting `.claude/{agents,skills}` are sentinel-gated like Write/Edit. Skill edits from Intent therefore run: invoke the authoring skill (its Step 0 sentinel touch is allowlisted Bash), then splice. The Bash route still bypasses the force-ask gate — say so in the commit/note so that remains auditable.
 
-### Dispatch-brief required lines (S529; the DR-123 control)
+### Dispatch-brief required lines (The DR-123 control)
 
-**Paste these into every sub-agent brief. Inline them — do not link them.** A shared
-grounding file is read once at dispatch and never polled (S528: two lanes never saw two
-rounds of corrections), and per RC1 of `reports/s528-error-class-recurrence-analysis.md`
-the only two things that ever transferred across 135 retros were **a line in a
-dispatch-brief template** and **a named tool-specific gotcha**. Naming a rule is not
-applying it — four sessions breached a rule they had quoted into their own brief that same
-session.
+**Paste these into every sub-agent brief. Inline them — do not link them.**
 
 1. **Ask requirement-first, never liveness-first.** Not *"is X live / dead / orphaned /
    wired?"* but **_"what requirement does X serve, and is that requirement still live?"_**
-   Zero instances of the second framing produced this error class; eight of the first
-   produced an expensive one. If you cannot name the requirement **and its current
-   source**, the verdict is `UNDECIDABLE`.
+  If you cannot name the requirement **and its current source**, the verdict is `UNDECIDABLE`.
 2. **Name the `ToolSearch` call, not the tool.** MCP tools are deferred in sub-agents and
-   cost a round-trip, so a brief naming a tool without its loader gets grep instead —
-   the measured mechanical cause of DR-071's five zero-compliance sessions. Paste the
+   cost a round-trip, so a brief naming a tool without its loader gets grep instead. Paste the
    literal call, e.g.
    `ToolSearch query "select:mcp__memtrace__find_symbol,mcp__memtrace__get_impact"`.
 3. **Measure before you retire, rename or ratify.** Run a projection, probe or mutation and
-   state **what you executed**. Measurement is the only thing in 135 retros that ever
-   caught this class without the owner. A verdict with no executed check is `UNDECIDABLE`.
+   state **what you executed**.
 4. **`UNDECIDABLE` is a first-class answer**, preferred over a guessed `RETIRE`, and it
    must survive the relay — carry its question **verbatim**; never render it as a go/no-go.
 5. **Challenge, don't confirm.** When asking a sub-agent to test a read, say *"I want it
-   challenged, not confirmed."* Proven twice in opposite directions in S528 — it produced
-   the rebuttal that overturned the Coordinator, and it held a verdict against Coordinator
-   pressure to flip.
+   challenged, not confirmed."*
 6. **Report what your check did NOT cover.** A `PASS` records a conclusion, never its
    coverage.
-7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** Before
-   ruling on a concept, state where it came from (fork-era? which task minted it?) and
-   the owner's current hypothesis marked _"to be tested, not assumed"_. A doc authored
-   while the investigated assumption stood — however ratified-looking — is the
-   assumption's carrier, not independent evidence for it (S528 GROUNDING §2a; ratified
+7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reports/s528-census/GROUNDING.md` §2a; ratified
    S535, DR-130's grounding).
-8. **Measure the CAUSING surface, as a distribution — never a mean from two totals.**
-   When growth or churn is written by a trigger or any indirect writer, the search key is
-   the table whose writes FIRE the mechanism, not the table that grew (the two searches
-   return disjoint results — S536 forensics: the symptom-table grep could never find
-   `seed-fixtures.ts`; the causing-table grep was one hit, the answer). A rate is a
-   per-row distribution, not `total ÷ population` (3000÷146 gave "~20/pair"; the real
-   shape was 10 pairs @ ~230, 87 @ zero — the mean described no pair). No instrument
-   loaded to run the query? **Dispatch someone who has it** rather than carrying a number
-   you did not measure. This line binds the Coordinator's own hands, not only briefs.
 
 **These readings are not evidence — say so in the brief:** consumer-counting (a consumer of
 a stale concept is evidence the rot spread); population or emptiness in **either**
@@ -110,26 +83,26 @@ correctness); grep absence (absence is the thing being fixed); a "last verified"
 
 ## Ledgers
 
-The task ledger is **ordna** in the PRIVATE docs-site: one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` (YAML frontmatter + body; Git is the source of truth — no database, no server). Read via `cat` on the task file, or the ordna CLI from the docs-site root: `ordna list` / `ordna show <id>` (non-interactive — bare `ordna` opens the TUI board and hangs background shells, like `supabase db push`). Write by editing the task file directly. File format + conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.
+The task ledger is **ordna** in the PRIVATE docs-site: one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`. Read via `cat` on the task file (e.g., `cat "$KH_PRIVATE_DOCS_DIR/tasks/id-165.md"`, or the ordna CLI from the docs-site root: `ordna {list/ls, show, create, move, assign, cat}` e.g., `ordna show <id>`. Write by editing the task file directly. File format + conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.
 
 ## Key References
 
-Resolve the checkout via `KH_PRIVATE_DOCS_DIR` (sibling clone locally; GitHub-App token checkout in CI — `.github/actions/resolve-private-docs/`). Under`${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: `reference/platform-context.md` (load at session start — current four-DB topology, deploy hosts + key context anchors, with progressive-disclosure pointers into the runbooks), `runbooks/` (ci, local-development, staging-refresh, github-environments, onprem-b1-deploy), `design/` (Warm Meridian),`continuation-prompts/`, `specs/`, `initiatives/`.
+Under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: `reference/platform-context.md` (load at session start — current four-DB topology, deploy hosts + key context anchors, with progressive-disclosure pointers into the runbooks), `runbooks/` (ci, local-development, staging-refresh, github-environments, client-app-deploy, onprem-b1-deploy), `design/` (Warm Meridian),`continuation-prompts/`, `specs/`, `initiatives/`.
 
-- **Test standards (co-located in-repo):** `docs/reference/testing/` —`test-philosophy.md` (behaviour-first testing doctrine) + `testing-patterns.md`.
-- **Spec convention:** new Task spec dirs `specs/id-N-<slug>/` with `RESEARCH.md` {N.1},`PRODUCT.md` {N.2}, `TECH.md` {N.3}. The {N.4} PLAN.md artefact is retired (DR-089) —the plan/decomposition surface is the Intent workspace spec-note.
+- **Test standards:** `docs/reference/testing/` —`test-philosophy.md` (behaviour-first testing doctrine) + `testing-patterns.md`.
+- **Spec convention:** new Task spec dirs `specs/id-N-<slug>/` with `RESEARCH.md` {N.1},`PRODUCT.md` {N.2}, `TECH.md` {N.3}.
 - **Historical planning:** `knowledge-hub-archive` repo (point-in-time snapshots).
 
 ## Deployment & CI
 
-- Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline(`onprem-deploy.yml`); staging URL[https://canonical-platform-git-staging-tw-group.vercel.app](https://canonical-platform-git-staging-tw-group.vercel.app); `staging` branch is deploy-only in the current interim (PRs target `main`); the staging-first flow in `runbooks/ci.md` §3 (feature→staging→main) is the target model, arriving with id-127/id-128. GitHub: [https://github.com/ai-solution-hub/canonical](https://github.com/ai-solution-hub/canonical).
-- PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.Side workflows incl. `schema-parity`.
+- Vercel (Next.js) + IONOS VPS/Coolify for the ingestion pipeline (`onprem-deploy.yml`); staging URL [https://canonical-platform-git-staging-tw-group.vercel.app](https://canonical-platform-git-staging-tw-group.vercel.app); `staging` branch is deploy-only in the current interim (PRs target `main`); the staging-first flow in `runbooks/ci.md` §3 (feature→staging→main) is the target model, arriving with id-127/id-128. GitHub: [https://github.com/ai-solution-hub/canonical](https://github.com/ai-solution-hub/canonical).
+- PR-blocking CI (`ci.yml`): Topology + failure-mode table: `${KH_PRIVATE_DOCS_DIR}/src/content/docs/runbooks/ci.md`.
 
 ## Memory (MemPalace)
 
-Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). The SessionStart hook `.claude/hooks/mempal-recall.sh` injects a lock-free FTS digest of prior context — seeded by branch + cwd base name, diary-first, CHECKPOINT-noise filtered — on session `startup`/`clear`.
+Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). The SessionStart hook `.claude/hooks/mempal-recall.sh` injects a lock-free FTS digest of prior context.
 
-**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters — S520; on HNSW-inconsistency degradation the remedy is repair + `mempalace_reconnect` with the DR-110 re-pin, not filter avoidance), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
+**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
@@ -143,5 +116,3 @@ GitNexus indexes this repo as **canonical** and exposes on-demand code-intellige
 - Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, debugging, refactoring, guide, cli).
 
 <!-- gitnexus:end -->
-
-**Impact/rename authority (DR-071):** GitNexus — not Memtrace — is the authority for impact analysis and renames in this repo. Memtrace complements for discovery/history; when the two disagree on blast radius, GitNexus wins. (The user-global MEMTRACE.md routing does not override this.)

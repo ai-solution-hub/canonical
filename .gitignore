@@ -28,6 +28,7 @@ venv/
 !.claude/skills/
 !.claude/plugins/
 !.claude/settings.json
+.claude/skills/gitnexus/**
 
 # Claude Worktrees
 .claude/worktrees/
@@ -169,5 +170,3 @@ ds-bundle/
 .claude/skills/memtrace-*/
 
 .warp/
-
-.claude/skills/gitnexus/
