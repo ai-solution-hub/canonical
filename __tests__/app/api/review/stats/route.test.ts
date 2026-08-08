@@ -184,14 +184,25 @@ describe('GET /api/review/stats', () => {
   // handler-computed fields (unverified = total - verified, and
   // awaiting_publication from the parallel count query).
   //
-  // FACTORING NOTE (unsettled): `by_domain` is asserted here because the test
-  // this came from asserted it, but the route's own comment (route.ts:73-76)
-  // says id-417 / DR-130 retired it — the RPC no longer emits it and
-  // `ReviewStatsResponseSchema` does not declare it. It survives only because
-  // `defineRoute` is a pass-through validator over a non-strict `z.object`, so
-  // an unknown key the mock injects is neither stripped nor rejected. Whether
-  // "unknown RPC keys reach the client" is a requirement or an accident was
-  // not settled here.
+  // id-417 / DR-130 retired the per-domain breakdown: `record_lifecycle.domain`
+  // was dropped, `get_review_breakdown_stats` no longer emits `by_domain`, and
+  // `ReviewStatsResponseSchema` does not declare it (route.ts:73-76). The mock
+  // therefore must not emit it either — a mock that returns a retired key is
+  // modelling a database that no longer exists.
+  //
+  // This previously carried a `by_domain` key and asserted it reached the
+  // client. That assertion was vacuous: it tested the mock, not the route. It
+  // passed only because `defineRoute`'s response validation is asymmetric on
+  // the `NextResponse` path — measured, not inferred: an UNDECLARED key is
+  // neither rejected nor stripped (the wrapper returns the original response,
+  // so even Zod's default stripping never reaches the caller), while a MISSING
+  // declared key throws `response_schema_validation_failed` even in test. So a
+  // response schema cannot see additive drift at all, and the old assertion
+  // silently encoded that blind spot as intended behaviour.
+  //
+  // The assertion below is now the positive retirement guard, matching
+  // `cadence/route.test.ts:278`, which asserts the same absence for the same
+  // reason.
   it('returns 200 with the full stats breakdown', async () => {
     configureRole(mockSupabase, 'editor');
 
@@ -203,10 +214,6 @@ describe('GET /api/review/stats', () => {
         flagged: 5,
         draft: 3,
         overdue: 4,
-        by_domain: {
-          Technology: { total: 2, verified: 1 },
-          Business: { total: 1, verified: 1 },
-        },
         by_content_type: {
           article: { total: 2, verified: 2 },
           q_a_pair: { total: 1, verified: 0 },
@@ -230,10 +237,8 @@ describe('GET /api/review/stats', () => {
     expect(json.unverified).toBe(40);
     expect(json.draft).toBe(3);
 
-    expect(json.by_domain).toEqual({
-      Technology: { total: 2, verified: 1 },
-      Business: { total: 1, verified: 1 },
-    });
+    // id-417 / DR-130: the per-domain breakdown retired with the axis.
+    expect(json).not.toHaveProperty('by_domain');
 
     expect(json.by_content_type).toEqual({
       article: { total: 2, verified: 2 },
