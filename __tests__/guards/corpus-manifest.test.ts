@@ -588,11 +588,17 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
     const tokensOf = (e: FixtureEntry) =>
       new Set(readFileSync(abs(e), 'utf8').match(CERT_TOKEN) ?? []);
 
-    /** The one fixture that pairs two surface forms ON PURPOSE — Inv-14's tier-break needs an ambiguous pair. */
+    /**
+     * The two PAIRS that share a referent on purpose — Inv-9's admin-merge and
+     * Inv-14's tier-break both need one entity in two surface forms. Each pair
+     * spans two DOCUMENTS, which is not a style choice: see the single-document
+     * check below for the constraint that forbids the alternative.
+     */
     const DELIBERATE_INTERNAL_PAIR = new Set([
-      'per-test-content/synthetic-inv-14-pair-resolver-determinism.md',
       'per-test-content/synthetic-inv-09-admin-merge-run-a.md',
       'per-test-content/synthetic-inv-09-admin-merge-run-b.md',
+      'per-test-content/synthetic-inv-14-pair-resolver-run-a.md',
+      'per-test-content/synthetic-inv-14-pair-resolver-run-b.md',
     ]);
 
     // Text formats only. A .pdf / .docx / .xlsx read as UTF-8 is byte soup, and
@@ -648,6 +654,75 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
         clashes,
         'one token, one document — a token in two documents makes two specs measure each ' +
           "other's fixtures",
+      ).toEqual([]);
+    });
+
+    /**
+     * THE MOCK'S PER-DOCUMENT CANARY IS THE FIRST HEADING, SO HEADINGS MUST DIFFER.
+     *
+     * `mock_llm._document_anchor` emits one always-present mention per document,
+     * taken from its first markdown heading. That row exists to keep every
+     * document's constraint-keyed fields a function of its own content, so two
+     * documents can never collide on a natural key — which it cannot do if two
+     * documents share a heading.
+     *
+     * Both failure modes were real in nightly run 31283783895, in this tree:
+     * every file opens with an HTML comment, so the anchor was `<!--` for all of
+     * them; and once markup-only lines were skipped, the next line was the shared
+     * FIXTURE banner. A heading is the line most likely to differ between two
+     * documents, which is why the anchor prefers one — and why this asserts they
+     * actually do.
+     */
+    it('every per-test-content document has its own first heading', () => {
+      const headingOf = (e: FixtureEntry) =>
+        readFileSync(abs(e), 'utf8')
+          .split('\n')
+          .map((l) => /^\s{0,3}#{1,6}\s+(\S.*)$/.exec(l)?.[1]?.trim())
+          .find(Boolean) ?? null;
+
+      const byHeading = new Map<string, string[]>();
+      for (const e of perTestContent) {
+        const heading = headingOf(e);
+        expect(heading, `${e.id} has no markdown heading for the canary`).toBeTruthy();
+        byHeading.set(heading!, [...(byHeading.get(heading!) ?? []), e.id]);
+      }
+      const shared = [...byHeading.entries()].filter(([, ids]) => ids.length > 1);
+      expect(
+        shared,
+        'these documents share a first heading, so the mock emits the same canary mention ' +
+          'for each and the per-document uniqueness the canary exists to provide is gone',
+      ).toEqual([]);
+    });
+
+    /**
+     * A NEAR-MATCH PAIR CANNOT LIVE IN ONE DOCUMENT.
+     *
+     * `entity_mentions` is UNIQUE on (canonical_name, entity_type,
+     * source_document_id). Two surface forms of one entity inside a single
+     * document therefore collide on that document's own key the instant Stage-5
+     * resolves them to a shared canonical — the run does not merely fail, it
+     * writes UniqueViolations that fail the NM-8 census gate for everyone else.
+     *
+     * Measured: nightly run 31283783895, three violations on `cye 14001`, from a
+     * fixture that carried `CYE 14001` and `CYE14001` in one file.
+     *
+     * The cheap, checkable proxy is the compact/spaced form of the SAME token.
+     */
+    it('no single document carries both the spaced and compact form of one token', () => {
+      const offenders: { id: string; pair: string }[] = [];
+      for (const e of perTestContent) {
+        const tokens = [...tokensOf(e)];
+        for (const t of tokens) {
+          if (!t.includes(' ')) continue;
+          if (tokens.includes(t.replace(' ', ''))) {
+            offenders.push({ id: e.id, pair: `${t} + ${t.replace(' ', '')}` });
+          }
+        }
+      }
+      expect(
+        offenders,
+        'split the pair across two documents — the unique key is PER DOCUMENT, so ' +
+          'cross-document is the only shape in which Stage-5 has anything to unify',
       ).toEqual([]);
     });
 

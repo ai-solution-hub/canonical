@@ -9,26 +9,26 @@ and from the walked baseline; its certification token IIP 60001 is its alone.
 
 ## About Ferrybridge Analytics Ltd
 
-Ferrybridge Analytics Ltd is a fictional supplier used as synthetic pipeline-test
-content and carries no real company, client or contract information. The company
-provides performance analytics and reporting services to combined authorities and
-transport bodies, working through open tenders and framework call-offs.
+Ferrybridge Analytics Ltd is a fictional supplier used as synthetic pipeline-test content
+and carries no real company, client or contract information. The company provides
+performance analytics and reporting services to combined authorities and transport bodies,
+working through open tenders and framework call-offs.
 
 ## Delivery model
 
-Every engagement opens with a discovery phase, moves into a build-and-iterate
-period against agreed acceptance criteria, and closes with a handover pack and a
-supported transition. Reporting is monthly and evidenced against the measures set
-at award rather than measures chosen afterwards.
+Every engagement opens with a discovery phase, moves into a build-and-iterate period
+against agreed acceptance criteria, and closes with a handover pack and a supported
+transition. Reporting is monthly and evidenced against the measures set at award rather
+than measures chosen afterwards.
 
 ## Quality and assurance
 
-The Ferrybridge Analytics Ltd management system is certified to IIP 60001 by an
-accredited body, with annual surveillance and three-yearly recertification.
-Certificates are issued to buyers at award and reissued on renewal.
+The Ferrybridge Analytics Ltd management system is certified to IIP 60001 by an accredited
+body, with annual surveillance and three-yearly recertification. Certificates are issued
+to buyers at award and reissued on renewal.
 
 ## Governance
 
-A small executive team holds delivery, assurance and commercial between them.
-Escalation routes are published at award and exercised during mobilisation, so a
-buyer never discovers the escalation path during an incident.
+A small executive team holds delivery, assurance and commercial between them. Escalation
+routes are published at award and exercised during mobilisation, so a buyer never
+discovers the escalation path during an incident.

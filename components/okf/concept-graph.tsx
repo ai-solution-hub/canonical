@@ -81,8 +81,7 @@ function toElements(
   const chrome = resolveGraphChromeColors();
   const fallbackNodeColor =
     chrome?.fallbackNode ?? toRenderableColor(FALLBACK_NODE_COLOR);
-  const fallbackEdgeColor =
-    chrome?.edge ?? toRenderableColor(EDGE_COLOR);
+  const fallbackEdgeColor = chrome?.edge ?? toRenderableColor(EDGE_COLOR);
   const nodeElements: ElementDefinition[] = nodes.map((n) => ({
     data: {
       ...n.data,

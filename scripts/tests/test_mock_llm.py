@@ -215,12 +215,24 @@ class TestContentEcho:
         assert iso_rows[0].source_span_start == self._CONTENT.index("ISO 27001")
 
     def test_echo_is_capped_and_first_occurrence_ordered(self) -> None:
-        content = "AA 111 BB 222 CC 333 DD 444 EE 555 FF 666 GG 777"
+        # A heading so the document HAS a canary — this test is about the echo
+        # cap, and leaving the canary out of the count would quietly make it
+        # about two things.
+        content = "# Cap Fixture Ltd\n\nAA 111 BB 222 CC 333 DD 444 EE 555 FF 666 GG 777"
         mentions = self._mentions(content)
-        # 1 tag mention + at most the cap of echoes.
+        # 1 canary + at most the cap of echoes.
         assert len(mentions) == 1 + 5
         echoed = [m.entity_name for m in mentions[1:]]
         assert echoed == ["AA 111", "BB 222", "CC 333", "DD 444", "EE 555"]
+
+    def test_a_document_of_bare_tokens_gets_echoes_but_no_canary(self) -> None:
+        """No line reads as a name, so there is nothing honest to anchor to.
+
+        Emitting a canary here would mean inventing one, which is what the
+        S543 ruling refuses.
+        """
+        mentions = self._mentions("AA 111 BB 222 CC 333")
+        assert [m.entity_name for m in mentions] == ["AA 111", "BB 222", "CC 333"]
 
     def test_canary_mention_is_retained_anchored_and_content_unique(self) -> None:
         """The always-present canary is a real slice of its own document.
@@ -249,6 +261,34 @@ class TestContentEcho:
         # Still content-unique — the property the old hash provided.
         assert first.entity_name != other.entity_name
 
+    def test_markup_only_lines_are_not_names(self) -> None:
+        """`<!--` clears any length bar and is not an entity.
+
+        Every fixture in the per-test-content tree opens with an HTML comment,
+        so a length-only rule gave all of them the SAME canary — destroying the
+        per-document uniqueness the canary exists to provide. Nightly run
+        31283783895 is where that showed up.
+        """
+        doc = "<!--\nFIXTURE banner shared by every file in the tree.\n-->\n\n# Ravenscar Supply Chain Ltd\n\nBody.\n"
+        first = self._mentions(doc)[0]
+        assert first.entity_name == "Ravenscar Supply Chain Ltd"
+        assert doc[first.source_span_start : first.source_span_end] == first.entity_name
+
+    def test_the_heading_wins_over_an_earlier_prose_line(self) -> None:
+        """A heading is the line most likely to DIFFER between two documents.
+
+        Preferring it is what keeps two files sharing a boilerplate preamble
+        from sharing a canary — which is the failure above, one layer up.
+        """
+        doc = "Shared preamble text present in every fixture.\n\n# Kilverstone Assurance Ltd\n\nBody.\n"
+        assert self._mentions(doc)[0].entity_name == "Kilverstone Assurance Ltd"
+
+    def test_two_documents_sharing_a_preamble_still_get_distinct_canaries(self) -> None:
+        pre = "<!--\nIdentical banner.\n-->\n\n"
+        a = self._mentions(pre + "# Alpha Holdings Ltd\n\nBody A.\n")[0]
+        b = self._mentions(pre + "# Beta Industries Ltd\n\nBody B.\n")[0]
+        assert a.entity_name != b.entity_name
+
     def test_a_document_with_no_usable_line_yields_no_canary(self) -> None:
         """No anchor is available, so no canary — and that is the correct answer.
 
@@ -257,6 +297,7 @@ class TestContentEcho:
         """
         assert self._mentions("") == []
         assert self._mentions("ab") == []
+        assert self._mentions("<!--\n-->\n") == []
 
     def test_echoed_variants_keep_distinct_per_doc_canonicals(self) -> None:
         # The Stage-5 testability property: the two surface variants must

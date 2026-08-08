@@ -189,7 +189,9 @@ describe('toRenderableColor', () => {
    * recognises (an unparseable value is a silent no-op, as in a real canvas),
    * `fillRect` commits the current fillStyle, and `getImageData` returns it.
    */
-  function stubCanvas(parse: (value: string) => [number, number, number, number] | null) {
+  function stubCanvas(
+    parse: (value: string) => [number, number, number, number] | null,
+  ) {
     let pending: [number, number, number, number] = [0, 0, 0, 255];
     let committed: [number, number, number, number] = [0, 0, 0, 0];
     const ctx = {
@@ -273,7 +275,9 @@ describe('toRenderableColor', () => {
 
   it('does not misjudge a colour that paints TO one of its own probes', () => {
     // The single-probe bug this two-probe check exists to avoid.
-    stubCanvas((v) => (v.startsWith('oklch(') ? [1, 2, 3, 255] : (HEX[v] ?? null)));
+    stubCanvas((v) =>
+      v.startsWith('oklch(') ? [1, 2, 3, 255] : (HEX[v] ?? null),
+    );
     expect(toRenderableColor('oklch(0 0 0)')).toBe('rgb(1, 2, 3)');
   });
 

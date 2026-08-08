@@ -202,26 +202,34 @@ def _echo_entity_tokens(content_text: str) -> list[tuple[str, int, int]]:
 
 _ANCHOR_MAX_CHARS = 90
 _ANCHOR_MIN_CHARS = 3
+# A line has to say something. `<!--` clears any length bar and is not a name —
+# it made every fixture in a tree whose files open with an HTML comment share
+# one canary, which is the exact per-document-uniqueness property the canary
+# exists to provide. Measured in nightly run 31283783895.
+_ANCHOR_HAS_WORDS = re.compile(r"[A-Za-z]{3,}")
+_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(\S.*)$")
 
 
 def _document_anchor(content_text: str) -> tuple[str, int, int] | None:
     """A short, real substring of `content_text` with its true offsets.
 
-    Takes the first substantial line — heading markers stripped — and, when
-    that line is longer than `_ANCHOR_MAX_CHARS`, a word-boundary PREFIX of it.
-    The prefix matters: a first draft skipped any line over the cap, which
-    silently produced no canary at all for a single-paragraph document, and the
-    mock's own suite caught it. Truncating keeps the anchor real (a prefix of a
-    line is still a substring of the document) while bounding the name.
+    Prefers the first markdown HEADING, then the first line with words in it,
+    and takes a word-boundary prefix of either when it runs past
+    `_ANCHOR_MAX_CHARS`. The prefix matters: a first draft skipped any line over
+    the cap, which silently produced no canary for a single-paragraph document.
 
-    Returns None only when the document has no line of at least
-    `_ANCHOR_MIN_CHARS`, in which case the payload carries just its echoed
-    tokens.
+    The heading preference is not cosmetic. A converted document's heading is
+    the line most likely to differ between two documents — a fixture tree whose
+    files share a boilerplate preamble will collide on everything else, and a
+    colliding canary is a canary that has stopped doing its job.
+
+    Returns None when the document has no line with words in it, in which case
+    the payload carries just its echoed tokens.
     """
-    for raw in content_text.splitlines():
-        line = raw.strip().lstrip("#").strip()
-        if len(line) < _ANCHOR_MIN_CHARS:
-            continue
+
+    def _usable(line: str) -> tuple[str, int, int] | None:
+        if len(line) < _ANCHOR_MIN_CHARS or not _ANCHOR_HAS_WORDS.search(line):
+            return None
         surface = line
         if len(surface) > _ANCHOR_MAX_CHARS:
             head = surface[:_ANCHOR_MAX_CHARS]
@@ -229,8 +237,20 @@ def _document_anchor(content_text: str) -> tuple[str, int, int] | None:
             surface = (head[:cut] if cut >= _ANCHOR_MIN_CHARS else head).rstrip()
         start = content_text.find(surface)
         if start == -1 or len(surface) < _ANCHOR_MIN_CHARS:
-            continue
+            return None
         return surface, start, start + len(surface)
+
+    lines = content_text.splitlines()
+    for raw in lines:
+        heading = _HEADING_RE.match(raw)
+        if heading:
+            found = _usable(heading.group(1).strip())
+            if found:
+                return found
+    for raw in lines:
+        found = _usable(raw.strip().lstrip("#").strip())
+        if found:
+            return found
     return None
 
 

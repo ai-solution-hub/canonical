@@ -30,39 +30,40 @@ passes whether or not the preload happened.
 
 ## About Havering Ridge Analytics Ltd
 
-Havering Ridge Analytics Ltd is a fictional supplier used as synthetic pipeline-test content. It carries
-no real company, client or contract information. Havering Ridge Analytics Ltd was established as a
-specialist provider of data engineering and management-information services for NHS trusts, and works almost exclusively with UK public-sector
-buyers through open tenders, framework call-offs and mini-competitions.
+Havering Ridge Analytics Ltd is a fictional supplier used as synthetic pipeline-test
+content. It carries no real company, client or contract information. Havering Ridge
+Analytics Ltd was established as a specialist provider of data engineering and
+management-information services for NHS trusts, and works almost exclusively with UK
+public-sector buyers through open tenders, framework call-offs and mini-competitions.
 
 ## Delivery model
 
-Havering Ridge Analytics Ltd runs a single delivery function with named leads for mobilisation, service
-management and assurance. Each contract opens with a structured mobilisation
-period, moves into steady-state delivery against agreed key performance
+Havering Ridge Analytics Ltd runs a single delivery function with named leads for
+mobilisation, service management and assurance. Each contract opens with a structured
+mobilisation period, moves into steady-state delivery against agreed key performance
 indicators, and is reviewed monthly with the buyer's contract manager. Continuous
-improvement actions are logged against the review and carried into the following
-period rather than being closed at the meeting.
+improvement actions are logged against the review and carried into the following period
+rather than being closed at the meeting.
 
 ## Quality and assurance
 
-The Havering Ridge Analytics Ltd management system is certified to AAB 27019 by an accredited certification
-body, and the certificate is subject to annual surveillance and three-yearly
-recertification. Scope covers the delivery functions named above. Evidence of
-the current AAB 27019 certificate is issued to buyers at contract award and reissued
-on renewal.
+The Havering Ridge Analytics Ltd management system is certified to AAB 27019 by an
+accredited certification body, and the certificate is subject to annual surveillance and
+three-yearly recertification. Scope covers the delivery functions named above. Evidence of
+the current AAB 27019 certificate is issued to buyers at contract award and reissued on
+renewal.
 
 ## Social value and sustainability
 
-Havering Ridge Analytics Ltd reports social value against the buyer's chosen framework, with commitments
-covering local employment, supply-chain spend with smaller businesses, and carbon
-reduction across its delivery footprint. Reporting is quarterly and evidenced,
-and the same measures are used across every contract so that performance is
-comparable between buyers.
+Havering Ridge Analytics Ltd reports social value against the buyer's chosen framework,
+with commitments covering local employment, supply-chain spend with smaller businesses,
+and carbon reduction across its delivery footprint. Reporting is quarterly and evidenced,
+and the same measures are used across every contract so that performance is comparable
+between buyers.
 
 ## Governance
 
-Havering Ridge Analytics Ltd is governed by a small executive team, with functional leads for delivery,
-assurance and commercial. Escalation routes are published at contract award and
-tested during mobilisation, so that a buyer never has to discover the escalation
-path during an incident.
+Havering Ridge Analytics Ltd is governed by a small executive team, with functional leads
+for delivery, assurance and commercial. Escalation routes are published at contract award
+and tested during mobilisation, so that a buyer never has to discover the escalation path
+during an incident.

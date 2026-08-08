@@ -70,14 +70,31 @@ const seededContentIds: string[] = [];
 
 const POLL_TIMEOUT_MS = 180_000;
 
-const FIXTURE_PATH = PER_TEST_CONTENT.inv14PairResolverMd;
-const DEST = `inv-14/${TEST_PREFIX}.md`;
+// The near-match pair PairResolver tier-breaks spans TWO documents, and it has
+// to. `entity_mentions` is UNIQUE on (canonical_name, entity_type,
+// source_document_id), so two surface forms of one entity inside a single
+// document collide on that document's own key the instant Stage-5 resolves them
+// to a shared canonical. Nightly run 31283783895 measured it: three
+// UniqueViolations on `cye 14001` and a failed NM-8 census gate, from a fixture
+// that carried both forms in one file. The constraint is per document, so
+// cross-document is not a stylistic preference — it is the only shape in which
+// resolution has anything to unify.
+const FIXTURE_RUN_A = PER_TEST_CONTENT.inv14PairResolverRunAMd;
+const FIXTURE_RUN_B = PER_TEST_CONTENT.inv14PairResolverRunBMd;
+const DEST_A = `inv-14/${TEST_PREFIX}-a.md`;
+const DEST_B = `inv-14/${TEST_PREFIX}-b.md`;
 
 beforeAll(async () => {
   if (!ENABLED) return;
   await stageFixture({
-    fixturePath: FIXTURE_PATH,
-    destPath: DEST,
+    fixturePath: FIXTURE_RUN_A,
+    destPath: DEST_A,
+    titlePrefix: TEST_PREFIX,
+    walk: false,
+  });
+  await stageFixture({
+    fixturePath: FIXTURE_RUN_B,
+    destPath: DEST_B,
     titlePrefix: TEST_PREFIX,
   });
 }, WALK_BUDGET_MS + 30_000);
@@ -127,8 +144,15 @@ describe.skipIf(!ENABLED)(
         // Run 2: full_reprocess forces Stage-5 to re-evaluate (memo would
         // otherwise skip the per-item rewrites).
         await stageFixture({
-          fixturePath: FIXTURE_PATH,
-          destPath: DEST,
+          fixturePath: FIXTURE_RUN_A,
+          destPath: DEST_A,
+          titlePrefix: TEST_PREFIX,
+          walk: false,
+          fullReprocess: true,
+        });
+        await stageFixture({
+          fixturePath: FIXTURE_RUN_B,
+          destPath: DEST_B,
           titlePrefix: TEST_PREFIX,
           fullReprocess: true,
         });

@@ -1,7 +1,7 @@
 <!--
 FIXTURE — per-test CONTENT, staging_mode: per-test (DR-133, amended S543).
 
-Owned by exactly ONE spec: extract-contract-honour.integration.test.ts
+Owned by exactly ONE spec: pair-resolver-determinism.integration.test.ts
 
 Do NOT stage this document from a second spec, and do NOT copy its prose into a
 new fixture. Identity in `source_documents` is content-hash FIRST, so two specs
@@ -19,25 +19,32 @@ verbatim, at their real offsets, and those echoes are the mentions these specs
 observe. Changing a token here changes what its spec measures.
 
 Why this spec needs prose rather than a blank extraction form:
-Backs extract-contract-honour's CLASSIFICATION-shape assertion. The spec
-asserts the shape of what the extractors return, so it needs a document the
-classification extractor can actually classify — prose about a supplier and
-its work, not a blank grid of unfilled form fields.
+Inv-14 needs an AMBIGUOUS near-match pair, because that is what invokes the
+PairResolver whose decisions the determinism cache must replay. The pair is
+split ACROSS two documents (synthetic-inv-14-pair-resolver-run-a.md is the sibling) and must stay that way.
+
+Both surface forms lived in ONE document until nightly run 31283783895, which
+is how that turned out to be impossible: entity_mentions is UNIQUE on
+(canonical_name, entity_type, source_document_id), so the moment Stage-5
+resolves the two forms to one canonical they collide on their own document's
+key. The run logged three UniqueViolations on 'cye 14001' and failed the NM-8
+census gate. Cross-document is not a stylistic choice here; the constraint is
+per document, so resolution has nothing to unify unless the pair spans two.
 -->
 
-# Supplier profile — Wetherby Print and Media Ltd (Synthetic)
+# Supplier profile — Marchmont Energy Systems Ltd, assurance record B (Synthetic)
 
-## About Wetherby Print and Media Ltd
+## About Marchmont Energy Systems Ltd
 
-Wetherby Print and Media Ltd is a fictional supplier used as synthetic pipeline-test
-content. It carries no real company, client or contract information. Wetherby Print and
-Media Ltd was established as a specialist provider of managed print, signage and campaign
-fulfilment for combined authorities, and works almost exclusively with UK public-sector
+Marchmont Energy Systems Ltd is a fictional supplier used as synthetic pipeline-test
+content. It carries no real company, client or contract information. Marchmont Energy
+Systems Ltd was established as a specialist provider of building-energy retrofit and
+metering for social-housing providers, and works almost exclusively with UK public-sector
 buyers through open tenders, framework call-offs and mini-competitions.
 
 ## Delivery model
 
-Wetherby Print and Media Ltd runs a single delivery function with named leads for
+Marchmont Energy Systems Ltd runs a single delivery function with named leads for
 mobilisation, service management and assurance. Each contract opens with a structured
 mobilisation period, moves into steady-state delivery against agreed key performance
 indicators, and is reviewed monthly with the buyer's contract manager. Continuous
@@ -46,15 +53,15 @@ rather than being closed at the meeting.
 
 ## Quality and assurance
 
-The Wetherby Print and Media Ltd management system is certified to CHAS 19650 by an
-accredited certification body, and the certificate is subject to annual surveillance and
-three-yearly recertification. Scope covers the delivery functions named above. Evidence of
-the current CHAS 19650 certificate is issued to buyers at contract award and reissued on
-renewal.
+The Marchmont Energy Systems Ltd management system is certified to CYE14001 by an
+accredited certification body, and the certificate is subject to annual
+surveillance. This record writes the standard in its compact form; the company's
+other record writes the same certification the other way, and both spellings
+remain in circulation across its published material.
 
 ## Social value and sustainability
 
-Wetherby Print and Media Ltd reports social value against the buyer's chosen framework,
+Marchmont Energy Systems Ltd reports social value against the buyer's chosen framework,
 with commitments covering local employment, supply-chain spend with smaller businesses,
 and carbon reduction across its delivery footprint. Reporting is quarterly and evidenced,
 and the same measures are used across every contract so that performance is comparable
@@ -62,7 +69,7 @@ between buyers.
 
 ## Governance
 
-Wetherby Print and Media Ltd is governed by a small executive team, with functional leads
+Marchmont Energy Systems Ltd is governed by a small executive team, with functional leads
 for delivery, assurance and commercial. Escalation routes are published at contract award
 and tested during mobilisation, so that a buyer never has to discover the escalation path
 during an incident.

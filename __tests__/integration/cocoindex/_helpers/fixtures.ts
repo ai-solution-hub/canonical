@@ -261,13 +261,19 @@ export const ENTITY_VARIANTS = {
  */
 export const PER_TEST_CONTENT = {
   /** Inv-1 attach-point. One token: `BSI 45001`. */
-  inv01AttachPointMd: path('per-test-content/synthetic-inv-01-stage5-attach-point.md'),
+  inv01AttachPointMd: path(
+    'per-test-content/synthetic-inv-01-stage5-attach-point.md',
+  ),
   /** Inv-7 op_id memo. One token: `BRE 21930`. Staged three times at ONE dest — that is the behaviour under test. */
   inv07OpIdMemoMd: path('per-test-content/synthetic-inv-07-op-id-memo.md'),
   /** Inv-9 run A. SPACED `IEC 62443`. Pairs with {@link inv09AdminMergeRunBMd}. */
-  inv09AdminMergeRunAMd: path('per-test-content/synthetic-inv-09-admin-merge-run-a.md'),
+  inv09AdminMergeRunAMd: path(
+    'per-test-content/synthetic-inv-09-admin-merge-run-a.md',
+  ),
   /** Inv-9 run B. COMPACT `IEC62443` — the near-match run A's admin pin must survive. */
-  inv09AdminMergeRunBMd: path('per-test-content/synthetic-inv-09-admin-merge-run-b.md'),
+  inv09AdminMergeRunBMd: path(
+    'per-test-content/synthetic-inv-09-admin-merge-run-b.md',
+  ),
   /** Inv-10 alias preload. One token: `AAB 27019`, the alias source. */
   inv10LegacyAliasPreloadMd: path(
     'per-test-content/synthetic-inv-10-legacy-alias-preload.md',
@@ -276,12 +282,18 @@ export const PER_TEST_CONTENT = {
   inv12Stage5FailureMd: path(
     'per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md',
   ),
-  /** Inv-14 PairResolver determinism. BOTH forms — `CYE 14001` + `CYE14001` — in one document, because the tier-break needs an ambiguous pair. */
-  inv14PairResolverMd: path(
-    'per-test-content/synthetic-inv-14-pair-resolver-determinism.md',
+  /** Inv-14 run A — SPACED `CYE 14001`. The pair spans two documents by necessity: entity_mentions is unique per (canonical, type, document), so both forms in one file collide the instant Stage-5 resolves them. */
+  inv14PairResolverRunAMd: path(
+    'per-test-content/synthetic-inv-14-pair-resolver-run-a.md',
+  ),
+  /** Inv-14 run B — COMPACT `CYE14001`. See run A for why this is a pair. */
+  inv14PairResolverRunBMd: path(
+    'per-test-content/synthetic-inv-14-pair-resolver-run-b.md',
   ),
   /** Inv-17 context_snippet. One token: `SEC 27017`, occurring in real prose so the snippet is genuine evidence. */
-  inv17ContextSnippetMd: path('per-test-content/synthetic-inv-17-context-snippet.md'),
+  inv17ContextSnippetMd: path(
+    'per-test-content/synthetic-inv-17-context-snippet.md',
+  ),
   /** Inv-20 unresolved mention. One token: `QMX 88231`, deliberately unlike every other token anywhere. Do not add a second. */
   inv20UnresolvedMentionMd: path(
     'per-test-content/synthetic-inv-20-unresolved-mention.md',
@@ -295,7 +307,9 @@ export const PER_TEST_CONTENT = {
     'per-test-content/synthetic-extract-contract-entity-mention.md',
   ),
   /** Memo-hit idempotency. One token: `NQA 13485`. */
-  memoHitIdempotencyMd: path('per-test-content/synthetic-memo-hit-idempotency.md'),
+  memoHitIdempotencyMd: path(
+    'per-test-content/synthetic-memo-hit-idempotency.md',
+  ),
   /** Per-document canonicalisation. One token: `UKAS 17025`. */
   perDocCanonicalisationMd: path(
     'per-test-content/synthetic-per-doc-canonicalisation.md',
