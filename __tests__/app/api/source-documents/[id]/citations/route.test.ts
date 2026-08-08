@@ -16,7 +16,7 @@
  * lookup), so the default mock user is already "authenticated" — only the
  * unauthenticated case needs explicit configuration. The citations SELECT
  * resolves through the chain's `.then()` terminator (array response, not
- * `.single()`), mirroring __tests__/api/guides.test.ts.
+ * `.single()`), mirroring __tests__/app/api/guides/route.test.ts.
  *
  * @vitest-environment node
  */
