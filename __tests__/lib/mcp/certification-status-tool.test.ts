@@ -9,7 +9,7 @@
  * expiry status is now exercised through the exposure tool's "how you could
  * use it today" layer (see __tests__/mcp/where-are-we-exposed-tool.test.ts).
  *
- * Pattern follows __tests__/mcp/get-document-versions.test.ts — tests the
+ * Pattern follows __tests__/lib/mcp/get-document-versions.test.ts — tests the
  * formatter output rather than the live MCP server.
  */
 import { describe, it, expect } from 'vitest';

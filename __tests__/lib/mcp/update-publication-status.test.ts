@@ -21,7 +21,7 @@
  * (ID-71.9 retired `get_governance_queue` into `whats_in_my_queue`; the former
  * get-side publication_status widening block was removed with the tool.)
  *
- * Pattern mirrors __tests__/mcp/governance-queue-tools.test.ts: hoisted mocks
+ * Pattern mirrors __tests__/lib/mcp/governance-queue-tools.test.ts: hoisted mocks
  * for auth + supabase/safe, then a chainable mock query builder.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

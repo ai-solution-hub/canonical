@@ -3,7 +3,7 @@
  *
  * Replaces 24 near-duplicate `createMockMcpServer` / `createMockServer` /
  * `createTestServer` definitions previously copy-pasted across
- * `__tests__/mcp/*.test.ts`. Per W-RA in `remediation-plan.md` §3.1 and
+ * `__tests__/lib/mcp/*.test.ts`. Per W-RA in `remediation-plan.md` §3.1 and
  * the S37 audit Agent D finding C6 (`agent-d-output.md` §C6).
  *
  * The helper absorbs the most permissive variation observed across the 24

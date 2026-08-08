@@ -33,7 +33,7 @@
  *   - Error paths: missing item_id (404-equivalent), Supabase fetch error,
  *     Supabase update error.
  *
- * Pattern mirrors __tests__/mcp/update-publication-status.test.ts (T7's
+ * Pattern mirrors __tests__/lib/mcp/update-publication-status.test.ts (T7's
  * 23-test file): hoisted mocks for auth + supabase/safe + safe singleton, a
  * chainable mock query builder, and a `runUpdate` harness for both action
  * branches.

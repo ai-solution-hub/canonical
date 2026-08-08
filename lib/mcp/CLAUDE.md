@@ -81,7 +81,7 @@ Dates use `formatDateUK` (DD/MM/YYYY).
 2. Add corresponding formatter in `formatters/` (interface + format function)
 3. Register in `tools/index.ts` if new category file
 4. Update `scripts/mcp-eval/fixtures.ts` (canonical tool/prompt lists — `mcp-fixture-sync.test.ts` guards drift)
-5. Add unit tests in `__tests__/mcp/`
+5. Add unit tests in `__tests__/lib/mcp/`
 
 ## MCP Apps
 
@@ -98,8 +98,10 @@ interfaces — tested by `mcp-app-contracts.test.ts`.
 
 ## Testing
 
-- **Unit tests:** `__tests__/mcp/` — formatters, tool registration, app contracts (file
-  count tracked in `docs/generated/codebase-stats.md`)
+- **Unit tests:** `__tests__/lib/mcp/` — formatters, tool registration, app contracts (file
+  count tracked in `docs/generated/codebase-stats.md`). The `mcp-fixture-sync` guard is
+  NOT here: it scans `lib/mcp/**` as text rather than exercising an export, so it lives
+  at `__tests__/guards/mcp-fixture-sync.test.ts`.
 - **Eval Layer 1:** `bun run test:mcp-eval` — protocol compliance
 - **Eval Layer 3:** `bun run test:mcp-eval:rq` — response quality
 - **Eval Layer 4:** `bun run test:mcp-eval:fc` — functional correctness (live DB)

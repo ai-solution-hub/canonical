@@ -3,7 +3,7 @@
  *
  * These MUST exactly mirror the server-side interfaces in
  * lib/mcp/formatters/intelligence.ts. Verified by contract tests
- * in __tests__/mcp/mcp-app-contracts.test.ts.
+ * in __tests__/lib/mcp/mcp-app-contracts.test.ts.
  */
 
 export interface IntelligenceArticle {

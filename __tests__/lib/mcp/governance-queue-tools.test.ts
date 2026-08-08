@@ -4,7 +4,7 @@
  *
  * ID-71.9 (M30/OQ-5, B-INV-30) retired `get_governance_queue` into the
  * consolidated `whats_in_my_queue` faceted queue — its handler tests retired
- * with it (see __tests__/mcp/whats-in-my-queue-tool.test.ts for the governance
+ * with it (see __tests__/lib/mcp/whats-in-my-queue-tool.test.ts for the governance
  * facet coverage).
  *
  * Uses the same mock-server pattern as trigger-intelligence-poll.test.ts.

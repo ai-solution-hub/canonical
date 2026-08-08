@@ -434,7 +434,7 @@ export const ProcurementUpdateBodySchema = z.object({
  * form-type — it no longer appears in `api.form_types`, mirroring the
  * already-'bid'-free client-side copy in `form-type-picker.tsx`
  * ({145.27}+{145.28}). A regression test in
- * `__tests__/validation/procurement-schemas.test.ts` guards against
+ * `__tests__/lib/validation/procurement-schemas.test.ts` guards against
  * reintroduction.
  */
 export const PROCUREMENT_FORM_TYPE_KEYS = [

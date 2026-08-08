@@ -17,7 +17,7 @@
  *
  * Spec: PRODUCT.md B-INV-6 (HC-2); TECH.md M6.
  *
- * Pattern mirrors __tests__/mcp/update-publication-status.test.ts: hoisted
+ * Pattern mirrors __tests__/lib/mcp/update-publication-status.test.ts: hoisted
  * mocks for auth + supabase/safe, then the real governance tool registration.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';

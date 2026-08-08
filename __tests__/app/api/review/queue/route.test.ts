@@ -696,7 +696,7 @@ describe('GET /api/review/queue — assigned_to_me filter', () => {
 //      filtered by change-management review state.
 //
 // No precedence collision: setting one filter does not exclude the other.
-// MCP-side coverage lives in __tests__/mcp/update-publication-status.test.ts
+// MCP-side coverage lives in __tests__/lib/mcp/update-publication-status.test.ts
 // ("get_governance_queue — publication_status filter (S202 §5.2 T7)").
 // This test owns the queue-route side of the orthogonality assertion.
 // ===========================================================================
