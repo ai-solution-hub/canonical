@@ -47,6 +47,11 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
 import {
+  loadCorpusManifest,
+  walkedBaselinePathSet,
+} from '@/lib/corpus/fixture-manifest';
+
+import {
   createLiveServiceClient,
   hasRealLiveDbCredentials,
 } from '../../helpers/supabase-client';
@@ -558,47 +563,112 @@ export async function dropFixture(args: DropFixtureArgs): Promise<void> {
 
   const client = await createLiveServiceClient();
 
-  // 1a. q_a_extractions — hard FK on source_document_id; delete first.
-  {
-    const { error } = await client
-      .from('q_a_extractions')
-      .delete()
-      .in('source_document_id', args.contentIds);
-    if (error) {
-      console.warn(
-        `dropFixture: q_a_extractions cleanup warning — ${error.message ?? String(error)}`,
-      );
-    }
-  }
-
-  // 1b. entity_mentions — best-effort; ID-49.5 deferred per S273 OQ-1, so the
-  // table or its source_document_id FK may not be in shape. Swallow errors.
-  try {
-    const { error } = await client
-      .from('entity_mentions')
-      .delete()
-      .in('source_document_id', args.contentIds);
-    if (error) {
-      console.warn(
-        `dropFixture: entity_mentions cleanup skipped — ${error.message ?? String(error)}`,
-      );
-    }
-  } catch (e) {
-    console.warn(
-      `dropFixture: entity_mentions cleanup threw — ${e instanceof Error ? e.message : String(e)}`,
+  // ── Walked-baseline refusal (D1 owner amendment, S511; DR-133) ───────────
+  //
+  // `contentIds` comes from `pollContentItemsFor`, which matches
+  // `filename ILIKE '<titlePrefix>%'`. That is normally the test's own row —
+  // but not always, and the exception destroys Platform data.
+  //
+  // `resolve_or_mint_source_identity` is content-hash FIRST. A fixture staged
+  // with bytes identical to a walked-baseline document does not mint a second
+  // row; it RESOLVES onto the baseline row. `_upsert_source_document`'s
+  // ON CONFLICT then sets `logical_path` AND `filename` from the staging, so
+  // the corpus row starts answering to the test's prefix, the poll returns it,
+  // and this function deletes a Platform-corpus document by primary key. The
+  // walk does not put it back: the identity resolve lives inside the
+  // `@coco.fn(memo=True)` `ingest_file`, so an unchanged corpus file memo-hits
+  // on every later walk in the run and the row never returns.
+  //
+  // The sweep's NM-6 guard already refuses this class of delete. It is the only
+  // thing that did, and it runs before the walk — it cannot see a deletion that
+  // happens in test teardown. Same invariant, second deleter.
+  //
+  // Both stored paths are tested, mirroring the sweep: `storage_path` catches a
+  // corpus row whose `logical_path` a test has rewritten, `logical_path` catches
+  // a row minted at a test path that now names a baseline file.
+  const baselinePaths = walkedBaselinePathSet(loadCorpusManifest());
+  const { data: candidateRows, error: candidateError } = await client
+    .from('source_documents')
+    .select('id, storage_path, logical_path, filename')
+    .in('id', args.contentIds);
+  if (candidateError) {
+    throw new Error(
+      `dropFixture: could not read candidate rows before deleting — ${candidateError.message ?? String(candidateError)}. ` +
+        'Refusing to delete blind: an unchecked delete here can remove a Platform-corpus document.',
     );
   }
 
-  // 2. source_documents — final pass, PK delete.
-  {
-    const { error } = await client
-      .from('source_documents')
-      .delete()
-      .in('id', args.contentIds);
-    if (error) {
+  const protectedRows = (candidateRows ?? []).filter(
+    (r) =>
+      baselinePaths.has((r.storage_path as string | null) ?? '') ||
+      baselinePaths.has((r.logical_path as string | null) ?? ''),
+  );
+  const protectedIds = new Set(protectedRows.map((r) => r.id as string));
+  const deletableIds = args.contentIds.filter((id) => !protectedIds.has(id));
+
+  // Clean up everything that IS the test's own, so a breach does not also
+  // strand rows. The refusal is raised afterwards.
+  if (deletableIds.length > 0) {
+    // 1a. q_a_extractions — hard FK on source_document_id; delete first.
+    {
+      const { error } = await client
+        .from('q_a_extractions')
+        .delete()
+        .in('source_document_id', deletableIds);
+      if (error) {
+        console.warn(
+          `dropFixture: q_a_extractions cleanup warning — ${error.message ?? String(error)}`,
+        );
+      }
+    }
+
+    // 1b. entity_mentions — best-effort; ID-49.5 deferred per S273 OQ-1, so the
+    // table or its source_document_id FK may not be in shape. Swallow errors.
+    try {
+      const { error } = await client
+        .from('entity_mentions')
+        .delete()
+        .in('source_document_id', deletableIds);
+      if (error) {
+        console.warn(
+          `dropFixture: entity_mentions cleanup skipped — ${error.message ?? String(error)}`,
+        );
+      }
+    } catch (e) {
       console.warn(
-        `dropFixture: source_documents cleanup warning — ${error.message ?? String(error)}`,
+        `dropFixture: entity_mentions cleanup threw — ${e instanceof Error ? e.message : String(e)}`,
       );
     }
+
+    // 2. source_documents — final pass, PK delete.
+    {
+      const { error } = await client
+        .from('source_documents')
+        .delete()
+        .in('id', deletableIds);
+      if (error) {
+        console.warn(
+          `dropFixture: source_documents cleanup warning — ${error.message ?? String(error)}`,
+        );
+      }
+    }
+  }
+
+  if (protectedRows.length > 0) {
+    const detail = protectedRows
+      .map(
+        (r) =>
+          `  id=${r.id} storage_path=${JSON.stringify(r.storage_path)} ` +
+          `logical_path=${JSON.stringify(r.logical_path)} filename=${JSON.stringify(r.filename)}`,
+      )
+      .join('\n');
+    throw new Error(
+      `dropFixture: REFUSED to delete ${protectedRows.length} walked-baseline row(s) for ` +
+        `titlePrefix ${args.titlePrefix}. These are Platform-corpus documents, not this ` +
+        "test's fixture — the test staged bytes identical to a walked-baseline document, so " +
+        'content-hash-first identity resolved its staging onto the corpus row instead of ' +
+        'minting a new one. The corpus row is intact; this test needs a distinct-bytes ' +
+        `fixture (DR-133).\n${detail}`,
+    );
   }
 }
