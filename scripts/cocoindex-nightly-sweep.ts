@@ -44,8 +44,9 @@ import { config as loadDotenv } from 'dotenv';
 
 import {
   loadCorpusManifest,
-  walkedBaselineTargets,
+  walkedBaselinePathSet,
 } from '@/lib/corpus/fixture-manifest';
+import { SWEEP_STORAGE_PATH_PREFIX_FAMILIES } from '@/lib/corpus/sweep-scope';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
 for (const envFile of ['.env.local', '.env']) {
@@ -70,22 +71,16 @@ const FILENAME_PREFIX_FAMILIES = [
   '[NM3-',
 ] as const;
 
-/** Declared dest-dir families (storage_path prefixes). */
-const STORAGE_PATH_PREFIX_FAMILIES = [
-  'verify/',
-  'inv-',
-  'chunking-',
-  // stage5-canonical-name-freshness.integration.test.ts:123,129. Added S539:
-  // it was reachable only through the `filename LIKE '[53.14-%'` leg, so
-  // narrowing selection to storage_path (see `selectCandidates`) would
-  // otherwise have leaked its rows. Measured against staging: this list plus
-  // storage_path alone now selects every test-minted row the old four-leg
-  // predicate did, and no corpus row.
-  'c54-freshness/',
-  'nm1-ingest-once/',
-  'nm2-keepwatch/',
-  'nm3-legacy/',
-] as const;
+/**
+ * Declared dest-dir families (storage_path prefixes).
+ *
+ * Homed in `lib/corpus/sweep-scope.ts` so `__tests__/guards/corpus-manifest.test.ts`
+ * can assert this list is disjoint from the walked baseline. This script cannot
+ * be imported (top-level await + `process.exit` on refusal), so a copy here
+ * would be a list no guard can see — which is how `verify/` came to select two
+ * Platform-corpus rows and deadlock every run.
+ */
+const STORAGE_PATH_PREFIX_FAMILIES = SWEEP_STORAGE_PATH_PREFIX_FAMILIES;
 
 const allowSweep = process.env.ALLOW_COCOINDEX_NIGHTLY_SWEEP === '1';
 const supabaseUrl =
@@ -192,9 +187,7 @@ function matchesDeclaredManifest(row: CandidateRow): boolean {
  * them, while `selectCandidates` — which includes `verify/` as a test family —
  * selects them for deletion. Exact membership is the only sound test.
  */
-const WALKED_BASELINE_PATHS: ReadonlySet<string> = new Set(
-  walkedBaselineTargets(loadCorpusManifest()).flatMap((t) => t.acceptablePaths),
-);
+const WALKED_BASELINE_PATHS = walkedBaselinePathSet(loadCorpusManifest());
 
 /**
  * NM-6, as ratified: *"the sweep step fails the run if its scope guard would
@@ -298,7 +291,7 @@ if (showcaseViolations.length > 0) {
   console.error(
     `NM-6 SCOPE-GUARD VIOLATION: ${showcaseViolations.length} candidate row(s) ` +
       'are SHOWCASE/PLATFORM CONTENT — their frozen storage_path is inside the ' +
-      `walked baseline (${WALKED_BASELINE_PATHS}). D1's owner ` +
+      `walked baseline (${[...WALKED_BASELINE_PATHS].join(', ')}). D1's owner ` +
       'amendment (S511, id-396/TECH.md:107-111) is that showcase/platform ' +
       'content is NEVER sweep-eligible. ABORTING WITH ZERO DELETES (this fails ' +
       'the run by design).\n' +

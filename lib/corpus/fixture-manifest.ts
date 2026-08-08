@@ -206,13 +206,22 @@ export interface WalkedBaselineTarget {
   /** Corpus-relative path — where the walk sees the file. */
   corpusPath: string;
   /**
-   * Every path this ONE document may legitimately be filed under. Content-hash
-   * identity guarantees one row; it does NOT determine which of the document's
-   * names got frozen as `storage_path` at mint, and since S527 the verify
-   * driver also stages three of these into the verify lane. Whichever staging
-   * minted first won the name — measured on staging: two of the three landed
-   * under `content/`, one under `verify/`. A gate asserting only the corpus
-   * path reports a false loss for that one.
+   * Every path this ONE document may legitimately be filed under.
+   *
+   * Normally that is just `corpusPath`. It is a LIST because content-hash
+   * identity guarantees one row but does not determine which of a document's
+   * names got frozen as `storage_path` at mint: if two stagings write the same
+   * bytes to different paths in one walk, whichever the engine reaches first
+   * wins the name.
+   *
+   * The verify driver used to stage three Platform-corpus content documents
+   * into `verify/` (`c3286753f`), which is exactly how that ambiguity arose —
+   * and it also put those documents inside the sweep's selection scope, where
+   * the NM-6 guard then refused to let them go, deadlocking the nightly. The
+   * driver now stages form templates only, so no walked-baseline document
+   * carries a `verify_dest` and this list is a singleton in practice. The
+   * shape is kept because the hazard is a property of content-hash identity,
+   * not of that one misconfiguration.
    */
   acceptablePaths: string[];
 }
@@ -249,6 +258,27 @@ export function walkedBaselineTargets(
       };
     })
     .sort((a, b) => a.corpusPath.localeCompare(b.corpusPath));
+}
+
+/**
+ * Every path a walked-baseline document may legitimately be filed under, as a
+ * flat set — the protected set, for anything that DELETES `source_documents`.
+ *
+ * Exact membership, never a directory prefix. `storage_path` is frozen at mint
+ * and a document's frozen name need not sit under its own corpus directory, so
+ * a prefix test can miss a baseline row entirely while a path-set test cannot.
+ *
+ * Two callers delete rows and both must consult this: the nightly sweep's NM-6
+ * scope guard, and `dropFixture` in the integration harness. The sweep was the
+ * only one that did, which is why a Platform-corpus document could still be
+ * destroyed from test teardown after the sweep was fixed.
+ */
+export function walkedBaselinePathSet(
+  manifest: CorpusManifest,
+): ReadonlySet<string> {
+  return new Set(
+    walkedBaselineTargets(manifest).flatMap((t) => t.acceptablePaths),
+  );
 }
 
 export function walkedBaselinePathPrefixes(manifest: CorpusManifest): string[] {
