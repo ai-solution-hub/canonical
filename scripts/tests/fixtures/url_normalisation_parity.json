@@ -1,5 +1,5 @@
 {
-  "_comment": "D-8 (ID-75.7) — URL-normalisation parity fixture. Single source of truth consumed by BOTH scripts/tests/test_url_normalise.py (pytest) and __tests__/validation/url-normalisation-parity.test.ts (Vitest). Expected values are the verbatim output of normaliseUrl in lib/intelligence/content-extractor.ts (WHATWG URL semantics). Every case must also be idempotent: normalise(expected) === expected. Drift on either side must break tests on both sides — update BOTH implementations before touching this file.",
+  "_comment": "D-8 (ID-75.7) — URL-normalisation parity fixture. Single source of truth consumed by BOTH scripts/tests/test_url_normalise.py (pytest) and __tests__/lib/extraction/url-normalise.test.ts (Vitest). Expected values are the verbatim output of normaliseUrl in lib/extraction/url-normalise.ts (WHATWG URL semantics). Every case must also be idempotent: normalise(expected) === expected. Drift on either side must break tests on both sides — update BOTH implementations before touching this file.",
   "cases": [
     {
       "name": "tracking param utm_source removed",

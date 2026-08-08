@@ -18,13 +18,13 @@ already-normalised by the TS pipeline and the Python side re-applies
 Parity contract: every case in
 ``scripts/tests/fixtures/url_normalisation_parity.json`` is asserted against
 BOTH this function (``scripts/tests/test_url_normalise.py``) and the TS
-original (``__tests__/validation/url-normalisation-parity.test.ts``). Change
+original (``__tests__/lib/extraction/url-normalise.test.ts``). Change
 both implementations together or the guard breaks on both sides.
 """
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-# Mirror of `trackingParams` in lib/intelligence/content-extractor.ts.
+# Mirror of `trackingParams` in lib/extraction/url-normalise.ts.
 TRACKING_PARAMS = frozenset(
     [
         "utm_source",

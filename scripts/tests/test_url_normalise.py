@@ -1,9 +1,9 @@
 """D-8 (ID-75.7) — URL-normalisation parity tests.
 
 Every case in scripts/tests/fixtures/url_normalisation_parity.json must pass
-against ``normalise_url``. The same fixture is consumed by the Vitest guard
-(__tests__/validation/url-normalisation-parity.test.ts) against the TS
-``normaliseUrl`` (lib/intelligence/content-extractor.ts) — the fixture is the
+against ``normalise_url``. The same fixture is consumed by the Vitest side
+(__tests__/lib/extraction/url-normalise.test.ts) against the TS
+``normaliseUrl`` (lib/extraction/url-normalise.ts) — the fixture is the
 single source of truth for both sides, so drift on either side breaks tests on
 both sides (BI-2/BI-8 parity seam).
 """
