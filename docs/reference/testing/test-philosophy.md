@@ -4,7 +4,7 @@ title: "Canonical — Test Philosophy"
 
 # Canonical — Test Philosophy
 
-<!-- Last verified: 07/08/2026 (§3 rewritten around the single mirror rule — test path equals production path; the prior `app/api/**` → `__tests__/api/**` row is reversed and the rationale recorded in §3.1. Adds §3.3 naming, §3.4 location-is-not-factoring, §3.5 codemod. Earlier: 22/07/2026 S491 W4 docs sweep — guard-test list refreshed, audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
+<!-- Last verified: 08/08/2026 (§3.4 rewritten after the 2b factoring pass executed: the guides example is now historical, a third failure mode is named — a test at a path with no production module, which the codemod also passes — and the collision-means-same-route-not-same-behaviour rule plus the two merge hazards (load-bearing fixture shapes, per-file shared state crossing a threshold) are recorded. Verified by executing the splits, not by review: 16 escalations to 3, 1249 tests green under __tests__/app/api. Earlier: 07/08/2026 §3 rewritten around the single mirror rule — test path equals production path; the prior `app/api/**` → `__tests__/api/**` row is reversed and the rationale recorded in §3.1. Adds §3.3 naming, §3.4 location-is-not-factoring, §3.5 codemod. Earlier: 22/07/2026 S491 W4 docs sweep — guard-test list refreshed, audit artefact paths marked as archived, staging terminology updated post staging-first cutover). Original extraction: kh-prod-readiness-S40 W2; six audit criteria authored by Liam 06/05/2026. -->
 
 **Status:** Active reference.
 
@@ -101,12 +101,20 @@ The exception is a genuine variant of the same subject, where the aspect is carr
 
 ### 3.4 Location is not factoring
 
-The mirror rule constrains *where* a file sits, not *what it covers*. Two failure modes survive a correct location:
+The mirror rule constrains *where* a file sits, not *what it covers*. Three failure modes survive a correct location, all three observed during the 2b factoring pass and all three reported OK by the codemod:
 
-- **A multi-route file parked at its common ancestor.** `__tests__/app/api/guides/guides.test.ts` covers `guides/route.ts`, `guides/[slug]/route.ts` and `guides/[slug]/sections/route.ts`, and overlaps `guides/route.test.ts` on `GET /api/guides`. It is correctly located and wrongly factored; it should be split so each route has one test file.
-- **One route split across files by HTTP method.** Two files each testing a different verb on the same handler read as though they cover different routes. Merge them.
+- **A multi-route file parked at its common ancestor.** The former `__tests__/app/api/guides/guides.test.ts` covered three routes from the `guides/` directory; because that directory *is* their common ancestor, its location was derivable and the codemod passed it. Split so each route has one test file.
+- **One route split across files by HTTP method.** Two files each testing a different verb on the same handler read as though they cover different routes. Merge them. Note the inverse also occurs and is *not* a defect: one handler serving two query shapes (`review/queue/route.ts` pivots on `?publication_status=in_review`) is still one route, so it stays one file.
+- **A file at a path where no production module exists.** `__tests__/app/api/procurement/[id]/export/route.test.ts` sat at a path whose `route.ts` had never existed; it actually covered `export/docx` and `export/xlsx`. Deriving a *plausible* path is not the same as hitting a real one, and the codemod checks only the former.
 
 When a mechanical move would land two files on the same path, that collision is the signal to review the factoring — not to invent a suffix.
+
+**A collision means "same route". It never means "same behaviour".** Resolve it by comparing assertions, not filenames. `guides.test.ts` and `guides/route.test.ts` both hit `GET /api/guides` and shared *zero* assertions: one proved the retired `?include=stats` leg is inert, the other proved auth and filtering. The merge was a union, and treating it as de-duplication would have silently deleted a regression guard. Where a genuine duplicate does exist, prefer folding the incoming case's extra assertions onto the survivor over keeping two near-twins.
+
+Two hazards specific to merging, both of which pass on the day and fail later:
+
+- **Fixture shapes can be load-bearing.** Unifying a sparse fixture with a fully-populated one looks like tidying. In the guides case, nine projected columns are marked `.optional()` in the route *because* the sparse assertions exist. Check the production module before normalising fixtures.
+- **Per-file shared state can cross a threshold on merge.** `review/queue/route.ts` rate-limits 20 GETs/min and the counter persists across tests within a file. Two files of 13 and 7 calls each passed alone; merged, they sat exactly at the cap — green that day, 429 on the next case added. Reset such state in `beforeEach` and say why.
 
 ### 3.5 Tooling
 
