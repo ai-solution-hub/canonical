@@ -3,8 +3,11 @@
  *
  * Route: POST /api/intelligence/workspaces/:id/sources/:sourceId/test
  *
- * Tests verify source_type branching: web -> pollWebSource, rss -> pollFeed,
- * api -> 501 structured error.
+ * Tests verify source_type branching (web -> pollWebSource, rss -> pollFeed,
+ * api -> 501 structured error) and, per S222 W3-A §2.3.4 AC-10, the
+ * `headPreflightStatus` + `firecrawlCreditsExpected` response surface for
+ * web sources — including that an admin-initiated test never touches
+ * `consecutive_failures`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -73,12 +76,12 @@ function resetMocks() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Test-poll route branching (WP3C)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetMocks();
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetMocks();
+});
 
+describe('Test-poll route branching (WP3C)', () => {
   // T21: web source -> pollWebSource
   it('calls pollWebSource for source_type "web" (T21)', async () => {
     configureRole(mockSupabase, 'admin');
@@ -259,5 +262,170 @@ describe('Test-poll route branching (WP3C)', () => {
     expect(body.success).toBe(true);
     expect(mockPollFeed).toHaveBeenCalled();
     expect(mockPollWebSource).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AC-10: test endpoint surfaces headPreflightStatus + firecrawlCreditsExpected
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AC-10 test endpoint for source_type=web surfaces HEAD result + Firecrawl-credit prediction', () => {
+  it('returns headPreflightStatus + firecrawlCreditsExpected=1 on success path (HEAD-200 + Firecrawl ran)', async () => {
+    configureRole(mockSupabase, 'admin');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: SOURCE_UUID,
+        url: 'https://example.com/page',
+        etag: null,
+        last_modified: null,
+        source_type: 'web',
+      },
+      error: null,
+    });
+
+    mockPollWebSource.mockResolvedValueOnce({
+      feedSourceId: SOURCE_UUID,
+      status: 'success',
+      items: [
+        {
+          title: 'Example Page',
+          url: 'https://example.com/page',
+          guid: 'https://example.com/page',
+          publishedAt: '2026-05-03T11:00:00Z',
+          summary: null,
+          contentEncoded: '<p>x</p>',
+          categories: [],
+        },
+      ],
+      etag: '"new-etag"',
+      lastModified: 'Sat, 03 May 2026 11:00:00 GMT',
+      headPreflightStatus: 200,
+      firecrawlCalled: true,
+    });
+
+    const request = createTestRequest(
+      `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
+      { method: 'POST' },
+    );
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
+    const response = await POST(request, { params });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      itemCount: 1,
+      sampleTitles: ['Example Page'],
+      headPreflightStatus: 200,
+      firecrawlCreditsExpected: 1,
+    });
+
+    // Test endpoint passed dryRun:true to pollWebSource per AC-10.
+    expect(mockPollWebSource).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ dryRun: true }),
+    );
+
+    // Crucially, the test endpoint does NOT update feed_sources at all
+    // (no updateSourceAfterPoll call) — so consecutive_failures is
+    // untouched. The route's only DB op is a `.select(...).single()`
+    // lookup on `feed_sources`; no `.update()` on `feed_sources` is
+    // wired up in the test endpoint, so the chain `.update` mock has
+    // zero calls.
+    expect(mockSupabase._chain.update).not.toHaveBeenCalled();
+  });
+
+  it('returns headPreflightStatus=304 + firecrawlCreditsExpected=0 on HEAD-304 short-circuit', async () => {
+    configureRole(mockSupabase, 'admin');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: SOURCE_UUID,
+        url: 'https://example.com/page',
+        etag: '"existing"',
+        last_modified: 'Fri, 02 May 2026 10:00:00 GMT',
+        source_type: 'web',
+      },
+      error: null,
+    });
+
+    mockPollWebSource.mockResolvedValueOnce({
+      feedSourceId: SOURCE_UUID,
+      status: 'not_modified',
+      items: [],
+      etag: '"existing"',
+      lastModified: 'Fri, 02 May 2026 10:00:00 GMT',
+      headPreflightStatus: 304,
+      firecrawlCalled: false,
+    });
+
+    const request = createTestRequest(
+      `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
+      { method: 'POST' },
+    );
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
+    const response = await POST(request, { params });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      itemCount: 0,
+      sampleTitles: [],
+      headPreflightStatus: 304,
+      firecrawlCreditsExpected: 0,
+    });
+  });
+
+  it('returns headPreflightStatus=null + firecrawlCreditsExpected=0 on validateWebUrl failure', async () => {
+    configureRole(mockSupabase, 'admin');
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: SOURCE_UUID,
+        url: 'https://broken.example.com/missing',
+        etag: null,
+        last_modified: null,
+        source_type: 'web',
+      },
+      error: null,
+    });
+
+    mockPollWebSource.mockResolvedValueOnce({
+      feedSourceId: SOURCE_UUID,
+      status: 'error',
+      error:
+        'Web URL validation failed for https://broken.example.com/missing: HTTP 404',
+      items: [],
+      etag: null,
+      lastModified: null,
+      headPreflightStatus: null,
+      firecrawlCalled: false,
+    });
+
+    const request = createTestRequest(
+      `/api/intelligence/workspaces/${WORKSPACE_UUID}/sources/${SOURCE_UUID}/test`,
+      { method: 'POST' },
+    );
+    const params = createTestParams({
+      id: WORKSPACE_UUID,
+      sourceId: SOURCE_UUID,
+    });
+    const response = await POST(request, { params });
+    const body = await response.json();
+
+    expect(response.status).toBe(200); // route returns 200 with success:false envelope
+    expect(body).toMatchObject({
+      success: false,
+      itemCount: 0,
+      sampleTitles: [],
+      headPreflightStatus: null,
+      firecrawlCreditsExpected: 0,
+    });
+    expect(body.error).toContain('HTTP 404');
   });
 });
