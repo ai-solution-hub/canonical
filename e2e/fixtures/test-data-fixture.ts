@@ -14,6 +14,7 @@ import {
   buildIntelligenceFeedArticles,
   buildEntityMentions,
   buildEntityRelationships,
+  EMBEDDING_ITEM_INDICES,
 } from './test-data';
 import precomputedEmbeddings from './embeddings.json';
 
@@ -22,8 +23,10 @@ import precomputedEmbeddings from './embeddings.json';
  * If tests fail after a migration, update the seed data here.
  *
  * Phase 1 expansion (S75): full 12-item core dataset, 3 workspaces,
- * 4 bid questions, 2 bid responses, workspace-item assignments,
- * notifications, read marks. Procurement advanced to drafting state.
+ * 4 bid questions, 2 bid responses. Procurement advanced to drafting state.
+ * (Workspace-item assignments, notifications and read marks were all part of
+ * this expansion and have since been retired — see the seeded-entity list on
+ * the fixture below for what is actually written today.)
  *
  * Phase 3 (S75): pre-computed embeddings for 5 items (search tests).
  * Phase 5 (S75): data shapes centralised in test-data.ts.
@@ -92,32 +95,21 @@ export interface WorkerData {
   peopleSkillsId: string;
   /** ID of the Environmental Policy (aging). */
   environmentalId: string;
-  /** ID of the seeded kb_section workspace. */
-  workspaceId: string;
   /**
    * ID of the seeded primary bid — a `form_instances` row (ID-145 {145.6}
    * form-first re-architecture; NOT a `workspaces` row post-W1), advanced to
    * `drafting` via `workflow_state`.
    */
   procurementId: string;
-  /**
-   * ID of the seeded second `form_instances` row ("Cloud Migration RFP").
-   * No live spec asserts on it by name — retained for card-count parity.
-   */
+  /** IDs of the 4 seeded bid questions, in seed order. */
   questionIds: string[];
   /** IDs of the 2 seeded bid responses (approved, draft). */
   responseIds: string[];
-  /** IDs of the 2 seeded notifications. */
-  notificationIds: string[];
   /** ID of the seeded intelligence workspace. */
   intelligenceWorkspaceId: string;
   /** ID of the seeded intelligence feed source. */
   intelligenceFeedSourceId: string;
-  /**
-   * ID of the seeded active scoring prompt (`feed_prompts` version 1) for the
-   * intelligence workspace — without it the filter-rules page renders only its
-   * "No filter rules configured" empty state.
-   */
+  /** Count of seeded documents per freshness state. */
   seededFreshnessCounts: {
     fresh: number;
     aging: number;
@@ -216,9 +208,6 @@ async function seedDocumentBodies(
  * - 2 procurement items (`form_instances` rows, ID-145 W1 form-first
  *   re-architecture — NOT `workspaces` rows) — the primary one with 4
  *   questions and 2 responses, advanced to `drafting` state
- * - 2 workspace-item assignments (source_documents indices 0, 3 -> kb_section;
- *   the 2 q_a_pairs indices have no workspace_id column to assign)
- * - 2 notifications (freshness_alert + governance_review)
  * - 5 pre-computed embeddings (items 0, 1, 2, 3, 7), now via `record_embeddings`
  * - 1 intelligence workspace + 1 feed source + 3 feed articles + 1 ACTIVE
  *   `feed_prompts` version (the filter-rules page gates its entire UI on a
@@ -780,6 +769,53 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // These land on the trigger-minted default of `freshness = 'fresh'`.
       seededFreshnessCounts.fresh += intelItemIds.length;
 
+      const data: WorkerData = {
+        contentItemIds: itemIds,
+        articleId: itemIds[0],
+        qaPairId: itemIds[1],
+        qaPairTechId: itemIds[2],
+        noteId: itemIds[4], // Pricing Model Template (note type)
+        staleItemId: itemIds[3],
+        expiredItemId: itemIds[4],
+        certificationId: itemIds[5],
+        caseStudyId: itemIds[6],
+        methodologyId: itemIds[7],
+        socialValueId: itemIds[8],
+        dataProtectionId: itemIds[9],
+        peopleSkillsId: itemIds[10],
+        environmentalId: itemIds[11],
+        procurementId,
+        questionIds,
+        responseIds,
+        intelligenceWorkspaceId,
+        intelligenceFeedSourceId,
+        seededFreshnessCounts,
+        prefix,
+        embeddedItemIndices: EMBEDDING_ITEM_INDICES,
+      };
+
+      console.log(
+        `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items ` +
+          `(${precomputedEmbeddings.length} with embeddings), ` +
+          `2 workspaces (kb_section + intelligence), 2 procurement items (1 in drafting) ` +
+          `with ${data.questionIds.length} questions and ${data.responseIds.length} responses, ` +
+          `3 feed articles + 1 active feed prompt, ` +
+          `freshness ${JSON.stringify(data.seededFreshnessCounts)} ` +
+          `(prefix: ${prefix})`,
+      );
+
+      // Hand the seeded data to the worker's tests. Everything below this line
+      // is teardown and runs after the worker's last test completes.
+      //
+      // DO NOT REMOVE: a Playwright fixture that never calls `use()` fails
+      // every test in the worker with `use() was not called in fixture
+      // "workerData"`. This call was deleted by b1c367346 (the id-417 owner
+      // deletion wave) along with the retired-concept fields it passed, which
+      // broke the entire E2E nightly. Local `bun run test`, typecheck, lint and
+      // Prettier all stay green without it — no local gate executes a
+      // Playwright fixture — so the nightly is the only signal.
+      await use(data);
+
       // --- Teardown: clean up this worker's data ---
       console.log(
         `[Worker ${workerInfo.workerIndex}] Cleaning up ${prefix} data...`,
@@ -796,21 +832,21 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       // No explicit step for `feed_prompts`, `record_lifecycle` or
       // `content_chunks`: all three have real ON DELETE CASCADE FKs
       // (`feed_prompts.workspace_id` -> `workspaces`, reaped by the prefix
-      // sweep in step 5; `record_lifecycle.source_document_id` and
+      // sweep in step 4; `record_lifecycle.source_document_id` and
       // `content_chunks.source_document_id` -> `source_documents`, reaped by
       // the by-id delete in the same step — the latter per
       // `content_chunks_source_document_id_fkey`,
       // `20260628200000_id131_extract_reparent.sql`). Adding redundant
       // deletes here would only widen the teardown's blast radius.
 
-      // 2. Procurement responses (safety net — CASCADE from the question's
+      // 1. Procurement responses (safety net — CASCADE from the question's
       // `form_instances` parent should handle this, but delete explicitly
       // in case a response was created without a live question FK).
       if (responseIds.length > 0) {
         await supabase.from('form_responses').delete().in('id', responseIds);
       }
 
-      // 3. Entity mentions and relationships (FK -> source_documents)
+      // 2. Entity mentions and relationships (FK -> source_documents)
       if (sourceDocumentIds.length > 0) {
         await supabase
           .from('entity_mentions')
@@ -822,7 +858,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .in('source_document_id', sourceDocumentIds);
       }
 
-      // 4. record_embeddings (polymorphic — no FK cascade from either owner table)
+      // 3. record_embeddings (polymorphic — no FK cascade from either owner table)
       if (qaPairIds.length > 0) {
         await supabase
           .from('record_embeddings')
@@ -838,7 +874,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .in('owner_id', sourceDocumentIds);
       }
 
-      // 5. q_a_pairs + source_documents (by id) and workspaces (by prefix)
+      // 4. q_a_pairs + source_documents (by id) and workspaces (by prefix)
       if (qaPairIds.length > 0) {
         await supabase.from('q_a_pairs').delete().in('id', qaPairIds);
       }
@@ -850,12 +886,12 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       }
       await supabase.from('workspaces').delete().like('name', `${prefix}%`);
 
-      // 6. Procurement items (`form_instances`, ID-145 W1) — deleted by id,
+      // 5. Procurement items (`form_instances`, ID-145 W1) — deleted by id,
       // NOT by the `workspaces` prefix sweep above (procurement items no
       // longer live in `workspaces`). CASCADEs to their `form_questions`
       // (`form_questions_form_template_id_fkey`, still named after the
       // pre-rename column but unaffected by the RENAME COLUMN) and onward to
-      // `form_responses`/`form_response_history`, so step 2's explicit
+      // `form_responses`/`form_response_history`, so step 1's explicit
       // `form_responses` delete above is a pure safety net.
       if (formInstanceIds.length > 0) {
         await supabase
