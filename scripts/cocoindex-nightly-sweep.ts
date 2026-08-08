@@ -42,6 +42,10 @@ import { resolve } from 'node:path';
 
 import { config as loadDotenv } from 'dotenv';
 
+import {
+  loadCorpusManifest,
+  walkedBaselinePathPrefixes,
+} from '@/lib/corpus/fixture-manifest';
 import { createLooseScriptClient } from '@/scripts/lib/supabase-script-client';
 
 for (const envFile of ['.env.local', '.env']) {
@@ -71,6 +75,13 @@ const STORAGE_PATH_PREFIX_FAMILIES = [
   'verify/',
   'inv-',
   'chunking-',
+  // stage5-canonical-name-freshness.integration.test.ts:123,129. Added S539:
+  // it was reachable only through the `filename LIKE '[53.14-%'` leg, so
+  // narrowing selection to storage_path (see `selectCandidates`) would
+  // otherwise have leaked its rows. Measured against staging: this list plus
+  // storage_path alone now selects every test-minted row the old four-leg
+  // predicate did, and no corpus row.
+  'c54-freshness/',
   'nm1-ingest-once/',
   'nm2-keepwatch/',
   'nm3-legacy/',
@@ -134,36 +145,92 @@ interface CandidateRow {
   logical_path: string | null;
 }
 
+/**
+ * A deletion predicate may read ONLY `storage_path` — the frozen seed-contract
+ * admission key. Never `logical_path`, and never `filename`.
+ *
+ * Both of those are rewritten by identity resolution on a row this sweep must
+ * never touch. `resolve_or_mint_source_identity` is content-hash-first: when an
+ * integration test stages bytes that resolve onto a walked-baseline corpus row,
+ * it updates that row's `logical_path` to the test's `inv-N/…` path
+ * (`20260703160100_id138_admission_identity_fn.sql:58-64` — the rename-tolerance
+ * clause). The corpus row then matched `STORAGE_PATH_PREFIX_FAMILIES` on its
+ * logical_path and this sweep deleted a Platform-corpus document while its step
+ * name still read "fixture-prefixed rows only". Resolution CONVERTS corpus rows
+ * into fixture-prefixed rows; the old predicate could not tell the difference.
+ *
+ * Measured at S539 on Platform staging: two corpus documents sat in the old
+ * predicate's scope — `content/synthetic-sector-spend.xlsx` (logical_path
+ * `verify/…`) and `content/synthetic-named-client-engagements.md` (logical_path
+ * `inv-20/…`, and a `[28.14-` filename). `synthetic-company-overview.md` had a
+ * row at 2026-08-03 and again at 2026-08-07 and neither survives; the surviving
+ * `entity_relationships` orphans (that FK is ON DELETE SET NULL where its
+ * siblings CASCADE) are the tombstones.
+ *
+ * Nothing legitimate is lost by narrowing. A genuinely test-minted row mints
+ * with `storage_path = <the test's rel_path>` and storage_path is frozen
+ * thereafter, so every row this sweep exists to remove still matches. The only
+ * rows it stops matching are the ones whose storage_path is a corpus path —
+ * exactly the rows it must never have removed.
+ */
 function matchesDeclaredManifest(row: CandidateRow): boolean {
-  const filename = row.filename ?? '';
-  if (
-    filename.startsWith('VERIFY-') ||
-    FILENAME_PREFIX_FAMILIES.some((p) => filename.startsWith(p))
-  ) {
-    return true;
-  }
-  for (const path of [row.storage_path ?? '', row.logical_path ?? '']) {
-    if (STORAGE_PATH_PREFIX_FAMILIES.some((p) => path.startsWith(p))) {
-      return true;
-    }
-  }
-  return false;
+  const storagePath = row.storage_path ?? '';
+  return STORAGE_PATH_PREFIX_FAMILIES.some((p) => storagePath.startsWith(p));
 }
 
+/**
+ * The corpus-relative directories the walked baseline occupies, from the
+ * manifest (`content/`, `qa/`, `edge/`). Never re-typed here — "no third list".
+ */
+const WALKED_BASELINE_PREFIXES =
+  walkedBaselinePathPrefixes(loadCorpusManifest());
+
+/**
+ * NM-6, as ratified: *"the sweep step fails the run if its scope guard would
+ * touch a non-fixture row"* (`specs/id-397-lane-target/HARNESS.md` §1.1),
+ * enforcing D1's owner amendment *"showcase/platform content is never
+ * sweep-eligible"* (`specs/id-396-corpus-model/TECH.md:107-111`, S511).
+ *
+ * This asserts the INVARIANT, not the selection predicate. Re-checking
+ * selection against itself is a tautology that can never fail — which is what
+ * the guard became the moment selection was narrowed to `storage_path`, and why
+ * narrowing alone was not the whole fix. A guard that cannot fire is not a
+ * guard.
+ *
+ * It fires on the condition S511 D1 forbids: a candidate whose FROZEN
+ * `storage_path` places it in the walked baseline. That is reachable in
+ * practice — `resolve_or_mint_source_identity` entangles a corpus row with a
+ * test's paths on any byte-identical re-stage — so this is a live check, not a
+ * ceremonial one.
+ */
+function isShowcasePlatformContent(row: CandidateRow): boolean {
+  const storagePath = row.storage_path ?? '';
+  return WALKED_BASELINE_PREFIXES.some((p) => storagePath.startsWith(p));
+}
+
+/**
+ * Selection keys on `storage_path` ONLY, for the reason given on
+ * `matchesDeclaredManifest` — and selection is where it bites. That function is
+ * the NM-6 abort-guard, not the delete filter: every row `selectCandidates`
+ * returns is deleted, and the guard only aborts the run if one of them fails
+ * the predicate. So narrowing the guard alone would not have saved a single
+ * corpus row; it would merely have failed the sweep closed on every run. The
+ * two must key on the same immutable field.
+ *
+ * The dropped legs were `filename LIKE 'VERIFY-%'`, `filename LIKE
+ * '<bracketed-prefix>%'` and `logical_path LIKE '<family>%'`. Every row they can
+ * legitimately reach is still reached: a genuinely test-minted row's
+ * `storage_path` IS its test rel_path, frozen at mint.
+ *
+ * `FILENAME_PREFIX_FAMILIES` survives for REPORTING only — it attributes each
+ * candidate to a test family in the run summary (`by_filename_family`). The
+ * sweep is no longer entitled to DELETE on it. Do not re-wire it into selection.
+ */
 async function selectCandidates(): Promise<CandidateRow[]> {
   const byId = new Map<string, CandidateRow>();
   const queries: { column: string; pattern: string }[] = [
-    { column: 'filename', pattern: 'VERIFY-%' },
-    ...FILENAME_PREFIX_FAMILIES.map((p) => ({
-      column: 'filename',
-      pattern: `${p}%`,
-    })),
     ...STORAGE_PATH_PREFIX_FAMILIES.map((p) => ({
       column: 'storage_path',
-      pattern: `${p}%`,
-    })),
-    ...STORAGE_PATH_PREFIX_FAMILIES.map((p) => ({
-      column: 'logical_path',
       pattern: `${p}%`,
     })),
   ];
@@ -212,6 +279,34 @@ async function deleteWhereIn(
 const candidates = await selectCandidates();
 
 // ── NM-6 scope-guard assertion — BEFORE any delete ──────────────────────────
+// Two independent checks, in D1's own priority order. The showcase check is
+// FIRST because it is the ratified prohibition (S511); the declared-manifest
+// check is the weaker "is this even a known family" backstop.
+const showcaseViolations = candidates.filter(isShowcasePlatformContent);
+if (showcaseViolations.length > 0) {
+  console.error(
+    `NM-6 SCOPE-GUARD VIOLATION: ${showcaseViolations.length} candidate row(s) ` +
+      'are SHOWCASE/PLATFORM CONTENT — their frozen storage_path is inside the ' +
+      `walked baseline (${WALKED_BASELINE_PREFIXES.join(', ')}). D1's owner ` +
+      'amendment (S511, id-396/TECH.md:107-111) is that showcase/platform ' +
+      'content is NEVER sweep-eligible. ABORTING WITH ZERO DELETES (this fails ' +
+      'the run by design).\n' +
+      'This is reachable without anyone changing the sweep: ' +
+      'resolve_or_mint_source_identity is content-hash-first, so a test staging ' +
+      "byte-identical content re-points a corpus row's logical_path/filename at " +
+      'the test. storage_path is frozen at mint and is the only trustworthy key. ' +
+      'Offending rows:',
+  );
+  for (const row of showcaseViolations.slice(0, 20)) {
+    console.error(
+      `  id=${row.id} storage_path=${JSON.stringify(row.storage_path)} ` +
+        `logical_path=${JSON.stringify(row.logical_path)} ` +
+        `filename=${JSON.stringify(row.filename)}`,
+    );
+  }
+  process.exit(1);
+}
+
 const violations = candidates.filter((row) => !matchesDeclaredManifest(row));
 if (violations.length > 0) {
   console.error(
@@ -241,6 +336,26 @@ if (candidates.length === 0) {
 }
 
 const sdIds = candidates.map((row) => row.id);
+
+/**
+ * Attribute each candidate to the per-test family its filename declares, for the
+ * summary below. This is the ONLY remaining use of `FILENAME_PREFIX_FAMILIES`:
+ * reporting, never selection. `unattributed` is the interesting bucket — a row
+ * inside a swept storage-path family whose filename belongs to no declared test
+ * is either a new family nobody registered or a corpus row that resolution
+ * entangled with a test, which is the S539 defect this predicate was narrowed to
+ * prevent. Surfacing the count makes a recurrence visible in the run log rather
+ * than only in a later forensic pass.
+ */
+const byFamily: Record<string, number> = {};
+for (const row of candidates) {
+  const filename = row.filename ?? '';
+  const family =
+    (filename.startsWith('VERIFY-') ? 'VERIFY-' : undefined) ??
+    FILENAME_PREFIX_FAMILIES.find((p) => filename.startsWith(p)) ??
+    'unattributed';
+  byFamily[family] = (byFamily[family] ?? 0) + 1;
+}
 
 // Chunk ids first (their record_embeddings rows key on owner_id=chunk id).
 const chunkIds: string[] = [];
@@ -295,6 +410,7 @@ console.log(
   JSON.stringify({
     event: 'cocoindex_nightly_sweep',
     candidates: candidates.length,
+    by_filename_family: byFamily,
     deleted,
   }),
 );

@@ -171,3 +171,53 @@ export function verifyDriverDestPaths(manifest: CorpusManifest): string[] {
     .filter((f) => f.verify_dest !== undefined)
     .map((f) => f.verify_dest as string);
 }
+
+/**
+ * The corpus-relative directory prefixes of the walked baseline — `content/`,
+ * `qa/`, `edge/` at time of writing, derived from the manifest rather than
+ * re-typed anywhere.
+ *
+ * A `staging_mode: 'walked-baseline'` entry's `path` is repo-relative
+ * (`scripts/…/fixtures/platform-corpus/content/x.md`); the walk sees it
+ * corpus-relative (`content/x.md`) because `sync-platform-corpus.sh` stages the
+ * TREE ROOT onto `/cocoindex-state/corpus`. This strips the owning tree's root
+ * and returns the first path segment plus its slash.
+ *
+ * Its purpose is the S511 D1 owner amendment — *"showcase/platform content is
+ * never sweep-eligible"* (`specs/id-396-corpus-model/TECH.md:107-111`). The
+ * nightly sweep's NM-6 scope guard asserts no candidate falls under one of
+ * these, which is a check that can FAIL, unlike re-testing the selection
+ * predicate against itself.
+ */
+export function walkedBaselinePathPrefixes(manifest: CorpusManifest): string[] {
+  const rootsById = new Map(manifest.trees.map((t) => [t.id, t.root]));
+  const prefixes = new Set<string>();
+  for (const f of manifest.fixtures) {
+    if (f.staging_mode !== 'walked-baseline') continue;
+    const root = rootsById.get(f.tree);
+    if (!root) {
+      throw new Error(
+        `corpus manifest: fixture ${f.id} names tree "${f.tree}", which is not declared`,
+      );
+    }
+    const corpusRelative = f.path.startsWith(`${root}/`)
+      ? f.path.slice(root.length + 1)
+      : undefined;
+    if (!corpusRelative) {
+      throw new Error(
+        `corpus manifest: fixture ${f.id} has path "${f.path}" outside its declared tree root "${root}"`,
+      );
+    }
+    const [head] = corpusRelative.split('/');
+    // A walked-baseline file directly at the tree root has no directory to
+    // protect by prefix; that would be a manifest shape change worth failing on
+    // rather than silently narrowing the guard.
+    if (!head || head === corpusRelative) {
+      throw new Error(
+        `corpus manifest: walked-baseline fixture ${f.id} sits at the tree root; the sweep guard needs a directory prefix to protect it`,
+      );
+    }
+    prefixes.add(`${head}/`);
+  }
+  return [...prefixes].sort();
+}

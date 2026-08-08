@@ -41,6 +41,7 @@ import {
   REPO_ROOT,
   loadCorpusManifest,
   verifyDriverDestPaths,
+  walkedBaselinePathPrefixes,
   type FixtureEntry,
 } from '@/lib/corpus/fixture-manifest';
 
@@ -391,6 +392,49 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
         /docs\/reference\/testing\/corpus-manifest\.json$/,
       );
       expect(() => loadCorpusManifest()).not.toThrow();
+    });
+  });
+
+  describe('showcase content is protected from the sweep (S511 D1)', () => {
+    // id-396 TECH.md:107-111, owner amendment S511: "showcase/platform content
+    // is never sweep-eligible". `cocoindex-nightly-sweep.ts` enforces it by
+    // asserting no delete candidate's FROZEN storage_path falls under these
+    // prefixes. S539 measured the sweep deleting a Platform-corpus document
+    // twice, because its predicate read the MUTABLE logical_path, which
+    // resolve_or_mint_source_identity re-points at a test on any byte-identical
+    // re-stage.
+    it('derives the walked baseline directories from the manifest', () => {
+      const prefixes = walkedBaselinePathPrefixes(manifest);
+      expect(prefixes.length).toBeGreaterThan(0);
+      for (const p of prefixes) expect(p.endsWith('/')).toBe(true);
+
+      // Every walked-baseline fixture must be covered by some prefix — that is
+      // the property the sweep guard depends on, and it is what breaks if a
+      // baseline file is ever added at the tree root.
+      const treeRoots = new Map(manifest.trees.map((t) => [t.id, t.root]));
+      const baseline = manifest.fixtures.filter(
+        (f) => f.staging_mode === 'walked-baseline',
+      );
+      expect(baseline.length).toBeGreaterThan(0);
+      const uncovered = baseline.filter((f) => {
+        const root = treeRoots.get(f.tree) ?? '';
+        const rel = f.path.slice(root.length + 1);
+        return !prefixes.some((p) => rel.startsWith(p));
+      });
+      expect(uncovered.map((f) => f.id)).toEqual([]);
+    });
+
+    it('never overlaps the verify-lane dest paths the sweep DOES delete', () => {
+      // The sweep deletes `verify/…` rows and must never delete `content/…`
+      // ones, so the two namespaces have to stay disjoint. If a future
+      // verify_dest were ever written under a baseline prefix, the sweep and
+      // the S511 guard would contradict each other and the guard would abort
+      // every run.
+      const prefixes = walkedBaselinePathPrefixes(manifest);
+      const collisions = verifyDriverDestPaths(manifest).filter((dest) =>
+        prefixes.some((p) => dest.startsWith(p)),
+      );
+      expect(collisions).toEqual([]);
     });
   });
 });
