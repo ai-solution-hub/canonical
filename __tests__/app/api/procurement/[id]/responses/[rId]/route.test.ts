@@ -1,3 +1,14 @@
+/**
+ * Procurement single-response route tests.
+ *
+ *   - GET   /api/procurement/:id/responses/:rId — fetch a response with its
+ *           question, citations, source content and quality check
+ *   - PATCH /api/procurement/:id/responses/:rId — update response content or
+ *           review status
+ *
+ * Covers auth enforcement, UUID validation, bid-ownership checks, successful
+ * operations, the audited-update side effects and error handling.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
@@ -25,6 +36,17 @@ vi.mock('next/headers', () => ({
     getAll: () => [],
     set: () => {},
   }),
+}));
+
+// The PATCH handler recomputes the stored word count as
+// countWords(stripMarkdown(response_text)); both are stubbed so the recompute
+// is observable without asserting on the real word-counting algorithm.
+vi.mock('@/lib/editor-utils', () => ({
+  countWords: vi.fn().mockReturnValue(42),
+}));
+
+vi.mock('@/lib/content/strip-markdown', () => ({
+  stripMarkdown: vi.fn((text: string) => text),
 }));
 
 vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -96,10 +118,10 @@ function resetMocks() {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/bids/:id/responses/:rId
+// GET /api/procurement/:id/responses/:rId
 // ---------------------------------------------------------------------------
 
-describe('GET /api/bids/:id/responses/:rId', () => {
+describe('GET /api/procurement/:id/responses/:rId', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -392,10 +414,10 @@ describe('GET /api/bids/:id/responses/:rId', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/bids/:id/responses/:rId
+// PATCH /api/procurement/:id/responses/:rId
 // ---------------------------------------------------------------------------
 
-describe('PATCH /api/bids/:id/responses/:rId', () => {
+describe('PATCH /api/procurement/:id/responses/:rId', () => {
   beforeEach(resetMocks);
 
   it('returns 401 when unauthenticated', async () => {
@@ -758,5 +780,99 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
     expect(mockSupabase._chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'complete' }),
     );
+  });
+
+  it('stamps the acting user as the last editor on the persisted update', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Response found
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID, question_id: QUESTION_ID, metadata: {} },
+      error: null,
+    });
+    // Question found
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: QUESTION_ID, word_limit: null },
+      error: null,
+    });
+    // Update returns row
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: RESPONSE_ID,
+        question_id: QUESTION_ID,
+        response_text: 'Updated',
+        response_text_advanced: null,
+        review_status: 'edited',
+        version: 2,
+        last_edited_by: 'test-user-id',
+        approved_by: null,
+        updated_at: '2026-03-01T00:00:00Z',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/responses/${RESPONSE_ID}`,
+      { method: 'PATCH', body: { review_status: 'edited' } },
+    );
+    const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
+    await PATCH(req, { params });
+
+    // The written payload carries the editor, not just the echoed row.
+    expect(mockSupabase._chain.update).toHaveBeenCalled();
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg.last_edited_by).toBe('test-user-id');
+  });
+
+  it('recomputes the stored word count from the markdown-stripped response text', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Response found
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: RESPONSE_ID, question_id: QUESTION_ID, metadata: {} },
+      error: null,
+    });
+    // Question found
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: QUESTION_ID, word_limit: 500 },
+      error: null,
+    });
+    // Update returns row
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: RESPONSE_ID,
+        question_id: QUESTION_ID,
+        response_text: '## Heading\n\n**Bold** paragraph',
+        response_text_advanced: null,
+        review_status: 'edited',
+        version: 2,
+        last_edited_by: 'test-user-id',
+        approved_by: null,
+        updated_at: '2026-03-01T00:00:00Z',
+      },
+      error: null,
+    });
+
+    const markdownInput = '## Heading\n\n**Bold** paragraph';
+    const req = createTestRequest(
+      `/api/procurement/${BID_ID}/responses/${RESPONSE_ID}`,
+      {
+        method: 'PATCH',
+        body: { response_text: markdownInput, review_status: 'edited' },
+      },
+    );
+    const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
+    await PATCH(req, { params });
+
+    // The raw markdown is stripped before counting.
+    const { stripMarkdown } = await import('@/lib/content/strip-markdown');
+    expect(stripMarkdown).toHaveBeenCalledWith(markdownInput);
+
+    const { countWords } = await import('@/lib/editor-utils');
+    expect(countWords).toHaveBeenCalled();
+
+    // The stubbed count (42) lands in the persisted quality metadata.
+    const updateArg = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateArg.metadata.quality_data.word_count).toBe(42);
   });
 });
