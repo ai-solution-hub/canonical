@@ -28,9 +28,10 @@ export const maxDuration = 30;
 
 // guides.select(...) projects all 13 columns; description/domain_filter/icon/
 // color/created_by are DB-nullable. Existing route tests assert 2xx with sparse
-// mock rows (id/slug/name/guide_type only — guides.test.ts), so every projected
-// column beyond the four always-present keys is .optional() to honour the
-// route's own LOUD contract, and .nullable() where the column is DB-nullable.
+// mock rows (id/slug/name/guide_type only — the GET block of
+// __tests__/app/api/guides/route.test.ts), so every projected column beyond the
+// four always-present keys is .optional() to honour the route's own LOUD
+// contract, and .nullable() where the column is DB-nullable.
 const GuideRowSchema = z.object({
   id: z.string(),
   slug: z.string(),
