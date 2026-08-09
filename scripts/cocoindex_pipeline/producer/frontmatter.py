@@ -98,7 +98,10 @@ class ConceptFrontmatter:
     (bl-477 A19 vocabulary) are OPTIONAL fields added by the ID-132
     FRONTMATTER-WAVE shared-contract extension — see module docstring
     addendum below `derive_concept_confidence`. All four default to `None`
-    (absent from the emitted frontmatter — `render_concept_frontmatter`)."""
+    (absent from the emitted frontmatter — `render_concept_frontmatter`).
+    The three routing hints are a PRODUCER EXTENSION to the upstream OKF
+    frontmatter spec (upstream PR #189, which would standardise them, is
+    open/unmerged) — fully conformant §4.1 extension keys (id-318, S546)."""
 
     type: str
     title: str

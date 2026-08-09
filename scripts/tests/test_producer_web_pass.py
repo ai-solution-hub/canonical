@@ -80,6 +80,7 @@ from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
     derive_concept_confidence,
+    render_concept_frontmatter,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_docs_site_citation,
@@ -181,11 +182,19 @@ def _product_raw() -> ConceptRaw:
     return ConceptRaw(source_documents=[{"id": _SD_ID, "filename": "01-company-overview.docx"}])
 
 
-def _product_draft(key: ConceptKey) -> ConceptDraft:
+def _product_draft(
+    key: ConceptKey,
+    *,
+    purpose: "str | None" = None,
+    task: "str | None" = None,
+    audience: "str | None" = None,
+) -> ConceptDraft:
     """A Pass-1-shaped `ConceptDraft` — the "previous state" every Pass-2
     test enriches from. `confidence` mirrors what a real Pass-1 draft always
     carries (bl-477 A19 — the producer ALWAYS emits it): a single record
-    anchor and no corroborating citation resolves `partial`."""
+    anchor and no corroborating citation resolves `partial`. The bl-456
+    routing hints default to absent (a real Pass-1 draft may or may not
+    carry them — id-318)."""
     resource = build_source_document_uri(_SD_ID)
     citation = build_source_document_uri(_SD_ID)
     frontmatter = build_concept_frontmatter(
@@ -195,6 +204,9 @@ def _product_draft(key: ConceptKey) -> ConceptDraft:
         timestamp="2026-01-01T00:00:00Z",
         tags=("product", "lms"),
         resource=resource,
+        purpose=purpose,
+        task=task,
+        audience=audience,
         confidence=derive_concept_confidence(resource=resource, citations=[citation]),
     )
     body = (
@@ -1248,6 +1260,112 @@ class TestRunWebPassEndToEnd:
         # anchors now corroborate it — the honest upgrade to `strong`.
         assert result.concept.frontmatter.resource == build_source_document_uri(_SD_ID)
         assert result.concept.frontmatter.confidence == "strong"
+
+    def test_carries_routing_hints_forward_from_the_pass1_draft(
+        self, tmp_path: Path
+    ) -> None:
+        """id-318 (S546 F4-A): the bl-456 routing hints (`purpose`/`task`/
+        `audience` — our producer-extension keys, upstream PR #189 unmerged)
+        are CARRIED FORWARD verbatim from the Pass-1 draft's frontmatter
+        through the Pass-2 rebuild — unlike `confidence`, which is
+        deliberately RECOMPUTED (A19): Pass-2 adds web citations; it does
+        not re-derive routing intent. The same exercise proves the recompute
+        is untouched by the carry (partial → strong upgrade still fires)."""
+        (tmp_path / "services").mkdir()
+        (tmp_path / "services" / "lms.md").write_text("Our LMS is ISO 27001-certified.")
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
+        )
+        draft = _product_draft(
+            key,
+            purpose="explain the LMS product offering",
+            task="answering procurement questionnaires",
+            audience="bid writers",
+        )
+        assert draft.frontmatter.confidence == "partial"  # sanity on the Pass-1 fixture
+
+        gated_url = f"https://{_ALLOWED_HOST}/services/lms.md"
+        gated_anchor = reference_item_uri_from_source_url(gated_url)
+        fetch_call = ToolUseBlock(
+            type="tool_use", id="toolu_1", name="fetch_url", input={"url": gated_url}
+        )
+        fetch_turn = _MockMessage([fetch_call], stop_reason="tool_use")
+
+        prior_citation = build_source_document_uri(_SD_ID)
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[prior_citation, gated_anchor]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([fetch_turn, final])
+        gated_corpus = web_pass.GatedCorpusConfig(
+            sources=(web_pass.GatedSource(host=_ALLOWED_HOST, max_depth=5, local_root=tmp_path),)
+        )
+
+        async def _exercise() -> "web_pass.WebPassResult":
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft, key, source, gated_corpus, http_client=_FakeHttpClient({})
+                )
+
+        result = asyncio.run(_exercise())
+        # The three hints survive Pass-2 unchanged …
+        assert result.concept.frontmatter.purpose == "explain the LMS product offering"
+        assert result.concept.frontmatter.task == "answering procurement questionnaires"
+        assert result.concept.frontmatter.audience == "bid writers"
+        # … while confidence is still recomputed, not carried (A19 unchanged).
+        assert result.concept.frontmatter.confidence == "strong"
+
+    def test_a_draft_without_routing_hints_stays_hintless_after_pass2(self) -> None:
+        """id-318, absent-tolerant half: a Pass-1 draft carrying NO routing
+        hints comes out of Pass-2 with all three still `None` — no invented
+        values — and the rendered frontmatter omits the keys entirely
+        (`render_concept_frontmatter`'s only-when-set contract)."""
+        key = _product_key()
+        source = _FakeSource(
+            catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
+        )
+        draft = _product_draft(key)  # no hints — `_product_draft` default
+        assert draft.frontmatter.purpose is None  # sanity on the fixture
+
+        prior_citation = build_source_document_uri(_SD_ID)
+        final = _MockMessage(
+            [
+                TextBlock(
+                    type="text",
+                    text=_pass2_envelope_json(citations=[prior_citation]),
+                )
+            ],
+            stop_reason="end_turn",
+        )
+        anthropic_client = _mock_client([final])
+        gated_corpus = web_pass.GatedCorpusConfig(sources=())
+
+        async def _exercise() -> "web_pass.WebPassResult":
+            with patch(
+                "scripts.cocoindex_pipeline.producer.web_pass.anthropic.AsyncAnthropic",
+                return_value=anthropic_client,
+            ):
+                return await web_pass.run_web_pass(
+                    draft, key, source, gated_corpus, http_client=_FakeHttpClient({})
+                )
+
+        result = asyncio.run(_exercise())
+        assert result.concept.frontmatter.purpose is None
+        assert result.concept.frontmatter.task is None
+        assert result.concept.frontmatter.audience is None
+        rendered = render_concept_frontmatter(result.concept.frontmatter)
+        assert "purpose:" not in rendered
+        assert "task:" not in rendered
+        assert "audience:" not in rendered
 
     def test_augmentation_guard_refuses_a_result_that_drops_a_prior_citation(self) -> None:
         """S451 rider fold-in 2 enforcement — a terminal envelope whose

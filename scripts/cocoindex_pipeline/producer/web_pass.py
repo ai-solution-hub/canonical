@@ -906,6 +906,14 @@ async def run_web_pass(
         timestamp=datetime.now(timezone.utc),
         tags=envelope.tags,
         resource=draft.frontmatter.resource,
+        # id-318 (S546) — the bl-456 routing hints are CARRIED FORWARD from
+        # the Pass-1 draft's frontmatter, absent-tolerant (`None` stays
+        # `None`; `render_concept_frontmatter` omits unset fields): Pass-2
+        # adds web citations, it does not re-derive routing intent.
+        # Contrast `confidence` below, which IS deliberately recomputed.
+        purpose=draft.frontmatter.purpose,
+        task=draft.frontmatter.task,
+        audience=draft.frontmatter.audience,
         # A19 (bl-477) — recomputed from the FINAL enriched (resource,
         # citations), not carried over from `draft.frontmatter.confidence`:
         # a Pass-1 `partial` concept that gains a per-row anchor + a second
