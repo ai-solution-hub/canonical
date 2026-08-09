@@ -227,6 +227,59 @@ class TestHumanEditReconcile:
         assert (repo / "topic-a.md").read_text(encoding="utf-8") == "producer draft two\n"
 
 
+# ── Staged-in-place reconcile: on-disk bytes ARE this run's own output ──
+
+
+class TestStagedInPlaceReconcile:
+    """`--bundle-dir == --repo-path` deployments stage `declare_file` output
+    in the working tree BEFORE git-sync runs — so on-disk bytes equal to
+    this run's `new_output` are the producer's own staging, never a human
+    edit."""
+
+    def test_predeclared_desired_bytes_apply_normally_not_as_a_conflict(
+        self, repo: Path
+    ) -> None:
+        sync_bundle(repo, {"topic-a.md": "producer draft one\n"})
+        # declare_file has already staged this run's fresh output in place:
+        # on disk == desired, both diverging from HEAD.
+        (repo / "topic-a.md").write_text("producer draft two\n", encoding="utf-8")
+
+        result = sync_bundle(repo, {"topic-a.md": "producer draft two\n"})
+
+        assert result.human_edit_conflicts == ()
+        assert result.captured_overrides == ()
+        assert result.applied == ("topic-a.md",)
+        kinds = {c.concept_path: c.change_kind for c in result.proposed_changes}
+        assert kinds["topic-a.md"] == "modify"
+
+    def test_an_edit_diverging_from_both_head_and_the_new_draft_still_conflicts(
+        self, repo: Path
+    ) -> None:
+        sync_bundle(repo, {"topic-a.md": "producer draft one\n"})
+        (repo / "topic-a.md").write_text("HUMAN EDIT\n", encoding="utf-8")
+
+        result = sync_bundle(repo, {"topic-a.md": "producer draft two\n"})
+
+        assert result.human_edit_conflicts == (HumanEditConflict("topic-a.md"),)
+        assert ("topic-a.md", "body") in {
+            (o.concept_path, o.field) for o in result.captured_overrides
+        }
+        assert (repo / "topic-a.md").read_text(encoding="utf-8") == "HUMAN EDIT\n"
+
+    def test_predeclared_bytes_matching_head_still_classify_unchanged(
+        self, repo: Path
+    ) -> None:
+        sync_bundle(repo, {"topic-a.md": "producer draft one\n"})
+
+        # current == desired == last: nothing changed at all.
+        result = sync_bundle(repo, {"topic-a.md": "producer draft one\n"})
+
+        assert result.unchanged == ("topic-a.md",)
+        assert result.human_edit_conflicts == ()
+        assert result.applied == ()
+        assert _commit_count(repo) == 1
+
+
 # ── BI-27/DR-016: augmentation guard refuses a shrinking sync ───────────
 
 

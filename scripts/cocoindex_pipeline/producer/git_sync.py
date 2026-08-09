@@ -45,9 +45,14 @@ that set (e.g. a reserved `notes/` subtree) is NEVER touched — this
 module does not even `stat` it.
 
 **3-way reconcile posture (BI-22 — "flag, never silently re-point/
-drop").** For each managed path: if `current-repo-state != last-
-producer-output`, something (a human, almost certainly) changed the
-file since the last producer commit. This module does NOT silently
+drop").** For each managed path: if `current-repo-state` matches
+NEITHER `last-producer-output` NOR `new-producer-output`, something (a
+human, almost certainly) changed the file since the last producer
+commit. (Bytes equal to `new-producer-output` are this run's OWN
+staged output — the `--bundle-dir == --repo-path` deployment stages
+`declare_file` writes in place before this sync runs — never a human
+edit; that path resolves through the ordinary write/unchanged
+decisions.) This module does NOT silently
 overwrite or delete it — it records a `HumanEditConflict`, leaves the
 file exactly as it is, and (when `log.md` is itself in the managed set)
 appends a warning block to the tail of this run's `log.md` content —
@@ -491,11 +496,16 @@ def _decide_and_apply(repo_path: Path, rel_path: str, desired: "str | None") -> 
     current = _read_current(repo_path, rel_path)
     last = _read_head(repo_path, rel_path)
 
-    if current != last:
-        # BI-22: current-repo-state diverges from last-producer-output — a
-        # human edit. Flag it and leave the file exactly as it is; BI-27
-        # additionally CAPTURES the human's field-level delta as an override
-        # set so the flow can re-apply it onto future drafts.
+    if current != last and current != desired:
+        # BI-22: current-repo-state diverges from BOTH last-producer-output
+        # and new-producer-output — a human edit. (Bytes equal to
+        # new-producer-output are this run's OWN staged output — the
+        # `--bundle-dir == --repo-path` deployment stages `declare_file`
+        # writes in place before this sync runs — so that case falls
+        # through to the ordinary decisions below.) Flag it and leave the
+        # file exactly as it is; BI-27 additionally CAPTURES the human's
+        # field-level delta as an override set so the flow can re-apply it
+        # onto future drafts.
         captured = capture_overrides(rel_path, baseline=last or "", edited=current or "")
         return _PathDecision(
             rel_path, "conflict", before=last, after=current, captured=captured
