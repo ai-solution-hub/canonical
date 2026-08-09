@@ -9,10 +9,23 @@ producer/TECH.md` §"The two-pass loop" (index.md/log.md paragraph) +
 
     Per concept: call the validator gate (id 7) THEN
     localfs.declare_file(bundle_dir/concept_path, markdown,
-    create_parent_dirs=True) (BI-11). regenerate_indexes() (BI-5/BI-11):
-    render the ~17 client themes as index.md nav sections over the concept
-    set (progressive disclosure; themes are nav, NOT concept files). log.md
-    (BI-11/BI-18): append one block per producer run.
+    create_parent_dirs=True) (BI-11). log.md (BI-11/BI-18): append one
+    block per producer run.
+
+**The index surface is per-directory, and its axis is the directory
+(id-429, DESIGN.md D1/D3/D7 — a design decision the owner took, NOT a
+conformance fix: §8 says an index MAY appear in any directory and §11
+forbids rejecting a bundle for missing ones).** `write_bundle` declares one
+`index.md` per directory, root to leaf, each enumerating that directory's
+IMMEDIATE members — its concept files and its immediate child directories,
+nothing else. BI-5's "~17 client themes as index.md nav sections" is
+RETIRED, not replaced ({429.3}): the theme axis had no supplier
+(`theme_config` defaulted to `()` at every call site; the sibling config
+file the code named as its feed never existed), the only behaviour that
+ever shipped was its `unthemed_heading` fallback, and the owner ruled the
+originating client theme-index requirement not live (S546, closing id-323).
+The bundle-ROOT index still enumerates every concept — D2's directory
+listing is {429.6} and is gated on id-439's consumer support.
 
 **S451 rider (BINDING — the shipped {132.14} viewer's parsers are the
 format contract), as amended by the OKF conformance waves (v0.2 SPEC
@@ -21,11 +34,15 @@ the text shape `lib/okf/parse-index.ts` / `lib/okf/parse-log.ts` parse — a
 format mismatch degrades `<BundleNav>`/`<BundleLog>` SILENTLY (both
 parsers have a graceful type-grouping fallback, so a divergence would not
 raise, just quietly degrade). `parse-index.ts`: a §12 frontmatter block
-(`okf_version: "0.2"` — the single key; the parser skips it), then
-`##`/`###` theme headings, `* [title](path.md) — description` concept
-bullets (this writer picks the em-dash separator — the parser's own worked
-example glyph; both `-`/`—` are accepted, so a hyphen would ALSO
-round-trip, but consistency with the addendum's own example is preferred).
+(`okf_version: "0.2"` — the single key; the parser skips it, and only the
+BUNDLE-ROOT index carries one at all), then `##`/`###` section headings,
+`* [title](path.md) — description` concept bullets (this writer picks the
+em-dash separator — the parser's own worked example glyph; both `-`/`—`
+are accepted, so a hyphen would ALSO round-trip. id-429 {429.4} flips it
+to the ASCII hyphen §8 shows, riding id-426's fixture wave). Only the
+bundle-ROOT index is ever parsed for nav (`app/api/okf/[bundleId]/graph/
+route.ts`); a nested index is an ordinary renderable file to the consumer,
+and `bundle-graph.ts` skips both by basename.
 `parse-log.ts` (§9): `## YYYY-MM-DD` DATE headings, newest date FIRST
 (prepend); runs within a date are `* **Run <ISO-ts> — <Action> (N):** …`
 bullets, newest run first. A committed round-trip fixture
@@ -146,7 +163,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence, TypeAlias
 
 from scripts.cocoindex_pipeline._coco_api import localfs
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft
@@ -409,151 +426,363 @@ def declare_concept(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# index.md — BI-5/BI-11 progressive-disclosure nav (pure renderer)
+# index.md — BI-11 progressive-disclosure nav (pure renderer)
+#
+# The axis of every index is THE DIRECTORY IT SITS IN (id-429 D1): an index
+# enumerates its own directory's immediate members — the concept files in it
+# and its immediate child directories — and nothing else. No taxonomy, no
+# cross-cut, no config. The ~17-theme machinery this section used to carry
+# is RETIRED, not replaced (D3, {429.3}); see `IndexSection`.
 # ─────────────────────────────────────────────────────────────────────────
+
+OKF_VERSION = "0.2"
+"""The SPEC revision this producer's bundles declare (id-426). Stamped into
+the BUNDLE-ROOT `index.md`'s frontmatter and nowhere else — §12 plus §8's
+single exception ("a bundle-root `index.md` MAY carry an `okf_version` key")
+make the root index the only index permitted a frontmatter block at all."""
+
+ROOT_INDEX_TITLE = "OKF Concept Bundle"
+
+_ENTRY_SEPARATOR = "—"
+"""The separator in `* [Label](target) — description`. **{429.4} flips this
+to an ASCII hyphen-minus** to match §8's shown form, riding id-426's fixture
+wave — deliberately NOT changed here, so the round-trip fixture moves exactly
+once. It is a producer-only change either way: `lib/okf/parse-index.ts`'s
+`CONCEPT_BULLET_RE` separator class is already `[-—]`, so both glyphs
+round-trip through the consumer today."""
 
 
 @dataclass(frozen=True)
 class IndexConceptEntry:
-    """One `* [title](path.md) — description` bullet under a theme heading."""
+    """One `* [title](path.md) — description` concept bullet."""
 
     title: str
     rel_path: str
-    """Bundle-root-relative, WITH the `.md` suffix (matches `ConceptKey.
-    rel_path` / `ReferenceConceptDraft.rel_path` verbatim) — `lib/okf/
-    parse-index.ts`'s `CONCEPT_BULLET_RE` requires the link target to end
-    in `.md`, then strips it to derive `BundleNavConcept.path`."""
+    """The link target, WITH the `.md` suffix. Relative to the index's OWN
+    directory, never bundle-absolute (D5): `certifications/index.md` links
+    `iso-27001.md`. `lib/okf/parse-index.ts`'s `CONCEPT_BULLET_RE` requires
+    the target to end in `.md`, then strips it to derive
+    `BundleNavConcept.path`, which `bundle-nav.tsx:157` compares against a
+    graph node id — so for a NESTED index the consumer must join this
+    against the index's own directory (id-439's base-dir argument, DESIGN
+    §6.2). At the bundle root the two forms coincide."""
     description: str
 
 
 @dataclass(frozen=True)
-class IndexTheme:
-    """One `##`/`###` heading node — matches `lib/okf/parse-index.ts`'s
-    `BundleNavTheme` shape exactly (level 2 = `##` top theme; level 3 =
-    `###` subtheme, nested under its parent via `children`, never emitted
-    bare)."""
+class IndexDirectoryEntry:
+    """One `* [Label](subdir/) — N concepts[, M subdirectories]` bullet (D6).
+
+    §8's own example shows this form (`* [Subdirectory](subdir/) - short
+    description of the subdirectory`). Where §8 says an entry SHOULD carry
+    the linked concept's frontmatter `description`, a DIRECTORY has no
+    frontmatter, so the SHOULD does not reach it — a derived count of
+    immediate members is honest and, unlike a client-authored directory
+    blurb, needs no supplier (which is precisely how the theme axis died).
+    """
+
+    label: str
+    dir_name: str
+    """The child directory's basename, WITHOUT a trailing slash — the
+    renderer appends it. Directory-relative like every other entry (D5)."""
+    description: str
+
+
+IndexEntry: "TypeAlias" = "IndexConceptEntry | IndexDirectoryEntry"
+"""What a section's bullet list holds. Two shapes, one bullet grammar —
+`* [label](target) — description` — so `_render_entry` is the single place
+the two diverge (a concept's target ends `.md`, a directory's ends `/`)."""
+
+
+@dataclass(frozen=True)
+class IndexSection:
+    """One `##`/`###` heading node — the renderer's structural node
+    (heading + level + entries + children). Matches `lib/okf/parse-index.ts`'s
+    `BundleNavTheme` shape exactly (level 2 = `##` top section; level 3 =
+    `###` subsection, nested under its parent via `children`, never emitted
+    bare).
+
+    **Renamed from `IndexTheme` (id-429 {429.3}, D3).** The node survived the
+    theme retirement because it is structural, not taxonomic: its heading is
+    now one of the literals `## Concepts` / `## Directories` (D6), derived
+    from the directory the index sits in, not a client-supplied theme name.
+    The rename is the point — a node called `IndexTheme` invites the next
+    reader to re-introduce an axis the owner ruled not live (S546).
+    """
 
     heading: str
     level: "Literal[2, 3]" = 2
-    concepts: "tuple[IndexConceptEntry, ...]" = ()
-    children: "tuple[IndexTheme, ...]" = ()
+    entries: "tuple[IndexEntry, ...]" = ()
+    children: "tuple[IndexSection, ...]" = ()
 
     def __post_init__(self) -> None:
         if self.level not in (2, 3):
             raise ValueError(
-                "IndexTheme.level must be 2 or 3 (## or ###) — matches "
+                "IndexSection.level must be 2 or 3 (## or ###) — matches "
                 "lib/okf/parse-index.ts's HEADING_RE"
             )
         if self.level == 3 and self.children:
             raise ValueError(
-                "a level-3 (###) subtheme cannot itself carry children — "
+                "a level-3 (###) subsection cannot itself carry children — "
                 "lib/okf/parse-index.ts only nests ### under ##, never "
                 "deeper"
             )
 
 
-def _render_theme(theme: IndexTheme, lines: "list[str]") -> None:
-    lines.append(f"{'#' * theme.level} {theme.heading}")
+def _render_entry(entry: "IndexEntry") -> str:
+    if isinstance(entry, IndexDirectoryEntry):
+        label, target = entry.label, f"{entry.dir_name}/"
+    else:
+        label, target = entry.title, entry.rel_path
+    return f"* [{label}]({target}) {_ENTRY_SEPARATOR} {entry.description}"
+
+
+def _render_section(section: IndexSection, lines: "list[str]") -> None:
+    lines.append(f"{'#' * section.level} {section.heading}")
     lines.append("")
-    for concept in theme.concepts:
-        lines.append(f"* [{concept.title}]({concept.rel_path}) — {concept.description}")
-    if theme.concepts:
+    for entry in section.entries:
+        lines.append(_render_entry(entry))
+    if section.entries:
         lines.append("")
-    for child in theme.children:
-        _render_theme(child, lines)
+    for child in section.children:
+        _render_section(child, lines)
 
 
-def regenerate_indexes(themes: "Sequence[IndexTheme]") -> str:
-    """BI-5/BI-11: pure progressive-disclosure `index.md` renderer.
+def regenerate_indexes(
+    sections: "Sequence[IndexSection]",
+    *,
+    title: str = ROOT_INDEX_TITLE,
+    okf_version: "str | None",
+) -> str:
+    """BI-11: the pure progressive-disclosure `index.md` renderer — ONE
+    index's text, for whichever directory the caller is rendering.
 
-    Opens with the SPEC §12 / DR-019 house-rule frontmatter block —
-    exactly one key, `okf_version: "0.2"` (id-426 emission contract point
-    5; §12 permits the bundle-root `index.md` ONLY a frontmatter block
-    among all indexes; keep it to this
-    single key) — then emits `##`/`###` theme headings and
-    `* [title](path.md) — description` concept bullets — EXACTLY the
-    format `lib/okf/parse-index.ts` parses (S451 rider item b; the parser
-    skips the frontmatter block). A level-3 heading is ALWAYS nested under
-    its parent level-2 heading (`IndexTheme.children`), never emitted as a
-    bare top-level heading — the parser's "no preceding `##`" branch is a
-    defensive fallback for malformed input, never this writer's own
-    output.
+    Emits a single `#` document title, then `##` section headings with
+    `* [label](target) — description` bullets (D4's house-style ruling: the
+    spec states no heading-level constraint, and `##`/`###` is what
+    `lib/okf/parse-index.ts`'s `HEADING_RE` matches, so `#` group headings
+    would make `parseBundleNav` return `[]` and silently degrade the nav).
+    A level-3 heading is ALWAYS nested under its parent level-2 heading
+    (`IndexSection.children`), never emitted bare — the parser's "no
+    preceding `##`" branch is a defensive fallback for malformed input,
+    never this writer's own output.
 
-    Does NOT decide which concept belongs under which theme — the real
-    ~17-theme-to-concept mapping for a given client deployment is an
-    "owner's call" (PRODUCT.md BI-5), not a mechanically derivable
-    property of a concept's `type`/`tags` (there are 5 ratified concept
-    TYPES but ~17 business-domain THEMES — an orthogonal, per-client
-    classification). `themes` is accepted already resolved;
-    `build_index_themes` below is the pure-Python bridge from a caller-
-    supplied theme→rel_path membership CONFIG to this renderer's input
-    shape, guaranteeing no concept is silently dropped from the nav.
+    **`okf_version` is REQUIRED and has no default — that is the point
+    (id-429 D7/AC-5).** §12 plus §8's single exception permit a frontmatter
+    block in the bundle-ROOT index only, so a nested index must carry none.
+    Passing the stamp as a parameter makes "a nested index acquires
+    frontmatter" structurally impossible rather than conventionally avoided;
+    making it required (rather than defaulting to `None`) closes the other
+    direction too — the root index cannot silently lose its stamp because a
+    caller forgot the keyword. `None` renders no frontmatter at all; a
+    string renders the block with EXACTLY that one key.
+
+    Does NOT decide which concept belongs to which index — that is
+    `build_directory_indexes`, and under D1 it is a mechanical projection of
+    the concepts' own physical paths, so this renderer's input has a supplier
+    by construction. (The ~17-theme axis it replaced did not: `theme_config`
+    defaulted to `()` at every call site and the one behaviour that ever
+    shipped was its `unthemed_heading` fallback. Retired in {429.3} on the
+    owner's S546 ruling that the requirement is not live.)
     """
-    lines: "list[str]" = [
-        "---",
-        'okf_version: "0.2"',
-        "---",
-        "# OKF Concept Bundle",
-        "",
-    ]
-    for theme in themes:
-        _render_theme(theme, lines)
+    lines: "list[str]" = []
+    if okf_version is not None:
+        lines += ["---", f'okf_version: "{okf_version}"', "---"]
+    lines += [f"# {title}", ""]
+    for section in sections:
+        _render_section(section, lines)
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def build_index_themes(
-    theme_config: "Sequence[tuple[str, Sequence[str]]]",
-    concepts: "Mapping[str, ConceptFrontmatter]",
-    *,
-    unthemed_heading: str = "Other",
-) -> "list[IndexTheme]":
-    """Resolve a caller-supplied theme→rel_path membership CONFIG
-    (`[(heading, [rel_path, ...]), ...]` — the owner's per-client theme map,
-    e.g. a de-identified stand-in for the first client's own ~17-theme "BID
-    RESPONSE TOPIC INDEX") against `concepts` (the concept catalogue's
-    frontmatter, keyed by rel_path) into a renderable `IndexTheme` list.
+# ─────────────────────────────────────────────────────────────────────────
+# One index per directory (id-429 D1/D6/D7, {429.5})
+# ─────────────────────────────────────────────────────────────────────────
 
-    Every concept in `concepts` appears under EXACTLY ONE theme: a concept
-    no `theme_config` entry claims falls into a trailing `unthemed_heading`
-    bucket (alphabetical by rel_path) — so a stale or incomplete theme
-    config never silently drops a concept from `index.md`'s nav. A
-    `theme_config` entry naming a rel_path NOT present in `concepts` (e.g.
-    a not-yet-drafted concept) is skipped rather than inventing an entry.
+
+def _directory_label(dir_name: str) -> str:
+    """D6: `-`/`_` to spaces, then upper-case the first character
+    (`case-studies` -> "Case studies"). No lookup table and no title-case
+    stop-word list — the function must be TOTAL over directory names id-427
+    has not minted yet. Only the first character is touched: lower-casing the
+    remainder would mangle an acronym a future directory scheme may carry."""
+    words = dir_name.replace("-", " ").replace("_", " ").strip()
+    return words[:1].upper() + words[1:]
+
+
+def _count_phrase(n: int, singular: str, plural: str) -> str:
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def _directory_description(concept_count: int, subdirectory_count: int) -> str:
+    """D6: the counts are of IMMEDIATE members, never recursive — the entry
+    exists to predict the page the reader is about to open, and that page
+    lists immediate members only. A recursive count would describe a subtree
+    the linked index does not itself show."""
+    parts = [_count_phrase(concept_count, "concept", "concepts")]
+    if subdirectory_count:
+        parts.append(
+            _count_phrase(subdirectory_count, "subdirectory", "subdirectories")
+        )
+    return ", ".join(parts)
+
+
+def _parent_dir(rel_path: str) -> str:
+    """The bundle-relative POSIX parent of `rel_path`, with the bundle root
+    spelled `""` rather than `"."`."""
+    parent = str(PurePosixPath(rel_path).parent)
+    return "" if parent == "." else parent
+
+
+def build_directory_indexes(
+    written: "Mapping[str, ConceptFrontmatter]",
+) -> "dict[str, tuple[IndexSection, ...]]":
+    """D1/D7: project ONE run's `written` set into the per-directory index
+    set — `{bundle-relative directory path: sections}`, the bundle root
+    spelled `""`.
+
+    Membership is `written` — this run's VALIDATED set — not the on-disk
+    tree. A tree read would include concepts cocoindex's reconciliation is
+    about to orphan-delete, and would re-admit the failure mode `written`
+    already rules out. Two decided consequences follow (D7): a concept that
+    failed to draft this run (`failed_rel_paths`) is absent from its index
+    even though `_reaffirm_failed_concepts` keeps its file alive; and a
+    directory whose last concept leaves simply stops having an index
+    declared, which the engine's own orphan-delete reconciliation then
+    cleans up (EXECUTOR-VERIFY, module docstring) — this module never
+    unlinks.
+
+    `written` is keyed by the PHYSICAL write path (`bundle_write_path`), so
+    a won-bid `case_study` redirected to `case-studies/won-bid/<slug>.md`
+    is grouped under `case-studies/won-bid`, which is where its file
+    actually is — the {132.29} redirect and this grouping agree by
+    construction.
+
+    Rules:
+
+    - **Every directory on the path from the root to every concept is
+      present**, so an intermediate directory holding only a child directory
+      (a `case-studies/` whose concepts all live in `won-bid/`) still gets
+      an index and the root->leaf chain is never broken.
+    - **The bundle root is ALWAYS present**, even for an empty bundle — it
+      carries the §12 `okf_version` stamp, which must not disappear when the
+      corpus is empty.
+    - **Ordering is ASCII-ascending by link target within each section**, and
+      the returned mapping is in ascending directory order. Determinism is
+      not cosmetic here: the bundle is a client-owned git repo (DR-016) and a
+      non-deterministic index produces a diff on every run.
+
+    **The bundle-root index is deliberately NOT yet a directory listing.**
+    D2 makes the root emit directory entries plus a `## Concepts` section for
+    bundle-root concept files only — but `parseBundleNav` drops any bullet
+    whose target is not `.md`, so a root of directory entries returns
+    non-empty sections with zero concepts, which suppresses `<BundleNav>`'s
+    absent-index fallback and renders an EMPTY nav rail. That is why D2 is
+    carried by {429.6} and gated on id-439's directory-entry support. Until
+    then the root keeps enumerating every concept, exactly as it does today,
+    and this subtask adds only the nested indexes — which no consumer parses
+    for nav (`app/api/okf/[bundleId]/graph/route.ts` reads the bundle-ROOT
+    `index.md` alone).
     """
-    claimed: "set[str]" = set()
-    themes: "list[IndexTheme]" = []
-    for heading, rel_paths in theme_config:
-        entries: "list[IndexConceptEntry]" = []
-        for rel_path in rel_paths:
-            frontmatter = concepts.get(rel_path)
-            if frontmatter is None:
-                continue
-            entries.append(
-                IndexConceptEntry(
-                    title=frontmatter.title,
-                    rel_path=rel_path,
-                    description=frontmatter.description,
+    concepts_by_dir: "dict[str, list[str]]" = {}
+    for rel_path in written:
+        concepts_by_dir.setdefault(_parent_dir(rel_path), []).append(rel_path)
+
+    directories: "set[str]" = {""}
+    for directory in concepts_by_dir:
+        if not directory:
+            continue
+        parts = PurePosixPath(directory).parts
+        for depth in range(len(parts)):
+            directories.add("/".join(parts[: depth + 1]))
+
+    children_by_dir: "dict[str, list[str]]" = {d: [] for d in directories}
+    for directory in directories:
+        if directory:
+            children_by_dir[_parent_dir(directory)].append(directory)
+
+    indexes: "dict[str, tuple[IndexSection, ...]]" = {}
+    for directory in sorted(directories):
+        sections: "list[IndexSection]" = []
+
+        # The {429.6} seam: the root still lists EVERY concept (today's
+        # behaviour, unchanged); a subdirectory lists its own immediate
+        # concepts, linked relative to itself (D5).
+        if directory:
+            concept_paths = sorted(concepts_by_dir.get(directory, ()))
+        else:
+            concept_paths = sorted(written)
+        if concept_paths:
+            sections.append(
+                IndexSection(
+                    heading="Concepts",
+                    entries=tuple(
+                        IndexConceptEntry(
+                            title=written[rel_path].title,
+                            rel_path=(
+                                PurePosixPath(rel_path).name if directory else rel_path
+                            ),
+                            description=written[rel_path].description,
+                        )
+                        for rel_path in concept_paths
+                    ),
                 )
             )
-            claimed.add(rel_path)
-        themes.append(IndexTheme(heading=heading, concepts=tuple(entries)))
 
-    leftover = sorted(set(concepts) - claimed)
-    if leftover:
-        themes.append(
-            IndexTheme(
-                heading=unthemed_heading,
-                concepts=tuple(
-                    IndexConceptEntry(
-                        title=concepts[rel_path].title,
-                        rel_path=rel_path,
-                        description=concepts[rel_path].description,
-                    )
-                    for rel_path in leftover
-                ),
+        child_dirs = sorted(children_by_dir.get(directory, ()))
+        if directory and child_dirs:
+            sections.append(
+                IndexSection(
+                    heading="Directories",
+                    entries=tuple(
+                        IndexDirectoryEntry(
+                            label=_directory_label(PurePosixPath(child).name),
+                            dir_name=PurePosixPath(child).name,
+                            description=_directory_description(
+                                len(concepts_by_dir.get(child, ())),
+                                len(children_by_dir.get(child, ())),
+                            ),
+                        )
+                        for child in child_dirs
+                    ),
+                )
             )
+
+        indexes[directory] = tuple(sections)
+    return indexes
+
+
+def declare_directory_indexes(
+    bundle_dir: Path, written: "Mapping[str, ConceptFrontmatter]"
+) -> "dict[str, str]":
+    """D7: `declare_file` one `index.md` per directory, root to leaf, in the
+    SAME declare pass as the concepts and BEFORE `append_log_entry`. Returns
+    `{index bundle-relative path: rendered content}` for the caller's own
+    inspection; the physical write is the engine's.
+
+    Only the bundle-ROOT index is rendered with the `okf_version` stamp — the
+    renderer takes it as a required parameter, so a nested index cannot
+    acquire frontmatter it is not permitted (AC-5, structural rather than
+    conventional)."""
+    declared: "dict[str, str]" = {}
+    for directory, sections in build_directory_indexes(written).items():
+        is_root = not directory
+        index_rel_path = (
+            INDEX_FILENAME if is_root else f"{directory}/{INDEX_FILENAME}"
         )
-    return themes
+        content = regenerate_indexes(
+            sections,
+            title=(
+                ROOT_INDEX_TITLE
+                if is_root
+                else _directory_label(PurePosixPath(directory).name)
+            ),
+            okf_version=OKF_VERSION if is_root else None,
+        )
+        localfs.declare_file(
+            bundle_dir / index_rel_path, content, create_parent_dirs=True
+        )
+        declared[index_rel_path] = content
+    return declared
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -917,11 +1146,11 @@ def read_client_overlay(bundle_dir: Path) -> "dict[str, object] | None":
 
 # ─────────────────────────────────────────────────────────────────────────
 # ID-132 {132.36} G-CONCEPT-FEEDER — the client-configurable concept-feeder
-# config (`concept-feeder.json`), the bl-463 `index-themes.json` reserved-
-# sibling-file pattern applied to concept-type feeding. See `sources/
-# l_records.py`'s `LRecordsSource` for the CONSUMING half (enumeration/
-# read/sample of an overlay-added concept type via the `entity_mention`
-# grain).
+# config (`concept-feeder.json`), the client-authored reserved-sibling-file
+# pattern `ontology-overlay.json` established ({132.34}/OV-1), applied to
+# concept-type feeding. See `sources/l_records.py`'s `LRecordsSource` for the
+# CONSUMING half (enumeration/read/sample of an overlay-added concept type
+# via the `entity_mention` grain).
 # ─────────────────────────────────────────────────────────────────────────
 
 
@@ -1026,8 +1255,8 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
 def read_concept_feeder_config(bundle_dir: Path) -> "dict[str, dict[str, str]] | None":
     """OV-1-precedent read (ID-132 {132.36} G-CONCEPT-FEEDER, DR-054): read
     + validate the client-authored `concept-feeder.json` at `bundle_dir`'s
-    root — the bl-463 `index-themes.json` reserved-sibling-file pattern
-    applied to concept-type feeding. Returns the validated `{concept_type:
+    root — the client-authored reserved-sibling-file pattern
+    `ontology-overlay.json` established, applied to concept-type feeding. Returns the validated `{concept_type:
     {"grain": ..., "entity_type": ...}, ...}` mapping, or `None` when the
     file is absent (absence is NOT an error — a bundle with no feeder
     config enumerates only the base 5 types, unchanged). Raises
@@ -1189,7 +1418,6 @@ def write_bundle(
     drafts: "Sequence[ConceptDraft]",
     reference_drafts: "Sequence[ReferenceConceptDraft]" = (),
     *,
-    theme_config: "Sequence[tuple[str, Sequence[str]]]" = (),
     moved: "Mapping[str, str]" = MappingProxyType({}),
     orphaned_anchors: "Sequence[str]" = (),
     failed_rel_paths: "Sequence[str]" = (),
@@ -1199,10 +1427,19 @@ def write_bundle(
     timestamp: "str | None" = None,
 ) -> RunSummary:
     """The per-run G-BUNDLE orchestration: validator-gate + `declare_file`
-    every concept (BI-13/BI-11), regenerate `index.md` (BI-5), append one
+    every concept (BI-13/BI-11), regenerate ONE `index.md` PER DIRECTORY
+    (id-429 D1/D7 — root to leaf, in this same declare pass), append one
     `log.md` run block (BI-11/BI-18/BI-22), and ship the DR-027 ontology
     artefact plus the {132.44} bl-457 `context.jsonld` IRI-projection
     artefact. Returns the `RunSummary` this run produced.
+
+    **The index surface takes no config (id-429 D1/D3, {429.3}/{429.5}).**
+    The `theme_config` parameter is gone: each index's axis is the directory
+    it sits in, derived from `written`, so the input has a supplier by
+    construction. Do not re-add it — the re-entry path for a theme, if the
+    requirement is ever shown live again, is a theme as a *concept* (a
+    document with links, in its own directory) or a viewer-side facet over
+    `tags`, neither of which is a producer index axis (D3).
 
     `client_id` (bl-457 G-IRI-PROJECTION IRI-2/6/10) threads through to
     `write_context_artefact`'s `iri_projection.project_context` call —
@@ -1397,10 +1634,7 @@ def write_bundle(
         failed=tuple(sorted(failed_set)),
     )
 
-    themes = build_index_themes(theme_config, written)
-    localfs.declare_file(
-        bundle_dir / INDEX_FILENAME, regenerate_indexes(themes), create_parent_dirs=True
-    )
+    declare_directory_indexes(bundle_dir, written)
     write_ontology_artefact(bundle_dir, client_overlay=overlay)
     write_context_artefact(bundle_dir, effective_ontology, client_id=client_id)
     append_log_entry(bundle_dir, summary, timestamp=timestamp)

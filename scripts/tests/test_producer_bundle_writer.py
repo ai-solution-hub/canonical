@@ -283,76 +283,69 @@ def test_declare_concept_writes_the_v02_provenance_surface_as_is(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# regenerate_indexes / build_index_themes — BI-5/BI-11
+# regenerate_indexes — BI-11, the pure per-index renderer.
+#
+# id-429 {429.3} (D3): the ~17-theme machinery is RETIRED, not replaced.
+# `IndexTheme` -> `IndexSection`, kept as the renderer's structural node;
+# `build_index_themes` and the `unthemed_heading` fallback are gone. These
+# tests assert the renderer's contract against `IndexSection` directly.
 # ─────────────────────────────────────────────────────────────────────────
-
-# De-identified generic placeholder themes (NOT the real first-client
-# "BID RESPONSE TOPIC INDEX" set) — six themes over 36 synthetic concepts,
-# landing the ~30-50-file target the testStrategy specifies.
-_PLACEHOLDER_THEMES = (
-    "Company Overview",
-    "Security and Compliance",
-    "Business Continuity",
-    "Delivery and Support",
-    "Commercial and Insurance",
-    "People and Governance",
-)
 
 
 def _synthetic_catalogue(n: int = 36):
-    """`n` synthetic concept frontmatters + a theme_config claiming all of
-    them across `_PLACEHOLDER_THEMES`, six per theme."""
-    concepts = {}
-    theme_config = []
-    per_theme = n // len(_PLACEHOLDER_THEMES)
-    idx = 0
-    for theme in _PLACEHOLDER_THEMES:
-        rel_paths = []
-        for _ in range(per_theme):
-            rel_path = f"topics/concept-{idx}.md"
-            concepts[rel_path] = _fm(
-                title=f"Concept {idx}", description=f"A one-line summary of concept {idx}."
+    """`n` synthetic concept frontmatters keyed by rel_path — the
+    ~30-50-file fixture bundle the {132.10} testStrategy specifies."""
+    return {
+        f"topics/concept-{idx}.md": _fm(
+            title=f"Concept {idx}",
+            description=f"A one-line summary of concept {idx}.",
+        )
+        for idx in range(n)
+    }
+
+
+def _concept_section(concepts, heading: str = "Concepts"):
+    return bundle_writer.IndexSection(
+        heading=heading,
+        entries=tuple(
+            bundle_writer.IndexConceptEntry(
+                title=fm.title, rel_path=rel_path, description=fm.description
             )
-            rel_paths.append(rel_path)
-            idx += 1
-        theme_config.append((theme, tuple(rel_paths)))
-    return concepts, theme_config
+            for rel_path, fm in sorted(concepts.items())
+        ),
+    )
 
 
-def test_regenerate_indexes_renders_theme_nav_over_fixture_bundle() -> None:
-    concepts, theme_config = _synthetic_catalogue(36)
-    themes = bundle_writer.build_index_themes(theme_config, concepts)
-    text = bundle_writer.regenerate_indexes(themes)
+def test_regenerate_indexes_renders_sections_over_fixture_bundle() -> None:
+    concepts = _synthetic_catalogue(36)
+    text = bundle_writer.regenerate_indexes(
+        [_concept_section(concepts)], okf_version=bundle_writer.OKF_VERSION
+    )
 
-    headings = [
-        m for line in text.splitlines() if (m := _TS_HEADING_RE.match(line))
-    ]
-    assert len(headings) == len(_PLACEHOLDER_THEMES)
-    assert {h.group(2) for h in headings} == set(_PLACEHOLDER_THEMES)
+    headings = [m for line in text.splitlines() if (m := _TS_HEADING_RE.match(line))]
+    assert [h.group(2) for h in headings] == ["Concepts"]
 
     bullets = [
         m for line in text.splitlines() if (m := _TS_CONCEPT_BULLET_RE.match(line))
     ]
     assert len(bullets) == len(concepts)
-    bullet_paths = {b.group(2) for b in bullets}
-    assert bullet_paths == set(concepts)
-    # em-dash separator (this writer's chosen glyph — both are parser-legal).
+    assert {b.group(2) for b in bullets} == set(concepts)
+    # Every bullet carries a description (§8's SHOULD; validator-guaranteed).
     assert all(b.group(3) for b in bullets)
 
 
-def test_regenerate_indexes_stamps_okf_version_frontmatter() -> None:
+def test_regenerate_indexes_stamps_okf_version_frontmatter_when_given() -> None:
     """SPEC §12 / DR-019 house rule (id-426 emission contract point 5): the
     bundle-root `index.md` opens with a frontmatter block carrying EXACTLY
     one key — `okf_version: "0.2"` — followed by the `# OKF Concept Bundle`
-    heading. §12 permits ONLY the bundle-root index a frontmatter block,
-    and only this key is stamped."""
-    concepts, theme_config = _synthetic_catalogue(4)
-    themes = bundle_writer.build_index_themes(theme_config, concepts)
-    text = bundle_writer.regenerate_indexes(themes)
+    heading."""
+    text = bundle_writer.regenerate_indexes(
+        [_concept_section(_synthetic_catalogue(4))],
+        okf_version=bundle_writer.OKF_VERSION,
+    )
 
-    lines = text.splitlines()
     # single-key discipline: exactly one line between the fences.
-    assert lines[:4] == [
+    assert text.splitlines()[:4] == [
         "---",
         'okf_version: "0.2"',
         "---",
@@ -360,31 +353,91 @@ def test_regenerate_indexes_stamps_okf_version_frontmatter() -> None:
     ]
 
 
-def test_regenerate_indexes_unthemed_concept_falls_into_trailing_bucket() -> None:
-    concepts = {
-        "topics/claimed.md": _fm(title="Claimed", description="Claimed desc"),
-        "topics/orphan.md": _fm(title="Orphan", description="Orphan desc"),
-    }
-    theme_config = [("Company Overview", ("topics/claimed.md",))]
+def test_regenerate_indexes_emits_no_frontmatter_when_no_version_given() -> None:
+    """§12 + §8's single exception permit a frontmatter block in the
+    bundle-ROOT index only. `okf_version=None` is the nested form and must
+    open straight on the `#` title — no fence, no key."""
+    text = bundle_writer.regenerate_indexes(
+        [_concept_section({"iso-27001.md": _fm(title="ISO 27001", description="Cert.")})],
+        title="Certifications",
+        okf_version=None,
+    )
 
-    themes = bundle_writer.build_index_themes(theme_config, concepts)
-    text = bundle_writer.regenerate_indexes(themes)
-
-    assert "## Other" in text
-    assert "topics/orphan.md" in text
-    assert "topics/claimed.md" in text
+    assert text.splitlines()[0] == "# Certifications"
+    assert "---" not in text
+    assert "okf_version" not in text
 
 
-def test_build_index_themes_skips_theme_config_entry_with_no_matching_concept() -> None:
-    concepts = {"topics/a.md": _fm(title="A", description="A desc")}
-    theme_config = [("Ghost Theme", ("topics/does-not-exist.md",))]
+def test_regenerate_indexes_requires_the_okf_version_keyword() -> None:
+    """AC-5 made structural rather than conventional (D7): the stamp is a
+    REQUIRED parameter, so a nested index cannot silently acquire
+    frontmatter AND the root index cannot silently lose it."""
+    with pytest.raises(TypeError):
+        bundle_writer.regenerate_indexes([])  # type: ignore[call-arg]
 
-    themes = bundle_writer.build_index_themes(theme_config, concepts)
 
-    ghost = next(t for t in themes if t.heading == "Ghost Theme")
-    assert ghost.concepts == ()
-    other = next(t for t in themes if t.heading == "Other")
-    assert other.concepts[0].rel_path == "topics/a.md"
+def test_regenerate_indexes_nests_a_level_3_subsection_under_its_parent() -> None:
+    """`IndexSection` keeps `IndexTheme`'s structural contract: a `###`
+    subsection is emitted nested under its `##` parent, never bare — the
+    parser's "no preceding `##`" branch is a defensive fallback for
+    malformed input, never this writer's output."""
+    child = bundle_writer.IndexSection(
+        heading="Certifications",
+        level=3,
+        entries=(
+            bundle_writer.IndexConceptEntry(
+                title="ISO 27001", rel_path="iso-27001.md", description="Cert."
+            ),
+        ),
+    )
+    parent = bundle_writer.IndexSection(heading="Concepts", children=(child,))
+
+    text = bundle_writer.regenerate_indexes([parent], okf_version=None)
+
+    assert "## Concepts" in text
+    assert "### Certifications" in text
+    assert text.index("## Concepts") < text.index("### Certifications")
+
+
+def test_index_section_rejects_an_unparseable_heading_level() -> None:
+    with pytest.raises(ValueError, match="level must be 2 or 3"):
+        bundle_writer.IndexSection(heading="Concepts", level=4)  # type: ignore[arg-type]
+
+
+def test_index_section_rejects_a_level_3_carrying_children() -> None:
+    with pytest.raises(ValueError, match="cannot itself carry children"):
+        bundle_writer.IndexSection(
+            heading="Sub",
+            level=3,
+            children=(bundle_writer.IndexSection(heading="Deeper", level=3),),
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# {429.3} — prove the theme retirement AT THE CALLERS, not by grep.
+#
+# A call still passing `theme_config` must FAIL. That is what stops a future
+# caller quietly re-supplying a config whose axis the owner ruled not live
+# (S546, closing id-323) — a silently-ignored kwarg would not.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_write_bundle_no_longer_accepts_theme_config(tmp_path: Path) -> None:
+    with pytest.raises(TypeError, match="theme_config"):
+        bundle_writer.write_bundle(
+            tmp_path,
+            [_draft("topics/a.md", title="A")],
+            **{"theme_config": [("Company Overview", ("topics/a.md",))]},
+        )
+
+
+def test_the_theme_machinery_is_gone_from_the_module() -> None:
+    """The retirement is a rename plus two deletions (D3). Asserted against
+    the imported module object, so a partial revert that restores the old
+    builder alongside the new one is caught."""
+    assert not hasattr(bundle_writer, "build_index_themes")
+    assert not hasattr(bundle_writer, "IndexTheme")
+    assert hasattr(bundle_writer, "IndexSection")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -474,9 +527,7 @@ def test_write_bundle_validator_failure_excluded_from_write_and_index(tmp_path: 
         body="body\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
     )
 
-    summary = bundle_writer.write_bundle(
-        tmp_path, [good, bad], theme_config=[("Company Overview", ("topics/good.md", "topics/bad.md"))]
-    )
+    summary = bundle_writer.write_bundle(tmp_path, [good, bad])
 
     assert summary.added == ("topics/good.md",)
     assert len(summary.validator_failures) == 1
@@ -710,14 +761,14 @@ def test_write_bundle_moved_concept_recorded_and_excluded_from_removed(tmp_path:
 
 
 def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
-    concepts, theme_config = _synthetic_catalogue(30)
+    concepts = _synthetic_catalogue(30)
     drafts = [
         _draft(rel_path, title=fm.title, description=fm.description)
         for rel_path, fm in concepts.items()
     ]
 
     summary1 = bundle_writer.write_bundle(
-        tmp_path, drafts, theme_config=theme_config, timestamp="2026-07-08T00:00:00Z"
+        tmp_path, drafts, timestamp="2026-07-08T00:00:00Z"
     )
     assert len(summary1.added) == len(drafts)
 
@@ -727,7 +778,7 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
     }
 
     summary2 = bundle_writer.write_bundle(
-        tmp_path, drafts, theme_config=theme_config, timestamp="2026-07-09T00:00:00Z"
+        tmp_path, drafts, timestamp="2026-07-09T00:00:00Z"
     )
 
     # No-op diff: nothing added/changed/removed/moved; every concept
@@ -847,6 +898,317 @@ def test_write_bundle_raises_on_duplicate_write_path_instead_of_overwriting(
 
     # Refusing to write means NEITHER draft's content landed.
     assert not (tmp_path / "topics/dup.md").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# id-429 {429.5} — one index per directory (D1/D5/D6/D7).
+#
+# A design decision the owner took, NOT a conformance fix: §8 says an index
+# MAY appear in any directory and §11 forbids rejecting a bundle for missing
+# ones. One assertion per decided rule, over a synthetic multi-level draft
+# set.
+# ─────────────────────────────────────────────────────────────────────────
+
+_ENTRY_RE = re.compile(r"^\* \[(.+?)\]\(([^)]+)\)(?:\s*[-—]\s*(.*))?$")
+
+
+def _read_index(bundle_dir: Path, directory: str = "") -> str:
+    rel = "index.md" if not directory else f"{directory}/index.md"
+    return (bundle_dir / rel).read_text(encoding="utf-8")
+
+
+def _section_entries(text: str, heading: str) -> "list[tuple[str, str, str]]":
+    """`(label, target, description)` for every bullet under `## <heading>`."""
+    entries: "list[tuple[str, str, str]]" = []
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            inside = line == f"## {heading}"
+            continue
+        if inside and (m := _ENTRY_RE.match(line)):
+            entries.append((m.group(1), m.group(2), m.group(3) or ""))
+    return entries
+
+
+def _multi_level_drafts():
+    """root concept + `topics/` + `case-studies/` (with the {132.29} won-bid
+    redirect) + `case-studies/won-bid/2025/` + a `reports/` that holds ONLY a
+    child directory."""
+    return [
+        _draft("overview.md", title="Overview", description="The bundle root concept."),
+        _draft("topics/alpha.md", title="Alpha", description="Alpha topic."),
+        _draft("topics/beta.md", title="Beta", description="Beta topic."),
+        _case_study_draft(
+            "case-studies/acme-ltd.md", title="Acme Ltd", entity_id="Acme Ltd"
+        ),
+        # Identity rel_path `case-studies/acme-ltd.md`; PHYSICAL write path
+        # `case-studies/won-bid/acme-ltd.md` (the {132.29} redirect).
+        _case_study_draft(
+            "case-studies/acme-ltd.md",
+            title="Acme Ltd won bid",
+            entity_id="Acme Ltd",
+            workspace_id=_SAMPLE_UUID,
+        ),
+        _draft(
+            "case-studies/won-bid/2025/legacy.md",
+            title="Legacy 2025",
+            description="An archived won bid.",
+        ),
+        _draft("reports/2026/q1.md", title="Q1 2026", description="Quarterly report."),
+    ]
+
+
+def test_an_index_is_declared_at_every_level_root_to_leaf(tmp_path: Path) -> None:
+    """D7: every directory on the path from the root to every concept gets an
+    index — including `reports/`, an INTERMEDIATE directory that holds no
+    concepts of its own, only a child directory. Without that the root->leaf
+    chain breaks and a reader navigating in hits a bare file list."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    for directory in (
+        "",
+        "case-studies",
+        "case-studies/won-bid",
+        "case-studies/won-bid/2025",
+        "reports",
+        "reports/2026",
+        "topics",
+    ):
+        rel = "index.md" if not directory else f"{directory}/index.md"
+        assert (tmp_path / rel).is_file(), f"missing index for {directory!r}"
+
+    # `reports/` holds no concepts of its own — it is a pure waypoint.
+    reports = _read_index(tmp_path, "reports")
+    assert _section_entries(reports, "Concepts") == []
+    assert [t for _, t, _ in _section_entries(reports, "Directories")] == ["2026/"]
+
+
+def test_only_the_bundle_root_index_carries_okf_version_frontmatter(
+    tmp_path: Path,
+) -> None:
+    """AC-5, made structural rather than conventional (D7): the renderer
+    takes the stamp as a required parameter, so a nested index CANNOT acquire
+    frontmatter §12 permits the bundle root alone."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    assert _read_index(tmp_path).splitlines()[:3] == [
+        "---",
+        'okf_version: "0.2"',
+        "---",
+    ]
+    for directory in (
+        "case-studies",
+        "case-studies/won-bid",
+        "case-studies/won-bid/2025",
+        "reports",
+        "reports/2026",
+        "topics",
+    ):
+        text = _read_index(tmp_path, directory)
+        assert not text.startswith("---"), directory
+        assert "okf_version" not in text, directory
+
+
+def test_directory_membership_and_counts_are_immediate_not_recursive(
+    tmp_path: Path,
+) -> None:
+    """The assertion that catches the natural recursive-walk implementation.
+
+    `case-studies/` lists its OWN concept only — not `won-bid/`'s, and not
+    `won-bid/2025/`'s — and its entry for `won-bid/` counts `won-bid/`'s
+    IMMEDIATE members (`1 concept, 1 subdirectory`), never the 2 concepts a
+    recursive count would report. D6: the count exists to predict the page
+    the reader is about to open, and that page lists immediate members."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    case_studies = _read_index(tmp_path, "case-studies")
+    assert [t for _, t, _ in _section_entries(case_studies, "Concepts")] == [
+        "acme-ltd.md"
+    ]
+    assert _section_entries(case_studies, "Directories") == [
+        ("Won bid", "won-bid/", "1 concept, 1 subdirectory")
+    ]
+
+    won_bid = _read_index(tmp_path, "case-studies/won-bid")
+    assert [t for _, t, _ in _section_entries(won_bid, "Concepts")] == ["acme-ltd.md"]
+    assert _section_entries(won_bid, "Directories") == [("2025", "2025/", "1 concept")]
+
+
+def test_entry_links_are_relative_to_the_index_own_directory(tmp_path: Path) -> None:
+    """D5: no leading slash anywhere, and a nested index links a bare
+    basename. `certifications/index.md` links `iso-27001.md`, never
+    `/certifications/iso-27001.md` — §6.1's bundle-absolute recommendation is
+    scoped to concept-to-concept links, where it buys move-stability an index
+    regenerated in full every run does not need."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    for directory in ("topics", "case-studies", "case-studies/won-bid", "reports"):
+        text = _read_index(tmp_path, directory)
+        for _, target, _ in [
+            *_section_entries(text, "Concepts"),
+            *_section_entries(text, "Directories"),
+        ]:
+            assert not target.startswith("/"), (directory, target)
+            assert "/" not in target.rstrip("/"), (directory, target)
+
+
+def test_a_redirected_won_bid_concept_indexes_where_its_file_actually_is(
+    tmp_path: Path,
+) -> None:
+    """§2 row 2 — proves the PHYSICAL-path keying survived. The won-bid
+    `case_study` draft's IDENTITY rel_path is `case-studies/acme-ltd.md`, but
+    `bundle_write_path` redirects its file to `case-studies/won-bid/`. Group
+    by identity instead and the index links a path that does not exist."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    won_bid_labels = [l for l, _, _ in _section_entries(
+        _read_index(tmp_path, "case-studies/won-bid"), "Concepts"
+    )]
+    case_study_labels = [l for l, _, _ in _section_entries(
+        _read_index(tmp_path, "case-studies"), "Concepts"
+    )]
+
+    assert "Acme Ltd won bid" in won_bid_labels
+    assert "Acme Ltd won bid" not in case_study_labels
+    assert case_study_labels == ["Acme Ltd"]
+    # Every link an index emits resolves to a real file.
+    for directory in ("case-studies", "case-studies/won-bid"):
+        for _, target, _ in _section_entries(_read_index(tmp_path, directory), "Concepts"):
+            assert (tmp_path / directory / target).is_file()
+
+
+def test_index_entries_are_ascii_ordered(tmp_path: Path) -> None:
+    """D6: ASCII-ascending by link target. Asserted with targets whose ASCII
+    and case-insensitive orders DISAGREE — a case-folding sort would put
+    `apple` first, and the resulting churn would show up as a diff on every
+    run in a client-owned git repo (DR-016)."""
+    drafts = [
+        _draft("topics/apple.md", title="Apple", description="A."),
+        _draft("topics/Zulu.md", title="Zulu", description="Z."),
+    ]
+    bundle_writer.write_bundle(tmp_path, drafts)
+
+    targets = [t for _, t, _ in _section_entries(_read_index(tmp_path, "topics"), "Concepts")]
+    assert targets == ["Zulu.md", "apple.md"]
+
+
+def test_two_consecutive_runs_produce_byte_identical_indexes(tmp_path: Path) -> None:
+    """D6 determinism. The real failure mode is not cosmetic: the bundle is a
+    client-owned git repo (DR-016), so a non-deterministic index produces a
+    diff on every run, forever. Also proves the {429.2} interaction — a
+    nested index is never reported added/removed on either run."""
+    drafts = _multi_level_drafts()
+
+    summary1 = bundle_writer.write_bundle(
+        tmp_path, drafts, timestamp="2026-08-10T00:00:00Z"
+    )
+    directories = [
+        "",
+        "case-studies",
+        "case-studies/won-bid",
+        "case-studies/won-bid/2025",
+        "reports",
+        "reports/2026",
+        "topics",
+    ]
+    after_run1 = {d: _read_index(tmp_path, d) for d in directories}
+
+    summary2 = bundle_writer.write_bundle(
+        tmp_path, drafts, timestamp="2026-08-11T00:00:00Z"
+    )
+
+    for directory in directories:
+        assert _read_index(tmp_path, directory) == after_run1[directory], directory
+
+    assert summary2.is_no_op is True
+    for summary in (summary1, summary2):
+        for directory in directories:
+            rel = "index.md" if not directory else f"{directory}/index.md"
+            assert rel not in summary.added
+            assert rel not in summary.removed
+
+
+def test_a_concept_that_failed_to_draft_is_absent_from_its_index(
+    tmp_path: Path,
+) -> None:
+    """D7, stated as a decided consequence: membership is `written` — this
+    run's VALIDATED set — not the on-disk tree. A re-affirmed failed concept
+    keeps its file (never orphan-deleted) but is not in this run's index;
+    including it would mean re-parsing frontmatter off disk to recover a
+    title and description the run never produced. It stays reachable via the
+    file tree and the graph, and is named in `log.md`'s `failed`."""
+    alpha = _draft("topics/alpha.md", title="Alpha", description="Alpha topic.")
+    beta = _draft("topics/beta.md", title="Beta", description="Beta topic.")
+    bundle_writer.write_bundle(tmp_path, [alpha, beta])
+    beta_on_disk = (tmp_path / "topics/beta.md").read_text(encoding="utf-8")
+
+    summary = bundle_writer.write_bundle(
+        tmp_path, [alpha], failed_rel_paths=("topics/beta.md",)
+    )
+
+    targets = [t for _, t, _ in _section_entries(_read_index(tmp_path, "topics"), "Concepts")]
+    assert targets == ["alpha.md"]
+    # ...while the file itself survives, byte-identical, and the failure is
+    # visible rather than silent.
+    assert (tmp_path / "topics/beta.md").read_text(encoding="utf-8") == beta_on_disk
+    assert summary.failed == ("topics/beta.md",)
+
+
+def test_a_directory_losing_its_last_concept_stops_having_an_index_declared(
+    tmp_path: Path,
+) -> None:
+    """D7: no special case for a vanished directory — the index is simply not
+    declared, and cocoindex's OWN orphan-delete reconciliation removes the
+    stale file on the next run (module docstring's EXECUTOR-VERIFY finding).
+    This module never unlinks, so the assertion is the ABSENCE of the
+    `declare_file` call, not the absence of the file."""
+    root = _draft("overview.md", title="Overview", description="Root concept.")
+    alpha = _draft("topics/alpha.md", title="Alpha", description="Alpha topic.")
+    bundle_writer.write_bundle(tmp_path, [root, alpha])
+    assert (tmp_path / "topics/index.md").is_file()
+
+    _localfs_stub.declare_file.reset_mock()
+    bundle_writer.write_bundle(tmp_path, [root])
+
+    declared = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
+    assert str(tmp_path / "topics/index.md") not in declared
+    assert str(tmp_path / "index.md") in declared
+    # The physical delete is the engine's, never ours.
+    assert (tmp_path / "topics/index.md").exists()
+
+
+def test_the_root_index_is_declared_even_for_an_empty_bundle(tmp_path: Path) -> None:
+    """D7: the root index is ALWAYS declared — it carries the §12
+    `okf_version` stamp, which must not disappear when the corpus is
+    empty."""
+    bundle_writer.write_bundle(tmp_path, [])
+
+    text = _read_index(tmp_path)
+    assert text.splitlines() == ["---", 'okf_version: "0.2"', "---", "# OKF Concept Bundle"]
+
+
+def test_the_root_index_still_enumerates_every_concept(tmp_path: Path) -> None:
+    """The deliberate {429.6} seam. D2 turns the root into a directory
+    listing — but `parseBundleNav` drops any bullet whose target is not
+    `.md`, so a root of directory entries returns non-empty sections with
+    ZERO concepts, which suppresses `<BundleNav>`'s absent-index fallback and
+    renders an EMPTY nav rail. D2 is therefore gated on id-439. Until then
+    the root keeps today's behaviour, bundle-root-relative links and all, so
+    this subtask carries no consumer risk."""
+    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+
+    root = _read_index(tmp_path)
+    targets = [t for _, t, _ in _section_entries(root, "Concepts")]
+    assert targets == [
+        "case-studies/acme-ltd.md",
+        "case-studies/won-bid/2025/legacy.md",
+        "case-studies/won-bid/acme-ltd.md",
+        "overview.md",
+        "reports/2026/q1.md",
+        "topics/alpha.md",
+        "topics/beta.md",
+    ]
+    assert _section_entries(root, "Directories") == []
 
 
 # ─────────────────────────────────────────────────────────────────────────

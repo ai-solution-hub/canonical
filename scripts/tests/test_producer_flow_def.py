@@ -335,6 +335,24 @@ class TestIdleMode:
         assert result is None
 
 
+# ── id-429 {429.3} (D3): the theme machinery is retired at the CALLERS ────
+
+
+def test_run_producer_flow_no_longer_accepts_theme_config(env, bundle_dir: Path) -> None:
+    """The run entry's `theme_config` seam is gone. Proving it here — at the
+    caller, by a call that must FAIL — is what stops a future operator quietly
+    re-supplying a theme map through `trigger.run_producer_now(**kwargs)` and
+    getting it silently ignored. The axis is now the directory the index sits
+    in (D1), derived from `written`, so the renderer's input has a supplier by
+    construction; the theme axis never did."""
+    with pytest.raises(TypeError, match="theme_config"):
+        env.flow_def.run_producer_flow(
+            pool=object(),
+            bundle_dir=bundle_dir,
+            **{"theme_config": [("Company Overview", ("topics/a.md",))]},
+        )
+
+
 # ── {132.44} bl-457 IRI-6/IRI-10: OKF_CLIENT_ID resolution ────────────────
 
 

@@ -411,7 +411,6 @@ async def run_producer_flow(
     embedder: "Embedder | None" = None,
     gated_corpus: Any = None,
     http_client: Any = None,
-    theme_config: "Sequence[tuple[str, Sequence[str]]]" = (),
     timestamp: "str | None" = None,
 ) -> "ProducerRunReport | None":
     """Compose + run the FULL producer flow as ONE entry point (G-FLOWDEF +
@@ -552,7 +551,6 @@ async def run_producer_flow(
         resolved_bundle_dir,
         drafts,
         reference_drafts,
-        theme_config=theme_config,
         failed_rel_paths=failed_write_paths,
         # Reuses the SAME resolved value the {132.36} feeder-config gate
         # above already computed (`resolved_bundle_class`) rather than
