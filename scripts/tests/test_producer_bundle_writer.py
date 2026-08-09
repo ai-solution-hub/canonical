@@ -5,10 +5,16 @@ concept + `index.md`/`log.md` writers + the DR-027 ontology artefact
 Per the {132.10} testStrategy:
 
   - a concept failing the validator is NOT `declare_file`-written (BI-13);
-  - `index.md` renders themes as nav over a ~30-50-file fixture bundle
-    (BI-5);
+  - `index.md` renders nav over a ~30-50-file fixture bundle;
   - `log.md` appends one block per run;
   - a no-op re-run produces a no-op diff (BI-18).
+
+**id-429 amends the index half.** BI-5's ~17-theme axis is retired
+({429.3}, DESIGN D3 — the owner ruled the requirement not live in S546,
+closing id-323), and the producer now emits ONE index per directory whose
+axis is the directory itself ({429.5}, D1/D7). That is a design decision
+the owner took, NOT a conformance fix: §8 says an index MAY appear in any
+directory and §11 forbids rejecting a bundle for missing ones.
 
 `localfs.declare_file` is stubbed with a REAL filesystem side effect
 (mirrors the installed `cocoindex==1.0.7`
@@ -23,8 +29,8 @@ behaviour itself was verified separately via an unsandboxed real-engine
 probe — the {132.10} EXECUTOR-VERIFY finding cited in the module
 docstring).
 
-De-identified throughout: theme names and concept titles below are generic
-placeholder business categories, never the real first-client corpus.
+De-identified throughout: directory names and concept titles below are
+generic placeholder business categories, never the real first-client corpus.
 """
 
 from __future__ import annotations
