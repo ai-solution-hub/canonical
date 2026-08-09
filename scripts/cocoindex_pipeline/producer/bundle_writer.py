@@ -166,20 +166,29 @@ from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 
 # Reserved bundle-level filenames — never treated as a concept `.md` path by
 # `_existing_concept_paths`'s previous-run keyset scan (BI-11: N concept
-# files PLUS exactly one index.md and one log.md; DR-027 adds two more
-# bundle-level artefacts, the ontology snapshot + the client-authored
-# overlay source; S464 rider R1 additionally reserves the committed bundle
-# README, and the OKF v0.1 conformance wave reserves the hand-authored
-# bundle-root CONFORMANCE.md, so neither ever surfaces as a false
-# `RunSummary.removed` entry — see `_existing_concept_paths`). {132.44}
-# (bl-457 G-IRI-PROJECTION IRI-4/9) adds the JSON-LD `@context` artefact —
-# a `.jsonld` file, so `_existing_concept_paths`'s `rglob("*.md")` scan
-# structurally never picks it up either way; reserved here for
-# intent/parity with the other bundle-level artefacts. {132.36}
-# G-CONCEPT-FEEDER adds `concept-feeder.json` — the same bl-463
-# `index-themes.json` reserved-sibling-file pattern applied to concept-type
-# feeding (client-authored, producer reads-only — see
-# `read_concept_feeder_config`).
+# files PLUS index.md/log.md; DR-027 adds two more bundle-level artefacts,
+# the ontology snapshot + the client-authored overlay source; S464 rider R1
+# additionally reserves the committed bundle README, and the OKF v0.1
+# conformance wave reserves the hand-authored bundle-root CONFORMANCE.md, so
+# neither ever surfaces as a false `RunSummary.removed` entry — see
+# `_existing_concept_paths`). {132.44} (bl-457 G-IRI-PROJECTION IRI-4/9)
+# adds the JSON-LD `@context` artefact — a `.jsonld` file, so
+# `_existing_concept_paths`'s `rglob("*.md")` scan structurally never picks
+# it up either way; reserved here for intent/parity with the other
+# bundle-level artefacts. {132.36} G-CONCEPT-FEEDER adds
+# `concept-feeder.json` — the same client-authored reserved-sibling-file
+# pattern `ontology-overlay.json` established, applied to concept-type
+# feeding (producer reads-only — see `read_concept_feeder_config`).
+#
+# **The reservation has TWO scopes (id-429 {429.2}, SPEC §3.1).** `index.md`
+# and `log.md` are reserved AT ANY DEPTH — §3.1 states the reserved names
+# hold "at any level of the hierarchy", and MUST NOT be used for concept
+# documents anywhere in the tree. Every other name here is reserved at the
+# bundle ROOT ONLY: those are single, bundle-level artefacts, and a nested
+# `guides/README.md` is a legitimate concept document. This mirrors the TS
+# consumer's already-correct split (`lib/okf/bundle-graph.ts` — basename
+# skip for index/log, full-relative-path `RESERVED_ROOT_DOCS` for
+# README/CONFORMANCE).
 INDEX_FILENAME = "index.md"
 LOG_FILENAME = "log.md"
 ONTOLOGY_FILENAME = "ontology.json"
@@ -188,10 +197,18 @@ CONFORMANCE_FILENAME = "CONFORMANCE.md"
 OVERLAY_FILENAME = "ontology-overlay.json"
 CONTEXT_FILENAME = "context.jsonld"
 CONCEPT_FEEDER_FILENAME = "concept-feeder.json"
-_RESERVED_BUNDLE_FILENAMES = frozenset(
+_RESERVED_ANY_DEPTH_FILENAMES = frozenset({INDEX_FILENAME, LOG_FILENAME})
+"""SPEC §3.1 — reserved by BASENAME at every level of the hierarchy. Without
+this scope, a per-directory `certifications/index.md` (id-429 {429.5}) is
+counted as a previous-run CONCEPT by `_existing_concept_paths`, never appears
+in `written`, and so lands in `RunSummary.removed` on EVERY run, forever —
+polluting `log.md` and the human-edit reconcile set. It also protects a
+client-hand-authored nested `log.md`, which §9 permits and DR-016 makes
+plausible: the producer never declares one, so it is never orphan-deleted,
+and it must never be miscounted as a concept either."""
+
+_RESERVED_ROOT_FILENAMES = frozenset(
     {
-        INDEX_FILENAME,
-        LOG_FILENAME,
         ONTOLOGY_FILENAME,
         README_FILENAME,
         CONFORMANCE_FILENAME,
@@ -200,6 +217,27 @@ _RESERVED_BUNDLE_FILENAMES = frozenset(
         CONCEPT_FEEDER_FILENAME,
     }
 )
+"""Reserved at the bundle ROOT only — matched against the full bundle-relative
+path, never a bare basename. A nested `guides/README.md` is a concept
+document (deliberate, and the rule `lib/okf/bundle-graph.ts`'s
+`RESERVED_ROOT_DOCS` already applies on the consumer side)."""
+
+_RESERVED_BUNDLE_FILENAMES = _RESERVED_ANY_DEPTH_FILENAMES | _RESERVED_ROOT_FILENAMES
+"""Every reserved bundle filename, regardless of scope — the membership test
+for "is this name the producer's to manage", NOT a path test. Callers
+deciding whether an on-disk PATH is reserved must use the two scoped sets
+above (see `_is_reserved_bundle_path`)."""
+
+
+def _is_reserved_bundle_path(rel_path: str) -> bool:
+    """True iff `rel_path` (bundle-relative, POSIX) names a reserved bundle
+    artefact rather than a concept document — `index.md`/`log.md` at ANY
+    depth (§3.1), every other reserved name at the bundle root only
+    (id-429 {429.2})."""
+    return (
+        PurePosixPath(rel_path).name in _RESERVED_ANY_DEPTH_FILENAMES
+        or rel_path in _RESERVED_ROOT_FILENAMES
+    )
 
 _ConceptLikeDraft = "ConceptDraft | ReferenceConceptDraft"
 
@@ -1097,9 +1135,9 @@ def write_context_artefact(
 
 
 def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
-    """The bundle's CURRENT on-disk concept `.md` files (excluding
-    `index.md`/`log.md`/`ontology.json`) — the "previous run" keyset this
-    module diffs against for the `log.md` added/changed/removed summary.
+    """The bundle's CURRENT on-disk concept `.md` files (excluding every
+    reserved bundle artefact) — the "previous run" keyset this module diffs
+    against for the `log.md` added/changed/removed summary.
 
     Reading the real directory tree (rather than requiring a caller to
     persist state externally) is sound because `declare_file` writes are
@@ -1108,13 +1146,20 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     last run declared", and cocoindex's OWN reconciliation phase (which
     performs the physical write/delete) always completes before this
     function's caller runs again for the NEXT producer invocation.
+
+    Reservation is SCOPED, not a flat basename set (id-429 {429.2}): the
+    previous form compared the full bundle-relative path against a set of
+    bare basenames, so `certifications/index.md` matched nothing and was
+    counted as a concept. See `_is_reserved_bundle_path`.
     """
     if not bundle_dir.is_dir():
         return set()
     return {
         rel
         for p in bundle_dir.rglob("*.md")
-        if (rel := p.relative_to(bundle_dir).as_posix()) not in _RESERVED_BUNDLE_FILENAMES
+        if not _is_reserved_bundle_path(
+            rel := p.relative_to(bundle_dir).as_posix()
+        )
     }
 
 

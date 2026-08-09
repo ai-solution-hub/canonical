@@ -510,6 +510,103 @@ def test_write_bundle_removed_concept_detected(tmp_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# id-429 {429.2} — SPEC §3.1 reserved filenames are scoped: `index.md` /
+# `log.md` at ANY depth, every other reserved artefact at the bundle ROOT
+# only. Mirrors `lib/okf/bundle-graph.ts`'s already-correct split (basename
+# skip for index/log; full-relative-path `RESERVED_ROOT_DOCS` for
+# README/CONFORMANCE).
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_nested_index_and_log_are_never_reported_removed_on_any_run(
+    tmp_path: Path,
+) -> None:
+    """The measured defect this fixes: `_existing_concept_paths` compared the
+    FULL bundle-relative path against a set of BARE basenames, so
+    `certifications/index.md` was counted as a previous-run concept and landed
+    in `RunSummary.removed` — on EVERY run, forever, polluting `log.md` and
+    the human-edit reconcile set.
+
+    Run TWICE over an unchanged draft set: the second run is the one that
+    catches a naive fix (e.g. one that suppresses the entry only on the run
+    that created it, or that leans on `written` membership rather than on the
+    reservation itself)."""
+    # Seeded in directories the run drafts NOTHING into, so the only thing
+    # under test is the reservation — not whether the producer happens to
+    # re-declare a path itself.
+    (tmp_path / "certifications").mkdir(parents=True)
+    (tmp_path / "certifications" / "index.md").write_text(
+        "# Certifications\n", encoding="utf-8"
+    )
+    (tmp_path / "case-studies").mkdir(parents=True)
+    (tmp_path / "case-studies" / "log.md").write_text(
+        "## 2026-01-01\n\n* Hand-authored by the client (SPEC §9 permits it).\n",
+        encoding="utf-8",
+    )
+
+    drafts = [_draft("topics/a.md", title="A")]
+
+    summary1 = bundle_writer.write_bundle(
+        tmp_path, drafts, timestamp="2026-08-10T00:00:00Z"
+    )
+    summary2 = bundle_writer.write_bundle(
+        tmp_path, drafts, timestamp="2026-08-10T01:00:00Z"
+    )
+
+    for summary in (summary1, summary2):
+        assert "certifications/index.md" not in summary.removed
+        assert "case-studies/log.md" not in summary.removed
+    # ...and never miscounted as concepts in the other direction either.
+    for summary in (summary1, summary2):
+        assert "certifications/index.md" not in summary.added
+        assert "case-studies/log.md" not in summary.added
+
+    # The client's hand-authored nested log survives untouched — the producer
+    # never declares one (D8), so the engine never orphan-deletes it.
+    assert (tmp_path / "case-studies" / "log.md").exists()
+
+
+def test_nested_readme_is_still_counted_as_a_concept(tmp_path: Path) -> None:
+    """`README.md`/`CONFORMANCE.md` stay ROOT-only. A nested
+    `guides/README.md` is a legitimate concept document — the deliberate rule
+    `lib/okf/bundle-graph.ts`'s `RESERVED_ROOT_DOCS` already applies on the
+    consumer side. Widening the {429.2} basename reservation to cover them
+    would silently drop such a file out of the reconcile set."""
+    (tmp_path / "guides").mkdir(parents=True)
+    (tmp_path / "guides" / "README.md").write_text("# Guides\n", encoding="utf-8")
+
+    summary = bundle_writer.write_bundle(tmp_path, [_draft("topics/a.md", title="A")])
+
+    # Counted as a previous-run concept, and this run does not produce it, so
+    # it is a genuine `removed` — the behaviour a nested index must NOT have.
+    assert "guides/README.md" in summary.removed
+
+
+def test_root_reserved_artefacts_keep_their_root_only_behaviour(
+    tmp_path: Path,
+) -> None:
+    """The root four the producer itself writes/reads — `ontology.json`,
+    `README.md`, `CONFORMANCE.md`, `context.jsonld` — must never surface as a
+    `RunSummary.removed` entry (S464 rider R1 / the v0.1 conformance wave /
+    {132.44})."""
+    (tmp_path / "README.md").write_text("# Bundle\n", encoding="utf-8")
+    (tmp_path / "CONFORMANCE.md").write_text("# Conformance\n", encoding="utf-8")
+
+    summary = bundle_writer.write_bundle(tmp_path, [_draft("topics/a.md", title="A")])
+
+    for reserved in (
+        "ontology.json",
+        "README.md",
+        "CONFORMANCE.md",
+        "context.jsonld",
+        "index.md",
+        "log.md",
+    ):
+        assert reserved not in summary.removed
+        assert reserved not in summary.added
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # G-PARSE-HARDEN Leg 2 ({132.45}, {132.35} Defect B): a transiently-failed
 # draft must keep its last-good bundle version — never look like a
 # confirmed source deletion.
