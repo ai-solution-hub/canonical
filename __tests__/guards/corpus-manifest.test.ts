@@ -683,10 +683,15 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       const byHeading = new Map<string, string[]>();
       for (const e of perTestContent) {
         const heading = headingOf(e);
-        expect(heading, `${e.id} has no markdown heading for the canary`).toBeTruthy();
+        expect(
+          heading,
+          `${e.id} has no markdown heading for the canary`,
+        ).toBeTruthy();
         byHeading.set(heading!, [...(byHeading.get(heading!) ?? []), e.id]);
       }
-      const shared = [...byHeading.entries()].filter(([, ids]) => ids.length > 1);
+      const shared = [...byHeading.entries()].filter(
+        ([, ids]) => ids.length > 1,
+      );
       expect(
         shared,
         'these documents share a first heading, so the mock emits the same canary mention ' +

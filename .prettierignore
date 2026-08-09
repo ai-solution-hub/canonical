@@ -69,6 +69,17 @@ lib/mcp/plugin-bundle.ts
 # writer's real output and breaking the {132.10} round-trip Vitest tests.
 __tests__/fixtures/okf/
 
+# Corpus-manifest fixture roots — the manifest (docs/reference/testing/
+# corpus-manifest.json, DR-118) asserts a sha256 and byte length over EVERY
+# registered fixture, and __tests__/guards/corpus-manifest.test.ts fails when
+# the bytes drift. A formatter that re-wraps fixture prose therefore breaks the
+# guard by construction, and did: S543 re-hashed the same tree twice before
+# adding this. For these files the bytes ARE the identity, and DR-133 makes that
+# literal — a fixture is defined by carrying bytes distinct from every other.
+scripts/cocoindex_pipeline/fixtures/
+scripts/tests/fixtures/
+__tests__/fixtures/cocoindex-chunking/
+
 # Deploy infrastructure YAML — Prettier's printWidth:80 wraps long image strings
 # and YAML scalar values in ways that break docker-compose parsing.
 deploy/
