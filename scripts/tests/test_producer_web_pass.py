@@ -75,12 +75,14 @@ with stubbed_sys_modules({"cocoindex": _coco_stub}):
 from scripts.cocoindex_pipeline.producer import agent_loop  # noqa: E402
 from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: E402
     ConceptDraft,
-    _render_citations_section,
+    _render_source_footnotes,
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
     derive_concept_confidence,
+    derive_source_id,
     render_concept_frontmatter,
+    sources_from_citations,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_docs_site_citation,
@@ -189,31 +191,37 @@ def _product_draft(
     task: "str | None" = None,
     audience: "str | None" = None,
 ) -> ConceptDraft:
-    """A Pass-1-shaped `ConceptDraft` — the "previous state" every Pass-2
-    test enriches from. `confidence` mirrors what a real Pass-1 draft always
-    carries (bl-477 A19 — the producer ALWAYS emits it): a single record
-    anchor and no corroborating citation resolves `partial`. The bl-456
-    routing hints default to absent (a real Pass-1 draft may or may not
-    carry them — id-318)."""
-    resource = build_source_document_uri(_SD_ID)
-    citation = build_source_document_uri(_SD_ID)
+    """A Pass-1-shaped v0.2 `ConceptDraft` — the "previous state" every
+    Pass-2 test enriches from (id-426): the record anchor is the draft's
+    `primary_anchor` and LEADS the `sources[]` list (never the top-level
+    `resource:` — S546 F2-B); the body ends in `[^id]` footnote definitions
+    (never a trailer — F1-A). `confidence` mirrors what a real Pass-1 draft
+    always carries (bl-477 A19): a single record anchor and no
+    corroborating citation resolves `partial`. The bl-456 routing hints
+    default to absent (a real Pass-1 draft may or may not carry them —
+    id-318)."""
+    anchor = build_source_document_uri(_SD_ID)
+    citations = [anchor]
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,
         title="Learning Management System",
         description="The client's in-house LMS offering.",
-        timestamp="2026-01-01T00:00:00Z",
+        generated_by="kh-concept-producer/test-model-1",
+        generated_at="2026-01-01T00:00:00Z",
         tags=("product", "lms"),
-        resource=resource,
         purpose=purpose,
         task=task,
         audience=audience,
-        confidence=derive_concept_confidence(resource=resource, citations=[citation]),
+        confidence=derive_concept_confidence(resource=anchor, citations=citations),
+        sources=sources_from_citations(citations, primary_anchor=anchor),
     )
     body = (
         f"The LMS is the client's learning-management product.\n\n"
-        f"{_render_citations_section([citation])}"
+        f"{_render_source_footnotes(citations, primary_anchor=anchor)}"
     )
-    return ConceptDraft(key=key, frontmatter=frontmatter, body=body)
+    return ConceptDraft(
+        key=key, frontmatter=frontmatter, body=body, primary_anchor=anchor
+    )
 
 
 def _pass2_envelope_json(
@@ -356,7 +364,7 @@ class TestWebFetchExecutor:
         config = web_pass.GatedCorpusConfig(sources=())
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=None, seen_gated_anchors=seen
+            config, http_client=None, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -377,7 +385,7 @@ class TestWebFetchExecutor:
         config = self._local_config(tmp_path)
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=None, seen_gated_anchors=seen
+            config, http_client=None, seen_gated_anchors=seen, gated_anchor_urls={}
         )
         url = f"https://{_ALLOWED_HOST}/services/lms.md"
 
@@ -396,7 +404,7 @@ class TestWebFetchExecutor:
         config = self._local_config(tmp_path)
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=None, seen_gated_anchors=seen
+            config, http_client=None, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -415,7 +423,7 @@ class TestWebFetchExecutor:
         )
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=http_client, seen_gated_anchors=seen
+            config, http_client=http_client, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -451,7 +459,7 @@ class TestWebFetchExecutor:
         )
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=http_client, seen_gated_anchors=seen
+            config, http_client=http_client, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -488,7 +496,7 @@ class TestWebFetchExecutor:
         )
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=http_client, seen_gated_anchors=seen
+            config, http_client=http_client, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -507,7 +515,7 @@ class TestWebFetchExecutor:
         config = web_pass.GatedCorpusConfig(sources=())
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=http_client, seen_gated_anchors=seen
+            config, http_client=http_client, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -526,7 +534,10 @@ class TestWebFetchExecutor:
         )
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=_FakeHttpClient({}), seen_gated_anchors=seen
+            config,
+            http_client=_FakeHttpClient({}),
+            seen_gated_anchors=seen,
+            gated_anchor_urls={},
         )
 
         async def _exercise() -> Any:
@@ -544,7 +555,7 @@ class TestWebFetchExecutor:
         )
         seen: "set[str]" = set()
         executor = web_pass._build_web_fetch_executor(
-            config, http_client=http_client, seen_gated_anchors=seen
+            config, http_client=http_client, seen_gated_anchors=seen, gated_anchor_urls={}
         )
 
         async def _exercise() -> Any:
@@ -698,9 +709,26 @@ class TestValidatePass2Citations:
 # ============================================================================
 
 
+_REF_URL = f"https://{_ALLOWED_HOST}/services/lms"
+_REF_GENERATED_BY = "kh-concept-producer/test-model-1"
+
+
 class TestParseReferenceConcept:
+    def _parse(self, raw: "dict[str, Any]", *, seen_gated_anchors: "set[str]"):
+        """Thread the v0.2 mint-ledger kwargs the production call site
+        supplies: every seen anchor maps back to the URL it was minted
+        from (id-426 point 4)."""
+        return web_pass._parse_reference_concept(
+            raw,
+            seen_gated_anchors=seen_gated_anchors,
+            gated_anchor_urls={
+                anchor: _REF_URL for anchor in seen_gated_anchors
+            },
+            generated_by=_REF_GENERATED_BY,
+        )
+
     def _raw(self, **overrides: Any) -> "dict[str, Any]":
-        anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
+        anchor = reference_item_uri_from_source_url(_REF_URL)
         base = {
             "slug": "lms-public-docs",
             "title": "LMS public documentation",
@@ -713,20 +741,27 @@ class TestParseReferenceConcept:
         return base
 
     def test_valid_entry_produces_a_references_slug_md_draft(self) -> None:
-        anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
-        draft = web_pass._parse_reference_concept(self._raw(), seen_gated_anchors={anchor})
+        anchor = reference_item_uri_from_source_url(_REF_URL)
+        draft = self._parse(self._raw(), seen_gated_anchors={anchor})
         assert draft.rel_path == "references/lms-public-docs.md"
         assert draft.frontmatter.type == "topic"
         assert "reference" in draft.frontmatter.tags
-        assert draft.frontmatter.resource == anchor
-        assert f"[1] [{anchor}]({anchor})" in draft.body
+        # id-426 point 4 (S546 F2-B, deliberate improvement ruling): the
+        # top-level resource is the REAL fetched URL — followable,
+        # §4.1-conformant — never the canonical:// pointer; the pointer
+        # rides sources[].
+        assert draft.frontmatter.resource == _REF_URL
+        assert [s.resource for s in draft.frontmatter.sources] == [anchor]
+        # F1-A: footnote definitions, never a trailer; no pointer in the body.
+        assert f"[^{derive_source_id(anchor)}]:" in draft.body
+        assert "# Citations" not in draft.body
+        assert "canonical://" not in draft.body
+        assert draft.frontmatter.generated_by == _REF_GENERATED_BY
 
     def test_invalid_slug_is_rejected(self) -> None:
-        anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
+        anchor = reference_item_uri_from_source_url(_REF_URL)
         with pytest.raises(web_pass.Pass2EnrichError, match="slug"):
-            web_pass._parse_reference_concept(
-                self._raw(slug="Not A Slug!"), seen_gated_anchors={anchor}
-            )
+            self._parse(self._raw(slug="Not A Slug!"), seen_gated_anchors={anchor})
 
     def test_a_source_documents_anchor_is_rejected_dr025(self) -> None:
         """DR-025 — a reference concept's citations anchor ONLY
@@ -734,9 +769,7 @@ class TestParseReferenceConcept:
         `source_documents` row anchor."""
         sd_anchor = build_source_document_uri(_SD_ID)
         with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
-            web_pass._parse_reference_concept(
-                self._raw(citations=[sd_anchor]), seen_gated_anchors={sd_anchor}
-            )
+            self._parse(self._raw(citations=[sd_anchor]), seen_gated_anchors={sd_anchor})
 
     def test_a_git_blob_anchor_is_also_rejected_dr025_scope_unchanged(self) -> None:
         """PC-5 scope note (ID-163 TECH, DR-086b): the git-blob/doc-page
@@ -749,9 +782,7 @@ class TestParseReferenceConcept:
         the same as any other non-`reference_items` anchor."""
         anchor = build_git_blob_citation("deadbeef", "lib/mcp/tools/content.ts")
         with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
-            web_pass._parse_reference_concept(
-                self._raw(citations=[anchor]), seen_gated_anchors={anchor}
-            )
+            self._parse(self._raw(citations=[anchor]), seen_gated_anchors={anchor})
 
     def test_a_docs_site_anchor_is_also_rejected_dr025_scope_unchanged(self) -> None:
         """DR-087 scope note (id-163 {163.20}): admitting the authorised
@@ -764,9 +795,7 @@ class TestParseReferenceConcept:
         The DR-025 boundary is unchanged by DR-087."""
         anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
         with pytest.raises(web_pass.Pass2EnrichError, match="reference_items"):
-            web_pass._parse_reference_concept(
-                self._raw(citations=[anchor]), seen_gated_anchors={anchor}
-            )
+            self._parse(self._raw(citations=[anchor]), seen_gated_anchors={anchor})
 
     def test_a_citation_never_minted_this_run_is_rejected(self) -> None:
         """BI-17 provenance-ledger membership, not format-only — a
@@ -776,24 +805,23 @@ class TestParseReferenceConcept:
             f"https://{_ALLOWED_HOST}/never/fetched"
         )
         with pytest.raises(web_pass.Pass2EnrichError, match="never minted"):
-            web_pass._parse_reference_concept(
-                self._raw(citations=[never_minted]), seen_gated_anchors=set()
-            )
+            self._parse(self._raw(citations=[never_minted]), seen_gated_anchors=set())
 
     def test_missing_required_key_is_rejected(self) -> None:
         raw = self._raw()
         del raw["body"]
         with pytest.raises(web_pass.Pass2EnrichError, match="missing required"):
-            web_pass._parse_reference_concept(raw, seen_gated_anchors=set())
+            self._parse(raw, seen_gated_anchors=set())
 
     def test_reference_concept_always_emits_confidence_partial(self) -> None:
-        """A19 (bl-477, {132.42}): a reference concept's `resource` is
-        `citations[0]` — a gated `reference_items` web anchor, never a
-        per-row anchor — so `derive_concept_confidence` always resolves
-        `partial` here regardless of how many citations it carries
-        (FRONTMATTER-WAVE.md §"Applied at all three call sites")."""
-        anchor = reference_item_uri_from_source_url(f"https://{_ALLOWED_HOST}/services/lms")
-        draft = web_pass._parse_reference_concept(self._raw(), seen_gated_anchors={anchor})
+        """A19 (bl-477, {132.42}; inputs unchanged under v0.2 — id-426
+        point 7): the confidence anchor is still `citations[0]` — a gated
+        `reference_items` web anchor, never a per-row anchor — so
+        `derive_concept_confidence` always resolves `partial` here
+        regardless of how many citations it carries (FRONTMATTER-WAVE.md
+        §"Applied at all three call sites")."""
+        anchor = reference_item_uri_from_source_url(_REF_URL)
+        draft = self._parse(self._raw(), seen_gated_anchors={anchor})
         assert draft.frontmatter.confidence == "partial"
 
 
@@ -935,10 +963,6 @@ class TestParsePass2ResponseTerminalTextTolerance:
 
     def test_parse_response_tolerates_leading_prose_before_terminal_json(self) -> None:
         citation = build_source_document_uri(_SD_ID)
-        previous_body = (
-            "The LMS is the client's learning-management product.\n\n"
-            f"{_render_citations_section([citation])}"
-        )
         preamble = (
             "I have reviewed the gated documentation and drafted the "
             "enriched concept.\n\n"
@@ -954,7 +978,7 @@ class TestParsePass2ResponseTerminalTextTolerance:
         )
         envelope = web_pass._parse_pass2_response(
             message,
-            previous_body=previous_body,
+            previous_entries={citation},
             seen_record_anchors=set(),
             seen_gated_anchors=set(),
             catalogue_paths=set(),
@@ -965,10 +989,6 @@ class TestParsePass2ResponseTerminalTextTolerance:
         self,
     ) -> None:
         citation = build_source_document_uri(_SD_ID)
-        previous_body = (
-            "The LMS is the client's learning-management product.\n\n"
-            f"{_render_citations_section([citation])}"
-        )
         preamble = "Here is the enriched concept document.\n\n"
         trailing = "\n\nLet me know if further detail would help."
         message = _MockMessage(
@@ -982,7 +1002,7 @@ class TestParsePass2ResponseTerminalTextTolerance:
         )
         envelope = web_pass._parse_pass2_response(
             message,
-            previous_body=previous_body,
+            previous_entries={citation},
             seen_record_anchors=set(),
             seen_gated_anchors=set(),
             catalogue_paths=set(),
@@ -1010,7 +1030,7 @@ class TestParsePass2ResponseTerminalTextTolerance:
         with pytest.raises(web_pass.Pass2EnrichError, match="valid JSON"):
             web_pass._parse_pass2_response(
                 message,
-                previous_body="",
+                previous_entries=set(),
                 seen_record_anchors=set(),
                 seen_gated_anchors=set(),
                 catalogue_paths=set(),
@@ -1025,10 +1045,6 @@ class TestParsePass2ResponseTerminalTextTolerance:
         path must skip past the ```json marker and stop before the closing
         fence."""
         citation = build_source_document_uri(_SD_ID)
-        previous_body = (
-            "The LMS is the client's learning-management product.\n\n"
-            f"{_render_citations_section([citation])}"
-        )
         message = _MockMessage(
             [
                 TextBlock(
@@ -1045,7 +1061,7 @@ class TestParsePass2ResponseTerminalTextTolerance:
         )
         envelope = web_pass._parse_pass2_response(
             message,
-            previous_body=previous_body,
+            previous_entries={citation},
             seen_record_anchors=set(),
             seen_gated_anchors=set(),
             catalogue_paths=set(),
@@ -1072,7 +1088,7 @@ class TestParsePass2ResponseTerminalTextTolerance:
         with pytest.raises(web_pass.Pass2EnrichError, match="valid JSON"):
             web_pass._parse_pass2_response(
                 message,
-                previous_body="",
+                previous_entries=set(),
                 seen_record_anchors=set(),
                 seen_gated_anchors=set(),
                 catalogue_paths=set(),
@@ -1179,15 +1195,24 @@ class TestRunWebPassEndToEnd:
             assert refused_tool_result["is_error"] is True
             assert "host-allowlist" in refused_tool_result["content"]
 
-            # ── BI-17 provenance: the enriched concept + the reference
-            # concept both cite the anchor fetch_url actually minted. ─────
-            assert gated_anchor in result.concept.body
-            assert prior_citation in result.concept.body  # augmentation guard: nothing dropped
+            # ── BI-17 provenance (v0.2): the enriched concept + the
+            # reference concept both carry the anchor fetch_url actually
+            # minted in their `sources[]` provenance (the body carries only
+            # `[^id]` footnote definitions — no pointer, BI-10). ──────────
+            concept_sources = [s.resource for s in result.concept.frontmatter.sources]
+            assert gated_anchor in concept_sources
+            assert prior_citation in concept_sources  # augmentation guard: nothing dropped
+            assert f"[^{derive_source_id(gated_anchor)}]:" in result.concept.body
+            assert "canonical://" not in result.concept.body
 
             assert len(result.reference_concepts) == 1
             reference = result.reference_concepts[0]
             assert reference.rel_path == "references/lms-public-docs.md"
-            assert f"[1] [{gated_anchor}]({gated_anchor})" in reference.body
+            # id-426 point 4: the reference concept's resource is the REAL
+            # fetched URL; the canonical:// pointer rides sources[].
+            assert reference.frontmatter.resource == gated_url
+            assert [s.resource for s in reference.frontmatter.sources] == [gated_anchor]
+            assert f"[^{derive_source_id(gated_anchor)}]:" in reference.body
 
             # ── A19 (bl-477, {132.42}): the enriched concept's final
             # citations (prior source_documents anchor + the newly-minted
@@ -1256,9 +1281,13 @@ class TestRunWebPassEndToEnd:
                 )
 
         result = asyncio.run(_exercise())
-        # resource stays the Pass-1 per-row anchor; TWO distinct record
-        # anchors now corroborate it — the honest upgrade to `strong`.
-        assert result.concept.frontmatter.resource == build_source_document_uri(_SD_ID)
+        # The confidence anchor stays the Pass-1 per-row anchor (carried as
+        # `primary_anchor`/the leading sources[] entry under v0.2 — never
+        # the emitted `resource:`, S546 F2-B); TWO distinct record anchors
+        # now corroborate it — the honest upgrade to `strong`.
+        assert result.concept.frontmatter.resource is None
+        assert result.concept.primary_anchor == build_source_document_uri(_SD_ID)
+        assert result.concept.frontmatter.sources[0].resource == build_source_document_uri(_SD_ID)
         assert result.concept.frontmatter.confidence == "strong"
 
     def test_carries_routing_hints_forward_from_the_pass1_draft(

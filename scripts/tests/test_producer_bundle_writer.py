@@ -90,6 +90,8 @@ with stubbed_sys_modules(
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft  # noqa: E402
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
+    render_source_footnotes,
+    sources_from_citations,
 )
 from scripts.cocoindex_pipeline.producer import iri_projection  # noqa: E402
 from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
@@ -126,14 +128,30 @@ def _reset_declare_file_calls():
     yield
 
 
-def _fm(*, type="topic", title="Title", description="Desc", tags=("tag",), resource=None):
+_SD_URI = build_source_document_uri(_SAMPLE_UUID)
+
+
+def _fm(
+    *,
+    type="topic",
+    title="Title",
+    description="Desc",
+    tags=("tag",),
+    resource=None,
+    citations=(_SD_URI,),
+):
+    """A v0.2 frontmatter: `generated` replaces `timestamp` (id-426), the
+    record anchor rides `sources[]` (S546 F2-B), `resource` — when set —
+    is a real web URL (the reference-concept shape only)."""
     return build_concept_frontmatter(
         type=type,
         title=title,
         description=description,
-        timestamp="2026-07-08T00:00:00Z",
+        generated_by="kh-concept-producer/test-model-1",
+        generated_at="2026-07-08T00:00:00Z",
         tags=tags,
         resource=resource,
+        sources=sources_from_citations(list(citations)),
     )
 
 
@@ -143,15 +161,13 @@ def _draft(
     key = ConceptKey(rel_path=rel_path, concept_type="topic", scope_tag=rel_path)
     body = (
         f"A distilled synthesis about {title}.{body_suffix}\n\n"
-        "# Citations\n"
-        f"- {build_source_document_uri(_SAMPLE_UUID)}\n"
+        f"{render_source_footnotes(sources_from_citations([_SD_URI]))}"
     )
     return ConceptDraft(
         key=key,
-        frontmatter=_fm(
-            type=type, title=title, description=description, resource=build_source_document_uri(_SAMPLE_UUID)
-        ),
+        frontmatter=_fm(type=type, title=title, description=description),
         body=body,
+        primary_anchor=_SD_URI,
     )
 
 
@@ -170,13 +186,15 @@ def test_declare_concept_valid_writes_file(tmp_path: Path) -> None:
     _localfs_stub.declare_file.assert_called_once()
     written_path = (tmp_path / "topics/alpha.md")
     written = written_path.read_text(encoding="utf-8")
-    # The on-disk content is the draft with its `# Citations` trailer
-    # normalised to the SPEC §8 numbered-link form (write-time
-    # normalisation) — never the raw draft markdown verbatim.
-    sd_uri = build_source_document_uri(_SAMPLE_UUID)
+    # v0.2 (id-426): the draft is written AS-IS — provenance is the
+    # frontmatter `sources:` list plus the `[^id]` footnote definitions the
+    # single shared emitters already rendered at draft time; no write-time
+    # trailer normalisation exists any more (F1-A).
+    assert written == draft.rendered_markdown
     assert written.startswith("---\n")
-    assert f"[1] [{sd_uri}]({sd_uri})" in written
-    assert written.split("# Citations")[0] == draft.rendered_markdown.split("# Citations")[0]
+    assert "sources:\n" in written
+    assert f"    resource: {_SD_URI}\n" in written
+    assert "# Citations" not in written
 
 
 def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
@@ -185,7 +203,8 @@ def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
     draft = ConceptDraft(
         key=ConceptKey(rel_path="topics/bad.md", concept_type="topic", scope_tag="bad"),
         frontmatter=bad_frontmatter,
-        body="A distilled synthesis.\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
+        body="A distilled synthesis.\n",
+        primary_anchor=_SD_URI,
     )
 
     result = bundle_writer.declare_concept(tmp_path, draft)
@@ -197,17 +216,18 @@ def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
 
 
 def test_declare_concept_reference_draft_uses_rel_path_not_key(tmp_path: Path) -> None:
+    # v0.2 reference-concept shape (id-426 point 4): resource is the REAL
+    # fetched URL; the record anchor rides sources[].
     ref_fm = _fm(
         type="topic",
         tags=("reference",),
-        resource=build_source_document_uri(_SAMPLE_UUID),
+        resource="https://client.example/certifications/iso-27001",
     )
     ref_draft = ReferenceConceptDraft(
         rel_path="references/iso-27001.md",
         frontmatter=ref_fm,
-        body="Gated-corpus enrichment.\n\n# Citations\n- "
-        + build_source_document_uri(_SAMPLE_UUID)
-        + "\n",
+        body="Gated-corpus enrichment.\n\n"
+        + render_source_footnotes(sources_from_citations([_SD_URI])),
     )
 
     result = bundle_writer.declare_concept(tmp_path, ref_draft)
@@ -230,67 +250,36 @@ def test_declare_concept_classifies_new_changed_unchanged(tmp_path: Path) -> Non
     assert r3.is_new is False and r3.changed is True
 
 
-def test_declare_concept_normalises_legacy_citation_trailer_to_numbered_links(
+def test_declare_concept_writes_the_v02_provenance_surface_as_is(
     tmp_path: Path,
 ) -> None:
-    """SPEC §5.1/§8 write-time normalisation: a draft whose `# Citations`
-    section carries LEGACY bare-path bullets lands on disk in the
-    numbered-link form — cross-links bundle-absolute (leading `/`),
-    labelled by the target concept's title via `citation_titles`."""
-    sd_uri = build_source_document_uri(_SAMPLE_UUID)
+    """v0.2 (id-426, F1-A): no write-time trailer normalisation — the
+    draft's `sources:` frontmatter (record anchor + bundle-absolute
+    cross-link) and its `[^id]` footnote definitions land on disk exactly
+    as the shared emitters rendered them; no `# Citations` heading is ever
+    emitted."""
+    citations = [_SD_URI, "certifications/iso-9001.md"]
+    sources = sources_from_citations(citations)
     key = ConceptKey(rel_path="topics/alpha.md", concept_type="topic", scope_tag="alpha")
     draft = ConceptDraft(
         key=key,
-        frontmatter=_fm(title="Alpha", resource=sd_uri),
+        frontmatter=_fm(title="Alpha", citations=citations),
         body=(
             "A distilled synthesis.\n\n"
-            "# Citations\n"
-            f"- {sd_uri}\n"
-            "- certifications/iso-9001.md\n"
+            f"{render_source_footnotes(sources)}"
         ),
+        primary_anchor=_SD_URI,
     )
 
-    result = bundle_writer.declare_concept(
-        tmp_path,
-        draft,
-        citation_titles={
-            "certifications/iso-9001.md": (
-                "ISO 9001:2015 — Quality Management Certification"
-            )
-        },
-    )
+    result = bundle_writer.declare_concept(tmp_path, draft)
 
     assert result.written is True
     written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
-    assert f"[1] [{sd_uri}]({sd_uri})" in written
-    assert (
-        "[2] [ISO 9001:2015 — Quality Management Certification]"
-        "(/certifications/iso-9001.md)" in written
-    )
-    assert "- certifications/iso-9001.md" not in written  # legacy form gone
-
-
-def test_write_bundle_labels_cross_links_with_the_target_concepts_title(
-    tmp_path: Path,
-) -> None:
-    """`write_bundle` threads a run-wide rel_path -> title map into every
-    `declare_concept` call, so a cross-link to a concept drafted THIS run
-    is labelled with that concept's real title."""
-    target = _draft("topics/beta.md", title="Beta Continuity Plan")
-    citing_key = ConceptKey(
-        rel_path="topics/alpha.md", concept_type="topic", scope_tag="alpha"
-    )
-    sd_uri = build_source_document_uri(_SAMPLE_UUID)
-    citing = ConceptDraft(
-        key=citing_key,
-        frontmatter=_fm(title="Alpha", resource=sd_uri),
-        body=f"Synthesis.\n\n# Citations\n- {sd_uri}\n- topics/beta.md\n",
-    )
-
-    bundle_writer.write_bundle(tmp_path, [citing, target])
-
-    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
-    assert "[2] [Beta Continuity Plan](/topics/beta.md)" in written
+    assert written == draft.rendered_markdown
+    assert f"    resource: {_SD_URI}\n" in written
+    assert "    resource: /certifications/iso-9001.md\n" in written
+    assert "[^certifications-iso-9001]: /certifications/iso-9001.md" in written
+    assert "# Citations" not in written
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -352,10 +341,11 @@ def test_regenerate_indexes_renders_theme_nav_over_fixture_bundle() -> None:
 
 
 def test_regenerate_indexes_stamps_okf_version_frontmatter() -> None:
-    """SPEC §11 / DR-019 house rule: the bundle-root `index.md` opens with
-    a frontmatter block carrying EXACTLY one key — `okf_version: "0.1"` —
-    followed by the `# OKF Concept Bundle` heading. §11 permits ONLY the
-    bundle-root index a frontmatter block, and only this key is stamped."""
+    """SPEC §12 / DR-019 house rule (id-426 emission contract point 5): the
+    bundle-root `index.md` opens with a frontmatter block carrying EXACTLY
+    one key — `okf_version: "0.2"` — followed by the `# OKF Concept Bundle`
+    heading. §12 permits ONLY the bundle-root index a frontmatter block,
+    and only this key is stamped."""
     concepts, theme_config = _synthetic_catalogue(4)
     themes = bundle_writer.build_index_themes(theme_config, concepts)
     text = bundle_writer.regenerate_indexes(themes)
@@ -364,7 +354,7 @@ def test_regenerate_indexes_stamps_okf_version_frontmatter() -> None:
     # single-key discipline: exactly one line between the fences.
     assert lines[:4] == [
         "---",
-        'okf_version: "0.1"',
+        'okf_version: "0.2"',
         "---",
         "# OKF Concept Bundle",
     ]
@@ -694,8 +684,7 @@ def _case_study_draft(
     )
     body = (
         f"A distilled synthesis about {title}.\n\n"
-        "# Citations\n"
-        f"- {build_source_document_uri(_SAMPLE_UUID)}\n"
+        f"{render_source_footnotes(sources_from_citations([_SD_URI]))}"
     )
     return ConceptDraft(
         key=key,
@@ -703,9 +692,9 @@ def _case_study_draft(
             type="case_study",
             title=title,
             description=f"{title} case study.",
-            resource=build_source_document_uri(_SAMPLE_UUID),
         ),
         body=body,
+        primary_anchor=_SD_URI,
     )
 
 

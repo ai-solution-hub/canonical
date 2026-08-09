@@ -1,11 +1,17 @@
 """Tests for producer/frontmatter.py — BI-12 concept frontmatter emitter
-(ID-132 {132.6} G-PASS1a).
+(ID-132 {132.6} G-PASS1a), upgraded to the OKF v0.2 emission contract
+(id-426, S546 rulings F1-A/F2-B).
 
-DR-019 amendment (PRODUCT.md §"S436 Amendments" item 1, owner-ratified
-2026-07-02): the `timestamp` frontmatter field is ISO-8601 — UK `DD/MM/YYYY`
-governs bundle BODY PROSE only, never this field. TECH.md's BI-12 change-map
-row summary ("UK English/DD-MM-YYYY") predates this carve-out; this test file
-pins the ratified, more specific PRODUCT.md behaviour.
+v0.2 surface pinned here:
+- `generated: { by, at }` (§5.2) replaces the retired v0.1 `timestamp` —
+  removed, not shadowed. `generated.at` keeps the DR-019 ISO-8601 rule
+  (UK `DD/MM/YYYY` governs bundle BODY PROSE only, never this field) and
+  the S451-rider ALWAYS-double-quote rule; `generated.by` is a §7 actor.
+- `sources:` (§5.1) is the provenance list — `{ id, resource, title? }`
+  entries with deterministic, reorder-stable ids (`derive_source_id`).
+- Top-level `resource:` must NOT be a canonical:// pointer (F2-B).
+- The `# Citations` trailer is retired (F1-A): `render_source_footnotes`
+  emits `[^id]:` footnote definitions instead.
 """
 
 import uuid
@@ -16,7 +22,9 @@ import pytest
 from scripts.cocoindex_pipeline.producer import frontmatter as fm
 from scripts.cocoindex_pipeline.producer import resource_uri as ru
 
-_RESOURCE = ru.build_source_document_uri(uuid.uuid4())
+_ANCHOR = ru.build_source_document_uri(uuid.uuid4())
+_GENERATED_BY = "kh-concept-producer/test-model-1"
+_GENERATED_AT = "2026-07-07T09:30:00Z"
 
 
 def _base_kwargs(**overrides):
@@ -24,16 +32,17 @@ def _base_kwargs(**overrides):
         type="topic",
         title="Encryption at rest",
         description="Overview of encryption-at-rest practices.",
-        timestamp="2026-07-07T09:30:00Z",
+        generated_by=_GENERATED_BY,
+        generated_at=_GENERATED_AT,
         tags=("security", "encryption"),
-        resource=_RESOURCE,
+        sources=fm.sources_from_citations([_ANCHOR]),
     )
     kwargs.update(overrides)
     return kwargs
 
 
 # ──────────────────────────────────────────
-# BI-12: required keys present
+# BI-12 (v0.2): required keys present
 # ──────────────────────────────────────────
 
 
@@ -42,9 +51,11 @@ def test_build_concept_frontmatter_carries_all_required_keys():
     assert record.type == "topic"
     assert record.title == "Encryption at rest"
     assert record.description == "Overview of encryption-at-rest practices."
-    assert record.timestamp == "2026-07-07T09:30:00Z"
-    assert record.resource == _RESOURCE
+    assert record.generated_by == _GENERATED_BY
+    assert record.generated_at == _GENERATED_AT
     assert record.tags == ("security", "encryption")
+    assert record.resource is None
+    assert [s.resource for s in record.sources] == [_ANCHOR]
 
 
 @pytest.mark.parametrize("missing", ["type", "title", "description"])
@@ -54,10 +65,26 @@ def test_build_concept_frontmatter_rejects_missing_required_key(missing):
         fm.build_concept_frontmatter(**kwargs)
 
 
-def test_build_concept_frontmatter_allows_absent_resource():
-    """BI-12: resource: is present "where one exists" — optional."""
-    record = fm.build_concept_frontmatter(**_base_kwargs(resource=None))
+def test_build_concept_frontmatter_rejects_empty_generated_by():
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(generated_by=""))
+
+
+def test_build_concept_frontmatter_has_no_timestamp_field():
+    """S546: `timestamp` is removed, not shadowed — the dataclass carries
+    no such field and the builder accepts no such kwarg."""
+    record = fm.build_concept_frontmatter(**_base_kwargs())
+    assert not hasattr(record, "timestamp")
+    with pytest.raises(TypeError):
+        fm.build_concept_frontmatter(
+            **_base_kwargs(), timestamp="2026-07-07T09:30:00Z"
+        )
+
+
+def test_build_concept_frontmatter_allows_absent_resource_and_sources():
+    record = fm.build_concept_frontmatter(**_base_kwargs(sources=()))
     assert record.resource is None
+    assert record.sources == ()
 
 
 def test_build_concept_frontmatter_allows_empty_tags():
@@ -71,51 +98,97 @@ def test_build_concept_frontmatter_rejects_empty_tag_entry():
 
 
 # ──────────────────────────────────────────
-# DR-019: timestamp is ISO-8601, never DD/MM/YYYY
+# §7: generated.by actor convention
 # ──────────────────────────────────────────
 
 
-def test_timestamp_accepts_iso8601_string_unchanged():
-    record = fm.build_concept_frontmatter(**_base_kwargs(timestamp="2026-07-07T09:30:00Z"))
-    assert record.timestamp == "2026-07-07T09:30:00Z"
+@pytest.mark.parametrize(
+    "actor",
+    [
+        "kh-concept-producer/glm-5.2",
+        "reference_agent/gemini-2.5-pro",
+        "human:liam",
+        "process:finance-nightly",
+    ],
+)
+def test_generated_by_accepts_every_section7_actor_form(actor):
+    record = fm.build_concept_frontmatter(**_base_kwargs(generated_by=actor))
+    assert record.generated_by == actor
 
 
-def test_timestamp_accepts_timezone_aware_datetime_and_renders_iso8601():
+@pytest.mark.parametrize("actor", ["glm-5.2", "human:", "/glm-5.2", "producer/"])
+def test_generated_by_rejects_non_actor_forms(actor):
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(generated_by=actor))
+
+
+# ──────────────────────────────────────────
+# DR-019 (carried to §5.2): generated.at is ISO-8601, never DD/MM/YYYY
+# ──────────────────────────────────────────
+
+
+def test_generated_at_accepts_iso8601_string_unchanged():
+    record = fm.build_concept_frontmatter(**_base_kwargs(generated_at="2026-07-07T09:30:00Z"))
+    assert record.generated_at == "2026-07-07T09:30:00Z"
+
+
+def test_generated_at_accepts_timezone_aware_datetime_and_renders_iso8601():
     dt = datetime(2026, 7, 7, 9, 30, 0, tzinfo=timezone.utc)
-    record = fm.build_concept_frontmatter(**_base_kwargs(timestamp=dt))
-    assert record.timestamp == "2026-07-07T09:30:00Z"
+    record = fm.build_concept_frontmatter(**_base_kwargs(generated_at=dt))
+    assert record.generated_at == "2026-07-07T09:30:00Z"
 
 
-def test_timestamp_rejects_naive_datetime():
+def test_generated_at_rejects_naive_datetime():
     dt = datetime(2026, 7, 7, 9, 30, 0)
     with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(timestamp=dt))
+        fm.build_concept_frontmatter(**_base_kwargs(generated_at=dt))
 
 
-def test_timestamp_rejects_uk_dd_mm_yyyy_form():
-    """DR-019: DD/MM/YYYY is body-prose only — the frontmatter timestamp
-    field must be ISO-8601 and rejects the UK date form outright."""
+def test_generated_at_rejects_uk_dd_mm_yyyy_form():
+    """DR-019: DD/MM/YYYY is body-prose only — generated.at must be
+    ISO-8601 and rejects the UK date form outright."""
     with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(timestamp="07/07/2026"))
+        fm.build_concept_frontmatter(**_base_kwargs(generated_at="07/07/2026"))
 
 
-def test_timestamp_rejects_non_iso_garbage():
+def test_generated_at_rejects_non_iso_garbage():
     with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(timestamp="not-a-date"))
+        fm.build_concept_frontmatter(**_base_kwargs(generated_at="not-a-date"))
 
 
 # ──────────────────────────────────────────
-# BI-10: only resource: may carry a Canonical uuid/canonical:// uri
+# S546 F2-B: top-level resource is never canonical://
 # ──────────────────────────────────────────
 
 
-def test_resource_must_be_a_canonical_uri():
+def test_resource_rejects_a_canonical_pointer():
     with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(resource="https://example.com"))
+        fm.build_concept_frontmatter(**_base_kwargs(resource=_ANCHOR))
+
+
+def test_resource_rejects_the_qa_pairs_query_form():
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(
+            **_base_kwargs(resource=ru.build_q_a_pairs_query_uri(scope_tag="pricing"))
+        )
+
+
+def test_resource_accepts_a_real_web_url():
+    """The Pass-2 reference-concept shape: resource is the real fetched
+    URL (followable, §4.1-conformant)."""
+    record = fm.build_concept_frontmatter(
+        **_base_kwargs(resource="https://client.example/certifications/iso-9001")
+    )
+    assert record.resource == "https://client.example/certifications/iso-9001"
+
+
+# ──────────────────────────────────────────
+# BI-10: only sources[].resource may carry a Canonical uuid/canonical:// uri
+# ──────────────────────────────────────────
 
 
 def test_title_embedding_a_canonical_uri_is_rejected():
-    poisoned = f"See {_RESOURCE} for details"
+    poisoned = f"See {_ANCHOR} for details"
     with pytest.raises(ValueError):
         fm.build_concept_frontmatter(**_base_kwargs(title=poisoned))
 
@@ -131,6 +204,11 @@ def test_tag_embedding_a_uuid_is_rejected():
         fm.build_concept_frontmatter(**_base_kwargs(tags=(str(uuid.uuid4()),)))
 
 
+def test_generated_by_embedding_a_canonical_uri_is_rejected():
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(generated_by=f"agent/{_ANCHOR}"))
+
+
 def test_clean_title_and_description_are_accepted():
     record = fm.build_concept_frontmatter(**_base_kwargs())
     assert "canonical://" not in record.title
@@ -138,25 +216,263 @@ def test_clean_title_and_description_are_accepted():
 
 
 # ──────────────────────────────────────────
-# Rendering
+# §5.1 sources — entry validation
 # ──────────────────────────────────────────
 
 
-def test_render_includes_all_required_keys_and_resource_and_tags():
+def test_sources_accept_canonical_anchor_web_url_and_bundle_path():
+    entries = fm.sources_from_citations(
+        [_ANCHOR, "https://client.example/about", "case-studies/acme.md"]
+    )
+    record = fm.build_concept_frontmatter(**_base_kwargs(sources=entries))
+    assert [s.resource for s in record.sources] == [
+        _ANCHOR,
+        "https://client.example/about",
+        "/case-studies/acme.md",
+    ]
+
+
+def test_sources_reject_duplicate_ids():
+    entry = fm.ConceptSource(id="dup", resource="https://client.example/a")
+    other = fm.ConceptSource(id="dup", resource="https://client.example/b")
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(sources=(entry, other)))
+
+
+def test_sources_reject_an_empty_id():
+    entry = fm.ConceptSource(id="", resource="https://client.example/a")
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(sources=(entry,)))
+
+
+def test_sources_reject_an_invalid_resource():
+    entry = fm.ConceptSource(id="bad", resource="ftp://client.example/a")
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(sources=(entry,)))
+
+
+def test_sources_reject_a_pointer_bearing_title():
+    entry = fm.ConceptSource(id="ok", resource=_ANCHOR, title=f"See {_ANCHOR}")
+    with pytest.raises(ValueError):
+        fm.build_concept_frontmatter(**_base_kwargs(sources=(entry,)))
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "canonical://source_documents/00000000-0000-4000-8000-000000000001",
+        "canonical://reference_items/00000000-0000-4000-8000-000000000002",
+        "canonical://q_a_pairs?scope_tag=pricing",
+        "https://client.example/page",
+        "http://client.example/page",
+        "/case-studies/acme.md",
+        "case-studies/acme.md",
+    ],
+)
+def test_is_valid_source_resource_accepts_the_v02_grammar(resource):
+    assert fm.is_valid_source_resource(resource) is True
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "",
+        None,
+        "canonical://q_a_pairs/00000000-0000-4000-8000-000000000001",
+        "ftp://client.example/a",
+        "case-studies/acme",
+        "just some prose",
+    ],
+)
+def test_is_valid_source_resource_rejects_everything_else(resource):
+    assert fm.is_valid_source_resource(resource) is False
+
+
+# ──────────────────────────────────────────
+# §5.1 sources[].id — deterministic, human-short, reorder-stable
+# ──────────────────────────────────────────
+
+
+def test_derive_source_id_for_source_document_anchor():
+    anchor = "canonical://source_documents/1a2b3c4d-0000-4000-8000-000000000001"
+    assert fm.derive_source_id(anchor) == "sd-1a2b3c4d"
+
+
+def test_derive_source_id_for_reference_item_anchor():
+    anchor = "canonical://reference_items/AABBCCDD-0000-4000-8000-000000000002"
+    assert fm.derive_source_id(anchor) == "ref-aabbccdd"
+
+
+def test_derive_source_id_for_qa_pairs_query():
+    anchor = "canonical://q_a_pairs?scope_tag=Pricing_2026"
+    assert fm.derive_source_id(anchor) == "qa-pricing-2026"
+
+
+def test_derive_source_id_for_bundle_path_slugs_the_path():
+    assert fm.derive_source_id("/case-studies/acme.md") == "case-studies-acme"
+    assert fm.derive_source_id("case-studies/acme.md") == "case-studies-acme"
+
+
+def test_derive_source_id_for_web_url_is_slug_plus_short_hash():
+    url = "https://client.example/certifications/iso-9001.html"
+    derived = fm.derive_source_id(url)
+    assert derived.startswith("web-iso-9001-")
+    # deterministic: same input, same id — and the hash suffix keeps two
+    # distinct URLs with the same slug from colliding.
+    assert derived == fm.derive_source_id(url)
+    sibling = fm.derive_source_id("https://other.example/docs/iso-9001.html")
+    assert sibling != derived
+
+
+def test_derive_source_id_is_stable_across_runs_and_reordering():
+    """§5.1's whole point: the id is a pure function of the resource URI,
+    so reordering the list never changes any entry's id."""
+    citations = [
+        "canonical://source_documents/1a2b3c4d-0000-4000-8000-000000000001",
+        "https://client.example/about",
+        "case-studies/acme.md",
+    ]
+    forward = fm.sources_from_citations(citations)
+    reversed_ = fm.sources_from_citations(list(reversed(citations)))
+    assert {s.resource: s.id for s in forward} == {
+        s.resource: s.id for s in reversed_
+    }
+
+
+def test_sources_from_citations_leads_with_the_primary_anchor_and_dedupes():
+    primary = _ANCHOR
+    citations = ["case-studies/acme.md", primary, "case-studies/acme.md"]
+    entries = fm.sources_from_citations(citations, primary_anchor=primary)
+    assert [s.resource for s in entries] == [primary, "/case-studies/acme.md"]
+
+
+def test_source_citation_targets_round_trips_the_stored_forms():
+    citations = [_ANCHOR, "https://client.example/about", "case-studies/acme.md"]
+    entries = fm.sources_from_citations(citations)
+    assert list(fm.source_citation_targets(entries)) == citations
+
+
+# ──────────────────────────────────────────
+# F1-A: footnote definitions replace the trailer
+# ──────────────────────────────────────────
+
+
+def test_render_source_footnotes_emits_one_definition_per_entry():
+    entries = fm.sources_from_citations(
+        [_ANCHOR, "https://client.example/about", "case-studies/acme.md"]
+    )
+    text = fm.render_source_footnotes(entries)
+    lines = text.strip().split("\n")
+    assert len(lines) == 3
+    for entry, line in zip(entries, lines):
+        assert line.startswith(f"[^{entry.id}]: ")
+
+
+def test_render_source_footnotes_never_leaks_a_canonical_anchor_into_the_body():
+    """BI-10 under v0.2: a record pointer's footnote text falls back to the
+    entry id, never the anchor itself."""
+    entries = fm.sources_from_citations([_ANCHOR])
+    text = fm.render_source_footnotes(entries)
+    assert "canonical://" not in text
+    assert f"[^{entries[0].id}]: {entries[0].id}" in text
+
+
+def test_render_source_footnotes_prefers_the_title_when_present():
+    entry = fm.ConceptSource(id="pol", resource="https://client.example/p", title="Policy page")
+    assert fm.render_source_footnotes([entry]) == "[^pol]: Policy page\n"
+
+
+def test_render_source_footnotes_empty_sources_is_empty_string():
+    assert fm.render_source_footnotes([]) == ""
+
+
+def test_no_citations_trailer_renderer_survives():
+    """S546 F1-A: the trailer is dropped in this change — no one-release
+    carry. The renderers are gone outright."""
+    from scripts.cocoindex_pipeline.producer import validator
+
+    assert not hasattr(validator, "render_citations_trailer")
+    assert not hasattr(validator, "normalise_citations_section")
+
+
+# ──────────────────────────────────────────
+# Rendering — the golden v0.2 frontmatter shape
+# ──────────────────────────────────────────
+
+
+def test_render_golden_full_v02_shape_with_fixed_field_order():
+    """The id-426 golden shape: generated + sources, fixed field order,
+    byte-deterministic."""
+    anchor = "canonical://source_documents/1a2b3c4d-0000-4000-8000-000000000001"
+    record = fm.build_concept_frontmatter(
+        type="topic",
+        title="Encryption at rest",
+        description="Overview of encryption-at-rest practices.",
+        generated_by="kh-concept-producer/test-model-1",
+        generated_at="2026-07-07T09:30:00Z",
+        tags=("security",),
+        purpose="Explain X",
+        task="answer Y",
+        audience="Z",
+        confidence="partial",
+        sources=fm.sources_from_citations(
+            ["https://client.example/about", "case-studies/acme.md"],
+            primary_anchor=anchor,
+        ),
+    )
+    web_id = fm.derive_source_id("https://client.example/about")
+    assert fm.render_concept_frontmatter(record) == (
+        "---\n"
+        "type: topic\n"
+        "title: Encryption at rest\n"
+        "description: Overview of encryption-at-rest practices.\n"
+        'generated: { by: kh-concept-producer/test-model-1, at: "2026-07-07T09:30:00Z" }\n'
+        "purpose: Explain X\n"
+        "task: answer Y\n"
+        "audience: Z\n"
+        "confidence: partial\n"
+        "tags:\n"
+        "  - security\n"
+        "sources:\n"
+        "  - id: sd-1a2b3c4d\n"
+        f"    resource: {anchor}\n"
+        f"  - id: {web_id}\n"
+        "    resource: https://client.example/about\n"
+        "  - id: case-studies-acme\n"
+        "    resource: /case-studies/acme.md\n"
+        "---\n"
+    )
+
+
+def test_render_includes_generated_and_sources_and_tags():
     record = fm.build_concept_frontmatter(**_base_kwargs())
     text = fm.render_concept_frontmatter(record)
     assert text.startswith("---\n")
     assert text.rstrip("\n").endswith("---")
-    for key in ("type:", "title:", "description:", "timestamp:", "resource:", "tags:"):
+    for key in ("type:", "title:", "description:", "generated:", "tags:", "sources:"):
         assert key in text
+    assert "timestamp:" not in text
     assert "- security" in text
     assert "- encryption" in text
 
 
 def test_render_omits_resource_when_absent():
-    record = fm.build_concept_frontmatter(**_base_kwargs(resource=None))
+    record = fm.build_concept_frontmatter(**_base_kwargs())
     text = fm.render_concept_frontmatter(record)
-    assert "resource:" not in text
+    assert "resource:" not in text.replace("    resource:", "")
+
+
+def test_render_omits_sources_when_empty():
+    record = fm.build_concept_frontmatter(**_base_kwargs(sources=()))
+    text = fm.render_concept_frontmatter(record)
+    assert "sources:" not in text
+
+
+def test_render_emits_source_title_only_when_set():
+    entry = fm.ConceptSource(id="pol", resource="https://client.example/p", title="Policy page")
+    record = fm.build_concept_frontmatter(**_base_kwargs(sources=(entry,)))
+    text = fm.render_concept_frontmatter(record)
+    assert "    title: Policy page\n" in text
 
 
 def test_render_emits_empty_tags_list_when_no_tags():
@@ -173,13 +489,12 @@ def test_render_quotes_a_title_containing_a_colon():
     assert 'title: "Security: best practices"' in text
 
 
-def test_render_timestamp_is_iso8601_not_uk_date_format():
-    record = fm.build_concept_frontmatter(**_base_kwargs(timestamp="2026-07-07T09:30:00Z"))
+def test_render_generated_at_is_iso8601_not_uk_date_format():
+    record = fm.build_concept_frontmatter(**_base_kwargs(generated_at="2026-07-07T09:30:00Z"))
     text = fm.render_concept_frontmatter(record)
-    # {132.7} S451 rider fold-in 1: timestamp is now ALWAYS double-quoted
-    # (fix option (a)) so a YAML-1.1 loader never re-parses it as a
-    # datetime — see the quoting-ambiguity tests below.
-    assert 'timestamp: "2026-07-07T09:30:00Z"' in text
+    # The S451-rider ALWAYS-double-quote rule carries from `timestamp` to
+    # its successor `generated.at`.
+    assert 'at: "2026-07-07T09:30:00Z"' in text
     assert "07/07/2026" not in text
 
 
@@ -187,11 +502,12 @@ def test_emit_concept_frontmatter_builds_and_renders_in_one_call():
     text = fm.emit_concept_frontmatter(**_base_kwargs())
     assert text.startswith("---\n")
     assert "title: Encryption at rest" in text
+    assert "generated: { by: kh-concept-producer/test-model-1" in text
 
 
 # ──────────────────────────────────────────
-# bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
-# extension (FRONTMATTER-WAVE.md §"Shared frontmatter contract extension").
+# bl-456 routing hints + bl-477 A19 confidence — carried UNCHANGED through
+# the v0.2 wave (id-318/S546; id-428 owns any confidence change).
 # ──────────────────────────────────────────
 
 
@@ -223,7 +539,7 @@ def test_routing_hint_embedding_a_canonical_uri_is_rejected(hint_field):
     """BI-10: routing hints get the same contains_record_pointer guard the
     existing string fields get."""
     with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(**{hint_field: f"See {_RESOURCE}"}))
+        fm.build_concept_frontmatter(**_base_kwargs(**{hint_field: f"See {_ANCHOR}"}))
 
 
 @pytest.mark.parametrize("hint_field", ["purpose", "task", "audience"])
@@ -264,18 +580,20 @@ def test_render_emits_routing_hints_and_confidence_only_when_set():
     assert "confidence: partial" in text
 
 
-def test_render_new_fields_appear_in_fixed_order_after_description_before_resource():
+def test_render_new_fields_appear_in_fixed_order_after_generated_before_tags():
     record = fm.build_concept_frontmatter(
         **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="partial")
     )
     text = fm.render_concept_frontmatter(record)
     order = [
         text.index("description:"),
+        text.index("generated:"),
         text.index("purpose:"),
         text.index("task:"),
         text.index("audience:"),
         text.index("confidence:"),
-        text.index("resource:"),
+        text.index("tags:"),
+        text.index("sources:"),
     ]
     assert order == sorted(order)
 
@@ -301,8 +619,9 @@ def test_emit_concept_frontmatter_threads_routing_hints_and_confidence():
 
 # ──────────────────────────────────────────
 # A19 (bl-477) — derive_concept_confidence: the deterministic, never
-# model-authored confidence-setting rule (FRONTMATTER-WAVE.md §"Design — A19
-# producer-drafted confidence-setting rule").
+# model-authored confidence-setting rule. Inputs re-pointed to the
+# sources[]-backed values under v0.2 (id-426 contract point 7) — the RULE
+# and its outputs are bit-for-bit unchanged (id-428 owns any change).
 # ──────────────────────────────────────────
 
 
@@ -339,7 +658,7 @@ def test_derive_concept_confidence_cross_link_only_second_citation_does_not_lift
 
 
 def test_derive_concept_confidence_is_partial_for_reference_concept_web_anchor():
-    """A Pass-2 reference concept whose `resource` is a gated web
+    """A Pass-2 reference concept whose confidence anchor is a gated web
     `reference_items` anchor is honest "grounded but thin" — partial, even
     with a corroborating citation, unless it independently clears the
     per-row + >=2 bar."""
@@ -353,17 +672,11 @@ def test_derive_concept_confidence_is_partial_for_reference_concept_web_anchor()
 #
 # The reference agent serialises via `yaml.safe_dump`, which quotes any
 # plain scalar that would re-parse as a non-string (bool/null/number/
-# timestamp) on reload. The hand-rolled emitter here previously only quoted
-# on leading special chars / ": " / trailing ":" / " #" — under-quoting a
-# title of "NO" or "99.9", and never quoting `timestamp:` at all. This
-# under-quoting is a silent round-trip type-drift hazard for any strict
-# YAML-1.1 consumer (e.g. PyYAML, which the addendum's reference/any lifted
-# viewer would use). Proof of fidelity: a YAML double-quoted scalar is
+# timestamp) on reload. Proof of fidelity: a YAML double-quoted scalar is
 # ALWAYS type `str`, universally, regardless of content (YAML 1.1 + 1.2
 # spec) — so asserting the emitter wraps every ambiguous value in `"..."`
 # is sufficient proof of round-trip type fidelity without needing a
-# `pyyaml` test dependency (not pinned in requirements.txt; {132.7} brief
-# prefers a dependency-free check).
+# `pyyaml` test dependency.
 # ──────────────────────────────────────────
 
 
@@ -421,8 +734,16 @@ def test_render_quotes_a_title_that_is_yaml_number_ambiguous():
     assert 'title: "99.9"' in text
 
 
-def test_render_always_quotes_timestamp_regardless_of_content():
-    """Fix option (a) — ALWAYS quote timestamp, not just when ambiguous."""
-    record = fm.build_concept_frontmatter(**_base_kwargs(timestamp="2026-07-07T09:30:00Z"))
+def test_render_always_quotes_generated_at_regardless_of_content():
+    """The S451-rider ALWAYS-quote rule, carried from `timestamp` to
+    `generated.at`."""
+    record = fm.build_concept_frontmatter(**_base_kwargs(generated_at="2026-07-07T09:30:00Z"))
     text = fm.render_concept_frontmatter(record)
-    assert 'timestamp: "2026-07-07T09:30:00Z"' in text
+    assert 'at: "2026-07-07T09:30:00Z"' in text
+
+
+def test_flow_scalar_quotes_a_generated_by_containing_flow_indicators():
+    """A model id containing a comma or brace would corrupt the flow
+    mapping — the flow-context scalar rule quotes it."""
+    assert fm._flow_scalar("producer/a,b") == '"producer/a,b"'
+    assert fm._flow_scalar("kh-concept-producer/glm-5.2") == "kh-concept-producer/glm-5.2"

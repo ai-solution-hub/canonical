@@ -15,24 +15,25 @@ producer/TECH.md` §"The two-pass loop" (index.md/log.md paragraph) +
     (BI-11/BI-18): append one block per producer run.
 
 **S451 rider (BINDING — the shipped {132.14} viewer's parsers are the
-format contract), as amended by the OKF v0.1 conformance wave (SPEC
-§7/§11).** `regenerate_indexes` and `append_log_entry` emit EXACTLY the
-text shape `lib/okf/parse-index.ts` / `lib/okf/parse-log.ts` parse — a
+format contract), as amended by the OKF conformance waves (v0.2 SPEC
+§9/§12, id-426).** `regenerate_indexes` and `append_log_entry` emit EXACTLY
+the text shape `lib/okf/parse-index.ts` / `lib/okf/parse-log.ts` parse — a
 format mismatch degrades `<BundleNav>`/`<BundleLog>` SILENTLY (both
 parsers have a graceful type-grouping fallback, so a divergence would not
-raise, just quietly degrade). `parse-index.ts`: a §11 frontmatter block
-(`okf_version: "0.1"` — the single key; the parser skips it), then
+raise, just quietly degrade). `parse-index.ts`: a §12 frontmatter block
+(`okf_version: "0.2"` — the single key; the parser skips it), then
 `##`/`###` theme headings, `* [title](path.md) — description` concept
 bullets (this writer picks the em-dash separator — the parser's own worked
 example glyph; both `-`/`—` are accepted, so a hyphen would ALSO
 round-trip, but consistency with the addendum's own example is preferred).
-`parse-log.ts` (§7): `## YYYY-MM-DD` DATE headings, newest date FIRST
+`parse-log.ts` (§9): `## YYYY-MM-DD` DATE headings, newest date FIRST
 (prepend); runs within a date are `* **Run <ISO-ts> — <Action> (N):** …`
 bullets, newest run first. A committed round-trip fixture
 (`__tests__/fixtures/okf/bundle-writer-*.md`, generated FROM this module's
 own `regenerate_indexes`/`append_log_entry` output) plus a Vitest
 assertion in `__tests__/lib/okf/` prove this module never silently drifts
-from the parsers' contract.
+from the parsers' contract (the TS-side fixture/parser refresh for v0.2 is
+id-439's consumer wave).
 
 **EXECUTOR-VERIFY finding (feeds {132.12} G-GITSYNC — TECH §Git
 knowledge-sync).** Confirmed EMPIRICALLY against the real (unsandboxed)
@@ -160,7 +161,6 @@ from scripts.cocoindex_pipeline.producer.validator import (
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
     check_concept,
-    normalise_citations_section,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 
@@ -313,7 +313,6 @@ def declare_concept(
     entities: "Sequence[Mapping[str, object]] | None" = None,
     relationships: "Sequence[Mapping[str, object]] | None" = None,
     effective_ontology: "EffectiveOntology | None" = None,
-    citation_titles: "Mapping[str, str] | None" = None,
 ) -> ConceptWriteResult:
     """BI-13 gate THEN BI-11 `declare_file` write — the ONLY call site every
     concept write (a Pass-1 draft, a Pass-2-enriched draft, or a Pass-2
@@ -338,19 +337,17 @@ def declare_concept(
     `read_client_overlay` and passes it to every `declare_concept` call);
     `None` gates against the bare base frozensets, unchanged.
 
-    **SPEC §5.1/§8 write-time trailer normalisation.** The draft body's
-    `# Citations` section is deterministically re-emitted in the numbered
-    markdown-link form via `validator.normalise_citations_section` BEFORE
-    the gate and the write — accepting both the legacy bare-path bullets
-    and the link form on input — so the ON-DISK trailer format never
-    depends on model formatting. `citation_titles` (concept rel_path ->
-    title; `write_bundle` supplies the run-wide map from its draft set)
-    resolves cross-link labels to the target concept's title; unresolvable
-    cross-links keep the rel_path as label.
+    **No write-time trailer normalisation under v0.2 (id-426, S546
+    F1-A).** The `# Citations` trailer is retired: a draft's provenance is
+    its `sources:` frontmatter (§5.1) plus the `[^id]` footnote
+    definitions already rendered into `draft.body` at draft time by the
+    single shared emitters (`frontmatter.sources_from_citations` /
+    `render_source_footnotes`), so the body is written as-is and the
+    on-disk format still never depends on model formatting.
     """
     rel_path = bundle_write_path(draft)
     frontmatter: ConceptFrontmatter = draft.frontmatter
-    body: str = normalise_citations_section(draft.body, titles=citation_titles)
+    body: str = draft.body
     errors = check_concept(
         frontmatter,
         body=body,
@@ -431,9 +428,10 @@ def _render_theme(theme: IndexTheme, lines: "list[str]") -> None:
 def regenerate_indexes(themes: "Sequence[IndexTheme]") -> str:
     """BI-5/BI-11: pure progressive-disclosure `index.md` renderer.
 
-    Opens with the SPEC §11 / DR-019 house-rule frontmatter block —
-    exactly one key, `okf_version: "0.1"` (§11 permits the bundle-root
-    `index.md` ONLY a frontmatter block among all indexes; keep it to this
+    Opens with the SPEC §12 / DR-019 house-rule frontmatter block —
+    exactly one key, `okf_version: "0.2"` (id-426 emission contract point
+    5; §12 permits the bundle-root `index.md` ONLY a frontmatter block
+    among all indexes; keep it to this
     single key) — then emits `##`/`###` theme headings and
     `* [title](path.md) — description` concept bullets — EXACTLY the
     format `lib/okf/parse-index.ts` parses (S451 rider item b; the parser
@@ -455,7 +453,7 @@ def regenerate_indexes(themes: "Sequence[IndexTheme]") -> str:
     """
     lines: "list[str]" = [
         "---",
-        'okf_version: "0.1"',
+        'okf_version: "0.2"',
         "---",
         "# OKF Concept Bundle",
         "",
@@ -575,7 +573,7 @@ def _resolve_run_timestamp(timestamp: "str | None") -> str:
 
 
 def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
-    """One producer run's bullet lines (SPEC §7 conformance shape) — every
+    """One producer run's bullet lines (SPEC §9 conformance shape) — every
     category line carries the FULL run timestamp in its bold prefix
     (`* **Run <ISO-ts> — <Action> (N):** …`), preserving BI-11 per-run
     visibility and machine-parseability now that runs are grouped under a
@@ -629,8 +627,8 @@ def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
 
 
 def render_log_entry(summary: RunSummary, *, timestamp: "str | None" = None) -> str:
-    """BI-11/BI-18/BI-22 + SPEC §7: render ONE run as a fresh date section —
-    a `## YYYY-MM-DD` ISO-8601 DATE heading (§7 MUST) followed by the run's
+    """BI-11/BI-18/BI-22 + SPEC §9: render ONE run as a fresh date section —
+    a `## YYYY-MM-DD` ISO-8601 DATE heading (§9 MUST) followed by the run's
     `* **Run <ISO-ts> — …:**` bullets (`_render_run_bullets`). This is the
     shape a run takes when it OPENS a new date section; `append_log_entry`
     merges a same-date run's bullets into the existing first section
@@ -645,7 +643,7 @@ def append_log_entry(
     bundle_dir: Path, summary: RunSummary, *, timestamp: "str | None" = None
 ) -> str:
     """Read `bundle_dir/log.md`'s CURRENT content (if present) and record
-    this run's entry — SPEC §7: date-grouped, NEWEST FIRST. `declare_file`
+    this run's entry — SPEC §9: date-grouped, NEWEST FIRST. `declare_file`
     has no native prepend mode — it always takes the FULL desired content —
     so this function owns full-content reconstruction:
 
@@ -1314,19 +1312,11 @@ def write_bundle(
             )
         seen_write_paths.add(write_path)
 
-    # SPEC §5.1/§8: the run-wide rel_path -> title map for cross-link
-    # LABELS — keyed by IDENTITY rel_path (`_rel_path_of`), the form BI-9
-    # cross-link citations cite (never the won-bid PHYSICAL redirect path).
-    citation_titles = {
-        _rel_path_of(draft): draft.frontmatter.title for draft in all_drafts
-    }
-
     for draft in all_drafts:
         result = declare_concept(
             bundle_dir,
             draft,
             effective_ontology=effective_ontology,
-            citation_titles=citation_titles,
         )
         if not result.written:
             failures.append((result.rel_path, result.errors))

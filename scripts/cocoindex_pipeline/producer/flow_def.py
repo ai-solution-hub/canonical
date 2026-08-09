@@ -43,7 +43,7 @@ guard); no `repo_path` -> no git staging; no `gated_corpus` -> Pass-2 skipped.
 **Owner ruling (S456, {132.23}): a log.md-only diff is a no-op — no repo
 mutation at all.** `bundle_writer.append_log_entry` stamps a freshly-
 timestamped `* **Run <ISO-ts> — …**` record into `log.md` on EVERY run
-(BI-11's unconditional log stamp; SPEC §7 date-grouped, newest first), so
+(BI-11's unconditional log stamp; SPEC §9 date-grouped, newest first), so
 a run where every concept file is byte-identical
 to the last publish would still present a changed `log.md` to
 `git_sync.sync_bundle`. This module encodes the owner ruling at the

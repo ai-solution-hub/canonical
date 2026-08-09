@@ -25,8 +25,10 @@ TECH.md §"Proposed changes per invariant":
 - **BI-9** — concept→concept cross-references cite the concept's bundle
   rel_path (matching ID-131's `citations.cited_concept_path text`), never a
   uuid (`concept_citation_path`).
-- **BI-10** — the `resource:` frontmatter field + the `# Citations` body are
-  the ONLY ingress of a Canonical uuid into the client-owned bundle.
+- **BI-10 (v0.2, id-426)** — the `sources[].resource` frontmatter entries
+  are the ONLY ingress of a Canonical uuid into the client-owned bundle
+  (under v0.1 this was the top-level `resource:` field + the `# Citations`
+  body trailer — both retired by S546 F1-A/F2-B).
   `contains_record_pointer` is the shared guard the frontmatter emitter
   (`producer/frontmatter.py`) uses to prove no OTHER field smuggles one in.
 
@@ -190,17 +192,18 @@ def is_canonical_resource_uri(value: str) -> bool:
     return isinstance(value, str) and value.startswith(_SCHEME)
 
 
-# ── OKF §8 numbered-link citation entries (SPEC v0.1 conformance) ─────────
+# ── Citation-entry parsing (LEGACY v0.1 trailer forms + v0.2 targets) ─────
 #
-# The on-disk `# Citations` trailer entry form is `[n] [label](target)` —
-# a numbered, REAL markdown link (SPEC §5.1/§8), where `target` is either a
-# `canonical://` record anchor or a bundle-ABSOLUTE concept path with a
-# leading `/` (`/certifications/iso-9001.md`). The LEGACY form (bare-path
-# `- <target>` bullets, the pre-conformance shipped-bundle format) must
-# still parse — prior committed bundles carry it — so every citation
-# consumer normalises an entry to its TARGET via `citation_target` before
-# comparing, and leading `/` is stripped so targets compare against
-# identity rel_paths.
+# Under OKF v0.2 (id-426, S546 F1-A) the producer emits NO `# Citations`
+# trailer — provenance lives in the `sources:` frontmatter (§5.1). These
+# parsers survive so prior committed bundles remain readable: the v0.1 §8
+# trailer entry form was `[n] [label](target)` — a numbered, REAL markdown
+# link — where `target` is either a `canonical://` record anchor or a
+# bundle-ABSOLUTE concept path with a leading `/`
+# (`/certifications/iso-9001.md`); the still-older form was bare-path
+# `- <target>` bullets. Every citation consumer normalises an entry to its
+# TARGET via `citation_target` before comparing, and leading `/` is
+# stripped so targets compare against identity rel_paths.
 
 # Optional `[n] ` ordinal prefix on a trailer line.
 _CITATION_ORDINAL_PREFIX_RE = re.compile(r"^\[\d+\]\s+")
@@ -251,10 +254,11 @@ def contains_record_pointer(text: str) -> bool:
     """BI-10 guard: True if `text` embeds a `canonical://` uri or a bare
     uuid anywhere in it.
 
-    Used by the frontmatter emitter (`producer/frontmatter.py`) — and, later,
-    the BI-13 validator — to prove that ONLY the `resource:` field and the
-    `# Citations` body carry a Canonical record uuid; no other frontmatter
-    key or body prose may smuggle one in.
+    Used by the frontmatter emitter (`producer/frontmatter.py`) — and the
+    BI-13 validator — to prove that ONLY the `sources[].resource` entries
+    (v0.2, id-426; formerly the v0.1 `resource:` field + `# Citations`
+    body) carry a Canonical record uuid; no other frontmatter key or body
+    prose may smuggle one in.
     """
     if not text:
         return False

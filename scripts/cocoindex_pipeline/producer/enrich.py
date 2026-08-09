@@ -8,8 +8,13 @@ builders into the producer's first pass (TECH.md §"The two-pass loop"):
     enrich_concept() runs the agent loop with the Source-adapter tools only
     (read_concept_raw, sample_rows, list_concepts) — no web access. It emits
     the concept body (a distilled synthesis, never a copy — BI-1/BI-17),
-    the initial # Citations section (record anchors via the resource_uri
-    builders), and the BI-12 frontmatter (via the frontmatter emitter).
+    the OKF v0.2 provenance surface (id-426, S546 F1-A: a `sources:`
+    frontmatter list built from the validated citations via
+    `frontmatter.sources_from_citations`, plus `[^id]` footnote
+    definitions in the body — the v0.1 `# Citations` trailer is retired
+    outright), and the BI-12 frontmatter (via the frontmatter emitter,
+    now carrying §5.2 `generated: { by, at }` in place of the retired
+    `timestamp`).
 
 **enrich_concept does NOT write files.** Its `ConceptDraft` return value is
 handed onward to `{132.10}`'s bundle-writer, which validator-gates (BI-13,
@@ -172,14 +177,24 @@ producer's requests — is drafting-config identically to `PRODUCER_MODEL`/
 + bundle `log.md` note applies, never an auto `deps=` invalidation. No
 `version=` bump lands in THIS commit either.
 
-**`version=1` (S481, this bump — the lever exercised for the first time).**
+**`version=1` (S481 — the lever exercised for the first time).**
 `{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
 (`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config
 change) AND grew the emitted frontmatter to carry `confidence` (+hints when
 supplied — an output-shape change). Per the manual-bump contract above, this
-is bumped BEFORE the next deployed producer run (the `{132.35}` GLM-5.2
+was bumped BEFORE the next deployed producer run (the `{132.35}` GLM-5.2
 Run-1 BI-18 re-proof) so the corpus is treated as invalidated ahead of that
 run, with the reason recorded in the bundle's `log.md` at that run.
+
+**`version=2` (id-426, this bump — the OKF v0.2 emission contract).** The
+S546 wave changes BOTH the drafting config (`PASS1_INSTRUCTION_PROMPT`'s
+citation-surface wording) and the output shape (`ConceptFrontmatter` now
+carries `generated: { by, at }` + `sources[]` in place of the retired
+`timestamp`/top-level `canonical://` `resource:`; `ConceptDraft` gains
+`primary_anchor`; the body's `# Citations` trailer is replaced by `[^id]`
+footnote definitions). Per the SAME manual-bump contract, the corpus is
+treated as invalidated ahead of the first v0.2 producer run, with the
+reason recorded in the bundle's `log.md` at that run.
 
 **The effective ontology is excluded from the Pass-1 fingerprint (MD-9,
 DR-054/DR-027).** `EffectiveOntology` governs the concept-**write** gate
@@ -219,6 +234,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
     LIST_CONCEPTS_TOOL,
     PASS1_TOOLS,
     PRODUCER_MODEL,
+    producer_actor,
     producer_async_client,
     run_tool_use_loop,
 )
@@ -227,6 +243,8 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
     build_concept_frontmatter,
     derive_concept_confidence,
     render_concept_frontmatter,
+    render_source_footnotes,
+    sources_from_citations,
 )
 from scripts.cocoindex_pipeline.producer.prompts import PASS1_INSTRUCTION_PROMPT
 from scripts.cocoindex_pipeline.producer.resource_uri import (
@@ -241,7 +259,6 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
 )
 from scripts.cocoindex_pipeline.producer.validator import (
     is_valid_concept_resource_uri,
-    render_citations_trailer,
 )
 from scripts.cocoindex_pipeline.sources.l_records import ConceptKey, ConceptRaw, Source
 
@@ -292,7 +309,18 @@ class ConceptDraft:
     frontmatter: ConceptFrontmatter
     body: str
     """The distilled markdown body, ALREADY including the terminal
-    `# Citations` section (`_render_citations_section`)."""
+    `[^id]` footnote definitions (`_render_source_footnotes` — the v0.2
+    replacement for the retired `# Citations` trailer, S546 F1-A)."""
+
+    primary_anchor: "str | None" = None
+    """The concept's primary record anchor (`_resource_from_raw` — a
+    per-row/BI-8 `canonical://` uri, or `None`). Under v0.2 this is no
+    longer emitted as the top-level `resource:` (S546 F2-B — the pointer
+    lives only in `sources[]`, where it is the leading entry); it is
+    carried here so Pass-2 (`run_web_pass`) can recompute
+    `derive_concept_confidence` from the SAME information the v0.1
+    `frontmatter.resource` field used to hold, bit-for-bit (id-426
+    emission contract point 7)."""
 
     @property
     def rendered_markdown(self) -> str:
@@ -342,10 +370,13 @@ def _qa_pairs_anchor(key: ConceptKey) -> "str | None":
 
 
 def _resource_from_raw(key: ConceptKey, raw: ConceptRaw) -> "str | None":
-    """The BI-12 `resource:` field — "the concept's primary record anchor
-    where one exists" — derived deterministically from `key`'s own backing
-    records, NEVER asked of the model (BI-6/BI-10: only `resource_uri.py`
-    builder output may become a Canonical uuid pointer)."""
+    """The concept's PRIMARY record anchor — "the concept's primary record
+    anchor where one exists" — derived deterministically from `key`'s own
+    backing records, NEVER asked of the model (BI-6/BI-10: only
+    `resource_uri.py` builder output may become a Canonical uuid pointer).
+    Under v0.2 (S546 F2-B) this is no longer the top-level `resource:`
+    frontmatter field: it leads the `sources[]` list and rides
+    `ConceptDraft.primary_anchor` for Pass-2's confidence recomputation."""
     if raw.source_documents:
         return build_source_document_uri(raw.source_documents[0]["id"])
     if raw.reference_items:
@@ -572,7 +603,8 @@ def _validate_citation(
         raise Pass1DraftError(
             f"enrich_concept: citation entries must be non-empty strings, got {entry!r}"
         )
-    # SPEC §5.1/§8 tolerance: an entry may arrive as a numbered/markdown
+    # Entry-form tolerance (v0.1 §8 numbered-link legacy + §6.2
+    # bundle-absolute paths): an entry may arrive as a numbered/markdown
     # link (`[n] [label](target)`) or a `/`-leading bundle-absolute path —
     # normalise to the bare TARGET first, then validate exactly as before.
     entry = citation_target(entry)
@@ -808,15 +840,18 @@ def _parse_pass1_response(
     )
 
 
-def _render_citations_section(citations: "Sequence[str]") -> str:
-    """Renders the SPEC §5.1/§8 numbered-link `# Citations` trailer via the
-    SINGLE shared renderer `producer/validator.py:render_citations_trailer`
-    (which `_citation_entries` parses back out, so `{132.9}`/`{132.12}`'s
-    `detect_citation_shrink` augmentation guard reads this section
-    correctly). Cross-link labels are the bare rel_path here — target
-    concept titles are not resolvable at draft time; `{132.10}`'s
-    bundle-writer re-normalises with a run-wide titles map at write time."""
-    return render_citations_trailer(citations)
+def _render_source_footnotes(citations: "Sequence[str]", *, primary_anchor: "str | None" = None) -> str:
+    """Renders the v0.2 §5.1 per-claim-attribution footnote DEFINITIONS
+    for a draft's provenance — the SINGLE shared renderer
+    `frontmatter.render_source_footnotes` over the SAME
+    `sources_from_citations` list the frontmatter emission carries, so the
+    body's `[^id]` labels and the `sources[].id` keys can never diverge.
+    Replaces the retired `# Citations` trailer (S546 F1-A);
+    `detect_citation_shrink` reads the frontmatter `sources:` list, not
+    this block."""
+    return render_source_footnotes(
+        sources_from_citations(citations, primary_anchor=primary_anchor)
+    )
 
 
 def _cached_system() -> "list[dict[str, object]]":
@@ -843,7 +878,7 @@ def _seed_user_message(key: ConceptKey) -> str:
 # ── enrich_concept ───────────────────────────────────────────────────────
 
 
-@coco.fn(memo=True, memo_key={"source": None}, version=1)
+@coco.fn(memo=True, memo_key={"source": None}, version=2)
 async def enrich_concept(
     key: ConceptKey,
     source: Source,
@@ -861,7 +896,7 @@ async def enrich_concept(
     the S451 rider's terminal-TEXT contract (fold-in 1: a JSON envelope in
     the final text turn, never a tool call; fold-in 3: all terminal
     TextBlocks concatenated). `@coco.fn(memo=True, memo_key={'source': None},
-    version=1)` on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060):
+    version=2)` on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060):
     `source` is excluded via `memo_key` (MD-2) so the unpickleable
     `LRecordsSource` never reaches the fingerprint; `key.content_version`
     (MD-3) is the BI-18 delta signal — see the module docstring for the full
@@ -869,13 +904,14 @@ async def enrich_concept(
     a `PRODUCER_MODEL` env override counts identically to a literal
     `ANTHROPIC_MODEL` edit, {132.35} slice B) is a MANUAL `version=` bump
     recorded in the bundle's `log.md`, never an auto `deps=` invalidation.
-    `version=1` (S481, this bump) is DR-060's contract
-    exercised for real: {132.41}/{132.42} added 3 optional routing-hint keys
-    to `PASS1_INSTRUCTION_PROMPT` and grew the emitted frontmatter to carry
-    `confidence` (+hints when supplied) — both a drafting-config change and
-    an output-shape change, so the corpus must be treated as invalidated
-    ahead of the {132.35} GLM-5.2 Run-1 re-proof (a bundle `log.md` entry is
-    recorded at that producer run per the DR-060 contract).
+    `version=2` (id-426, this bump) is that contract applied to the OKF
+    v0.2 emission wave: the prompt's citation-surface wording changed
+    (drafting config) AND the emitted frontmatter/draft shape changed
+    (`generated`/`sources[]`/`primary_anchor`, trailer retired — an
+    output-shape change), so the corpus is treated as invalidated ahead of
+    the first v0.2 producer run (a bundle `log.md` entry is recorded at
+    that run per the DR-060 contract; see the module docstring's
+    `version=2` section).
     """
     catalogue = await source.list_concepts()
     own_raw = await source.read_concept(key)
@@ -934,21 +970,38 @@ async def enrich_concept(
         )
         envelope = await _draft_terminal_envelope()
 
-    resource = _resource_from_raw(key, raw_cache[key.rel_path])
+    primary_anchor = _resource_from_raw(key, raw_cache[key.rel_path])
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,
         title=envelope.title,
         description=envelope.description,
-        timestamp=datetime.now(timezone.utc),
+        # id-426 emission contract point 1 (§5.2/§7): `generated.by` is the
+        # actor this drafting call ACTUALLY ran as — the `model` parameter,
+        # measured at write time; `generated.at` is the same value source
+        # the retired `timestamp` used.
+        generated_by=producer_actor(model),
+        generated_at=datetime.now(timezone.utc),
         tags=envelope.tags,
-        resource=resource,
+        # S546 F2-B: no top-level `resource:` for a DB-backed concept — the
+        # record anchor leads the `sources[]` list instead.
         purpose=envelope.purpose,
         task=envelope.task,
         audience=envelope.audience,
         # A19 (bl-477) — deterministic, NEVER model-authored (FRONTMATTER-
-        # WAVE.md); derived from the SAME `(resource, citations)` this call
-        # already resolved, not asked of the model.
-        confidence=derive_concept_confidence(resource=resource, citations=envelope.citations),
+        # WAVE.md); derived from the SAME `(primary anchor, citations)`
+        # information the v0.1 `(resource, citations)` inputs carried —
+        # re-pointed, outputs bit-for-bit preserved (id-426 point 7).
+        confidence=derive_concept_confidence(
+            resource=primary_anchor, citations=envelope.citations
+        ),
+        sources=sources_from_citations(
+            envelope.citations, primary_anchor=primary_anchor
+        ),
     )
-    body = f"{envelope.body.rstrip()}\n\n{_render_citations_section(envelope.citations)}"
-    return ConceptDraft(key=key, frontmatter=frontmatter, body=body)
+    body = (
+        f"{envelope.body.rstrip()}\n\n"
+        f"{_render_source_footnotes(envelope.citations, primary_anchor=primary_anchor)}"
+    )
+    return ConceptDraft(
+        key=key, frontmatter=frontmatter, body=body, primary_anchor=primary_anchor
+    )

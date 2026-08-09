@@ -1,25 +1,35 @@
 """Tests for producer/validator.py — the BI-13 concept-frontmatter validator
-gate (ID-132 {132.7} G-VALIDATE).
+gate (ID-132 {132.7} G-VALIDATE), upgraded to the OKF v0.2 emission contract
+(id-426, S546 F1-A/F2-B).
 
-Covers: BI-12 required-key check, BI-4 type-set membership, BI-6
-resource-scheme validity (both the per-row anchor form AND the BI-8
-q_a_pairs query form), the BI-10 "no uuid outside resource:/# Citations"
-assertion, the closed 12-entity/10-relation ontology semantic lint, and the
-S451 rider fold-in 2 citation-shrink DETECTION API (BI-17/BI-22/DR-016).
+Covers: the v0.2 required-key check (`generated` replaces `timestamp`),
+BI-4 type-set membership, the F2-B top-level-resource inversion (never
+canonical://), the §5.1 `sources` shape gate (`check_sources`), the BI-10
+"no uuid outside sources[].resource" assertion, the closed
+12-entity/10-relation ontology semantic lint, and the S451 rider fold-in 2
+citation-shrink DETECTION API (BI-17/BI-22/DR-016) — now harvesting BOTH
+the legacy v0.1 `# Citations` trailer and the v0.2 `sources:` frontmatter,
+so the format migration is never a false shrink.
 
 No concept is written/published unless it passes this gate (PRODUCT.md BI-13)
 — `validate_concept` is what `{132.10}` wires onto the `declare_file` call
-site; this Subtask builds the gate + its API only (no caller yet).
+site.
 """
 
 import uuid
 
 import pytest
 
+from scripts.cocoindex_pipeline.producer import frontmatter as fm_module
 from scripts.cocoindex_pipeline.producer import resource_uri as ru
 from scripts.cocoindex_pipeline.producer import validator as v
 
 _RESOURCE = ru.build_source_document_uri(uuid.uuid4())
+_GENERATED = {"by": "kh-concept-producer/test-model-1", "at": "2026-07-07T09:30:00Z"}
+
+
+def _valid_sources(resource=_RESOURCE):
+    return [{"id": fm_module.derive_source_id(resource), "resource": resource, "title": None}]
 
 
 def _valid_frontmatter(**overrides):
@@ -27,9 +37,9 @@ def _valid_frontmatter(**overrides):
         type="topic",
         title="Encryption at rest",
         description="Overview of encryption-at-rest practices.",
-        timestamp="2026-07-07T09:30:00Z",
+        generated=dict(_GENERATED),
         tags=["security", "encryption"],
-        resource=_RESOURCE,
+        sources=_valid_sources(),
     )
     fm.update(overrides)
     return fm
@@ -37,13 +47,20 @@ def _valid_frontmatter(**overrides):
 
 _VALID_BODY = (
     "A distilled synthesis of encryption-at-rest practice.\n\n"
+    f"[^{fm_module.derive_source_id(_RESOURCE)}]: {fm_module.derive_source_id(_RESOURCE)}\n"
+)
+
+# A LEGACY v0.1 body (trailer-carrying) — the gate still tolerates the
+# `# Citations` ingress for prior committed bundles.
+_LEGACY_BODY = (
+    "A distilled synthesis of encryption-at-rest practice.\n\n"
     "# Citations\n"
     f"- {_RESOURCE}\n"
 )
 
 
 # ──────────────────────────────────────────
-# BI-12: required keys
+# BI-12 (v0.2): required keys
 # ──────────────────────────────────────────
 
 
@@ -52,12 +69,40 @@ def test_valid_concept_passes():
     assert errors == []
 
 
-@pytest.mark.parametrize("missing_key", ["type", "title", "description", "timestamp", "tags"])
+@pytest.mark.parametrize("missing_key", ["type", "title", "description", "generated", "tags"])
 def test_concept_missing_a_required_key_is_rejected(missing_key):
     fm = _valid_frontmatter()
     del fm[missing_key]
     errors = v.check_concept(fm, body=_VALID_BODY)
     assert any(missing_key in err for err in errors)
+
+
+def test_timestamp_is_no_longer_a_required_key():
+    """S546: `timestamp` is removed, not shadowed — a v0.2 concept with no
+    such key passes, and the required set names `generated` instead."""
+    fm = _valid_frontmatter()
+    assert "timestamp" not in fm
+    assert v.check_concept(fm, body=_VALID_BODY) == []
+    assert "timestamp" not in v._REQUIRED_KEYS
+    assert "generated" in v._REQUIRED_KEYS
+
+
+@pytest.mark.parametrize(
+    "bad_generated",
+    [
+        "2026-07-07T09:30:00Z",  # a bare string is the retired timestamp shape
+        {"by": "", "at": "2026-07-07T09:30:00Z"},
+        {"by": "kh-concept-producer/m", "at": ""},
+        {"by": "kh-concept-producer/m"},
+        {"at": "2026-07-07T09:30:00Z"},
+        None,
+    ],
+)
+def test_malformed_generated_is_rejected(bad_generated):
+    errors = v.check_concept(
+        _valid_frontmatter(generated=bad_generated), body=_VALID_BODY
+    )
+    assert any("generated" in err for err in errors)
 
 
 def test_concept_missing_a_required_key_raises_via_validate_concept():
@@ -68,13 +113,13 @@ def test_concept_missing_a_required_key_raises_via_validate_concept():
     assert any("title" in err for err in excinfo.value.errors)
 
 
-def test_resource_is_not_a_required_key():
-    """PRODUCT.md BI-12: resource: is present "where one exists" — optional,
-    matching the landed {132.6} frontmatter.py emitter. (Flagged spec-tension
-    vs the TECH.md BI-table row and lib/ontology/concept-schema.ts, which
-    both treat it as unconditionally required — see {132.7} report.)"""
+def test_resource_and_sources_are_not_required_keys():
+    """v0.2: a DB-backed concept omits `resource:` entirely (F2-B), and the
+    `sources` SHAPE gate does not require presence (citation non-emptiness
+    is BI-17's draft-time contract in enrich.py)."""
     fm = _valid_frontmatter()
-    del fm["resource"]
+    del fm["sources"]
+    assert "resource" not in fm
     errors = v.check_concept(fm, body="A distilled synthesis.\n")
     assert errors == []
 
@@ -99,92 +144,213 @@ def test_non_bi4_type_is_rejected(bad_type):
 
 
 # ──────────────────────────────────────────
-# BI-6: resource: scheme validity — both emitted forms
+# S546 F2-B: top-level resource is never canonical://
 # ──────────────────────────────────────────
 
 
-def test_per_row_source_document_resource_is_valid():
-    errors = v.check_concept(
-        _valid_frontmatter(resource=ru.build_source_document_uri(uuid.uuid4())),
-        body=_VALID_BODY,
-    )
+def test_absent_resource_is_valid():
+    errors = v.check_concept(_valid_frontmatter(), body=_VALID_BODY)
     assert errors == []
 
 
-def test_per_row_reference_item_resource_is_valid():
+def test_web_url_resource_is_valid():
+    """The Pass-2 reference-concept shape: the real fetched URL."""
     errors = v.check_concept(
-        _valid_frontmatter(resource=ru.build_reference_item_uri(uuid.uuid4())),
+        _valid_frontmatter(resource="https://client.example/certifications/iso-9001"),
         body=_VALID_BODY,
     )
     assert errors == []
-
-
-def test_qa_pairs_scope_tag_query_resource_is_valid():
-    """BI-8: the q_a_pairs corpus is referenced via the table/query form —
-    NOT the per-row uuid form the TS concept-schema.ts regex alone matches
-    (RESOURCE-FORM NUANCE, {132.7} brief)."""
-    resource = ru.build_q_a_pairs_query_uri(scope_tag="pricing")
-    errors = v.check_concept(_valid_frontmatter(resource=resource), body=_VALID_BODY)
-    assert errors == []
-
-
-def test_qa_pairs_domain_subtopic_query_resource_is_rejected():
-    """S531: the retired ?domain=&subtopic= form must no longer validate."""
-    errors = v.check_concept(
-        _valid_frontmatter(
-            resource="canonical://q_a_pairs?domain=security&subtopic=encryption"
-        ),
-        body=_VALID_BODY,
-    )
-    assert errors != []
 
 
 @pytest.mark.parametrize(
     "bad_resource",
     [
-        "https://example.com",
+        _RESOURCE,
+        "canonical://reference_items/" + str(uuid.uuid4()),
+        "canonical://q_a_pairs?scope_tag=pricing",
+    ],
+)
+def test_canonical_pointer_as_top_level_resource_is_rejected(bad_resource):
+    errors = v.check_concept(_valid_frontmatter(resource=bad_resource), body=_VALID_BODY)
+    assert any("F2-B" in err for err in errors)
+
+
+def test_empty_resource_is_rejected():
+    errors = v.check_resource_scheme("")
+    assert errors
+
+
+def test_none_resource_passes_check_resource_scheme():
+    assert v.check_resource_scheme(None) == []
+
+
+# ──────────────────────────────────────────
+# §5.1: the sources shape gate
+# ──────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        _RESOURCE,
+        "canonical://reference_items/" + str(uuid.uuid4()),
+        "canonical://q_a_pairs?scope_tag=pricing",
+        "https://client.example/page",
+        "/case-studies/acme.md",
+        "case-studies/acme.md",
+    ],
+)
+def test_sources_accept_every_v02_resource_form(resource):
+    fm = _valid_frontmatter(
+        sources=[{"id": fm_module.derive_source_id(resource), "resource": resource}]
+    )
+    assert v.check_concept(fm, body="A synthesis.\n") == []
+
+
+def test_sources_reject_the_retired_domain_subtopic_query_form():
+    """S531: the retired ?domain=&subtopic= form must not validate as a
+    sources[].resource either."""
+    fm = _valid_frontmatter(
+        sources=[
+            {
+                "id": "qa-legacy",
+                "resource": "canonical://q_a_pairs?domain=security&subtopic=encryption",
+            }
+        ]
+    )
+    errors = v.check_concept(fm, body="A synthesis.\n")
+    assert any("sources[].resource" in err for err in errors)
+
+
+@pytest.mark.parametrize(
+    "bad_resource",
+    [
         "canonical://q_a_pairs/" + str(uuid.uuid4()),  # BI-7: q_a_pairs master never per-row
         "canonical://not_a_real_table/" + str(uuid.uuid4()),
         "canonical://source_documents/not-a-uuid",
+        "ftp://client.example/a",
+        "",
+        None,
     ],
 )
-def test_bad_resource_scheme_is_rejected(bad_resource):
-    errors = v.check_concept(_valid_frontmatter(resource=bad_resource), body=_VALID_BODY)
-    assert any("resource" in err.lower() for err in errors)
+def test_bad_sources_resource_is_rejected(bad_resource):
+    fm = _valid_frontmatter(sources=[{"id": "bad", "resource": bad_resource}])
+    errors = v.check_concept(fm, body="A synthesis.\n")
+    assert any("sources[].resource" in err for err in errors)
+
+
+def test_sources_reject_a_missing_or_empty_id():
+    errors = v.check_sources([{"resource": _RESOURCE}])
+    assert any("sources[].id" in err for err in errors)
+    errors = v.check_sources([{"id": "", "resource": _RESOURCE}])
+    assert any("sources[].id" in err for err in errors)
+
+
+def test_sources_reject_a_duplicated_id():
+    errors = v.check_sources(
+        [
+            {"id": "dup", "resource": "https://client.example/a"},
+            {"id": "dup", "resource": "https://client.example/b"},
+        ]
+    )
+    assert any("duplicated" in err for err in errors)
+
+
+def test_sources_reject_a_pointer_bearing_title():
+    errors = v.check_sources(
+        [{"id": "ok", "resource": _RESOURCE, "title": f"See {_RESOURCE}"}]
+    )
+    assert any("sources[].title" in err for err in errors)
+
+
+def test_sources_tolerate_the_spec_credibility_signals():
+    """§5.1's optional `author`/`usage_count`/`last_modified` keys (and any
+    unknown key) are tolerated — the spec's unknown-key posture."""
+    errors = v.check_sources(
+        [
+            {
+                "id": "ga4-schema",
+                "resource": "https://developers.google.com/analytics/schema",
+                "title": "GA4 export schema",
+                "author": "team:ga4-docs",
+                "usage_count": 5000,
+                "last_modified": "2026-05-30",
+            }
+        ]
+    )
+    assert errors == []
+
+
+def test_sources_absence_and_none_are_not_errors():
+    assert v.check_sources(None) == []
+
+
+def test_non_list_sources_is_rejected():
+    errors = v.check_sources("not-a-list")
+    assert errors
 
 
 # ──────────────────────────────────────────
-# BI-10: no uuid outside resource:/# Citations
+# BI-10: no uuid outside sources[].resource (legacy `# Citations` bodies
+# stay tolerated for prior committed bundles)
 # ──────────────────────────────────────────
 
 
-def test_uuid_in_description_outside_citations_fails():
+def test_uuid_in_description_fails():
     poisoned = _valid_frontmatter(description=f"Anchor: {uuid.uuid4()}")
     errors = v.check_concept(poisoned, body=_VALID_BODY)
     assert any("BI-10" in err for err in errors)
 
 
-def test_uuid_in_tag_outside_citations_fails():
+def test_uuid_in_tag_fails():
     poisoned = _valid_frontmatter(tags=["security", str(uuid.uuid4())])
     errors = v.check_concept(poisoned, body=_VALID_BODY)
     assert any("BI-10" in err for err in errors)
 
 
 def test_uuid_in_body_outside_citations_fails():
-    body = f"See {_RESOURCE} in the prose body.\n\n# Citations\n- {_RESOURCE}\n"
+    body = f"See {_RESOURCE} in the prose body.\n"
     errors = v.check_concept(_valid_frontmatter(), body=body)
     assert any("BI-10" in err for err in errors)
 
 
-def test_uuid_inside_citations_section_is_fine():
-    errors = v.check_concept(_valid_frontmatter(), body=_VALID_BODY)
+def test_uuid_inside_a_legacy_citations_section_is_fine():
+    errors = v.check_concept(_valid_frontmatter(), body=_LEGACY_BODY)
     assert errors == []
 
 
-def test_uuid_in_resource_field_itself_is_fine():
-    """`resource:` is the sanctioned ingress — BI-10 does not apply to it."""
-    errors = v.check_concept(_valid_frontmatter(resource=_RESOURCE), body="No citations here.\n")
+def test_uuid_in_sources_resource_is_fine():
+    """`sources[].resource` is the sanctioned ingress — BI-10 does not
+    apply to it."""
+    errors = v.check_concept(_valid_frontmatter(), body="No provenance here.\n")
     assert errors == []
+
+
+def test_v02_footnote_definitions_never_carry_a_pointer():
+    """The v0.2 body surface: footnote definitions keyed by sources[].id —
+    no canonical:// anchor ever appears in the body."""
+    assert "canonical://" not in _VALID_BODY
+    assert v.check_concept(_valid_frontmatter(), body=_VALID_BODY) == []
+
+
+def test_link_wrapped_canonical_uri_stays_legal_only_inside_citations():
+    """BI-10 under the legacy link form: a `[uri](uri)` canonical anchor
+    inside a legacy `# Citations` passes the stray-pointer guard; the SAME
+    link anywhere else in the body still fails."""
+    fm_ok = _valid_frontmatter()
+    inside = (
+        "Prose.\n\n# Citations\n\n"
+        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
+    )
+    assert v.check_concept(fm_ok, body=inside) == []
+
+    outside = (
+        f"Prose citing [{_RESOURCE}]({_RESOURCE}) inline.\n\n"
+        "# Citations\n\n"
+        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
+    )
+    errors = v.check_concept(fm_ok, body=outside)
+    assert any("BI-10" in err for err in errors)
 
 
 # ──────────────────────────────────────────
@@ -230,10 +396,28 @@ def test_concept_with_invalid_entity_mention_fails_the_gate():
 
 # ──────────────────────────────────────────
 # S451 rider fold-in 2 — augmentation-guard DETECTION half
-# (BI-17/BI-22/DR-016; reference bundle_tools.py:110-155 "augment, not
-# replace" guard — validator owns detection, {132.9}/{132.12} own
-# enforcement).
+# (BI-17/BI-22/DR-016), v0.2-aware (id-426): `detect_citation_shrink`
+# harvests BOTH the legacy trailer and the v0.2 `sources:` frontmatter.
 # ──────────────────────────────────────────
+
+
+def _v02_document(*resources):
+    """A minimal v0.2 document whose provenance rides the frontmatter
+    `sources:` list (no body trailer)."""
+    lines = [
+        "---",
+        "type: topic",
+        "title: T",
+        "description: D",
+        'generated: { by: kh-concept-producer/test-model-1, at: "2026-07-07T09:30:00Z" }',
+        "tags: []",
+        "sources:",
+    ]
+    for resource in resources:
+        lines.append(f"  - id: {fm_module.derive_source_id(resource)}")
+        lines.append(f"    resource: {resource}")
+    lines += ["---", "", "Body prose.", ""]
+    return "\n".join(lines)
 
 
 def test_citation_shrink_detection_fires_when_a_citation_is_dropped():
@@ -260,29 +444,20 @@ def test_citation_shrink_detection_is_clean_when_citations_are_a_superset():
 
 
 def test_citation_shrink_detection_is_clean_when_unchanged():
-    body = _VALID_BODY
+    body = _LEGACY_BODY
     assert v.detect_citation_shrink(previous_body=body, new_body=body) == []
 
 
 def test_citation_shrink_detection_handles_absent_previous_citations():
     """A first-write concept has no prior state to shrink from."""
-    new_body = _VALID_BODY
-    assert v.detect_citation_shrink(previous_body="", new_body=new_body) == []
+    assert v.detect_citation_shrink(previous_body="", new_body=_LEGACY_BODY) == []
 
 
-def test_citation_shrink_detection_fires_when_citations_section_is_removed_entirely():
-    previous_body = _VALID_BODY
-    new_body = "Synthesis with no citations section at all.\n"
+def test_citation_shrink_detection_fires_when_provenance_is_removed_entirely():
+    previous_body = _LEGACY_BODY
+    new_body = "Synthesis with no provenance at all.\n"
     missing = v.detect_citation_shrink(previous_body=previous_body, new_body=new_body)
     assert len(missing) == 1
-
-
-# ──────────────────────────────────────────
-# OKF v0.1 conformance (SPEC §5.1/§8) — the numbered-link citation trailer:
-# renderer, cross-format parsing, write-time normalisation, and the CRITICAL
-# legacy↔link shrink-guard parity (a prior committed bundle carries the
-# bare-path form; a format migration alone must never read as a "shrink").
-# ──────────────────────────────────────────
 
 
 def test_citation_entries_parses_both_legacy_and_numbered_link_forms():
@@ -299,126 +474,74 @@ def test_citation_entries_parses_both_legacy_and_numbered_link_forms():
     }
 
 
-def test_citation_shrink_guard_treats_format_migration_as_no_shrink():
-    """CRITICAL: the prior committed bundle uses the legacy bare-path form;
-    the next run re-emits the same citations as numbered links. Both sides
-    normalise to targets — a pure format migration is never a shrink."""
+def test_frontmatter_source_targets_harvests_the_v02_sources_block():
     uri = ru.build_source_document_uri(uuid.uuid4())
-    previous_body = f"Body.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
-    new_body = (
-        "Body.\n\n# Citations\n\n"
-        f"[1] [{uri}]({uri})\n"
-        "[2] [GDPR and Data Protection](/topics/gdpr.md)\n"
+    document = _v02_document(uri, "https://client.example/about", "/case-studies/acme.md")
+    assert v._frontmatter_source_targets(document) == {
+        uri,
+        "https://client.example/about",
+        "case-studies/acme.md",
+    }
+
+
+def test_frontmatter_source_targets_is_empty_for_a_bare_body_or_legacy_doc():
+    assert v._frontmatter_source_targets("No frontmatter here.\n") == set()
+    assert v._frontmatter_source_targets(_LEGACY_BODY) == set()
+
+
+def test_frontmatter_source_targets_ignores_a_top_level_resource_key():
+    """Only the `sources:` block is provenance — a reference concept's
+    top-level `resource:` URL is not harvested as a citation target."""
+    document = (
+        "---\n"
+        "type: topic\n"
+        "title: T\n"
+        "description: D\n"
+        "resource: https://client.example/fetched-page\n"
+        "sources:\n"
+        "  - id: ref-1\n"
+        "    resource: https://client.example/cited\n"
+        "---\n\nBody.\n"
     )
-    assert v.detect_citation_shrink(previous_body=previous_body, new_body=new_body) == []
+    assert v._frontmatter_source_targets(document) == {"https://client.example/cited"}
 
 
-def test_citation_shrink_guard_still_fires_across_formats():
+def test_citation_shrink_guard_treats_v01_to_v02_migration_as_no_shrink():
+    """CRITICAL (id-426): the prior committed doc carries a v0.1 trailer;
+    the new draft carries the SAME targets in its v0.2 `sources:`
+    frontmatter and no trailer. A pure format migration is never a
+    shrink — otherwise the first v0.2 producer run would refuse every
+    previously-committed concept."""
+    uri = ru.build_source_document_uri(uuid.uuid4())
+    previous_doc = f"Body.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
+    new_doc = _v02_document(uri, "/topics/gdpr.md")
+    assert v.detect_citation_shrink(previous_body=previous_doc, new_body=new_doc) == []
+
+
+def test_citation_shrink_guard_still_fires_across_the_format_migration():
     uri = ru.build_source_document_uri(uuid.uuid4())
     dropped = ru.build_reference_item_uri(uuid.uuid4())
-    previous_body = f"Body.\n\n# Citations\n- {uri}\n- {dropped}\n"
-    new_body = f"Body.\n\n# Citations\n\n[1] [{uri}]({uri})\n"
+    previous_doc = f"Body.\n\n# Citations\n- {uri}\n- {dropped}\n"
+    new_doc = _v02_document(uri)
     assert v.detect_citation_shrink(
-        previous_body=previous_body, new_body=new_body
+        previous_body=previous_doc, new_body=new_doc
     ) == [dropped]
 
 
-def test_render_citations_trailer_emits_numbered_markdown_links():
+def test_citation_shrink_guard_compares_two_v02_documents():
     uri = ru.build_source_document_uri(uuid.uuid4())
-    trailer = v.render_citations_trailer(
-        [uri, "certifications/iso-9001.md"],
-        titles={
-            "certifications/iso-9001.md": (
-                "ISO 9001:2015 — Quality Management Certification"
-            )
-        },
-    )
-    assert trailer == (
-        "# Citations\n"
-        "\n"
-        f"[1] [{uri}]({uri})\n"
-        "[2] [ISO 9001:2015 — Quality Management Certification]"
-        "(/certifications/iso-9001.md)\n"
-    )
+    dropped = ru.build_reference_item_uri(uuid.uuid4())
+    previous_doc = _v02_document(uri, dropped)
+    superset_doc = _v02_document(uri, dropped, "https://client.example/new")
+    shrunk_doc = _v02_document(uri)
+    assert v.detect_citation_shrink(previous_body=previous_doc, new_body=superset_doc) == []
+    assert v.detect_citation_shrink(previous_body=previous_doc, new_body=shrunk_doc) == [dropped]
 
 
-def test_render_citations_trailer_falls_back_to_rel_path_label():
-    trailer = v.render_citations_trailer(["topics/gdpr.md"])
-    assert "[1] [topics/gdpr.md](/topics/gdpr.md)" in trailer
-
-
-def test_render_citations_trailer_renders_a_git_blob_citation_as_an_absolute_link():
-    """F3 (id-163 {163.20}): a PC-5 public git-blob citation is an already-
-    absolute URL, so it renders as `[n] [url](url)` — NOT mangled into the
-    broken `/https://…` target the concept-path arm would produce
-    (`"https://…".lstrip("/")` is a no-op)."""
-    anchor = ru.build_git_blob_citation(
-        "deadbeef", "lib/mcp/tools/content.ts", line_start=4, line_end=9
-    )
-    trailer = v.render_citations_trailer([anchor])
-    assert f"[1] [{anchor}]({anchor})" in trailer
-    assert "/https://" not in trailer
-
-
-def test_render_citations_trailer_renders_an_authorised_docs_site_citation_as_an_absolute_link():
-    """DR-087: an authorised docs-site citation is likewise an absolute URL,
-    rendered verbatim as its own target — never `/https://…`."""
-    anchor = ru.build_docs_site_citation("deadbeef", "reference/decision-register.md")
-    trailer = v.render_citations_trailer([anchor])
-    assert f"[1] [{anchor}]({anchor})" in trailer
-    assert "/https://" not in trailer
-
-
-def test_normalise_citations_section_rewrites_legacy_to_numbered_links():
-    uri = ru.build_source_document_uri(uuid.uuid4())
-    body = f"Prose.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
-    normalised = v.normalise_citations_section(
-        body, titles={"topics/gdpr.md": "GDPR and Data Protection"}
-    )
-    assert normalised == (
-        "Prose.\n\n# Citations\n\n"
-        f"[1] [{uri}]({uri})\n"
-        "[2] [GDPR and Data Protection](/topics/gdpr.md)\n"
-    )
-
-
-def test_normalise_citations_section_is_idempotent():
-    uri = ru.build_source_document_uri(uuid.uuid4())
-    body = f"Prose.\n\n# Citations\n- {uri}\n- topics/gdpr.md\n"
-    once = v.normalise_citations_section(body)
-    assert v.normalise_citations_section(once) == once
-
-
-def test_normalise_citations_section_preserves_an_existing_link_label():
-    """A previously-normalised trailer's human label survives re-normalisation
-    when no fresher `titles` mapping resolves the target."""
-    body = "Prose.\n\n# Citations\n\n[1] [A Kept Label](/topics/gdpr.md)\n"
-    assert "[1] [A Kept Label](/topics/gdpr.md)" in v.normalise_citations_section(body)
-
-
-def test_normalise_citations_section_no_section_is_unchanged():
-    body = "Prose with no trailer.\n"
-    assert v.normalise_citations_section(body) == body
-
-
-def test_link_wrapped_canonical_uri_stays_legal_only_inside_citations():
-    """BI-10 under the link form: a `[uri](uri)` canonical anchor inside
-    `# Citations` passes the stray-pointer guard; the SAME link anywhere
-    else in the body still fails."""
-    fm_ok = _valid_frontmatter()
-    inside = (
-        "Prose.\n\n# Citations\n\n"
-        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
-    )
-    assert v.check_concept(fm_ok, body=inside) == []
-
-    outside = (
-        f"Prose citing [{_RESOURCE}]({_RESOURCE}) inline.\n\n"
-        "# Citations\n\n"
-        f"[1] [{_RESOURCE}]({_RESOURCE})\n"
-    )
-    errors = v.check_concept(fm_ok, body=outside)
-    assert any("BI-10" in err for err in errors)
+def test_the_trailer_renderers_are_retired():
+    """S546 F1-A: dropped in this change — no one-release carry."""
+    assert not hasattr(v, "render_citations_trailer")
+    assert not hasattr(v, "normalise_citations_section")
 
 
 # ──────────────────────────────────────────
@@ -426,12 +549,32 @@ def test_link_wrapped_canonical_uri_stays_legal_only_inside_citations():
 # ──────────────────────────────────────────
 
 
-def test_check_concept_accepts_a_concept_frontmatter_instance():
-    from scripts.cocoindex_pipeline.producer import frontmatter as fm
+def _dataclass_frontmatter(**overrides):
+    kwargs = dict(
+        type="topic",
+        title="Encryption at rest",
+        description="Overview of encryption-at-rest practices.",
+        generated_by=_GENERATED["by"],
+        generated_at=_GENERATED["at"],
+        tags=("security", "encryption"),
+        sources=fm_module.sources_from_citations([_RESOURCE]),
+    )
+    kwargs.update(overrides)
+    return fm_module.build_concept_frontmatter(**kwargs)
 
-    record = fm.build_concept_frontmatter(**_valid_frontmatter())
+
+def test_check_concept_accepts_a_concept_frontmatter_instance():
+    record = _dataclass_frontmatter()
     errors = v.check_concept(record, body=_VALID_BODY)
     assert errors == []
+
+
+def test_as_mapping_carries_generated_and_sources_from_a_dataclass():
+    record = _dataclass_frontmatter()
+    mapping = v._as_mapping(record)
+    assert mapping["generated"] == {"by": _GENERATED["by"], "at": _GENERATED["at"]}
+    assert mapping["sources"][0]["resource"] == _RESOURCE
+    assert "timestamp" not in mapping
 
 
 # ──────────────────────────────────────────
@@ -708,17 +851,14 @@ def test_base_for_class_shares_entity_and_relationship_dimensions_across_classes
 
 # ──────────────────────────────────────────
 # bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
-# extension (FRONTMATTER-WAVE.md §"Shared frontmatter contract extension").
+# extension (FRONTMATTER-WAVE.md), carried UNCHANGED through v0.2.
 # ──────────────────────────────────────────
 
 
 def test_as_mapping_carries_the_four_new_fields_from_a_concept_frontmatter_instance():
     """Load-bearing: `_as_mapping` must carry purpose/task/audience/confidence
     so downstream checks (BI-10 stray-pointer, A19 membership) see them."""
-    from scripts.cocoindex_pipeline.producer import frontmatter as fm_module
-
-    record = fm_module.build_concept_frontmatter(
-        **_valid_frontmatter(),
+    record = _dataclass_frontmatter(
         purpose="Explain X",
         task="answer Y",
         audience="Z",

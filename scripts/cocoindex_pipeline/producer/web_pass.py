@@ -9,8 +9,10 @@ the {132.8} per-concept enrich structure (TECH.md §"The two-pass loop"):
     `10-site-structure-and-key-urls` set), with the host-allowlist +
     depth-limit + path-filter knobs wired to those sources ONLY — never the
     open web. Pass-2 adds enrichment prose, creates `references/<slug>.md`
-    reference concepts, and appends # Citations (the new reference_items it
-    cites). Pass-2 is also gated by the validator before each write.
+    reference concepts, and extends the concept's `sources[]` provenance
+    (OKF v0.2 §5.1, id-426 — the new reference_items it cites; the v0.1
+    `# Citations` trailer is retired, S546 F1-A). Pass-2 is also gated by
+    the validator before each write.
 
 **`run_web_pass` does NOT write files** — mirrors `enrich_concept` ({132.8}):
 its `WebPassResult` (an updated `ConceptDraft` + zero-or-more
@@ -24,7 +26,8 @@ that must pass before that handoff:
     `read_concept_raw`/`sample_rows`, reused verbatim from `producer/
     enrich.py:_build_tool_executors`) or `seen_gated_anchors` (minted by
     `fetch_url` — this module's own ledger). A citation already present in
-    the concept's PRIOR (Pass-1) `# Citations` is trusted without
+    the concept's PRIOR (Pass-1) `sources[]` provenance (v0.2 §5.1 — the
+    surface that replaced the `# Citations` trailer) is trusted without
     re-proving provenance — it already passed this gate once. **PC-5**
     (id-163 TECH, DR-086b) adds a THIRD, additive anchor scheme for the
     `system_baseline` bundle class — a git-pinned public `canonical`-repo
@@ -36,11 +39,13 @@ that must pass before that handoff:
   - **The augmentation guard, ENFORCEMENT half** (S451 rider fold-in 2,
     BI-17/BI-22/DR-016; reference precedent `bundle_tools.py:110-155`,
     "augment, not replace"). `producer/validator.py:detect_citation_shrink`
-    is the SINGLE shared DETECTION function ({132.7}) — `run_web_pass`
-    calls it (never reimplements the comparison) and REFUSES (raises
-    `Pass2EnrichError`) a result whose merged `# Citations` would drop any
-    entry the concept's prior state carried. `{132.12}` (git-sync 3-way
-    reconcile) is the other enforcement call site.
+    is the SINGLE shared DETECTION function ({132.7}; v0.2-aware since
+    id-426 — it harvests the `sources:` frontmatter as well as a legacy
+    trailer) — `run_web_pass` calls it over the rendered documents (never
+    reimplements the comparison) and REFUSES (raises `Pass2EnrichError`) a
+    result whose merged `sources[]` provenance would drop any entry the
+    concept's prior state carried. `{132.12}` (git-sync 3-way reconcile)
+    is the other enforcement call site.
 
 **Fetch-substrate choice (TECH.md §"The two-pass loop" E8 blockquote —
 DOCUMENTED, per the {132.9} brief).** TECH flags that the gated corpus
@@ -97,7 +102,7 @@ requires `cocoindex` at import time — NOT because it uses `@coco.fn` itself
 wiring is `{132.10}`'s job, same deferral `enrich.py` already makes to that
 Subtask for its own write-target concerns) but because it imports
 `producer/enrich.py`'s `_build_tool_executors`/`_extract_terminal_text`/
-`_render_citations_section`/`ConceptDraft` — the EXTENDS relationship the
+`_render_source_footnotes`/`ConceptDraft` — the EXTENDS relationship the
 {132.9} brief calls for ("EXTENDS ... the per-concept enrich structure").
 Its test file therefore stubs `cocoindex` via `conftest.stubbed_sys_modules`
 before importing this module, exactly mirroring `test_producer_enrich.py`.
@@ -127,6 +132,7 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
     SAMPLE_ROWS_TOOL,
     WEB_FETCH_TOOL,
     ToolExecutor,
+    producer_actor,
     producer_async_client,
     run_tool_use_loop,
 )
@@ -135,13 +141,15 @@ from scripts.cocoindex_pipeline.producer.enrich import (
     _build_tool_executors,
     _extract_terminal_text,
     _recover_terminal_json_object,
-    _render_citations_section,
+    _render_source_footnotes,
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     build_concept_frontmatter,
     derive_concept_confidence,
     render_concept_frontmatter,
+    source_citation_targets,
+    sources_from_citations,
 )
 from scripts.cocoindex_pipeline.producer.prompts import PASS2_INSTRUCTION_PROMPT
 from scripts.cocoindex_pipeline.producer.resource_uri import (
@@ -153,7 +161,6 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     reference_item_uri_from_source_url,
 )
 from scripts.cocoindex_pipeline.producer.validator import (
-    _citation_entries,
     detect_citation_shrink,
     is_valid_concept_resource_uri,
 )
@@ -197,7 +204,8 @@ class ReferenceConceptDraft:
     frontmatter: ConceptFrontmatter
     body: str
     """The distilled markdown body, ALREADY including the terminal
-    `# Citations` section (`_render_citations_section`)."""
+    `[^id]` footnote definitions (`_render_source_footnotes` — the v0.2
+    replacement for the retired `# Citations` trailer, S546 F1-A)."""
 
     @property
     def rendered_markdown(self) -> str:
@@ -431,7 +439,11 @@ async def _fetch_content(url: str, source: GatedSource, *, http_client: Any) -> 
     return text
 
 
-def _mint_gated_anchor(url: str, seen_gated_anchors: "set[str]") -> str:
+def _mint_gated_anchor(
+    url: str,
+    seen_gated_anchors: "set[str]",
+    gated_anchor_urls: "dict[str, str]",
+) -> str:
     """Mint `url`'s BI-6/BI-7 `canonical://reference_items/<uuid>` anchor
     (the SAME deterministic `uuid5` derivation the ingest pipeline would use
     for a `reference_items` row with this `source_url` — DR-025's
@@ -439,9 +451,17 @@ def _mint_gated_anchor(url: str, seen_gated_anchors: "set[str]") -> str:
     `seen_gated_anchors`, the Pass-2 provenance ledger `_validate_pass2_
     citation`/`_validate_reference_concept_citations` check membership
     against (BI-17 — mirrors `producer/enrich.py`'s `_mint`/`seen_anchors`
-    pattern, extended to Pass-2's gated-fetch anchors)."""
+    pattern, extended to Pass-2's gated-fetch anchors).
+
+    `gated_anchor_urls` additionally records the anchor -> fetched-URL
+    mapping (id-426 emission contract point 4): under v0.2 a reference
+    concept's top-level `resource:` is the REAL fetched web URL
+    (followable, §4.1) rather than the `canonical://` pointer — the pointer
+    rides `sources[]` — so `_parse_reference_concept` must be able to
+    recover the URL an anchor was minted from."""
     anchor = reference_item_uri_from_source_url(url)
     seen_gated_anchors.add(anchor)
+    gated_anchor_urls[anchor] = url
     return anchor
 
 
@@ -450,6 +470,7 @@ def _build_web_fetch_executor(
     *,
     http_client: Any,
     seen_gated_anchors: "set[str]",
+    gated_anchor_urls: "dict[str, str]",
 ) -> ToolExecutor:
     """The `fetch_url` tool executor — BI-16 gate, then (defense-in-depth,
     reused not reimplemented) the existing SSRF gate, then the fetch
@@ -478,7 +499,7 @@ def _build_web_fetch_executor(
             return {"error": str(exc)}
         except (httpx.HTTPError, OSError, ValueError, FileNotFoundError) as exc:
             return {"error": f"fetch_url failed for {url!r}: {exc}"}
-        anchor = _mint_gated_anchor(url, seen_gated_anchors)
+        anchor = _mint_gated_anchor(url, seen_gated_anchors, gated_anchor_urls)
         return {"url": url, "resource": anchor, "content": content}
 
     return _fetch_url
@@ -503,7 +524,8 @@ def _validate_pass2_citation(
         raise Pass2EnrichError(
             f"run_web_pass: citation entries must be non-empty strings, got {entry!r}"
         )
-    # SPEC §5.1/§8 tolerance — normalise a numbered/markdown-link or
+    # Entry-form tolerance (v0.1 §8 numbered-link legacy + §6.2
+    # bundle-absolute paths) — normalise a numbered/markdown-link or
     # `/`-leading entry to its bare TARGET first (mirrors Pass-1's
     # `_validate_citation`).
     entry = citation_target(entry)
@@ -566,10 +588,11 @@ def _validate_pass2_citations(
     catalogue_paths: "set[str]",
 ) -> "tuple[str, ...]":
     """The FULL citations array the model returned. Every entry already
-    present in `previous_entries` (the concept's PRIOR # Citations state)
-    is trusted as-is — it already passed this provenance gate once, at
-    Pass-1 time; only NEW entries are re-checked against this run's
-    `seen_anchors`/`catalogue_paths`."""
+    present in `previous_entries` (the concept's PRIOR provenance-target
+    set — its Pass-1 `sources[]` list, `frontmatter.source_citation_
+    targets`) is trusted as-is — it already passed this provenance gate
+    once, at Pass-1 time; only NEW entries are re-checked against this
+    run's `seen_anchors`/`catalogue_paths`."""
     if not isinstance(raw_citations, list) or not raw_citations:
         raise Pass2EnrichError(
             "run_web_pass: 'citations' must be a non-empty list — it must "
@@ -579,8 +602,9 @@ def _validate_pass2_citations(
     for entry in raw_citations:
         # Normalise BEFORE the prior-entry membership check — a carried-
         # forward Pass-1 citation may arrive link-wrapped (`[n] [label](…)`)
-        # while `previous_entries` holds bare targets (both trailer forms
-        # normalise to targets via `validator._citation_entries`).
+        # or `/`-leading while `previous_entries` holds bare targets
+        # (`frontmatter.source_citation_targets` normalises the Pass-1
+        # `sources[]` list the same way).
         if isinstance(entry, str) and citation_target(entry) in previous_entries:
             validated.append(citation_target(entry))
             continue
@@ -608,8 +632,9 @@ def _validate_reference_concept_citations(
     validated: "list[str]" = []
     for entry in raw_citations:
         if isinstance(entry, str):
-            # SPEC §8 tolerance — accept a link-wrapped anchor, normalised
-            # to its bare target (mirrors `_validate_pass2_citation`).
+            # Entry-form tolerance — accept a link-wrapped anchor,
+            # normalised to its bare target (mirrors
+            # `_validate_pass2_citation`).
             entry = citation_target(entry)
         if not isinstance(entry, str) or not is_valid_concept_resource_uri(entry):
             raise Pass2EnrichError(
@@ -633,7 +658,11 @@ def _validate_reference_concept_citations(
 
 
 def _parse_reference_concept(
-    raw: object, *, seen_gated_anchors: "set[str]"
+    raw: object,
+    *,
+    seen_gated_anchors: "set[str]",
+    gated_anchor_urls: "dict[str, str]",
+    generated_by: str,
 ) -> ReferenceConceptDraft:
     if not isinstance(raw, Mapping):
         raise Pass2EnrichError(
@@ -666,19 +695,35 @@ def _parse_reference_concept(
     citations = _validate_reference_concept_citations(
         raw["citations"], seen_gated_anchors=seen_gated_anchors
     )
+    # id-426 emission contract point 4 (S546 F2-B, owner standing guidance —
+    # flagged as a deliberate improvement ruling): a reference concept
+    # DESCRIBES a real web asset, so its top-level `resource:` is the REAL
+    # fetched URL (followable, §4.1-conformant), recovered from the mint
+    # ledger; the `canonical://reference_items/<uuid>` pointer it used to
+    # carry there rides `sources[]` instead.
+    fetched_url = gated_anchor_urls.get(citations[0])
+    if fetched_url is None:  # pragma: no cover — membership proven above
+        raise Pass2EnrichError(
+            f"run_web_pass: no fetched URL recorded for anchor "
+            f"{citations[0]!r} (mint-ledger invariant)"
+        )
     frontmatter = build_concept_frontmatter(
         type="topic",
         title=title,
         description=description,
-        timestamp=datetime.now(timezone.utc),
+        generated_by=generated_by,
+        generated_at=datetime.now(timezone.utc),
         tags=(*tags_raw, _REFERENCE_CONCEPT_TAG),
-        resource=citations[0],
-        # A19 (bl-477) — `citations[0]` is a gated web anchor, never a
-        # per-row anchor, so this always resolves `partial` (FRONTMATTER-
-        # WAVE.md §"Applied at all three call sites").
+        resource=fetched_url,
+        # A19 (bl-477) — inputs unchanged under v0.2 (id-426 point 7): the
+        # confidence rule still reads the ANCHOR (`citations[0]`, now a
+        # sources[] entry rather than the emitted `resource:`) + the
+        # citation anchors, so its output is bit-for-bit what v0.1 derived
+        # (FRONTMATTER-WAVE.md §"Applied at all three call sites").
         confidence=derive_concept_confidence(resource=citations[0], citations=citations),
+        sources=sources_from_citations(citations),
     )
-    full_body = f"{body.rstrip()}\n\n{_render_citations_section(citations)}"
+    full_body = f"{body.rstrip()}\n\n{_render_source_footnotes(citations)}"
     return ReferenceConceptDraft(
         rel_path=f"references/{slug}.md", frontmatter=frontmatter, body=full_body
     )
@@ -690,7 +735,7 @@ def _parse_reference_concept(
 def _parse_pass2_response(
     message: "anthropic.types.Message",
     *,
-    previous_body: str,
+    previous_entries: "set[str]",
     seen_record_anchors: "set[str]",
     seen_gated_anchors: "set[str]",
     catalogue_paths: "set[str]",
@@ -723,7 +768,6 @@ def _parse_pass2_response(
     if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
         raise Pass2EnrichError("run_web_pass: 'tags' must be a list of strings")
 
-    previous_entries = _citation_entries(previous_body)
     seen_anchors = seen_record_anchors | seen_gated_anchors
     citations = _validate_pass2_citations(
         payload["citations"],
@@ -757,12 +801,24 @@ def _cached_system() -> "list[dict[str, object]]":
 
 
 def _seed_user_message(key: ConceptKey, draft: ConceptDraft) -> str:
+    # v0.2 (id-426): the prior provenance no longer rides the body as a
+    # `# Citations` trailer the model could read back — list the Pass-1
+    # `sources[]` targets explicitly so the model can copy every one
+    # verbatim into its COMPLETE final "citations" array (the augmentation
+    # guard refuses a result that drops any of them).
+    provenance = "\n".join(
+        f"- {target}"
+        for target in source_citation_targets(draft.frontmatter.sources)
+    )
     return (
         f"Enrich the concept at bundle path {key.rel_path!r} "
         f"(concept_type={key.concept_type!r}) using ONLY the client's own "
         "gated authoritative sources (never the open web) via fetch_url. "
         "Its current drafted body (Pass-1, from records only) is:\n\n"
         f"{draft.body}\n\n"
+        "Its EXISTING PROVENANCE ENTRIES (carry ALL of these forward "
+        'verbatim in your final "citations" array) are:\n'
+        f"{provenance or '- (none)'}\n\n"
         "Call fetch_url on URLs from the client's own site-structure "
         "corpus to ground new enrichment prose; call read_concept_raw / "
         "sample_rows again if you need to revisit the backing records, "
@@ -842,6 +898,7 @@ async def run_web_pass(
     raw_cache: "dict[str, ConceptRaw]" = {}
     seen_record_anchors: "set[str]" = set()
     seen_gated_anchors: "set[str]" = set()
+    gated_anchor_urls: "dict[str, str]" = {}
     catalogue_paths = {ck.rel_path for ck in catalogue}
     catalogue_paths.add(key.rel_path)
 
@@ -859,7 +916,10 @@ async def run_web_pass(
             key, source, catalogue, raw_cache, seen_record_anchors
         )
         tool_executors["fetch_url"] = _build_web_fetch_executor(
-            gated_corpus, http_client=client, seen_gated_anchors=seen_gated_anchors
+            gated_corpus,
+            http_client=client,
+            seen_gated_anchors=seen_gated_anchors,
+            gated_anchor_urls=gated_anchor_urls,
         )
 
         messages: "list[MessageParam]" = [
@@ -880,7 +940,10 @@ async def run_web_pass(
 
         envelope = _parse_pass2_response(
             response,
-            previous_body=draft.body,
+            # v0.2 (id-426): the concept's PRIOR provenance-target set now
+            # lives in the Pass-1 draft's `sources[]` frontmatter, not a
+            # body trailer.
+            previous_entries=set(source_citation_targets(draft.frontmatter.sources)),
             seen_record_anchors=seen_record_anchors,
             seen_gated_anchors=seen_gated_anchors,
             catalogue_paths=catalogue_paths,
@@ -889,23 +952,28 @@ async def run_web_pass(
         if owns_client:
             await client.aclose()
 
-    new_body = f"{envelope.body.rstrip()}\n\n{_render_citations_section(envelope.citations)}"
-    shrink = detect_citation_shrink(previous_body=draft.body, new_body=new_body)
-    if shrink:
-        raise Pass2EnrichError(
-            "run_web_pass: the enriched draft would DROP previously-cited, "
-            f"record-grounded entries {shrink!r} from # Citations — refused "
-            "(augmentation guard, BI-17/BI-22/DR-016; "
-            "validator.detect_citation_shrink)"
-        )
-
+    # v0.2 note: the enriched `sources[]` is built from the model's FULL
+    # final citations array ONLY — the Pass-1 primary anchor is NOT
+    # silently re-added here. It is already a member of the Pass-1
+    # `sources[]` the seed message told the model to carry forward, so the
+    # augmentation guard below (not a structural re-add) is what keeps it
+    # alive: a result that drops it is REFUSED, mirroring the prompt's
+    # "never drop a pre-existing entry" contract.
+    new_body = (
+        f"{envelope.body.rstrip()}\n\n"
+        f"{_render_source_footnotes(envelope.citations)}"
+    )
     frontmatter = build_concept_frontmatter(
         type=key.concept_type,
         title=envelope.title,
         description=envelope.description,
-        timestamp=datetime.now(timezone.utc),
+        # id-426 emission contract point 1 (§5.2/§7): the actor this
+        # enrichment call ACTUALLY ran as, measured at write time.
+        generated_by=producer_actor(model),
+        generated_at=datetime.now(timezone.utc),
         tags=envelope.tags,
-        resource=draft.frontmatter.resource,
+        # S546 F2-B: no top-level `resource:` for a DB-backed concept — the
+        # record anchor (Pass-1's `primary_anchor`) leads `sources[]`.
         # id-318 (S546) — the bl-456 routing hints are CARRIED FORWARD from
         # the Pass-1 draft's frontmatter, absent-tolerant (`None` stays
         # `None`; `render_concept_frontmatter` omits unset fields): Pass-2
@@ -914,19 +982,49 @@ async def run_web_pass(
         purpose=draft.frontmatter.purpose,
         task=draft.frontmatter.task,
         audience=draft.frontmatter.audience,
-        # A19 (bl-477) — recomputed from the FINAL enriched (resource,
-        # citations), not carried over from `draft.frontmatter.confidence`:
-        # a Pass-1 `partial` concept that gains a per-row anchor + a second
-        # record citation during Pass-2 enrichment legitimately becomes
-        # `strong` — monotonic in grounding, never a silent downgrade
-        # (FRONTMATTER-WAVE.md §"Applied at all three call sites").
+        # A19 (bl-477) — recomputed from the FINAL enriched (primary
+        # anchor, citations), not carried over from
+        # `draft.frontmatter.confidence`: a Pass-1 `partial` concept that
+        # gains a second record citation during Pass-2 enrichment
+        # legitimately becomes `strong` — monotonic in grounding, never a
+        # silent downgrade (FRONTMATTER-WAVE.md §"Applied at all three
+        # call sites"). `draft.primary_anchor` is the SAME value the v0.1
+        # `draft.frontmatter.resource` input held (id-426 point 7 —
+        # re-pointed, outputs bit-for-bit preserved).
         confidence=derive_concept_confidence(
-            resource=draft.frontmatter.resource, citations=envelope.citations
+            resource=draft.primary_anchor, citations=envelope.citations
         ),
+        sources=sources_from_citations(envelope.citations),
     )
-    enriched = ConceptDraft(key=key, frontmatter=frontmatter, body=new_body)
+    enriched = ConceptDraft(
+        key=key,
+        frontmatter=frontmatter,
+        body=new_body,
+        primary_anchor=draft.primary_anchor,
+    )
+
+    # Augmentation guard (ENFORCEMENT half) — the SINGLE shared detection
+    # function, run over the RENDERED documents so the v0.2 `sources:`
+    # frontmatter on both sides is what is compared (id-426; a legacy
+    # trailer on the previous side would be harvested too).
+    shrink = detect_citation_shrink(
+        previous_body=draft.rendered_markdown, new_body=enriched.rendered_markdown
+    )
+    if shrink:
+        raise Pass2EnrichError(
+            "run_web_pass: the enriched draft would DROP previously-cited, "
+            f"record-grounded entries {shrink!r} from its sources[] "
+            "provenance — refused (augmentation guard, BI-17/BI-22/DR-016; "
+            "validator.detect_citation_shrink)"
+        )
+
     reference_concepts = tuple(
-        _parse_reference_concept(rc, seen_gated_anchors=seen_gated_anchors)
+        _parse_reference_concept(
+            rc,
+            seen_gated_anchors=seen_gated_anchors,
+            gated_anchor_urls=gated_anchor_urls,
+            generated_by=producer_actor(model),
+        )
         for rc in envelope.reference_concepts
     )
     return WebPassResult(concept=enriched, reference_concepts=reference_concepts)

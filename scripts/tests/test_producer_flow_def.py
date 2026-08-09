@@ -156,21 +156,27 @@ def env(monkeypatch: pytest.MonkeyPatch):
                 if workspace_id is not None:
                     key_kwargs["workspace_id"] = workspace_id
             key = l_records.ConceptKey(**key_kwargs)
-            resource = resource_uri.build_source_document_uri(_SAMPLE_UUID)
+            anchor = resource_uri.build_source_document_uri(_SAMPLE_UUID)
+            sources = frontmatter.sources_from_citations([anchor])
             body = (
                 f"A distilled synthesis about {title}.\n\n"
-                "# Citations\n"
-                f"- {resource}\n"
+                f"{frontmatter.render_source_footnotes(sources)}"
             )
             frontmatter_obj = frontmatter.build_concept_frontmatter(
                 type=concept_type,
                 title=title,
                 description="Desc",
-                timestamp="2026-07-08T00:00:00Z",
+                generated_by="kh-concept-producer/test-model-1",
+                generated_at="2026-07-08T00:00:00Z",
                 tags=("tag",),
-                resource=resource,
+                sources=sources,
             )
-            return enrich.ConceptDraft(key=key, frontmatter=frontmatter_obj, body=body)
+            return enrich.ConceptDraft(
+                key=key,
+                frontmatter=frontmatter_obj,
+                body=body,
+                primary_anchor=anchor,
+            )
 
         yield SimpleNamespace(
             flow_def=flow_def,

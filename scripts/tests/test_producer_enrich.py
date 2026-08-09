@@ -83,6 +83,7 @@ with stubbed_sys_modules({"cocoindex": _coco_stub}):
     from scripts.cocoindex_pipeline.producer import enrich  # noqa: E402
 
 from scripts.cocoindex_pipeline.producer import agent_loop  # noqa: E402
+from scripts.cocoindex_pipeline.producer import frontmatter  # noqa: E402
 from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
     LIST_CONCEPTS_TOOL,
     READ_CONCEPT_RAW_TOOL,
@@ -684,20 +685,31 @@ class TestPC5GitBlobCitationValidation:
         with pytest.raises(enrich.Pass1DraftError, match="valid JSON"):
             enrich._parse_pass1_response(message, seen_anchors=set(), catalogue_paths=set())
 
-    def test_rendered_citations_section_round_trips_through_shared_validator(
+    def test_rendered_sources_round_trip_through_shared_validator(
         self,
     ) -> None:
-        """Black-box proof (no private-symbol import): the `# Citations`
-        section `_render_citations_section` emits is parsed correctly by
-        `producer.validator`'s SHARED `detect_citation_shrink` — the same
-        parser `{132.9}`/`{132.12}` will call over Pass-1's output."""
+        """Black-box proof: the v0.2 `sources:` frontmatter the emission
+        carries is parsed correctly by `producer.validator`'s SHARED
+        `detect_citation_shrink` — the same parser `{132.9}`/`{132.12}`
+        call over Pass-1's rendered output (id-426: the shrink guard
+        harvests frontmatter sources now that the trailer is retired)."""
         citations = [build_source_document_uri(_SD_ID), "topics/gdpr.md"]
-        section = enrich._render_citations_section(citations)
+        rendered = frontmatter.render_concept_frontmatter(
+            frontmatter.build_concept_frontmatter(
+                type="topic",
+                title="T",
+                description="D",
+                generated_by="kh-concept-producer/test-model-1",
+                generated_at="2026-07-07T09:30:00Z",
+                sources=frontmatter.sources_from_citations(citations),
+            )
+        )
 
-        # Every entry present in `section` (as "previous") but absent from
-        # an empty "new" body is reported as a full shrink — proving every
-        # citation round-trips through the shared bullet-line parser.
-        shrunk = detect_citation_shrink(previous_body=section, new_body="")
+        # Every target present in `rendered` (as "previous") but absent
+        # from an empty "new" document is reported as a full shrink —
+        # proving every citation round-trips through the shared
+        # frontmatter-sources parser.
+        shrunk = detect_citation_shrink(previous_body=rendered, new_body="")
         assert shrunk == sorted(citations)
 
     def test_annotate_raw_with_anchors_mints_valid_per_row_uris(self) -> None:
@@ -930,23 +942,25 @@ class TestMemoisationProxy:
     ) -> None:
         """{132.38} G-MEMO-DELTA, DR-060 (S469 owner ratification): the
         decorator is EXACTLY
-        `@coco.fn(memo=True, memo_key={'source': None}, version=1)` —
+        `@coco.fn(memo=True, memo_key={'source': None}, version=2)` —
         `source` excluded (MD-2), NO `deps=` kwarg. OQ-MD-1 ratified AWAY
         from the `deps={...}` drafting-config auto-invalidation design
         MEMO-DELTA.md's body text proposed: a prompt/model/max_tokens change
         is a MANUAL `@coco.fn(..., version=N)` bump recorded in the bundle's
         OKF `log.md` (`bundle_writer.append_log_entry`), never an
-        engine-level fingerprint input. `version=1` (S481) is that lever
-        exercised for real, bumped ahead of the {132.35} GLM-5.2 Run-1
-        re-proof because {132.41}/{132.42} changed both
-        `PASS1_INSTRUCTION_PROMPT` (3 routing-hint keys) and the emitted
-        frontmatter shape (`confidence` + hints) — see the module docstring's
-        "S481, this bump" note. This exact-equality assertion is also the
-        empirical proof there is no stray `deps=` kwarg."""
+        engine-level fingerprint input. `version=1` (S481) exercised the
+        lever for the {132.41}/{132.42} frontmatter-wave changes;
+        `version=2` (id-426) is the OKF v0.2 emission-contract bump — the
+        prompt's citation-surface wording AND the emitted draft shape
+        (`generated`/`sources[]`/`primary_anchor`, trailer retired) both
+        changed, so the corpus is invalidated ahead of the first v0.2
+        producer run (see the module docstring's `version=2` section).
+        This exact-equality assertion is also the empirical proof there is
+        no stray `deps=` kwarg."""
         assert enrich.enrich_concept.__coco_fn_kwargs__ == {
             "memo": True,
             "memo_key": {"source": None},
-            "version": 1,
+            "version": 2,
         }
 
     def test_concept_key_is_frozen_and_equal_by_value(self) -> None:
@@ -1123,7 +1137,9 @@ class TestTerminalTextContract:
 
         draft = asyncio.run(_exercise())
         assert draft.frontmatter.title == "Learning Management System"
-        assert "# Citations" in draft.body
+        # v0.2 (id-426): footnote definitions, never a `# Citations` trailer.
+        assert "# Citations" not in draft.body
+        assert "[^" in draft.body
 
 
 # ============================================================================
@@ -1166,7 +1182,11 @@ class TestConfidencePopulation:
                 return await enrich.enrich_concept(key, source)
 
         draft = asyncio.run(_exercise())
-        assert draft.frontmatter.resource == build_source_document_uri(_SD_ID)
+        # v0.2 (S546 F2-B): the per-row anchor no longer rides the emitted
+        # `resource:` — it is the draft's primary_anchor and leads sources[].
+        assert draft.frontmatter.resource is None
+        assert draft.primary_anchor == build_source_document_uri(_SD_ID)
+        assert draft.frontmatter.sources[0].resource == build_source_document_uri(_SD_ID)
         assert draft.frontmatter.confidence == "strong"
 
     def test_draft_with_a_single_record_anchor_citation_emits_confidence_partial(
@@ -1422,17 +1442,35 @@ class TestEnrichConceptEndToEnd:
         assert draft.key == key
         assert draft.frontmatter.type == "product"
         assert draft.frontmatter.title == "Learning Management System"
-        assert draft.frontmatter.resource == build_source_document_uri(_SD_ID)
-        assert "# Citations" in draft.body
-        # SPEC §5.1/§8: numbered REAL markdown links — record anchors keep
-        # the URI as label+target; cross-links are bundle-absolute
-        # leading-`/` with the rel_path as draft-time label.
+        # v0.2 (S546 F2-B): a DB-backed concept emits NO top-level
+        # `resource:` — the per-row anchor is the draft's primary_anchor
+        # and LEADS the §5.1 sources[] list.
         sd_uri = build_source_document_uri(_SD_ID)
-        assert f"[1] [{sd_uri}]({sd_uri})" in draft.body
-        assert "[2] [topics/gdpr.md](/topics/gdpr.md)" in draft.body
+        assert draft.frontmatter.resource is None
+        assert draft.primary_anchor == sd_uri
+        assert [s.resource for s in draft.frontmatter.sources] == [
+            sd_uri,
+            "/topics/gdpr.md",
+        ]
+        # F1-A: the trailer is retired — the body ends in [^id] footnote
+        # definitions keyed to sources[].id, and no record pointer appears
+        # in the body.
+        assert "# Citations" not in draft.body
+        sd_id = frontmatter.derive_source_id(sd_uri)
+        assert f"[^{sd_id}]: {sd_id}" in draft.body
+        assert "[^topics-gdpr]: /topics/gdpr.md" in draft.body
+        assert "canonical://" not in draft.body
         rendered = draft.rendered_markdown
         assert rendered.startswith("---\n")
         assert "title: Learning Management System" in rendered
+        # §5.2/§7 (id-426 point 1): generated.by is the measured producer
+        # actor for the model this call ran with; generated.at replaces
+        # timestamp.
+        assert draft.frontmatter.generated_by == agent_loop.producer_actor(
+            agent_loop.PRODUCER_MODEL
+        )
+        assert "generated: { by: " in rendered
+        assert "timestamp:" not in rendered
 
     def test_read_concept_raw_tool_call_reuses_the_prefetched_raw_no_duplicate_db_read(
         self,
@@ -1650,7 +1688,11 @@ class TestEnrichConceptEndToEnd:
                 return await enrich.enrich_concept(key, source)
 
         draft = asyncio.run(_exercise())
-        assert f"[1] [{minted}]({minted})" in draft.body
+        # v0.2: the minted anchor lands in the sources[] provenance (never
+        # the body — footnote text falls back to the entry id, BI-10).
+        assert minted in [s.resource for s in draft.frontmatter.sources]
+        assert f"[^{frontmatter.derive_source_id(minted)}]:" in draft.body
+        assert "canonical://" not in draft.body
 
 
 # ============================================================================

@@ -57,7 +57,7 @@ client-owned repo; this module performs no git operation of its own.
 `{132.12}`'s `sync_bundle` skips the commit only when a run applies/removes
 NOTHING relative to the last commit (BI-18's no-op-run guarantee). But
 `producer/bundle_writer.append_log_entry` stamps a **freshly-timestamped**
-`* **Run <ISO-ts> — …**` record into `log.md` on EVERY run (SPEC §7
+`* **Run <ISO-ts> — …**` record into `log.md` on EVERY run (SPEC §9
 date-grouped, newest first) — including a fully no-op run over the concept
 files (`RunSummary.is_no_op` still renders a record, just one that says
 "No changes (no-op re-run)."). If `log.md` is included

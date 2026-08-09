@@ -195,6 +195,24 @@ _logger = logging.getLogger(__name__)
 # unset/empty falls back unchanged to ANTHROPIC_MODEL.
 PRODUCER_MODEL = os.environ.get("PRODUCER_MODEL") or ANTHROPIC_MODEL
 
+# OKF v0.2 §7 actor identity (id-426): the `<producer>` half of the
+# `generated.by` actor every concept emission records. The `<version>` half
+# is the model string the drafting call ACTUALLY ran with (the `model`
+# parameter `enrich_concept`/`run_web_pass` received — defaulting to
+# PRODUCER_MODEL above, itself falling back to ANTHROPIC_MODEL), measured at
+# write time rather than re-read from the environment, so a per-call model
+# override is recorded faithfully.
+PRODUCER_ACTOR_NAME = "kh-concept-producer"
+
+
+def producer_actor(model: str) -> str:
+    """The §7 `<producer>/<version>` actor for a drafting call that ran
+    with `model` — e.g. `kh-concept-producer/glm-5.2`. `generated.by`'s
+    single mint site (id-426 emission contract point 1)."""
+    if not model or not model.strip():
+        raise ValueError("producer_actor: model must be non-empty (§7)")
+    return f"{PRODUCER_ACTOR_NAME}/{model}"
+
 # Producer-scoped endpoint/auth override (ID-132 {132.35} slice C) — see the
 # module docstring's "PRODUCER_BASE_URL/PRODUCER_AUTH_TOKEN" section above.
 # Read ONCE at import time; empty string means "no override" for that field

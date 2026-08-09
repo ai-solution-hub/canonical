@@ -20,12 +20,12 @@ minimal by design: no schema registry, no runtime, no SDK. Your job is to produc
 maintain, and consume OKF bundles **conformant with the spec**, not your memory of it.
 
 **Always read the canonical spec before non-trivial work:**
-[reference/SPEC.md](reference/SPEC.md). It is the verbatim OKF v0.1 specification and the
+[reference/SPEC.md](reference/SPEC.md). It is the verbatim OKF v0.2 specification and the
 source of truth for every rule below.
 
 ## The one hard rule
 
-A bundle is conformant (§9) iff: every non-reserved `.md` file has a parseable YAML
+A bundle is conformant (§11) iff: every non-reserved `.md` file has a parseable YAML
 frontmatter block, and every such block has a **non-empty `type`** field. Everything else
 is soft guidance. Consumers MUST tolerate missing optional fields, unknown types, and
 broken links — never reject a bundle over them.
@@ -33,11 +33,15 @@ broken links — never reject a bundle over them.
 ## Conventions to apply
 
 - **One concept = one file.** The file path (minus `.md`) is the concept ID.
-- **Frontmatter:** `type` is required. Add `title`, `description`, `tags`, `timestamp`
-  (ISO 8601) when they aid consumption; add `resource` (a canonical URI) only for concepts
-  bound to a real asset — omit it for abstract concepts.
+- **Frontmatter:** `type` is required. Add `title`, `description`, `tags`, and
+  `generated: { by, at }` (§5.2 — `by` is a §7 actor, `at` is ISO 8601) when they aid
+  consumption; add `resource` (a canonical URI) only for concepts bound to a real asset —
+  omit it for abstract concepts. Record provenance in `sources` (§5.1): one entry per
+  source, each `{ id, resource, title? }` with a stable, human-short `id`.
 - **Body:** prefer structural markdown (headings, tables, lists, fenced code).
-  Conventional headings: `# Schema`, `# Examples`, `# Citations`.
+  Conventional headings: `# Schema`, `# Examples`, `# Computation`. Attribute individual
+  claims with markdown footnotes `[^id]` keyed to `sources[].id` (§5.1) — the v0.1
+  `# Citations` body list is superseded (§13.1).
 - **Cross-links:** standard markdown links; prefer absolute bundle-relative form
   (`/services/auth-api.md`). A link asserts a relationship; its _kind_ lives in the
   surrounding prose, not the link.
@@ -59,13 +63,13 @@ Commit it alongside the code it describes — knowledge as code.
 
 1. Read [reference/SPEC.md](reference/SPEC.md).
 2. Pick the source(s): **code** (derive concepts from source, READMEs, docstrings,
-   config), **docs/wiki** (distill pages into concepts, link the originals under
-   `# Citations`), **manual** (decisions, playbooks, metrics).
+   config), **docs/wiki** (distill pages into concepts, record the originals as `sources`
+   entries), **manual** (decisions, playbooks, metrics).
 3. Choose a directory layout by domain (e.g. `services/`, `datasets/`, `decisions/`). One
    concept per file.
 4. Write each concept from [templates/concept.md](templates/concept.md): set a descriptive
    `type`, fill recommended fields, cross-link related concepts.
-5. Add/refresh `index.md` per directory (and `okf_version: "0.1"` in the root index).
+5. Add/refresh `index.md` per directory (and `okf_version: "0.2"` in the root index).
    Append a dated entry to `log.md`.
 6. Validate (see below). Fix every error before finishing.
 
@@ -73,7 +77,7 @@ Commit it alongside the code it describes — knowledge as code.
 
 1. Identify which concepts the change affects (search by `resource`, path, or topic). This
    bookkeeping is exactly what agents are good at — touch every affected file in one pass.
-2. Update the body and `timestamp`; fix or add cross-links; create new concepts for new
+2. Update the body and `generated.at`; fix or add cross-links; create new concepts for new
    assets; mark removed assets (`**Deprecation**`) rather than silently deleting context.
 3. Update the relevant `index.md` files and append a dated `log.md` entry describing what
    changed.
@@ -96,5 +100,5 @@ that skill is not installed, run it directly:
 uv run "${CLAUDE_SKILL_DIR}/../validate/scripts/okf_validate.py" <bundle-dir> --strict
 ```
 
-Resolve every `ERROR` (hard §9 failures). Warnings are soft; fix them when cheap, but they
-never block.
+Resolve every `ERROR` (hard §11 failures). Warnings are soft; fix them when cheap, but
+they never block.

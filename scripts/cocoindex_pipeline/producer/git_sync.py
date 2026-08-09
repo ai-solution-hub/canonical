@@ -545,7 +545,7 @@ def _render_findings(
     `lib/okf/parse-log.ts`'s date-heading regex (`^##\\s+`, `##` only) does
     not mistake it for a date section; the parser attaches it to the run
     whose bullets it follows. Placement is `_merge_findings_into_log`'s
-    job — under the SPEC §7 date-grouped, newest-first `log.md` contract,
+    job — under the SPEC §9 date-grouped, newest-first `log.md` contract,
     this run's block sits at the TOP of the file, so the findings are
     INSERTED after the newest run's bullets, never appended to the tail
     (the tail is the OLDEST run)."""
@@ -569,7 +569,7 @@ def _render_findings(
     return "\n".join(lines) + "\n"
 
 
-# One `* **Run <ISO-ts> — …:**` bullet — the SPEC §7 per-run record shape
+# One `* **Run <ISO-ts> — …:**` bullet — the SPEC §9 per-run record shape
 # `bundle_writer._render_run_bullets` emits (mirrored, not imported — same
 # zero-cocoindex-import rationale as the reserved-filename constants above).
 _RUN_BULLET_RE = re.compile(r"^\*\s+\*\*Run (\S+) ")
@@ -579,7 +579,7 @@ def _merge_findings_into_log(base_log: str, findings: str) -> str:
     """Place this run's reconcile `findings` block inside `base_log` —
     immediately AFTER the newest run's bullet group (the first
     `* **Run <ts> — …**` bullets under the FIRST `## YYYY-MM-DD` heading,
-    including their indented sub-bullets), per the SPEC §7 newest-first
+    including their indented sub-bullets), per the SPEC §9 newest-first
     `log.md` contract. Falls back to the pre-conformance tail-append for a
     `base_log` with no date heading or no run bullets (an empty, legacy, or
     foreign log shape)."""

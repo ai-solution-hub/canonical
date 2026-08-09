@@ -1,40 +1,36 @@
-"""Concept-frontmatter validator — BI-13 (ID-132 {132.7} G-VALIDATE).
+"""Concept-frontmatter validator — BI-13 (ID-132 {132.7} G-VALIDATE),
+upgraded to the OKF v0.2 emission contract (id-426, S546 F1-A/F2-B).
 
 The gate every OKF concept write passes through before `declare_file` lands
 it on disk (caller wired in `{132.10}`; this Subtask builds the gate + its
 API). Per PRODUCT.md §C invariant 13 + TECH.md §"Concept-frontmatter
-validator (BI-13)":
+validator (BI-13)", as amended by the v0.2 wave:
 
-- **BI-12 required keys** — `type`/`title`/`description`/`timestamp`/`tags`
-  MUST be present. `resource:` is deliberately NOT in the hard-required set
-  — PRODUCT.md BI-12 states it is required only "where one exists", and the
-  landed `{132.6}` emitter (`producer/frontmatter.py`) treats it as
-  optional (`resource: str | None = None`). This diverges from TECH.md's
-  terser BI-table row ("Required frontmatter (type/title/description/
-  timestamp/resource:/tags:)") and from `lib/ontology/concept-schema.ts`
-  (`ConceptFrontmatterSchema.resource` has no `.optional()`), both of which
-  treat it as unconditionally required. Flagged as a genuine spec-tension
-  finding in the `{132.7}` report — NOT resolved here by editing the TS
-  schema (out of this Subtask's file-ownership scope); this module matches
-  what the landed Python emitter actually produces.
+- **Required keys (v0.2)** — `type`/`title`/`description`/`generated`/
+  `tags` MUST be present; `generated` is the §5.2 `{ by, at }` mapping that
+  REPLACES the retired v0.1 `timestamp` (removed, not shadowed — S546).
+  `resource:` is deliberately NOT in the hard-required set — under v0.2 a
+  DB-backed concept omits it entirely (F2-B); only a Pass-2 reference
+  concept carries one (its real fetched web URL). `sources:` (§5.1) is the
+  provenance list; the landed emitter treats it as optional at the SHAPE
+  level (a concept's citation non-emptiness is BI-17's draft-time gate,
+  `producer/enrich.py`), and `check_sources` validates every entry when
+  present.
 - **BI-4 type set** — `type` MUST be one of the five ratified concept
   types. Mirrors `CONCEPT_TYPE_VALUES` in `lib/ontology/concept-schema.ts`
   (TS source of truth for the concept-frontmatter contract; not imported —
   cross-language). `metric`/`playbook` are TAGS, not types.
-- **BI-6 resource scheme** — `resource:`, when present, MUST be a
-  `canonical://` pointer in one of the TWO forms `producer/resource_uri.py`
-  actually emits: the per-row anchor `canonical://{source_documents,
-  reference_items}/<uuid>` (`build_per_row_uri`) OR the BI-8 `q_a_pairs`
-  table/query form `canonical://q_a_pairs?scope_tag=<tag>`
-  (`build_q_a_pairs_query_uri`; the ?domain=&subtopic= form retired S531).
-  `lib/ontology/concept-schema.ts`'s `CANONICAL_RESOURCE_URI_PATTERN`
-  matches ONLY the per-row form — the query form would fail that regex.
-  This is a genuine RESOURCE-FORM NUANCE (not a bug to silently paper
-  over): flagged in the `{132.7}` report, not fixed here (TS file out of
-  scope).
+- **Resource scheme (v0.2, F2-B inversion)** — the `canonical://` grammar
+  (per-row anchor `canonical://{source_documents,reference_items}/<uuid>`
+  or the BI-8 `q_a_pairs?scope_tag=<tag>` query form) now belongs to
+  `sources[].resource` ONLY (`check_sources`, which also accepts http(s)
+  URLs and bundle `.md` paths — `frontmatter.is_valid_source_resource`).
+  The top-level `resource:`, when present, must NOT be a `canonical://`
+  pointer (`check_resource_scheme`, inverted from its v0.1 reading).
 - **BI-10 assertion** — no Canonical uuid/`canonical://` uri may appear in
-  ANY frontmatter field other than `resource:`, nor anywhere in the concept
-  body OUTSIDE its `# Citations` section. Reuses
+  ANY frontmatter field other than `sources[].resource`, nor anywhere in
+  the concept body OUTSIDE a legacy `# Citations` section (v0.2 bodies
+  carry none — footnote definitions never repeat a record pointer). Reuses
   `producer.resource_uri.contains_record_pointer` — the same shared guard
   `{132.6}`'s emitter uses — so the two modules cannot silently diverge on
   what counts as a "stray pointer".
@@ -66,11 +62,14 @@ validator (BI-13)":
 **Augmentation-guard DETECTION half (`detect_citation_shrink`, S451 rider
 fold-in 2, BI-17/BI-22/DR-016).** The reference agent's `write_concept_doc`
 (`bundle_tools.py:110-155`) refuses a Pass-2 write that shrinks a doc's
-record-grounded `# Schema`/`# Citations` — "augment, not replace". KH's
+record-grounded provenance — "augment, not replace". KH's
 `declare_file` write path has no equivalent yet. This module owns the
-DETECTION half only: given a concept's PRIOR committed body and a NEW
-draft body, `detect_citation_shrink` returns the `# Citations` entries the
-new draft DROPS relative to the prior state (empty = no shrink). It does
+DETECTION half only: given a concept's PRIOR committed state and a NEW
+draft, `detect_citation_shrink` returns the provenance targets the
+new draft DROPS relative to the prior state (empty = no shrink),
+harvesting BOTH the legacy v0.1 `# Citations` trailer and the v0.2
+`sources:` frontmatter (§5.1) on each side, so the v0.1→v0.2 migration
+itself is never a false shrink. It does
 NOT itself refuse a write — `{132.9}` (Pass-2 write gate) and `{132.12}`
 (git-sync 3-way reconcile) are the two ENFORCEMENT call sites, and both
 must call this SAME function rather than re-implementing divergent
@@ -97,13 +96,14 @@ from typing import Literal
 
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
+    ConceptSource,
     is_valid_concept_resource_uri,
+    is_valid_source_resource,
 )
 from scripts.cocoindex_pipeline.producer.resource_uri import (
+    citation_target,
     contains_record_pointer,
     is_canonical_resource_uri,
-    is_docs_site_citation,
-    is_git_blob_citation,
     parse_citation_entry,
 )
 
@@ -331,10 +331,11 @@ class EffectiveOntology:
         )
 
 
-# BI-12: hard-required frontmatter keys. `resource` is intentionally
-# excluded — see module docstring.
-_REQUIRED_STRING_KEYS = ("type", "title", "description", "timestamp")
-_REQUIRED_KEYS = _REQUIRED_STRING_KEYS + ("tags",)
+# BI-12 (v0.2): hard-required frontmatter keys. `resource`/`sources` are
+# intentionally excluded — see module docstring. `generated` (§5.2) is the
+# `{ by, at }` mapping that replaced the retired v0.1 `timestamp`.
+_REQUIRED_STRING_KEYS = ("type", "title", "description")
+_REQUIRED_KEYS = _REQUIRED_STRING_KEYS + ("generated", "tags")
 
 # A19 (bl-477): the ratified confidence vocabulary — duplicated (not
 # imported) from `producer/frontmatter.py`'s own `_CONFIDENCE_VALUES` by
@@ -370,7 +371,10 @@ def _as_mapping(frontmatter: "Mapping[str, object] | ConceptFrontmatter") -> "Ma
             "type": frontmatter.type,
             "title": frontmatter.title,
             "description": frontmatter.description,
-            "timestamp": frontmatter.timestamp,
+            "generated": {
+                "by": frontmatter.generated_by,
+                "at": frontmatter.generated_at,
+            },
             "tags": list(frontmatter.tags),
             "resource": frontmatter.resource,
             # bl-456/bl-477 (FRONTMATTER-WAVE.md): load-bearing — omitting
@@ -380,14 +384,20 @@ def _as_mapping(frontmatter: "Mapping[str, object] | ConceptFrontmatter") -> "Ma
             "task": frontmatter.task,
             "audience": frontmatter.audience,
             "confidence": frontmatter.confidence,
+            "sources": [
+                {"id": s.id, "resource": s.resource, "title": s.title}
+                for s in frontmatter.sources
+            ],
         }
     return frontmatter
 
 
 def check_required_keys(frontmatter: "Mapping[str, object]") -> "list[str]":
-    """BI-12: `type`/`title`/`description`/`timestamp`/`tags` MUST be
-    present keys; the four string fields must additionally be non-empty.
-    `resource:` is NOT checked here — see module docstring."""
+    """BI-12 (v0.2): `type`/`title`/`description`/`generated`/`tags` MUST
+    be present keys; the three string fields must additionally be
+    non-empty, and `generated` must be the §5.2 `{ by, at }` mapping of
+    non-empty strings. `resource:`/`sources:` are NOT checked here — see
+    module docstring."""
     errors: "list[str]" = []
     for key in _REQUIRED_KEYS:
         if key not in frontmatter:
@@ -400,6 +410,21 @@ def check_required_keys(frontmatter: "Mapping[str, object]") -> "list[str]":
                     f"required frontmatter key {key!r} must be a non-empty "
                     f"string (BI-12); got {value!r}"
                 )
+    if "generated" in frontmatter:
+        generated = frontmatter["generated"]
+        by = generated.get("by") if isinstance(generated, Mapping) else None
+        at = generated.get("at") if isinstance(generated, Mapping) else None
+        if (
+            not isinstance(generated, Mapping)
+            or not isinstance(by, str)
+            or not by.strip()
+            or not isinstance(at, str)
+            or not at.strip()
+        ):
+            errors.append(
+                "frontmatter key 'generated' must be a { by, at } mapping "
+                f"of non-empty strings (§5.2); got {generated!r}"
+            )
     return errors
 
 
@@ -421,18 +446,89 @@ def check_type_membership(
 
 
 def check_resource_scheme(resource: object) -> "list[str]":
-    """BI-6: `resource`, when present, must satisfy
-    `is_valid_concept_resource_uri`. Absence is not an error here — see
-    `check_required_keys` docstring."""
+    """v0.2 (S546 F2-B, inverted from the v0.1 reading): the top-level
+    `resource:`, when present, must NOT be a `canonical://` pointer — a
+    record anchor belongs in `sources[]` (`check_sources`); only a Pass-2
+    reference concept's real fetched web URL is a legitimate top-level
+    `resource:`. Absence is not an error here (a DB-backed concept omits
+    it entirely) — see `check_required_keys` docstring."""
     if resource is None:
         return []
-    if not is_valid_concept_resource_uri(resource):
+    if not isinstance(resource, str) or not resource.strip():
+        return [f"resource, when present, must be a non-empty string; got {resource!r}"]
+    if is_canonical_resource_uri(resource):
         return [
-            f"resource {resource!r} is not a valid canonical:// pointer "
-            "(BI-6) — expected canonical://{source_documents,reference_"
-            "items}/<uuid> or canonical://q_a_pairs?scope_tag=<tag>"
+            f"top-level resource {resource!r} must not be a canonical:// "
+            "pointer under OKF v0.2 (S546 F2-B) — record anchors belong in "
+            "sources[]"
         ]
     return []
+
+
+def check_sources(value: object) -> "list[str]":
+    """§5.1 (v0.2): `sources`, when present, must be a list of
+    `{ id, resource, title? }` entries — `id` a non-empty, unique,
+    pointer-free string; `resource` in the accepted grammar
+    (`frontmatter.is_valid_source_resource`: a canonical:// record anchor,
+    an http(s) URL, or a bundle `.md` path); `title` optional, non-empty,
+    pointer-free. Additional §5.1 credibility-signal keys (`author`,
+    `usage_count`, `last_modified`) are tolerated, per the spec's
+    unknown-key posture. Absence is not an error at this shape gate —
+    citation non-emptiness is BI-17's draft-time contract
+    (`producer/enrich.py`)."""
+    if value is None:
+        return []
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        return [
+            f"sources must be a list of {{ id, resource, title? }} entries "
+            f"(§5.1); got {value!r}"
+        ]
+    errors: "list[str]" = []
+    seen_ids: "set[str]" = set()
+    for entry in value:
+        if isinstance(entry, ConceptSource):
+            entry = {"id": entry.id, "resource": entry.resource, "title": entry.title}
+        if not isinstance(entry, Mapping):
+            errors.append(
+                f"sources entries must be {{ id, resource, title? }} "
+                f"mappings (§5.1); got {entry!r}"
+            )
+            continue
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str) or not entry_id.strip():
+            errors.append(f"sources[].id must be a non-empty string (§5.1); got {entry_id!r}")
+        elif contains_record_pointer(entry_id):
+            errors.append(
+                f"sources[].id {entry_id!r} embeds a Canonical uuid/"
+                "canonical:// uri (BI-10)"
+            )
+        elif entry_id in seen_ids:
+            errors.append(
+                f"sources[].id {entry_id!r} is duplicated — footnote labels "
+                "must join to exactly one entry (§5.1)"
+            )
+        else:
+            seen_ids.add(entry_id)
+        resource = entry.get("resource")
+        if not is_valid_source_resource(resource):
+            errors.append(
+                f"sources[].resource {resource!r} is not a valid v0.2 source "
+                "resource — expected a canonical:// record anchor, an http(s) "
+                "URL, or a bundle .md path (id-426 emission contract)"
+            )
+        title = entry.get("title")
+        if title is not None:
+            if not isinstance(title, str) or not title.strip():
+                errors.append(
+                    f"sources[].title, when present, must be a non-empty "
+                    f"string; got {title!r}"
+                )
+            elif contains_record_pointer(title):
+                errors.append(
+                    f"sources[].title {title!r} embeds a Canonical uuid/"
+                    "canonical:// uri (BI-10)"
+                )
+    return errors
 
 
 def check_confidence(value: object) -> "list[str]":
@@ -494,12 +590,17 @@ def find_body_pointer_leak(body: str) -> bool:
 def check_no_stray_pointer(
     frontmatter: "Mapping[str, object]", body: str
 ) -> "list[str]":
-    """BI-10: no field other than `resource` may embed a Canonical uuid/
-    `canonical://` uri, and the body may not embed one outside
-    `# Citations`."""
+    """BI-10 (v0.2): no field other than `sources` (whose entries'
+    `resource` values are the sanctioned pointer ingress — shape-gated by
+    `check_sources`) may embed a Canonical uuid/`canonical://` uri, and
+    the body may not embed one outside a legacy `# Citations` section
+    (v0.2 bodies carry none). `resource` is also skipped here — its own
+    `check_resource_scheme` gate already rejects a canonical:// pointer
+    outright, and a real fetched web URL may legitimately contain a uuid
+    path segment."""
     errors: "list[str]" = []
     for key, value in frontmatter.items():
-        if key == "resource":
+        if key in ("resource", "sources"):
             continue
         if isinstance(value, str):
             if contains_record_pointer(value):
@@ -584,6 +685,8 @@ def check_concept(
         errors += check_type_membership(fm["type"], effective_ontology=effective_ontology)
     if "resource" in fm:
         errors += check_resource_scheme(fm["resource"])
+    if "sources" in fm:
+        errors += check_sources(fm["sources"])
     if "confidence" in fm:
         errors += check_confidence(fm["confidence"])
     errors += check_no_stray_pointer(fm, body)
@@ -617,20 +720,26 @@ def validate_concept(
         raise ConceptValidationError(errors)
 
 
-# A `[n] [label](target)` numbered-link trailer line (SPEC §8 form) —
-# recognised alongside the legacy `- <entry>` / `* <entry>` bullets.
+# A `[n] [label](target)` numbered-link trailer line (the v0.1 SPEC §8
+# citation form — legacy parse only under v0.2; the trailer is retired,
+# S546 F1-A) — recognised alongside the older `- <entry>` / `* <entry>`
+# bullets.
 _CITATION_NUMBERED_LINE_RE = re.compile(r"^\[\d+\]\s+\S")
 
 
 def _ordered_citation_entries(body: str) -> "list[tuple[str | None, str]]":
-    """Parse `body`'s `# Citations` section into an ORDERED, de-duplicated
-    (by target, first occurrence wins) list of `(label, target)` pairs.
+    """Parse `body`'s LEGACY v0.1 `# Citations` section into an ORDERED,
+    de-duplicated (by target, first occurrence wins) list of
+    `(label, target)` pairs. Under v0.2 the producer emits no trailer
+    (provenance lives in the `sources:` frontmatter, §5.1) — this parser
+    survives solely so prior committed v0.1 bundles remain readable to the
+    shrink guard (`detect_citation_shrink`).
 
     Accepts BOTH trailer forms — the legacy bare-path `- <entry>` / `*
-    <entry>` bullets (prior committed bundles) and the SPEC §8 numbered-link
-    `[n] [label](target)` lines — normalising every entry to its canonical
-    TARGET via `resource_uri.parse_citation_entry` (leading `/` stripped, so
-    targets compare against identity rel_paths)."""
+    <entry>` bullets (prior committed bundles) and the v0.1 §8
+    numbered-link `[n] [label](target)` lines — normalising every entry to
+    its canonical TARGET via `resource_uri.parse_citation_entry` (leading
+    `/` stripped, so targets compare against identity rel_paths)."""
     section = _section_body(body, _CITATIONS_HEADING)
     entries: "dict[str, str | None]" = {}
     for line in section.splitlines():
@@ -648,113 +757,77 @@ def _ordered_citation_entries(body: str) -> "list[tuple[str | None, str]]":
 
 
 def _citation_entries(body: str) -> "set[str]":
-    """The comparable TARGET set of `body`'s `# Citations` section — both
-    the legacy bare-path bullet form and the SPEC §8 numbered-link form
+    """The comparable TARGET set of `body`'s legacy `# Citations` section —
+    both the bare-path bullet form and the v0.1 §8 numbered-link form
     normalise to the same targets (see `_ordered_citation_entries`), so a
     format migration alone is never a citation "shrink"."""
     return {target for _label, target in _ordered_citation_entries(body)}
 
 
-def _escape_link_label(label: str) -> str:
-    """Backslash-escape square brackets in a markdown link label so a title
-    containing `[`/`]` cannot break the `[label](target)` link form."""
-    return label.replace("[", "\\[").replace("]", "\\]")
-
-
-def render_citations_trailer(
-    citations: "Sequence[str]",
-    *,
-    titles: "Mapping[str, str] | None" = None,
-    labels: "Mapping[str, str | None] | None" = None,
-) -> str:
-    """Render the SPEC §5.1/§8-conformant `# Citations` trailer: numbered
-    `[n] ` entries, each a REAL markdown link, so a generic OKF consumer
-    building link-edges finds one edge per citation.
-
-        # Citations
-
-        [1] [canonical://source_documents/<uuid>](canonical://source_documents/<uuid>)
-        [2] [ISO 9001:2015 — Quality Management Certification](/certifications/iso-9001.md)
-
-    `citations` are normalised TARGETS (an absolute record/blob anchor, or a
-    concept rel_path WITHOUT a leading `/`). Per entry:
-      - absolute anchors — a `canonical://` record anchor (BI-6), a PC-5
-        public git-blob URL (DR-086b), or a DR-087 authorised docs-site URL:
-        label = the anchor text itself, target = the anchor (verbatim, an
-        already-absolute URL);
-      - concept cross-links: target = the §5.1 bundle-ABSOLUTE form
-        (`/` + rel_path); label = `titles[rel_path]` (the target concept's
-        title, when the caller can resolve one at render time), else
-        `labels[rel_path]` (a label preserved from a prior trailer parse),
-        else the rel_path.
-
-    The SINGLE trailer renderer — `enrich._render_citations_section` and
-    `normalise_citations_section` below both delegate here, so the on-disk
-    format has exactly one source of truth (never model formatting).
-    """
-    lines = ["# Citations", ""]
-    for index, citation in enumerate(citations, start=1):
-        if (
-            is_canonical_resource_uri(citation)
-            or is_git_blob_citation(citation)
-            or is_docs_site_citation(citation)
-        ):
-            # An absolute record/blob anchor is its own citation TARGET,
-            # verbatim. F3: without the git-blob + docs-site branches a
-            # `https://…/blob/…` URL fell through to the concept-path arm and
-            # was mangled — `"https://…".lstrip("/")` is a no-op, so it was
-            # emitted as the broken target `/https://…`.
-            label, target = citation, citation
-        else:
-            rel_path = citation.lstrip("/")
-            resolved = (titles or {}).get(rel_path) or (labels or {}).get(rel_path)
-            label = _escape_link_label(resolved) if resolved else rel_path
-            target = f"/{rel_path}"
-        lines.append(f"[{index}] [{label}]({target})")
-    return "\n".join(lines) + "\n"
-
-
-def normalise_citations_section(
-    body: str, *, titles: "Mapping[str, str] | None" = None
-) -> str:
-    """Deterministic write-time trailer normalisation (SPEC §5.1/§8): parse
-    `body`'s `# Citations` section — accepting BOTH the legacy bare-path
-    bullet form and the §8 numbered-link form — and re-emit it in the
-    numbered-link form via `render_citations_trailer`, so the on-disk
-    format never depends on model formatting or on which producer version
-    drafted the prior state.
-
-    `titles` maps concept rel_path -> title for cross-link labels; an entry
-    whose prior trailer already carried a non-target label keeps it when
-    `titles` cannot resolve one. A body with no `# Citations` section is
-    returned unchanged."""
-    span = _find_heading_span(body, _CITATIONS_HEADING)
-    if span is None:
-        return body
-    entries = _ordered_citation_entries(body)
-    labels = {
-        target: label for label, target in entries if label and label != target
-    }
-    trailer = render_citations_trailer(
-        [target for _label, target in entries], titles=titles, labels=labels
+def _frontmatter_source_targets(document: str) -> "set[str]":
+    """The comparable TARGET set of `document`'s v0.2 `sources:`
+    frontmatter block (§5.1) — the provenance surface that replaced the
+    `# Citations` trailer (S546 F1-A). Hand-rolled line parse of the
+    emitter's own fully-controlled shape (no `pyyaml` — the same posture
+    as `producer/frontmatter.py`): entries' `resource:` values, unquoted
+    if double-quoted, normalised via `resource_uri.citation_target` so
+    bundle-absolute paths compare against identity rel_paths. Returns the
+    empty set for a document with no frontmatter or no `sources:` key
+    (e.g. a bare body, or a legacy v0.1 document)."""
+    lines = document.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return set()
+    close = next(
+        (i for i in range(1, len(lines)) if lines[i].strip() == "---"), None
     )
-    start, end = span
-    tail = body[end:]
-    if tail:
-        return body[:start] + trailer + "\n" + tail.lstrip("\n")
-    return body[:start] + trailer
+    if close is None:
+        return set()
+    targets: "set[str]" = set()
+    in_sources = False
+    for line in lines[1:close]:
+        if line and not line[0].isspace():
+            in_sources = line.rstrip() == "sources:"
+            continue
+        if not in_sources:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            stripped = stripped[2:].strip()
+        key, sep, value = stripped.partition(":")
+        if not sep or key.strip() != "resource":
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+            value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        if value:
+            targets.add(citation_target(value))
+    return targets
+
+
+def _provenance_targets(document: str) -> "set[str]":
+    """A document's FULL comparable provenance-target set — the union of
+    its legacy v0.1 `# Citations` trailer targets and its v0.2
+    `sources:` frontmatter targets, so the v0.1→v0.2 format migration
+    (trailer retired, provenance moved to frontmatter — §13.1) is never
+    itself a "shrink"."""
+    return _citation_entries(document) | _frontmatter_source_targets(document)
 
 
 def detect_citation_shrink(*, previous_body: str, new_body: str) -> "list[str]":
     """S451 rider fold-in 2 — augmentation-guard DETECTION half
-    (BI-17/BI-22/DR-016).
+    (BI-17/BI-22/DR-016), v0.2-aware (id-426).
 
-    Compares the `# Citations` section of `previous_body` (the prior
-    committed concept state) against `new_body` (a new draft) and returns
-    the sorted list of citation entries present in the previous state but
-    ABSENT from the new draft — i.e. a shrink. An empty list means no
-    shrink (the new draft is a superset, unchanged, or `previous_body` had
-    no prior citations at all — e.g. a first-write concept).
+    Compares the provenance-target set of `previous_body` (the prior
+    committed concept state — its legacy `# Citations` section AND/OR its
+    v0.2 `sources:` frontmatter, `_provenance_targets`) against
+    `new_body` (a new draft, same harvesting) and returns the sorted list
+    of targets present in the previous state but ABSENT from the new
+    draft — i.e. a shrink. An empty list means no shrink (the new draft
+    is a superset, unchanged, a pure v0.1→v0.2 format migration of the
+    same targets, or `previous_body` had no prior provenance at all —
+    e.g. a first-write concept). Callers may pass full documents
+    (frontmatter + body) or bare bodies — a bare body simply has no
+    frontmatter half to harvest.
 
     This is the SINGLE shared detection implementation — `{132.9}` (Pass-2
     write gate) and `{132.12}` (git-sync 3-way reconcile) must both call
@@ -763,7 +836,7 @@ def detect_citation_shrink(*, previous_body: str, new_body: str) -> "list[str]":
     action (mirrors the reference `write_concept_doc`,
     `bundle_tools.py:110-155`, "augment, not replace" guard — ported here
     as detection-only)."""
-    previous_entries = _citation_entries(previous_body)
-    new_entries = _citation_entries(new_body)
+    previous_entries = _provenance_targets(previous_body)
+    new_entries = _provenance_targets(new_body)
     missing = previous_entries - new_entries
     return sorted(missing)
