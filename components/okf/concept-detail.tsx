@@ -17,6 +17,18 @@
  * renders as a chip that lazily resolves via `useResource` (secondary lane,
  * TECH-ADDENDUM-reference-agents.md Part 2 §Reframe B) — gated behind a
  * click, never fetched as part of the graph load.
+ *
+ * **OKF v0.2 `sources[]` provenance surface (id-439, F2-B rework).** New
+ * bundles carry their provenance pointers in a `sources:` frontmatter list
+ * instead of the single top-level `resource:` — rendered here as a
+ * "Sources" row: each `canonical://` entry is clickable through the SAME
+ * lazy `useResource` lane as the legacy chip; https entries render as
+ * plain external links; bundle-path (`.md`) entries are concept citations
+ * and navigate in-app via `onNavigate` (union-namespaced when this node
+ * is, reusing `resolveInternalMdLink` + `union-id.ts` so client and server
+ * resolve identically). The legacy `resource:` row is UNCHANGED — v0.1
+ * bundles must keep rendering, and v0.2 reference concepts still carry a
+ * plain https URL there.
  */
 import { useMemo, useState } from 'react';
 import { Streamdown, type Components } from 'streamdown';
@@ -28,10 +40,11 @@ import {
   normaliseInternalMdLinksForStreamdown,
   INTERNAL_LINK_MARKER,
 } from '@/lib/okf/prepare-streamdown-content';
-import { splitUnionId } from '@/lib/okf/union-id';
+import { resolveInternalMdLink } from '@/lib/okf/resolve-internal-link';
+import { namespaceUnionId, splitUnionId } from '@/lib/okf/union-id';
 import { sharedStreamdownComponents } from '@/components/shared/streamdown-components';
 import { useResource } from '@/hooks/okf/use-resource';
-import type { OkfBundleGraphNode } from '@/lib/query/okf';
+import type { OkfBundleGraphNode, OkfConceptSource } from '@/lib/query/okf';
 
 interface Backlink {
   id: string;
@@ -97,6 +110,81 @@ function ResourceChip({ uri }: { uri: string }) {
       )}
     </span>
   );
+}
+
+/** Stable empty default — see `components/CLAUDE.md` (never inline `?? []`). */
+const EMPTY_SOURCES: OkfConceptSource[] = [];
+
+/**
+ * One v0.2 `sources[]` entry on the provenance surface (module doc). Kind
+ * is discriminated by `resource` shape: `canonical://` -> the lazy
+ * `<ResourceChip>` lane; any other `://` URL -> plain external link; a
+ * bundle `.md` path -> in-app concept-citation navigation (plain text when
+ * the target is not a known concept — a dead off-app anchor would be
+ * worse than no link).
+ */
+function SourceEntry({
+  source,
+  nodeId,
+  knownConceptIds,
+  onNavigate,
+}: {
+  source: OkfConceptSource;
+  /** The owning node's id — union-namespaced in `<UnionGraphView>`. */
+  nodeId: string;
+  knownConceptIds: Set<string>;
+  onNavigate: (conceptId: string) => void;
+}) {
+  const label = source.title ?? source.id;
+
+  if (source.resource.startsWith('canonical://')) {
+    return (
+      <span className="flex flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <ResourceChip uri={source.resource} />
+      </span>
+    );
+  }
+
+  if (source.resource.includes('://')) {
+    return (
+      <a
+        href={source.resource}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline underline-offset-2 break-all"
+      >
+        {label}
+      </a>
+    );
+  }
+
+  // A bundle `.md` path — resolve against this concept's own id exactly as
+  // body links do (bundle-absolute and relative forms both supported), and
+  // re-apply the union `bundleId::` namespace when this node carries one so
+  // the target matches the ids the union route serves.
+  const { bundleId, conceptId } = splitUnionId(nodeId);
+  const resolved = resolveInternalMdLink(conceptId, source.resource);
+  const targetId =
+    resolved === null
+      ? null
+      : bundleId === null
+        ? resolved
+        : namespaceUnionId(bundleId, resolved);
+
+  if (targetId !== null && knownConceptIds.has(targetId)) {
+    return (
+      <button
+        type="button"
+        className="text-left text-primary underline underline-offset-2"
+        onClick={() => onNavigate(targetId)}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return <span className="break-all">{label}</span>;
 }
 
 export function ConceptDetail({
@@ -187,6 +275,7 @@ export function ConceptDetail({
   // but the `::` join is internal syntax the reader should never see. The
   // per-bundle viewer serves un-namespaced ids, so it renders unchanged.
   const { bundleId, conceptId } = splitUnionId(node.data.id);
+  const sources = node.data.sources ?? EMPTY_SOURCES;
 
   return (
     <article
@@ -219,6 +308,25 @@ export function ConceptDetail({
         <dd>
           {node.data.resource ? <ResourceChip uri={node.data.resource} /> : '—'}
         </dd>
+        {sources.length > 0 && (
+          <>
+            <dt className="text-muted-foreground">Sources</dt>
+            <dd>
+              <ul className="flex flex-col gap-1">
+                {sources.map((source) => (
+                  <li key={source.id}>
+                    <SourceEntry
+                      source={source}
+                      nodeId={node.data.id}
+                      knownConceptIds={knownConceptIds}
+                      onNavigate={onNavigate}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        )}
         <dt className="text-muted-foreground">Tags</dt>
         <dd>
           {node.data.tags.length > 0 ? (

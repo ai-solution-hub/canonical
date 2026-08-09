@@ -25,10 +25,12 @@ const FIXTURE_PATH = resolve(
 );
 
 describe('parseBundleNav', () => {
-  it('skips the SPEC §11 okf_version frontmatter block the writer stamps on the bundle-root index', () => {
+  it('skips the okf_version frontmatter block the writer stamps on the bundle-root index', () => {
     const text = readFileSync(FIXTURE_PATH, 'utf8');
-    // The regenerated fixture opens with the §11 frontmatter stamp…
-    expect(text.startsWith('---\nokf_version: "0.1"\n---\n')).toBe(true);
+    // The regenerated fixture opens with the version stamp — "0.1" until the
+    // id-426 producer regenerates it, "0.2" after; this parser tolerates
+    // both (id-439), so the pin accepts either generation.
+    expect(text).toMatch(/^---\nokf_version: "0\.[12]"\n---\n/);
 
     // …and the nav still parses fully structured with the block present:
     // only content BELOW the closing fence contributes themes.
@@ -43,6 +45,39 @@ describe('parseBundleNav', () => {
     const themes = parseBundleNav(minimal);
     expect(themes).toHaveLength(1);
     expect(themes[0].heading).toBe('Real Theme');
+  });
+
+  it('parses a v0.2-stamped bundle-root index identically (id-439 version tolerance)', () => {
+    const v02 = [
+      '---',
+      'okf_version: "0.2"',
+      '---',
+      '## Real Theme',
+      '',
+      '* [Concept](concept.md) — A concept.',
+    ].join('\n');
+
+    const themes = parseBundleNav(v02);
+
+    expect(themes).toHaveLength(1);
+    expect(themes[0].heading).toBe('Real Theme');
+    expect(themes[0].concepts[0]).toMatchObject({
+      title: 'Concept',
+      path: 'concept',
+    });
+  });
+
+  it('parses an index with no okf_version stamp at all (absence is best-effort-consumable)', () => {
+    const unstamped = [
+      '## Real Theme',
+      '',
+      '* [Concept](concept.md) — A concept.',
+    ].join('\n');
+
+    const themes = parseBundleNav(unstamped);
+
+    expect(themes).toHaveLength(1);
+    expect(themes[0].concepts).toHaveLength(1);
   });
 
   it('parses the {132.10} bundle_writer.regenerate_indexes() fixture with full structure (no fallback)', () => {

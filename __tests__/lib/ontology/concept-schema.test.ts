@@ -17,6 +17,9 @@
  * Python emitter/validator (`producer/frontmatter.py` /
  * `producer/validator.py`).
  */
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -24,6 +27,13 @@ import {
   CONFIDENCE_VALUES,
   parseConceptFrontmatter,
 } from '@/lib/ontology/concept-schema';
+
+const REPO_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+);
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111';
 
@@ -252,5 +262,160 @@ describe('parseConceptFrontmatter', () => {
     expect(() =>
       parseConceptFrontmatter(conceptMarkdown(badConfidence)),
     ).toThrow();
+  });
+});
+
+// ────────────────────────────────────────
+// OKF v0.2 consumer alignment (id-439, S546 rulings + id-426 emission
+// contract): `generated` replaces `timestamp`, `sources[]` is the
+// provenance list, §4.1 unknown-key tolerance, §11 optional-family duties.
+// ────────────────────────────────────────
+
+describe('parseConceptFrontmatter — OKF v0.2 (id-439)', () => {
+  /** The v0.2 emission shape: generated + sources, NO timestamp. */
+  const V02_FRONTMATTER = [
+    'type: topic',
+    'title: Data Encryption',
+    'description: Encryption at rest and in transit.',
+    'generated:',
+    '  by: kh-concept-producer/claude-sonnet-4-5',
+    '  at: "2026-08-08T12:00:00Z"',
+    'sources:',
+    '  - id: src-handbook',
+    `    resource: "canonical://source_documents/${VALID_UUID}"`,
+    '    title: Security Handbook',
+    '  - id: src-standard',
+    '    resource: "https://example.com/iso-27001"',
+    '  - id: src-cert',
+    '    resource: "/certifications/iso-27001.md"',
+    'tags:',
+    '  - security',
+  ].join('\n');
+
+  it('accepts a v0.2 concept: generated { by, at } + sources[], with no timestamp at all', () => {
+    const parsed = parseConceptFrontmatter(conceptMarkdown(V02_FRONTMATTER));
+
+    expect(parsed.timestamp).toBeUndefined();
+    expect(parsed.generated).toMatchObject({
+      by: 'kh-concept-producer/claude-sonnet-4-5',
+      at: '2026-08-08T12:00:00Z',
+    });
+    expect(parsed.sources).toEqual([
+      {
+        id: 'src-handbook',
+        resource: `canonical://source_documents/${VALID_UUID}`,
+        title: 'Security Handbook',
+      },
+      { id: 'src-standard', resource: 'https://example.com/iso-27001' },
+      { id: 'src-cert', resource: '/certifications/iso-27001.md' },
+    ]);
+  });
+
+  it('still accepts a legacy v0.1 concept carrying timestamp + canonical resource (§13.1: previously-published bundles keep parsing)', () => {
+    const parsed = parseConceptFrontmatter(
+      conceptMarkdown(WELL_FORMED_FRONTMATTER),
+    );
+
+    expect(parsed.timestamp).toBe('2026-07-05T00:00:00.000Z');
+    expect(parsed.generated).toBeUndefined();
+    expect(parsed.sources).toBeUndefined();
+  });
+
+  it('parses BOTH on-disk fixture generations — the v0.2 sources concept and the v0.1 legacy concept', () => {
+    const v02 = parseConceptFrontmatter(
+      readFileSync(
+        resolve(REPO_ROOT, '__tests__/fixtures/okf/concept-v02-sources.md'),
+        'utf8',
+      ),
+    );
+    const v01 = parseConceptFrontmatter(
+      readFileSync(
+        resolve(REPO_ROOT, '__tests__/fixtures/okf/concept-v01-legacy.md'),
+        'utf8',
+      ),
+    );
+
+    expect(v02.generated?.by).toBe('kh-concept-producer/claude-sonnet-4-5');
+    expect(v02.sources).toHaveLength(3);
+    expect(v02.timestamp).toBeUndefined();
+
+    expect(v01.timestamp).toBe('2026-07-05T00:00:00.000Z');
+    expect(v01.resource).toBe(
+      'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    );
+    expect(v01.sources).toBeUndefined();
+  });
+
+  it('accepts a v0.2 reference concept whose top-level resource: is a plain https URL (emission-contract item 4)', () => {
+    const referenceConcept = WELL_FORMED_FRONTMATTER.replace(
+      WELL_FORMED_RESOURCE_LINE,
+      'resource: "https://example.com/standards/iso-27001"',
+    );
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(referenceConcept));
+
+    expect(parsed.resource).toBe('https://example.com/standards/iso-27001');
+  });
+
+  it('never rejects a concept for missing optional families (§11): required keys alone parse', () => {
+    const minimal = [
+      'type: topic',
+      'title: Bare Concept',
+      'description: Nothing optional at all.',
+      'tags: []',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(minimal));
+
+    expect(parsed).toMatchObject({ type: 'topic', title: 'Bare Concept' });
+    expect(parsed.timestamp).toBeUndefined();
+    expect(parsed.generated).toBeUndefined();
+    expect(parsed.sources).toBeUndefined();
+    expect(parsed.verified).toBeUndefined();
+  });
+
+  it('never rejects unknown frontmatter keys, and preserves them (§4.1)', () => {
+    const withUnknownKeys = [
+      V02_FRONTMATTER,
+      'future_family: some-value',
+      'another_extension:',
+      '  nested: true',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(withUnknownKeys));
+
+    expect(parsed.future_family).toBe('some-value');
+    expect(parsed.another_extension).toEqual({ nested: true });
+  });
+
+  it('normalises a bare verified: mapping to a one-element list (§11, forward-compatible with id-428)', () => {
+    const bareMapping = [
+      V02_FRONTMATTER,
+      'verified:',
+      '  by: sme@example.com',
+      '  at: "2026-08-09T00:00:00Z"',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(bareMapping));
+
+    expect(parsed.verified).toEqual([
+      { by: 'sme@example.com', at: '2026-08-09T00:00:00Z' },
+    ]);
+  });
+
+  it('passes a verified: list through unchanged', () => {
+    const list = [
+      V02_FRONTMATTER,
+      'verified:',
+      '  - by: sme@example.com',
+      '  - by: second@example.com',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(list));
+
+    expect(parsed.verified).toEqual([
+      { by: 'sme@example.com' },
+      { by: 'second@example.com' },
+    ]);
   });
 });

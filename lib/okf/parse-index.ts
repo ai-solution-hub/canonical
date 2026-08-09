@@ -53,11 +53,15 @@ function stripMdSuffix(link: string): string {
 }
 
 /**
- * Strip a leading YAML frontmatter block (`---` … `---`) — SPEC §11
+ * Strip a leading YAML frontmatter block (`---` … `---`) — the SPEC
  * permits the bundle-root `index.md` (and only it, among indexes) a
- * frontmatter block; the producer stamps `okf_version: "0.1"` there
- * (DR-019 house rule). The nav parser skips it rather than risking a
- * frontmatter value line ever matching a heading or bullet shape.
+ * frontmatter block; the v0.2 producer stamps `okf_version: "0.2"` there
+ * (id-426; previously-published v0.1 bundles carry `"0.1"`, DR-019 house
+ * rule). The whole block is discarded WITHOUT inspecting the declared
+ * version — the consumer-tolerance duty (id-439; consumers SHOULD attempt
+ * best-effort consumption of any declared version, and absence of the
+ * stamp is equally fine) — and skipping it also avoids a frontmatter
+ * value line ever matching a heading or bullet shape.
  */
 function stripFrontmatter(lines: string[]): string[] {
   if (lines[0]?.trim() !== '---') return lines;
@@ -69,8 +73,8 @@ function stripFrontmatter(lines: string[]): string[] {
 
 /**
  * Parse `index.md` text into a nav tree of themes → (subthemes) → concepts.
- * A leading `---` frontmatter block (the §11 `okf_version` stamp) is
- * skipped.
+ * A leading `---` frontmatter block (the `okf_version` stamp — any
+ * declared version, or none) is skipped.
  *
  * Returns `[]` for content with no `##`/`###` headings (including empty
  * input) — the caller treats that the same as an absent file.

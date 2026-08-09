@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 import { ConceptDetail } from '@/components/okf/concept-detail';
-import type { OkfBundleGraphNode } from '@/lib/query/okf';
+import { parseOkfDocument } from '@/lib/okf/okf-document';
+import type { OkfBundleGraphNode, OkfConceptSource } from '@/lib/query/okf';
 
 const { mockFetchJson } = vi.hoisted(() => ({ mockFetchJson: vi.fn() }));
 
@@ -252,5 +256,220 @@ describe('ConceptDetail', () => {
     });
     expect(link).toHaveAttribute('target', '_blank');
     expect(mockFetchJson).not.toHaveBeenCalled();
+  });
+
+  // ────────────────────────────────────────
+  // OKF v0.2 sources[] provenance surface (id-439, F2-B rework): new
+  // bundles carry pointers in sources[] instead of the single top-level
+  // resource:. Each canonical:// entry stays clickable through the SAME
+  // lazy resolution lane; https entries are plain links; bundle-path
+  // entries navigate in-app. The legacy resource: lane (tests above) is
+  // unchanged.
+  // ────────────────────────────────────────
+
+  const V02_SOURCES: OkfConceptSource[] = [
+    {
+      id: 'src-handbook',
+      resource:
+        'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+      title: 'Security Handbook',
+    },
+    {
+      id: 'src-standard',
+      resource: 'https://example.com/iso-27001',
+      title: 'ISO 27001 overview',
+    },
+    { id: 'src-cert', resource: '/tables/customers.md' },
+  ];
+
+  const V02_NODE: OkfBundleGraphNode = {
+    data: {
+      ...ORDERS_NODE.data,
+      resource: '',
+      sources: V02_SOURCES,
+    },
+  };
+
+  it('renders the sources[] provenance list: canonical chip, plain https link, and in-app concept citation', () => {
+    const onNavigate = vi.fn();
+    renderDetail({ node: V02_NODE, onNavigate });
+
+    expect(screen.getByText('Sources')).toBeInTheDocument();
+
+    // canonical:// — the lazy chip, labelled by the entry title.
+    expect(screen.getByText('Security Handbook')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+      }),
+    ).toBeInTheDocument();
+
+    // https — a plain external link, no resolution lane.
+    const external = screen.getByRole('link', { name: 'ISO 27001 overview' });
+    expect(external).toHaveAttribute('href', 'https://example.com/iso-27001');
+    expect(external).toHaveAttribute('target', '_blank');
+
+    // bundle path — an in-app citation (labelled by id when no title).
+    fireEvent.click(screen.getByRole('button', { name: 'src-cert' }));
+    expect(onNavigate).toHaveBeenCalledWith('tables/customers');
+  });
+
+  it('resolves a clicked canonical:// source through the lazy resource lane, never on render', async () => {
+    mockFetchJson.mockResolvedValue({
+      table: 'source_documents',
+      record: { id: 'doc-1', filename: 'handbook.pdf' },
+    });
+
+    renderDetail({ node: V02_NODE });
+
+    expect(mockFetchJson).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+      }),
+    );
+
+    await waitFor(() => expect(mockFetchJson).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/"filename": "handbook.pdf"/),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('navigates a union-namespaced bundle-path source within its own bundle', () => {
+    const onNavigate = vi.fn();
+    renderDetail({
+      node: {
+        data: {
+          ...V02_NODE.data,
+          id: 'acme::services/orders',
+          sources: [{ id: 'src-cert', resource: '/domain/customer.md' }],
+        },
+      },
+      knownConceptIds: UNION_KNOWN,
+      backlinks: [],
+      onNavigate,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'src-cert' }));
+
+    expect(onNavigate).toHaveBeenCalledWith('acme::domain/customer');
+  });
+
+  it('renders a bundle-path source to an unknown concept as plain text, never a dead off-app anchor', () => {
+    renderDetail({
+      node: {
+        data: {
+          ...V02_NODE.data,
+          sources: [{ id: 'src-ghost', resource: '/tables/ghost.md' }],
+        },
+      },
+    });
+
+    expect(screen.getByText('src-ghost')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'src-ghost' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'src-ghost' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('omits the Sources row for a legacy concept with no sources[]', () => {
+    renderDetail();
+
+    expect(screen.queryByText('Sources')).not.toBeInTheDocument();
+  });
+
+  it('renders BOTH on-disk fixture generations end-to-end: the v0.2 sources concept and the v0.1 legacy concept', () => {
+    const repoRoot = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      '..',
+      '..',
+    );
+    const v02 = parseOkfDocument(
+      readFileSync(
+        resolve(repoRoot, '__tests__/fixtures/okf/concept-v02-sources.md'),
+        'utf8',
+      ),
+    );
+    const v01 = parseOkfDocument(
+      readFileSync(
+        resolve(repoRoot, '__tests__/fixtures/okf/concept-v01-legacy.md'),
+        'utf8',
+      ),
+    );
+
+    // v0.2: the sources[] provenance surface renders from fixture bytes.
+    const fm02 = v02.frontmatter as {
+      title: string;
+      type: string;
+      description: string;
+      sources: OkfConceptSource[];
+    };
+    const { unmount } = renderDetail({
+      node: {
+        data: {
+          id: 'topics/encryption',
+          label: fm02.title,
+          type: fm02.type,
+          description: fm02.description,
+          resource: '',
+          tags: [],
+          size: 30,
+          sources: fm02.sources,
+        },
+      },
+      body: v02.body,
+      backlinks: [],
+      knownConceptIds: new Set([
+        'topics/encryption',
+        'certifications/iso-27001',
+      ]),
+    });
+
+    expect(screen.getByText('Sources')).toBeInTheDocument();
+    expect(screen.getByText('Security Handbook')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'src-cert' }),
+    ).toBeInTheDocument();
+    unmount();
+
+    // v0.1 legacy: no Sources row; the resource: chip lane still renders.
+    const fm01 = v01.frontmatter as {
+      title: string;
+      type: string;
+      description: string;
+      resource: string;
+    };
+    renderDetail({
+      node: {
+        data: {
+          id: 'topics/encryption',
+          label: fm01.title,
+          type: fm01.type,
+          description: fm01.description,
+          resource: fm01.resource,
+          tags: [],
+          size: 30,
+        },
+      },
+      body: v01.body,
+      backlinks: [],
+      knownConceptIds: new Set([
+        'topics/encryption',
+        'certifications/iso-27001',
+      ]),
+    });
+
+    expect(screen.queryByText('Sources')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+      }),
+    ).toBeInTheDocument();
   });
 });

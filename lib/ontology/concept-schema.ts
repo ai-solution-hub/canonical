@@ -63,6 +63,26 @@
  * `producer/validator.py`'s `_QA_PAIRS_QUERY_RESOURCE_RE`. The q_a_pairs
  * table therefore NEVER appears in the per-row uuid form (BI-6/BI-7: its
  * `gen_random_uuid()` PK is opaque and re-minting, never bundle-cited).
+ *
+ * **OKF v0.2 (id-439 consumer alignment, S546 rulings).** The v0.2
+ * producer (id-426) changes the emission contract; this reader tolerates
+ * BOTH generations (v0.2 §13.1: consumers SHOULD read `sources` and MAY
+ * still parse the legacy trailer for v0.1 documents):
+ * - `generated: { by, at }` REPLACES `timestamp` in new bundles;
+ *   `timestamp` therefore becomes OPTIONAL here (legacy v0.1 bundles
+ *   still carry it and MUST keep parsing).
+ * - `sources:` is the frontmatter provenance list (`{ id, resource,
+ *   title? }`); `resource` per entry may be a `canonical://` pointer, an
+ *   https URL, or a bundle-absolute `.md` path (a concept citation).
+ * - Top-level `resource:` is never `canonical://` in new bundles —
+ *   reference concepts carry a real https URL there — so the refine now
+ *   also admits http(s) URLs alongside the legacy canonical:// forms.
+ * - §4.1: unknown frontmatter keys MUST NOT cause rejection — the root
+ *   schema is a `looseObject` (tolerates AND preserves unknown keys).
+ * - §11: a bare `verified` mapping normalises to a one-element list
+ *   (forward-compatible with id-428; nothing emits it yet). The
+ *   `confidence` z.enum is deliberately UNCHANGED this wave — id-428
+ *   owns that loosening.
  */
 import matter from 'gray-matter';
 import { z } from 'zod';
@@ -119,16 +139,49 @@ const CANONICAL_RESOURCE_URI_PATTERN =
 const CANONICAL_QUERY_RESOURCE_URI_PATTERN =
   /^canonical:\/\/q_a_pairs\?scope_tag=[^&]+$/;
 
-/** True iff `value` is a valid `resource:` URI — the per-row anchor form
- * OR the BI-8 `q_a_pairs` query form. */
+/**
+ * v0.2 emission-contract item 4: reference concepts carry a real http(s)
+ * URL as their top-level `resource:` (DB-backed concepts omit it, and new
+ * bundles never write `canonical://` there). Legacy v0.1 bundles still
+ * carry the canonical:// forms, so both remain admissible.
+ */
+const HTTP_URL_PATTERN = /^https?:\/\/\S+$/;
+
+/** True iff `value` is a valid `resource:` URI — the per-row anchor form,
+ * the BI-8 `q_a_pairs` query form, or (v0.2) an http(s) URL. */
 function isValidConceptResourceUri(value: string): boolean {
   return (
     CANONICAL_RESOURCE_URI_PATTERN.test(value) ||
-    CANONICAL_QUERY_RESOURCE_URI_PATTERN.test(value)
+    CANONICAL_QUERY_RESOURCE_URI_PATTERN.test(value) ||
+    HTTP_URL_PATTERN.test(value)
   );
 }
 
-export const ConceptFrontmatterSchema = z.object({
+/**
+ * One v0.2 `sources[]` provenance entry. `resource` is deliberately an
+ * open non-empty string here: the contract admits `canonical://` pointers,
+ * https URLs, AND bundle-absolute `.md` paths, and §11 forbids rejecting a
+ * concept over an entry shape this reader does not recognise — kind
+ * discrimination is the consumer surface's job (`components/okf/
+ * concept-detail.tsx`, `lib/okf/bundle-graph.ts`), not a parse-time gate.
+ * `looseObject`: §4.1 unknown-key tolerance applies to nested families too.
+ */
+const ConceptSourceSchema = z.looseObject({
+  id: z.string().min(1),
+  resource: z.string().min(1),
+  title: z.string().optional(),
+});
+
+/** The v0.2 `generated: { by, at }` stamp that replaces `timestamp` —
+ * `by` is an actor string (e.g. `kh-concept-producer/<model>`), `at` an
+ * ISO-8601 datetime (shape-checked as a non-empty string only, matching
+ * `timestamp`'s existing posture). */
+const ConceptGeneratedSchema = z.looseObject({
+  by: z.string().min(1),
+  at: z.string().min(1),
+});
+
+export const ConceptFrontmatterSchema = z.looseObject({
   // {132.36} G-CONCEPT-FEEDER: a non-empty string, NOT `z.enum(
   // CONCEPT_TYPE_VALUES)` — see the module docstring's "type parity note"
   // for the full rationale (mirrors the Python validator's own OV-8 move
@@ -136,7 +189,25 @@ export const ConceptFrontmatterSchema = z.object({
   type: z.string().min(1),
   title: z.string().min(1),
   description: z.string().min(1),
-  timestamp: z.string().min(1),
+  // v0.1 legacy last-modified stamp — OPTIONAL since v0.2 replaced it with
+  // `generated` (id-439; previously-published bundles still carry it).
+  timestamp: z.string().min(1).optional(),
+  // v0.2 `generated: { by, at }` — optional so legacy bundles keep parsing.
+  generated: ConceptGeneratedSchema.optional(),
+  // v0.2 frontmatter provenance list — `[^id]` body footnotes key into
+  // these entries' `id`s. Optional: DB-backed legacy concepts have none.
+  sources: z.array(ConceptSourceSchema).optional(),
+  // §11 duty (id-439, forward-compatible with id-428 — nothing emits it
+  // yet): a bare `verified` mapping normalises to a one-element list, so
+  // consumers only ever see the list shape. Entry internals stay open
+  // records — id-428 owns the entry contract.
+  verified: z.preprocess(
+    (value) =>
+      value === undefined || value === null || Array.isArray(value)
+        ? (value ?? undefined)
+        : [value],
+    z.array(z.record(z.string(), z.unknown())).optional(),
+  ),
   // {132.41} bl-456 routing hints — free optional strings, no positive
   // shape check beyond being a string (mirrors `producer/frontmatter.py`:
   // hints get the BI-10 stray-pointer guard at write time, not a schema
@@ -151,7 +222,7 @@ export const ConceptFrontmatterSchema = z.object({
     .string()
     .refine(isValidConceptResourceUri, {
       message:
-        'resource must match canonical://<table>/<uuid> or canonical://q_a_pairs?scope_tag=<tag>',
+        'resource must match canonical://<table>/<uuid>, canonical://q_a_pairs?scope_tag=<tag>, or an http(s) URL',
     })
     .optional(),
   tags: z.array(z.string()),

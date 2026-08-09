@@ -29,6 +29,18 @@ export type OkfIriScope = 'base' | 'client' | 'unmapped';
 export type OkfEdgeRelationship = 'cites' | 'related';
 
 /**
+ * One OKF v0.2 `sources[]` provenance entry (id-439). `resource` may be a
+ * `canonical://` pointer (resolved via the secondary lane on click), an
+ * https URL, or a bundle-absolute `.md` path (a concept citation) — the
+ * `<ConceptDetail>` provenance surface discriminates by shape.
+ */
+export interface OkfConceptSource {
+  id: string;
+  resource: string;
+  title?: string;
+}
+
+/**
  * One Cytoscape node in the bundle concept graph. The five `{132.49}`
  * fields (`bundleId`/`bundleClass`/`confidence`/`opacity`/`iriScope`) are
  * OPTIONAL here even though the server always populates them from
@@ -50,6 +62,8 @@ export interface OkfBundleGraphNode {
     confidence?: string | null;
     opacity?: number;
     iriScope?: OkfIriScope;
+    /** v0.2 `sources[]` provenance (id-439) — optional for the same back-compat reason as the `{132.49}` fields; legacy concepts serve `[]`. */
+    sources?: OkfConceptSource[];
   };
 }
 

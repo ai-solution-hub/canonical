@@ -1,7 +1,14 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   buildBundleGraph,
   buildUnionBundleGraph,
@@ -438,6 +445,243 @@ describe('buildBundleGraph', () => {
     expect(buildBundleGraph(rootNoEntry).nodes[0].data.iriScope).toBe(
       'unmapped',
     );
+  });
+});
+
+// ────────────────────────────────────────
+// OKF v0.2 sources[] provenance (id-439, S546 rulings + id-426 emission
+// contract): cites edges derive from sources[] bundle-path entries;
+// the # Citations trailer split survives as the v0.1 fallback (§13.1).
+// ────────────────────────────────────────
+
+describe('buildBundleGraph — OKF v0.2 sources[] (id-439)', () => {
+  const REPO_ROOT = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+  );
+
+  const v02Concept = [
+    '---',
+    'type: topic',
+    'title: Data Encryption',
+    'description: Encryption at rest and in transit.',
+    'generated:',
+    '  by: kh-concept-producer/claude-sonnet-4-5',
+    '  at: "2026-08-08T12:00:00Z"',
+    'sources:',
+    '  - id: src-handbook',
+    '    resource: "canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6"',
+    '    title: Security Handbook',
+    '  - id: src-standard',
+    '    resource: "https://example.com/iso-27001"',
+    '  - id: src-cert',
+    '    resource: "/tables/customers.md"',
+    'tags: [security]',
+    '---',
+    '',
+    'Encrypted at rest[^src-handbook]. Also mentions [orders](/tables/orders.md)',
+    'inline.',
+    '',
+    '[^src-handbook]: Security Handbook, §3.',
+  ].join('\n');
+
+  it('derives a cites edge from a sources[] bundle-path entry, never from canonical:// or https entries', () => {
+    const root = bundle({
+      'topics/encryption.md': v02Concept,
+      'tables/customers.md': customers,
+      'tables/orders.md': orders,
+    });
+
+    const graph = buildBundleGraph(root);
+    const fromConcept = graph.edges.filter(
+      (e) => e.data.source === 'topics/encryption',
+    );
+    const byTarget = Object.fromEntries(
+      fromConcept.map((e) => [e.data.target, e.data.relationship]),
+    );
+
+    expect(byTarget['tables/customers']).toBe('cites');
+    expect(byTarget['tables/orders']).toBe('related');
+    expect(fromConcept).toHaveLength(2); // nothing minted for the canonical:// or https sources
+  });
+
+  it('keeps link extraction intact in a body carrying [^id] footnote markers and definitions', () => {
+    const root = bundle({
+      'topics/encryption.md': v02Concept,
+      'tables/orders.md': orders,
+    });
+
+    const graph = buildBundleGraph(root);
+    const fromConcept = graph.edges.filter(
+      (e) => e.data.source === 'topics/encryption',
+    );
+
+    // The inline body link still resolves; the footnote marker/definition
+    // lines mint no edges of their own (they carry no ](…) link shape).
+    expect(fromConcept).toHaveLength(1);
+    expect(fromConcept[0].data).toMatchObject({
+      target: 'tables/orders',
+      relationship: 'related',
+    });
+  });
+
+  it('treats sources[] as authoritative over a leftover # Citations trailer: trailer links type related, not cites', () => {
+    const hybrid = [
+      '---',
+      'type: topic',
+      'title: Hybrid',
+      'description: Sources present AND a legacy trailer.',
+      'sources:',
+      '  - id: src-cert',
+      '    resource: "/tables/customers.md"',
+      '---',
+      '',
+      'Body prose.',
+      '',
+      '# Citations',
+      '',
+      '[1] [Orders](/tables/orders.md)',
+    ].join('\n');
+    const root = bundle({
+      'topics/hybrid.md': hybrid,
+      'tables/customers.md': customers,
+      'tables/orders.md': orders,
+    });
+
+    const graph = buildBundleGraph(root);
+    const byTarget = Object.fromEntries(
+      graph.edges
+        .filter((e) => e.data.source === 'topics/hybrid')
+        .map((e) => [e.data.target, e.data.relationship]),
+    );
+
+    expect(byTarget['tables/customers']).toBe('cites'); // from sources[]
+    expect(byTarget['tables/orders']).toBe('related'); // trailer demoted — sources[] is authoritative
+  });
+
+  it('still types legacy v0.1 trailer links as cites when sources[] is absent (§13.1 fallback)', () => {
+    const legacy = [
+      '---',
+      'type: topic',
+      'title: Legacy',
+      'description: No sources frontmatter.',
+      '---',
+      '',
+      'Body prose.',
+      '',
+      '# Citations',
+      '',
+      '[1] [Customers](/tables/customers.md)',
+    ].join('\n');
+    const root = bundle({
+      'topics/legacy.md': legacy,
+      'tables/customers.md': customers,
+    });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.edges[0].data).toMatchObject({
+      source: 'topics/legacy',
+      target: 'tables/customers',
+      relationship: 'cites',
+    });
+  });
+
+  it("carries each node's sources[] entries for the detail surface, and [] for a legacy concept", () => {
+    const root = bundle({
+      'topics/encryption.md': v02Concept,
+      'tables/orders.md': orders,
+    });
+
+    const graph = buildBundleGraph(root);
+    const byId = Object.fromEntries(
+      graph.nodes.map((n) => [n.data.id, n.data]),
+    );
+
+    expect(byId['topics/encryption'].sources).toEqual([
+      {
+        id: 'src-handbook',
+        resource:
+          'canonical://source_documents/3fa85f64-5717-4562-b3fc-2c963f66afa6',
+        title: 'Security Handbook',
+      },
+      { id: 'src-standard', resource: 'https://example.com/iso-27001' },
+      { id: 'src-cert', resource: '/tables/customers.md' },
+    ]);
+    expect(byId['tables/orders'].sources).toEqual([]);
+  });
+
+  it('drops malformed sources[] entries without rejecting the concept (§11 tolerance)', () => {
+    const sloppy = [
+      '---',
+      'type: topic',
+      'title: Sloppy',
+      'description: Malformed source entries.',
+      'sources:',
+      '  - not-a-mapping',
+      '  - id: no-resource-at-all',
+      '  - id: 7',
+      '    resource: "/tables/customers.md"',
+      '---',
+      '',
+      'Body.',
+    ].join('\n');
+    const root = bundle({
+      'topics/sloppy.md': sloppy,
+      'tables/customers.md': customers,
+    });
+
+    const graph = buildBundleGraph(root);
+    const node = graph.nodes.find((n) => n.data.id === 'topics/sloppy');
+
+    // Only the well-formed entry survives (YAML numeric id coerced to a string).
+    expect(node?.data.sources).toEqual([
+      { id: '7', resource: '/tables/customers.md' },
+    ]);
+    expect(graph.edges[0].data).toMatchObject({
+      source: 'topics/sloppy',
+      target: 'tables/customers',
+      relationship: 'cites',
+    });
+  });
+
+  it('walks BOTH on-disk fixture generations in one bundle — the v0.2 and v0.1 concepts each parse and mint their cites', () => {
+    const v02Fixture = readFileSync(
+      path.resolve(REPO_ROOT, '__tests__/fixtures/okf/concept-v02-sources.md'),
+      'utf8',
+    );
+    const v01Fixture = readFileSync(
+      path.resolve(REPO_ROOT, '__tests__/fixtures/okf/concept-v01-legacy.md'),
+      'utf8',
+    );
+    const certTarget = [
+      '---',
+      'type: certification',
+      'title: ISO 27001',
+      'description: Information security management certification.',
+      '---',
+      '',
+      'The certification concept.',
+    ].join('\n');
+    const root = bundle({
+      'topics/encryption-v02.md': v02Fixture,
+      'topics/encryption-v01.md': v01Fixture,
+      'certifications/iso-27001.md': certTarget,
+    });
+
+    const graph = buildBundleGraph(root);
+    const ids = graph.nodes.map((n) => n.data.id);
+    expect(ids).toContain('topics/encryption-v02');
+    expect(ids).toContain('topics/encryption-v01');
+
+    const relationships = Object.fromEntries(
+      graph.edges.map((e) => [e.data.source, e.data.relationship]),
+    );
+    // v0.2: cites from sources[]; v0.1: cites from the trailer split.
+    expect(relationships['topics/encryption-v02']).toBe('cites');
+    expect(relationships['topics/encryption-v01']).toBe('cites');
   });
 });
 

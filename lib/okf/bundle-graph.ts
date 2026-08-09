@@ -62,6 +62,21 @@
  *    `https://w3id.org/canonical/ontology`) into `'base' | 'client' |
  *    'unmapped'` by comparing the minted IRI's prefix against the
  *    `@context`'s own `base`/`client` namespace-prefix entries.
+ *
+ * **OKF v0.2 `sources[]` provenance (id-439 consumer alignment, S546).**
+ * The v0.2 producer (id-426) moved concept citations out of the
+ * `# Citations` body trailer into a `sources:` frontmatter list
+ * (`{ id, resource, title? }`; body attribution is `[^id]` footnotes keyed
+ * to `sources[].id`). When a concept carries a non-empty `sources[]` it is
+ * AUTHORITATIVE: `cites` edges derive from the entries whose `resource` is
+ * a bundle `.md` path (bundle-absolute `/foo.md` or doc-relative, resolved
+ * exactly like a body link); `canonical://` / https entries are provenance
+ * pointers, never graph edges; every internal body link (footnote markers
+ * cannot match `LINK_RE` — they carry no `](…)`) types `related`. When
+ * `sources[]` is absent, the legacy trailer split above remains the v0.1
+ * fallback (v0.2 §13.1: consumers MAY still parse the legacy trailer).
+ * Each node also carries its `sources` list verbatim for the
+ * `<ConceptDetail>` provenance surface.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -107,6 +122,14 @@ type BundleClassSignal = 'client' | 'platform' | 'unknown';
 type IriScope = 'base' | 'client' | 'unmapped';
 type EdgeRelationship = 'cites' | 'related';
 
+/** One v0.2 `sources[]` frontmatter entry (id-439 — see module doc). The
+ * client mirror is `OkfConceptSource` in `lib/query/okf.ts`. */
+interface ConceptSourceEntry {
+  id: string;
+  resource: string;
+  title?: string;
+}
+
 interface BundleGraphNodeData {
   id: string;
   label: string;
@@ -126,6 +149,8 @@ interface BundleGraphNodeData {
   opacity: number;
   /** bl-457 `@context` IRI scope for this node's `type` term (module doc §4) — `'unmapped'` when `context.jsonld` is absent or the type has no `@context` entry. */
   iriScope: IriScope;
+  /** v0.2 `sources[]` provenance entries (id-439) — `[]` for legacy v0.1 concepts. */
+  sources: ConceptSourceEntry[];
 }
 
 interface BundleGraphNode {
@@ -165,6 +190,7 @@ interface Concept {
   resource: string;
   tags: string[];
   confidence: string | null;
+  sources: ConceptSourceEntry[];
   body: string;
   linksTo: TypedLink[];
 }
@@ -212,23 +238,42 @@ function extractLinks(
   const re = new RegExp(LINK_RE.source, 'g');
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
-    const target = match[1];
-    if (target.includes('://')) continue;
-
-    const resolved = target.startsWith('/')
-      ? path.resolve(bundleRootResolved, target.replace(/^\/+/, ''))
-      : path.resolve(docDir, target);
-    const rel = path.relative(bundleRootResolved, resolved);
-    if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) continue;
-
-    let relPosix = rel.split(path.sep).join('/');
-    if (relPosix.endsWith('.md')) relPosix = relPosix.slice(0, -3);
+    const relPosix = resolveInternalTarget(
+      match[1],
+      docDir,
+      bundleRootResolved,
+    );
     if (relPosix && !seen.has(relPosix)) {
       seen.add(relPosix);
       out.push(relPosix);
     }
   }
   return out;
+}
+
+/**
+ * Resolve ONE internal link target to a bundle-root-relative concept id
+ * (`.md` suffix stripped, POSIX-separated), or `null` for an external
+ * (`://`) target or one that escapes the bundle root. Shared by body-link
+ * extraction (`extractLinks`) and v0.2 `sources[]` concept-citation
+ * resolution so the two lanes provably resolve identically.
+ */
+function resolveInternalTarget(
+  target: string,
+  docDir: string,
+  bundleRootResolved: string,
+): string | null {
+  if (target.includes('://')) return null;
+
+  const resolved = target.startsWith('/')
+    ? path.resolve(bundleRootResolved, target.replace(/^\/+/, ''))
+    : path.resolve(docDir, target);
+  const rel = path.relative(bundleRootResolved, resolved);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+
+  let relPosix = rel.split(path.sep).join('/');
+  if (relPosix.endsWith('.md')) relPosix = relPosix.slice(0, -3);
+  return relPosix || null;
 }
 
 /**
@@ -265,20 +310,53 @@ function splitCitationsTrailer(body: string): {
 
 /**
  * Resolve every internal `.md` link in `body` into a relationship-typed
- * link ({132.49} module doc §4). A link inside the `# Citations` trailer is
- * processed FIRST so it wins the per-concept dedup below — a target cited
- * in the trailer is a `cites` edge even when the SAME target is also
- * mentioned inline in the prose body.
+ * link ({132.49} module doc §4; v0.2 `sources[]` doctrine in the module
+ * doc's id-439 section).
+ *
+ * A non-empty `sources[]` is AUTHORITATIVE: `cites` targets come from the
+ * entries whose `resource` is a bundle `.md` path, and every internal body
+ * link — including any legacy-style trailer text still present — types
+ * `related`. `cites` targets are processed FIRST so they win the
+ * per-concept dedup, exactly as the trailer did: a target cited in
+ * `sources[]` stays a `cites` edge even when also linked inline.
+ *
+ * With `sources[]` absent (a v0.1 legacy concept), the positional
+ * `# Citations` trailer split remains the fallback (v0.2 §13.1).
  */
 function extractTypedLinks(
   body: string,
   docDir: string,
   bundleRootResolved: string,
+  sources: ConceptSourceEntry[],
 ): TypedLink[] {
-  const { main, citations } = splitCitationsTrailer(body);
   const out: TypedLink[] = [];
   const seen = new Set<string>();
 
+  if (sources.length > 0) {
+    for (const source of sources) {
+      // Only bundle `.md` paths are concept citations; `canonical://` and
+      // https entries are provenance pointers, never graph edges. Anchors
+      // are tolerated the same way `LINK_RE`'s capture group drops them.
+      const targetPath = source.resource.split('#')[0];
+      if (!targetPath.endsWith('.md')) continue;
+      const target = resolveInternalTarget(
+        targetPath,
+        docDir,
+        bundleRootResolved,
+      );
+      if (!target || seen.has(target)) continue;
+      seen.add(target);
+      out.push({ target, relationship: 'cites' });
+    }
+    for (const target of extractLinks(body, docDir, bundleRootResolved)) {
+      if (seen.has(target)) continue;
+      seen.add(target);
+      out.push({ target, relationship: 'related' });
+    }
+    return out;
+  }
+
+  const { main, citations } = splitCitationsTrailer(body);
   for (const target of extractLinks(citations, docDir, bundleRootResolved)) {
     if (seen.has(target)) continue;
     seen.add(target);
@@ -304,6 +382,33 @@ function fmTags(value: unknown): string[] {
   if (!value) return [];
   const list = Array.isArray(value) ? value : [value];
   return list.map((t) => String(t));
+}
+
+/**
+ * Coerce a frontmatter `sources:` value into typed entries (id-439).
+ * Tolerant, never throws (§11: a malformed entry is dropped, never a
+ * rejected concept): entries must be mappings with a non-empty `id`
+ * (scalars coerced via `String`, matching the `fm*` helpers above — YAML
+ * `id: 1` is a plausible footnote key) and a non-empty string `resource`;
+ * `title` is carried when it is a non-empty string.
+ */
+function fmSources(value: unknown): ConceptSourceEntry[] {
+  if (!Array.isArray(value)) return [];
+  const out: ConceptSourceEntry[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    const id =
+      record.id === null || record.id === undefined ? '' : String(record.id);
+    if (id === '') continue;
+    if (typeof record.resource !== 'string' || record.resource === '') continue;
+    const source: ConceptSourceEntry = { id, resource: record.resource };
+    if (typeof record.title === 'string' && record.title !== '') {
+      source.title = record.title;
+    }
+    out.push(source);
+  }
+  return out;
 }
 
 // A19 (bl-477) confidence -> opacity tiers (module doc §3). Covers the full
@@ -446,6 +551,7 @@ function walkConcepts(bundleRoot: string): Concept[] {
     }
 
     const fm = doc.frontmatter ?? {};
+    const sources = fmSources(fm.sources);
     concepts.push({
       id: conceptId,
       type: fmString(fm.type, 'Unknown'),
@@ -454,11 +560,13 @@ function walkConcepts(bundleRoot: string): Concept[] {
       resource: fmString(fm.resource, ''),
       tags: fmTags(fm.tags),
       confidence: fmNullableString(fm.confidence),
+      sources,
       body: doc.body ?? '',
       linksTo: extractTypedLinks(
         doc.body ?? '',
         path.dirname(filePath),
         bundleRootResolved,
+        sources,
       ),
     });
   }
@@ -481,6 +589,7 @@ function toNode(concept: Concept, meta: BundleMeta): BundleGraphNode {
       confidence: concept.confidence,
       opacity: confidenceToOpacity(concept.confidence),
       iriScope: resolveIriScope(meta.context, concept.type),
+      sources: concept.sources,
     },
   };
 }
