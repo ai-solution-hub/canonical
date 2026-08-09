@@ -31,10 +31,10 @@ import pytest
 
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
+from scripts.cocoindex_pipeline.sources.base import Source
 from scripts.cocoindex_pipeline.sources.repo_docs import (
     RepoConceptKey,
     RepoDocsSource,
-    Source,
     _DEFINE_TOOL_CALL_RE,
     _git_blob_sha,
     _read_source_ref,

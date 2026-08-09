@@ -17,12 +17,14 @@ import threading
 
 import pytest
 
-from scripts.cocoindex_pipeline.sources.l_records import (
+from scripts.cocoindex_pipeline.sources.base import (
     CONCEPT_TYPES,
     ConceptKey,
     ConceptRaw,
-    LRecordsSource,
     Source,
+)
+from scripts.cocoindex_pipeline.sources.l_records import (
+    LRecordsSource,
 )
 
 
@@ -1325,7 +1327,7 @@ class TestConceptFeederConceptKeyWidening:
     site keeps the pre-{132.36} closed-set behaviour."""
 
     def test_permits_a_type_inside_the_context_manager(self):
-        from scripts.cocoindex_pipeline.sources.l_records import (
+        from scripts.cocoindex_pipeline.sources.base import (
             _permit_overlay_concept_types,
         )
 
@@ -1334,7 +1336,7 @@ class TestConceptFeederConceptKeyWidening:
         assert key.concept_type == "partner"
 
     def test_type_is_rejected_again_once_the_context_manager_exits(self):
-        from scripts.cocoindex_pipeline.sources.l_records import (
+        from scripts.cocoindex_pipeline.sources.base import (
             _permit_overlay_concept_types,
         )
 
@@ -1347,7 +1349,7 @@ class TestConceptFeederConceptKeyWidening:
     def test_q_a_pair_is_rejected_even_inside_the_context_manager(self):
         """BI-3 is unconditional — an overlay can never smuggle in
         'q_a_pair' as a permitted type."""
-        from scripts.cocoindex_pipeline.sources.l_records import (
+        from scripts.cocoindex_pipeline.sources.base import (
             _permit_overlay_concept_types,
         )
 

@@ -90,7 +90,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_source_document_uri,
     reference_item_uri_from_source_url,
 )
-from scripts.cocoindex_pipeline.sources.l_records import (  # noqa: E402
+from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
     ConceptKey,
     ConceptRaw,
 )

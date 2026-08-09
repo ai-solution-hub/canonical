@@ -260,7 +260,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
 from scripts.cocoindex_pipeline.producer.validator import (
     is_valid_concept_resource_uri,
 )
-from scripts.cocoindex_pipeline.sources.l_records import ConceptKey, ConceptRaw, Source
+from scripts.cocoindex_pipeline.sources.base import ConceptKey, ConceptRaw, Source
 
 _logger = logging.getLogger(__name__)
 

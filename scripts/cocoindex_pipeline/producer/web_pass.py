@@ -164,7 +164,7 @@ from scripts.cocoindex_pipeline.producer.validator import (
     detect_citation_shrink,
     is_valid_concept_resource_uri,
 )
-from scripts.cocoindex_pipeline.sources.l_records import ConceptKey, ConceptRaw, Source
+from scripts.cocoindex_pipeline.sources.base import ConceptKey, ConceptRaw, Source
 from scripts.cocoindex_pipeline.url_validation import validate_url
 
 _MAX_TOKENS_PASS2 = 8192

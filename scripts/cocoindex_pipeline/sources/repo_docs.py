@@ -3,7 +3,7 @@ PROTOTYPE for the canonical-okf-system baseline bundle (Path-2
 direct-producer authoring lane).
 
 Structural SIBLING of `sources/l_records.py`'s `LRecordsSource`: implements
-the SAME local `@runtime_checkable Source` protocol (`list_concepts()` /
+the SAME `@runtime_checkable Source` protocol (`list_concepts()` /
 `read_concept(key)` / `sample_rows(key, n)` / `find(query)`) so
 `producer/flow_def.py`'s draft loop consumes either Source unchanged
 (PC-2, a later Subtask). Unlike `LRecordsSource` (constructed over an
@@ -12,6 +12,17 @@ ROOT PATH** — the persistent-volume checkout the producer already mounts
 (`OKF_SOURCE_REPO_PATH`, PC-2). Never imports `cocoindex` (collection
 safety for the bare-MagicMock pipeline unit tests — the SAME posture
 `url_source.py`/`l_records.py` keep, TECH id-132:41/135).
+
+**"the SAME protocol" is literal since ID-427 {427.4}** (id-362 F1 leg 1).
+Until then this module declared its OWN structurally-identical copy of the
+protocol `l_records.py` also declared, and said so: *"the two declarations
+are structurally identical by design and must be kept in sync by hand"*.
+Both copies are now retired in favour of the single declaration in
+`sources/base.py`, which is generic over its key/raw pair — `RepoDocsSource`
+satisfies it as `Source[RepoConceptKey, RepoConceptRaw]`, `LRecordsSource`
+as `Source[ConceptKey, ConceptRaw]`. This module imports no `Source` name of
+its own: conformance is structural, and a consumer that wants to check it
+imports `sources/base.py` directly.
 
 **KA3 judged gate (doctrine key-assumption 3, "Path A balloons").** The
 ratified TECH (id-163 §PC-1) claims the S1 system-bundle's five pillars
@@ -99,7 +110,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import Any, Mapping
 
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
@@ -219,27 +230,6 @@ class RepoConceptRaw:
     artefact's `git_blob_sha` is empty (absent at HEAD — an uncommitted
     fixture, or a repo with no commits yet): an unpinned artefact cannot
     resolve a public URL and must not be citable."""
-
-
-@runtime_checkable
-class Source(Protocol):
-    """Structural mirror of the local `Source` protocol declared in
-    `sources/l_records.py` (itself a mirror of the reference_agent's
-    `sources/base.py`, external, not vendored). Declared LOCALLY here too
-    — rather than imported from `l_records.py` — so a future consumer can
-    `isinstance()`-check EITHER Source implementation without importing
-    the other; the two declarations are structurally identical by
-    design and must be kept in sync by hand."""
-
-    async def list_concepts(self) -> "list[RepoConceptKey]": ...
-
-    async def read_concept(self, key: RepoConceptKey) -> RepoConceptRaw: ...
-
-    async def sample_rows(
-        self, key: RepoConceptKey, n: int
-    ) -> "list[Mapping[str, Any]]": ...
-
-    async def find(self, query: str) -> "list[RepoConceptKey]": ...
 
 
 # ── E1 (tool pillar) — `defineTool(server, '<name>', ...)` call-site scan.
@@ -549,9 +539,11 @@ def _mint_git_blob_citation(
 class RepoDocsSource:
     """cocoindex Source adapter over the repo/docs checkout backing the
     canonical-okf-system baseline bundle (ID-163 {163.4} PC-1). Structural
-    sibling of `LRecordsSource` (`sources/l_records.py`): same local
-    `Source` protocol shape, never imports `cocoindex`. Constructed over a
-    **root path** (the repo/docs checkout), not a pool.
+    sibling of `LRecordsSource` (`sources/l_records.py`): conforms to
+    `sources/base.py`'s shared `Source` protocol as
+    `Source[RepoConceptKey, RepoConceptRaw]` ({427.4}), never imports
+    `cocoindex`. Constructed over a **root path** (the repo/docs checkout),
+    not a pool.
 
     **KA3 PROTOTYPE scope (this Subtask).** Only the `tool` pillar (E1)
     and the `navigation` pillar (E2) are wired — see the module

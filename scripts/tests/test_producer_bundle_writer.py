@@ -106,7 +106,7 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.web_pass import (  # noqa: E402
     ReferenceConceptDraft,
 )
-from scripts.cocoindex_pipeline.sources.l_records import ConceptKey  # noqa: E402
+from scripts.cocoindex_pipeline.sources.base import ConceptKey  # noqa: E402
 
 # lib/okf/parse-index.ts / lib/okf/parse-log.ts regex mirrors — Python-side
 # defence-in-depth so a format drift is caught here TOO, not only by the

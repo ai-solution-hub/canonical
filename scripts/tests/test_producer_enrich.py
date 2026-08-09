@@ -102,7 +102,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
     detect_citation_shrink,
 )
-from scripts.cocoindex_pipeline.sources.l_records import (  # noqa: E402
+from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
     ConceptKey,
     ConceptRaw,
 )
