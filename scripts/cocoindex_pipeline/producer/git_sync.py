@@ -83,6 +83,19 @@ assembly that wires the per-run `stage_only=True` staging call and
 feeds approved overrides back through `reapply_overrides` is
 `{132.16}`'s job — this module owns only the producer-side contract.
 
+**Frontmatter fidelity on the override path (id-440).** The capture/
+re-apply machinery above is the DR-016 review surface, so its concept-doc
+model must be able to represent what the producer actually emits. Under
+OKF v0.2 that includes multi-line BLOCK values (`tags:`, `sources:`;
+`verified:` when id-428 lands), so `_parse_concept_doc` models a
+frontmatter key's value as the text after `key:` plus its indented child
+lines — by line SHAPE, never by an enumerated key list — and PROVES the
+round-trip by re-rendering what it parsed and comparing it to the source.
+A shape that does not round-trip raises `FrontmatterShapeError` at
+capture rather than reapplying a truncated document: on a client-owned
+repo, a silently dropped `sources[]` entry would erase provenance the
+next regeneration re-asserts.
+
 **Augmentation guard (BI-27/DR-016 — S451 rider fold-in; the reference
 `write_concept_doc`, `bundle_tools.py:110-155`, "augment, not replace"
 precedent).** When a managed path's content is genuinely changing (no
@@ -155,6 +168,28 @@ class GitSyncError(RuntimeError):
     """Raised when a git subprocess invocation fails unexpectedly (i.e. for
     a reason other than "path absent at this revision", which callers
     handle as ordinary `None`)."""
+
+
+class FrontmatterShapeError(RuntimeError):
+    """Raised when a concept doc's frontmatter is a shape the field-level
+    override model cannot represent FAITHFULLY (id-440).
+
+    The override machinery's whole contract (DR-016/BI-27) is that an
+    approved human edit is re-applied on every regeneration, never dropped.
+    A parser that quietly discards what it cannot model breaks that contract
+    at the one place it is load-bearing — the human-edit-override reapply
+    path, which is ALSO the DR-016 review surface — so an unrepresentable
+    shape refuses LOUDLY here instead of round-tripping a truncated
+    document. `_parse_concept_doc` proves representability by re-rendering
+    what it parsed and comparing it to the input, so this covers shapes
+    nobody enumerated in advance, not a fixed blocklist.
+
+    Deliberately raised from the parser rather than degraded in place: how a
+    run should COPE with one unrepresentable concept (skip that path, fail
+    the run, surface it to the review UI) is a flow-assembly policy call
+    ({132.16}), not a parser call. A caller wanting graceful degradation
+    catches this; it must never be answered by making the parser lossy
+    again."""
 
 
 @dataclass(frozen=True)
@@ -319,15 +354,85 @@ def _delete(repo_path: Path, rel_path: str) -> None:
 
 # ── Field-level concept-doc model (BI-27/DR-016 capture + re-apply) ──────
 #
-# An OKF concept doc is optional YAML frontmatter (`---` fenced `key: value`
-# lines) then a body of a preamble (before the first heading) + heading-led
-# sections. The field-level override machinery splits a doc into named fields
-# so a human edit can be captured + re-applied at frontmatter-key / section
-# granularity — never as a whole-file clobber.
+# An OKF concept doc is optional YAML frontmatter (a `---` fenced block) then
+# a body of a preamble (before the first heading) + heading-led sections. The
+# field-level override machinery splits a doc into named fields so a human
+# edit can be captured + re-applied at frontmatter-key / section granularity —
+# never as a whole-file clobber.
+#
+# **Frontmatter is BLOCK-AWARE, not flat `key: value` (id-440).** A v0.2
+# concept carries multi-line block values — `tags:` and `sources:` today
+# (`producer/frontmatter.py` `render_concept_frontmatter`), `verified:` when
+# id-428 lands — so a key's value is the text after `key:` PLUS every
+# following INDENTED line, held verbatim. Nothing here enumerates which keys
+# are block-shaped: the rule is a property of the LINES, so a new block field
+# needs no change on this side. (The flat reading this replaced dropped every
+# `  - tag` line outright and re-keyed a `  - id: x` sources entry as a
+# top-level `- id`, which then let `sources[].title`/`sources[].resource`
+# overwrite the concept's OWN `title:`/`resource:` — silent corruption of
+# required §5.2 fields, not merely a drop.)
 
 _HEADING_RE = re.compile(r"^#{1,6}\s")
+_FRONTMATTER_FENCE = "---"
 _FRONTMATTER_FIELD_PREFIX = "frontmatter:"
 _BODY_FIELD = "body"
+_CONTINUATION_PREFIXES = (" ", "\t")
+
+
+def _render_frontmatter_entry(key: str, value: str) -> "list[str]":
+    """Render one frontmatter `key -> value` pair back to its source lines —
+    the exact inverse of `_parse_frontmatter_block`'s accumulation.
+
+    A value whose first line is INDENTED is a pure block value (`tags:`,
+    `sources:`): the key line carries no inline scalar and the block follows
+    verbatim. Anything else is an inline scalar, optionally continued by
+    further lines."""
+    if value == "":
+        return [f"{key}:"]
+    lines = value.split("\n")
+    if lines[0].startswith(_CONTINUATION_PREFIXES):
+        return [f"{key}:", *lines]
+    return [f"{key}: {lines[0]}", *lines[1:]]
+
+
+def _parse_frontmatter_block(block: "list[str]") -> "OrderedDict[str, str]":
+    """Parse the lines BETWEEN the `---` fences into an ordered
+    `key -> value` map, where a block-valued key's value carries its indented
+    child lines verbatim (see the module-level note above).
+
+    Raises `FrontmatterShapeError` on any line that is neither a `key:` line
+    nor an indented continuation of the preceding key, on a duplicate key
+    (the override model keys ONE value per frontmatter key, so a second
+    occurrence would silently win), and — via the caller's round-trip proof —
+    on any shape that does not re-render to its own source bytes."""
+    fm: "OrderedDict[str, str]" = OrderedDict()
+    current: "str | None" = None
+    for offset, line in enumerate(block):
+        lineno = offset + 2  # 1-based, past the opening `---`
+        if line.startswith(_CONTINUATION_PREFIXES):
+            if current is None:
+                raise FrontmatterShapeError(
+                    f"frontmatter line {lineno} is indented but continues no "
+                    f"key: {line!r}"
+                )
+            fm[current] = f"{fm[current]}\n{line}" if fm[current] else line
+            continue
+        key, sep, value = line.partition(":")
+        key = key.strip()
+        if not sep or not key:
+            raise FrontmatterShapeError(
+                f"frontmatter line {lineno} is neither a `key:` line nor an "
+                f"indented continuation of the preceding key: {line!r}"
+            )
+        if key in fm:
+            raise FrontmatterShapeError(
+                f"frontmatter key {key!r} is duplicated (line {lineno}) — the "
+                "field-level override model holds one value per key, so the "
+                "second occurrence would silently discard the first"
+            )
+        fm[key] = value.strip()
+        current = key
+    return fm
 
 
 def _parse_concept_doc(
@@ -335,25 +440,48 @@ def _parse_concept_doc(
 ) -> "tuple[OrderedDict[str, str], list[tuple[str, list[str]]]]":
     """Split a concept doc into (frontmatter, body_regions).
 
-    `frontmatter` is an ordered `key -> value` map (value is the text after
-    `key:`). `body_regions` is an ordered list of `(heading, content_lines)`
-    where `heading` is `""` for the preamble region (before the first
-    heading) and the verbatim heading line otherwise, and `content_lines` is
-    that region's body split on newlines (heading line excluded). Serialising
-    via `_serialise_concept_doc` round-trips producer-shaped docs exactly."""
+    `frontmatter` is an ordered `key -> value` map — block values carry their
+    indented child lines verbatim. `body_regions` is an ordered list of
+    `(heading, content_lines)` where `heading` is `""` for the preamble region
+    (before the first heading) and the verbatim heading line otherwise, and
+    `content_lines` is that region's body split on newlines (heading line
+    excluded).
+
+    **`_serialise_concept_doc(*_parse_concept_doc(doc)) == doc` is PROVEN, not
+    assumed** (id-440 AC-2): the frontmatter block is re-rendered from the map
+    this just built and compared against its own source lines, and a mismatch
+    raises `FrontmatterShapeError`. That proof is what makes the loud-refusal
+    guarantee shape-GENERAL — it holds for shapes nobody enumerated, so an
+    unrepresentable frontmatter can never reach `capture_overrides` and
+    round-trip as a silently truncated document."""
     lines = content.split("\n")
     fm: "OrderedDict[str, str]" = OrderedDict()
     idx = 0
 
-    if lines and lines[0].strip() == "---":
+    if lines and lines[0].strip() == _FRONTMATTER_FENCE:
         close = next(
-            (j for j in range(1, len(lines)) if lines[j].strip() == "---"), None
+            (
+                j
+                for j in range(1, len(lines))
+                if lines[j].strip() == _FRONTMATTER_FENCE
+            ),
+            None,
         )
         if close is not None:
-            for fm_line in lines[1:close]:
-                key, sep, value = fm_line.partition(":")
-                if sep:
-                    fm[key.strip()] = value.strip()
+            block = lines[1:close]
+            fm = _parse_frontmatter_block(block)
+            rendered = [
+                line
+                for key, value in fm.items()
+                for line in _render_frontmatter_entry(key, value)
+            ]
+            if rendered != block:
+                raise FrontmatterShapeError(
+                    "frontmatter does not round-trip through the field-level "
+                    "override model — capture refuses rather than reapply a "
+                    f"truncated document (id-440). Parsed as {rendered!r}, "
+                    f"source was {block!r}"
+                )
             idx = close + 1
 
     regions: "list[tuple[str, list[str]]]" = []
@@ -374,9 +502,10 @@ def _serialise_concept_doc(
 ) -> str:
     out: "list[str]" = []
     if fm:
-        out.append("---")
-        out.extend(f"{key}: {value}" for key, value in fm.items())
-        out.append("---")
+        out.append(_FRONTMATTER_FENCE)
+        for key, value in fm.items():
+            out.extend(_render_frontmatter_entry(key, value))
+        out.append(_FRONTMATTER_FENCE)
     for heading, body in regions:
         if heading != "":
             out.append(heading)

@@ -30,9 +30,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
+    ConceptSource,
+    emit_concept_frontmatter,
+)
 from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: E402
     LOG_FILENAME,
     AugmentationGuardRefusal,
+    FrontmatterShapeError,
     HumanEditConflict,
     ProducerOverride,
     ProposedChange,
@@ -955,3 +960,266 @@ class TestProposedChangeSet:
 
         change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
         assert change.change_kind == "augmentation_refused"
+
+
+# ── id-440 — block-list frontmatter fidelity on the override path ─────────
+#
+# The capture → reapply path IS the DR-016 review surface, so a captured
+# override that drops block-list frontmatter erases provenance the moment the
+# override is re-asserted onto a fresh draft. These tests drive the whole
+# CYCLE (capture then reapply), never `_parse_concept_doc` in isolation:
+# parsing correctly and reapplying lossily are different failures and only
+# the cycle catches both.
+#
+# The documents come from the REAL emitter (`producer/frontmatter.py`
+# `emit_concept_frontmatter`) rather than a hand-copied approximation, so
+# these stay bound to the v0.2 emission contract they exist to protect — if
+# the producer changes its block shape, this exercises the NEW shape.
+
+_V2_SOURCES = (
+    ConceptSource(
+        id="sd-aaaaaaaa",
+        resource="canonical://source_documents/aaaaaaaa-1111-4111-8111-111111111111",
+        title="Supplier questionnaire",
+    ),
+    ConceptSource(
+        id="web-guidance-3f9c1a",
+        resource="https://example.invalid/procurement/guidance",
+    ),
+)
+_V2_TAGS = ("pipeline", "ingest", "procurement")
+
+
+def _v2_doc(
+    *,
+    description: str,
+    title: str = "Ingest",
+    tags: "tuple[str, ...]" = _V2_TAGS,
+    sources: "tuple[ConceptSource, ...]" = _V2_SOURCES,
+    body: str = "Producer synthesis.",
+) -> str:
+    """A real OKF v0.2 concept doc, frontmatter rendered by the producer's
+    own emitter — block-style `tags:` and `sources:` included."""
+    return (
+        emit_concept_frontmatter(
+            type="topic",
+            title=title,
+            description=description,
+            generated_by="okf-producer/0.2.0",
+            generated_at="2026-08-10T00:00:00Z",
+            tags=tags,
+            sources=sources,
+        )
+        + f"\n{body}\n"
+    )
+
+
+class TestBlockListFrontmatterSurvivesTheOverrideCycle:
+    """AC-1/AC-3 — a captured override on a concept carrying `tags:` and
+    `sources:` block lists reapplies byte-faithfully."""
+
+    def test_the_tags_block_survives_a_cycle_that_captures_an_unrelated_field(
+        self,
+    ) -> None:
+        """The headline id-440 defect: the human touched only `description`,
+        yet every `tags:` item vanished from the reapplied document."""
+        baseline = _v2_doc(description="Producer description")
+        edited = _v2_doc(description="Human-approved description")
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+        fresh = _v2_doc(description="Producer description regenerated")
+        folded = reapply_overrides({"topic-a.md": fresh}, overrides)["topic-a.md"]
+
+        for tag in _V2_TAGS:
+            assert f"  - {tag}" in folded
+
+    def test_the_sources_block_survives_a_cycle_that_captures_an_unrelated_field(
+        self,
+    ) -> None:
+        """The v0.2 widening: `sources:` entries are the concept's provenance
+        under OKF v0.2 (the `# Citations` trailer is retired), so dropping
+        them on reapply erases provenance on a client-owned repo."""
+        baseline = _v2_doc(description="Producer description")
+        edited = _v2_doc(description="Human-approved description")
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+        fresh = _v2_doc(description="Producer description regenerated")
+        folded = reapply_overrides({"topic-a.md": fresh}, overrides)["topic-a.md"]
+
+        for source in _V2_SOURCES:
+            assert f"  - id: {source.id}" in folded
+            assert f"    resource: {source.resource}" in folded
+
+    def test_a_sources_entry_title_never_overwrites_the_concepts_own_title(
+        self,
+    ) -> None:
+        """A `sources[]` sub-key is NOT a top-level key. Read flatly, the
+        entry's indented `title:`/`resource:` re-keyed as the concept's own
+        `title:`/`resource:` — silent corruption of a required §5.2 field
+        (and a manufactured top-level `resource:`, which S546 F2-B forbids
+        from carrying a record pointer at all)."""
+        baseline = _v2_doc(description="Producer description", title="Ingest")
+        edited = _v2_doc(description="Human-approved description", title="Ingest")
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+        fresh = _v2_doc(description="Regenerated", title="Ingest")
+        folded = reapply_overrides({"topic-a.md": fresh}, overrides)["topic-a.md"]
+
+        assert "title: Ingest" in folded
+        assert "title: Supplier questionnaire" not in folded.split("sources:")[0]
+        assert "\nresource:" not in folded
+
+    def test_the_whole_document_reapplies_byte_faithfully(self, repo: Path) -> None:
+        """AC-1 end to end, through the REAL conflict-capture path: publish a
+        v0.2 concept, let a human edit it on disk, let the next producer run
+        capture the divergence, then fold the capture onto a brand-new draft.
+        The result must be exactly the fresh draft carrying the human's
+        field — not one byte more or less."""
+        v1 = _v2_doc(description="Producer description")
+        sync_bundle(repo, {"topic-a.md": v1, LOG_FILENAME: ""})
+
+        human = _v2_doc(description="Human-approved description")
+        (repo / "topic-a.md").write_text(human, encoding="utf-8")
+
+        v2_fresh = _v2_doc(description="Producer description regenerated")
+        run2 = sync_bundle(repo, {"topic-a.md": v2_fresh, LOG_FILENAME: ""})
+        approved = [o for o in run2.captured_overrides if o.concept_path == "topic-a.md"]
+
+        v3_fresh = _v2_doc(
+            description="Producer description regenerated again",
+            body="Producer synthesis, expanded again.",
+        )
+        folded = reapply_overrides({"topic-a.md": v3_fresh}, approved)
+
+        assert folded["topic-a.md"] == _v2_doc(
+            description="Human-approved description",
+            body="Producer synthesis, expanded again.",
+        )
+
+
+class TestEachBlockListFieldIsItselfOverridable:
+    """AC-3 — the capture → reapply cycle, once per block-list field, where
+    the block list is the thing the human EDITED."""
+
+    def test_a_human_edit_to_the_tags_block_is_captured_and_reapplied(self) -> None:
+        baseline = _v2_doc(description="D")
+        edited = _v2_doc(description="D", tags=(*_V2_TAGS, "board-reviewed"))
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+
+        assert {o.field for o in overrides} == {"frontmatter:tags"}
+        fresh = _v2_doc(description="D", body="Regenerated synthesis.")
+        folded = reapply_overrides({"topic-a.md": fresh}, overrides)
+        assert folded["topic-a.md"] == _v2_doc(
+            description="D",
+            tags=(*_V2_TAGS, "board-reviewed"),
+            body="Regenerated synthesis.",
+        )
+
+    def test_a_human_edit_to_the_sources_block_is_captured_and_reapplied(self) -> None:
+        """A reviewer labelling an unlabelled source is a first-class DR-016
+        review action — the added `title:` must survive regeneration."""
+        labelled = (
+            _V2_SOURCES[0],
+            ConceptSource(
+                id=_V2_SOURCES[1].id,
+                resource=_V2_SOURCES[1].resource,
+                title="Cabinet Office procurement guidance",
+            ),
+        )
+        baseline = _v2_doc(description="D")
+        edited = _v2_doc(description="D", sources=labelled)
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+
+        assert {o.field for o in overrides} == {"frontmatter:sources"}
+        fresh = _v2_doc(description="D", body="Regenerated synthesis.")
+        folded = reapply_overrides({"topic-a.md": fresh}, overrides)
+        assert folded["topic-a.md"] == _v2_doc(
+            description="D", sources=labelled, body="Regenerated synthesis."
+        )
+
+    def test_a_block_field_this_module_has_never_heard_of_round_trips_unchanged(
+        self,
+    ) -> None:
+        """The block rule is a property of the LINES, not of a key whitelist,
+        so a block-list field added later (id-428's `verified:` is the queued
+        one) needs no change on this side. Uses a deliberately unknown key —
+        proving shape-generality, not implementing that field."""
+        baseline = _v2_doc(description="Producer description").replace(
+            "tags:", "reviewed-by:\n  - alice\n  - bob\ntags:", 1
+        )
+        edited = baseline.replace("Producer description", "Human-approved description")
+
+        overrides = capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+        folded = reapply_overrides({"topic-a.md": baseline}, overrides)
+
+        assert folded["topic-a.md"] == edited
+
+
+class TestUnrepresentableFrontmatterFailsLoudAtCapture:
+    """AC-2 — a shape the field-level override model cannot represent
+    refuses at capture; it never silently truncates the document."""
+
+    @pytest.mark.parametrize(
+        ("label", "frontmatter"),
+        [
+            (
+                "a duplicate top-level key (the second would silently win)",
+                "---\ntype: topic\ntitle: One\ntitle: Two\n---\n",
+            ),
+            (
+                "an unindented bare sequence item (belongs to no key)",
+                "---\ntype: topic\n- orphaned\n---\n",
+            ),
+            (
+                "a comment line (carries no key, so it would be dropped)",
+                "---\ntype: topic\n# a human note\n---\n",
+            ),
+            (
+                "an indented line before any key",
+                "---\n  - orphaned\ntype: topic\n---\n",
+            ),
+            (
+                "a blank line inside the block",
+                "---\ntype: topic\n\ntitle: One\n---\n",
+            ),
+        ],
+    )
+    def test_capture_refuses_a_shape_it_cannot_represent(
+        self, label: str, frontmatter: str
+    ) -> None:
+        baseline = frontmatter + "\nProducer synthesis.\n"
+        edited = baseline.replace("Producer synthesis.", "Human synthesis.")
+
+        with pytest.raises(FrontmatterShapeError):
+            capture_overrides("topic-a.md", baseline=baseline, edited=edited)
+
+    def test_the_refusal_names_the_offending_frontmatter(self) -> None:
+        """A loud failure is only useful if the operator can find the line —
+        this is a client-owned repo they must repair by hand."""
+        baseline = "---\ntype: topic\n# a human note\n---\n\nBody.\n"
+
+        with pytest.raises(FrontmatterShapeError, match="# a human note"):
+            capture_overrides("topic-a.md", baseline=baseline, edited=baseline + "x")
+
+    def test_a_sync_run_refuses_rather_than_capturing_a_truncated_override(
+        self, repo: Path
+    ) -> None:
+        """The refusal reaches the real capture site: `sync_bundle`'s
+        human-edit-conflict branch. A truncated capture here would be
+        re-asserted onto every later draft, so failing the run is the honest
+        outcome — silently capturing less than the human wrote is not."""
+        sync_bundle(repo, {"topic-a.md": _v2_doc(description="D"), LOG_FILENAME: ""})
+        (repo / "topic-a.md").write_text(
+            "---\ntype: topic\n# a human note\n---\n\nHuman body.\n", encoding="utf-8"
+        )
+
+        with pytest.raises(FrontmatterShapeError):
+            sync_bundle(
+                repo,
+                {"topic-a.md": _v2_doc(description="D2"), LOG_FILENAME: ""},
+            )
+
+        # BI-22's floor still holds — the human's file is left exactly as-is.
+        assert "# a human note" in (repo / "topic-a.md").read_text(encoding="utf-8")
