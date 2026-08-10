@@ -46,6 +46,19 @@ extractor families:
   parameter since no such directory is ratified content yet — the
   PROTOTYPE proves the GRAIN, not a specific real corpus).
 
+**"the SAME registry shape" is literal since ID-427 {427.16}** (TECH §1's
+fourth consequence, id-362 F1). Until then this module enumerated its two
+pillars from a hardcoded tuple inside `list_concepts` and inlined each
+pillar's directory and `type:` label at its construction site, so it was a
+parallel implementation of the idea `l_records.py` had already made
+declarative at {427.7} — `Coverage` and `census()` landed at {427.9} but the
+registry and the declared directories did not, and {427.9} disclosed that as
+an open gap. `_BUILTIN_GRAINS` at the foot of this module now holds one
+`GrainSpec` per pillar, imported from `sources/base.py` rather than
+re-declared, and `list_concepts`/`read_concept`/`sample_rows` all resolve
+`self._grains[key.grain]`. Adding the reserved `api`/`schema`/`playbook`
+pillars is one registry entry each.
+
 Both pillars resolve to the SAME `RepoConceptKey` shape below — no bespoke
 per-pillar key type or read grid was needed, which is the KA3 verdict this
 Subtask exists to prove (see `scripts/tests/test_repo_docs_source.py`'s
@@ -128,6 +141,8 @@ from scripts.cocoindex_pipeline.sources.base import (
     CorpusCensus,
     Coverage,
     GrainEnumeration,
+    GrainSpec,
+    SampledRows,
     mint_concept_slug,
 )
 
@@ -150,6 +165,21 @@ from scripts.cocoindex_pipeline.sources.base import (
 # real reading and not a tautology. ────────────────────────────────────────
 TOOL_SOURCE_FILES = "tool_source_files"
 NAVIGATION_PAGES = "navigation_pages"
+
+ARTEFACT_LINES = "artefact_lines"
+"""What EVERY grain in this adapter's `sample_rows` returns — `GrainSpec.
+sample_kind` (ID-427 {427.16}).
+
+Neither of `LRecordsSource`'s two values is true here. `sample_rows` returns
+`{"line": n, "text": ...}` dicts sliced out of a file in a checkout, not
+`q_a_pairs` rows and not `source_documents` rows, and `sample_kind`'s one
+consumer — `producer/enrich._samples_source_documents` — must answer `False`
+so it does not try to mint a `canonical://source_documents/<id>` anchor from a
+line number. Declaring the DEFAULT (`"q_a_pairs"`) would reach the same
+`False` by asserting something equally untrue, which is the mistake {427.9}
+corrected in `Coverage` when it made unit kinds open and kind-keyed rather
+than named after two L-records tables. A repo/docs bundle's `log.md` should
+never name a table it does not read, and neither should its grains."""
 
 
 @dataclass(frozen=True)  # frozen → deterministic cocoindex memo key (BI-18 analogue)
@@ -178,6 +208,40 @@ class RepoConceptKey:
     labels this adapter's grains actually emit (`schema`, `tool`, `api`,
     `navigation`, `playbook`) are properties of the grains, not of a
     register."""
+
+    grain: str
+    """ID-427 {427.16} — the DISPATCH key: the `GrainSpec.name` of the pillar
+    that enumerated this concept, exactly as `ConceptKey.grain` carries it for
+    `LRecordsSource` ({427.7}). `read_concept`/`sample_rows` resolve
+    `self._grains[key.grain]` rather than sniffing the shape of `source_ref`,
+    which is what makes adding a pillar **one registry entry** and no
+    dispatcher edit — TECH §1's fourth consequence, *"`repo_docs.
+    RepoDocsSource` uses the same registry shape for its two pillars, so the
+    two Sources stop being parallel implementations of the same idea (id-362
+    F1)"*.
+
+    Distinct from `concept_type` for the same reason it is on `ConceptKey`:
+    the label is relabellable and the dispatch key is not, so a pillar
+    relabelled from `tool` to `mcp_tool` changes what the bundle SAYS and
+    moves no file and routes nothing differently (PI-5).
+
+    Positioned immediately after `concept_type`, mirroring `ConceptKey`'s
+    field order rather than the "keep new fields last" convention this
+    dataclass's `span_content_hash` docstring records. Measured before taking
+    it, the same projection {427.7} ran for `ConceptKey`: **zero** of the 16
+    `RepoConceptKey(...)` constructions in `scripts/` passes a positional
+    argument (AST projection over 155 files, S550), so the silent-positional-
+    shift hazard does not exist here either and the only compile-time break is
+    that `grain` is required.
+
+    **A whole-corpus memo invalidation, and it rides the wave's existing
+    bump.** `memo_fingerprint._canonicalize_dataclass` fingerprints every
+    field name and value unconditionally, so adding a field re-keys every
+    repo/docs concept — measured, not assumed (see {427.12}'s note on
+    `ConceptKey.form_instance_id` for the same probe). `enrich_concept`'s
+    single `version=3` for this wave (DR-060/TECH §5) has not been consumed by
+    a producer run, so the re-draft it already mandates absorbs this at no
+    extra cost, and **no second bump is added**."""
 
     source_ref: str
     """The backing-artefact locator: `file#Lstart-Lend` for the E1
@@ -235,6 +299,13 @@ class RepoConceptKey:
             raise ValueError(
                 f"RepoConceptKey.concept_type is not a well-formed OKF type "
                 f"label: {'; '.join(shape_errors)}"
+            )
+        if not self.grain:
+            raise ValueError(
+                "RepoConceptKey.grain must be non-empty (ID-427 {427.16}: it "
+                "is the dispatch key `read_concept`/`sample_rows` resolve the "
+                "grain registry on — a concept with no grain cannot be read). "
+                "Mirrors `ConceptKey.__post_init__`'s same check ({427.7})."
             )
 
 
@@ -561,6 +632,11 @@ class RepoDocsSource:
     `cocoindex`. Constructed over a **root path** (the repo/docs checkout),
     not a pool.
 
+    **ID-427 {427.16}: every pillar is a registry entry** (`_BUILTIN_GRAINS`
+    at the foot of this module). `list_concepts` iterates it;
+    `read_concept`/`sample_rows` resolve `self._grains[key.grain]`; neither
+    reads `concept_type`, and neither names a pillar.
+
     **KA3 PROTOTYPE scope (this Subtask).** Only the `tool` pillar (E1)
     and the `navigation` pillar (E2) are wired — see the module
     docstring's KA3 gate. The remaining S1 pillars (`api`/`schema`/
@@ -577,6 +653,15 @@ class RepoDocsSource:
     ) -> None:
         self._root = Path(root)
         self._navigation_docs_dir = Path(navigation_docs_dir)
+        # Read as a module global (not captured at class-definition time) so a
+        # caller — a test registering a pillar, most importantly — extends the
+        # registry and nothing else. Byte-for-byte the posture
+        # `LRecordsSource.__init__` takes toward `l_records._BUILTIN_GRAINS`,
+        # which is the point: TECH §1's fourth consequence asks for the SAME
+        # registry shape, not a second one that rhymes.
+        self._grains: "dict[str, GrainSpec]" = {
+            spec.name: spec for spec in _BUILTIN_GRAINS
+        }
         self._coverage: "Coverage | None" = None
         """ID-427 {427.9}: the union of both pillars' `Coverage` from the
         most recent `list_concepts()`. `None` means not enumerated yet, and
@@ -592,25 +677,69 @@ class RepoDocsSource:
         `seen_anchors` argument; this Subtask's scope is the mint +
         validate PAIR, not that wiring."""
 
+    # ── the grain registry (ID-427 {427.16}) ────────────────────────────
+
+    def grain_for(self, key: RepoConceptKey) -> GrainSpec:
+        """The registered `GrainSpec` `key` routes to — the same public seam
+        `LRecordsSource.grain_for` is ({427.7}).
+
+        PUBLIC because two consumers ask a grain about itself rather than
+        re-deriving it from a concept's label: `producer/enrich.
+        _samples_source_documents` reads `GrainSpec.sample_kind`, and
+        `producer/flow_def._drafts_via_template` reads `GrainSpec.drafts_via`.
+        Both already probe for this method by `getattr` and both already
+        answer correctly for this adapter — what changes at {427.16} is that
+        they now answer from a DECLARATION (`sample_kind=ARTEFACT_LINES`,
+        `drafts_via="pass1"`) instead of from the absence of a registry.
+
+        No locator-ownership loop, unlike `LRecordsSource.grain_for`: every
+        grain here locates through the one `source_ref` field, so there is no
+        per-grain locator to police and a check over an empty rule set would
+        be the unreachable defensive branch DR-139 retires."""
+        spec = self._grains.get(key.grain)
+        if spec is None:
+            raise ValueError(
+                f"unknown grain {key.grain!r} for concept {key.rel_path!r} — "
+                f"registered grains: {sorted(self._grains)}"
+            )
+        return spec
+
     # ── list_concepts (abstract, base.py) ───────────────────────────────
 
     async def list_concepts(self) -> "list[RepoConceptKey]":
-        """Enumerate the KA3-prototyped concept set: every `defineTool(...)`
-        call site under `lib/mcp/tools/*.ts` (E1, `tool`), PLUS every
-        `*.md` page directly under `navigation_docs_dir` (E2,
-        `navigation`).
+        """Enumerate the concept set by **iterating the grain registry** —
+        the KA3-prototyped pillars today (E1 `tool`, every `defineTool(...)`
+        call site under `lib/mcp/tools/*.ts`; E2 `navigation`, every `*.md`
+        page directly under `navigation_docs_dir`), plus any pillar a caller
+        has registered.
 
-        ID-427 {427.9}: each pillar now returns a `GrainEnumeration` and
-        this method unions their `Coverage`, exactly as
-        `LRecordsSource.list_concepts` does — the two adapters answer the
-        census question the same way even though their corpora share no
-        table."""
+        ID-427 {427.16}: this loop is the whole enumeration, and it is the
+        same loop `LRecordsSource.list_concepts` runs. A pillar added to
+        `_BUILTIN_GRAINS` is enumerated here, read, sampled and written to the
+        directory it declared with **no edit to this method or to any
+        dispatcher** — the property whose absence produced the inversion, now
+        asserted for this adapter too. Before it, this method named its two
+        pillars in a literal tuple and each pillar inlined its own directory
+        and `type:` label, so the `api`/`schema`/`playbook` pillars the module
+        docstring reserves would each have cost four edits.
+
+        ID-427 {427.9}: each grain returns a `GrainEnumeration` carrying a
+        `Coverage`, and this method unions them — the two adapters answer the
+        census question the same way even though their corpora share no table.
+
+        `runs_last` is honoured exactly as `LRecordsSource` honours it, and
+        `sorted` is stable so the preferred pillars keep registry order. No
+        built-in pillar declares it today; carrying the sort is what lets a
+        residual repo/docs grain (the analogue of {427.10}'s undistilled
+        documents — a `*.ts` file under `lib/mcp/tools/` that defines no tool
+        is exactly such a hole, and the census already reports it) stay ONE
+        registry entry when someone adds it."""
         keys: "list[RepoConceptKey]" = []
         coverage = Coverage()
-        for enumeration in (
-            self._list_tool_concepts(),
-            self._list_navigation_concepts(),
-        ):
+        self._coverage = None
+        for spec in sorted(self._grains.values(), key=lambda s: s.runs_last):
+            self._coverage = coverage
+            enumeration = await spec.list(self, spec)
             keys.extend(enumeration.keys)
             coverage = coverage.union(enumeration.covers)
         self._coverage = coverage
@@ -626,7 +755,21 @@ class RepoDocsSource:
         pillar walked; a `considered` count derived from it could never
         exceed `routed`, and a census that cannot report a hole is not a
         census. Raises before enumeration for the same reason
-        `LRecordsSource.census` does."""
+        `LRecordsSource.census` does.
+
+        **The `considered` side names its corpus kinds here rather than
+        deriving them from the registry, and that is deliberate parity, not
+        residue.** `LRecordsSource.census` does the same — one
+        `_SQL_CENSUS_CORPUS_TOTALS` over a fixed `(SOURCE_DOCUMENTS,
+        Q_A_PAIRS)` pair — because a corpus is a property of the STORE, not of
+        the grains that read it: the whole value of the census is that
+        `considered` is measured independently, so a grain that covers nothing
+        still shows up as a hole. Registering a pillar over an EXISTING kind
+        (every reserved pillar — `api`/`schema` read `*.ts`, `playbook` reads
+        `*.md`) needs nothing here. Registering one over a NEW corpus kind is a
+        corpus declaration, and it is the one thing about this adapter that is
+        still two edits rather than one — recorded as {427.16}'s known limit
+        rather than papered over."""
         if self._coverage is None:
             raise ValueError(
                 "RepoDocsSource.census() was called before list_concepts() — "
@@ -653,7 +796,16 @@ class RepoDocsSource:
         nav_dir = self._root / self._navigation_docs_dir
         return sorted(nav_dir.glob("*.md")) if nav_dir.is_dir() else []
 
-    def _list_tool_concepts(self) -> "GrainEnumeration[RepoConceptKey]":
+    async def _list_tool_concepts(
+        self, spec: GrainSpec
+    ) -> "GrainEnumeration[RepoConceptKey]":
+        """E1 — the code-symbol pillar, enumerated from its OWN declaration.
+
+        ID-427 {427.16}: `spec.directory` and `spec.type_label` replace the
+        `"tool/"` path literal and the `concept_type="tool"` literal that used
+        to be inlined here. Passing the spec back into its own callable is
+        what makes relabelling this pillar unable to move its files (PI-5) —
+        the same mechanism `GrainSpec`'s docstring records for `l_records`."""
         keys: "list[RepoConceptKey]" = []
         covered: "list[str]" = []
         for file_path in self._tool_source_files():
@@ -704,11 +856,12 @@ class RepoDocsSource:
                         # thing it can get wrong. `RESERVED_CONCEPT_STEMS` stays
                         # single-declared in `sources/base.py`.
                         rel_path=(
-                            f"tool/{name}-concept.md"
+                            f"{spec.directory}/{name}-concept.md"
                             if name.casefold() in RESERVED_CONCEPT_STEMS
-                            else f"tool/{name}.md"
+                            else f"{spec.directory}/{name}.md"
                         ),
-                        concept_type="tool",
+                        concept_type=spec.type_label,
+                        grain=spec.name,
                         source_ref=f"{rel_file}#L{lstart}-L{lend}",
                         span_content_hash=_span_content_hash(span_text),
                     )
@@ -717,7 +870,11 @@ class RepoDocsSource:
             keys=tuple(keys), covers=Coverage.of({TOOL_SOURCE_FILES: covered})
         )
 
-    def _list_navigation_concepts(self) -> "GrainEnumeration[RepoConceptKey]":
+    async def _list_navigation_concepts(
+        self, spec: GrainSpec
+    ) -> "GrainEnumeration[RepoConceptKey]":
+        """E2 — the markdown-page pillar, enumerated from its OWN declaration
+        (ID-427 {427.16}; see `_list_tool_concepts` for what that replaced)."""
         keys: "list[RepoConceptKey]" = []
         covered: "list[str]" = []
         for file_path in self._navigation_pages():
@@ -725,8 +882,12 @@ class RepoDocsSource:
             blob_sha = _git_blob_sha(self._root, rel_file)
             keys.append(
                 RepoConceptKey(
-                    rel_path=f"navigation/{mint_concept_slug(file_path.stem)}.md",
-                    concept_type="navigation",
+                    rel_path=(
+                        f"{spec.directory}/"
+                        f"{mint_concept_slug(file_path.stem)}.md"
+                    ),
+                    concept_type=spec.type_label,
+                    grain=spec.name,
                     source_ref=rel_file,
                     git_blob_sha=blob_sha,
                 )
@@ -744,11 +905,25 @@ class RepoDocsSource:
     # ── read_concept (abstract, base.py) ────────────────────────────────
 
     async def read_concept(self, key: RepoConceptKey) -> RepoConceptRaw:
-        """The concept's backing text: the matched call span for a `tool`
-        concept (E1), the whole page for a `navigation` concept (E2).
-        Also mints (PC-5) the artefact's git-blob citation anchor into
-        `self.seen_anchors` and returns it as `RepoConceptRaw.resource` —
-        an artefact this run did not read cannot be cited."""
+        """Run `key`'s grain's read and return the raw backing artefact.
+
+        ID-427 {427.16}: a registry lookup, exactly as `LRecordsSource.
+        read_concept` became at {427.7}. Both built-in pillars share one read
+        (`_read_artefact`), because a `source_ref` locator answers both
+        shapes — but sharing it is now the registry's DECLARATION rather than
+        this method's assumption, so a pillar whose backing artefact is not a
+        file span reaches its own read with no edit here."""
+        spec = self.grain_for(key)
+        return await spec.read(self, spec, key)
+
+    async def _read_artefact(
+        self, spec: GrainSpec, key: RepoConceptKey
+    ) -> RepoConceptRaw:
+        """The concept's backing text: the matched call span for an E1
+        concept, the whole page for an E2 one. Also mints (PC-5) the
+        artefact's git-blob citation anchor into `self.seen_anchors` and
+        returns it as `RepoConceptRaw.resource` — an artefact this run did
+        not read cannot be cited."""
         text = _read_source_ref(self._root, key.source_ref)
         resource = _mint_git_blob_citation(self._root, key, self.seen_anchors)
         return RepoConceptRaw(text=text, resource=resource)
@@ -758,13 +933,22 @@ class RepoDocsSource:
     async def sample_rows(
         self, key: RepoConceptKey, n: int
     ) -> "list[Mapping[str, Any]]":
+        """Run `key`'s grain's sample (ID-427 {427.16} — the second
+        dispatcher this adapter no longer has)."""
+        spec = self.grain_for(key)
+        return await spec.sample(self, spec, key, n)
+
+    async def _sample_artefact_lines(
+        self, spec: GrainSpec, key: RepoConceptKey, n: int
+    ) -> SampledRows:
         """A bounded line-sample of the concept's backing text for the
         Pass-1 prompt context window (mirrors `LRecordsSource.sample_rows`'
         role; repo/docs concepts have no DB rows, so a "row" here is one
-        line of the backing artefact)."""
+        line of the backing artefact — which is what both built-in pillars
+        declare as `sample_kind=ARTEFACT_LINES`)."""
         if n <= 0:
             return []
-        raw = await self.read_concept(key)
+        raw = await self._read_artefact(spec, key)
         lines = raw.text.splitlines()
         return [{"line": i + 1, "text": line} for i, line in enumerate(lines[:n])]
 
@@ -779,3 +963,63 @@ class RepoDocsSource:
         needle = query.casefold()
         keys = await self.list_concepts()
         return [k for k in keys if needle in _concept_haystack(k)]
+
+
+# ── The grain registry (ID-427 {427.16}, TECH §1's fourth consequence) ───
+#
+# *"`repo_docs.RepoDocsSource` uses the same registry shape for its two
+# pillars, so the two Sources stop being parallel implementations of the same
+# idea (id-362 F1)."* The shape is literally the same: `GrainSpec` is imported
+# from `sources/base.py`, not re-declared here — the defect {427.4} retired
+# for the `Source` protocol itself, applied to the grain vocabulary.
+#
+# **Adding a pillar is one of these entries.** The module docstring reserves
+# `api`/`schema` (E1 family) and `playbook` (E2 family) for a future Subtask
+# once KA3 is signed off; each is now an append, because the directory, the
+# emitted `type:` label, the enumeration, the read and the sample are all
+# declared in one object and nothing dispatches on anything else.
+#
+# Kept at the FOOT of the module, mirroring `l_records._BUILTIN_GRAINS`: the
+# entries reference the `RepoDocsSource` methods defined above, and
+# `RepoDocsSource.__init__` reads this name as a module global at construction
+# time so a test can extend the registry by appending one entry. ────────────
+
+TOOL_GRAIN = "tool_define_call"
+"""E1's dispatch key. Named for what the pillar ENUMERATES (a `defineTool`
+call site), not for the label it emits — `type_label="tool"` is relabellable
+and this is not."""
+
+NAVIGATION_GRAIN = "navigation_doc_page"
+"""E2's dispatch key (see `TOOL_GRAIN`)."""
+
+_BUILTIN_GRAINS: "tuple[GrainSpec, ...]" = (
+    GrainSpec(
+        name=TOOL_GRAIN,
+        # The SAME directory string the pre-{427.16} `f"tool/{name}.md"`
+        # literal produced, so no concept moves and no BI-2 identity, memo key
+        # or BI-9 cross-link churns. What changes is that the path is now the
+        # grain's DECLARATION rather than an inlined literal.
+        directory="tool",
+        type_label="tool",
+        list=lambda src, spec: src._list_tool_concepts(spec),
+        read=lambda src, spec, key: src._read_artefact(spec, key),
+        sample=lambda src, spec, key, n: src._sample_artefact_lines(spec, key, n),
+        sample_kind=ARTEFACT_LINES,
+    ),
+    GrainSpec(
+        name=NAVIGATION_GRAIN,
+        directory="navigation",
+        type_label="navigation",
+        list=lambda src, spec: src._list_navigation_concepts(spec),
+        read=lambda src, spec, key: src._read_artefact(spec, key),
+        sample=lambda src, spec, key, n: src._sample_artefact_lines(spec, key, n),
+        sample_kind=ARTEFACT_LINES,
+    ),
+)
+
+BUILTIN_GRAIN_DIRECTORIES = frozenset(spec.directory for spec in _BUILTIN_GRAINS)
+"""The bundle directories this adapter's built-in pillars own — derived from
+the registry, never hand-listed (the `l_records.BUILTIN_GRAIN_DIRECTORIES`
+counterpart). **Not** a uniqueness constraint: id-429 IA-4 permits many-to-one,
+and the reserved `api`/`schema` pillars may well share `tool`'s directory when
+they land."""

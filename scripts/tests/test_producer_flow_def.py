@@ -37,6 +37,7 @@ first-client corpus.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import importlib
 import json
 import subprocess
@@ -2086,10 +2087,97 @@ class TestATemplateGrainEntersNeitherPass:
         assert failures == [] and len(drafts) == 1
 
     def test_a_source_with_no_grain_registry_is_unaffected(self, env) -> None:
-        """`RepoDocsSource` has no `grain_for`, and the dispatch must leave
-        it exactly where it was — the duck-typed posture
+        """A Source with no `grain_for` at all must leave the dispatch
+        exactly where it was — the duck-typed posture
         `enrich._samples_source_documents` already takes toward the two
         concept models."""
         assert (
             env.flow_def._drafts_via_template(object(), object()) is False
         )
+
+    def test_repo_docs_source_answers_false_by_declaration_not_by_absence(
+        self, env, tmp_path
+    ) -> None:
+        """ID-427 {427.16} re-grounds the claim this file used to attach to
+        the test above.
+
+        `RepoDocsSource` HAS a grain registry now, so it no longer answers
+        `False` because `getattr(source, "grain_for", None)` is `None` — it
+        reaches `GrainSpec.drafts_via` and finds the declared `"pass1"`. The
+        BEHAVIOUR is identical and the reason is not, so the claim is
+        re-asserted against the real adapter rather than left resting on a
+        sentence that has become false."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import (  # noqa: PLC0415
+            RepoDocsSource,
+        )
+
+        tools = tmp_path / "lib" / "mcp" / "tools"
+        tools.mkdir(parents=True)
+        (tools / "content.ts").write_text(
+            "export async function reg(server) {\n"
+            "  defineTool(server, 'get', {}, async () => ({}));\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        source = RepoDocsSource(tmp_path)
+        key = asyncio.run(source.list_concepts())[0]
+
+        assert source.grain_for(key).drafts_via == "pass1"
+        assert env.flow_def._drafts_via_template(source, key) is False
+        # The sibling seam in `enrich.py`, asserted the same way: the pillar
+        # DECLARES that its `sample_rows` returns artefact lines, so no
+        # `canonical://source_documents/<id>` anchor is minted from a line
+        # number.
+        assert env.enrich._samples_source_documents(source, key) is False
+
+    def test_a_repo_concept_key_reaches_staging_without_an_attributeerror(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        """ID-427 {427.16} — a REGRESSION, measured before it was fixed, and
+        asserted through the REAL `run_producer_flow` rather than against a
+        re-typed copy of its expression.
+
+        `run_producer_flow`'s BI-28 provenance map read `key.form_instance_id`
+        directly on every enumerated concept, and that line runs for BOTH
+        Sources. A `RepoConceptKey` has no such field, so every staging
+        `system_baseline`/`internal_dev` run raised `AttributeError` there —
+        after drafting, after writing, at the staging step. Measured by
+        executing that exact comprehension over the 15 `RepoConceptKey`s
+        `RepoDocsSource` enumerates from this repo's own checkout.
+
+        That is precisely the "parallel path" id-362 F1 names: a consumer of
+        the shared protocol that works for one key model only. Driving the
+        whole flow is what makes this test able to fail — a hand-copied
+        comprehension in the test body would only ever assert itself."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import (  # noqa: PLC0415
+            TOOL_GRAIN,
+            RepoConceptKey,
+        )
+
+        repo_key = RepoConceptKey(
+            rel_path="tool/get.md",
+            concept_type="tool",
+            grain=TOOL_GRAIN,
+            source_ref="lib/mcp/tools/content.ts#L3-L8",
+        )
+        assert not hasattr(repo_key, "form_instance_id")
+        draft = dataclasses.replace(
+            env.build_draft("tool/get.md", title="Get", concept_type="tool"),
+            key=repo_key,
+        )
+        _wire_source(env, {repo_key: draft})
+
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(), bundle_dir=bundle_dir, repo_path=repo
+            )
+        )
+
+        assert report.sync_result.staged is True
+        assert (repo / "tool/get.md").is_file()
+        # A Source with no form instances contributes nothing to the BI-28
+        # map — the correct outcome, not merely a non-crash.
+        changes = {
+            c["concept_path"]: c for c in report.proposed_change_set["changes"]
+        }
+        assert changes["tool/get.md"]["source_form_instance_id"] is None

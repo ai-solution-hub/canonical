@@ -113,14 +113,20 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.web_pass import (  # noqa: E402
     ReferenceConceptDraft,
 )
-from scripts.cocoindex_pipeline.sources import l_records  # noqa: E402
+from scripts.cocoindex_pipeline.sources import l_records, repo_docs  # noqa: E402
 from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
     ConceptKey,
+    ConceptKeyLike,
     ConceptRaw,
     CorpusCensus,
+    Coverage,
     GrainEnumeration,
     GrainSpec,
     mint_concept_slug,
+)
+from scripts.cocoindex_pipeline.sources.repo_docs import (  # noqa: E402
+    RepoConceptKey,
+    RepoConceptRaw,
 )
 
 
@@ -2635,10 +2641,16 @@ class _PermissivePool:
         return []
 
 
-def _grain_draft(key: ConceptKey, *, title: str, type_label: str) -> ConceptDraft:
+def _grain_draft(key: ConceptKeyLike, *, title: str, type_label: str) -> ConceptDraft:
     """Stands in for the Pass-1 agent loop, exactly as `_draft` does for
     every other test in this file: the model call is not the subject here,
-    the route from a registry entry to a file on disk is."""
+    the route from a registry entry to a file on disk is.
+
+    ID-427 {427.16}: takes `ConceptKeyLike`, so the `RepoDocsSource` pillar
+    tests below reuse it unchanged with a `RepoConceptKey`. Nothing in the
+    write path reads more than `.rel_path` off a draft's key
+    (`bundle_writer._rel_path_of`), which is exactly what that protocol
+    promises."""
     return ConceptDraft(
         key=key,
         frontmatter=_fm(type=type_label, title=title),
@@ -2951,6 +2963,260 @@ class TestAGrainIsOneRegistryEntry:
             "case-studies/acme-ltd.md",
             "case-studies/beta-llp.md",
         ]
+
+
+# =========================================================================
+# ID-427 {427.16} — THE SAME PROPERTY, FOR THE OTHER SOURCE
+#
+# TECH §1's fourth consequence: *"`repo_docs.RepoDocsSource` uses the same
+# registry shape for its two pillars, so the two Sources stop being parallel
+# implementations of the same idea (id-362 F1)."* {427.7} proved the
+# one-registry-entry property for `LRecordsSource` above and left this
+# adapter enumerating from a hardcoded tuple with its directories inlined;
+# {427.9} added `Coverage`/`census()` and disclosed the registry as an open
+# gap. These tests are that gap closed — the SAME claim, asserted the SAME
+# way, so the two cannot drift apart again without one of them failing.
+# =========================================================================
+
+
+def _register_pillar(monkeypatch: pytest.MonkeyPatch, spec: GrainSpec) -> None:
+    """The ONLY production change these tests make — the exact counterpart
+    of `_register_grain` above. If a future edit means a repo/docs pillar
+    also needs an enumeration arm, a `read_concept` branch, a directory
+    literal or a `type:` literal, this helper stops being sufficient and
+    these tests fail, which is the regression they exist to catch."""
+    monkeypatch.setattr(
+        repo_docs, "_BUILTIN_GRAINS", (*repo_docs._BUILTIN_GRAINS, spec)
+    )
+
+
+def _fake_pillar(**overrides: object) -> GrainSpec:
+    """A pillar over a corpus this adapter has never had: two OpenAPI
+    operations, resolved from nothing but the pillar's own declaration.
+
+    Deliberately NOT a third instance of E1 or E2 — the module docstring's
+    KA3 gate says a pillar needing a bespoke read grid is the escalation
+    trigger, so the pillar that proves "one entry is enough" must be one
+    whose read the built-ins do not already answer. This one's `read`
+    returns synthesised text with no file behind it at all."""
+    operations = ("listWidgets", "createWidget")
+
+    async def _list(src: object, spec: GrainSpec) -> GrainEnumeration:
+        return GrainEnumeration(
+            keys=tuple(
+                RepoConceptKey(
+                    rel_path=f"{spec.directory}/{mint_concept_slug(op)}.md",
+                    concept_type=spec.type_label,
+                    grain=spec.name,
+                    source_ref=f"openapi.yaml#/paths/{op}",
+                )
+                for op in operations
+            ),
+            covers=Coverage.of({"openapi_operations": list(operations)}),
+        )
+
+    async def _read(
+        src: object, spec: GrainSpec, key: RepoConceptKey
+    ) -> RepoConceptRaw:
+        return RepoConceptRaw(text=f"operation {key.source_ref}", resource="")
+
+    async def _sample(
+        src: object, spec: GrainSpec, key: RepoConceptKey, n: int
+    ) -> "list[dict]":
+        return [{"line": 1, "text": f"operation {key.source_ref}"}][:n]
+
+    defaults: "dict[str, object]" = dict(
+        name="openapi_operation",
+        directory="api",
+        type_label="api",
+        list=_list,
+        read=_read,
+        sample=_sample,
+        sample_kind=repo_docs.ARTEFACT_LINES,
+    )
+    return GrainSpec(**{**defaults, **overrides})  # type: ignore[arg-type]
+
+
+class TestARepoPillarIsOneRegistryEntry:
+    """**The assertion {427.16} exists to make** — the `RepoDocsSource` half
+    of `TestAGrainIsOneRegistryEntry`."""
+
+    def test_a_pillar_registered_in_a_test_appears_in_the_emitted_bundle(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One registry entry — no `list_concepts` arm, no `read_concept`
+        branch, no `sample_rows` branch, no directory literal, no `type:`
+        literal — and the pillar's concepts are enumerated, read, sampled,
+        written to the directory the pillar declared, reported in the run
+        summary, and listed in that directory's own index.
+
+        Before {427.16} this took four edits in `repo_docs.py`, which is why
+        the module docstring's reserved `api`/`schema`/`playbook` pillars had
+        never been added: the KA3 prototype proved the two GRAINS were
+        enough, and the code then made using that result expensive. The
+        pillar registered here is deliberately an `api` one, so the test
+        measures the cost of the very extension the docstring reserves."""
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        bundle = tmp_path / "bundle"
+        _register_pillar(monkeypatch, _fake_pillar())
+        src = repo_docs.RepoDocsSource(checkout)
+
+        keys = _run(src.list_concepts())
+
+        # 1. Enumerated. (The two built-in pillars find nothing in an empty
+        #    checkout, so the keyset is exactly the pillar under test.)
+        assert [k.rel_path for k in keys] == [
+            "api/listwidgets.md",
+            "api/createwidget.md",
+        ]
+        assert {k.concept_type for k in keys} == {"api"}
+        assert {k.grain for k in keys} == {"openapi_operation"}
+
+        # 2. Read and sampled — routed by `grain`, with no dispatcher arm.
+        #    Neither built-in read could have served these: there is no file
+        #    behind `openapi.yaml#/paths/listWidgets` in this checkout, so a
+        #    `_read_source_ref` fallthrough would raise FileNotFoundError.
+        raw = _run(src.read_concept(keys[0]))
+        assert raw.text == "operation openapi.yaml#/paths/listWidgets"
+        assert _run(src.sample_rows(keys[0], 5)) == [
+            {"line": 1, "text": "operation openapi.yaml#/paths/listWidgets"}
+        ]
+
+        # 3. Emitted.
+        summary = bundle_writer.write_bundle(
+            bundle,
+            [
+                _grain_draft(k, title=k.rel_path.split("/")[-1], type_label="api")
+                for k in keys
+            ],
+        )
+
+        assert sorted(summary.added) == ["api/createwidget.md", "api/listwidgets.md"]
+        written = (bundle / "api" / "listwidgets.md").read_text(encoding="utf-8")
+        assert "type: api" in written
+        # 4. And carried into the per-directory index id-429 emits (IA-1:
+        #    every concept has a directory, and the pillar declared it).
+        index = (bundle / "api" / "index.md").read_text(encoding="utf-8")
+        assert "(listwidgets.md)" in index
+        assert "(createwidget.md)" in index
+
+    def test_the_pre_427_16_hardcoded_enumeration_would_not_have_seen_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The negative control — the test above must be able to FAIL.
+
+        Re-introduces the exact property {427.16} removed: an enumeration
+        that names its pillars instead of iterating the registry. A
+        registered pillar then contributes nothing, so if `list_concepts`
+        ever regresses to that shape the assertion above stops holding. This
+        is the {427.7} discipline (four negative controls, each restoring one
+        pre-change property) applied to this adapter's one."""
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        _register_pillar(monkeypatch, _fake_pillar())
+
+        async def _hardcoded(self) -> "list[RepoConceptKey]":
+            keys: "list[RepoConceptKey]" = []
+            for spec in (
+                self._grains[repo_docs.TOOL_GRAIN],
+                self._grains[repo_docs.NAVIGATION_GRAIN],
+            ):
+                keys.extend((await spec.list(self, spec)).keys)
+            self._coverage = Coverage()
+            return keys
+
+        monkeypatch.setattr(repo_docs.RepoDocsSource, "list_concepts", _hardcoded)
+        src = repo_docs.RepoDocsSource(checkout)
+
+        assert _run(src.list_concepts()) == []
+
+    def test_relabelling_a_pillar_changes_the_emitted_type_and_moves_no_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PI-5 for this adapter, in both halves.
+
+        The pre-{427.16} code interpolated `f"tool/{name}.md"` and
+        `concept_type="tool"` at two separate literal sites, so the two were
+        only accidentally independent — an edit that "kept them in sync"
+        would have made a relabel move every file, churning BI-2 identity,
+        the cocoindex memo key and every BI-9 cross-link. They are now one
+        declaration each and cannot be confused."""
+        checkout = tmp_path / "checkout"
+        checkout.mkdir()
+        bundle = tmp_path / "bundle"
+        _register_pillar(monkeypatch, _fake_pillar())
+        before = _run(repo_docs.RepoDocsSource(checkout).list_concepts())
+
+        monkeypatch.setattr(
+            repo_docs,
+            "_BUILTIN_GRAINS",
+            tuple(
+                dataclasses.replace(spec, type_label="rest_endpoint")
+                if spec.name == "openapi_operation"
+                else spec
+                for spec in repo_docs._BUILTIN_GRAINS
+            ),
+        )
+        after = _run(repo_docs.RepoDocsSource(checkout).list_concepts())
+
+        # The emitted type changed …
+        assert {k.concept_type for k in before} == {"api"}
+        assert {k.concept_type for k in after} == {"rest_endpoint"}
+        # … and the identity — physical path, memo key, BI-9 citation target
+        # — did not.
+        assert [k.rel_path for k in before] == [k.rel_path for k in after]
+
+        summary = bundle_writer.write_bundle(
+            bundle,
+            [
+                _grain_draft(
+                    k, title=k.rel_path.split("/")[-1], type_label="rest_endpoint"
+                )
+                for k in after
+            ],
+        )
+
+        assert summary.moved == ()
+        assert sorted(summary.added) == ["api/createwidget.md", "api/listwidgets.md"]
+        assert "type: rest_endpoint" in (bundle / "api" / "listwidgets.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_the_shipped_pillars_declare_the_directories_they_already_wrote(
+        self, tmp_path: Path
+    ) -> None:
+        """The regression that matters most to a live bundle: {427.16}
+        turned two path literals into two declarations, and a declaration
+        that disagreed with the literal would MOVE every shipped concept.
+
+        Asserted against the emitted `rel_path`s of a real enumeration over a
+        seeded checkout, not against the `GrainSpec.directory` strings — a
+        test that read the declaration back would agree with itself no matter
+        what the enumeration did with it."""
+        checkout = tmp_path / "checkout"
+        tools = checkout / "lib" / "mcp" / "tools"
+        tools.mkdir(parents=True)
+        (tools / "content.ts").write_text(
+            "export async function reg(server) {\n"
+            "  defineTool(server, 'get', {}, async () => ({}));\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        nav = checkout / "docs" / "navigation"
+        nav.mkdir(parents=True)
+        (nav / "getting-started.md").write_text("# Start\n", encoding="utf-8")
+
+        keys = _run(repo_docs.RepoDocsSource(checkout).list_concepts())
+
+        assert sorted(k.rel_path for k in keys) == [
+            "navigation/getting-started.md",
+            "tool/get.md",
+        ]
+        assert {(k.concept_type, k.grain) for k in keys} == {
+            ("tool", repo_docs.TOOL_GRAIN),
+            ("navigation", repo_docs.NAVIGATION_GRAIN),
+        }
 
 
 class TestReservedConceptSlugs:

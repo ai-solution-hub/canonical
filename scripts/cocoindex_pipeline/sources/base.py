@@ -344,6 +344,70 @@ class ConceptRaw:
     form_templates: "list[Mapping[str, Any]]" = field(default_factory=list)
 
 
+@runtime_checkable
+class ConceptKeyLike(Protocol):
+    """What the PRODUCER needs of a concept key, as a structural contract —
+    ID-427 {427.16}, closing **id-362 F1 leg 2**.
+
+    F1's live requirement, in its own words (`tasks/id-362.md` Goal):
+    *"enrich_concept is typed to l_records ConceptKey/ConceptRaw but the
+    Source protocol is shared … so unify enrich over the protocol (not a
+    parallel path)."* Leg 1 landed at {427.4} — one `Source` declaration,
+    generic over its key/raw pair. Leg 2 was recorded closed and was not
+    done: `producer/enrich.py:enrich_concept` stayed annotated `key:
+    ConceptKey` while `producer/flow_def.py` handed it a `RepoConceptKey` on
+    every `system_baseline`/`internal_dev` run.
+
+    **Two attributes, because two attributes is what was measured.** An AST
+    projection over `scripts/` (S550) collected every attribute read off a
+    key-shaped local in `producer/`: `rel_path`, `concept_type`, `scope_tag`
+    and `form_instance_id`. The last two are L-records LOCATORS — `scope_tag`
+    is read only by `enrich._qa_pairs_anchor` and `form_instance_id` only by
+    `flow_def`'s BI-28 map, and both call sites are the "where a locator
+    exists" branch rather than a requirement. Putting them on this protocol
+    would make the protocol describe `ConceptKey` instead of describing what
+    a producer needs, and `RepoConceptKey` would have to grow two fields it
+    has no values for. They stay `getattr`-guarded at their two sites.
+
+    Deliberately NOT a base class. Both key types are frozen dataclasses and
+    the cocoindex memo key is `_canonicalize_dataclass`'s
+    `(module, qualname, fields)` tuple, so a shared base would change neither
+    fingerprint but would add an inheritance edge the two models do not
+    otherwise have — and structural conformance is the same choice
+    `sources/base.py` already made for `Source` ("neither adapter subclasses
+    this protocol").
+
+    `runtime_checkable` for parity with `Source`: `isinstance` verifies
+    ATTRIBUTE PRESENCE only, which is exactly the claim, and a type checker
+    verifies the rest.
+
+    **Both members are declared as read-only properties, and that is
+    required, not stylistic.** A protocol member written as a bare annotation
+    (`rel_path: str`) is a *settable* variable, and neither key model can
+    satisfy it: both are `@dataclass(frozen=True)` — they have to be, because
+    each IS the cocoindex memo key — so their fields are read-only and mypy
+    rejects the conformance outright (*"expected settable variable, got
+    read-only attribute"*). Measured, not anticipated: the bare-annotation
+    form produced 47 new mypy errors across `enrich.py`/`web_pass.py` before
+    this shape replaced it. Read-only is also the honest contract — nothing
+    in `producer/` assigns to a concept key, and a protocol that permitted it
+    would license breaking the memo key."""
+
+    @property
+    def rel_path(self) -> str:
+        """Concept identity — the bundle rel_path, and since {427.8} the
+        bundle write path too. Both key models declare it first and both
+        document it as identity."""
+        ...
+
+    @property
+    def concept_type(self) -> str:
+        """The emitted OKF `type` label. Read by `enrich_concept` for the
+        seed message and the frontmatter `type:` field, and by nothing that
+        routes (DR-141/{427.7}: a label, not a gate)."""
+        ...
+
+
 # ── The grain vocabulary (ID-427 {427.7}, TECH §1) ──────────────────────
 #
 # "A grain is a declared object, and everything about it lives in one place."

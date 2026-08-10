@@ -25,7 +25,8 @@ ROOT = Path(os.getcwd())
 load_dotenv(ROOT / ".env.local")
 
 from scripts.cocoindex_pipeline.sources.repo_docs import (  # noqa: E402
-    RepoDocsSource, RepoConceptKey, _DEFINE_TOOL_CALL_RE, _match_closing_paren,
+    RepoDocsSource, RepoConceptKey, NAVIGATION_GRAIN, TOOL_GRAIN,
+    _DEFINE_TOOL_CALL_RE, _match_closing_paren,
     _span_content_hash, _git_blob_sha,
 )
 from scripts.cocoindex_pipeline.producer.agent_loop import (  # noqa: E402
@@ -65,7 +66,7 @@ def _tool_span(rel_file: str, tool_name: str) -> tuple[int, int]:
 def _tool_key(rel_path: str, rel_file: str, name: str) -> RepoConceptKey:
     ls, le = _tool_span(rel_file, name)
     span = "".join((ROOT / rel_file).read_text(encoding="utf-8").splitlines(keepends=True)[ls - 1:le])
-    return RepoConceptKey(rel_path=rel_path, concept_type="tool",
+    return RepoConceptKey(rel_path=rel_path, concept_type="tool", grain=TOOL_GRAIN,
                           source_ref=f"{rel_file}#L{ls}-L{le}", span_content_hash=_span_content_hash(span))
 
 
@@ -78,7 +79,8 @@ TOOL_KEYS = [
 ]
 _nav_sha = _git_blob_sha(ROOT, "docs/extend-registry-provenance.md")
 NAV_KEY = RepoConceptKey(rel_path="navigation/extend-registry-provenance.md",
-                         concept_type="navigation", source_ref="docs/extend-registry-provenance.md",
+                         concept_type="navigation", grain=NAVIGATION_GRAIN,
+                         source_ref="docs/extend-registry-provenance.md",
                          git_blob_sha=_nav_sha)
 ALL_KEYS = TOOL_KEYS + [NAV_KEY]
 ALL_PATHS = {k.rel_path for k in ALL_KEYS}

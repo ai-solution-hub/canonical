@@ -285,7 +285,12 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
 from scripts.cocoindex_pipeline.producer.validator import (
     is_valid_concept_resource_uri,
 )
-from scripts.cocoindex_pipeline.sources.base import ConceptKey, ConceptRaw, Source
+from scripts.cocoindex_pipeline.sources.base import (
+    ConceptKey,
+    ConceptKeyLike,
+    ConceptRaw,
+    Source,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -330,7 +335,15 @@ class ConceptDraft:
     which validator-gates (BI-13) + `localfs.declare_file`-writes it —
     `enrich_concept` does NOT write files itself."""
 
-    key: ConceptKey
+    key: ConceptKeyLike
+    """ID-427 {427.16}: the shared structural contract, not `ConceptKey`.
+    `RepoDocsSource` drafts produce `RepoConceptKey`-carrying drafts on every
+    `system_baseline`/`internal_dev` run and always did — the annotation was
+    the thing that was wrong (id-362 F1 leg 2). Every consumer of this field
+    reads `.rel_path` and nothing else (`bundle_writer._rel_path_of`,
+    `flow_def._rel_path_of`), which an executed AST projection over `scripts/`
+    confirmed at S550."""
+
     frontmatter: ConceptFrontmatter
     body: str
     """The distilled markdown body, ALREADY including the terminal
@@ -395,16 +408,25 @@ def _samples_source_documents(source: Any, key: Any) -> bool:
     callable it describes.
 
     Duck-typed via `getattr`, the posture `bundle_writer._rel_path_of`
-    already takes toward the two concept models. A Source
-    with no grain registry (`RepoDocsSource`, whose `sample_rows` returns
-    line dicts, not rows) answers `False`, which is its behaviour today."""
+    already takes toward the two concept models. A Source with no grain
+    registry at all answers `False`.
+
+    **ID-427 {427.16} — same answer, different reason, for `RepoDocsSource`.**
+    It HAS a registry now, so it reaches the second line rather than the
+    first, and both its pillars declare `sample_kind=repo_docs.ARTEFACT_LINES`
+    — its `sample_rows` returns `{"line": n, "text": ...}` dicts sliced out of
+    a file, never `source_documents` rows, so minting a
+    `canonical://source_documents/<id>` from one would invent a record id.
+    The claim this function makes about that adapter is unchanged; what
+    changed is that the adapter now DECLARES it instead of answering by
+    accident of having no registry."""
     grain_for = getattr(source, "grain_for", None)
     if grain_for is None:
         return False
     return getattr(grain_for(key), "sample_kind", "") == "source_documents"
 
 
-def _qa_pairs_anchor(key: ConceptKey) -> "str | None":
+def _qa_pairs_anchor(key: ConceptKeyLike) -> "str | None":
     """The BI-8 `q_a_pairs` table/query anchor for `key`'s topic locator.
 
     `None` for `product`/`company`/`certification`/`case_study` concepts —
@@ -414,24 +436,45 @@ def _qa_pairs_anchor(key: ConceptKey) -> "str | None":
     parent `source_documents`/`reference_items` anchors instead. (The
     domain/subtopic fallback anchor retired S531 with the fallback topic
     grain — DR-125 expiry ruled.)
+
+    ID-427 {427.16}: `scope_tag` is read through `getattr` because it is an
+    L-RECORDS LOCATOR, not something a producer needs of every key —
+    `RepoConceptKey` locates through `source_ref` and has no `q_a_pairs`
+    table to point at. `None` is the honest answer for such a key and it is
+    the same answer this function already gives every non-topic L-records
+    concept, so the branch is one the caller already handles.
     """
-    if key.scope_tag is not None:
-        return build_q_a_pairs_query_uri(scope_tag=key.scope_tag)
+    scope_tag = getattr(key, "scope_tag", None)
+    if scope_tag is not None:
+        return build_q_a_pairs_query_uri(scope_tag=scope_tag)
     return None
 
 
-def _resource_from_raw(key: ConceptKey, raw: ConceptRaw) -> "str | None":
+def _resource_from_raw(key: ConceptKeyLike, raw: Any) -> "str | None":
     """The concept's PRIMARY record anchor — "the concept's primary record
     anchor where one exists" — derived deterministically from `key`'s own
     backing records, NEVER asked of the model (BI-6/BI-10: only
     `resource_uri.py` builder output may become a Canonical uuid pointer).
     Under v0.2 (S546 F2-B) this is no longer the top-level `resource:`
     frontmatter field: it leads the `sources[]` list and rides
-    `ConceptDraft.primary_anchor` for Pass-2's confidence recomputation."""
-    if raw.source_documents:
+    `ConceptDraft.primary_anchor` for Pass-2's confidence recomputation.
+
+    **ID-427 {427.16} — the PC-5 branch, closing id-362 F1 leg 2.** A
+    `RepoConceptRaw` has no `source_documents` and no `reference_items`; what
+    it has is `resource`, the git-blob citation anchor `RepoDocsSource.
+    read_concept` minted for the artefact it actually read (DR-086b). That IS
+    that concept's primary anchor by the same definition the two record
+    branches use — the one pointer the run can prove it surfaced — so it
+    feeds `sources[]` and `derive_concept_confidence` exactly as a
+    `canonical://` anchor does, and a repo/docs concept stops being scored as
+    though it had no provenance at all."""
+    if getattr(raw, "source_documents", None):
         return build_source_document_uri(raw.source_documents[0]["id"])
-    if raw.reference_items:
+    if getattr(raw, "reference_items", None):
         return build_reference_item_uri(raw.reference_items[0]["id"])
+    resource = getattr(raw, "resource", "")
+    if resource:
+        return str(resource)
     return _qa_pairs_anchor(key)
 
 
@@ -443,7 +486,7 @@ def _with_resource(row: "Mapping[str, Any]", resource: "str | None") -> "dict[st
 
 
 def _annotate_raw_with_anchors(
-    key: ConceptKey, raw: ConceptRaw, seen_anchors: "set[str]"
+    key: ConceptKeyLike, raw: Any, seen_anchors: "set[str]"
 ) -> "dict[str, Any]":
     """The `read_concept_raw` tool result — `raw`'s rows, with every
     `source_documents`/`reference_items` row carrying its BI-6 per-row
@@ -474,7 +517,38 @@ def _annotate_raw_with_anchors(
     (`issuing_organisation`/`name`) instead, kept under its pre-rename
     `ConceptRaw` field name (the underlying table is `form_instances`) — see
     `sources/l_records.py`'s module docstring for the full re-point
-    rationale."""
+    rationale.
+
+    **ID-427 {427.16} — the artefact branch, closing id-362 F1 leg 2.** A
+    `RepoConceptRaw` carries one artefact's `text` and the PC-5 git-blob
+    anchor `RepoDocsSource.read_concept` minted for it, and none of the eight
+    L-records row lists below. Before this, feeding one here raised
+    `AttributeError` on the first `raw.source_documents` — which is why
+    `scripts/_okf_prototype_draft.py` exists at all, a throwaway driver whose
+    own docstring records that it drafts *"WITHOUT the L-records-coupled
+    enrich_concept loop (which does not consume RepoConceptRaw)"*. That fork
+    IS the parallel path id-362 F1 asks to remove.
+
+    The artefact branch mints through the SAME `_mint` ledger, so BI-17 holds
+    unchanged in the new scheme: the model may cite the git-blob URL it was
+    handed, and a well-formed one it INVENTS still fails
+    `_validate_citation`'s `seen_anchors` membership check. An artefact
+    absent at HEAD mints nothing (`RepoConceptRaw.resource` is `""`), so its
+    text reaches the model uncited and stays uncitable — the posture
+    `repo_docs._mint_git_blob_citation` already takes.
+
+    Discriminated on `text` rather than on the raw's TYPE, the duck-typed
+    posture `_samples_source_documents` and `flow_def._drafts_via_template`
+    already take toward the two concept models. Importing `RepoConceptRaw`
+    here would point `producer/` at one adapter, which is the coupling this
+    change exists to remove."""
+    text = getattr(raw, "text", None)
+    if text is not None:
+        artefact: "dict[str, Any]" = {"text": text}
+        resource = getattr(raw, "resource", "")
+        if resource:
+            artefact["resource"] = _mint(str(resource), seen_anchors)
+        return artefact
     payload: "dict[str, Any]" = {
         "source_documents": [
             _with_resource(row, _mint(build_source_document_uri(row["id"]), seen_anchors))
@@ -521,10 +595,10 @@ def _mint(anchor: str, seen_anchors: "set[str]") -> str:
 
 
 def _build_tool_executors(
-    key: ConceptKey,
+    key: ConceptKeyLike,
     source: Source,
-    catalogue: "Sequence[ConceptKey]",
-    raw_cache: "dict[str, ConceptRaw]",
+    catalogue: "Sequence[ConceptKeyLike]",
+    raw_cache: "dict[str, Any]",
     seen_anchors: "set[str]",
 ) -> "dict[str, Any]":
     """The Pass-1 tool-executor map (`producer/agent_loop.py:ToolExecutor`
@@ -534,7 +608,9 @@ def _build_tool_executors(
     round-trip per call). `seen_anchors` is the shared per-run provenance
     ledger `_annotate_raw_with_anchors` mints into — passed through so every
     `read_concept_raw` call records what it actually returned (BI-17)."""
-    catalogue_by_path: "dict[str, ConceptKey]" = {ck.rel_path: ck for ck in catalogue}
+    catalogue_by_path: "dict[str, ConceptKeyLike]" = {
+        ck.rel_path: ck for ck in catalogue
+    }
     catalogue_by_path.setdefault(key.rel_path, key)
 
     async def _read_concept_raw(tool_input: "Mapping[str, Any]") -> Any:
@@ -916,7 +992,7 @@ def _cached_system() -> "list[dict[str, object]]":
     ]
 
 
-def _seed_user_message(key: ConceptKey) -> str:
+def _seed_user_message(key: ConceptKeyLike) -> str:
     return (
         f"Draft the concept at bundle path {key.rel_path!r} "
         f"(concept_type={key.concept_type!r}). Start by calling "
@@ -930,7 +1006,7 @@ def _seed_user_message(key: ConceptKey) -> str:
 
 @coco.fn(memo=True, memo_key={"source": None}, version=3)
 async def enrich_concept(
-    key: ConceptKey,
+    key: ConceptKeyLike,
     source: Source,
     *,
     model: str = PRODUCER_MODEL,
@@ -957,10 +1033,22 @@ async def enrich_concept(
     `version=3` (ID-427 {427.7}) is **the id-427 wave's single bump** — see
     the module docstring's `version=3` section for what it covers and why no
     later subtask in the wave re-bumps it.
+
+    **ID-427 {427.16}: `key` is `ConceptKeyLike`, closing id-362 F1 leg 2.**
+    That task asked for *"enrich unified over the protocol (not a parallel
+    path)"*; leg 1 gave the two adapters one `Source` declaration at {427.4},
+    and this parameter stayed annotated `ConceptKey` while
+    `flow_def._draft_concepts` handed it a `RepoConceptKey` on every
+    `system_baseline`/`internal_dev` run. The annotation is now the shared
+    structural contract, and — the part the annotation alone would not have
+    bought — `_annotate_raw_with_anchors` and `_resource_from_raw` grew the
+    artefact branch that makes the call actually complete for a
+    `RepoConceptRaw`. Asserted by passing a REAL `RepoConceptKey` from a real
+    `RepoDocsSource` through this function, not by inspecting the signature.
     """
     catalogue = await source.list_concepts()
     own_raw = await source.read_concept(key)
-    raw_cache: "dict[str, ConceptRaw]" = {key.rel_path: own_raw}
+    raw_cache: "dict[str, Any]" = {key.rel_path: own_raw}
 
     # BI-17/BI-9 provenance ledgers (Checker finding — format alone is not
     # proof of provenance): `seen_anchors` accumulates every canonical://

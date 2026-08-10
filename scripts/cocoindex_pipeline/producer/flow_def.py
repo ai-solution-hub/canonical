@@ -288,8 +288,15 @@ def _drafts_via_template(source: Any, key: Any) -> bool:
 
     Duck-typed through `grain_for`, the posture `enrich._samples_source_
     documents` already takes toward the two concept models: a Source with no
-    grain registry (`RepoDocsSource`) answers `False`, which is its behaviour
-    today. Read here, at the drafting call site, rather than inside
+    grain registry answers `False`.
+
+    **ID-427 {427.16}:** `RepoDocsSource` has a registry now and reaches the
+    `drafts_via` read instead, where both its pillars declare the default
+    `"pass1"` — so it still answers `False`, by declaration rather than by
+    absence. It is also the adapter that makes the `getattr(spec,
+    "drafts_via", ...)` default matter less than it looks: the fallback now
+    guards only a Source whose `grain_for` returns something that is not a
+    `GrainSpec`. Read here, at the drafting call site, rather than inside
     `enrich_concept` — that function IS the agent loop, and a grain declaring
     it does not use the loop should not have to enter it to say so."""
     grain_for = getattr(source, "grain_for", None)
@@ -675,11 +682,28 @@ async def run_producer_flow(
     # two are one string and the re-derivation is gone, not relocated. A path
     # absent from the map keeps ProposedChange.source_form_instance_id at its
     # None default (the ordinary Pass-1/Pass-2 producer flow).
-    source_form_instance_ids = {
-        key.rel_path: key.form_instance_id
-        for key in concepts
-        if key.form_instance_id is not None
-    }
+    #
+    # ID-427 {427.16}: `getattr`, because `form_instance_id` is an L-RECORDS
+    # LOCATOR and this line runs for BOTH Sources. `RepoConceptKey` has no
+    # such field, so the direct read raised `AttributeError` here on every
+    # staging `system_baseline`/`internal_dev` run — measured by executing
+    # this exact comprehension over the 15 keys `RepoDocsSource` enumerates
+    # from this checkout, not inferred from the signature. It is unreachable
+    # in the suite because the only tests that get this far build
+    # `ConceptKey`s. That is the "parallel path" id-362 F1 names: a consumer
+    # of the shared protocol that works for one key model only. The tolerant
+    # read is the right shape here on its own merits, too — BI-28 attributes
+    # a won-bid proposal, and a Source with no form instances contributes
+    # nothing to the map rather than failing the run.
+    # A loop rather than a comprehension, and the annotation is load-bearing:
+    # a `getattr` comprehension infers `dict[Any, Any | None]`, which mypy
+    # then refuses against `sync_bundle`'s `Mapping[str, str] | None`. It also
+    # evaluates the lookup once per key instead of twice.
+    source_form_instance_ids: "dict[str, str]" = {}
+    for key in concepts:
+        form_instance_id = getattr(key, "form_instance_id", None)
+        if form_instance_id is not None:
+            source_form_instance_ids[key.rel_path] = form_instance_id
 
     sync_result = sync_bundle(
         Path(repo_path),

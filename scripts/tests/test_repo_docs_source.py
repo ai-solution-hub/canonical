@@ -34,6 +34,8 @@ import pytest
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.sources.base import Source
 from scripts.cocoindex_pipeline.sources.repo_docs import (
+    NAVIGATION_GRAIN,
+    TOOL_GRAIN,
     RepoConceptKey,
     RepoDocsSource,
     _DEFINE_TOOL_CALL_RE,
@@ -118,6 +120,7 @@ class TestRepoConceptKeyShape:
         key = RepoConceptKey(
             rel_path="tool/get.md",
             concept_type="tool",
+            grain=TOOL_GRAIN,
             source_ref="lib/mcp/tools/content.ts#L1-L5",
             git_blob_sha="abc123",
         )
@@ -128,12 +131,14 @@ class TestRepoConceptKeyShape:
         a = RepoConceptKey(
             rel_path="tool/get.md",
             concept_type="tool",
+            grain=TOOL_GRAIN,
             source_ref="x#L1-L2",
             git_blob_sha="sha1",
         )
         b = RepoConceptKey(
             rel_path="tool/get.md",
             concept_type="tool",
+            grain=TOOL_GRAIN,
             source_ref="x#L1-L2",
             git_blob_sha="sha1",
         )
@@ -143,7 +148,26 @@ class TestRepoConceptKeyShape:
     def test_rejects_empty_rel_path(self) -> None:
         with pytest.raises(ValueError, match="rel_path"):
             RepoConceptKey(
-                rel_path="", concept_type="tool", source_ref="x", git_blob_sha="sha1"
+                rel_path="",
+                concept_type="tool",
+                grain=TOOL_GRAIN,
+                source_ref="x",
+                git_blob_sha="sha1",
+            )
+
+    def test_rejects_empty_grain(self) -> None:
+        """ID-427 {427.16}: `grain` is the dispatch key `read_concept` and
+        `sample_rows` resolve the registry on, so a key that carries none
+        cannot be read — refused at construction exactly as
+        `ConceptKey.__post_init__` refuses it ({427.7}), rather than failing
+        later as an opaque registry miss."""
+        with pytest.raises(ValueError, match="grain must be non-empty"):
+            RepoConceptKey(
+                rel_path="tool/get.md",
+                concept_type="tool",
+                grain="",
+                source_ref="x",
+                git_blob_sha="sha1",
             )
 
     def test_git_blob_sha_participates_in_equality_the_bi18_memo_lever(self) -> None:
@@ -154,10 +178,30 @@ class TestRepoConceptKeyShape:
         a = RepoConceptKey(
             rel_path="tool/get.md",
             concept_type="tool",
+            grain=TOOL_GRAIN,
             source_ref="x#L1-L2",
             git_blob_sha="sha1",
         )
         b = dataclasses.replace(a, git_blob_sha="sha2")
+        assert a != b
+        assert hash(a) != hash(b)
+
+    def test_grain_participates_in_equality_like_every_other_field(self) -> None:
+        """ID-427 {427.16}: `grain` is fingerprinted like every other field,
+        so adding it re-keys every repo/docs concept once. That is the
+        whole-corpus invalidation the wave's single `version=3` bump already
+        mandates (DR-060/TECH §5) — asserted here so a later reader does not
+        have to take the claim on trust, and so `field(compare=False)`
+        "tidying" fails loudly (cocoindex would ignore the exemption anyway,
+        which is why the key must never carry a field it cannot afford to
+        fingerprint)."""
+        a = RepoConceptKey(
+            rel_path="tool/get.md",
+            concept_type="tool",
+            grain=TOOL_GRAIN,
+            source_ref="x#L1-L2",
+        )
+        b = dataclasses.replace(a, grain=NAVIGATION_GRAIN)
         assert a != b
         assert hash(a) != hash(b)
 
@@ -170,6 +214,7 @@ class TestRepoConceptKeyShape:
         a = RepoConceptKey(
             rel_path="tool/get.md",
             concept_type="tool",
+            grain=TOOL_GRAIN,
             source_ref="x#L1-L2",
             span_content_hash="span1",
         )
@@ -195,6 +240,7 @@ class TestRepoConceptKeyTypeShapeGate:
             RepoConceptKey(
                 rel_path=f"{concept_type}/x.md",
                 concept_type=concept_type,
+                grain=TOOL_GRAIN,
                 source_ref="x",
                 git_blob_sha="sha1",
             )
@@ -206,6 +252,7 @@ class TestRepoConceptKeyTypeShapeGate:
         key = RepoConceptKey(
             rel_path="company/x.md",
             concept_type="company",
+            grain=TOOL_GRAIN,
             source_ref="x",
             git_blob_sha="sha1",
         )
@@ -217,6 +264,7 @@ class TestRepoConceptKeyTypeShapeGate:
         key = RepoConceptKey(
             rel_path="documents/x.md",
             concept_type="document",
+            grain=TOOL_GRAIN,
             source_ref="x",
             git_blob_sha="sha1",
         )
@@ -229,6 +277,7 @@ class TestRepoConceptKeyTypeShapeGate:
         RepoConceptKey(
             rel_path="bogus/x.md",
             concept_type="bogus",
+            grain=TOOL_GRAIN,
             source_ref="x",
             git_blob_sha="sha1",
         )  # no longer raises
@@ -237,6 +286,7 @@ class TestRepoConceptKeyTypeShapeGate:
                 RepoConceptKey(
                     rel_path="bogus/x.md",
                     concept_type=malformed,
+                    grain=TOOL_GRAIN,
                     source_ref="x",
                     git_blob_sha="sha1",
                 )
@@ -248,6 +298,7 @@ class TestRepoConceptKeyTypeShapeGate:
             RepoConceptKey(
                 rel_path="q_a_pairs/1.md",
                 concept_type="q_a_pair",
+                grain=TOOL_GRAIN,
                 source_ref="x",
                 git_blob_sha="sha1",
             )

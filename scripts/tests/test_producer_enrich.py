@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import subprocess
 import sys
 import uuid
 from pathlib import Path
@@ -2527,3 +2528,216 @@ class TestTheUndistilledPageCannotLeakARecordPointer:
         every field reads "unknown"."""
         with pytest.raises(ValueError, match="no source_documents row"):
             enrich.render_undistilled_draft(_undistilled_key(), ConceptRaw())
+
+
+# ============================================================================
+# ID-427 {427.16} — id-362 F1 LEG 2: enrich unified over the protocol
+#
+# F1's requirement, verbatim from `tasks/id-362.md`: *"enrich_concept is typed
+# to l_records ConceptKey/ConceptRaw but the Source protocol is shared … so
+# unify enrich over the protocol (not a parallel path)."* Leg 1 landed at
+# {427.4}. Leg 2 was recorded closed at S547 and measured undone at S548:
+# `enrich_concept` was byte-identical to the pre-wave base SHA apart from
+# `version=3`, while `flow_def` handed it a `RepoConceptKey` on every
+# `system_baseline`/`internal_dev` run.
+#
+# **Asserted through the REAL call, never by grepping the signature.** A
+# signature assertion would have passed at the base SHA too if someone had
+# only widened the annotation — and widening alone was NOT enough: the call
+# raised `AttributeError` inside `_annotate_raw_with_anchors` on the first
+# `raw.source_documents`, which is why `scripts/_okf_prototype_draft.py`
+# exists as a throwaway driver that skips this loop entirely.
+# ============================================================================
+
+
+def _git_checkout_with_one_tool(root: Path) -> Path:
+    """A real `git init` checkout holding one `defineTool` call site —
+    mirrors `test_repo_docs_source.py`'s `FakeRepo`, which wraps a real repo
+    rather than stubbing `git rev-parse` because the PC-5 citation anchor is
+    pinned to an actual blob sha. A stubbed sha would let this test pass
+    against a citation the public host could not resolve."""
+    subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    tools = root / "lib" / "mcp" / "tools"
+    tools.mkdir(parents=True)
+    (tools / "content.ts").write_text(
+        "import { defineTool } from './shared';\n"
+        "export async function registerContentTools(server) {\n"
+        "  defineTool(\n"
+        "    server,\n"
+        "    'get',\n"
+        "    { title: 'Get Content', description: 'Retrieve a content item' },\n"
+        "    async () => ({}),\n"
+        "  );\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "--quiet", "-m", "seed"], cwd=root, check=True)
+    return root
+
+
+def _repo_envelope_json(citation: str) -> str:
+    return json.dumps(
+        {
+            "title": "Get content item",
+            "description": "The MCP tool that retrieves one content item.",
+            "tags": ["mcp", "tool"],
+            "body": "The `get` tool returns a single content item by id.",
+            "citations": [citation],
+        }
+    )
+
+
+class TestEnrichConceptAdmitsBothKeyModels:
+    """id-362 F1 leg 2, closed and asserted."""
+
+    def test_a_repo_concept_key_completes_the_real_pass1_call(
+        self, tmp_path: Path
+    ) -> None:
+        """**The assertion this subtask exists to make.** A REAL
+        `RepoConceptKey`, enumerated by a REAL `RepoDocsSource` over a real
+        git checkout, is drafted by the REAL `enrich_concept` — only the
+        Anthropic client is a double, exactly as every other end-to-end test
+        in this file does it.
+
+        Every leg of the loop is exercised on the repo/docs concept model:
+        `list_concepts` builds the catalogue, `read_concept` returns a
+        `RepoConceptRaw`, the model's `read_concept_raw` tool call routes
+        through `_annotate_raw_with_anchors` (the artefact branch), the
+        minted PC-5 git-blob anchor lands in `seen_anchors`, the model cites
+        it, `_validate_citation` admits it on provenance, and
+        `_resource_from_raw` carries it onto `ConceptDraft.primary_anchor`."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import RepoDocsSource
+
+        source = RepoDocsSource(_git_checkout_with_one_tool(tmp_path))
+        key = asyncio.run(source.list_concepts())[0]
+        assert type(key).__name__ == "RepoConceptKey"
+        assert key.rel_path == "tool/get.md"
+
+        # The anchor the adapter will mint for this artefact — computed the
+        # way the production mint does, so the fake model cites a REAL one.
+        raw = asyncio.run(source.read_concept(key))
+        citation = raw.resource
+        assert citation.startswith("https://github.com/")
+
+        client = _mock_client(
+            [
+                _read_concept_raw_tool_turn(key),
+                _MockMessage(
+                    [TextBlock(type="text", text=_repo_envelope_json(citation))],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
+
+        async def _exercise():
+            with patch(
+                "scripts.cocoindex_pipeline.producer.enrich.anthropic.AsyncAnthropic",
+                return_value=client,
+            ):
+                return await enrich.enrich_concept(key, source)
+
+        draft = asyncio.run(_exercise())
+
+        assert draft.key is key
+        assert draft.frontmatter.type == "tool"
+        assert draft.frontmatter.title == "Get content item"
+        # The PC-5 anchor became this concept's primary anchor — a repo/docs
+        # concept is not scored as though it had no provenance.
+        assert draft.primary_anchor == citation
+        assert citation in draft.body
+
+    def test_the_tool_result_carried_the_artefact_text_and_minted_its_anchor(
+        self, tmp_path: Path
+    ) -> None:
+        """The mechanism behind the test above, asserted directly: the
+        `read_concept_raw` payload for a `RepoConceptRaw` is the artefact's
+        text plus its minted anchor, and the mint reaches `seen_anchors`.
+
+        Without the mint the model's honest citation of the URL it was handed
+        would be REFUSED by the BI-17 provenance gate — the same failure mode
+        {427.7} recorded for un-minted sampled `source_documents` rows."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import RepoDocsSource
+
+        source = RepoDocsSource(_git_checkout_with_one_tool(tmp_path))
+        key = asyncio.run(source.list_concepts())[0]
+        raw = asyncio.run(source.read_concept(key))
+
+        seen: "set[str]" = set()
+        payload = enrich._annotate_raw_with_anchors(key, raw, seen)
+
+        assert payload["text"] == raw.text
+        assert "defineTool(" in payload["text"]
+        assert payload["resource"] == raw.resource
+        assert seen == {raw.resource}
+        # The L-records row buckets are absent, not empty: asserting a
+        # `source_documents: []` here would tell the model this concept has a
+        # table it does not have.
+        assert set(payload) == {"text", "resource"}
+
+    def test_an_artefact_absent_at_head_mints_nothing_and_stays_uncitable(
+        self, tmp_path: Path
+    ) -> None:
+        """`RepoConceptRaw.resource` is `""` for an artefact with no blob at
+        HEAD (an uncommitted file, or a repo with no commits). The text still
+        reaches the model — it was really read — but no anchor is minted, so
+        a citation of it cannot pass `_validate_citation`. Mirrors
+        `repo_docs._mint_git_blob_citation`'s own posture rather than
+        inventing a second rule."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import RepoConceptRaw
+
+        seen: "set[str]" = set()
+        payload = enrich._annotate_raw_with_anchors(
+            _product_key(), RepoConceptRaw(text="some text", resource=""), seen
+        )
+
+        assert payload == {"text": "some text"}
+        assert seen == set()
+
+    def test_both_key_models_satisfy_the_shared_key_protocol(self) -> None:
+        """`ConceptKeyLike` is structural, and BOTH key models conform —
+        checked with `isinstance` (attribute presence, which is exactly the
+        claim the protocol makes) rather than by reading the annotation."""
+        from scripts.cocoindex_pipeline.sources.base import ConceptKeyLike
+        from scripts.cocoindex_pipeline.sources.repo_docs import (
+            TOOL_GRAIN,
+            RepoConceptKey,
+        )
+
+        repo_key = RepoConceptKey(
+            rel_path="tool/get.md",
+            concept_type="tool",
+            grain=TOOL_GRAIN,
+            source_ref="lib/mcp/tools/content.ts#L1-L5",
+        )
+        assert isinstance(_product_key(), ConceptKeyLike)
+        assert isinstance(repo_key, ConceptKeyLike)
+
+    def test_a_repo_key_has_no_l_records_locator_and_that_is_the_point(
+        self,
+    ) -> None:
+        """Why `scope_tag` is NOT on the shared protocol.
+
+        `_qa_pairs_anchor` reads it through `getattr` because it is an
+        L-records locator: a repo/docs concept has no `q_a_pairs` table to
+        point at, and `None` is the honest answer — the same answer the
+        function already gives every non-topic L-records concept. Asserting
+        it here pins the decision, so a later "tidying" that puts the field
+        on the protocol has to argue with a failing test."""
+        from scripts.cocoindex_pipeline.sources.repo_docs import (
+            TOOL_GRAIN,
+            RepoConceptKey,
+        )
+
+        repo_key = RepoConceptKey(
+            rel_path="tool/get.md",
+            concept_type="tool",
+            grain=TOOL_GRAIN,
+            source_ref="lib/mcp/tools/content.ts#L1-L5",
+        )
+        assert not hasattr(repo_key, "scope_tag")
+        assert enrich._qa_pairs_anchor(repo_key) is None
