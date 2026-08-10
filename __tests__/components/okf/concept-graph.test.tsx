@@ -406,7 +406,10 @@ describe('ConceptGraph', () => {
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
     );
-    document.documentElement.style.setProperty('--okf-graph-label', LABEL_TOKEN);
+    document.documentElement.style.setProperty(
+      '--okf-graph-label',
+      LABEL_TOKEN,
+    );
     document.documentElement.style.setProperty(
       '--okf-graph-edge-cites',
       'oklch(0.55 0.15 195)',
@@ -563,7 +566,10 @@ describe('ConceptGraph — a node border is chrome now, and carries no concept-t
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
     );
-    document.documentElement.style.setProperty('--okf-graph-label', LABEL_TOKEN);
+    document.documentElement.style.setProperty(
+      '--okf-graph-label',
+      LABEL_TOKEN,
+    );
     // Deliberately DEFINED, though nothing should read it — see the block
     // comment above. The retirement is proved against a live token.
     document.documentElement.style.setProperty(
