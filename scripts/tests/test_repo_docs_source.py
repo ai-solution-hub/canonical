@@ -25,6 +25,7 @@ modules.
 
 import asyncio
 import dataclasses
+import re
 import subprocess
 from pathlib import Path
 
@@ -841,6 +842,25 @@ class TestF2TSStateSpanScanner:
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REAL_TOOLS_DIR = _REPO_ROOT / "lib" / "mcp" / "tools"
 
+# ID-427 {427.17}: a SECOND, locally-authored pattern — deliberately NOT the
+# production `_DEFINE_TOOL_CALL_RE`.
+#
+# The S548 adversarial audit mutated the production regex's literal
+# (`defineTool` -> `defineToolZZZ`) so `routed` fell to 0 over the real
+# corpus, and `test_the_real_corpus_census_matches_an_independent_file_count`
+# PASSED — because it imported that same regex for its "independent" count,
+# so both sides moved together. A cross-check that shares the thing it is
+# cross-checking measures nothing.
+#
+# `TestF2RealCorpusRegression` below keeps using the production regex on
+# purpose and says so: its property is "no call site died mid-scan", for which
+# the shared enumeration IS the correct baseline. This constant exists only
+# for the census test, whose stated property is "counted twice by DIFFERENT
+# means".
+_INDEPENDENT_DEFINE_TOOL_RE = re.compile(
+    r"""defineTool\(\s*server\s*,\s*['"]([^'"]+)['"]"""
+)
+
 
 def _real_corpus_tool_keys() -> "list[RepoConceptKey]":
     if not _REAL_TOOLS_DIR.is_dir():
@@ -979,10 +999,21 @@ class TestTheCensusOverTheRepoCorpus:
         assert "q_a_pairs" not in dict(census.considered)
 
     def test_the_real_corpus_census_matches_an_independent_file_count(self) -> None:
-        """The real checkout, counted twice by different means — the
-        adapter's own census, and a glob + regex done here. Equality proves
-        the census reads the corpus rather than the enumeration's own
-        output (which could never report a hole)."""
+        """The real checkout, counted twice by genuinely different means —
+        the adapter's own census, and a glob + a SEPARATE pattern authored
+        here. Equality proves the census reads the corpus rather than the
+        enumeration's own output (which could never report a hole).
+
+        **{427.17} repair.** This test previously imported the production
+        `_DEFINE_TOOL_CALL_RE` for its "independent" side, which made the
+        claim in its own title false: the S548 audit mutated that regex's
+        literal to `defineToolZZZ`, driving `routed` to 0 over the real
+        corpus, and this test still PASSED because both sides moved together.
+        The count now runs off `_INDEPENDENT_DEFINE_TOOL_RE`, and the floor
+        assertions below make a pattern that matches nothing a failure rather
+        than a vacuous pass — 0 == 0 is the shape that let the mutation
+        through.
+        """
         if not _REAL_TOOLS_DIR.is_dir():
             pytest.skip("real lib/mcp/tools corpus not present in this checkout")
         source = RepoDocsSource(_REPO_ROOT)
@@ -994,8 +1025,18 @@ class TestTheCensusOverTheRepoCorpus:
         with_tools = [
             p
             for p in files
-            if _DEFINE_TOOL_CALL_RE.search(p.read_text(encoding="utf-8"))
+            if _INDEPENDENT_DEFINE_TOOL_RE.search(p.read_text(encoding="utf-8"))
         ]
+
+        # Floors first. Without these the assertions below are satisfied by
+        # 0 == 0, which is exactly the state the audit's mutation produced.
+        assert len(files) > 0, "no .ts files found — the corpus glob is broken"
+        assert len(with_tools) > 0, (
+            "no file in the real corpus matched the independent defineTool "
+            "pattern — either the pattern has drifted from the source or the "
+            "corpus has moved; both make this cross-check vacuous"
+        )
+
         assert dict(census.considered)["tool_source_files"] == len(files)
         assert dict(census.routed)["tool_source_files"] == len(with_tools)
 

@@ -1999,23 +1999,62 @@ class TestTheCensusIsAMeasurementNotADefault:
         """A second `list_concepts()` on the same adapter must not union
         onto the first run's coverage — the census answers for THIS run.
         Accumulation would make `routed` grow monotonically and eventually
-        exceed `considered`."""
+        exceed `considered`.
+
+        **The corpus SHRINKS between the two enumerations, and that is the
+        whole point** (ID-427 {427.17}). The S548 adversarial audit mutated
+        `coverage = Coverage()` to `coverage = self._coverage if
+        self._coverage is not None else Coverage()` — textbook accumulation —
+        and the entire Python suite stayed green (2395/6), *including this
+        guard*. Coverage is a SET union and the fixture returned identical
+        rows on both calls, so accumulating was indistinguishable from
+        replacing. A second enumeration that sees FEWER units is the only
+        fixture that can tell them apart: under replacement the census falls
+        to the shrunken corpus, under accumulation it retains the first run's
+        units and reports more than the corpus holds.
+
+        `_census_queries` registers via `when_first`, so calling it again
+        front-inserts the shrunken rows and they win — the documented way to
+        re-point a fixture mid-test.
+        """
         pool = _five_type_pool()
         _census_queries(
             pool,
-            topic=[{"q_a_pair_id": "qa-1", "source_document_id": "sd-1"}],
-            totals={"source_documents": 4, "q_a_pairs": 4},
+            topic=[
+                {"q_a_pair_id": "qa-1", "source_document_id": "sd-1"},
+                {"q_a_pair_id": "qa-2", "source_document_id": "sd-2"},
+            ],
+            totals={"source_documents": 2, "q_a_pairs": 2},
         )
         src = LRecordsSource(pool)
 
         _run(src.list_concepts())
         first = _run(src.census())
+        assert first.routed == (("source_documents", 2), ("q_a_pairs", 2))
+
+        # The corpus loses a unit of each kind before the second run — a
+        # document withdrawn, its pair unpublished. `considered` follows it
+        # down; `routed` must too.
+        _census_queries(
+            pool,
+            topic=[{"q_a_pair_id": "qa-1", "source_document_id": "sd-1"}],
+            totals={"source_documents": 1, "q_a_pairs": 1},
+        )
+
         _run(src.list_concepts())
         second = _run(src.census())
 
-        assert first.routed == second.routed == (
-            ("source_documents", 1),
-            ("q_a_pairs", 1),
+        assert second.routed == (("source_documents", 1), ("q_a_pairs", 1)), (
+            "the second enumeration's coverage retained units from the first "
+            "— coverage is accumulating across runs, not being replaced"
+        )
+        # The consequence accumulation actually produces in the field: more
+        # routed than the corpus holds, which drives `unrouted` negative and
+        # renders a negative count into `log.md`.
+        assert second.unrouted == ()
+        assert all(
+            routed <= considered
+            for (_, routed), (_, considered) in zip(second.routed, second.considered)
         )
 
     def test_the_won_bid_dedupe_leaves_a_second_won_bid_uncovered(self):
