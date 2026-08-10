@@ -144,10 +144,22 @@ def env(monkeypatch: pytest.MonkeyPatch):
             concept_type: str = "topic",
             entity_id: "str | None" = None,
             workspace_id: "str | None" = None,
+            grain: "str | None" = None,
         ) -> Any:
+            # ID-427 {427.7}: `grain` is the dispatch key. Defaulted from the
+            # label here purely so this fixture stays terse — the production
+            # path reads it off the grain's own registry entry, never derives
+            # it from a type.
+            if grain is None:
+                grain = (
+                    "case_study_won_bid"
+                    if workspace_id is not None
+                    else f"{concept_type}_grain"
+                )
             key_kwargs: "dict[str, Any]" = {
                 "rel_path": rel_path,
                 "concept_type": concept_type,
+                "grain": grain,
             }
             if concept_type == "topic":
                 key_kwargs["scope_tag"] = rel_path
@@ -648,8 +660,18 @@ class TestConceptFeederWiring:
 
         asyncio.run(env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir))
 
+        # ID-427 {427.7} (TECH §2.7): validation now resolves the grain's
+        # `directory`, defaulting to the declared type name — the same string
+        # the pre-{427.7} `{concept_type}/` layout used, so no directory
+        # moves and there is no config to migrate.
         assert captured == [
-            {"partner": {"grain": "entity_mention", "entity_type": "partner"}}
+            {
+                "partner": {
+                    "grain": "entity_mention",
+                    "entity_type": "partner",
+                    "directory": "partner",
+                }
+            }
         ]
 
     def test_absent_feeder_config_threads_none_into_the_source(
@@ -944,7 +966,10 @@ class TestContainment:
     ) -> None:
         good = env.build_draft("topics/good.md", title="Good")
         bad_key = env.l_records.ConceptKey(
-            rel_path="topics/bad.md", concept_type="topic", scope_tag="bad"
+            rel_path="topics/bad.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="bad",
         )
 
         class _FakeSource:

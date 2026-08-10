@@ -115,6 +115,16 @@ from typing import Any, Mapping
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
 from scripts.cocoindex_pipeline.producer.validator import check_type_shape
 
+# ID-427 {427.7}: this module carried its OWN copy of `_slugify`, whose
+# docstring recorded the duplication ("mirrors `l_records.py`'s own
+# `_slugify` — duplicated, not imported"). `mint_concept_slug` is that
+# helper plus the id-429 IA-3 reserved-name guard, and it lives in the
+# neutral module because the reservation is a property of the FORMAT, not
+# of one adapter — a `docs/navigation/index.md` page would otherwise mint
+# `navigation/index.md` and be overwritten by that directory's emitted
+# index exactly as an L-records concept would.
+from scripts.cocoindex_pipeline.sources.base import mint_concept_slug
+
 
 @dataclass(frozen=True)  # frozen → deterministic cocoindex memo key (BI-18 analogue)
 class RepoConceptKey:
@@ -428,17 +438,6 @@ def _span_content_hash(span_text: str) -> str:
 
 # ── E2 (navigation pillar) — one concept per `*.md` doc page. ───────────
 
-_SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
-
-
-def _slugify(value: str) -> str:
-    """Deterministic filename-safe slug for a bundle rel_path segment
-    (mirrors `l_records.py`'s own `_slugify` — duplicated, not imported,
-    since that helper is module-private and this module has no other
-    dependency on `l_records.py`)."""
-    slug = _SLUG_INVALID_RE.sub("-", value.strip().lower()).strip("-")
-    return slug or "untitled"
-
 
 def _concept_haystack(key: RepoConceptKey) -> str:
     return " ".join((key.rel_path, key.concept_type, key.source_ref)).casefold()
@@ -618,7 +617,7 @@ class RepoDocsSource:
             blob_sha = _git_blob_sha(self._root, rel_file)
             keys.append(
                 RepoConceptKey(
-                    rel_path=f"navigation/{_slugify(file_path.stem)}.md",
+                    rel_path=f"navigation/{mint_concept_slug(file_path.stem)}.md",
                     concept_type="navigation",
                     source_ref=rel_file,
                     git_blob_sha=blob_sha,

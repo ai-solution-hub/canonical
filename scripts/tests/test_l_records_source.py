@@ -23,21 +23,18 @@ from scripts.cocoindex_pipeline.sources.base import (
     Source,
 )
 
-# ID-427 {427.5}: the built-in grains' own type labels. NOT a register the
-# producer holds (`CONCEPT_TYPES` is deleted) — just what these six
-# enumeration methods happen to emit, named here so the fixture assertions
-# below stay readable. {427.7} makes these declarations of the grain
-# registry; until then they are literals in `l_records.read_concept`.
-_BUILTIN_GRAIN_LABELS = {
-    "topic",
-    "product",
-    "company",
-    "certification",
-    "case_study",
-}
-from scripts.cocoindex_pipeline.sources.l_records import (
+from scripts.cocoindex_pipeline.sources import l_records  # noqa: E402
+from scripts.cocoindex_pipeline.sources.l_records import (  # noqa: E402
+    BUILTIN_GRAIN_TYPE_LABELS as _BUILTIN_GRAIN_LABELS,
     LRecordsSource,
 )
+
+# ID-427 {427.7}: the built-in grains' type labels are now DERIVED from the
+# grain registry (`_BUILTIN_GRAINS`) rather than hand-listed here — {427.5}
+# left this set as a literal with an explicit {427.7} expiry, and importing
+# it is what makes that expiry real. Still NOT a register the producer holds
+# (DR-141): it is what those grains happen to emit, and any grain may emit
+# any well-shaped label.
 
 
 class FakePool:
@@ -83,19 +80,31 @@ class TestConceptKeyShape:
     (BI-2)."""
 
     def test_is_frozen(self):
-        key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic")
+        key = ConceptKey(
+            rel_path="topics/gdpr.md", concept_type="topic", grain="topic_scope_tag"
+        )
         with pytest.raises(dataclasses.FrozenInstanceError):
             key.rel_path = "topics/tampered.md"
 
     def test_equal_by_value(self):
-        a = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
-        b = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        a = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
+        b = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
         assert a == b
         assert hash(a) == hash(b)
 
     def test_rejects_empty_rel_path(self):
         with pytest.raises(ValueError, match="rel_path"):
-            ConceptKey(rel_path="", concept_type="topic")
+            ConceptKey(rel_path="", concept_type="topic", grain="topic_scope_tag")
 
     def test_domain_subtopic_locator_fields_are_retired(self):
         """S531 (DR-125 expiry ruled): the domain/subtopic fallback topic
@@ -106,6 +115,7 @@ class TestConceptKeyShape:
             ConceptKey(
                 rel_path="topics/gdpr.md",
                 concept_type="topic",
+                grain="topic_scope_tag",
                 scope_tag="gdpr",
                 domain="security",
                 subtopic="data-protection",
@@ -120,6 +130,7 @@ class TestConceptKeyShape:
         key = ConceptKey(
             rel_path="topics/procurement-policy.md",
             concept_type="procurement_policy",
+            grain="topic_scope_tag",
         )
         assert key.concept_type == "procurement_policy"
 
@@ -131,17 +142,22 @@ class TestBI3AQaPairIsNeverAConcept:
 
     def test_constructing_a_q_a_pair_concept_key_raises(self):
         with pytest.raises(ValueError, match="q_a_pair"):
-            ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
+            ConceptKey(
+                rel_path="q_a_pairs/1.md",
+                concept_type="q_a_pair",
+                grain="topic_scope_tag",
+            )
 
     def test_rejects_a_malformed_type_label(self):
         # REPLACES `test_rejects_any_type_outside_the_ratified_set`, which
         # asserted `metric` was refused for being outside the BI-4 set —
         # `metric` is now a perfectly good label and is accepted. What the
         # key still refuses is a label that is not well FORMED.
-        ConceptKey(rel_path="x.md", concept_type="metric")  # no longer raises
+        # no longer raises
+        ConceptKey(rel_path="x.md", concept_type="metric", grain="g")
         for malformed in ("Q A Pair!", "x", "a_very_long_five_word_type_label", ""):
             with pytest.raises(ValueError, match="well-formed OKF type label"):
-                ConceptKey(rel_path="x.md", concept_type=malformed)
+                ConceptKey(rel_path="x.md", concept_type=malformed, grain="g")
 
     def test_list_concepts_never_yields_a_q_a_pair_type(self):
         pool = _five_type_pool()
@@ -340,7 +356,12 @@ class TestReadConceptTopic:
         return pool
 
     def test_read_concept_returns_all_five_topic_anchors(self):
-        key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        key = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
         src = LRecordsSource(self._pool())
 
         raw = _run(src.read_concept(key))
@@ -358,7 +379,11 @@ class TestReadConceptTopic:
         assert [r["id"] for r in raw.entity_relationships] == ["er-1"]
 
     def test_topic_key_without_a_locator_raises(self):
-        key = ConceptKey(rel_path="topics/orphan.md", concept_type="topic")
+        key = ConceptKey(
+            rel_path="topics/orphan.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+        )
         src = LRecordsSource(self._pool())
 
         with pytest.raises(ValueError, match="needs scope_tag"):
@@ -383,7 +408,12 @@ class TestReadConceptProduct:
         return pool
 
     def test_read_concept_returns_the_2_product_anchors_only(self):
-        key = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
+        key = ConceptKey(
+            rel_path="products/lms.md",
+            concept_type="product",
+            grain="product_entity_mention",
+            entity_id="LMS",
+        )
         src = LRecordsSource(self._pool())
 
         raw = _run(src.read_concept(key))
@@ -419,7 +449,11 @@ class TestReadConceptCompany:
         return pool
 
     def test_read_concept_returns_the_company_anchors_and_no_q_a_pairs(self):
-        key = ConceptKey(rel_path="company/overview.md", concept_type="company")
+        key = ConceptKey(
+            rel_path="company/overview.md",
+            concept_type="company",
+            grain="company_singleton",
+        )
         src = LRecordsSource(self._pool())
 
         raw = _run(src.read_concept(key))
@@ -457,6 +491,7 @@ class TestReadConceptCertification:
         key = ConceptKey(
             rel_path="certifications/iso-27001.md",
             concept_type="certification",
+            grain="certification_entity_mention",
             entity_id="ISO 27001",
         )
         src = LRecordsSource(self._pool())
@@ -493,6 +528,7 @@ class TestReadConceptCaseStudy:
         key = ConceptKey(
             rel_path="case-studies/acme-corp.md",
             concept_type="case_study",
+            grain="case_study_named_client",
             entity_id="Acme Corp",
         )
         src = LRecordsSource(self._pool())
@@ -534,27 +570,76 @@ def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     return pool
 
 
-class TestConceptKeyWonBidLocator:
-    """The won-bid grain adds a `workspace_id` locator to `ConceptKey` — a
-    case_study-only field (the workspace whose won bid seeds the case study)."""
+class TestWonBidLocatorOwnership:
+    """`workspace_id` is the won-bid GRAIN's locator, and only that grain's.
 
-    def test_workspace_id_is_allowed_on_a_case_study_key(self):
+    **ID-427 {427.7} re-keyed this rule, and moved where it is enforced.** It
+    was `ConceptKey.__post_init__`'s `concept_type != 'case_study'` check —
+    a rule keyed on a relabellable LABEL. `type_label` is now a grain's to
+    change, and PI-5 says a relabel changes what the bundle SAYS and nothing
+    else; under the old check, relabelling the won-bid grain would have made
+    every one of its keys raise at construction. The rule is now keyed on
+    `grain` and lives with the registry that knows which grain declares the
+    locator (`LRecordsSource.grain_for`), which is also where the routing it
+    protects now happens.
+
+    The behavioural claim is unchanged: a locator set on the wrong grain is a
+    loud error, not a silent mis-read."""
+
+    def test_the_won_bid_grain_carries_its_locator(self):
         key = ConceptKey(
             rel_path="case-studies/transport-for-london.md",
             concept_type="case_study",
+            grain="case_study_won_bid",
             entity_id="Transport for London",
             workspace_id="ws-1",
         )
         assert key.workspace_id == "ws-1"
 
-    def test_workspace_id_is_rejected_on_a_non_case_study_key(self):
+    def test_the_locator_on_another_grain_fails_loud_at_read(self):
+        src = LRecordsSource(FakePool())  # no rules — must fail before any query
+        key = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+            workspace_id="ws-1",
+        )
+
         with pytest.raises(ValueError, match="workspace_id"):
-            ConceptKey(
-                rel_path="topics/gdpr.md",
-                concept_type="topic",
-                scope_tag="gdpr",
-                workspace_id="ws-1",
-            )
+            _run(src.read_concept(key))
+
+    def test_relabelling_the_won_bid_grain_does_not_trip_the_locator_rule(
+        self, monkeypatch
+    ):
+        """The reason the rule could not stay keyed on `concept_type`. The
+        won-bid grain emits a different label; its keys still construct and
+        still route to the won-bid read."""
+        relabelled = tuple(
+            dataclasses.replace(spec, type_label="won_bid")
+            if spec.name == "case_study_won_bid"
+            else spec
+            for spec in l_records._BUILTIN_GRAINS
+        )
+        monkeypatch.setattr(l_records, "_BUILTIN_GRAINS", relabelled)
+        src = LRecordsSource(_won_bid_only_pool([{"workspace_id": "ws-1", "buyer": "TfL"}]))
+
+        keys = _run(src.list_concepts())
+
+        won = next(k for k in keys if k.grain == "case_study_won_bid")
+        assert won.concept_type == "won_bid"
+        assert won.workspace_id == "ws-1"
+
+    def test_an_unregistered_grain_fails_loud_naming_what_is_registered(self):
+        src = LRecordsSource(FakePool())
+        key = ConceptKey(
+            rel_path="widgets/sprocket.md",
+            concept_type="widget",
+            grain="widget_grain",
+        )
+
+        with pytest.raises(ValueError, match="unknown grain 'widget_grain'"):
+            _run(src.read_concept(key))
 
 
 class TestListConceptsWonBidCaseStudy:
@@ -674,6 +759,7 @@ class TestReadConceptWonBidCaseStudy:
         return ConceptKey(
             rel_path="case-studies/transport-for-london.md",
             concept_type="case_study",
+            grain="case_study_won_bid",
             entity_id="Transport for London",
             workspace_id="ws-1",
         )
@@ -719,6 +805,7 @@ class TestReadConceptWonBidCaseStudy:
         key = ConceptKey(
             rel_path="case-studies/acme-corp.md",
             concept_type="case_study",
+            grain="case_study_named_client",
             entity_id="Acme Corp",
         )
         src = LRecordsSource(pool)
@@ -741,6 +828,7 @@ class TestSampleRowsWonBidCaseStudy:
         key = ConceptKey(
             rel_path="case-studies/transport-for-london.md",
             concept_type="case_study",
+            grain="case_study_won_bid",
             entity_id="Transport for London",
             workspace_id="ws-1",
         )
@@ -760,8 +848,14 @@ class TestSampleRows:
     def test_non_positive_n_returns_empty_without_a_query(self):
         src = LRecordsSource(FakePool())  # no rules registered — must not be called
 
-        assert _run(src.sample_rows(ConceptKey(rel_path="t.md", concept_type="topic", scope_tag="x"), 0)) == []
-        assert _run(src.sample_rows(ConceptKey(rel_path="t.md", concept_type="topic", scope_tag="x"), -1)) == []
+        key = ConceptKey(
+            rel_path="t.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="x",
+        )
+        assert _run(src.sample_rows(key, 0)) == []
+        assert _run(src.sample_rows(key, -1)) == []
 
     def test_topic_sample_is_limited_and_carries_the_limit_arg(self):
         pool = FakePool()
@@ -770,7 +864,12 @@ class TestSampleRows:
             [{"id": "qa-1"}, {"id": "qa-2"}],
         )
         src = LRecordsSource(pool)
-        key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        key = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
 
         rows = _run(src.sample_rows(key, 2))
 
@@ -787,7 +886,11 @@ class TestSampleRows:
         )
         pool.when("FROM entity_mentions WHERE source_document_id = ANY($1::uuid[])", [])
         src = LRecordsSource(pool)
-        key = ConceptKey(rel_path="company/overview.md", concept_type="company")
+        key = ConceptKey(
+            rel_path="company/overview.md",
+            concept_type="company",
+            grain="company_singleton",
+        )
 
         rows = _run(src.sample_rows(key, 1))
 
@@ -801,7 +904,12 @@ class TestSampleRows:
             [{"id": "qa-lms-1"}],
         )
         src = LRecordsSource(pool)
-        key = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
+        key = ConceptKey(
+            rel_path="products/lms.md",
+            concept_type="product",
+            grain="product_entity_mention",
+            entity_id="LMS",
+        )
 
         rows = _run(src.sample_rows(key, 5))
 
@@ -930,7 +1038,12 @@ class TestMemoKeyProtocolEscalation:
         definition order, `content_version` included."""
         from cocoindex._internal.memo_fingerprint import memo_fingerprint
 
-        base = dict(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        base = dict(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
         key_a1 = ConceptKey(**base, content_version="v-a")
         key_a2 = ConceptKey(**base, content_version="v-a")
         key_b = ConceptKey(**base, content_version="v-b")
@@ -942,14 +1055,26 @@ class TestMemoKeyProtocolEscalation:
         """Evolution of the {132.35} Defect A field-set pin (MD-11): the real
         fix landed — `content_version` is `ConceptKey`'s LAST field (MD-3),
         the per-concept BI-18 delta signal `_canonicalize_dataclass`
-        fingerprints like every other field. Order (not just membership) is
-        pinned — MD-4 requires it stay last, appended-not-inserted, so every
-        pre-existing positional `ConceptKey(...)` construction stays valid."""
+        fingerprints like every other field.
+
+        **ID-427 {427.7} inserts `grain` after `concept_type`** rather than
+        appending it, per TECH §5, which retires the append-only convention
+        for the id-427 wave. The convention's stated purpose was that         *positional*
+        `ConceptKey(...)` constructions stay valid across a field addition; an
+        AST projection over `scripts/` (S547) found **zero** positional
+        constructions, so nothing could silently shift and the ordering is a
+        readability choice. `content_version` still stays last, which is the
+        half of MD-4 that carries a live requirement.
+
+        The field set is pinned, not just its membership: a field appearing
+        here that no grain sets is a locator with no owner, and every field
+        fingerprints unconditionally."""
         field_names = [f.name for f in dataclasses.fields(ConceptKey)]
 
         assert field_names == [
             "rel_path",
             "concept_type",
+            "grain",
             "scope_tag",
             "entity_id",
             "workspace_id",
@@ -1362,7 +1487,11 @@ class TestAFeederTypeNeedsNoWidening:
     def test_a_feeder_type_is_constructible_with_no_widening_at_all(self):
         # The behaviour the deleted contextvar bought, now free: no
         # `with`-block, no config, no overlay.
-        key = ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
+        key = ConceptKey(
+            rel_path="partner/contoso.md",
+            concept_type="partner",
+            grain="feeder:partner",
+        )
         assert key.concept_type == "partner"
 
     def test_q_a_pair_is_still_refused_unconditionally(self):
@@ -1370,7 +1499,11 @@ class TestAFeederTypeNeedsNoWidening:
         longer any widening mechanism to smuggle it through, so assert it
         at the only remaining construction path."""
         with pytest.raises(ValueError, match="q_a_pair"):
-            ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
+            ConceptKey(
+                rel_path="q_a_pairs/1.md",
+                concept_type="q_a_pair",
+                grain="topic_scope_tag",
+            )
 
     def test_no_widening_mechanism_survives_for_a_caller_to_reach_for(self):
         import scripts.cocoindex_pipeline.sources.base as base_module
@@ -1500,19 +1633,20 @@ class TestConceptFeederListConcepts:
     def test_unsupported_grain_raises(self):
         """Defends a caller that constructs `LRecordsSource` directly with
         an unvalidated `concept_feeder_config` (bypassing `producer/
-        bundle_writer.read_concept_feeder_config`'s closed grain enum)."""
-        pool = _other_types_empty(FakePool())
-        pool.when("AS scope_tag FROM q_a_pairs", [])
-        pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
-        src = LRecordsSource(
-            pool,
-            concept_feeder_config={
-                "widget": {"grain": "raw_sql", "entity_type": "widget"},
-            },
-        )
+        bundle_writer.read_concept_feeder_config`'s closed grain enum).
 
+        ID-427 {427.7}: this now fails at CONSTRUCTION rather than at
+        `list_concepts()`. The registry is built in `__init__`, so an
+        unroutable strategy cannot survive as far as an enumeration pass —
+        strictly earlier than the old failure point, and the same fail-loud
+        posture `ConceptFeederConfigError` takes at config-read time."""
         with pytest.raises(ValueError, match="unsupported concept-feeder grain"):
-            _run(src.list_concepts())
+            LRecordsSource(
+                FakePool(),
+                concept_feeder_config={
+                    "widget": {"grain": "raw_sql", "entity_type": "widget"},
+                },
+            )
 
 
 class TestConceptFeederReadConcept:

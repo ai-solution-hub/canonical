@@ -180,6 +180,11 @@ from scripts.cocoindex_pipeline.producer.validator import (
     check_type_shape,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
+from scripts.cocoindex_pipeline.sources.base import RESERVED_CONCEPT_STEMS
+from scripts.cocoindex_pipeline.sources.l_records import (
+    BUILTIN_GRAIN_TYPE_LABELS,
+    WON_BID_GRAIN,
+)
 
 # Reserved bundle-level filenames — never treated as a concept `.md` path by
 # `_existing_concept_paths`'s previous-run keyset scan (BI-11: N concept
@@ -276,20 +281,36 @@ def _rel_path_of(draft: Any) -> str:
     return draft.key.rel_path
 
 
-def _won_bid_case_study_redirect(
-    rel_path: str, *, concept_type: "str | None", workspace_id: "str | None"
-) -> str:
-    """The shared {132.29} redirect rule: a won-bid `case_study` concept's
-    identity `rel_path` (`case-studies/<slug>.md`) redirects into a distinct
+def _won_bid_case_study_redirect(rel_path: str, *, grain: "str | None") -> str:
+    """The shared {132.29} redirect rule: a won-bid concept's identity
+    `rel_path` (`case-studies/<slug>.md`) redirects into a distinct
     `won-bid/` sibling directory (`case-studies/won-bid/<slug>.md`) so it
-    can never collide with a same-slug named-client `case_study` concept's
-    own bundle path; every other concept is returned unredirected. Single
-    source of truth for both `bundle_write_path` (keyed off a drafted
-    concept) and `bundle_write_path_for_key` (keyed off a bare `ConceptKey`,
-    for callers — `flow_def.py`'s BI-28 provenance map — that enumerate
-    keys before any concept has been drafted).
+    can never collide with a same-slug named-client concept's own bundle
+    path; every other concept is returned unredirected. Single source of
+    truth for both `bundle_write_path` (keyed off a drafted concept) and
+    `bundle_write_path_for_key` (keyed off a bare `ConceptKey`, for
+    callers — `flow_def.py`'s BI-28 provenance map — that enumerate keys
+    before any concept has been drafted).
+
+    **ID-427 {427.7}: keyed on `grain`, not on `concept_type`.** This was
+    `concept_type != "case_study" or workspace_id is None` — a fifth
+    type-keyed control-flow site, and the one an AST projection over
+    `scripts/` could not see, because it reads the attribute through
+    `getattr(key, "concept_type", None)` rather than as an attribute node.
+    Left type-keyed it would have made PI-5 false for exactly one grain:
+    relabelling the won-bid grain's `type_label` would stop the redirect
+    firing, and its concepts would silently collide with same-slug
+    named-client ones — the collision this function exists to prevent.
+    Behaviour is unchanged (the same concepts redirect, to the same paths);
+    only the key it reads changed.
+
+    **{427.8} deletes this function outright**, along with
+    `bundle_write_path`/`bundle_write_path_for_key`, by giving the won-bid
+    grain `directory="case-studies/won-bid"` so that identity `rel_path`
+    simply IS the physical path (TECH §2.5). This re-key is the interim that
+    keeps PI-5 true until then, not a second home for the rule.
     """
-    if concept_type != "case_study" or workspace_id is None:
+    if grain != WON_BID_GRAIN:
         return rel_path
     path = PurePosixPath(rel_path)
     return str(path.parent / "won-bid" / path.name)
@@ -317,9 +338,7 @@ def bundle_write_path(draft: Any) -> str:
     rel_path = _rel_path_of(draft)
     key = getattr(draft, "key", None)
     return _won_bid_case_study_redirect(
-        rel_path,
-        concept_type=getattr(key, "concept_type", None),
-        workspace_id=getattr(key, "workspace_id", None),
+        rel_path, grain=getattr(key, "grain", None)
     )
 
 
@@ -331,9 +350,7 @@ def bundle_write_path_for_key(key: Any) -> str:
     SAME redirect rule (`_won_bid_case_study_redirect`) directly to
     `key.rel_path`."""
     return _won_bid_case_study_redirect(
-        key.rel_path,
-        concept_type=getattr(key, "concept_type", None),
-        workspace_id=getattr(key, "workspace_id", None),
+        key.rel_path, grain=getattr(key, "grain", None)
     )
 
 
@@ -1159,9 +1176,10 @@ class ConceptFeederConfigError(ValueError):
     `concept-feeder.json` fails validation — invalid JSON, a non-object top
     level, an unknown top-level key, a `concept_types` entry naming a type
     that collides with a built-in grain's own label
-    (`_BUILTIN_GRAIN_TYPE_LABELS`) or `'q_a_pair'` (BI-3), or a grain
-    config with an unrecognised `grain`
-    value or a non-string/empty `entity_type`. Mirrors `OntologyOverlayError`
+    (`sources.l_records.BUILTIN_GRAIN_TYPE_LABELS`) or `'q_a_pair'` (BI-3),
+    a grain config with an unrecognised `grain` value or a
+    non-string/empty `entity_type`, or ({427.7}) a `directory` that is empty
+    or names an OKF §3.1 reserved stem. Mirrors `OntologyOverlayError`
     (OV-5) — a present-but-invalid feeder config ABORTS the producer run for
     that bundle rather than silently skipping the malformed entry (fail-loud,
     DR-054 posture: composition gates legality, never falls open). An
@@ -1169,23 +1187,6 @@ class ConceptFeederConfigError(ValueError):
     config` returns `None`, mirroring `read_client_overlay`'s OV-4 absence
     posture."""
 
-
-# ID-427 {427.5}: the type labels `sources/l_records.LRecordsSource` already
-# routes in its OWN `read_concept` dispatch (`l_records.py`'s `topic`/
-# `product`/`company`/`certification`/`case_study` branches, which are
-# checked BEFORE the feeder branch). A `concept-feeder.json` entry naming
-# one of these would enumerate a second time and then never reach
-# `_read_feeder_concept` — an ambiguous shadow that surfaces later as an
-# opaque write-path collision. This is NOT the deleted `ALLOWED_CONCEPT_
-# TYPES` register under another name: it gates a CONFIG FILE against the
-# built-in dispatch, and never gates a concept's `type` (DR-141).
-#
-# **{427.7} re-sources this from the grain registry**, which is where the
-# built-in labels will actually be declared; until then the dispatch
-# branches are their only home and this tuple mirrors them by hand.
-_BUILTIN_GRAIN_TYPE_LABELS = frozenset(
-    {"topic", "product", "company", "certification", "case_study"}
-)
 
 _CONCEPT_FEEDER_GRAINS = frozenset({"entity_mention"})
 """ID-132 {132.36} v1: the CLOSED set of feeder grain strategies the
@@ -1203,14 +1204,32 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
     `data` must be a JSON object whose ONLY permitted top-level key is
     `concept_types`, itself an object mapping a client-chosen concept-type
     name to a grain-config object `{"grain": <one of
-    _CONCEPT_FEEDER_GRAINS>, "entity_type": <non-empty string>}`. A declared
-    type name may not equal a built-in grain's own label
-    (`_BUILTIN_GRAIN_TYPE_LABELS` — those already route via the base
-    `_list_*_concepts` methods; a feeder entry for one would be an
-    ambiguous shadow) or `'q_a_pair'` (BI-3, defence in depth ahead of
-    `ConceptKey.__post_init__`'s own runtime guard). It is NOT otherwise
-    constrained: since ID-427 {427.5} a feeder may declare any well-shaped
-    label without an `ontology-overlay.json` entry permitting it (DR-141).
+    _CONCEPT_FEEDER_GRAINS>, "entity_type": <non-empty string>,
+    "directory": <optional non-empty string>}`.
+
+    A declared type name may not equal a built-in grain's own label
+    (`sources.l_records.BUILTIN_GRAIN_TYPE_LABELS` — those already route via
+    a built-in registry entry, and a feeder entry for one would enumerate a
+    second time as an ambiguous shadow) or `'q_a_pair'` (BI-3, defence in
+    depth ahead of `ConceptKey.__post_init__`'s own runtime guard). It is NOT
+    otherwise constrained: since ID-427 {427.5} a feeder may declare any
+    well-shaped label without an `ontology-overlay.json` entry permitting it
+    (DR-141).
+
+    **ID-427 {427.7} — `directory` (TECH §2.7).** Type and directory
+    decouple, so a feeder declares its own bundle directory. Omitted, it
+    defaults to the declared type name: `iri_projection.slug()` is identity
+    on every shape-valid label, so TECH's "defaults to `slug(type)`" and the
+    pre-{427.7} `{concept_type}/` layout are the same string — there is no
+    config to migrate and no directory moves.
+
+    **`index`/`log` are refused as a directory name** (TECH §2.6, id-429
+    IA-3). A concept slug that lands on a reserved stem is deterministically
+    renamed (`sources.base.mint_concept_slug`) because a client document
+    called "Index" is a data fact; a reserved *directory* name is a
+    configuration error, and this module's fail-loud-at-read posture is the
+    right place to say so.
+
     Raises `ConceptFeederConfigError` on any violation."""
     if not isinstance(data, dict):
         raise ConceptFeederConfigError(
@@ -1236,13 +1255,13 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'] keys must be "
                 f"non-empty strings, got {concept_type!r}"
             )
-        if concept_type == "q_a_pair" or concept_type in _BUILTIN_GRAIN_TYPE_LABELS:
+        if concept_type == "q_a_pair" or concept_type in BUILTIN_GRAIN_TYPE_LABELS:
             raise ConceptFeederConfigError(
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'] declares "
                 f"{concept_type!r}, which is either 'q_a_pair' (BI-3, never "
-                "a concept) or a label a BUILT-IN grain already routes — a "
-                "feeder entry naming one would be enumerated twice and read "
-                "by the built-in branch, never the feeder branch"
+                "a concept) or a label a BUILT-IN grain already emits — a "
+                "feeder entry naming one would enumerate the same concepts "
+                "twice, from two grains"
             )
         # ID-427 {427.5}: the declared name must be a well-formed OKF type
         # label. Checked HERE, at read time, to preserve this module's own
@@ -1265,12 +1284,14 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}] "
                 f"must be a JSON object, got {type(grain_config).__name__}"
             )
-        unknown_grain_keys = sorted(set(grain_config) - {"grain", "entity_type"})
+        unknown_grain_keys = sorted(
+            set(grain_config) - {"grain", "entity_type", "directory"}
+        )
         if unknown_grain_keys:
             raise ConceptFeederConfigError(
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}] "
                 f"has unknown key(s) {unknown_grain_keys} — only "
-                "['grain', 'entity_type'] are permitted"
+                "['directory', 'entity_type', 'grain'] are permitted"
             )
         grain = grain_config.get("grain")
         if grain not in _CONCEPT_FEEDER_GRAINS:
@@ -1286,7 +1307,30 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
                 "['entity_type'] must be a non-empty string, got "
                 f"{entity_type!r}"
             )
-        validated[concept_type] = {"grain": grain, "entity_type": entity_type}
+        # ID-427 {427.7} (TECH §2.7): the grain's own bundle directory.
+        directory = grain_config.get("directory", concept_type)
+        if not isinstance(directory, str) or not directory.strip():
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}]"
+                "['directory'] must be a non-empty string, got "
+                f"{directory!r}"
+            )
+        # id-429 IA-3 / TECH §2.6. A directory named `index` or `log` puts a
+        # reserved OKF §3.1 name in the position the emitted per-directory
+        # index occupies; unlike a client document that happens to be called
+        # "Index", this is a configuration choice, so it is refused rather
+        # than silently renamed.
+        if directory.strip().casefold() in RESERVED_CONCEPT_STEMS:
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'][{concept_type!r}]"
+                f"['directory'] is {directory!r}, which OKF §3.1 reserves at "
+                "every level of the hierarchy — choose another directory name"
+            )
+        validated[concept_type] = {
+            "grain": grain,
+            "entity_type": entity_type,
+            "directory": directory,
+        }
     return validated
 
 

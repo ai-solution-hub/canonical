@@ -173,11 +173,21 @@ def _fake_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _product_key() -> ConceptKey:
-    return ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
+    return ConceptKey(
+        rel_path="products/lms.md",
+        concept_type="product",
+        grain="product_entity_mention",
+        entity_id="LMS",
+    )
 
 
 def _gdpr_key() -> ConceptKey:
-    return ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+    return ConceptKey(
+        rel_path="topics/gdpr.md",
+        concept_type="topic",
+        grain="topic_scope_tag",
+        scope_tag="gdpr",
+    )
 
 
 def _product_raw() -> ConceptRaw:

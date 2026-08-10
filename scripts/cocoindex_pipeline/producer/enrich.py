@@ -186,8 +186,8 @@ was bumped BEFORE the next deployed producer run (the `{132.35}` GLM-5.2
 Run-1 BI-18 re-proof) so the corpus is treated as invalidated ahead of that
 run, with the reason recorded in the bundle's `log.md` at that run.
 
-**`version=2` (id-426, this bump — the OKF v0.2 emission contract).** The
-S546 wave changes BOTH the drafting config (`PASS1_INSTRUCTION_PROMPT`'s
+**`version=2` (id-426 — the OKF v0.2 emission contract).** The S546 wave
+changed BOTH the drafting config (`PASS1_INSTRUCTION_PROMPT`'s
 citation-surface wording) and the output shape (`ConceptFrontmatter` now
 carries `generated: { by, at }` + `sources[]` in place of the retired
 `timestamp`/top-level `canonical://` `resource:`; `ConceptDraft` gains
@@ -195,6 +195,29 @@ carries `generated: { by, at }` + `sources[]` in place of the retired
 footnote definitions). Per the SAME manual-bump contract, the corpus is
 treated as invalidated ahead of the first v0.2 producer run, with the
 reason recorded in the bundle's `log.md` at that run.
+
+**`version=3` (ID-427 {427.7}, this bump — THE WAVE'S ONE BUMP; TECH §5).**
+`ConceptKey`'s field set changes, and every field fingerprints
+unconditionally (`memo_fingerprint._canonicalize_dataclass`), so the whole
+corpus re-drafts once. DR-060 makes that a deliberate operator act recorded
+in the bundle `log.md`, not an automatic invalidation — and TECH §5 makes it
+**one bump for the whole id-427 wave, applied here**:
+
+- **{427.7} (landed with this bump):** `ConceptKey` gains `grain`; grains
+  become registry entries; `read_concept`/`sample_rows`/the source-documents
+  read stop dispatching on `concept_type`.
+- **{427.8}** re-homes the won-bid grain's directory — a concept IDENTITY
+  change, hence a memo change.
+- **{427.10}** adds template-drafted residual concepts and makes
+  `confidence: no-content` reachable — an output-shape change.
+- **{427.12}** renames `ConceptKey.workspace_id` to `form_instance_id` — a
+  second field-set change, deliberately sequenced to ride this same
+  invalidation rather than a second one.
+
+**No later subtask in this wave re-bumps `version=`.** A second bump would
+buy nothing (the corpus is already invalidated once) and would cost a second
+full re-draft of every concept. If a subtask outside this wave needs one, it
+takes `version=4` and records its own reason here.
 
 **The effective ontology is excluded from the Pass-1 fingerprint (MD-9,
 DR-054/DR-027).** `EffectiveOntology` governs the concept-**write** gate
@@ -351,6 +374,32 @@ class _Pass1Envelope:
 
 
 # ── BI-8 q_a_pairs anchor (topic locator only) ──────────────────────────
+
+
+def _samples_source_documents(source: Any, key: Any) -> bool:
+    """Does `key`'s grain return `source_documents` rows from `sample_rows`?
+
+    **ID-427 {427.7} — this replaced a fourth `concept_type` dispatcher.**
+    The line was `target.concept_type in ("company", "certification")`: a
+    hand-written mirror, across a module boundary, of the fallthrough arm in
+    `l_records.sample_rows`. TECH §1 counts three dispatchers, all inside
+    `l_records.py`; an AST projection over `scripts/` (S547) found four
+    control-flow reads of `.concept_type`, and this was the fourth. Left
+    type-keyed, a newly-registered source-documents-sampling grain would have
+    reached the model with UN-MINTED real record ids — which the BI-17
+    provenance gate then refuses, so the model's honest citations fail. The
+    grain registry made that failure mode reachable, so the grain registry
+    answers it: `GrainSpec.sample_kind` is declared next to the `sample`
+    callable it describes.
+
+    Duck-typed via `getattr`, the posture `bundle_writer._rel_path_of` /
+    `bundle_write_path` already take toward the two concept models. A Source
+    with no grain registry (`RepoDocsSource`, whose `sample_rows` returns
+    line dicts, not rows) answers `False`, which is its behaviour today."""
+    grain_for = getattr(source, "grain_for", None)
+    if grain_for is None:
+        return False
+    return getattr(grain_for(key), "sample_kind", "") == "source_documents"
 
 
 def _qa_pairs_anchor(key: ConceptKey) -> "str | None":
@@ -518,10 +567,9 @@ def _build_tool_executors(
         except (TypeError, ValueError):
             return {"error": f"n must be an integer, got {n!r}"}
         rows = await source.sample_rows(target, n_int)
-        if target.concept_type in ("company", "certification"):
-            # These grains sample source_documents rows (the adapter
-            # dispatch's fallthrough arm — `l_records.sample_rows`), so each
-            # row gets its BI-6 anchor minted into `seen_anchors` exactly as
+        if _samples_source_documents(source, target):
+            # This grain samples source_documents rows, so each row gets its
+            # BI-6 anchor minted into `seen_anchors` exactly as
             # `_annotate_raw_with_anchors` does: a sampled row is real
             # provenance, and an unminted one leaks a REAL sd id the BI-17
             # gate must then refuse. q_a_pairs-backed grains stay unadorned
@@ -878,7 +926,7 @@ def _seed_user_message(key: ConceptKey) -> str:
 # ── enrich_concept ───────────────────────────────────────────────────────
 
 
-@coco.fn(memo=True, memo_key={"source": None}, version=2)
+@coco.fn(memo=True, memo_key={"source": None}, version=3)
 async def enrich_concept(
     key: ConceptKey,
     source: Source,
@@ -896,7 +944,7 @@ async def enrich_concept(
     the S451 rider's terminal-TEXT contract (fold-in 1: a JSON envelope in
     the final text turn, never a tool call; fold-in 3: all terminal
     TextBlocks concatenated). `@coco.fn(memo=True, memo_key={'source': None},
-    version=2)` on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060):
+    version=3)` on the frozen `key` (BI-18, {132.38} G-MEMO-DELTA, DR-060):
     `source` is excluded via `memo_key` (MD-2) so the unpickleable
     `LRecordsSource` never reaches the fingerprint; `key.content_version`
     (MD-3) is the BI-18 delta signal — see the module docstring for the full
@@ -904,14 +952,9 @@ async def enrich_concept(
     a `PRODUCER_MODEL` env override counts identically to a literal
     `ANTHROPIC_MODEL` edit, {132.35} slice B) is a MANUAL `version=` bump
     recorded in the bundle's `log.md`, never an auto `deps=` invalidation.
-    `version=2` (id-426, this bump) is that contract applied to the OKF
-    v0.2 emission wave: the prompt's citation-surface wording changed
-    (drafting config) AND the emitted frontmatter/draft shape changed
-    (`generated`/`sources[]`/`primary_anchor`, trailer retired — an
-    output-shape change), so the corpus is treated as invalidated ahead of
-    the first v0.2 producer run (a bundle `log.md` entry is recorded at
-    that run per the DR-060 contract; see the module docstring's
-    `version=2` section).
+    `version=3` (ID-427 {427.7}) is **the id-427 wave's single bump** — see
+    the module docstring's `version=3` section for what it covers and why no
+    later subtask in the wave re-bumps it.
     """
     catalogue = await source.list_concepts()
     own_raw = await source.read_concept(key)

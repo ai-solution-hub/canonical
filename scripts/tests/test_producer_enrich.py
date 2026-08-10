@@ -105,7 +105,28 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
 from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
     ConceptKey,
     ConceptRaw,
+    GrainSpec,
 )
+
+
+def _grain(name: str, *, sample_kind: str = "q_a_pairs") -> GrainSpec:
+    """A minimal registry entry for the fake Source. Only `sample_kind` is
+    exercised in this file — `enrich.py` reads nothing else off a grain —
+    so the three callables are stubs that assert they are never reached."""
+
+    async def _unused(*_args: Any) -> Any:  # pragma: no cover
+        raise AssertionError("enrich.py must not invoke a grain's callables")
+
+    return GrainSpec(
+        name=name,
+        directory=name,
+        type_label="topic",
+        list=_unused,
+        read=_unused,
+        sample=_unused,
+        sample_kind=sample_kind,
+    )
+
 
 _ENRICH_SOURCE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -141,12 +162,22 @@ class _FakeSource:
         catalogue: "list[ConceptKey]",
         raw_by_path: "dict[str, ConceptRaw]",
         sample_by_path: "dict[str, list[dict]] | None" = None,
+        grains: "dict[str, GrainSpec] | None" = None,
     ) -> None:
         self._catalogue = list(catalogue)
         self._raw_by_path = raw_by_path
         self._sample_by_path = sample_by_path or {}
+        self._grains = grains or {}
         self.read_concept_calls: "list[ConceptKey]" = []
         self.sample_rows_calls: "list[tuple[ConceptKey, int]]" = []
+
+    def grain_for(self, key: ConceptKey) -> GrainSpec:
+        """ID-427 {427.7}: the seam `enrich._samples_source_documents` reads.
+        A grain declares whether its `sample_rows` returns `source_documents`
+        rows (which must be anchor-minted) or `q_a_pairs` rows (which must
+        not be) — the fact used to be a `concept_type` literal inside
+        `enrich.py`, hand-mirroring the adapter's own dispatch."""
+        return self._grains[key.grain]
 
     async def list_concepts(self) -> "list[ConceptKey]":
         return list(self._catalogue)
@@ -175,11 +206,21 @@ def _fake_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _product_key() -> ConceptKey:
-    return ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
+    return ConceptKey(
+        rel_path="products/lms.md",
+        concept_type="product",
+        grain="product_entity_mention",
+        entity_id="LMS",
+    )
 
 
 def _gdpr_key() -> ConceptKey:
-    return ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+    return ConceptKey(
+        rel_path="topics/gdpr.md",
+        concept_type="topic",
+        grain="topic_scope_tag",
+        scope_tag="gdpr",
+    )
 
 
 def _catalogue_with_gdpr(key: ConceptKey) -> "list[ConceptKey]":
@@ -217,6 +258,7 @@ def _won_bid_case_study_key() -> ConceptKey:
     return ConceptKey(
         rel_path="case-studies/acme-corp.md",
         concept_type="case_study",
+        grain="case_study_won_bid",
         entity_id="Acme Corp",
         workspace_id=_WS_ID,
     )
@@ -737,7 +779,7 @@ class TestPC5GitBlobCitationValidation:
     def test_annotate_raw_with_anchors_sets_qa_resource_for_topic_scope_tag(
         self,
     ) -> None:
-        key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        key = _gdpr_key()
         raw = ConceptRaw(q_a_pairs=[{"id": "qa-1"}])
         seen_anchors: "set[str]" = set()
         annotated = enrich._annotate_raw_with_anchors(key, raw, seen_anchors)
@@ -789,7 +831,7 @@ class TestPC5GitBlobCitationValidation:
         assert enrich._resource_from_raw(key, raw) == build_source_document_uri(_SD_ID)
 
     def test_resource_from_raw_falls_back_to_qa_anchor_for_topic(self) -> None:
-        key = ConceptKey(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        key = _gdpr_key()
         raw = ConceptRaw(q_a_pairs=[{"id": "qa-1"}])
         assert enrich._resource_from_raw(key, raw) == build_q_a_pairs_query_uri(
             scope_tag="gdpr"
@@ -797,7 +839,10 @@ class TestPC5GitBlobCitationValidation:
 
     def test_resource_from_raw_is_none_when_nothing_anchorable(self) -> None:
         key = ConceptKey(
-            rel_path="products/unknown.md", concept_type="product", entity_id="Unknown"
+            rel_path="products/unknown.md",
+            concept_type="product",
+            grain="product_entity_mention",
+            entity_id="Unknown",
         )
         assert enrich._resource_from_raw(key, ConceptRaw()) is None
 
@@ -942,7 +987,7 @@ class TestMemoisationProxy:
     ) -> None:
         """{132.38} G-MEMO-DELTA, DR-060 (S469 owner ratification): the
         decorator is EXACTLY
-        `@coco.fn(memo=True, memo_key={'source': None}, version=2)` —
+        `@coco.fn(memo=True, memo_key={'source': None}, version=3)` —
         `source` excluded (MD-2), NO `deps=` kwarg. OQ-MD-1 ratified AWAY
         from the `deps={...}` drafting-config auto-invalidation design
         MEMO-DELTA.md's body text proposed: a prompt/model/max_tokens change
@@ -950,17 +995,19 @@ class TestMemoisationProxy:
         OKF `log.md` (`bundle_writer.append_log_entry`), never an
         engine-level fingerprint input. `version=1` (S481) exercised the
         lever for the {132.41}/{132.42} frontmatter-wave changes;
-        `version=2` (id-426) is the OKF v0.2 emission-contract bump — the
-        prompt's citation-surface wording AND the emitted draft shape
-        (`generated`/`sources[]`/`primary_anchor`, trailer retired) both
-        changed, so the corpus is invalidated ahead of the first v0.2
-        producer run (see the module docstring's `version=2` section).
+        `version=2` (id-426) was the OKF v0.2 emission-contract bump;
+        **`version=3` (ID-427 {427.7}) is the id-427 wave's ONE bump**
+        (TECH §5) — `ConceptKey`'s field set changes here and again in
+        {427.12}, and the output shape changes in {427.10}, all of which ride
+        this single invalidation rather than three. A later subtask in the
+        wave raising this number is the failure this assertion catches: it
+        would cost a second full re-draft of every concept and buy nothing.
         This exact-equality assertion is also the empirical proof there is
         no stray `deps=` kwarg."""
         assert enrich.enrich_concept.__coco_fn_kwargs__ == {
             "memo": True,
             "memo_key": {"source": None},
-            "version": 2,
+            "version": 3,
         }
 
     def test_concept_key_is_frozen_and_equal_by_value(self) -> None:
@@ -970,8 +1017,8 @@ class TestMemoisationProxy:
         `@coco.fn(memo=True, memo_key={'source': None})` declaration
         meaningful: an equal-valued `ConceptKey` for an unchanged concept
         memo-hits."""
-        a = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
-        b = ConceptKey(rel_path="products/lms.md", concept_type="product", entity_id="LMS")
+        a = _product_key()
+        b = _product_key()
         assert a == b
         assert hash(a) == hash(b)
 
@@ -991,7 +1038,12 @@ class TestContentVersionNonLeak:
 
     @staticmethod
     def _keys() -> "tuple[ConceptKey, ConceptKey]":
-        base = dict(rel_path="topics/gdpr.md", concept_type="topic", scope_tag="gdpr")
+        base = dict(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="gdpr",
+        )
         return (
             ConceptKey(**base, content_version="v-a"),
             ConceptKey(**base, content_version="v-b"),
@@ -1811,8 +1863,7 @@ class TestBoundedTerminalRetry:
 
 
 class TestSampleRowsAnchorMinting:
-    """`sample_rows` for the source_documents-backed grains (`company`/
-    `certification` — the adapter dispatch's fallthrough arm) must mint each
+    """`sample_rows` for a source_documents-backed grain must mint each
     sampled row's BI-6 `canonical://` anchor into `seen_anchors`, exactly as
     `_annotate_raw_with_anchors` does for `read_concept_raw`: a row the model
     actually read via `sample_rows` is real provenance, so a citation copied
@@ -1820,14 +1871,41 @@ class TestSampleRowsAnchorMinting:
     gate then (correctly) refuses — the {132.15} v3 live-run failure shape.
     q_a_pairs-backed grains stay unadorned: q_a citation is DB-internal
     (owner-ratified), so no anchor form may enter the conversation for them.
+
+    **ID-427 {427.7} re-sources WHICH grains those are.** The behaviour under
+    test is unchanged and every assertion below is unchanged; what changed is
+    that the answer comes from `GrainSpec.sample_kind` instead of a
+    `concept_type in ("company", "certification")` literal inside `enrich.py`
+    — a fourth `concept_type` dispatcher that hand-mirrored the adapter's own
+    fallthrough arm across a module boundary. `test_a_grain_declaring_source_
+    documents_mints_anchors_with_no_enrich_edit` below is the assertion that
+    fact now buys: a grain this codebase has never seen gets the same
+    treatment, which the literal could not give it.
     """
 
-    @staticmethod
-    def _executors(key: ConceptKey, sample: "list[dict]") -> "tuple[dict, set]":
+    _GRAINS = {
+        "certification_entity_mention": _grain(
+            "certification_entity_mention", sample_kind="source_documents"
+        ),
+        "company_singleton": _grain(
+            "company_singleton", sample_kind="source_documents"
+        ),
+        "topic_scope_tag": _grain("topic_scope_tag"),
+        "case_study_won_bid": _grain("case_study_won_bid"),
+    }
+
+    @classmethod
+    def _executors(
+        cls,
+        key: ConceptKey,
+        sample: "list[dict]",
+        grains: "dict[str, GrainSpec] | None" = None,
+    ) -> "tuple[dict, set]":
         source = _FakeSource(
             catalogue=_catalogue_with_gdpr(key),
             raw_by_path={},
             sample_by_path={key.rel_path: sample},
+            grains={**cls._GRAINS, **(grains or {})},
         )
         seen_anchors: "set[str]" = set()
         executors = enrich._build_tool_executors(
@@ -1839,6 +1917,7 @@ class TestSampleRowsAnchorMinting:
         key = ConceptKey(
             rel_path="certifications/iso-9001.md",
             concept_type="certification",
+            grain="certification_entity_mention",
             entity_id="ISO 9001",
         )
         sd_id = str(uuid.uuid4())
@@ -1855,7 +1934,11 @@ class TestSampleRowsAnchorMinting:
         assert seen_anchors == {expected}
 
     def test_company_sample_rows_carry_minted_sd_anchors(self) -> None:
-        key = ConceptKey(rel_path="company/overview.md", concept_type="company")
+        key = ConceptKey(
+            rel_path="company/overview.md",
+            concept_type="company",
+            grain="company_singleton",
+        )
         sd_id = str(uuid.uuid4())
         executors, seen_anchors = self._executors(
             key, [{"id": sd_id, "filename": "team-structure.md"}]
@@ -1887,6 +1970,39 @@ class TestSampleRowsAnchorMinting:
 
         assert rows == qa_rows
         assert seen_anchors == set()
+
+    def test_a_grain_declaring_source_documents_mints_anchors_with_no_enrich_edit(
+        self,
+    ) -> None:
+        """ID-427 {427.7}. A grain neither this module nor `enrich.py` has
+        ever heard of declares `sample_kind="source_documents"`, and its
+        sampled rows are anchor-minted. Under the retired
+        `concept_type in ("company", "certification")` literal this row would
+        have reached the model UN-minted, and the BI-17 gate would then have
+        refused the model's honest citation of it — a silent correctness hole
+        the grain registry would otherwise have made newly reachable."""
+        key = ConceptKey(
+            rel_path="frameworks/nist-csf.md",
+            concept_type="framework",
+            grain="framework_entity_mention",
+            entity_id="NIST CSF",
+        )
+        sd_id = str(uuid.uuid4())
+        executors, seen_anchors = self._executors(
+            key,
+            [{"id": sd_id, "filename": "nist-csf.pdf"}],
+            grains={
+                "framework_entity_mention": _grain(
+                    "framework_entity_mention", sample_kind="source_documents"
+                )
+            },
+        )
+
+        rows = asyncio.run(executors["sample_rows"]({"concept": key.rel_path, "n": 5}))
+
+        expected = build_source_document_uri(sd_id)
+        assert rows[0]["resource"] == expected
+        assert seen_anchors == {expected}
 
 
 class TestEntityMentionSdAnchorMinting:

@@ -35,6 +35,8 @@ generic placeholder business categories, never the real first-client corpus.
 
 from __future__ import annotations
 
+import asyncio
+import dataclasses
 import hashlib
 import json
 import re
@@ -111,7 +113,22 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.web_pass import (  # noqa: E402
     ReferenceConceptDraft,
 )
-from scripts.cocoindex_pipeline.sources.base import ConceptKey  # noqa: E402
+from scripts.cocoindex_pipeline.sources import l_records  # noqa: E402
+from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
+    ConceptKey,
+    ConceptRaw,
+    GrainEnumeration,
+    GrainSpec,
+    mint_concept_slug,
+)
+
+
+def _run(coro):
+    """ID-427 {427.7}: the grain-registry tests below drive the real
+    `LRecordsSource` (over a pool double) as far as the emitted bundle, so
+    this file now needs an async runner — mirrors
+    `test_l_records_source.py`'s own `_run`."""
+    return asyncio.run(coro)
 
 # lib/okf/parse-index.ts / lib/okf/parse-log.ts regex mirrors — Python-side
 # defence-in-depth so a format drift is caught here TOO, not only by the
@@ -163,7 +180,12 @@ def _fm(
 def _draft(
     rel_path: str, *, title="Title", description="Desc", body_suffix="", type="topic"
 ) -> ConceptDraft:
-    key = ConceptKey(rel_path=rel_path, concept_type="topic", scope_tag=rel_path)
+    key = ConceptKey(
+        rel_path=rel_path,
+        concept_type="topic",
+        grain="topic_scope_tag",
+        scope_tag=rel_path,
+    )
     body = (
         f"A distilled synthesis about {title}.{body_suffix}\n\n"
         f"{render_source_footnotes(sources_from_citations([_SD_URI]))}"
@@ -206,7 +228,12 @@ def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
     # BI-4: an out-of-set type fails check_concept.
     bad_frontmatter = _fm(type="not-a-real-type")
     draft = ConceptDraft(
-        key=ConceptKey(rel_path="topics/bad.md", concept_type="topic", scope_tag="bad"),
+        key=ConceptKey(
+            rel_path="topics/bad.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="bad",
+        ),
         frontmatter=bad_frontmatter,
         body="A distilled synthesis.\n",
         primary_anchor=_SD_URI,
@@ -308,7 +335,12 @@ def test_declare_concept_writes_the_v02_provenance_surface_as_is(
     emitted."""
     citations = [_SD_URI, "certifications/iso-9001.md"]
     sources = sources_from_citations(citations)
-    key = ConceptKey(rel_path="topics/alpha.md", concept_type="topic", scope_tag="alpha")
+    key = ConceptKey(
+        rel_path="topics/alpha.md",
+        concept_type="topic",
+        grain="topic_scope_tag",
+        scope_tag="alpha",
+    )
     draft = ConceptDraft(
         key=key,
         frontmatter=_fm(title="Alpha", citations=citations),
@@ -570,7 +602,12 @@ def test_append_log_entry_merges_same_date_runs_newest_run_first(tmp_path: Path)
 def test_write_bundle_validator_failure_excluded_from_write_and_index(tmp_path: Path) -> None:
     good = _draft("topics/good.md", title="Good")
     bad = ConceptDraft(
-        key=ConceptKey(rel_path="topics/bad.md", concept_type="topic", scope_tag="bad"),
+        key=ConceptKey(
+            rel_path="topics/bad.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="bad",
+        ),
         frontmatter=_fm(type="not-a-real-type"),
         body="body\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
     )
@@ -875,6 +912,10 @@ def _case_study_draft(
     key = ConceptKey(
         rel_path=rel_path,
         concept_type="case_study",
+        grain=(
+            "case_study_won_bid" if workspace_id is not None
+            else "case_study_named_client"
+        ),
         entity_id=entity_id,
         workspace_id=workspace_id,
     )
@@ -2026,7 +2067,14 @@ def test_read_concept_feeder_config_parses_a_well_formed_file(tmp_path: Path) ->
     config = bundle_writer.read_concept_feeder_config(tmp_path)
 
     assert config == {
-        "partner": {"grain": "entity_mention", "entity_type": "partner"},
+        "partner": {
+            "grain": "entity_mention",
+            "entity_type": "partner",
+            # ID-427 {427.7}, TECH §2.7: an omitted `directory` resolves to
+            # the declared type name — the same string the pre-{427.7}
+            # `{concept_type}/` layout minted, so no feeder concept moves.
+            "directory": "partner",
+        },
     }
 
 
@@ -2193,7 +2241,12 @@ def test_concept_feeder_config_accepts_a_novel_well_formed_label(tmp_path: Path)
     config = bundle_writer.read_concept_feeder_config(tmp_path)
 
     assert config == {
-        "framework": {"grain": "entity_mention", "entity_type": "framework"}
+        "framework": {
+            "grain": "entity_mention",
+            "entity_type": "framework",
+            # ID-427 {427.7}: `directory` defaults to the declared type name.
+            "directory": "framework",
+        }
     }
 
 
@@ -2209,4 +2262,395 @@ def test_require_client_business_bundle_class_rejects_every_other_class_and_none
         with pytest.raises(bundle_writer.OntologyOverlayClassError):
             bundle_writer.require_client_business_bundle_class(
                 non_client_class, filename="concept-feeder.json"
+            )
+
+
+# =========================================================================
+# ID-427 {427.7} — the grain registry, asserted as the STRUCTURE it buys
+#
+# These tests are not about the refactor. They are about the one property
+# whose absence produced the inversion DR-141 names: **adding a grain is a
+# registry entry, and nothing else.** A test that only checked the six
+# built-in grains still work would pass just as well against the old
+# four-edits-in-four-places shape, and would therefore prove nothing.
+# =========================================================================
+
+
+class _PermissivePool:
+    """A pool that answers every query with zero rows. The built-in grains
+    therefore enumerate nothing, leaving exactly the grain under test in the
+    keyset — these tests are about ONE grain's route, not about a corpus."""
+
+    def __init__(self) -> None:
+        self.queries: "list[str]" = []
+
+    async def fetch(self, query: str, *args: object) -> "list[dict]":
+        self.queries.append(query)
+        return []
+
+
+def _grain_draft(key: ConceptKey, *, title: str, type_label: str) -> ConceptDraft:
+    """Stands in for the Pass-1 agent loop, exactly as `_draft` does for
+    every other test in this file: the model call is not the subject here,
+    the route from a registry entry to a file on disk is."""
+    return ConceptDraft(
+        key=key,
+        frontmatter=_fm(type=type_label, title=title),
+        body=(
+            f"A distilled synthesis about {title}.\n\n"
+            f"{render_source_footnotes(sources_from_citations([_SD_URI]))}"
+        ),
+        primary_anchor=_SD_URI,
+    )
+
+
+def _register_grain(monkeypatch: pytest.MonkeyPatch, spec: GrainSpec) -> None:
+    """The ONLY production change these tests make. If a future edit means a
+    grain also needs a dispatcher arm, a directory literal, or a register
+    entry, this helper stops being sufficient and these tests fail — which is
+    the regression they exist to catch."""
+    monkeypatch.setattr(
+        l_records, "_BUILTIN_GRAINS", (*l_records._BUILTIN_GRAINS, spec)
+    )
+
+
+def _fake_grain(**overrides: object) -> GrainSpec:
+    """A grain over a corpus this codebase has never had: two 'widgets',
+    enumerated from nothing but the grain's own declaration."""
+    rows = ("Sprocket", "Flywheel")
+
+    async def _list(src: object, spec: GrainSpec) -> GrainEnumeration:
+        return GrainEnumeration(
+            keys=tuple(
+                ConceptKey(
+                    rel_path=f"{spec.directory}/{mint_concept_slug(name)}.md",
+                    concept_type=spec.type_label,
+                    grain=spec.name,
+                    entity_id=name,
+                )
+                for name in rows
+            )
+        )
+
+    async def _read(src: object, spec: GrainSpec, key: ConceptKey) -> ConceptRaw:
+        return ConceptRaw(
+            source_documents=[{"id": _SAMPLE_UUID, "filename": key.entity_id}]
+        )
+
+    async def _sample(
+        src: object, spec: GrainSpec, key: ConceptKey, n: int
+    ) -> "list[dict]":
+        return [{"id": _SAMPLE_UUID, "filename": key.entity_id}][:n]
+
+    defaults: "dict[str, object]" = dict(
+        name="widget_catalogue",
+        directory="widgets",
+        type_label="widget",
+        list=_list,
+        read=_read,
+        sample=_sample,
+    )
+    return GrainSpec(**{**defaults, **overrides})  # type: ignore[arg-type]
+
+
+class TestAGrainIsOneRegistryEntry:
+    """**The assertion this subtask exists to make.**"""
+
+    def test_a_grain_registered_in_a_test_appears_in_the_emitted_bundle(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One registry entry — no `read_concept` arm, no `sample_rows` arm,
+        no `_source_documents_*` arm, no directory literal, no type register
+        — and the grain's concepts are enumerated, read, sampled, written to
+        the directory the grain declared, reported in the run summary, and
+        listed in that directory's own index.
+
+        Before {427.7} this took four edits in `l_records.py` (a fifth in
+        `enrich.py` if the grain sampled source_documents) plus, before
+        {427.5}, four type-register edits. That cost is *why* the producer
+        had no catch-all grain, which is why knowledge keying onto no grain
+        was never enumerated at all — the defect id-427 exists to fix."""
+        _register_grain(monkeypatch, _fake_grain())
+        src = l_records.LRecordsSource(_PermissivePool())
+
+        keys = _run(src.list_concepts())
+
+        # 1. Enumerated.
+        assert [k.rel_path for k in keys] == [
+            "widgets/sprocket.md",
+            "widgets/flywheel.md",
+        ]
+        assert {k.concept_type for k in keys} == {"widget"}
+        assert {k.grain for k in keys} == {"widget_catalogue"}
+
+        # 2. Read and sampled — routed by `grain`, with no dispatcher arm.
+        raw = _run(src.read_concept(keys[0]))
+        assert [r["filename"] for r in raw.source_documents] == ["Sprocket"]
+        assert _run(src.sample_rows(keys[0], 5)) == [
+            {"id": _SAMPLE_UUID, "filename": "Sprocket"}
+        ]
+
+        # 3. Emitted.
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            [_grain_draft(k, title=k.entity_id, type_label="widget") for k in keys],
+        )
+
+        assert sorted(summary.added) == ["widgets/flywheel.md", "widgets/sprocket.md"]
+        written = (tmp_path / "widgets" / "sprocket.md").read_text(encoding="utf-8")
+        assert "type: widget" in written
+        # 4. And carried into the per-directory index id-429 emits (IA-1:
+        #    every concept has a directory, and the grain declared it).
+        index = (tmp_path / "widgets" / "index.md").read_text(encoding="utf-8")
+        assert "(sprocket.md)" in index
+        assert "(flywheel.md)" in index
+
+    def test_relabelling_a_grain_changes_the_emitted_type_and_moves_no_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PI-5, asserted directly and in both halves.
+
+        The label and the location are separate declarations, so changing one
+        cannot change the other. Not a stylistic preference: a directory
+        derived from the type would make every relabel a file MOVE, churning
+        BI-2 concept identity, the cocoindex memo key, every BI-9 cross-link
+        and the client's git history."""
+        _register_grain(monkeypatch, _fake_grain())
+        before = _run(l_records.LRecordsSource(_PermissivePool()).list_concepts())
+
+        monkeypatch.setattr(
+            l_records,
+            "_BUILTIN_GRAINS",
+            tuple(
+                dataclasses.replace(spec, type_label="component")
+                if spec.name == "widget_catalogue"
+                else spec
+                for spec in l_records._BUILTIN_GRAINS
+            ),
+        )
+        after = _run(l_records.LRecordsSource(_PermissivePool()).list_concepts())
+
+        # The emitted type changed …
+        assert {k.concept_type for k in before} == {"widget"}
+        assert {k.concept_type for k in after} == {"component"}
+        # … and the identity — physical path, memo key, BI-9 citation target
+        # — did not.
+        assert [k.rel_path for k in before] == [k.rel_path for k in after]
+
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            [_grain_draft(k, title=k.entity_id, type_label="component") for k in after],
+        )
+
+        assert summary.moved == ()
+        assert sorted(summary.added) == ["widgets/flywheel.md", "widgets/sprocket.md"]
+        written = (tmp_path / "widgets" / "sprocket.md").read_text(encoding="utf-8")
+        assert "type: component" in written
+
+    def test_relabelling_the_won_bid_grain_still_redirects_its_write_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PI-5 asserted where it is HARDEST, not where it is easy.
+
+        The {132.29} write-path redirect (`case-studies/<slug>.md` ->
+        `case-studies/won-bid/<slug>.md`) was the fifth type-keyed
+        control-flow site, and the one an AST projection could not see — it
+        reads `getattr(key, "concept_type", None)`, not an attribute node.
+        Keyed on the label, a relabel would have stopped the redirect firing
+        and let a won-bid concept silently overwrite a same-slug
+        named-client one: the exact collision the redirect exists to
+        prevent, re-opened by the very relabel PI-5 promises is safe.
+
+        Testing the relabel only against a freshly-invented grain would have
+        passed while the property was false for the one grain that had a
+        counterexample."""
+        key = ConceptKey(
+            rel_path="case-studies/acme-corp.md",
+            concept_type="won_bid",  # relabelled: no longer 'case_study'
+            grain=l_records.WON_BID_GRAIN,
+            entity_id="Acme Corp",
+            workspace_id="ws-1",
+        )
+
+        assert (
+            bundle_writer.bundle_write_path_for_key(key)
+            == "case-studies/won-bid/acme-corp.md"
+        )
+
+        named_client = ConceptKey(
+            rel_path="case-studies/acme-corp.md",
+            concept_type="won_bid",  # same label, different grain
+            grain="case_study_named_client",
+            entity_id="Acme Corp",
+        )
+        assert (
+            bundle_writer.bundle_write_path_for_key(named_client)
+            == "case-studies/acme-corp.md"
+        )
+
+    def test_two_grains_may_share_one_directory(self) -> None:
+        """id-429 IA-4: many-to-one is fine, and the shipped bundle already
+        relies on it — both `case_study` grains own `case-studies`. Asserted
+        because {427.8} is about to change one of them, and a uniqueness
+        constraint quietly introduced here would block it."""
+        shared = [
+            spec.directory
+            for spec in l_records._BUILTIN_GRAINS
+            if spec.type_label == "case_study"
+        ]
+        assert shared == ["case-studies", "case-studies"]
+        assert len(l_records.BUILTIN_GRAIN_DIRECTORIES) < len(l_records._BUILTIN_GRAINS)
+
+
+class TestReservedConceptSlugs:
+    """id-429 **IA-3**, net-new and created by id-427 (DESIGN §5).
+
+    OKF §3.1 reserves `index.md`/`log.md` at every level of the hierarchy.
+    Under the closed type vocabulary a concept could never land on one;
+    {427.5} opened the vocabulary, and id-429 {429.5} then made the producer
+    declare an `index.md` per directory AFTER the concept loop — so a concept
+    at `<dir>/index.md` is actively OVERWRITTEN within the same run, last
+    write wins, and reconciled away on the next. That sequencing is why this
+    guard is blocking rather than advisory."""
+
+    def test_a_scope_tag_named_index_writes_beside_the_directory_index(
+        self, tmp_path: Path
+    ) -> None:
+        class _IndexScopeTagPool(_PermissivePool):
+            async def fetch(self, query: str, *args: object) -> "list[dict]":
+                self.queries.append(query)
+                if "AS scope_tag FROM q_a_pairs" in query:
+                    return [{"scope_tag": "Index"}]
+                return []
+
+        keys = _run(l_records.LRecordsSource(_IndexScopeTagPool()).list_concepts())
+
+        assert [k.rel_path for k in keys] == ["topics/index-concept.md"]
+
+        summary = bundle_writer.write_bundle(
+            tmp_path, [_grain_draft(keys[0], title="Index", type_label="topic")]
+        )
+
+        # The concept is on disk under its renamed slug …
+        assert summary.added == ("topics/index-concept.md",)
+        concept = (tmp_path / "topics" / "index-concept.md").read_text(encoding="utf-8")
+        assert "A distilled synthesis about Index." in concept
+        # … and the directory's own index is a real index, not the concept.
+        index = (tmp_path / "topics" / "index.md").read_text(encoding="utf-8")
+        assert "(index-concept.md)" in index
+        assert "A distilled synthesis" not in index
+
+    def test_a_document_named_log_is_renamed_not_refused(self) -> None:
+        """TECH §2.6: a client document legitimately called "Log" is a data
+        fact, not a configuration error. Aborting a whole producer run over
+        one would violate DR-047's narrowly-scoped degrade posture, so the
+        slug is renamed deterministically instead."""
+        assert mint_concept_slug("Log") == "log-concept"
+        assert mint_concept_slug("index") == "index-concept"
+        # Identity on everything else — the guard must not perturb any of the
+        # concept paths the bundle already ships.
+        assert mint_concept_slug("iso-27001") == "iso-27001"
+        assert mint_concept_slug("Acme Corp") == "acme-corp"
+        assert mint_concept_slug("logistics") == "logistics"
+        assert mint_concept_slug("index-concept") == "index-concept"
+
+    def test_a_feeder_declaring_a_reserved_directory_is_refused_at_read_time(
+        self, tmp_path: Path
+    ) -> None:
+        """The other half of §2.6, and the reason the two halves differ: a
+        DIRECTORY name is the client's configuration choice, not a data fact,
+        so it fails loud at config-read — `ConceptFeederConfigError`'s own
+        documented posture — rather than being silently renamed."""
+        (tmp_path / "concept-feeder.json").write_text(
+            json.dumps(
+                {
+                    "concept_types": {
+                        "framework": {
+                            "grain": "entity_mention",
+                            "entity_type": "framework",
+                            "directory": "log",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(bundle_writer.ConceptFeederConfigError, match="reserves"):
+            bundle_writer.read_concept_feeder_config(tmp_path)
+
+    def test_a_feeder_may_declare_a_directory_that_differs_from_its_type(
+        self, tmp_path: Path
+    ) -> None:
+        """TECH §2.7 — the decoupling the `directory` key exists for, and the
+        reason it is not derived: an arbitrary client-chosen type name has no
+        principled English-plural rule."""
+        (tmp_path / "concept-feeder.json").write_text(
+            json.dumps(
+                {
+                    "concept_types": {
+                        "framework": {
+                            "grain": "entity_mention",
+                            "entity_type": "framework",
+                            "directory": "frameworks",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        config = bundle_writer.read_concept_feeder_config(tmp_path)
+
+        assert config["framework"]["directory"] == "frameworks"
+
+    def test_a_feeder_declared_directory_is_where_its_concepts_land(self) -> None:
+        """The `directory` key reaching the emitted rel_path — a feeder grain
+        is an ordinary registry entry, so its directory is honoured the same
+        way a built-in grain's is."""
+
+        class _FrameworkPool(_PermissivePool):
+            async def fetch(self, query: str, *args: object) -> "list[dict]":
+                self.queries.append(query)
+                if "entity_type = $1 ORDER BY 1" in query and args == ("framework",):
+                    return [{"canonical_name": "NIST CSF"}]
+                return []
+
+        src = l_records.LRecordsSource(
+            _FrameworkPool(),
+            concept_feeder_config={
+                "framework": {
+                    "grain": "entity_mention",
+                    "entity_type": "framework",
+                    "directory": "frameworks",
+                }
+            },
+        )
+
+        keys = _run(src.list_concepts())
+
+        assert [k.rel_path for k in keys] == ["frameworks/nist-csf.md"]
+        assert keys[0].concept_type == "framework"
+        assert keys[0].grain == "feeder:framework"
+
+    def test_the_feeder_collision_guard_reads_the_grain_registry(self) -> None:
+        """{427.5} parked this guard on a hand-mirrored constant carrying an
+        explicit {427.7} expiry. It is sourced from the registry now, so a
+        grain added or relabelled there cannot leave the guard stale — the
+        drift the stopgap could not prevent. The guard itself is KEPT: its
+        requirement (`l_records`' ordered dispatch would enumerate a shadowed
+        label twice) is live, and deleting it would degrade a clear config
+        error into an opaque write-path collision."""
+        assert not hasattr(bundle_writer, "_BUILTIN_GRAIN_TYPE_LABELS")
+        assert l_records.BUILTIN_GRAIN_TYPE_LABELS == {
+            spec.type_label for spec in l_records._BUILTIN_GRAINS
+        }
+
+        with pytest.raises(bundle_writer.ConceptFeederConfigError, match="BUILT-IN"):
+            bundle_writer._validate_concept_feeder_schema(
+                {
+                    "concept_types": {
+                        "topic": {"grain": "entity_mention", "entity_type": "topic"}
+                    }
+                }
             )

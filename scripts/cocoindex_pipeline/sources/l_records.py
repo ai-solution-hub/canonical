@@ -32,14 +32,22 @@ the same connection posture `flow.py`'s `postgres` connector /
 schema-isolation boundary governs the supabase-js/PostgREST APP surface
 only; a direct Python DB reader is out of its scope.
 
-Per-concept-type table/join grid (TECH §"Per-concept-type table/join grid",
-BI-3/BI-4/BI-5). The ratified type set is `{topic, product, company,
-certification, case_study}` — `metric`/`playbook`/`dataset` stay distinct
-tags on `topic` concepts, not separate types (BI-4). **A `q_a_pair` is
-NEVER enumerated as a concept** (BI-3) — `ConceptKey.__post_init__` makes
-this a runtime invariant, not just a convention: constructing a
-`ConceptKey` with any `concept_type` outside the ratified set raises
-`ValueError`.
+**Per-GRAIN table/join grid** (ID-427 {427.7}, TECH §1; was "per-concept-
+type"). A grain is a declared object — `_BUILTIN_GRAINS` at the foot of this
+module — carrying its own `directory`, `type_label`, enumeration, read and
+sample. `ConceptKey.grain` is the dispatch key; `concept_type` is the emitted
+LABEL and routes nothing. Two grains may emit the same label (both
+`case_study` grains do), and relabelling a grain changes what the bundle says
+without moving a file (PI-5). There is **no** ratified type set: {427.5}
+deleted all four registries under DR-141, and `metric`/`playbook`/`dataset`
+are ordinary free-form tags with no register behind them.
+
+**A `q_a_pair` is NEVER enumerated as a concept** (BI-3) —
+`ConceptKey.__post_init__` makes this a runtime invariant, not a convention,
+and it is the one refusal that outlived the registers.
+
+The rows below are named by the label each grain emits, which is how the
+shipped bundle reads; the grain NAMES are in the registry.
 
 | type            | `list_concepts()` grain                          | `read_concept()` joins |
 |------------------|---------------------------------------------------|-------------------------|
@@ -100,7 +108,6 @@ fully exercisable against a `FakePool` test double — see
 
 from __future__ import annotations
 
-import re
 from typing import (
     Any,
     Iterable,
@@ -115,10 +122,15 @@ from typing import (
 # `CONCEPT_TYPES` and the {132.36} `_permit_overlay_concept_types` widener
 # that had travelled with `ConceptKey`: with `concept_type` validated by
 # shape rather than membership (DR-141) there is no gate left for a feeder
-# config to widen.
+# config to widen. {427.7} adds the grain vocabulary and `mint_concept_slug`
+# there too — both are format-level, not adapter-level, facts.
 from scripts.cocoindex_pipeline.sources.base import (
     ConceptKey,
     ConceptRaw,
+    Coverage,
+    GrainEnumeration,
+    GrainSpec,
+    mint_concept_slug,
 )
 
 # Owner-discretion filename/logical_path substring patterns (ILIKE ANY),
@@ -452,15 +464,6 @@ _SQL_WON_BID_CASE_STUDY_VERSION = (
     "GROUP BY w.workspace_id ORDER BY w.workspace_id"
 )
 
-_SLUG_INVALID_RE = re.compile(r"[^a-z0-9]+")
-
-
-def _slugify(value: str) -> str:
-    """Deterministic filename-safe slug for a bundle rel_path segment."""
-    slug = _SLUG_INVALID_RE.sub("-", value.strip().lower()).strip("-")
-    return slug or "untitled"
-
-
 def _dedupe_ids(ids: "Iterable[Any]") -> "list[Any]":
     """Order-independent, deterministic id dedup (sorted by string form so
     the result is stable whether `ids` carries `uuid.UUID` or `str` values —
@@ -491,10 +494,16 @@ class LRecordsSource:
 
     `concept_feeder_config` (ID-132 {132.36} G-CONCEPT-FEEDER) is the
     optional, already-validated `{concept_type: {"grain": ..., "entity_
-    type": ...}, ...}` mapping `producer/bundle_writer.read_concept_feeder_
-    config` reads from the client-authored `concept-feeder.json` — see
-    that function's docstring for the schema. `None`/omitted (every
-    pre-{132.36} call site) is exactly `{}` — zero behaviour change.
+    type": ..., "directory": ...}, ...}` mapping `producer/bundle_writer.
+    read_concept_feeder_config` reads from the client-authored
+    `concept-feeder.json` — see that function's docstring for the schema.
+    `None`/omitted (every pre-{132.36} call site) is exactly `{}` — zero
+    behaviour change.
+
+    **ID-427 {427.7}: every grain is a registry entry** (`_BUILTIN_GRAINS`
+    below, plus one per feeder-config declaration). `read_concept` /
+    `sample_rows` resolve `self._grains[key.grain]`; neither reads
+    `concept_type` at all.
     """
 
     def __init__(
@@ -512,81 +521,158 @@ class LRecordsSource:
         self._concept_feeder_config: "Mapping[str, Mapping[str, str]]" = (
             concept_feeder_config or {}
         )
+        self._feeder_entity_types: "dict[str, str]" = {}
+        # Read as a module global (not captured at class-definition time) so
+        # a caller — a test registering a grain, most importantly — extends
+        # the registry and nothing else.
+        self._grains: "dict[str, GrainSpec]" = {
+            spec.name: spec
+            for spec in (*_BUILTIN_GRAINS, *self._feeder_grains())
+        }
+
+    def _feeder_grains(self) -> "list[GrainSpec]":
+        """ID-132 {132.36} G-CONCEPT-FEEDER, re-described by ID-427 {427.7}
+        (TECH §2.7): a feeder entry is **a client-declared preferred-routing
+        grain** — the same object as a built-in one, built from config
+        instead of from a module constant. The half of {132.36} that widened
+        the type gate died with the gate in {427.5}; this is the half that
+        was always a grain.
+
+        v1 supports exactly ONE grain strategy — `entity_mention` —
+        deliberately: this module's own docstring already names the per-type
+        join grid as "the one part that cannot be lifted, because it encodes
+        *which records back which concept type*" (TECH:162-163); a generic
+        client-authored SQL DSL would both contradict that judgement call and
+        open a real query-injection surface. `entity_mention` generalises the
+        EXISTING `product`/`certification` join pattern (a parametrised
+        `entity_type`) — the one shape already proven safe and reusable.
+        Adding a second strategy is a code change, not a config-time escape
+        hatch."""
+        grains: "list[GrainSpec]" = []
+        for concept_type, grain_config in self._concept_feeder_config.items():
+            strategy = grain_config["grain"]
+            if strategy != "entity_mention":
+                # Unreachable via the validated read path
+                # (`producer/bundle_writer.read_concept_feeder_config`'s
+                # closed grain enum) — guards a caller that constructs
+                # `LRecordsSource` directly with an unvalidated
+                # `concept_feeder_config`.
+                raise ValueError(
+                    f"unsupported concept-feeder grain {strategy!r} for "
+                    f"concept type {concept_type!r}"
+                )
+            name = f"{_FEEDER_GRAIN_PREFIX}{concept_type}"
+            self._feeder_entity_types[name] = grain_config["entity_type"]
+            grains.append(
+                GrainSpec(
+                    name=name,
+                    # TECH §2.7: `directory` is an explicit config key now
+                    # that type and directory decouple. It defaults to the
+                    # declared type name — `iri_projection.slug()` is
+                    # identity on every shape-valid label ({427.5} measured
+                    # it over 9,100), so "defaults to slug(type)" and
+                    # "defaults to the type name" are the same string, and
+                    # the pre-{427.7} `{concept_type}/` layout is preserved
+                    # byte-for-byte.
+                    directory=grain_config.get("directory") or concept_type,
+                    type_label=concept_type,
+                    list=lambda src, spec: src._list_feeder_grain(spec),
+                    read=lambda src, spec, key: src._read_entity_pattern_grain(key),
+                    sample=lambda src, spec, key, n: (
+                        src._sample_entity_pattern_grain(key, n)
+                    ),
+                )
+            )
+        return grains
+
+    async def _list_feeder_grain(self, spec: GrainSpec) -> GrainEnumeration:
+        """A feeder grain's enumeration: the SAME `entity_mention` pass a
+        built-in grain uses, parametrised by the `entity_type` its config
+        declared. Looked up by the grain's NAME (never by its label — the
+        label is relabellable, the dispatch key is not)."""
+        return await self._list_entity_mention_grain_concepts(
+            spec, self._feeder_entity_types[spec.name]
+        )
+
+    def grain_for(self, key: ConceptKey) -> GrainSpec:
+        """The registered `GrainSpec` `key` routes to. PUBLIC: `producer/
+        enrich.py`'s tool executor asks the grain what its `sample_rows`
+        returns (`GrainSpec.sample_kind`) rather than re-deriving it from
+        `concept_type`, which is how a fourth `concept_type` dispatcher
+        used to live in that module."""
+        spec = self._grains.get(key.grain)
+        if spec is None:
+            raise ValueError(
+                f"unknown grain {key.grain!r} for concept {key.rel_path!r} — "
+                f"registered grains: {sorted(self._grains)}"
+            )
+        # The locator-ownership rule that left `ConceptKey.__post_init__` in
+        # {427.7}. It was `concept_type != 'case_study'` there, which a
+        # `type_label` relabel would have turned into a spurious rejection
+        # (PI-5). Keyed on the grain and held HERE, where the registry that
+        # knows which grain declares the locator actually lives.
+        if key.workspace_id is not None and spec.name != WON_BID_GRAIN:
+            raise ValueError(
+                f"ConceptKey.workspace_id is the {WON_BID_GRAIN!r} grain's "
+                f"locator (S443 amendment / DR-029); it is set on "
+                f"{key.rel_path!r}, which routes to grain {spec.name!r}"
+            )
+        return spec
 
     # ── list_concepts (abstract, base.py) ───────────────────────────────
 
     async def list_concepts(self) -> "list[ConceptKey]":
-        """Enumerate the concept set across the built-in grains, PLUS —
-        ID-132 {132.36} G-CONCEPT-FEEDER — any type
-        `self._concept_feeder_config` declares (`{}`/absent: zero extra
-        concepts). **Never enumerates a q_a_pair as a concept** (BI-3) —
-        structurally guaranteed by `ConceptKey.__post_init__`'s
-        unconditional `q_a_pair` check, in addition to no branch below ever
-        constructing one.
+        """Enumerate the concept set by **iterating the grain registry** —
+        the built-in grains plus any the client's `concept-feeder.json`
+        declares (absent/`{}`: zero extra concepts).
 
-        ID-427 {427.5}: the feeder pass no longer needs a type-widening
-        `with` block. `ConceptKey` validates its `concept_type` by shape,
-        so a feeder-declared type is constructible on the same terms as a
-        built-in one — the widener existed only to lift a gate that is
-        gone."""
+        **Never enumerates a q_a_pair as a concept** (BI-3) — structurally
+        guaranteed by `ConceptKey.__post_init__`'s unconditional `q_a_pair`
+        check, in addition to no grain below ever constructing one.
+
+        ID-427 {427.7}: this loop is the whole enumeration. A grain added to
+        the registry is enumerated here with no edit to this method, which
+        is the property whose absence produced the inversion.
+
+        Each grain returns a `GrainEnumeration` carrying a `Coverage`, and
+        this method currently **discards** it — the seam exists, nothing
+        populates or reads it yet. {427.9} unions the coverages and reports
+        the census; {427.10} runs the residual grain over the complement. Do
+        not read today's empty `Coverage` as a measurement of what a grain
+        reaches."""
         keys: "list[ConceptKey]" = []
-        keys.extend(await self._list_topic_concepts())
-        keys.extend(await self._list_product_concepts())
-        keys.extend(await self._list_company_concepts())
-        keys.extend(await self._list_certification_concepts())
-        keys.extend(await self._list_case_study_concepts())
-        keys.extend(await self._list_won_bid_case_study_concepts())
-        keys.extend(await self._list_feeder_concepts())
+        for spec in self._grains.values():
+            enumeration = await spec.list(self, spec)
+            keys.extend(enumeration.keys)
         return keys
 
-    async def _list_feeder_concepts(self) -> "list[ConceptKey]":
-        """ID-132 {132.36} G-CONCEPT-FEEDER: enumerate every concept type
-        `self._concept_feeder_config` declares. `[]` when no feeder config
-        was supplied (the common case, and every bundle that never authors
-        `concept-feeder.json`).
-
-        v1 supports exactly ONE grain strategy — `entity_mention` —
-        deliberately: this module's own docstring already names the
-        per-type join grid as "the one part that cannot be lifted, because
-        it encodes *which records back which concept type*" (TECH:162-163);
-        a generic client-authored SQL DSL would both contradict that
-        judgement call and open a real query-injection surface.
-        `entity_mention` generalises the EXISTING `product`/`certification`
-        join pattern (a parametrised `entity_type`) — the one shape already
-        proven safe and reusable. Adding a second grain is a future
-        Subtask's code change, not a config-time escape hatch."""
-        keys: "list[ConceptKey]" = []
-        for concept_type, grain_config in self._concept_feeder_config.items():
-            grain = grain_config["grain"]
-            if grain == "entity_mention":
-                keys.extend(
-                    await self._list_entity_mention_grain_concepts(
-                        concept_type, grain_config["entity_type"]
-                    )
-                )
-                continue
-            # Unreachable via the validated read path
-            # (`producer/bundle_writer.read_concept_feeder_config`'s closed
-            # grain enum) — guards a caller that constructs `LRecordsSource`
-            # directly with an unvalidated `concept_feeder_config`.
-            raise ValueError(  # pragma: no cover
-                f"unsupported concept-feeder grain {grain!r} for concept "
-                f"type {concept_type!r}"
-            )
-        return keys
+    def _key(
+        self,
+        spec: GrainSpec,
+        *,
+        basename: str,
+        **fields: Any,
+    ) -> ConceptKey:
+        """Mint one key FROM its grain: the directory and the type label are
+        read off `spec`, never inlined. This is the mechanical reason a
+        relabel cannot move a file (PI-5) and a re-homed grain cannot keep
+        emitting the old label."""
+        return ConceptKey(
+            rel_path=f"{spec.directory}/{basename}.md",
+            concept_type=spec.type_label,
+            grain=spec.name,
+            **fields,
+        )
 
     async def _list_entity_mention_grain_concepts(
-        self, concept_type: str, entity_type: str
-    ) -> "list[ConceptKey]":
-        """The `entity_mention` feeder grain's enumeration — reuses
+        self, spec: GrainSpec, entity_type: str
+    ) -> GrainEnumeration:
+        """The `entity_mention` grain's enumeration — reuses
         `_SQL_DISTINCT_ENTITY_CANONICAL_NAMES`/`_SQL_PRODUCT_VERSION`
-        VERBATIM, parametrised by the feeder config's `entity_type` instead
-        of `_list_product_concepts`'s hard-coded `'product'` literal (both
-        queries already take `entity_type` as a bind parameter — no new
-        SQL). `rel_path` uses the client's OWN concept_type name as the
-        bundle directory (`{concept_type}/{slug}.md`) — never
-        auto-pluralised (an arbitrary client-chosen type name has no
-        principled English-plural rule)."""
+        VERBATIM, parametrised by `entity_type` (both queries already take
+        it as a bind parameter — no new SQL). Serves the built-in `product`
+        grain and every feeder-declared grain alike: they differ only in
+        their registry entry."""
         rows = await self._pool.fetch(
             _SQL_DISTINCT_ENTITY_CANONICAL_NAMES, entity_type
         )
@@ -597,17 +683,20 @@ class LRecordsSource:
             )
             for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, entity_type)
         }
-        return [
-            ConceptKey(
-                rel_path=f"{concept_type}/{_slugify(row['canonical_name'])}.md",
-                concept_type=concept_type,
-                entity_id=row["canonical_name"],
-                content_version=version_by_name.get(row["canonical_name"], ""),
-            )
-            for row in rows
-        ]
+        return GrainEnumeration(
+            keys=tuple(
+                self._key(
+                    spec,
+                    basename=mint_concept_slug(row["canonical_name"]),
+                    entity_id=row["canonical_name"],
+                    content_version=version_by_name.get(row["canonical_name"], ""),
+                )
+                for row in rows
+            ),
+            covers=Coverage(),
+        )
 
-    async def _list_topic_concepts(self) -> "list[ConceptKey]":
+    async def _list_topic_concepts(self, spec: GrainSpec) -> GrainEnumeration:
         """{132.38} MD-5: a set-based aggregate query populates
         `content_version` — grouped by the SAME key the enumeration uses,
         never a per-concept round-trip. (Scope_tag is the only topic grain
@@ -628,40 +717,21 @@ class LRecordsSource:
         for row in scope_tag_rows:
             tag = row["scope_tag"]
             keys.append(
-                ConceptKey(
-                    rel_path=f"topics/{_slugify(tag)}.md",
-                    concept_type="topic",
+                self._key(
+                    spec,
+                    basename=mint_concept_slug(tag),
                     scope_tag=tag,
                     content_version=version_by_tag.get(tag, ""),
                 )
             )
-        return keys
+        return GrainEnumeration(keys=tuple(keys), covers=Coverage())
 
-    async def _list_product_concepts(self) -> "list[ConceptKey]":
-        rows = await self._pool.fetch(_SQL_DISTINCT_ENTITY_CANONICAL_NAMES, "product")
-        version_by_name = {
-            row["canonical_name"]: _combine_content_version(
-                _version_term(row.get("sd_count"), row.get("sd_max")),
-                _version_term(row.get("qa_count"), row.get("qa_max")),
-            )
-            for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, "product")
-        }
-        return [
-            ConceptKey(
-                rel_path=f"products/{_slugify(row['canonical_name'])}.md",
-                concept_type="product",
-                entity_id=row["canonical_name"],
-                content_version=version_by_name.get(row["canonical_name"], ""),
-            )
-            for row in rows
-        ]
-
-    async def _list_company_concepts(self) -> "list[ConceptKey]":
+    async def _list_company_concepts(self, spec: GrainSpec) -> GrainEnumeration:
         rows = await self._pool.fetch(
             _SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS, list(_COMPANY_FILENAME_PATTERNS)
         )
         if not rows:
-            return []
+            return GrainEnumeration()
         version_rows = await self._pool.fetch(
             _SQL_COMPANY_VERSION, list(_COMPANY_FILENAME_PATTERNS)
         )
@@ -673,15 +743,16 @@ class LRecordsSource:
             if version_rows
             else ""
         )
-        return [
-            ConceptKey(
-                rel_path="company/overview.md",
-                concept_type="company",
-                content_version=content_version,
-            )
-        ]
+        return GrainEnumeration(
+            keys=(
+                self._key(
+                    spec, basename="overview", content_version=content_version
+                ),
+            ),
+            covers=Coverage(),
+        )
 
-    async def _list_certification_concepts(self) -> "list[ConceptKey]":
+    async def _list_certification_concepts(self, spec: GrainSpec) -> GrainEnumeration:
         """{132.38} MD-7: `source_documents` is the SAME shared
         compliance-doc set for every certification (one un-grouped
         aggregate; the ri leg retired with DR-124); `entity_mentions` is the
@@ -706,19 +777,23 @@ class LRecordsSource:
                 _SQL_CERTIFICATION_ENTITY_MENTIONS_VERSION, "certification"
             )
         }
-        return [
-            ConceptKey(
-                rel_path=f"certifications/{_slugify(row['canonical_name'])}.md",
-                concept_type="certification",
-                entity_id=row["canonical_name"],
-                content_version=_combine_content_version(
-                    shared_term, em_by_name.get(row["canonical_name"], _version_term(0, None))
-                ),
-            )
-            for row in rows
-        ]
+        return GrainEnumeration(
+            keys=tuple(
+                self._key(
+                    spec,
+                    basename=mint_concept_slug(row["canonical_name"]),
+                    entity_id=row["canonical_name"],
+                    content_version=_combine_content_version(
+                        shared_term,
+                        em_by_name.get(row["canonical_name"], _version_term(0, None)),
+                    ),
+                )
+                for row in rows
+            ),
+            covers=Coverage(),
+        )
 
-    async def _list_case_study_concepts(self) -> "list[ConceptKey]":
+    async def _list_case_study_concepts(self, spec: GrainSpec) -> GrainEnumeration:
         rows = await self._pool.fetch(
             _SQL_DISTINCT_CASE_STUDY_ENTITIES, list(_CASE_STUDY_FILENAME_PATTERNS)
         )
@@ -731,24 +806,34 @@ class LRecordsSource:
                 _SQL_CASE_STUDY_NAMED_CLIENT_VERSION, list(_CASE_STUDY_FILENAME_PATTERNS)
             )
         }
-        return [
-            ConceptKey(
-                rel_path=f"case-studies/{_slugify(row['canonical_name'])}.md",
-                concept_type="case_study",
-                entity_id=row["canonical_name"],
-                content_version=version_by_name.get(row["canonical_name"], ""),
-            )
-            for row in rows
-        ]
+        return GrainEnumeration(
+            keys=tuple(
+                self._key(
+                    spec,
+                    basename=mint_concept_slug(row["canonical_name"]),
+                    entity_id=row["canonical_name"],
+                    content_version=version_by_name.get(row["canonical_name"], ""),
+                )
+                for row in rows
+            ),
+            covers=Coverage(),
+        )
 
-    async def _list_won_bid_case_study_concepts(self) -> "list[ConceptKey]":
-        """The won-bid case_study source (S443 amendment / DR-029): one
+    async def _list_won_bid_case_study_concepts(
+        self, spec: GrainSpec
+    ) -> GrainEnumeration:
+        """The won-bid case_study grain (S443 amendment / DR-029): one
         case_study per BUYER of a won procurement bid. The rows arrive ordered
         by (buyer, workspace_id), so deduping by buyer keeps the earliest
         workspace deterministically — a single case study per buyer (BI-2),
         even when a buyer has multiple won workspaces. Additive to the
-        named-clients grain above. {132.38} MD-7: `content_version` is
-        grouped by the won form's own id (the `workspace_id` locator)."""
+        named-clients grain. {132.38} MD-7: `content_version` is grouped by
+        the won form's own id (the `workspace_id` locator).
+
+        Shares `directory` with the named-clients grain for now, so the
+        {132.29} write-time redirect still applies — **{427.8}** is the
+        subtask that gives this grain `case-studies/won-bid` of its own and
+        deletes the redirect."""
         rows = await self._pool.fetch(_SQL_WON_BID_CASE_STUDIES)
         version_by_workspace = {
             row["workspace_id"]: _combine_content_version(
@@ -765,43 +850,27 @@ class LRecordsSource:
                 continue
             seen_buyers.add(buyer)
             keys.append(
-                ConceptKey(
-                    rel_path=f"case-studies/{_slugify(buyer)}.md",
-                    concept_type="case_study",
+                self._key(
+                    spec,
+                    basename=mint_concept_slug(buyer),
                     entity_id=buyer,
                     content_version=version_by_workspace.get(row["workspace_id"], ""),
                     workspace_id=row["workspace_id"],
                 )
             )
-        return keys
+        return GrainEnumeration(keys=tuple(keys), covers=Coverage())
 
     # ── read_concept (abstract, base.py) ────────────────────────────────
 
     async def read_concept(self, key: ConceptKey) -> ConceptRaw:
-        """Run the per-type join grid (TECH §"Per-concept-type table/join
-        grid") and return the raw backing rows. For a base ratified type,
-        `key.concept_type` is validated at `ConceptKey` construction time,
-        so the final else-branch below is unreachable for those — kept as a
-        defensive guard. ID-132 {132.36} G-CONCEPT-FEEDER: a `key.
-        concept_type` present in `self._concept_feeder_config` routes to
-        `_read_feeder_concept` instead."""
-        if key.concept_type == "topic":
-            return await self._read_topic(key)
-        if key.concept_type == "product":
-            return await self._read_product(key)
-        if key.concept_type == "company":
-            return await self._read_company(key)
-        if key.concept_type == "certification":
-            return await self._read_certification(key)
-        if key.concept_type == "case_study":
-            if key.workspace_id is not None:
-                return await self._read_won_bid_case_study(key)
-            return await self._read_case_study(key)
-        if key.concept_type in self._concept_feeder_config:
-            return await self._read_feeder_concept(key)
-        raise ValueError(
-            f"unsupported concept_type {key.concept_type!r}"
-        )  # pragma: no cover — unreachable, ConceptKey validates membership
+        """Run `key`'s grain's read and return the raw backing rows.
+
+        ID-427 {427.7}: this was a five-way `concept_type` cascade with a
+        nested `workspace_id` sub-branch (TECH §1's dispatcher 1 of three).
+        It is now a registry lookup — a new grain reaches its own read with
+        no edit here."""
+        spec = self.grain_for(key)
+        return await spec.read(self, spec, key)
 
     async def _topic_qa_rows(
         self, key: ConceptKey, *, limit: "int | None" = None
@@ -840,35 +909,24 @@ class LRecordsSource:
             _SQL_ENTITY_RELATIONSHIPS_BY_SOURCE_DOCS, list(ids)
         )
 
-    async def _source_documents_for_key(
-        self, key: ConceptKey
+    async def _source_documents_by_patterns(
+        self, patterns: "Sequence[str]"
     ) -> "list[Mapping[str, Any]]":
-        """`company`/`certification`/`case_study`/`product` share the
-        "filename/logical_path pattern match" enumeration shape — `topic`
-        instead derives its source_documents from its q_a_pairs cluster's
-        parents (`_read_topic`), so it is deliberately NOT handled here."""
-        if key.concept_type == "product":
-            patterns = [f"%{key.entity_id}%"]
-        elif key.concept_type == "company":
-            patterns = list(_COMPANY_FILENAME_PATTERNS)
-        elif key.concept_type == "certification":
-            patterns = list(_CERTIFICATION_FILENAME_PATTERNS)
-        elif key.concept_type == "case_study":
-            patterns = list(_CASE_STUDY_FILENAME_PATTERNS)
-        elif key.concept_type in self._concept_feeder_config:
-            # ID-132 {132.36}: the `entity_mention` grain shares the
-            # `product` pattern shape (filename/logical_path match on the
-            # entity's own canonical_name) — the only grain v1 supports.
-            patterns = [f"%{key.entity_id}%"]
-        else:
-            raise ValueError(
-                f"_source_documents_for_key does not handle "
-                f"{key.concept_type!r} (topic derives source_documents "
-                "from its q_a_pairs cluster's parents, not a filename "
-                "pattern)"
-            )
+        """The shared "filename/logical_path pattern match" source_documents
+        read. Every grain that uses it hands in its OWN patterns.
+
+        ID-427 {427.7} — TECH §1's dispatcher 2 of three. This was
+        `_source_documents_for_key(key)`, a five-way `concept_type` cascade
+        that chose the patterns *for* the caller and raised a `ValueError`
+        naming `topic` in its else-arm. TECH §3 specifies it "takes
+        `patterns`"; once it does, `key` is unread, so the parameter goes
+        with the cascade rather than surviving as a vestige — the name
+        follows. `topic` still never calls it (it derives source_documents
+        from its q_a_pairs cluster's parents, `_read_topic`), but that is
+        now a fact about which grains declare patterns, not a branch to
+        maintain here."""
         return await self._pool.fetch(
-            _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS, patterns
+            _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS, list(patterns)
         )
 
     async def _read_topic(self, key: ConceptKey) -> ConceptRaw:
@@ -893,8 +951,18 @@ class LRecordsSource:
             entity_relationships=er_rows,
         )
 
-    async def _read_product(self, key: ConceptKey) -> ConceptRaw:
-        sd_rows = await self._source_documents_for_key(key)
+    async def _read_entity_pattern_grain(self, key: ConceptKey) -> ConceptRaw:
+        """The read shared by the `product` grain and every `entity_mention`
+        feeder grain: source_documents whose filename/logical_path matches
+        the entity's own canonical name, plus the q_a_pairs those documents
+        parent OR that carry the entity as a scope_tag.
+
+        {427.7} folds `_read_product` and `_read_feeder_concept` together.
+        They were byte-identical bodies behind two names, which is the same
+        parallel-implementation defect {427.4} retired for the `Source`
+        protocol; a feeder grain was never a different read, only a
+        different registry entry."""
+        sd_rows = await self._source_documents_by_patterns([f"%{key.entity_id}%"])
         sd_ids = [row["id"] for row in sd_rows]
         qa_rows = await self._pool.fetch(
             _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
@@ -902,20 +970,26 @@ class LRecordsSource:
         return ConceptRaw(source_documents=sd_rows, q_a_pairs=qa_rows)
 
     async def _read_company(self, key: ConceptKey) -> ConceptRaw:
-        sd_rows = await self._source_documents_for_key(key)
+        sd_rows = await self._source_documents_by_patterns(
+            _COMPANY_FILENAME_PATTERNS
+        )
         sd_ids = [row["id"] for row in sd_rows]
         em_rows = await self._entity_mentions_by_source_docs(sd_ids)
         return ConceptRaw(source_documents=sd_rows, entity_mentions=em_rows)
 
     async def _read_certification(self, key: ConceptKey) -> ConceptRaw:
-        sd_rows = await self._source_documents_for_key(key)
+        sd_rows = await self._source_documents_by_patterns(
+            _CERTIFICATION_FILENAME_PATTERNS
+        )
         em_rows = await self._pool.fetch(
             _SQL_ENTITY_MENTIONS_BY_TYPE_AND_NAME, "certification", key.entity_id
         )
         return ConceptRaw(source_documents=sd_rows, entity_mentions=em_rows)
 
     async def _read_case_study(self, key: ConceptKey) -> ConceptRaw:
-        sd_rows = await self._source_documents_for_key(key)
+        sd_rows = await self._source_documents_by_patterns(
+            _CASE_STUDY_FILENAME_PATTERNS
+        )
         sd_ids = [row["id"] for row in sd_rows]
         qa_rows = await self._pool.fetch(
             _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
@@ -952,47 +1026,65 @@ class LRecordsSource:
             workspaces=[], q_a_pairs=qa_rows, form_templates=ft_rows
         )
 
-    async def _read_feeder_concept(self, key: ConceptKey) -> ConceptRaw:
-        """ID-132 {132.36} G-CONCEPT-FEEDER: the `entity_mention` grain's
-        read — identical join shape to `_read_product` (source_documents by
-        filename/logical_path match on `key.entity_id`, via `_source_
-        documents_for_key`'s feeder branch, + q_a_pairs by
-        source-docs-or-entity-scope-tag). `read_concept`
-        only reaches here for a `key.concept_type` present in
-        `self._concept_feeder_config`."""
-        sd_rows = await self._source_documents_for_key(key)
-        sd_ids = [row["id"] for row in sd_rows]
-        qa_rows = await self._pool.fetch(
-            _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, sd_ids, key.entity_id
-        )
-        return ConceptRaw(source_documents=sd_rows, q_a_pairs=qa_rows)
-
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 
     async def sample_rows(self, key: ConceptKey, n: int) -> "list[Mapping[str, Any]]":
         """A bounded sample of the concept's backing rows for the Pass-1
-        prompt context window. `topic`/`product`/`case_study`/a {132.36}
-        feeder-fed concept type sample their `q_a_pairs` cluster (the
-        primary per-type row source); `company`/`certification` carry no
-        q_a_pairs component (per the join grid), so they sample their
-        `source_documents` rows instead."""
+        prompt context window.
+
+        ID-427 {427.7} — TECH §1's dispatcher 3 of three. Was a four-arm
+        `concept_type` cascade with a `workspace_id` sub-branch and an
+        implicit fallthrough; now the grain's own `sample`. Which KIND of
+        row a grain samples is `GrainSpec.sample_kind`, read by
+        `producer/enrich.py` so it can mint the BI-6 anchor a sampled
+        `source_documents` row needs."""
         if n <= 0:
             return []
-        if key.concept_type == "topic":
-            return await self._topic_qa_rows(key, limit=n)
-        if key.concept_type == "case_study" and key.workspace_id is not None:
-            # won-bid grain: sample the won-bid-provenance q_a_pairs directly
-            # by source_form_instance_id ({145.24} — no named-clients
-            # source_documents exist for this grain).
-            sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
-            return await self._pool.fetch(sql, key.workspace_id, n)
-        if key.concept_type in ("product", "case_study") or (
-            key.concept_type in self._concept_feeder_config
-        ):
-            sd_rows = await self._source_documents_for_key(key)
-            sd_ids = [row["id"] for row in sd_rows]
-            sql = f"{_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY} LIMIT $3"
-            return await self._pool.fetch(sql, sd_ids, key.entity_id, n)
+        spec = self.grain_for(key)
+        return await spec.sample(self, spec, key, n)
+
+    async def _sample_entity_pattern_grain(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        """The q_a_pairs sample for the pattern-matched entity grains
+        (`product`, named-client `case_study`, every feeder grain)."""
+        sd_rows = await self._source_documents_by_patterns([f"%{key.entity_id}%"])
+        sd_ids = [row["id"] for row in sd_rows]
+        sql = f"{_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY} LIMIT $3"
+        return await self._pool.fetch(sql, sd_ids, key.entity_id, n)
+
+    async def _sample_case_study(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        """The named-client `case_study` grain's q_a_pairs sample — the same
+        query as `_sample_entity_pattern_grain`, over the named-clients
+        document patterns rather than the entity's own name (matching
+        `_read_case_study`)."""
+        sd_rows = await self._source_documents_by_patterns(
+            _CASE_STUDY_FILENAME_PATTERNS
+        )
+        sd_ids = [row["id"] for row in sd_rows]
+        sql = f"{_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY} LIMIT $3"
+        return await self._pool.fetch(sql, sd_ids, key.entity_id, n)
+
+    async def _sample_won_bid_case_study(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        """Sample the won-bid-provenance q_a_pairs directly by
+        `source_form_instance_id` ({145.24} — no named-clients
+        source_documents exist for this grain)."""
+        sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
+        return await self._pool.fetch(sql, key.workspace_id, n)
+
+    async def _sample_source_documents(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        """The `source_documents` sample for grains that carry no q_a_pairs
+        component per their join grid (`company`, `certification`). Every
+        grain declaring this as its `sample` MUST also declare
+        `sample_kind="source_documents"`, or `producer/enrich.py` will hand
+        the model un-minted real record ids that its own BI-17 provenance
+        gate then refuses."""
         raw = await self.read_concept(key)
         return list(raw.source_documents[:n])
 
@@ -1008,3 +1100,123 @@ class LRecordsSource:
         needle = query.casefold()
         keys = await self.list_concepts()
         return [k for k in keys if needle in _concept_haystack(k)]
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# The grain registry (ID-427 {427.7}, TECH §1)
+#
+# **This tuple is the whole extension point.** Adding a grain is one entry
+# here — no `read_concept` arm, no `sample_rows` arm, no
+# `_source_documents_*` arm, no directory literal repeated in an enumeration
+# method, and (since {427.5}) no type register. That is the property whose
+# absence produced the inversion DR-141 names: the old shape cost four edits
+# in four places, which is *why* nobody added a catch-all.
+#
+# Declared AFTER the class because each entry's callables name its methods;
+# the lambdas resolve at call time, and `__init__` reads this module global
+# at construction time, so a caller that extends the tuple — a test
+# registering a grain, or {427.10} adding the residual grain — gets its
+# grain enumerated, read and sampled with no edit to any of the three.
+#
+# Directories are the SAME five the bundle already ships (RESEARCH M5 / C2 —
+# they were always grain constants, never a type materialisation), so no
+# concept file moves. Both `case_study` grains share `case-studies` for now:
+# id-429 IA-4 permits many-to-one, and {427.8} is the subtask that gives the
+# won-bid grain `case-studies/won-bid` and deletes the {132.29} write-time
+# redirect that currently stands in for it.
+# ─────────────────────────────────────────────────────────────────────────
+
+WON_BID_GRAIN = "case_study_won_bid"
+"""The one grain that declares `ConceptKey.workspace_id` as its locator
+(S443 amendment / DR-029).
+
+PUBLIC because two rules key on it and both must key on the same string:
+`grain_for`'s locator-ownership guard here, and the {132.29} write-path
+redirect in `producer/bundle_writer.py`. Both were keyed on the
+`'case_study'` LABEL before {427.7}, which a `type_label` relabel would have
+broken in opposite ways — the guard by rejecting every won-bid key, the
+redirect by silently ceasing to fire and letting won-bid concepts collide
+with same-slug named-client ones. **{427.8} retires the redirect** (the grain
+gets `case-studies/won-bid` as its own declared directory), after which this
+constant has one consumer again."""
+
+_FEEDER_GRAIN_PREFIX = "feeder:"
+"""Namespace for client-declared grains, so a `concept-feeder.json` entry can
+never collide with a built-in grain's dispatch key even if the collision
+guard in `producer/bundle_writer._validate_concept_feeder_schema` were
+bypassed by a caller constructing `LRecordsSource` directly."""
+
+_BUILTIN_GRAINS: "tuple[GrainSpec, ...]" = (
+    GrainSpec(
+        name="topic_scope_tag",
+        directory="topics",
+        type_label="topic",
+        list=lambda src, spec: src._list_topic_concepts(spec),
+        read=lambda src, spec, key: src._read_topic(key),
+        sample=lambda src, spec, key, n: src._topic_qa_rows(key, limit=n),
+    ),
+    GrainSpec(
+        name="product_entity_mention",
+        directory="products",
+        type_label="product",
+        list=lambda src, spec: src._list_entity_mention_grain_concepts(
+            spec, "product"
+        ),
+        read=lambda src, spec, key: src._read_entity_pattern_grain(key),
+        sample=lambda src, spec, key, n: src._sample_entity_pattern_grain(key, n),
+    ),
+    GrainSpec(
+        name="company_singleton",
+        directory="company",
+        type_label="company",
+        list=lambda src, spec: src._list_company_concepts(spec),
+        read=lambda src, spec, key: src._read_company(key),
+        sample=lambda src, spec, key, n: src._sample_source_documents(key, n),
+        sample_kind="source_documents",
+    ),
+    GrainSpec(
+        name="certification_entity_mention",
+        directory="certifications",
+        type_label="certification",
+        list=lambda src, spec: src._list_certification_concepts(spec),
+        read=lambda src, spec, key: src._read_certification(key),
+        sample=lambda src, spec, key, n: src._sample_source_documents(key, n),
+        sample_kind="source_documents",
+    ),
+    GrainSpec(
+        name="case_study_named_client",
+        directory="case-studies",
+        type_label="case_study",
+        list=lambda src, spec: src._list_case_study_concepts(spec),
+        read=lambda src, spec, key: src._read_case_study(key),
+        sample=lambda src, spec, key, n: src._sample_case_study(key, n),
+    ),
+    GrainSpec(
+        name=WON_BID_GRAIN,
+        directory="case-studies",
+        type_label="case_study",
+        list=lambda src, spec: src._list_won_bid_case_study_concepts(spec),
+        read=lambda src, spec, key: src._read_won_bid_case_study(key),
+        sample=lambda src, spec, key, n: src._sample_won_bid_case_study(key, n),
+    ),
+)
+
+BUILTIN_GRAIN_TYPE_LABELS = frozenset(spec.type_label for spec in _BUILTIN_GRAINS)
+"""The `type` labels the built-in grains emit — **derived from the registry,
+never hand-listed**.
+
+ID-427 {427.5} parked a hand-mirrored copy of this in
+`producer/bundle_writer.py` as `_BUILTIN_GRAIN_TYPE_LABELS`, with an explicit
+{427.7} expiry; this is the promised source and that constant is retired.
+
+**It is not a type register** (DR-141). It gates a CONFIG FILE — a
+`concept-feeder.json` declaring one of these labels would be enumerated by
+its own grain AND shadowed by a built-in one, an ambiguity that surfaces
+later as an opaque write-path collision. It never gates a concept's `type`:
+any grain, built-in or client-declared, may mint any well-shaped label."""
+
+BUILTIN_GRAIN_DIRECTORIES = frozenset(spec.directory for spec in _BUILTIN_GRAINS)
+"""The bundle directories the built-in grains own. Exported for callers that
+need the shipped layout without importing the registry itself; **not** a
+uniqueness constraint — id-429 IA-4 states many-to-one is fine, and the two
+`case_study` grains already share one."""
