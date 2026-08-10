@@ -79,7 +79,55 @@ class FakePool:
         return self
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
+        """Dispatch, refusing an AMBIGUOUS match (ID-427 {427.15}, owner-ruled
+        S550).
+
+        First-match-wins is only safe while each query matches the rule that
+        was written for it. It stopped being safe when {427.15} reworded
+        `_SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS`: the reworded probe became a
+        prefix-match of the *coverage* query's marker, the front-inserted
+        coverage rule won, and the `company` grain enumerated nothing. The
+        symptom presents as a production bug — a whole grain silently empty —
+        so the debugging starts in the wrong layer.
+
+        The guard fires when TWO DISTINCT markers match one query and they
+        would return DIFFERENT rows. Both conditions are load-bearing:
+
+        - **Distinct markers**, because re-registering the SAME marker is the
+          documented `when_first` override mechanism — `_census_queries` is
+          called twice on purpose. Flagging that would fire on 16 sites that
+          are all working as designed.
+        - **Different rows**, because two markers that both resolve to `[]`
+          cannot change behaviour, and the fixtures register a lot of
+          defensive empties.
+
+        Measured before it was written: 18 ambiguous sites in this file, of
+        which 5 are genuine distinct-marker collisions. The guard fires on
+        those 5 and is silent on the other 13.
+        """
         self.calls.append((query, args))
+        matches = [
+            (marker, rows)
+            for marker, rows, arg_matcher in self._rules
+            if marker in query and (arg_matcher is None or arg_matcher(args))
+        ]
+        if len({m for m, _ in matches}) > 1 and len({repr(r) for _, r in matches}) > 1:
+            competing = "\n  ".join(
+                f"{marker!r} -> {repr(rows)[:80]}"
+                for marker, rows in dict(matches).items()
+            )
+            raise AssertionError(
+                "FakePool: AMBIGUOUS match — two or more DISTINCT markers "
+                "match this query and they return different rows, so which "
+                "one wins depends on registration order rather than on "
+                "intent.\n\n"
+                f"  query: {query!r}\n\n"
+                f"  competing rules:\n  {competing}\n\n"
+                "Fix the MARKER, not the order: extend the losing marker "
+                "until it matches only its own query. Re-registering the "
+                "SAME marker is the deliberate `when_first` override and is "
+                "not flagged — this is two different queries colliding."
+            )
         for marker, rows, arg_matcher in self._rules:
             if marker in query and (arg_matcher is None or arg_matcher(args)):
                 return rows
@@ -91,6 +139,81 @@ class FakePool:
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+# ── The fixture's own guard (ID-427 {427.15}, owner-ruled S550) ──────────
+
+
+class TestFakePoolAmbiguityGuard:
+    """`FakePool` is test scaffolding, so these are tests OF A TEST DOUBLE —
+    justified because the double silently returned one query's rows for a
+    different query and the symptom read as a production bug (a grain
+    enumerating nothing).
+
+    **Note what actually fixed that incident: tightening the markers, not
+    this guard.** With the markers pinned, re-introducing the original
+    wording no longer collides at all — measured. The guard's job is the
+    NEXT collision, in a file where the marker set will keep growing.
+    """
+
+    def test_two_distinct_markers_returning_different_rows_is_refused(self):
+        pool = FakePool()
+        pool.when("SELECT id FROM t WHERE a", [{"id": "from-a"}])
+        pool.when("WHERE a AND b", [{"id": "from-b"}])
+        with pytest.raises(AssertionError, match="AMBIGUOUS"):
+            _run(pool.fetch("SELECT id FROM t WHERE a AND b LIMIT 1"))
+
+    def test_the_refusal_names_both_competing_markers(self):
+        """A guard that refuses without naming the competitors leaves the
+        reader diffing query strings by eye."""
+        pool = FakePool()
+        pool.when("SELECT id FROM t WHERE a", [{"id": "from-a"}])
+        pool.when("WHERE a AND b", [{"id": "from-b"}])
+        with pytest.raises(AssertionError) as exc:
+            _run(pool.fetch("SELECT id FROM t WHERE a AND b"))
+        assert "SELECT id FROM t WHERE a" in str(exc.value)
+        assert "WHERE a AND b" in str(exc.value)
+
+    def test_the_same_marker_registered_twice_is_the_override_and_is_allowed(self):
+        """`when_first`'s documented purpose. 16 of this file's 18 ambiguous
+        sites are this shape, all working as designed — flagging them would
+        make the guard unusable."""
+        pool = FakePool()
+        pool.when("count(*) FROM t", [{"n": 0}])
+        pool.when_first("count(*) FROM t", [{"n": 7}])
+        assert _run(pool.fetch("SELECT count(*) FROM t")) == [{"n": 7}]
+
+    def test_distinct_markers_agreeing_on_empty_are_allowed(self):
+        """The fixtures register many defensive empties. Two markers that
+        both resolve to `[]` cannot change behaviour, so flagging them would
+        be noise with no failure behind it."""
+        pool = FakePool()
+        pool.when("SELECT id FROM t WHERE a", [])
+        pool.when("WHERE a AND b", [])
+        assert _run(pool.fetch("SELECT id FROM t WHERE a AND b")) == []
+
+    def test_an_unambiguous_query_still_dispatches(self):
+        pool = FakePool()
+        pool.when("FROM alpha", [{"id": "a"}])
+        pool.when("FROM beta", [{"id": "b"}])
+        assert _run(pool.fetch("SELECT * FROM beta")) == [{"id": "b"}]
+
+    def test_an_unmatched_query_still_raises_its_own_error(self):
+        """The pre-existing strictness must survive the new one — an
+        unmatched query is how query drift gets caught."""
+        pool = FakePool()
+        pool.when("FROM alpha", [{"id": "a"}])
+        with pytest.raises(AssertionError, match="no rule matched"):
+            _run(pool.fetch("SELECT * FROM omega"))
+
+    def test_arg_matcher_still_narrows_before_ambiguity_is_judged(self):
+        """A rule whose `arg_matcher` rejects the args is not a competitor —
+        judging ambiguity before applying the predicate would refuse
+        dispatches that are actually unambiguous."""
+        pool = FakePool()
+        pool.when("FROM t", [{"id": "x"}], arg_matcher=lambda a: a == ("x",))
+        pool.when("FROM t WHERE", [{"id": "y"}], arg_matcher=lambda a: a == ("y",))
+        assert _run(pool.fetch("SELECT * FROM t WHERE k = $1", "y")) == [{"id": "y"}]
 
 
 # ── ConceptKey shape (BI-2/BI-3/BI-4/BI-18) ─────────────────────────────
@@ -247,12 +370,12 @@ def _census_queries(
         residual_pairs if residual_pairs is not None else [],
     )
     pool.when_first(
-        "SELECT id FROM source_documents WHERE (filename ILIKE",
+        "SELECT id FROM source_documents WHERE (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) AND publication_status = 'published' ORDER BY id",
         documents if documents is not None else [],
     )
     pool.when_first("OR scope_tag && $2::text[]", pairs if pairs is not None else [])
     pool.when_first(
-        "source_form_instance_id = ANY($1::uuid[])",
+        "WHERE source_form_instance_id = ANY($1::uuid[]) AND origin_kind",
         won_bid_pairs if won_bid_pairs is not None else [],
     )
     pool.when_first(
@@ -504,7 +627,7 @@ class TestReadConceptProduct:
     def _pool(self) -> FakePool:
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-lms", "filename": "LMS-bid-library.md"}],
             arg_matcher=lambda args: args == (["%LMS%"],),
         )
@@ -541,7 +664,7 @@ class TestReadConceptCompany:
     def _pool(self) -> FakePool:
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [
                 {"id": "sd-co", "filename": "01-company-overview.md"},
                 {"id": "sd-team", "filename": "05-team-structure-and-key-people.md"},
@@ -583,7 +706,7 @@ class TestReadConceptCertification:
     def _pool(self) -> FakePool:
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-comp", "filename": "07-compliance-governance-and-certifications.md"}],
             arg_matcher=lambda args: args == (["%compliance%"],),
         )
@@ -621,7 +744,7 @@ class TestReadConceptCaseStudy:
     def _pool(self) -> FakePool:
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-clients", "filename": "04-named-clients-and-case-studies.md"}],
             arg_matcher=lambda args: args == (["%named-client%"],),
         )
@@ -940,7 +1063,7 @@ class TestReadConceptWonBidCaseStudy:
         # still routes to the named-clients source_documents grain unchanged.
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-clients", "filename": "04-named-clients-and-case-studies.md"}],
             arg_matcher=lambda args: args == (["%named-client%"],),
         )
@@ -1027,7 +1150,7 @@ class TestSampleRows:
     def test_company_sample_falls_back_to_source_documents(self):
         pool = FakePool()
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-co"}, {"id": "sd-team"}],
         )
         pool.when("FROM entity_mentions WHERE source_document_id = ANY($1::uuid[])", [])
@@ -1044,7 +1167,7 @@ class TestSampleRows:
 
     def test_product_sample_uses_the_source_docs_or_entity_query_with_limit(self):
         pool = FakePool()
-        pool.when("filename ILIKE ANY($1::text[])", [{"id": "sd-lms"}])
+        pool.when("extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE", [{"id": "sd-lms"}])
         pool.when(
             "source_document_id = ANY($1::uuid[]) OR scope_tag @> ARRAY[$2]::text[]",
             [{"id": "qa-lms-1"}],
@@ -1848,7 +1971,7 @@ class TestConceptFeederReadConcept:
     def _pool(self) -> FakePool:
         pool = _feeder_pool("partner", [{"canonical_name": "Contoso"}])
         pool.when(
-            "filename ILIKE ANY($1::text[])",
+            "extracted_text, created_at, updated_at FROM source_documents WHERE (filename ILIKE",
             [{"id": "sd-contoso", "filename": "partner-contoso.md"}],
             arg_matcher=lambda args: args == (["%Contoso%"],),
         )
@@ -2096,7 +2219,7 @@ class TestTheCensusIsAMeasurementNotADefault:
         coverage_args = next(
             args
             for query, args in pool.calls
-            if "source_form_instance_id = ANY($1::uuid[])" in query
+            if "WHERE source_form_instance_id = ANY($1::uuid[]) AND origin_kind" in query
         )
         assert coverage_args == (["fi-1"],)
         assert census.unrouted == (("q_a_pairs", 2),)
@@ -2322,7 +2445,7 @@ class TestTheResidualGrainClosesBothMeasuredHoles:
         # is left over.
         pool.when_first("LIMIT 1", [{"id": _DOC_B}])
         pool.when_first(
-            "SELECT id FROM source_documents WHERE (filename ILIKE", [{"id": _DOC_B}]
+            "SELECT id FROM source_documents WHERE (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) AND publication_status = 'published' ORDER BY id", [{"id": _DOC_B}]
         )
         src = LRecordsSource(pool)
 
