@@ -29,9 +29,6 @@ import type { GroundingShape } from '@/lib/eval/contract';
  * Pass-1 analysis and the citation Pass-2 draft as distinct touchpoints).
  */
 export type AiTouchpointId =
-  | 'classify.classifyContent'
-  | 'classify.classifyText'
-  | 'classify.validateEntities'
   | 'draft.analyseQuestion'
   | 'draft.draftResponse'
   | 'quality-check.runAIQualityCheck'
@@ -50,11 +47,11 @@ export type AiTouchpointId =
  * declared shape is a B-INV-35 violation.
  */
 export const AI_TOUCHPOINT_GROUNDING: Record<AiTouchpointId, GroundingShape> = {
-  // classify.ts — three forced-tool extraction passes.
-  'classify.classifyContent': 'forced_tool_strict',
-  'classify.classifyText': 'forced_tool_strict',
-  'classify.validateEntities': 'forced_tool_strict',
-
+  // classify.ts held three forced-tool extraction touchpoints. The module was
+  // deleted with the per-document subject-classification stage (id-417 /
+  // DR-130), so the Checker has no call site left to audit against them and
+  // the entries were dead registry rows, not a contract.
+  //
   // draft.ts — the 3-pass split keeps structured Pass 1 separate from citation
   // Pass 2 (Pass 3 is quality-check.ts). Citations and structured outputs are
   // never combined, so these stay distinct touchpoints.

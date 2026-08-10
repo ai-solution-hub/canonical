@@ -83,7 +83,10 @@ describe('assertSuccessfulStop (B-INV-36)', () => {
       assertSuccessfulStop(response('end_turn'), 'draft.analyseQuestion'),
     ).not.toThrow();
     expect(() =>
-      assertSuccessfulStop(response('tool_use'), 'classify.classifyContent'),
+      assertSuccessfulStop(
+        response('tool_use'),
+        'extract-questions.extractQuestions',
+      ),
     ).not.toThrow();
   });
 

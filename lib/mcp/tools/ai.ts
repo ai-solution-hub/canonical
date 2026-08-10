@@ -4,8 +4,10 @@
  *
  * classify_content retired S531 (id-419): no id-71 contract outcome named
  * it, and the subject-classification axis it triggered is transitional
- * under DR-125. Library-level classification (`classifyContent`) stays —
- * the MCP governance publish path still runs it for entities/embeddings.
+ * under DR-125. Library-level classification was retired after it, not
+ * kept: id-417 / DR-130 deleted `lib/ai/classify.ts` outright along with
+ * `getClassifyContent` (see the tombstone in `./shared`), because the
+ * governance publish-time auto-classify leg was its only caller.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
