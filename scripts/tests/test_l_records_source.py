@@ -36,6 +36,19 @@ from scripts.cocoindex_pipeline.sources.l_records import (  # noqa: E402
 # (DR-141): it is what those grains happen to emit, and any grain may emit
 # any well-shaped label.
 
+# ID-427 {427.10}: the registry now holds two KINDS of grain, and several
+# assertions below have to say which they mean. A preferred grain enumerates
+# from its own evidence; a residual grain enumerates the complement of what
+# the preferred ones covered, so it contributes nothing to a corpus with no
+# residue. Both are derived from the registry — spelling either out by hand
+# would reintroduce exactly the hand-mirrored list {427.7} retired.
+_RESIDUAL_GRAIN_LABELS = frozenset(
+    spec.type_label for spec in l_records._BUILTIN_GRAINS if spec.runs_last
+)
+_PREFERRED_GRAIN_LABELS = frozenset(
+    spec.type_label for spec in l_records._BUILTIN_GRAINS if not spec.runs_last
+)
+
 
 class FakePool:
     """Minimal asyncpg-pool stand-in. `LRecordsSource` issues several
@@ -196,6 +209,8 @@ def _census_queries(
     pairs: "list[dict] | None" = None,
     won_bid_pairs: "list[dict] | None" = None,
     totals: "dict | None" = None,
+    residual_documents: "list[dict] | None" = None,
+    residual_pairs: "list[dict] | None" = None,
 ) -> "FakePool":
     """ID-427 {427.9}: register the coverage + corpus-total rules every
     enumerating fixture now needs.
@@ -208,12 +223,29 @@ def _census_queries(
     so — deliberately left strict rather than softened to a silent `[]`,
     because that assertion is what catches query drift.
 
+    ID-427 {427.10} adds the two RESIDUAL anti-joins (TECH §2.1) to the same
+    list. They run on every enumeration — the residual grains are registry
+    entries like any other — and returning empty for both is the fixture
+    saying "this corpus has no residue", which is what every pre-{427.10}
+    test in this module was implicitly asserting. A test that wants residue
+    passes `residual_documents=`/`residual_pairs=` and registers the
+    downstream reads itself; `_residual_pool` below is the shared way to do
+    that.
+
     Defaults are empty/zero: the fixtures below assert on ENUMERATION, and
     a census they do not exercise must contribute nothing. Registered via
     `when_first`, so a census-asserting test can call this a SECOND time on
     the same fixture's pool and have its rows win — see
     `TestTheCensusIsAMeasurementNotADefault`."""
     pool.when_first("AS q_a_pair_id", topic if topic is not None else [])
+    pool.when_first(
+        "FROM source_documents WHERE publication_status = 'published' AND id <> ALL",
+        residual_documents if residual_documents is not None else [],
+    )
+    pool.when_first(
+        "FROM q_a_pairs WHERE publication_status = 'published' AND id <> ALL",
+        residual_pairs if residual_pairs is not None else [],
+    )
     pool.when_first(
         "SELECT id FROM source_documents WHERE (filename ILIKE",
         documents if documents is not None else [],
@@ -295,11 +327,34 @@ class TestListConceptsFiveTypeSet:
     corpus carrying evidence for every type."""
 
     def test_enumerates_all_5_ratified_types(self):
+        """ID-427 {427.10}: the comparison set narrows from *every* built-in
+        grain label to the PREFERRED grains' labels. `BUILTIN_GRAIN_TYPE_
+        LABELS` now also contains `document`/`questionnaire_response`/
+        `answer_set`, and those three appear only where the corpus has
+        residue — this fixture's does not. The narrowing is not a weakening:
+        the second assertion below turns what used to be implicit into a
+        stated claim, and it is the claim {427.10} could most easily get
+        wrong (an always-present empty placeholder)."""
         src = LRecordsSource(_five_type_pool())
 
         keys = _run(src.list_concepts())
 
-        assert {k.concept_type for k in keys} == _BUILTIN_GRAIN_LABELS
+        assert {k.concept_type for k in keys} == _PREFERRED_GRAIN_LABELS
+        assert _RESIDUAL_GRAIN_LABELS <= _BUILTIN_GRAIN_LABELS
+
+    def test_a_corpus_with_no_residue_mints_no_residual_concept(self):
+        """The absence half of {427.10}'s AC. A fully-covered corpus must
+        produce no `documents/`, no `questionnaire-responses/` and above all
+        no `unattributed-answers/` placeholder — a bundle that always carries
+        an empty "we could not attribute these" page asserts a hole that does
+        not exist, which is the mirror image of the silence the residual
+        grain removes."""
+        src = LRecordsSource(_five_type_pool())
+
+        keys = _run(src.list_concepts())
+
+        assert not [k for k in keys if k.concept_type in _RESIDUAL_GRAIN_LABELS]
+        assert not [k for k in keys if k.rel_path.startswith("unattributed-answers/")]
 
     def test_topic_concepts_enumerate_scope_tags_only(self):
         """S531: scope_tag is the sole topic grain — no `--` fallback
@@ -1157,6 +1212,17 @@ class TestMemoKeyProtocolEscalation:
         readability choice. `content_version` still stays last, which is the
         half of MD-4 that carries a live requirement.
 
+        **ID-427 {427.10} adds `source_document_id`**, the residual document
+        grains' locator, immediately BEFORE `content_version` — which keeps
+        the one ordering rule that carries a live requirement (MD-4:
+        `content_version` last) while the new field takes the same
+        end-of-locators position `form_instance_id` holds. It is a
+        whole-corpus memo invalidation, and it rides the wave's single
+        `version=3` bump rather than adding a second: no producer run has
+        consumed that bump yet, so the re-draft it already mandates absorbs
+        this field at no extra cost (the {427.12} sequencing argument,
+        applied a second time).
+
         The field set is pinned, not just its membership: a field appearing
         here that no grain sets is a locator with no owner, and every field
         fingerprints unconditionally."""
@@ -1169,6 +1235,7 @@ class TestMemoKeyProtocolEscalation:
             "scope_tag",
             "entity_id",
             "form_instance_id",
+            "source_document_id",
             "content_version",
         ]
 
@@ -1654,7 +1721,41 @@ class TestConceptFeederListConcepts:
 
         keys = _run(src.list_concepts())
 
-        assert {k.concept_type for k in keys} == _BUILTIN_GRAIN_LABELS | {"partner"}
+        # {427.10}: the preferred grains' labels, not every registered one —
+        # the residual grains contribute nothing to a corpus with no residue
+        # (see `test_enumerates_all_5_ratified_types`).
+        assert {k.concept_type for k in keys} == _PREFERRED_GRAIN_LABELS | {"partner"}
+
+    def test_a_feeder_grain_is_covered_before_the_residual_grain_runs(self):
+        """{427.10}'s `runs_last` ordering, stated as behaviour rather than
+        as registry position. A client-declared feeder grain is appended to
+        the registry AFTER the built-ins, so a residual grain that ran in
+        tuple order would compute its complement before the feeder had
+        declared anything and would report the feeder's own units as
+        residue — minting a duplicate `documents/` concept for every document
+        the client's grain already covers.
+
+        The probe is the anti-join's ARGUMENT: it must carry the feeder
+        grain's covered document id, which only a feeder that ran first can
+        have supplied."""
+        pool = _feeder_pool("partner", [{"canonical_name": "Contoso"}])
+        _census_queries(pool, documents=[{"id": "sd-partner"}])
+        src = LRecordsSource(
+            pool,
+            concept_feeder_config={
+                "partner": {"grain": "entity_mention", "entity_type": "partner"},
+            },
+        )
+
+        _run(src.list_concepts())
+
+        anti_join_args = next(
+            args
+            for query, args in pool.calls
+            if "FROM source_documents WHERE publication_status = 'published' "
+            "AND id <> ALL" in query
+        )
+        assert anti_join_args == (["sd-partner"],)
 
     def test_multiple_feeder_types_all_enumerate(self):
         # Built manually (not via `_feeder_pool`, which already finalises
@@ -1917,13 +2018,24 @@ class TestTheCensusIsAMeasurementNotADefault:
             ("q_a_pairs", 1),
         )
 
-    def test_the_won_bid_dedupe_leaves_a_second_won_bid_unrouted(self):
+    def test_the_won_bid_dedupe_leaves_a_second_won_bid_uncovered(self):
         """A real, measured hole rather than a stubbed one. The won-bid
         grain dedupes by BUYER and keeps the earliest won form, so a buyer's
         second won bid mints no concept — its published pairs are covered by
         nothing. The coverage query is keyed on the form instances the grain
         ENUMERATED, not on the won-form set, which is what lets the census
-        see it."""
+        see it.
+
+        **ID-427 {427.10} NARROWS this claim, and the title moves with it**
+        ("unrouted" -> "uncovered"). What {427.9} could measure was the whole
+        run's `unrouted`, because nothing downstream existed to route those
+        pairs; the residual grain now gives them a home in
+        `questionnaire-responses/` (`TestTheAttributionCascade`), so
+        end-to-end they ARE routed. This fixture's residual anti-joins return
+        nothing, which is what keeps the number below stable — so the number
+        pins the WON-BID GRAIN's own coverage, not the run's outcome, and
+        saying so is the difference between a live assertion and one that
+        passes for a reason its title denies."""
         pool = _won_bid_only_pool(
             [
                 {"form_instance_id": "fi-1", "buyer": "Transport for London"},
@@ -1949,6 +2061,39 @@ class TestTheCensusIsAMeasurementNotADefault:
         )
         assert coverage_args == (["fi-1"],)
         assert census.unrouted == (("q_a_pairs", 2),)
+        # The complement, asserted here so the narrowing above is not just a
+        # comment: with those pairs actually in the residual anti-join, the
+        # questionnaire-response grain takes them and the run reports zero.
+        pool.when_first(
+            "FROM q_a_pairs WHERE publication_status = 'published' AND id <> ALL",
+            [
+                {
+                    "id": f"qa-from-fi-2-{n}",
+                    "source_document_id": None,
+                    "source_form_instance_id": "fi-2",
+                    "updated_at": "t1",
+                }
+                for n in range(2)
+            ],
+        )
+        pool.when_first(
+            "FROM form_instances WHERE id = ANY($1::uuid[])",
+            [{"id": "fi-2", "name": "TfL rebid", "issuing_organisation": None}],
+        )
+        pool.when_first("qa.source_form_instance_id AS form_instance_id", [])
+        pool.when_first(
+            "source_form_instance_id = ANY($1::uuid[]) "
+            "AND publication_status = 'published' ORDER BY id",
+            [{"id": "qa-from-fi-2-0"}, {"id": "qa-from-fi-2-1"}],
+        )
+
+        rerouted_keys = _run(src.list_concepts())
+        rerouted = _run(src.census())
+
+        assert "questionnaire-responses/tfl-rebid-fi-2.md" in {
+            k.rel_path for k in rerouted_keys
+        }
+        assert rerouted.unrouted_total == 0
 
     def test_the_census_asks_the_pool_once_for_the_corpus_totals(self):
         """MD-5's bounded-query discipline extends to the census: the
@@ -1963,3 +2108,553 @@ class TestTheCensusIsAMeasurementNotADefault:
         _run(src.census())
 
         assert len(pool.calls) - before == 1
+
+
+# ── The residual grain (ID-427 {427.10}, TECH §2.1–§2.3, AC 1) ──────────
+#
+# What these assert, and what they deliberately do NOT: the shape of the
+# cascade and the fact that the census reaches zero unrouted. Whether the
+# rendered PAGE says the right thing is `test_producer_enrich.py`'s
+# (`render_undistilled_draft`), and whether both measured holes reach an
+# emitted bundle end-to-end is `test_producer_flow_def.py`'s.
+
+from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
+    derive_source_id,
+)
+from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
+    contains_record_pointer,
+)
+
+_DOC_A = "aaaaaaaa-1111-4111-8111-111111111111"
+_DOC_B = "bbbbbbbb-2222-4222-8222-222222222222"
+_FORM_A = "ffffffff-3333-4333-8333-333333333333"
+
+
+def _no_preferred_concepts_pool() -> FakePool:
+    """A pool whose SIX preferred grains all enumerate nothing, so whatever a
+    test puts in the two residual anti-joins is the whole bundle. Built from
+    `_other_types_empty` (the {132.38} helper) plus the topic pair it does
+    not itself register."""
+    pool = FakePool()
+    pool.when("AS scope_tag FROM q_a_pairs", [])
+    pool.when("t.tag AS tag, count(DISTINCT qa.id)", [])
+    return _other_types_empty(pool)
+
+
+def _residual_pool(
+    *,
+    residual_documents: "list[dict] | None" = None,
+    residual_pairs: "list[dict] | None" = None,
+    published_parents: "list[dict] | None" = None,
+    document_pair_ids: "list[dict] | None" = None,
+    form_instances: "list[dict] | None" = None,
+    totals: "dict | None" = None,
+) -> FakePool:
+    """A corpus whose only concepts are residual ones.
+
+    Every rule here is a query the residual cascade issues; registering them
+    explicitly (rather than leaving them to a catch-all) is what makes a
+    drift in the cascade's SQL show up as an unmatched-rule `AssertionError`
+    instead of a silently empty result."""
+    pool = _no_preferred_concepts_pool()
+    _census_queries(
+        pool,
+        residual_documents=residual_documents or [],
+        residual_pairs=residual_pairs or [],
+        totals=totals,
+    )
+    pool.when_first(
+        "WHERE id = ANY($1::uuid[]) AND publication_status = 'published'",
+        published_parents or [],
+    )
+    pool.when_first(
+        "SELECT id, source_document_id FROM q_a_pairs", document_pair_ids or []
+    )
+    pool.when_first("AS d(id)", [])
+    pool.when_first(
+        "FROM form_instances WHERE id = ANY($1::uuid[])", form_instances or []
+    )
+    pool.when_first("qa.source_form_instance_id AS form_instance_id", [])
+    pool.when_first(
+        "source_form_instance_id = ANY($1::uuid[]) "
+        "AND publication_status = 'published' ORDER BY id",
+        [],
+    )
+    return pool
+
+
+def _by_directory(keys) -> "dict[str, list]":
+    grouped: "dict[str, list]" = {}
+    for key in keys:
+        grouped.setdefault(key.rel_path.rsplit("/", 1)[0], []).append(key)
+    return grouped
+
+
+class TestTheResidualGrainClosesBothMeasuredHoles:
+    """AC 1, at the Source layer: the two holes RESEARCH measured stop being
+    holes, and the census says so with a number rather than a claim."""
+
+    def test_a_published_document_with_no_answer_becomes_a_documents_concept(self):
+        """**Hole 2** — `source_documents` was never an enumeration grain, so
+        a published document from which nothing was distilled was reachable
+        in no concept at all and its absence from the answer set was
+        silent."""
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "07-supplier-code.pdf", "logical_path": None}
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 0},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert len(keys) == 1
+        assert keys[0].rel_path == "documents/07-supplier-code-aaaaaaaa.md"
+        assert keys[0].concept_type == "document"
+        assert keys[0].source_document_id == _DOC_A
+        assert census.unrouted_total == 0
+
+    def test_a_published_pair_with_an_empty_scope_tag_rides_its_parent_document(self):
+        """**Hole 1** — the topic grain's SQL excludes an empty `scope_tag`
+        array twice, and BI-3 forbids the pair being its own concept, so such
+        a pair had nowhere to go. Cascade step 2 gives it its parent
+        document's concept."""
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "retention.docx", "logical_path": None}
+            ],
+            residual_pairs=[
+                {
+                    "id": "qa-empty-scope",
+                    "source_document_id": _DOC_A,
+                    "source_form_instance_id": None,
+                    "updated_at": "t1",
+                }
+            ],
+            document_pair_ids=[
+                {"id": "qa-empty-scope", "source_document_id": _DOC_A}
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert [k.rel_path for k in keys] == ["documents/retention-aaaaaaaa.md"]
+        assert census.routed == (("source_documents", 1), ("q_a_pairs", 1))
+        assert census.unrouted_total == 0
+
+    def test_a_pair_whose_parent_is_covered_still_gets_a_documents_concept(self):
+        """**A gap in TECH §2.1, found by executing it.** The spec's two
+        anti-joins alone cannot close this: the `company` grain declares
+        document coverage and NO pair coverage (its read grid has no pair
+        leg), so a company-overview document's empty-`scope_tag` pair is
+        residual while its parent is not — and the parent therefore never
+        appears in the residual-document anti-join. Without the third read
+        (`_SQL_PUBLISHED_SOURCE_DOCUMENTS_BY_IDS`) that pair has no home and
+        `unrouted` cannot reach zero. TECH §2.2's home table already implies
+        it (*"hole 2, AND hole-1 pairs that have a parent document"*); §2.1's
+        SQL does not."""
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-under-covered-doc",
+                    "source_document_id": _DOC_B,
+                    "source_form_instance_id": None,
+                    "updated_at": "t1",
+                }
+            ],
+            published_parents=[
+                {
+                    "id": _DOC_B,
+                    "filename": "01-company-overview.docx",
+                    "logical_path": None,
+                }
+            ],
+            document_pair_ids=[
+                {"id": "qa-under-covered-doc", "source_document_id": _DOC_B}
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 1},
+        )
+        # The company grain already covered the document — the pair is what
+        # is left over.
+        pool.when_first("LIMIT 1", [{"id": _DOC_B}])
+        pool.when_first(
+            "SELECT id FROM source_documents WHERE (filename ILIKE", [{"id": _DOC_B}]
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        residual = [k for k in keys if k.concept_type == "document"]
+        assert [k.rel_path for k in residual] == [
+            "documents/01-company-overview-bbbbbbbb.md"
+        ]
+        assert census.unrouted_total == 0
+
+    def test_a_published_pair_whose_parent_document_is_unpublished_falls_through(self):
+        """The case TECH §2.2's cascade does not contemplate: step 2 is
+        written as *"`unit.source_document_id` -> documents/"*, but a
+        published pair may name an UNPUBLISHED parent. Minting a
+        `documents/` concept for it would admit a record the DR-025
+        knowledge-admission gate has not admitted; dropping the pair would
+        breach DR-141's coverage guarantee. It falls through to step 4, which
+        satisfies both — the pair lands, the unpublished document does not
+        appear."""
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-unpublished-parent",
+                    "source_document_id": _DOC_B,
+                    "source_form_instance_id": None,
+                    "updated_at": "t1",
+                }
+            ],
+            # The parent is not published, so the published-parents read
+            # returns nothing for it.
+            published_parents=[],
+            totals={"source_documents": 0, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert [k.rel_path for k in keys] == [
+            "unattributed-answers/published-answers.md"
+        ]
+        assert not _by_directory(keys).get("documents")
+        assert census.unrouted_total == 0
+
+
+class TestTheAttributionCascade:
+    """TECH §2.2's three homes, one rule."""
+
+    def test_form_lineage_only_lands_in_questionnaire_responses(self):
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-from-form",
+                    "source_document_id": None,
+                    "source_form_instance_id": _FORM_A,
+                    "updated_at": "t1",
+                }
+            ],
+            form_instances=[
+                {"id": _FORM_A, "name": "PQQ 2026", "issuing_organisation": None}
+            ],
+            totals={"source_documents": 0, "q_a_pairs": 1},
+        )
+        pool.when_first(
+            "source_form_instance_id = ANY($1::uuid[]) "
+            "AND publication_status = 'published' ORDER BY id",
+            [{"id": "qa-from-form"}],
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert [k.rel_path for k in keys] == [
+            "questionnaire-responses/pqq-2026-ffffffff.md"
+        ]
+        assert keys[0].concept_type == "questionnaire_response"
+        assert census.unrouted_total == 0
+
+    def test_the_questionnaire_concept_carries_its_form_instance_provenance(self):
+        """**PQ-3/TQ-3, RULED S546** — *"yes: carry `form_instance_id`
+        provenance on residual `questionnaire_response` concepts"*. Asserted
+        on the KEY rather than on a BI-28 stamp, because the key is where the
+        producer's own decision lives; that `flow_def`'s provenance map then
+        picks it up with no edit is asserted in
+        `test_producer_flow_def.py`."""
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-from-form",
+                    "source_document_id": None,
+                    "source_form_instance_id": _FORM_A,
+                    "updated_at": "t1",
+                }
+            ],
+            form_instances=[
+                {"id": _FORM_A, "name": "PQQ 2026", "issuing_organisation": None}
+            ],
+            totals={"source_documents": 0, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert keys[0].form_instance_id == _FORM_A
+
+    def test_neither_lineage_lands_in_the_single_unattributed_concept(self):
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": f"qa-orphan-{n}",
+                    "source_document_id": None,
+                    "source_form_instance_id": None,
+                    "updated_at": f"t{n}",
+                }
+                for n in range(3)
+            ],
+            totals={"source_documents": 0, "q_a_pairs": 3},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        # ONE concept for all three, not one each — TECH §2.2's singleton.
+        assert [k.rel_path for k in keys] == [
+            "unattributed-answers/published-answers.md"
+        ]
+        assert keys[0].concept_type == "answer_set"
+        assert census.unrouted_total == 0
+
+    def test_the_unattributed_concept_is_absent_when_no_such_pair_exists(self):
+        """*"omitted entirely when empty"* (TECH §2.2). An always-present
+        empty page asserts a hole that does not exist — the mirror image of
+        the silence this grain removes."""
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "policy.pdf", "logical_path": None}
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 0},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert not [
+            k for k in keys if k.rel_path.startswith("unattributed-answers/")
+        ]
+
+    def test_the_unattributed_read_refuses_to_answer_before_enumeration(self):
+        """"Residual" is the complement of what enumeration covered, so a
+        read that answered anyway would be answering a different question
+        from the one its concept asks. Same posture `census()` takes."""
+        src = LRecordsSource(FakePool())  # no rules — must fail before any query
+        key = ConceptKey(
+            rel_path="unattributed-answers/published-answers.md",
+            concept_type="answer_set",
+            grain=l_records.RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN,
+        )
+
+        with pytest.raises(ValueError, match="before list_concepts"):
+            _run(src.read_concept(key))
+
+    def test_the_unattributed_read_returns_the_pairs_enumeration_attributed(self):
+        """The read must survive the fact that by read time `self._coverage`
+        includes this grain's OWN contribution — a re-issued anti-join would
+        exclude exactly the pairs the concept is made of and return nothing.
+        This is the regression that form would cause."""
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-orphan",
+                    "source_document_id": None,
+                    "source_form_instance_id": None,
+                    "updated_at": "t1",
+                }
+            ],
+            totals={"source_documents": 0, "q_a_pairs": 1},
+        )
+        pool.when_first(
+            "FROM q_a_pairs WHERE id = ANY($1::uuid[])",
+            [{"id": "qa-orphan", "question_text": "What is our retention period?"}],
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        raw = _run(src.read_concept(keys[0]))
+
+        assert [row["id"] for row in raw.q_a_pairs] == ["qa-orphan"]
+
+
+class TestTheDraftsViaSplit:
+    """TECH §2.3: a document with no published answer is rendered, one with
+    answers is drafted. Resolved at enumeration, as two registry entries."""
+
+    def test_a_document_with_no_published_pair_declares_the_template_route(self):
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "unread.pdf", "logical_path": None}
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 0},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert src.grain_for(keys[0]).drafts_via == "template"
+
+    def test_a_residual_document_with_published_pairs_drafts_through_pass_1(self):
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "distilled.pdf", "logical_path": None}
+            ],
+            document_pair_ids=[{"id": "qa-1", "source_document_id": _DOC_A}],
+            totals={"source_documents": 1, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert src.grain_for(keys[0]).drafts_via == "pass1"
+
+    def test_both_halves_write_to_the_same_directory_and_type(self):
+        """The split is a routing fact, not a labelling one. A document that
+        gains its first published answer changes grain and re-drafts; its
+        file, its identity and its BI-9 citation key do not move."""
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "shared.pdf", "logical_path": None},
+                {"id": _DOC_B, "filename": "other.pdf", "logical_path": None},
+            ],
+            document_pair_ids=[{"id": "qa-1", "source_document_id": _DOC_A}],
+            totals={"source_documents": 2, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert {k.rel_path.rsplit("/", 1)[0] for k in keys} == {"documents"}
+        assert {k.concept_type for k in keys} == {"document"}
+        assert {src.grain_for(k).drafts_via for k in keys} == {"pass1", "template"}
+
+
+class TestResidualSlugsAndCollisions:
+    def test_two_documents_with_the_same_filename_mint_two_concepts(self):
+        """The unconditional `-<uuid[:8]>` suffix, stated as the behaviour it
+        buys: two distinct identities, so `write_bundle`'s pre-write
+        collision guard is never reached. A CONDITIONAL suffix would make one
+        concept's identity depend on the other's existence — deleting the
+        collider would rename the survivor and report a spurious `moved`."""
+        pool = _residual_pool(
+            residual_documents=[
+                {"id": _DOC_A, "filename": "report.pdf", "logical_path": None},
+                {"id": _DOC_B, "filename": "report.pdf", "logical_path": None},
+            ],
+            totals={"source_documents": 2, "q_a_pairs": 0},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert sorted(k.rel_path for k in keys) == [
+            "documents/report-aaaaaaaa.md",
+            "documents/report-bbbbbbbb.md",
+        ]
+        assert len({k.rel_path for k in keys}) == 2
+
+    def test_a_uuid_embedding_filename_still_mints_a_concept(self):
+        """A pipeline sidecar is minted from `sd:<rel_path>`, so its filename
+        can embed a full uuid — TECH §2.2 names this hazard and guards the
+        TITLE against it. **The PATH was left unguarded**, and this test found
+        it: the slug carried the whole `8-4-4-4-12` pointer into the concept's
+        identity.
+
+        Not cosmetic. `frontmatter.derive_source_id` turns a bundle `.md` path
+        into a `sources[].id`, and `build_concept_frontmatter` refuses an id
+        embedding a uuid (BI-10) — so a BI-9 cross-link to this concept would
+        fail to build, from a DIFFERENT concept, for a reason that names
+        neither. The stem falls back to a neutral one and the unconditional
+        `-<uuid[:8]>` suffix still makes it unique."""
+        pool = _residual_pool(
+            residual_documents=[
+                {
+                    "id": _DOC_A,
+                    "filename": f"sd-{_DOC_B}.json",
+                    "logical_path": None,
+                }
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 0},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert len(keys) == 1
+        assert not contains_record_pointer(keys[0].rel_path)
+        assert keys[0].rel_path == "documents/document-aaaaaaaa.md"
+        # The consequence, exercised rather than argued: a cross-link to this
+        # concept builds a valid `sources[].id`.
+        assert not contains_record_pointer(derive_source_id(keys[0].rel_path))
+
+    def test_a_uuid_embedding_form_name_is_guarded_the_same_way(self):
+        """The same hazard on the other branch — a form's `name` is client
+        data too, and a guard that covers one derived slug and not its
+        sibling is a guard that will be routed around."""
+        pool = _residual_pool(
+            residual_pairs=[
+                {
+                    "id": "qa-from-form",
+                    "source_document_id": None,
+                    "source_form_instance_id": _FORM_A,
+                    "updated_at": "t1",
+                }
+            ],
+            form_instances=[
+                {"id": _FORM_A, "name": f"PQQ {_DOC_B}", "issuing_organisation": None}
+            ],
+            totals={"source_documents": 0, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+
+        assert not contains_record_pointer(keys[0].rel_path)
+        assert keys[0].rel_path == (
+            "questionnaire-responses/questionnaire-response-ffffffff.md"
+        )
+
+
+class TestResidualLocatorOwnership:
+    def test_a_source_document_locator_on_a_foreign_grain_is_refused(self):
+        src = LRecordsSource(FakePool())
+        key = ConceptKey(
+            rel_path="topics/gdpr.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            source_document_id=_DOC_A,
+        )
+
+        with pytest.raises(ValueError, match="source_document_id"):
+            src.grain_for(key)
+
+    def test_the_form_instance_locator_now_has_two_owners(self):
+        """{427.7} made this locator the won-bid grain's alone. {427.10}'s
+        questionnaire grain attributes by the SAME key, which is the PQ-3
+        ruling's own reasoning, so the guard names a set rather than one
+        grain — and still refuses everything outside it."""
+        src = LRecordsSource(FakePool())
+        for grain, rel_path in (
+            (l_records.WON_BID_GRAIN, "case-studies/won-bid/acme.md"),
+            (
+                l_records.RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN,
+                "questionnaire-responses/pqq-ffffffff.md",
+            ),
+        ):
+            key = ConceptKey(
+                rel_path=rel_path,
+                concept_type="case_study",
+                grain=grain,
+                form_instance_id=_FORM_A,
+            )
+            assert src.grain_for(key).name == grain
+
+        with pytest.raises(ValueError, match="form_instance_id"):
+            src.grain_for(
+                ConceptKey(
+                    rel_path="topics/gdpr.md",
+                    concept_type="topic",
+                    grain="topic_scope_tag",
+                    form_instance_id=_FORM_A,
+                )
+            )

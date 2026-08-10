@@ -42,6 +42,19 @@ without moving a file (PI-5). There is **no** ratified type set: {427.5}
 deleted all four registries under DR-141, and `metric`/`playbook`/`dataset`
 are ordinary free-form tags with no register behind them.
 
+**ID-427 {427.10} adds the RESIDUAL grains** (TECH §2.1–§2.3, AC 1). Every
+preferred grain declares what it `covers`; the residual grains enumerate the
+COMPLEMENT and route it through a three-step attribution cascade into
+`documents/`, `questionnaire-responses/` and the single
+`unattributed-answers/` concept. The consequence is the one this task exists
+for: **every published `source_document` and every published `q_a_pair` is
+reachable in at least one concept**, so the run census reports zero unrouted
+and a reader who does not find an answer in the bundle can trust that the
+corpus does not hold one. An undistilled document — a published document from
+which no answer has been distilled — is rendered deterministically rather
+than drafted, because a model handed a filename and no body would write
+plausible prose about a document it has not read.
+
 **A `q_a_pair` is NEVER enumerated as a concept** (BI-3) —
 `ConceptKey.__post_init__` makes this a runtime invariant, not a convention,
 and it is the one refusal that outlived the registers.
@@ -108,6 +121,7 @@ fully exercisable against a `FakePool` test double — see
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import (
     Any,
     Iterable,
@@ -124,6 +138,7 @@ from typing import (
 # shape rather than membership (DR-141) there is no gate left for a feeder
 # config to widen. {427.7} adds the grain vocabulary and `mint_concept_slug`
 # there too — both are format-level, not adapter-level, facts.
+from scripts.cocoindex_pipeline.producer.resource_uri import contains_record_pointer
 from scripts.cocoindex_pipeline.sources.base import (
     ConceptKey,
     ConceptRaw,
@@ -389,9 +404,20 @@ _SQL_COVERAGE_TOPIC = (
 non-empty `scope_tag` lands in at least one topic concept — the enumeration
 is `DISTINCT unnest(scope_tag)` and each concept clusters
 `scope_tag @> ARRAY[tag]`, so the union over tags is exactly this set. It is
-also the precise complement of RESEARCH's **hole 2** (a published pair with
+also the precise complement of RESEARCH's **hole 1** (a published pair with
 an EMPTY `scope_tag` array), which is why this grain's unrouted pairs are the
 number {427.10}'s residual grain drives to zero.
+
+**{427.10} corrects the hole NUMBER this docstring shipped with** (it said
+"hole 2", and the {427.10} dispatch brief inherited the error). RESEARCH's own
+source note (`specs/id-427-producer-inversion/notes/`
+`s546-producer-current-state-audit.md` — the contemporaneous carrier) numbers
+them **(1)** the empty-`scope_tag` pair and **(2)** `source_documents` never
+being an enumeration grain; TECH §2.2's home table and the S546 id-422 ruling
+both use that numbering. The distinction is load-bearing for the id-422
+interlock: it is hole **1** that closes by construction once id-422's
+publication gate lands (TQ-4), so a reader following the wrong number would
+look for that interlock on the document branch, which never closes.
 
 The `LEFT JOIN` carries each covered pair's parent document, published only —
 `_read_topic` fetches those parents into the concept's `source_documents`, so
@@ -445,6 +471,217 @@ _SQL_CENSUS_CORPUS_TOTALS = (
 the corpus definition TECH §2.1's ratified residual anti-joins already use,
 so the census and the residual grain cannot disagree about what the corpus
 is."""
+
+
+# ── ID-427 {427.10} — the RESIDUAL grain (TECH §2.1–§2.3, closing AC 1)
+#
+# "Every grain declares what it covers, and the residual grain is the
+# complement." The two anti-joins below are TECH §2.1's, verbatim in shape;
+# everything else here exists to route what they return through §2.2's
+# three-step attribution cascade.
+#
+# **A correction to the numbering this wave has been carrying.** RESEARCH's
+# own source note (`notes/s546-producer-current-state-audit.md`, the
+# contemporaneous carrier) numbers the two holes: **(1)** a published
+# `q_a_pair` with an empty `scope_tag`, excluded twice by the topic SQL;
+# **(2)** `source_documents` is never an enumeration grain. TECH §2.2's home
+# table and the S546 id-422 ruling (*"hole 1 closes by construction under
+# id-422's publication gate"* — id-422 IS the `scope_tag` gate) both agree.
+# {427.9} wrote the two the other way round in `_SQL_COVERAGE_TOPIC`'s
+# docstring; that docstring is corrected in place. Behaviour is unaffected —
+# both holes are closed here — but a reader who trusts the wrong numbering
+# will look for the id-422 interlock on the wrong branch. ─────────────────
+
+_SQL_RESIDUAL_DOCUMENTS = (
+    "SELECT id, filename, logical_path, created_at, updated_at "
+    "FROM source_documents "
+    "WHERE publication_status = 'published' AND id <> ALL($1::uuid[]) "
+    "ORDER BY id"
+)
+"""TECH §2.1's residual-document anti-join, unchanged: the published
+documents no preferred grain covers — **hole 2**, the one the residual grain
+exists for permanently (it does not close under any other task's gate).
+
+`publication_status = 'published'` is the corpus definition, taken from the
+ratified spec text. It is NOT a change to any existing read's filtering:
+{427.9}'s **CQ-1** — whether the pattern-matched `source_documents` reads
+should filter on publication status — is an open owner question and this
+query does not touch it. The residual grain depends on CQ-1 only in this
+direction: if CQ-1 were later answered "the pattern grains must filter too",
+their `Coverage` would shrink and MORE documents would fall to this
+anti-join, which is exactly the behaviour that keeps `unrouted` at zero
+either way."""
+
+_SQL_RESIDUAL_Q_A_PAIRS = (
+    "SELECT id, source_document_id, source_form_instance_id, updated_at "
+    "FROM q_a_pairs "
+    "WHERE publication_status = 'published' AND id <> ALL($1::uuid[]) "
+    "ORDER BY id"
+)
+"""TECH §2.1's residual-pair anti-join — the published pairs no preferred
+grain covers, of which **hole 1** (an empty `scope_tag` array) is the
+measured instance.
+
+`updated_at` is ADDED to the spec's select list (`id, source_document_id,
+source_form_instance_id`). It is the MD-3 `content_version` signal for the
+`unattributed-answers` singleton, whose membership is defined by THIS query
+and by nothing else; taking it here is one column on a query already being
+issued, against a whole extra set-based aggregate."""
+
+_SQL_PUBLISHED_SOURCE_DOCUMENTS_BY_IDS = (
+    "SELECT id, filename, logical_path, created_at, updated_at "
+    "FROM source_documents "
+    "WHERE id = ANY($1::uuid[]) AND publication_status = 'published' "
+    "ORDER BY id"
+)
+"""The residual PAIRS' parent documents — cascade step 2's join.
+
+TECH §2.1 specifies two anti-joins and TECH §2.2's home table says
+`documents/` is populated by *"hole 2, **and hole-1 pairs that have a parent
+document**"*. The second clause needs this third read, and the spec does not
+name it: a residual pair's parent may be a document a preferred grain ALREADY
+covers (the `company` grain declares document coverage but no pair coverage,
+so a company-overview document's empty-`scope_tag` pair is residual while its
+parent is not), and that document therefore does not appear in
+`_SQL_RESIDUAL_DOCUMENTS`. Without this read the pair has no home and
+`unrouted` cannot reach zero.
+
+Published-only, deliberately. A published pair whose parent document is NOT
+published falls THROUGH cascade step 2 to step 3/4 rather than minting a
+concept for an un-admitted document — DR-025's knowledge-admission gate and
+DR-141's coverage guarantee are both live, and this is the one reading that
+satisfies both."""
+
+_SQL_PUBLISHED_QA_IDS_BY_SOURCE_DOCS = (
+    "SELECT id, source_document_id FROM q_a_pairs "
+    "WHERE source_document_id = ANY($1::uuid[]) "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""One query answering two questions for the residual document grains: which
+published pairs their concepts reach (`Coverage`), and which of those
+concepts have NO published pair at all — the `drafts_via` split (TECH §2.3).
+Ids only; the full rows are read per concept by
+`_SQL_PUBLISHED_QA_BY_SOURCE_DOCS`."""
+
+_SQL_PUBLISHED_QA_BY_SOURCE_DOCS = (
+    f"SELECT {_QA_COLUMNS} FROM q_a_pairs "
+    "WHERE source_document_id = ANY($1::uuid[]) "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""A residual document concept's published `q_a_pairs` leg (TECH §2.3's read
+grid). Published-only: an unpublished pair has not passed the DR-025
+knowledge-admission gate, and a concept that quoted one would admit content
+the corpus has not admitted."""
+
+_SQL_RESIDUAL_DOCUMENT_VERSION = (
+    "SELECT d.id AS source_document_id, "
+    "count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT rl.id) AS rl_count, max(rl.updated_at) AS rl_max, "
+    "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max, "
+    "count(DISTINCT er.id) AS er_count, max(er.updated_at) AS er_max "
+    "FROM unnest($1::uuid[]) AS d(id) "
+    "JOIN source_documents sd ON sd.id = d.id "
+    "LEFT JOIN q_a_pairs qa ON qa.source_document_id = d.id "
+    "AND qa.publication_status = 'published' "
+    "LEFT JOIN entity_mentions em ON em.source_document_id = d.id "
+    "LEFT JOIN entity_relationships er ON er.source_document_id = d.id "
+    "LEFT JOIN record_lifecycle rl ON "
+    "(rl.owner_kind = 'source_document' AND rl.source_document_id = d.id) "
+    "OR (rl.owner_kind = 'q_a_pair' AND rl.q_a_pair_id = qa.id) "
+    "GROUP BY d.id ORDER BY d.id"
+)
+"""{132.38} MD-5/MD-7: ONE set-based aggregate over every enumerated residual
+document, covering the SAME five tables `_read_residual_document` reads, in
+that method's assembly order. Never per-concept."""
+
+_SQL_PUBLISHED_QA_IDS_BY_FORM_INSTANCES = (
+    "SELECT id FROM q_a_pairs "
+    "WHERE source_form_instance_id = ANY($1::uuid[]) "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""The residual questionnaire-response grain's `Coverage`.
+
+Deliberately WITHOUT the `origin_kind = 'derived_from_form_response'` filter
+`_SQL_COVERAGE_WON_BID_QA` carries. TECH §2.2's cascade step 3 is stated on
+the LINEAGE COLUMN (*"`unit.source_form_instance_id` -> questionnaire-
+responses/"*), not on the origin kind; a published pair that carries form
+lineage under some other origin kind is still attributable to that form, and
+filtering it out here would strand it in the one place the coverage
+guarantee cannot tolerate a gap."""
+
+_SQL_PUBLISHED_QA_BY_FORM_INSTANCE = (
+    f"SELECT {_QA_WON_COLUMNS} FROM q_a_pairs "
+    "WHERE source_form_instance_id = $1 "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""A residual questionnaire-response concept's published pairs. Carries the
+provenance columns (`_QA_WON_COLUMNS`) for the same reason the won-bid read
+does: the concept IS a form response, so its lineage columns are part of what
+it is."""
+
+_SQL_PUBLISHED_QA_BY_SOURCE_DOCS_SAMPLE = (
+    f"{_SQL_PUBLISHED_QA_BY_SOURCE_DOCS} LIMIT $2"
+)
+_SQL_PUBLISHED_QA_BY_FORM_INSTANCE_SAMPLE = (
+    f"{_SQL_PUBLISHED_QA_BY_FORM_INSTANCE} LIMIT $2"
+)
+"""The two `sample_rows` variants, declared as MODULE constants rather than
+composed inline at the call site the way the pre-{427.10} samplers do.
+
+`scripts/tests/test_pipeline_schema_uses_visibility.py` budgets how many SQL
+sites its schema-use analyser cannot statically resolve, and an f-string built
+inside a method is one of them. Composing at module scope keeps these reads
+visible to the analyser — the analyser's whole purpose — instead of spending
+the budget the older call sites already occupy."""
+
+_SQL_RESIDUAL_QUESTIONNAIRE_VERSION = (
+    "SELECT qa.source_form_instance_id AS form_instance_id, "
+    "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
+    "count(DISTINCT fi.id) AS fi_count, max(fi.updated_at) AS fi_max "
+    "FROM q_a_pairs qa "
+    "LEFT JOIN form_instances fi ON fi.id = qa.source_form_instance_id "
+    "WHERE qa.source_form_instance_id = ANY($1::uuid[]) "
+    "AND qa.publication_status = 'published' "
+    "GROUP BY qa.source_form_instance_id ORDER BY 1"
+)
+"""MD-7 for the questionnaire-response grain: `q_a_pairs` + `form_instances`,
+matching `_read_residual_questionnaire_response`'s assembly order. Grouped
+over every enumerated form instance in one query."""
+
+_SQL_FORM_INSTANCES_BY_IDS = (
+    "SELECT id, name, form_type, outcome, outcome_notes, "
+    "outcome_recorded_at, outcome_recorded_by, issuing_organisation, "
+    "created_at, updated_at FROM form_instances "
+    "WHERE id = ANY($1::uuid[]) ORDER BY id"
+)
+"""The enumerated form-instance rows — the concept slug/title source, and the
+`ConceptRaw.form_templates` leg of the read (kept under that pre-rename field
+name exactly as the won-bid grain does; the table is `form_instances`).
+
+No `outcome` filter, unlike `_SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE`: a WON
+form whose buyer the won-bid grain deduped away (a buyer's second won bid)
+has genuinely unrouted published pairs — {427.9} measured that hole — and
+this grain is where they land."""
+
+_SQL_QA_BY_IDS = (
+    f"SELECT {_QA_COLUMNS} FROM q_a_pairs "
+    "WHERE id = ANY($1::uuid[]) ORDER BY id"
+)
+"""Cascade step 4's read: the exact pairs enumeration attributed to the
+`unattributed-answers` singleton.
+
+**Why by id rather than by predicate.** The obvious form is a standalone
+`WHERE published AND source_form_instance_id IS NULL AND NOT EXISTS (published
+parent)` — but it is WRONG in two directions at once. Without an anti-join it
+also returns pairs that are perfectly well routed through `topics/`, making a
+concept whose entire claim is that these are unattributable false. WITH the
+anti-join it is worse: by read time `self._coverage` is the FULL union
+including this grain's own contribution, so the query would exclude exactly
+the pairs the concept is made of and return nothing. Reading the ids
+enumeration decided on is the only form that says the same thing at both
+moments. It is why `_read_unattributed_answers` refuses to run before
+`list_concepts()` instead of degrading to a superset."""
 
 
 # ── ID-132 {132.38} G-MEMO-DELTA — the `content_version` aggregate signal
@@ -601,6 +838,125 @@ def _concept_haystack(key: ConceptKey) -> str:
     ).casefold()
 
 
+# ── ID-427 {427.10} residual-grain helpers ──────────────────────────────
+
+
+@dataclass(frozen=True)
+class _ResidualPlan:
+    """One `list_concepts()` pass's residual cascade result.
+
+    `enumerations` is keyed by grain name — a grain with nothing to enumerate
+    is ABSENT rather than present-and-empty, which is what makes the
+    `unattributed-answers` concept disappear from a bundle with no orphan
+    pairs instead of appearing as an empty placeholder (TECH §2.2)."""
+
+    enumerations: "Mapping[str, GrainEnumeration]"
+    unattributed_pair_ids: "tuple[Any, ...]" = ()
+
+
+def _has_document_home(
+    pair_row: "Mapping[str, Any]", documents: "Mapping[str, Mapping[str, Any]]"
+) -> bool:
+    """Cascade step 2: does this residual pair's parent document have a
+    residual concept? False when the pair carries no `source_document_id`,
+    and false when it carries one whose document is not in the PUBLISHED
+    corpus — see `_residual_cascade` for why the unpublished case falls
+    through rather than minting a concept."""
+    document_id = pair_row.get("source_document_id")
+    return document_id is not None and str(document_id) in documents
+
+
+def _rows_content_version(rows: "Sequence[Mapping[str, Any]]") -> str:
+    """{132.38} MD-3/MD-6 `content_version` for a concept whose membership is
+    a set of rows already in hand — `count(*) + max(updated_at)`, computed in
+    Python from the anti-join's own result rather than by re-asking the
+    database for an aggregate over ids it just returned. Deterministic on the
+    same grounds the SQL aggregates are: no wall-clock, no run timestamp."""
+    stamps = [row["updated_at"] for row in rows if row.get("updated_at") is not None]
+    return _version_term(len(rows), max(stamps) if stamps else None)
+
+
+NEUTRAL_DOCUMENT_STEM = "document"
+NEUTRAL_QUESTIONNAIRE_STEM = "questionnaire-response"
+"""The stems a residual slug falls back to when the value it would otherwise
+be derived from embeds a Canonical record uuid.
+
+**A defect in TECH §2.2, found by executing it.** The spec guards the
+residual concept's TITLE against a uuid-bearing filename (*"pipeline sidecars
+are minted from `sd:<rel_path>`"*) and argues separately that the
+`-<uuid[:8]>` suffix is safe because `contains_record_pointer` matches only
+the full `8-4-4-4-12` form. Both are true, and between them they leave the
+PATH unguarded: a sidecar named `sd-<full-uuid>.json` slugifies to
+`documents/sd-<full-uuid>-<uuid[:8]>.md`, which carries a whole record
+pointer in the concept's identity.
+
+That is not cosmetic. `frontmatter.derive_source_id` turns a bundle `.md`
+path into a `sources[].id`, and `build_concept_frontmatter` REFUSES an id
+embedding a uuid (BI-10) — so any BI-9 cross-link to such a concept would
+fail to build, from a different concept, for a reason that names neither.
+Falling back to a neutral stem keeps identity pointer-free; the unconditional
+`-<uuid[:8]>` suffix still makes it unique."""
+
+
+def _pointer_free_stem(value: str, neutral: str) -> str:
+    """`value`, or `neutral` when it would put a record pointer in a concept's
+    identity (BI-10). Shared by both residual slug minters — the hazard is a
+    property of deriving a path from client data, not of one grain."""
+    if not value.strip() or contains_record_pointer(value):
+        return neutral
+    return value
+
+
+def _document_stem(row: "Mapping[str, Any]") -> str:
+    """A residual document's human-readable stem — its `filename` (or
+    `logical_path`) with any directory prefix and file extension removed."""
+    raw = row.get("filename") or row.get("logical_path") or ""
+    name = str(raw).rsplit("/", 1)[-1]
+    stem = name.rsplit(".", 1)[0] if "." in name else name
+    return _pointer_free_stem(stem, NEUTRAL_DOCUMENT_STEM)
+
+
+def residual_document_basename(
+    row: "Mapping[str, Any]", document_id: Any
+) -> str:
+    """`<slug>-<sd_uuid[:8]>` — TECH §2.2's residual document file slug.
+
+    **The suffix is unconditional**, and that is the ratified decision, not an
+    optimisation: `write_bundle` refuses a physical write-path collision
+    before any write in the run, a residual concept has no curated name to
+    disambiguate with, and a CONDITIONAL suffix would make one concept's
+    identity depend on the existence of an unrelated row — deleting the
+    collider would rename the survivor, reporting a spurious `moved`. Two
+    documents with the same filename therefore mint two distinct concepts and
+    never reach that guard.
+
+    `mint_concept_slug` is applied to the WHOLE basename rather than to the
+    stem alone, so the id-429 IA-3 reserved-stem check sees the string that
+    actually becomes a filename."""
+    return mint_concept_slug(f"{_document_stem(row)}-{str(document_id)[:8]}")
+
+
+def residual_questionnaire_basename(
+    form_row: "Mapping[str, Any] | None", form_instance_id: Any
+) -> str:
+    """`<slug>-<fi_uuid[:8]>` — TECH §2.2's questionnaire-response file slug.
+
+    The spec names the shape but not the slug's source. It is the form's own
+    `name`, falling back to `issuing_organisation` and then to a neutral
+    stem: OKF §4.1 asks for descriptive and self-explanatory, and the form's
+    name is what a reader of that bundle directory would recognise. The
+    `<uuid[:8]>` suffix is unconditional, and the BI-10 stem guard applies for
+    the same reason it does to a document filename — a form's name is client
+    data too."""
+    label = ""
+    if form_row is not None:
+        label = str(form_row.get("name") or form_row.get("issuing_organisation") or "")
+    return mint_concept_slug(
+        f"{_pointer_free_stem(label, NEUTRAL_QUESTIONNAIRE_STEM)}-"
+        f"{str(form_instance_id)[:8]}"
+    )
+
+
 class LRecordsSource:
     """cocoindex Source adapter over ID-131 L-records — NET-NEW, the
     producer's one bespoke piece (TECH §"The Source adapter over
@@ -658,7 +1014,23 @@ class LRecordsSource:
         whole point: an empty `Coverage` is a measurement ("this grain
         reached nothing"), `None` is the absence of one, and {427.7}'s note
         that its unpopulated `Coverage` "is not a measurement" is exactly
-        the confusion this field's nullability prevents from recurring."""
+        the confusion this field's nullability prevents from recurring.
+
+        **ID-427 {427.10}: it is also the residual grain's INPUT.** The
+        `list_concepts` loop assigns it after every preferred grain
+        contributes, so by the time a `runs_last` grain is called it holds the
+        union those grains reached and the residual grain's anti-joins are
+        that union's complement. It is accumulated during the loop rather than
+        derived afterwards from the returned keys because a key does not carry
+        what it covers (TECH §1)."""
+        self._residual_plan: "_ResidualPlan | None" = None
+        """The one cascade computation the four residual grains share
+        ({427.10}). Each of them is a separate registry entry — that is what
+        makes each one addable and removable on its own — but they are four
+        slices of ONE pass over the two anti-joins, so the pass is computed
+        once per `list_concepts()` and cached here. Reset to `None` at the top
+        of every enumeration, so a second run never serves the first run's
+        complement."""
 
     def _feeder_grains(self) -> "list[GrainSpec]":
         """ID-132 {132.36} G-CONCEPT-FEEDER, re-described by ID-427 {427.7}
@@ -741,12 +1113,28 @@ class LRecordsSource:
         # `type_label` relabel would have turned into a spurious rejection
         # (PI-5). Keyed on the grain and held HERE, where the registry that
         # knows which grain declares the locator actually lives.
-        if key.form_instance_id is not None and spec.name != WON_BID_GRAIN:
-            raise ValueError(
-                f"ConceptKey.form_instance_id is the {WON_BID_GRAIN!r} grain's "
-                f"locator (S443 amendment / DR-029); it is set on "
-                f"{key.rel_path!r}, which routes to grain {spec.name!r}"
-            )
+        #
+        # ID-427 {427.10}: `form_instance_id` now has TWO owners, and that is
+        # the S546 **PQ-3/TQ-3 ruling executed by construction** — *"yes,
+        # carry `form_instance_id` provenance on residual
+        # `questionnaire_response` concepts … the attribution key IS the form
+        # instance (cascade step 2)"*. Because the residual questionnaire
+        # grain sets the same field the won-bid grain does, `flow_def`'s BI-28
+        # provenance map picks those concepts up with no edit at all.
+        for locator, value, owners in (
+            ("form_instance_id", key.form_instance_id, FORM_INSTANCE_LOCATOR_GRAINS),
+            (
+                "source_document_id",
+                key.source_document_id,
+                SOURCE_DOCUMENT_LOCATOR_GRAINS,
+            ),
+        ):
+            if value is not None and spec.name not in owners:
+                raise ValueError(
+                    f"ConceptKey.{locator} is the locator of grain(s) "
+                    f"{sorted(owners)}; it is set on {key.rel_path!r}, which "
+                    f"routes to grain {spec.name!r}"
+                )
         return spec
 
     # ── list_concepts (abstract, base.py) ───────────────────────────────
@@ -770,10 +1158,21 @@ class LRecordsSource:
         totals; {427.10} runs the residual grain over its complement, which
         is why the union is accumulated DURING the loop rather than derived
         afterwards from the keys (a key does not carry what it covers, and
-        the residual grain must run last, handed the union — TECH §1)."""
+        the residual grain must run last, handed the union — TECH §1).
+
+        ID-427 {427.10}: **grains declaring `runs_last` are called after every
+        other grain**, in registry order among themselves. `sorted` is stable,
+        so the preferred grains keep the order they were registered in and
+        nothing about the existing enumeration moves. `self._coverage` is
+        assigned as the loop goes, which is what a residual grain reads to
+        build its complement — see that field's own note for why the hand-off
+        is a running union rather than a derivation from `keys`."""
         keys: "list[ConceptKey]" = []
         coverage = Coverage()
-        for spec in self._grains.values():
+        self._coverage = None
+        self._residual_plan = None
+        for spec in sorted(self._grains.values(), key=lambda s: s.runs_last):
+            self._coverage = coverage
             enumeration = await spec.list(self, spec)
             keys.extend(enumeration.keys)
             coverage = coverage.union(enumeration.covers)
@@ -943,7 +1342,8 @@ class LRecordsSource:
         """Every published pair with a non-empty `scope_tag`, plus those
         pairs' published parent documents. See `_SQL_COVERAGE_TOPIC` — the
         set is the union over the tags this grain enumerated, and its
-        complement on `q_a_pairs` is RESEARCH's hole 2 exactly.
+        complement on `q_a_pairs` is RESEARCH's hole 1 exactly (renumbered
+        from "hole 2" by {427.10} — see `_SQL_COVERAGE_TOPIC`).
 
         Skipped when no tag enumerated, and that is not an optimisation
         shortcut: the enumeration query IS `DISTINCT unnest(scope_tag)` over
@@ -1152,6 +1552,248 @@ class LRecordsSource:
         # documents rather than an opinion that it reaches none.
         return Coverage.of({Q_A_PAIRS: [str(row["id"]) for row in rows]})
 
+    # ── the residual grain (ID-427 {427.10}, TECH §2.1–§2.3) ────────────
+
+    async def _residual_enumeration(self, spec: GrainSpec) -> GrainEnumeration:
+        """One residual grain's slice of the shared cascade pass."""
+        plan = await self._residual_cascade()
+        return plan.enumerations.get(spec.name, GrainEnumeration())
+
+    async def _residual_cascade(self) -> "_ResidualPlan":
+        """TECH §2.1's two anti-joins, routed through §2.2's three-step
+        attribution cascade, sliced into the four residual grains'
+        enumerations. Computed ONCE per `list_concepts()` and cached, because
+        the four grains are four registry entries over one pass — separate so
+        each is independently addable, shared so the anti-joins run once.
+
+        The cascade, restated exactly as implemented:
+
+            a published DOCUMENT no preferred grain covers   -> documents/
+            a published PAIR no preferred grain covers, whose
+              source_document_id names a PUBLISHED document  -> documents/
+            … else whose source_form_instance_id is set      -> questionnaire-responses/
+            … else                                            -> unattributed-answers/
+
+        **Step 2's condition is "names a published document", not merely
+        "is not null" as TECH §2.2 writes it.** A published pair may carry a
+        `source_document_id` pointing at an UNPUBLISHED document; minting a
+        `documents/` concept for that document would admit a record the
+        DR-025 knowledge-admission gate has not admitted, while dropping the
+        pair would breach DR-141's coverage guarantee. Falling through to
+        step 3/4 is the one reading that honours both live rules, and it
+        needs no new vocabulary — the pair still lands, just not there.
+
+        **Zero unrouted is structural, not asserted.** Every published
+        document is either covered or enumerated by step 1; every published
+        pair is either covered or routed by steps 2–4, and each of the three
+        homes declares coverage over exactly the pairs its read returns. The
+        run census therefore reports `considered == routed` by construction,
+        which is what makes AC 1's "zero unrouted" a number the run prints
+        rather than a claim a test makes."""
+        if self._residual_plan is not None:
+            return self._residual_plan
+
+        covered = self._coverage or Coverage()
+        residual_documents = await self._pool.fetch(
+            _SQL_RESIDUAL_DOCUMENTS, sorted(covered.ids(SOURCE_DOCUMENTS))
+        )
+        residual_pairs = await self._pool.fetch(
+            _SQL_RESIDUAL_Q_A_PAIRS, sorted(covered.ids(Q_A_PAIRS))
+        )
+
+        # Step 1 + step 2's join target, in one dict keyed by document id.
+        documents: "dict[str, Mapping[str, Any]]" = {
+            str(row["id"]): row for row in residual_documents
+        }
+        orphan_parents = _dedupe_ids(
+            row["source_document_id"]
+            for row in residual_pairs
+            if row.get("source_document_id") is not None
+            and str(row["source_document_id"]) not in documents
+        )
+        if orphan_parents:
+            for row in await self._pool.fetch(
+                _SQL_PUBLISHED_SOURCE_DOCUMENTS_BY_IDS, list(orphan_parents)
+            ):
+                documents[str(row["id"])] = row
+
+        plan = _ResidualPlan(
+            enumerations={
+                **await self._residual_document_enumerations(documents),
+                **await self._residual_questionnaire_enumeration(
+                    residual_pairs, documents
+                ),
+            }
+        )
+        plan = await self._with_unattributed_enumeration(
+            plan, residual_pairs, documents
+        )
+        self._residual_plan = plan
+        return plan
+
+    async def _residual_document_enumerations(
+        self, documents: "Mapping[str, Mapping[str, Any]]"
+    ) -> "dict[str, GrainEnumeration]":
+        """Cascade steps 1–2: one concept per residual document, split across
+        the two document grains by whether it has a published `q_a_pair`
+        (TECH §2.3's `drafts_via` switch, resolved at enumeration — see
+        `GrainSpec.drafts_via`)."""
+        if not documents:
+            return {}
+        document_ids = sorted(documents)
+        pair_ids_by_document: "dict[str, list[str]]" = {}
+        for row in await self._pool.fetch(
+            _SQL_PUBLISHED_QA_IDS_BY_SOURCE_DOCS, document_ids
+        ):
+            pair_ids_by_document.setdefault(
+                str(row["source_document_id"]), []
+            ).append(str(row["id"]))
+        version_by_document = {
+            str(row["source_document_id"]): _combine_content_version(
+                _version_term(row.get("sd_count"), row.get("sd_max")),
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("rl_count"), row.get("rl_max")),
+                _version_term(row.get("em_count"), row.get("em_max")),
+                _version_term(row.get("er_count"), row.get("er_max")),
+            )
+            for row in await self._pool.fetch(
+                _SQL_RESIDUAL_DOCUMENT_VERSION, document_ids
+            )
+        }
+
+        split: "dict[str, tuple[list[ConceptKey], list[str], list[str]]]" = {
+            RESIDUAL_DOCUMENT_GRAIN: ([], [], []),
+            RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN: ([], [], []),
+        }
+        for document_id in document_ids:
+            pair_ids = pair_ids_by_document.get(document_id, [])
+            grain_name = (
+                RESIDUAL_DOCUMENT_GRAIN
+                if pair_ids
+                else RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN
+            )
+            spec = self._grains[grain_name]
+            keys, covered_documents, covered_pairs = split[grain_name]
+            keys.append(
+                self._key(
+                    spec,
+                    basename=residual_document_basename(
+                        documents[document_id], document_id
+                    ),
+                    source_document_id=document_id,
+                    content_version=version_by_document.get(document_id, ""),
+                )
+            )
+            covered_documents.append(document_id)
+            covered_pairs.extend(pair_ids)
+        return {
+            grain_name: GrainEnumeration(
+                keys=tuple(keys),
+                covers=Coverage.of(
+                    {SOURCE_DOCUMENTS: covered_documents, Q_A_PAIRS: covered_pairs}
+                ),
+            )
+            for grain_name, (keys, covered_documents, covered_pairs) in split.items()
+            if keys
+        }
+
+    async def _residual_questionnaire_enumeration(
+        self,
+        residual_pairs: "Sequence[Mapping[str, Any]]",
+        documents: "Mapping[str, Mapping[str, Any]]",
+    ) -> "dict[str, GrainEnumeration]":
+        """Cascade step 3: one concept per form instance that still owns a
+        residual published pair after step 2 has taken the document-attributed
+        ones."""
+        form_instance_ids = _dedupe_ids(
+            row["source_form_instance_id"]
+            for row in residual_pairs
+            if row.get("source_form_instance_id") is not None
+            and not _has_document_home(row, documents)
+        )
+        if not form_instance_ids:
+            return {}
+        spec = self._grains[RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN]
+        form_rows = {
+            str(row["id"]): row
+            for row in await self._pool.fetch(
+                _SQL_FORM_INSTANCES_BY_IDS, list(form_instance_ids)
+            )
+        }
+        version_by_form = {
+            str(row["form_instance_id"]): _combine_content_version(
+                _version_term(row.get("qa_count"), row.get("qa_max")),
+                _version_term(row.get("fi_count"), row.get("fi_max")),
+            )
+            for row in await self._pool.fetch(
+                _SQL_RESIDUAL_QUESTIONNAIRE_VERSION, list(form_instance_ids)
+            )
+        }
+        covered = await self._pool.fetch(
+            _SQL_PUBLISHED_QA_IDS_BY_FORM_INSTANCES, list(form_instance_ids)
+        )
+        return {
+            RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN: GrainEnumeration(
+                keys=tuple(
+                    self._key(
+                        spec,
+                        basename=residual_questionnaire_basename(
+                            form_rows.get(str(form_instance_id)), form_instance_id
+                        ),
+                        form_instance_id=form_instance_id,
+                        content_version=version_by_form.get(
+                            str(form_instance_id), ""
+                        ),
+                    )
+                    for form_instance_id in form_instance_ids
+                ),
+                # No `source_documents` term at all — not an empty one. Like
+                # the won-bid grain, this read has no document leg, so it has
+                # no opinion about documents rather than an opinion that it
+                # reaches none.
+                covers=Coverage.of({Q_A_PAIRS: [str(row["id"]) for row in covered]}),
+            )
+        }
+
+    async def _with_unattributed_enumeration(
+        self,
+        plan: "_ResidualPlan",
+        residual_pairs: "Sequence[Mapping[str, Any]]",
+        documents: "Mapping[str, Mapping[str, Any]]",
+    ) -> "_ResidualPlan":
+        """Cascade step 4: the ONE bundle-wide `answer_set` concept holding
+        every residual published pair with neither lineage — **omitted
+        entirely when there is none** (TECH §2.2). An empty placeholder would
+        assert a hole that does not exist, which is the mirror image of the
+        silence this whole grain removes."""
+        orphans = [
+            row
+            for row in residual_pairs
+            if row.get("source_form_instance_id") is None
+            and not _has_document_home(row, documents)
+        ]
+        if not orphans:
+            return plan
+        spec = self._grains[RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN]
+        return _ResidualPlan(
+            enumerations={
+                **plan.enumerations,
+                RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN: GrainEnumeration(
+                    keys=(
+                        self._key(
+                            spec,
+                            basename=UNATTRIBUTED_ANSWERS_BASENAME,
+                            content_version=_rows_content_version(orphans),
+                        ),
+                    ),
+                    covers=Coverage.of(
+                        {Q_A_PAIRS: [str(row["id"]) for row in orphans]}
+                    ),
+                ),
+            },
+            unattributed_pair_ids=tuple(row["id"] for row in orphans),
+        )
+
     # ── read_concept (abstract, base.py) ────────────────────────────────
 
     async def read_concept(self, key: ConceptKey) -> ConceptRaw:
@@ -1318,6 +1960,79 @@ class LRecordsSource:
             workspaces=[], q_a_pairs=qa_rows, form_templates=ft_rows
         )
 
+    async def _read_residual_document(self, key: ConceptKey) -> ConceptRaw:
+        """TECH §2.3's residual-document read grid: the document row, its
+        published `q_a_pairs` (possibly none), its `record_lifecycle` (both
+        owner kinds), `entity_mentions` and `entity_relationships`.
+
+        It deliberately returns **no body text**. `source_documents.
+        extracted_text` is permanently NULL on the pipeline path (id-392) and
+        composing `content_chunks` bodies is ruled out of scope — which is
+        exactly why an undistilled document is drafted from a template rather
+        than handed to a model that would have nothing to read."""
+        document_id = key.source_document_id
+        sd_rows = await self._source_documents_by_ids([document_id])
+        qa_rows = await self._pool.fetch(
+            _SQL_PUBLISHED_QA_BY_SOURCE_DOCS, [document_id]
+        )
+        rl_rows = await self._pool.fetch(
+            _SQL_RECORD_LIFECYCLE_FOR_OWNERS,
+            [document_id],
+            [row["id"] for row in qa_rows],
+        )
+        em_rows = await self._entity_mentions_by_source_docs([document_id])
+        er_rows = await self._entity_relationships_by_source_docs([document_id])
+        return ConceptRaw(
+            source_documents=sd_rows,
+            q_a_pairs=qa_rows,
+            record_lifecycle=rl_rows,
+            entity_mentions=em_rows,
+            entity_relationships=er_rows,
+        )
+
+    async def _read_residual_questionnaire_response(
+        self, key: ConceptKey
+    ) -> ConceptRaw:
+        """Cascade step 3's read: the form instance's published `q_a_pairs`
+        plus the `form_instances` row itself, carried in
+        `ConceptRaw.form_templates` under that field's pre-rename name — the
+        same shape `_read_won_bid_case_study` uses, because it is the same
+        kind of thing seen from the other side of the `outcome` column.
+
+        Self-contained: `key.form_instance_id` answers it without any
+        reference to what enumeration covered."""
+        qa_rows = await self._pool.fetch(
+            _SQL_PUBLISHED_QA_BY_FORM_INSTANCE, key.form_instance_id
+        )
+        fi_rows = await self._pool.fetch(
+            _SQL_FORM_INSTANCES_BY_IDS, [key.form_instance_id]
+        )
+        return ConceptRaw(q_a_pairs=qa_rows, form_templates=fi_rows)
+
+    async def _read_unattributed_answers(self, key: ConceptKey) -> ConceptRaw:
+        """Cascade step 4's read — the pairs enumeration attributed here.
+
+        Raises when enumeration has not run, on exactly the posture
+        `census()` takes: "residual" is the complement of what the preferred
+        grains covered, so a residual read that answered anyway would be
+        answering a different question from the one its concept asks. See
+        `_SQL_QA_BY_IDS` for why no standalone predicate can stand in."""
+        if self._residual_plan is None:
+            raise ValueError(
+                "LRecordsSource.read_concept() was called for the "
+                f"{RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN!r} grain "
+                f"({key.rel_path!r}) before list_concepts() — this concept's "
+                "membership IS the complement of what the preferred grains "
+                "covered, and there is no coverage-free predicate that means "
+                "the same thing (ID-427 {427.10})"
+            )
+        pair_ids = self._residual_plan.unattributed_pair_ids
+        if not pair_ids:
+            return ConceptRaw()
+        return ConceptRaw(
+            q_a_pairs=await self._pool.fetch(_SQL_QA_BY_IDS, list(pair_ids))
+        )
+
     # ── sample_rows (concrete helper, base.py) ──────────────────────────
 
     async def sample_rows(self, key: ConceptKey, n: int) -> "list[Mapping[str, Any]]":
@@ -1380,6 +2095,31 @@ class LRecordsSource:
         raw = await self.read_concept(key)
         return list(raw.source_documents[:n])
 
+    async def _sample_residual_document(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        """The residual document grain's `q_a_pairs` sample. `sample_kind`
+        stays the default `"q_a_pairs"`: `producer/enrich.py` mints a BI-6
+        anchor for a sampled `source_documents` row, and these rows are pairs,
+        so declaring otherwise would mint anchors for ids that are not
+        `source_documents` ids at all."""
+        return await self._pool.fetch(
+            _SQL_PUBLISHED_QA_BY_SOURCE_DOCS_SAMPLE, [key.source_document_id], n
+        )
+
+    async def _sample_residual_questionnaire_response(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        return await self._pool.fetch(
+            _SQL_PUBLISHED_QA_BY_FORM_INSTANCE_SAMPLE, key.form_instance_id, n
+        )
+
+    async def _sample_unattributed_answers(
+        self, key: ConceptKey, n: int
+    ) -> "list[Mapping[str, Any]]":
+        raw = await self._read_unattributed_answers(key)
+        return list(raw.q_a_pairs[:n])
+
     # ── find (concrete helper, base.py) ─────────────────────────────────
 
     async def find(self, query: str) -> "list[ConceptKey]":
@@ -1434,6 +2174,40 @@ redirect in `producer/bundle_writer.py` also keyed on this constant, to
 append `won-bid/` to a won-bid concept's physical target. The grain now
 declares `case-studies/won-bid` as its directory, so the path falls out of
 the ordinary `_key` mint and there is no rule left to keep in sync."""
+
+RESIDUAL_DOCUMENT_GRAIN = "residual_document"
+RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN = "residual_document_undistilled"
+RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN = "residual_questionnaire_response"
+RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN = "residual_unattributed_answers"
+"""ID-427 {427.10}: the four residual grains (TECH §2.1–§2.3), which between
+them make every published unit of the corpus reachable in at least one
+concept — DR-141's coverage guarantee, and this task's AC 1.
+
+Four entries, three directories: the two DOCUMENT grains share
+`documents/` and `type: document` and differ only in `drafts_via`, because
+TECH §2.3's pass1/template switch is a per-CLUSTER fact that a per-grain
+constant cannot otherwise carry (see `GrainSpec.drafts_via`)."""
+
+UNATTRIBUTED_ANSWERS_BASENAME = "published-answers"
+"""The singleton `unattributed-answers/published-answers.md` basename (TECH
+§2.2). One concept bundle-wide, and **absent entirely** when the corpus has
+no residual pair with neither lineage."""
+
+FORM_INSTANCE_LOCATOR_GRAINS = frozenset(
+    {WON_BID_GRAIN, RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN}
+)
+"""The grains permitted to set `ConceptKey.form_instance_id`, enforced by
+`grain_for`. Two of them since {427.10}, which is the **PQ-3/TQ-3 ruling
+landing by construction**: both grains attribute by the same key, so both
+carry the same BI-28 provenance shape, and `flow_def`'s provenance map picks
+the residual one up without an edit."""
+
+SOURCE_DOCUMENT_LOCATOR_GRAINS = frozenset(
+    {RESIDUAL_DOCUMENT_GRAIN, RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN}
+)
+"""The grains permitted to set `ConceptKey.source_document_id`. Both halves of
+the residual document population — they are one home split by drafting
+route, so they own one locator between them."""
 
 _FEEDER_GRAIN_PREFIX = "feeder:"
 """Namespace for client-declared grains, so a `concept-feeder.json` entry can
@@ -1499,6 +2273,60 @@ _BUILTIN_GRAINS: "tuple[GrainSpec, ...]" = (
         read=lambda src, spec, key: src._read_won_bid_case_study(key),
         sample=lambda src, spec, key, n: src._sample_won_bid_case_study(key, n),
     ),
+    # ── ID-427 {427.10}: the residual grains, TECH §2.1–§2.3.
+    #
+    # `runs_last=True` on all four — they enumerate the COMPLEMENT of what
+    # every other grain covers, so they must be handed that union rather than
+    # race it. That is a declared property, not a position in this tuple:
+    # feeder grains are appended AFTER these at construction, and position
+    # alone would make a client-declared grain's units look residual.
+    GrainSpec(
+        name=RESIDUAL_DOCUMENT_GRAIN,
+        directory="documents",
+        type_label="document",
+        list=lambda src, spec: src._residual_enumeration(spec),
+        read=lambda src, spec, key: src._read_residual_document(key),
+        sample=lambda src, spec, key, n: src._sample_residual_document(key, n),
+        runs_last=True,
+    ),
+    GrainSpec(
+        name=RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN,
+        # The SAME directory and label as its sibling above (id-429 IA-4:
+        # many-to-one is permitted). A document that gains its first published
+        # answer changes grain and re-drafts, and its file does not move —
+        # PI-5's property applied to routing instead of to labels.
+        directory="documents",
+        type_label="document",
+        list=lambda src, spec: src._residual_enumeration(spec),
+        read=lambda src, spec, key: src._read_residual_document(key),
+        sample=lambda src, spec, key, n: src._sample_residual_document(key, n),
+        # TECH §2.3: no published pair exists to distil, so Pass-1 would be
+        # asked to write about a document it cannot read. `producer/enrich.py:
+        # render_undistilled_draft` answers deterministically instead, and
+        # `producer/flow_def._draft_concepts` routes on this declaration.
+        drafts_via="template",
+        runs_last=True,
+    ),
+    GrainSpec(
+        name=RESIDUAL_QUESTIONNAIRE_RESPONSE_GRAIN,
+        directory="questionnaire-responses",
+        type_label="questionnaire_response",
+        list=lambda src, spec: src._residual_enumeration(spec),
+        read=lambda src, spec, key: src._read_residual_questionnaire_response(key),
+        sample=lambda src, spec, key, n: (
+            src._sample_residual_questionnaire_response(key, n)
+        ),
+        runs_last=True,
+    ),
+    GrainSpec(
+        name=RESIDUAL_UNATTRIBUTED_ANSWERS_GRAIN,
+        directory="unattributed-answers",
+        type_label="answer_set",
+        list=lambda src, spec: src._residual_enumeration(spec),
+        read=lambda src, spec, key: src._read_unattributed_answers(key),
+        sample=lambda src, spec, key, n: src._sample_unattributed_answers(key, n),
+        runs_last=True,
+    ),
 )
 
 BUILTIN_GRAIN_TYPE_LABELS = frozenset(spec.type_label for spec in _BUILTIN_GRAINS)
@@ -1520,6 +2348,9 @@ BUILTIN_GRAIN_DIRECTORIES = frozenset(spec.directory for spec in _BUILTIN_GRAINS
 need the shipped layout without importing the registry itself; **not** a
 uniqueness constraint — id-429 IA-4 states many-to-one is fine, and a
 client-declared feeder grain may point at a directory a built-in already
-owns. Since {427.8} no two BUILT-IN grains share one, so this frozenset
-happens to be the same size as the registry — an artefact of today's
-entries, never a rule to enforce."""
+owns.
+
+**{427.10} made that concrete**: the two residual document grains both
+declare `documents`, so this frozenset is now strictly SMALLER than the
+registry. {427.8}'s note that the two happened to be the same size was an
+artefact of that moment's entries, exactly as it said, and it has expired."""

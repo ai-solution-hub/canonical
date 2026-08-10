@@ -256,6 +256,7 @@ from scripts.cocoindex_pipeline.extraction import _strip_code_fence
 from scripts.cocoindex_pipeline.producer.agent_loop import (
     LIST_CONCEPTS_TOOL,
     PASS1_TOOLS,
+    PRODUCER_ACTOR_NAME,
     PRODUCER_MODEL,
     producer_actor,
     producer_async_client,
@@ -276,6 +277,7 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
     build_source_document_uri,
     citation_target,
     concept_citation_path,
+    contains_record_pointer,
     is_canonical_resource_uri,
     is_docs_site_citation,
     is_git_blob_citation,
@@ -1047,4 +1049,210 @@ async def enrich_concept(
     )
     return ConceptDraft(
         key=key, frontmatter=frontmatter, body=body, primary_anchor=primary_anchor
+    )
+
+
+# ── render_undistilled_draft (ID-427 {427.10}, TECH §2.3) ────────────────
+#
+# The negative answer, made a page. A published `source_document` from which
+# no answer has been distilled is a hole in the corpus; before this it was a
+# SILENT hole, because `source_documents` was never an enumeration grain
+# (RESEARCH hole 2). It is reachable now, and what it says is deterministic.
+#
+# *Rejected — drafting it through Pass-1 anyway* (TECH §2.3). The model would
+# receive a filename and metadata and be asked for a title, description and
+# body, and would produce plausible prose about a document it has not read.
+# `read_concept` for a residual document returns no body text at all:
+# `source_documents.extracted_text` is permanently NULL on the pipeline path
+# and composing `content_chunks` bodies is out of scope. That is the exact
+# failure the negative answer exists to prevent (PRODUCT PI-4), and it would
+# also spend an Anthropic call per undistilled document.
+#
+# **PQ-1's rider, binding this renderer** (owner ruling, S546): it renders
+# only admission-surface metadata — title, filename, dates, counts, the same
+# fields a citation already exposes — and never quotes content that has not
+# passed the DR-025 knowledge-admission gate. There is no content here to
+# quote, which is the entire point of the page.
+
+UNDISTILLED_FALLBACK_TITLE = "Undistilled source document"
+"""TECH §2.2's neutral title, used when the filename cannot safely become
+one. Pipeline sidecar documents are minted from `sd:<rel_path>` and their
+filenames can embed a full uuid; `build_concept_frontmatter` would then raise
+on the BI-10 check, failing the concept instead of writing it."""
+
+UNDISTILLED_ACTOR = f"process:{PRODUCER_ACTOR_NAME}-undistilled-template"
+"""The §7 actor for a template render.
+
+**A deliberate deviation from TECH §2.3's "the producer actor string per
+§7".** `producer_actor(model)` mints `<producer>/<model>` — a claim that a
+named model produced this content. No model ran here, and recording one that
+did not would make `generated.by` false for precisely the pages whose whole
+value is that nothing was invented. §7 already provides the honest form for
+an automated, non-agentic producer: `process:<id>`. The spec's sentence and
+this string agree on the substantive point it was making — *"the producer IS
+the actor, there is no `human:` claim to make"*."""
+
+_UNDISTILLED_LEDE = (
+    "No published answer has been distilled from this document. It is held in "
+    "the corpus and is reachable here so that its absence from the answer set "
+    "is visible rather than silent."
+)
+
+_UNDISTILLED_ESCALATION = (
+    "No question–answer pair published from this document exists. Any question "
+    "this document might answer is unanswered by this bundle. Escalate to a "
+    "subject-matter expert."
+)
+
+_WITHHELD = "withheld (embeds a record identifier)"
+"""What a metadata value becomes when it would smuggle a Canonical uuid into
+body prose. BI-10 admits record pointers through `sources[].resource` and
+nowhere else, and `validator.check_no_stray_pointer` checks the BODY as well
+as the frontmatter — a fact TECH §2.2 guards for the TITLE only."""
+
+
+def _pointer_safe(value: object) -> str:
+    """A metadata value rendered into body prose, or `_WITHHELD` when it would
+    breach BI-10. Applied to every free-text field this template
+    interpolates — the filename TECH itself flags, and the pipeline-controlled
+    fields beside it, because a guard that covers one field and not its
+    neighbour is a guard that will be routed around."""
+    text = "" if value is None else str(value)
+    if not text:
+        return "unknown"
+    return _WITHHELD if contains_record_pointer(text) else text
+
+
+def _stamp(value: object) -> str:
+    """A timestamp rendered deterministically — the same posture
+    `l_records._version_term` takes, never a wall-clock read."""
+    return value.isoformat() if hasattr(value, "isoformat") else str(value or "unknown")
+
+
+def _undistilled_title(row: "Mapping[str, Any]") -> str:
+    """The concept title, derived from `filename` and guarded.
+
+    TECH §2.2: *"The renderer runs `contains_record_pointer` on the candidate
+    title first and falls back to a neutral title when it hits."*
+
+    **The guard runs on the RAW filename, before humanisation, and that
+    ordering is the whole guard.** Humanising first replaces the hyphens —
+    turning `sd-11111111-1111-4111-8111-111111111111.json` into
+    `Sd 11111111 1111 4111 8111 111111111111`, which no longer matches
+    `_EMBEDDED_UUID_RE` and sails through the check while still publishing
+    every digit of a record id. A spec that says "run the check on the
+    candidate title" reads naturally as checking the finished string; doing
+    that is what fails."""
+    raw = row.get("filename") or row.get("logical_path") or ""
+    name = str(raw).rsplit("/", 1)[-1]
+    stem = name.rsplit(".", 1)[0] if "." in name else name
+    if not stem.strip() or contains_record_pointer(stem):
+        return UNDISTILLED_FALLBACK_TITLE
+    words = " ".join(stem.replace("-", " ").replace("_", " ").split())
+    if not words:
+        return UNDISTILLED_FALLBACK_TITLE
+    return words[:1].upper() + words[1:]
+
+
+def render_undistilled_draft(key: ConceptKey, raw: ConceptRaw) -> ConceptDraft:
+    """The deterministic draft for a residual document with no published
+    answer — TECH §2.3, reached via `GrainSpec.drafts_via="template"` and
+    dispatched in `producer/flow_def._draft_concepts`. **The Pass-1 agent loop
+    is not entered**: no Anthropic client is constructed, no tool is offered,
+    no model output reaches this page.
+
+    **Byte-stable across runs, without the memo.** `generated.at` is the
+    document's own `updated_at` rather than the run clock. Pass-1 drafts get
+    their stability from `@coco.fn(memo=True)` — a memo hit returns the draft
+    with its ORIGINAL timestamp — and this path deliberately bypasses that
+    memo, so a wall-clock stamp would rewrite every undistilled concept on
+    every run: `RunSummary.changed` would never be empty, no run could be a
+    no-op, and each one would restage a git commit and recompute an embedding
+    for content that did not change. A record-derived stamp is the honest
+    reading of `generated.at` for a pure function of that record: this content
+    was generated from the document as of that moment, and it changes when and
+    only when the document does.
+    """
+    if not raw.source_documents:
+        raise ValueError(
+            "render_undistilled_draft: the residual document read returned no "
+            f"source_documents row for {key.rel_path!r} — the template renders "
+            "that row's admission-surface metadata and has nothing to say "
+            "without it (ID-427 {427.10}, TECH §2.3)"
+        )
+    row = raw.source_documents[0]
+    # `ConceptRaw` rows are opaque `Mapping[str, Any]`, so this is a boundary
+    # check on an untyped payload, not a re-assertion of an invariant held
+    # elsewhere: both columns are NOT NULL `timestamptz`, and a row reaching
+    # here without one means the read's SELECT changed under this renderer.
+    stamp = row.get("updated_at") or row.get("created_at")
+    if stamp is None:
+        raise ValueError(
+            "render_undistilled_draft: the source_documents row for "
+            f"{key.rel_path!r} carries neither updated_at nor created_at — "
+            "one of them IS this concept's `generated.at` (see below), so "
+            "there is no honest stamp to write"
+        )
+    title = _undistilled_title(row)
+    anchor = build_source_document_uri(row["id"])
+    sources = sources_from_citations((), primary_anchor=anchor)
+    footnote_id = sources[0].id
+
+    known = [
+        f"* Document: {_pointer_safe(row.get('filename'))} "
+        f"({_pointer_safe(row.get('content_type'))})[^{footnote_id}]",
+        f"* Held since: {_stamp(row.get('created_at'))}; "
+        f"last updated: {_stamp(row.get('updated_at'))}",
+        f"* Extraction: {_pointer_safe(row.get('extraction_method'))}",
+    ]
+    entities = sorted(
+        {
+            _pointer_safe(mention.get("canonical_name"))
+            for mention in raw.entity_mentions
+            if mention.get("canonical_name")
+        }
+    )
+    if entities:
+        known.append(f"* Entities mentioned: {', '.join(entities)}")
+
+    body = "\n".join(
+        [
+            f"# {title}",
+            "",
+            _UNDISTILLED_LEDE,
+            "",
+            "## What is known",
+            *known,
+            "",
+            "## What is not known",
+            _UNDISTILLED_ESCALATION,
+            "",
+            render_source_footnotes(sources),
+        ]
+    )
+    frontmatter = build_concept_frontmatter(
+        type=key.concept_type,
+        title=title,
+        description=(
+            f"{title} — held in the corpus with no published answer distilled "
+            "from it."
+        ),
+        generated_by=UNDISTILLED_ACTOR,
+        generated_at=stamp,
+        # A19 (bl-477): `no-content` has been in the ratified vocabulary and
+        # unreachable since it was ratified (RESEARCH M8) because
+        # `derive_concept_confidence` only ever returns `strong`/`partial`.
+        # It is not derived here — it is ASSERTED, because this concept's
+        # confidence is a fact about the corpus (no answer exists) rather than
+        # an inference from how well a draft was grounded.
+        confidence="no-content",
+        # TECH §2.3: no tags. A facet tag would claim a cross-cut this page
+        # cannot support; there is nothing here to classify.
+        tags=(),
+        # S546 F2-B: no top-level `resource:` — the record anchor leads
+        # `sources[]`, where BI-10 admits it.
+        sources=sources,
+    )
+    return ConceptDraft(
+        key=key, frontmatter=frontmatter, body=body, primary_anchor=anchor
     )

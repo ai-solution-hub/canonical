@@ -2301,3 +2301,229 @@ class TestDR087DocsSiteCitationValidation:
         anchor = build_docs_site_citation("deadbeef", "reference/decision-register.md")
         assert not enrich.is_git_blob_citation(anchor)
         assert enrich.is_docs_site_citation(anchor)
+
+
+# ── render_undistilled_draft (ID-427 {427.10}, TECH §2.3) ───────────────
+#
+# The negative answer, made a page. Every assertion here is about what the
+# page SAYS and what it provably does not contain — never about which helper
+# ran. The strongest of them is the last: the emitted body equals the
+# template render, which is how "the agent loop was not entered" is proved
+# without inspecting the loop.
+
+_UNDISTILLED_SD = "44444444-4444-4444-8444-444444444444"
+
+
+def _undistilled_key(rel_path: str = "documents/07-supplier-code-44444444.md"):
+    return ConceptKey(
+        rel_path=rel_path,
+        concept_type="document",
+        grain="residual_document_undistilled",
+        source_document_id=_UNDISTILLED_SD,
+    )
+
+
+def _undistilled_raw(
+    *,
+    filename: str = "07-supplier-code.pdf",
+    content_type: str = "policy",
+    extraction_method: str = "pdf_text",
+    entity_names: "tuple[str, ...]" = (),
+) -> ConceptRaw:
+    return ConceptRaw(
+        source_documents=[
+            {
+                "id": _UNDISTILLED_SD,
+                "filename": filename,
+                "logical_path": None,
+                "content_type": content_type,
+                "extraction_method": extraction_method,
+                "created_at": "2026-03-01T09:00:00Z",
+                "updated_at": "2026-03-02T10:30:00Z",
+            }
+        ],
+        entity_mentions=[
+            {"id": f"em-{n}", "canonical_name": name, "source_document_id": _UNDISTILLED_SD}
+            for n, name in enumerate(entity_names)
+        ],
+    )
+
+
+class TestTheUndistilledPageSaysWhatIsAndIsNotKnown:
+    def test_the_body_carries_the_escalation_sentence(self) -> None:
+        """PI-4's whole point: a reader must be able to trust "we do not know
+        this" over "I could not find it". The page states the absence and
+        says what to do about it."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert "Escalate to a subject-matter expert." in draft.body
+        assert "No published answer has been distilled from this document." in draft.body
+        assert "## What is not known" in draft.body
+
+    def test_the_page_carries_no_model_generated_prose(self) -> None:
+        """The behavioural form of "the agent loop was not entered": every
+        sentence in the body is either a template constant or a value read
+        off the record. Asserted by rendering the SAME record twice from a
+        pristine call and comparing — a model in the path could not produce
+        byte-identical output, and a wall-clock stamp would not either."""
+        raw = _undistilled_raw()
+
+        first = enrich.render_undistilled_draft(_undistilled_key(), raw)
+        second = enrich.render_undistilled_draft(_undistilled_key(), raw)
+
+        assert first.rendered_markdown == second.rendered_markdown
+
+    def test_generated_at_is_the_record_stamp_not_the_run_clock(self) -> None:
+        """BI-18, on a path that has no memo to lean on. Pass-1 drafts stay
+        byte-stable because `@coco.fn(memo=True)` returns the cached draft
+        with its ORIGINAL timestamp; this path bypasses that memo entirely,
+        so a wall-clock stamp would rewrite every undistilled concept on
+        every run — no run could ever be a no-op, and each would restage a
+        commit and recompute an embedding for content that did not change."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert draft.frontmatter.generated_at == "2026-03-02T10:30:00Z"
+
+    def test_confidence_is_the_a19_no_content_value(self) -> None:
+        """`no-content` has been in the ratified A19 vocabulary and
+        UNREACHABLE since it was ratified (RESEARCH M8) —
+        `derive_concept_confidence` only ever returns `strong`/`partial`.
+        This is the first emitter, and the value is asserted rather than
+        derived: it is a fact about the corpus (no answer exists), not an
+        inference about how well a draft was grounded."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert draft.frontmatter.confidence == "no-content"
+        assert enrich.derive_concept_confidence(resource=None, citations=()) == "partial"
+
+    def test_the_page_cites_its_own_record(self) -> None:
+        """AC 1's "each citing its own record": the concept's single source
+        is the `canonical://source_documents/<uuid>` anchor for the very
+        document it stands for, minted by the `resource_uri.py` builder — the
+        only sanctioned BI-10 ingress — and never asked of a model."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert [s.resource for s in draft.frontmatter.sources] == [
+            build_source_document_uri(_UNDISTILLED_SD)
+        ]
+        assert draft.primary_anchor == build_source_document_uri(_UNDISTILLED_SD)
+        # The footnote definition joins to that entry, and its label is the
+        # id rather than the anchor — a record pointer never enters body
+        # prose (BI-10).
+        footnote_id = draft.frontmatter.sources[0].id
+        assert f"[^{footnote_id}]:" in draft.body
+        assert f"[^{footnote_id}]" in draft.body.split("[^" + footnote_id + "]:")[0]
+
+    def test_entities_are_listed_when_present_and_omitted_when_not(self) -> None:
+        with_entities = enrich.render_undistilled_draft(
+            _undistilled_key(),
+            _undistilled_raw(entity_names=("ISO 27001", "Acme Ltd")),
+        )
+        without = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert "* Entities mentioned: Acme Ltd, ISO 27001" in with_entities.body
+        assert "Entities mentioned" not in without.body
+
+    def test_the_page_carries_no_tags(self) -> None:
+        """TECH §2.3. A facet tag would claim a cross-cut this page cannot
+        support — there is nothing here to classify."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert draft.frontmatter.tags == ()
+
+    def test_generated_by_is_a_process_actor_not_a_model(self) -> None:
+        """**A deliberate deviation from TECH §2.3's "the producer actor
+        string per §7".** `producer_actor(model)` mints `<producer>/<model>`,
+        a claim that a named model produced this content. No model ran, and
+        recording one that did not would make `generated.by` false for
+        exactly the pages whose value is that nothing was invented. §7's
+        `process:<id>` form is the honest one, and the frontmatter emitter
+        accepts it because §7 defines it."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(), _undistilled_raw()
+        )
+
+        assert draft.frontmatter.generated_by.startswith("process:")
+        assert not draft.frontmatter.generated_by.startswith(
+            agent_loop.PRODUCER_ACTOR_NAME + "/"
+        )
+
+
+class TestTheUndistilledPageCannotLeakARecordPointer:
+    """BI-10 is checked on the frontmatter AND the body
+    (`validator.check_no_stray_pointer`), and TECH §2.2 guards only the
+    TITLE. These are the fields the template interpolates."""
+
+    def test_a_uuid_embedding_filename_falls_back_to_the_neutral_title(self) -> None:
+        """TECH §2.2's stated guard: pipeline sidecars are minted from
+        `sd:<rel_path>`, so a filename can embed a full uuid, and
+        `build_concept_frontmatter` would raise on the BI-10 check rather
+        than write the concept."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(),
+            _undistilled_raw(filename=f"sd-{_SD_ID}.json"),
+        )
+
+        assert draft.frontmatter.title == enrich.UNDISTILLED_FALLBACK_TITLE
+
+    def test_a_uuid_embedding_filename_is_also_kept_out_of_the_body(self) -> None:
+        """**The gap TECH §2.2 leaves.** It guards the title and says nothing
+        about the body — but the template's own "Document: {filename}" line
+        interpolates the SAME value, and `check_no_stray_pointer` rejects a
+        body carrying a pointer. A concept guarded only at the title would
+        pass frontmatter assembly and then be refused by the BI-13 write
+        gate, appearing in `log.md` as a validator failure with no clue why."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(),
+            _undistilled_raw(filename=f"sd-{_SD_ID}.json"),
+        )
+
+        assert _SD_ID not in draft.body
+        assert not enrich.contains_record_pointer(draft.body)
+
+    def test_a_uuid_embedding_metadata_field_is_withheld_too(self) -> None:
+        """A guard that covers one interpolated field and not its neighbour
+        is a guard that will be routed around."""
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(),
+            _undistilled_raw(
+                content_type=f"type-{_SD_ID}",
+                extraction_method=f"method-{_SD_ID}",
+                entity_names=(f"Acme {_SD_ID}",),
+            ),
+        )
+
+        assert not enrich.contains_record_pointer(draft.body)
+
+    def test_the_whole_draft_passes_the_bi13_write_gate(self) -> None:
+        """The end of the argument: not "the fields look right" but "the
+        validator that decides whether this is written accepts it". Run over
+        the pathological record, since that is the one a title-only guard
+        would have let through to a silent rejection."""
+        from scripts.cocoindex_pipeline.producer.validator import check_concept
+
+        draft = enrich.render_undistilled_draft(
+            _undistilled_key(),
+            _undistilled_raw(filename=f"sd-{_SD_ID}.json"),
+        )
+
+        assert check_concept(draft.frontmatter, body=draft.body) == []
+
+    def test_a_read_with_no_document_row_fails_loud(self) -> None:
+        """The template renders that row's admission-surface metadata and has
+        nothing to say without it. Failing here beats emitting a page whose
+        every field reads "unknown"."""
+        with pytest.raises(ValueError, match="no source_documents row"):
+            enrich.render_undistilled_draft(_undistilled_key(), ConceptRaw())

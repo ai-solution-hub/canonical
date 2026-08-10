@@ -3277,3 +3277,89 @@ class TestBI10NoUuidReachesTheLog:
             match = _TS_RUN_BULLET_RE.match(line)
             assert match is not None, line
             assert match.group(1) == "2026-08-10T15:00:00Z"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# ID-427 {427.10} — the residual concepts at the WRITE boundary
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def _undistilled_draft(document_id: str, filename: str):
+    """A REAL `render_undistilled_draft` output, not a hand-built stand-in.
+    The claim under test is about what `write_bundle` does with the pages the
+    residual grain actually produces, so a fixture draft would test the
+    fixture."""
+    from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: PLC0415
+        render_undistilled_draft,
+    )
+
+    basename = l_records.residual_document_basename(
+        {"filename": filename}, document_id
+    )
+    key = ConceptKey(
+        rel_path=f"documents/{basename}.md",
+        concept_type="document",
+        grain=l_records.RESIDUAL_DOCUMENT_UNDISTILLED_GRAIN,
+        source_document_id=document_id,
+    )
+    raw = ConceptRaw(
+        source_documents=[
+            {
+                "id": document_id,
+                "filename": filename,
+                "logical_path": None,
+                "content_type": "policy",
+                "extraction_method": "pdf_text",
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": "2026-05-01T00:00:00Z",
+            }
+        ]
+    )
+    return render_undistilled_draft(key, raw)
+
+
+def test_two_documents_with_one_filename_both_write_without_a_collision(
+    tmp_path: Path,
+) -> None:
+    """PLAN {427.10}: *"two documents with identical filenames produce two
+    distinct concepts via the unconditional `-<uuid[:8]>` suffix WITHOUT
+    tripping the collision guard"*.
+
+    `write_bundle`'s pre-write guard is the {132.29} one — it refuses the
+    whole run before any `declare_file` when two drafts resolve to one path.
+    That guard is exactly what a CONDITIONAL suffix would eventually hit, and
+    exactly what this corpus would have hit under any naming scheme derived
+    from the filename alone."""
+    first = _undistilled_draft("aaaaaaaa-1111-4111-8111-111111111111", "report.pdf")
+    second = _undistilled_draft("bbbbbbbb-2222-4222-8222-222222222222", "report.pdf")
+
+    summary = bundle_writer.write_bundle(tmp_path, [first, second], [])
+
+    assert summary.validator_failures == ()
+    assert set(summary.added) == {
+        "documents/report-aaaaaaaa.md",
+        "documents/report-bbbbbbbb.md",
+    }
+    assert (tmp_path / "documents/report-aaaaaaaa.md").is_file()
+    assert (tmp_path / "documents/report-bbbbbbbb.md").is_file()
+    # Two distinct pages, not one clobbering the other.
+    assert (tmp_path / "documents/report-aaaaaaaa.md").read_text() != (
+        tmp_path / "documents/report-bbbbbbbb.md"
+    ).read_text()
+
+
+def test_an_undistilled_page_passes_the_bi13_write_gate(tmp_path: Path) -> None:
+    """`confidence: no-content` reaches disk. The A19 value has been ratified
+    and unreachable since it was ratified (RESEARCH M8) because
+    `derive_concept_confidence` returns only `strong`/`partial`; the BI-13
+    validator has always accepted it, and nothing had ever asked it to."""
+    draft = _undistilled_draft(
+        "aaaaaaaa-1111-4111-8111-111111111111", "07-supplier-code.pdf"
+    )
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft], [])
+
+    assert summary.validator_failures == ()
+    written = (tmp_path / "documents/07-supplier-code-aaaaaaaa.md").read_text()
+    assert "confidence: no-content" in written
+    assert "Escalate to a subject-matter expert." in written

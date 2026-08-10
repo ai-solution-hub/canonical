@@ -1551,3 +1551,535 @@ class TestReadBundleDir:
 
         assert output == {"topic-a.md": "draft body\n"}
         assert "binary.bin" not in output
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# ID-427 {427.10} — THE ACCEPTANCE TEST (AC 1)
+#
+# Written as a corpus fixture, not a unit test, because the claim is about a
+# BUNDLE: a corpus deliberately containing both measured holes is run
+# end-to-end and both records are present in the emitted bundle, each citing
+# its own record, with the run census reporting zero unrouted.
+#
+# The Source here is the REAL `LRecordsSource` over a fixture pool — not the
+# `_FakeSource` the rest of this module uses — because the thing under test
+# is the cascade the adapter performs, and a fake that returned pre-built
+# keys would be asserting the fixture. Only the Pass-1 model call is stood
+# in for, and the stand-in drafts from the rows the Source actually returned,
+# which is what Pass-1 does minus the model. The undistilled document's page
+# is produced by REAL production code end to end: nothing about
+# `render_undistilled_draft` is stubbed, which is only possible because the
+# template dispatch lives at the drafting call site rather than inside
+# `enrich_concept`.
+# ─────────────────────────────────────────────────────────────────────────
+
+_SD_UNDISTILLED = "aaaaaaaa-1111-4111-8111-111111111111"
+_SD_ORPHAN_PARENT = "bbbbbbbb-2222-4222-8222-222222222222"
+_QA_EMPTY_SCOPE = "cccccccc-3333-4333-8333-333333333333"
+
+_UNDISTILLED_PATH = "documents/07-supplier-code-of-conduct-aaaaaaaa.md"
+_ORPHAN_PARENT_PATH = "documents/12-data-retention-bbbbbbbb.md"
+
+_HOLE_2_DOCUMENT = {
+    "id": _SD_UNDISTILLED,
+    "filename": "07-supplier-code-of-conduct.pdf",
+    "logical_path": "structure/07-supplier-code-of-conduct.pdf",
+    "content_type": "policy",
+    "publication_status": "published",
+    "extraction_method": "pdf_text",
+    "extracted_text": None,
+    "created_at": "2026-02-01T09:00:00Z",
+    "updated_at": "2026-02-01T09:00:00Z",
+}
+_HOLE_1_PARENT_DOCUMENT = {
+    "id": _SD_ORPHAN_PARENT,
+    "filename": "12-data-retention.docx",
+    "logical_path": "structure/12-data-retention.docx",
+    "content_type": "policy",
+    "publication_status": "published",
+    "extraction_method": "docx",
+    "extracted_text": None,
+    "created_at": "2026-02-02T09:00:00Z",
+    "updated_at": "2026-02-03T11:00:00Z",
+}
+_HOLE_1_PAIR = {
+    "id": _QA_EMPTY_SCOPE,
+    "question_text": "How long are supplier records retained?",
+    "answer_standard": "Seven years from the end of the contract.",
+    "scope_tag": [],  # the hole: an EMPTY array, excluded twice by the topic SQL
+    "source_document_id": _SD_ORPHAN_PARENT,
+    "publication_status": "published",
+    "updated_at": "2026-02-03T11:00:00Z",
+}
+
+
+class _BothHolesPool:
+    """A corpus carrying both of RESEARCH's measured holes and nothing else.
+
+    Dispatch is by first-matching marker substring, mirroring
+    `test_l_records_source.FakePool` — declared here rather than imported so
+    this module's acceptance fixture is readable on its own terms. An
+    unmatched query raises: that assertion is what would catch the cascade
+    quietly asking for something this corpus never described."""
+
+    def __init__(self) -> None:
+        self.calls: "list[tuple[str, tuple]]" = []
+        self._rules: "list[tuple[str, Any]]" = [
+            # ── the six preferred grains find nothing at all: no scope_tag
+            # carries a published pair, no entity is mentioned, no
+            # company/compliance/named-clients document matches a pattern,
+            # no bid was won. Everything below is therefore residue.
+            ("AS scope_tag FROM q_a_pairs", []),
+            ("t.tag AS tag, count(DISTINCT qa.id)", []),
+            ("entity_type = $1 ORDER BY 1", []),
+            ("p.canonical_name AS canonical_name", []),
+            ("LIMIT 1", []),
+            ("em_max FROM source_documents sd", []),
+            ("sd_max FROM source_documents sd", []),
+            ("count(*) AS em_count, max(updated_at) AS em_max FROM entity_mentions", []),
+            ("JOIN source_documents sd ON sd.id = em.source_document_id", []),
+            ("c.canonical_name AS canonical_name", []),
+            ("COALESCE(issuing_organisation, name) AS buyer", []),
+            ("w.form_instance_id AS form_instance_id", []),
+            ("SELECT id FROM source_documents WHERE (filename ILIKE", []),
+            ("OR scope_tag && $2::text[]", []),
+            ("AS q_a_pair_id", []),
+            ("source_form_instance_id = ANY($1::uuid[])", []),
+            # ── the two TECH §2.1 anti-joins: the whole corpus is residue.
+            (
+                "FROM source_documents WHERE publication_status = 'published' "
+                "AND id <> ALL",
+                [_HOLE_2_DOCUMENT, _HOLE_1_PARENT_DOCUMENT],
+            ),
+            (
+                "FROM q_a_pairs WHERE publication_status = 'published' AND id <> ALL",
+                [
+                    {
+                        "id": _QA_EMPTY_SCOPE,
+                        "source_document_id": _SD_ORPHAN_PARENT,
+                        "source_form_instance_id": None,
+                        "updated_at": "2026-02-03T11:00:00Z",
+                    }
+                ],
+            ),
+            # ── the pass1/template split, and the document coverage.
+            (
+                "SELECT id, source_document_id FROM q_a_pairs",
+                [{"id": _QA_EMPTY_SCOPE, "source_document_id": _SD_ORPHAN_PARENT}],
+            ),
+            (
+                "AS d(id)",
+                [
+                    {
+                        "source_document_id": _SD_UNDISTILLED,
+                        "sd_count": 1,
+                        "sd_max": "2026-02-01T09:00:00Z",
+                        "qa_count": 0,
+                        "qa_max": None,
+                        "rl_count": 0,
+                        "rl_max": None,
+                        "em_count": 0,
+                        "em_max": None,
+                        "er_count": 0,
+                        "er_max": None,
+                    },
+                    {
+                        "source_document_id": _SD_ORPHAN_PARENT,
+                        "sd_count": 1,
+                        "sd_max": "2026-02-03T11:00:00Z",
+                        "qa_count": 1,
+                        "qa_max": "2026-02-03T11:00:00Z",
+                        "rl_count": 0,
+                        "rl_max": None,
+                        "em_count": 0,
+                        "em_max": None,
+                        "er_count": 0,
+                        "er_max": None,
+                    },
+                ],
+            ),
+            # ── the corpus totals the census compares coverage against.
+            (
+                "count(*) FROM source_documents WHERE publication_status",
+                [{"source_documents": 2, "q_a_pairs": 1}],
+            ),
+            # ── the residual document read grid (TECH §2.3).
+            (
+                "FROM source_documents WHERE id = ANY($1::uuid[]) ORDER BY id",
+                _by_document_id,
+            ),
+            (
+                "FROM q_a_pairs WHERE source_document_id = ANY($1::uuid[]) "
+                "AND publication_status",
+                _published_pairs_for,
+            ),
+            ("FROM record_lifecycle", []),
+            ("FROM entity_mentions WHERE source_document_id = ANY", []),
+            ("FROM entity_relationships WHERE source_document_id = ANY", []),
+        ]
+
+    async def fetch(self, query: str, *args: object) -> "list[dict]":
+        self.calls.append((query, args))
+        for marker, rows in self._rules:
+            if marker in query:
+                return rows(args) if callable(rows) else rows
+        raise AssertionError(f"_BothHolesPool: no rule for {query!r} args={args!r}")
+
+
+def _by_document_id(args) -> "list[dict]":
+    wanted = {str(i) for i in args[0]}
+    return [
+        row
+        for row in (_HOLE_2_DOCUMENT, _HOLE_1_PARENT_DOCUMENT)
+        if str(row["id"]) in wanted
+    ]
+
+
+def _published_pairs_for(args) -> "list[dict]":
+    wanted = {str(i) for i in args[0]}
+    return [_HOLE_1_PAIR] if str(_SD_ORPHAN_PARENT) in wanted else []
+
+
+def _wire_real_source_with_stubbed_pass1(env) -> None:
+    """The REAL `LRecordsSource` over `_BothHolesPool`, with only the model
+    call stood in for.
+
+    The stand-in reads the concept's own rows through the Source and drafts
+    from THEM — citing the document anchor the tool result would have carried
+    and quoting the question it was actually shown. That is Pass-1 minus the
+    model, so "the pair is present in the emitted bundle" is a claim about
+    the bundle rather than about a hand-built fixture draft."""
+
+    async def _fake_enrich(key: Any, source: Any) -> Any:
+        raw = await source.read_concept(key)
+        anchor = env.enrich.build_source_document_uri(
+            raw.source_documents[0]["id"]
+        )
+        sources = env.enrich.sources_from_citations([anchor])
+        questions = " ".join(row["question_text"] for row in raw.q_a_pairs)
+        body = (
+            f"Published answers distilled from this document. {questions}\n\n"
+            f"{env.enrich.render_source_footnotes(sources)}"
+        )
+        return env.enrich.ConceptDraft(
+            key=key,
+            frontmatter=env.enrich.build_concept_frontmatter(
+                type=key.concept_type,
+                title="Data retention",
+                description="What the retention policy says.",
+                generated_by="kh-concept-producer/test-model-1",
+                generated_at="2026-02-03T11:00:00Z",
+                sources=sources,
+            ),
+            body=body,
+            primary_anchor=anchor,
+        )
+
+    env.monkeypatch.setattr(env.enrich, "enrich_concept", _fake_enrich)
+
+
+class TestBothMeasuredHolesLandInTheBundle:
+    """**AC 1 — the headline of the whole id-427 programme.**
+
+    Before this, a published `source_document` from which nothing was
+    distilled, and a published `q_a_pair` with an empty `scope_tag`, were
+    each reachable in NO concept — and nothing in the producer could say so.
+    A reader who did not find an answer could not tell "the corpus does not
+    hold this" from "the producer did not route it"."""
+
+    @pytest.fixture()
+    def run(self, env, bundle_dir: Path):
+        # Deliberately NOT patching `LRecordsSource` — the real adapter is
+        # the thing under test.
+        _wire_real_source_with_stubbed_pass1(env)
+        return asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=_BothHolesPool(),
+                bundle_dir=bundle_dir,
+                timestamp="2026-08-10T12:00:00Z",
+            )
+        )
+
+    def test_both_records_are_present_in_the_emitted_bundle(
+        self, run, bundle_dir: Path
+    ) -> None:
+        undistilled = bundle_dir / _UNDISTILLED_PATH
+        distilled = bundle_dir / _ORPHAN_PARENT_PATH
+
+        # Hole 2 — the published document nothing was distilled from.
+        assert undistilled.is_file()
+        # Hole 1 — the published pair with an empty scope_tag, reachable
+        # through its parent document's concept. Its own words are on the
+        # page, which is what "present in the bundle" has to mean.
+        assert distilled.is_file()
+        assert "How long are supplier records retained?" in distilled.read_text()
+
+    def test_each_concept_cites_its_own_record(self, run, bundle_dir: Path) -> None:
+        undistilled = (bundle_dir / _UNDISTILLED_PATH).read_text()
+        distilled = (bundle_dir / _ORPHAN_PARENT_PATH).read_text()
+
+        assert f"canonical://source_documents/{_SD_UNDISTILLED}" in undistilled
+        assert f"canonical://source_documents/{_SD_ORPHAN_PARENT}" in distilled
+        # …and no concept cites the other's record.
+        assert _SD_ORPHAN_PARENT not in undistilled
+        assert _SD_UNDISTILLED not in distilled
+
+    def test_the_run_census_reports_zero_unrouted(self, run, bundle_dir: Path) -> None:
+        """The number the run itself prints. `unrouted_total == 0` over a
+        corpus made ENTIRELY of the two holes is the whole acceptance: the
+        residual grain did not merely add pages, it drove the measured gap
+        between corpus and bundle to nothing."""
+        assert run.summary.census.considered == (
+            ("source_documents", 2),
+            ("q_a_pairs", 1),
+        )
+        assert run.summary.census.routed == (("source_documents", 2), ("q_a_pairs", 1))
+        assert run.summary.census.unrouted == ()
+        assert run.summary.census.unrouted_total == 0
+
+        log = (bundle_dir / "log.md").read_text()
+        assert (
+            "Considered (2):** source_documents 2 (routed 2), q_a_pairs 1 (routed 1)"
+            in log
+        )
+        assert "Unrouted" not in log
+
+    def test_the_undistilled_page_is_the_template_render_byte_for_byte(
+        self, run, bundle_dir: Path, env
+    ) -> None:
+        """*"assert the emitted body equals the template render, proving the
+        agent loop was not entered"* — and it proves more than that: the
+        emitted FILE equals the render, so nothing between the renderer and
+        the disk altered a word either. Pass-2 is skipped for this grain on
+        the same ground Pass-1 is."""
+        source = env.l_records.LRecordsSource(_BothHolesPool())
+        keys = asyncio.run(source.list_concepts())
+        key = next(k for k in keys if k.rel_path == _UNDISTILLED_PATH)
+        raw = asyncio.run(source.read_concept(key))
+
+        expected = env.enrich.render_undistilled_draft(key, raw)
+
+        assert (bundle_dir / _UNDISTILLED_PATH).read_text() == expected.rendered_markdown
+
+    def test_the_undistilled_page_escalates_rather_than_inventing(
+        self, run, bundle_dir: Path
+    ) -> None:
+        page = (bundle_dir / _UNDISTILLED_PATH).read_text()
+
+        assert "Escalate to a subject-matter expert." in page
+        assert "confidence: no-content" in page
+        assert "type: document" in page
+
+    def test_both_holes_appear_in_the_run_summary_as_added(self, run) -> None:
+        """Not silently written: the run log names them. `write_bundle`
+        classifies both as `added`, which is what carries them into the
+        `log.md` diff a reader actually sees."""
+        assert set(run.summary.added) == {_UNDISTILLED_PATH, _ORPHAN_PARENT_PATH}
+        assert run.summary.validator_failures == ()
+        assert run.summary.failed == ()
+
+    def test_the_new_directory_is_navigable(self, run, bundle_dir: Path) -> None:
+        """id-429 IA-1/IA-5, exercised: `documents/` is a directory the
+        bundle has never had, so the index machinery meets a residual-grain
+        directory here for the first time. TECH §2.4 argued that id-429 Q2 is
+        *answered, not carried*, because the residual directory names are
+        readable words — this runs D6's sentence-casing over one and checks
+        the answer.
+
+        The BUNDLE-ROOT index is deliberately not asserted to carry a
+        `Directories` entry: `build_directory_indexes` documents the root as
+        still listing every concept until {429.6} lands (a root of directory
+        entries renders an empty nav rail, because `parseBundleNav` drops any
+        bullet whose target is not `.md`). Both concepts are reachable from
+        the root today, which is what this asserts instead."""
+        index = bundle_dir / "documents" / "index.md"
+        assert index.is_file()
+        assert index.read_text().startswith("# Documents\n")
+        # …and the concept links inside it are directory-relative (D5).
+        assert "](07-supplier-code-of-conduct-aaaaaaaa.md)" in index.read_text()
+
+        root = (bundle_dir / "index.md").read_text()
+        assert f"]({_UNDISTILLED_PATH})" in root
+        assert f"]({_ORPHAN_PARENT_PATH})" in root
+
+    def test_the_run_is_not_a_no_op(self, run) -> None:
+        assert run.summary.is_no_op is False
+
+
+class TestTheResidualQuestionnaireCarriesBI28Provenance:
+    """**PQ-3 / TQ-3, RULED S546** — *"yes: carry `form_instance_id`
+    provenance on residual `questionnaire_response` concepts. The attribution
+    key IS the form instance (cascade step 2), so the value is already in
+    hand; two grains attributing by the same key carry the same provenance
+    shape."*
+
+    The ruling lands by CONSTRUCTION rather than by a new code path:
+    `flow_def` builds its BI-28 map from every enumerated key whose
+    `form_instance_id` is set, and the residual questionnaire grain sets that
+    same locator. This test is what makes that free ride load-bearing — the
+    only thing standing between the ruling and a silent regression is that
+    the residual grain keeps using the field rather than inventing its own."""
+
+    def test_a_residual_questionnaire_concept_is_stamped_with_its_form_instance(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        form_instance = "55555555-5555-4555-8555-555555555555"
+        residual = env.build_draft(
+            "questionnaire-responses/pqq-2026-55555555.md",
+            title="PQQ 2026",
+            concept_type="questionnaire_response",
+            form_instance_id=form_instance,
+            grain="residual_questionnaire_response",
+        )
+        ordinary = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {residual.key: residual, ordinary.key: ordinary})
+
+        report = asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(), bundle_dir=bundle_dir, repo_path=repo
+            )
+        )
+
+        changes = {c["concept_path"]: c for c in report.proposed_change_set["changes"]}
+        assert changes["questionnaire-responses/pqq-2026-55555555.md"][
+            "source_form_instance_id"
+        ] == form_instance
+        assert changes["topics/alpha.md"]["source_form_instance_id"] is None
+
+
+class TestATemplateGrainEntersNeitherPass:
+    """TECH §2.3's *"bypassing the agent loop entirely"*, and its
+    consequence for Pass-2.
+
+    Pass-1 is skipped because there is no published answer to distil. Pass-2
+    is skipped on the same ground, and that is not an extension of the
+    ruling but its precondition: a gated-web research pass over a document
+    nobody has read produces exactly the plausible prose PI-4 rejects, and it
+    would do it to the one page whose whole value is that every sentence is
+    derivable from the record."""
+
+    def test_neither_pass_runs_for_a_template_grain(self, env) -> None:
+        from scripts.cocoindex_pipeline.sources.base import (  # noqa: PLC0415
+            ConceptKey,
+            ConceptRaw,
+            GrainSpec,
+        )
+
+        sd_id = "66666666-6666-4666-8666-666666666666"
+        key = ConceptKey(
+            rel_path="documents/unread-66666666.md",
+            concept_type="document",
+            grain="residual_document_undistilled",
+            source_document_id=sd_id,
+        )
+        raw = ConceptRaw(
+            source_documents=[
+                {
+                    "id": sd_id,
+                    "filename": "unread.pdf",
+                    "logical_path": None,
+                    "content_type": "policy",
+                    "extraction_method": "pdf_text",
+                    "created_at": "2026-04-01T00:00:00Z",
+                    "updated_at": "2026-04-01T00:00:00Z",
+                }
+            ]
+        )
+
+        async def _unused(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError(
+                "a template grain must reach neither Pass-1 nor Pass-2"
+            )
+
+        class _TemplateSource:
+            def grain_for(self, _key: Any) -> Any:
+                return GrainSpec(
+                    name="residual_document_undistilled",
+                    directory="documents",
+                    type_label="document",
+                    list=_unused,
+                    read=_unused,
+                    sample=_unused,
+                    drafts_via="template",
+                    runs_last=True,
+                )
+
+            async def read_concept(self, _key: Any) -> Any:
+                return raw
+
+        drafts, _refs, failures, pass2_ran, failed = asyncio.run(
+            _draft_concepts(
+                [key],
+                _TemplateSource(),
+                enrich_concept=_unused,
+                # A gated corpus IS configured — the ordinary trigger for
+                # Pass-2 — so the skip is a decision, not an absence.
+                gated_corpus=object(),
+                run_web_pass=_unused,
+                http_client=None,
+            )
+        )
+
+        assert failures == [] and failed == []
+        assert pass2_ran is False
+        assert len(drafts) == 1
+        assert drafts[0].body == env.enrich.render_undistilled_draft(key, raw).body
+
+    def test_a_pass1_grain_still_reaches_the_agent_loop(self, env) -> None:
+        """The negative control: the same dispatcher, one field different,
+        and the loop IS entered. Without this the test above would pass just
+        as well against a `_draft_concepts` that had stopped drafting
+        anything."""
+        from scripts.cocoindex_pipeline.sources.base import (  # noqa: PLC0415
+            ConceptKey,
+            GrainSpec,
+        )
+
+        key = ConceptKey(
+            rel_path="topics/alpha.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="alpha",
+        )
+        entered: "list[Any]" = []
+
+        async def _unused(*_args: Any, **_kwargs: Any) -> Any:  # pragma: no cover
+            raise AssertionError("unreachable")
+
+        class _Pass1Source:
+            def grain_for(self, _key: Any) -> Any:
+                return GrainSpec(
+                    name="topic_scope_tag",
+                    directory="topics",
+                    type_label="topic",
+                    list=_unused,
+                    read=_unused,
+                    sample=_unused,
+                )
+
+        async def _enrich(k: Any, _source: Any) -> Any:
+            entered.append(k)
+            return env.build_draft("topics/alpha.md", title="Alpha")
+
+        drafts, _refs, failures, _pass2, _failed = asyncio.run(
+            _draft_concepts(
+                [key],
+                _Pass1Source(),
+                enrich_concept=_enrich,
+                gated_corpus=None,
+                run_web_pass=_unused,
+                http_client=None,
+            )
+        )
+
+        assert entered == [key]
+        assert failures == [] and len(drafts) == 1
+
+    def test_a_source_with_no_grain_registry_is_unaffected(self, env) -> None:
+        """`RepoDocsSource` has no `grain_for`, and the dispatch must leave
+        it exactly where it was — the duck-typed posture
+        `enrich._samples_source_documents` already takes toward the two
+        concept models."""
+        assert (
+            env.flow_def._drafts_via_template(object(), object()) is False
+        )

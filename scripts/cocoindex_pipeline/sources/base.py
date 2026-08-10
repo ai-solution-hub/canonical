@@ -227,6 +227,37 @@ class ConceptKey:
     `q_a_pair_history`). None of them is read by this producer, and none was
     touched by the rename."""
 
+    source_document_id: "str | None" = None
+    """The residual DOCUMENT grains' locator (ID-427 {427.10}, TECH §2.2) —
+    the `source_documents.id` of the published document this concept stands
+    for. `None` for every other grain.
+
+    **Why a field rather than reuse `entity_id`.** TECH §2.2's home table
+    names `source_document_id` as this home's key, and `entity_id` is
+    documented as an `entity_mentions.canonical_name` — putting a uuid in it
+    would make `find()`'s haystack and every future reader wrong about what
+    the field holds. Locator ownership is enforced the same way
+    `form_instance_id`'s is: `l_records.grain_for` refuses a key that carries
+    a locator its grain does not declare, so the two residual document grains
+    are the only ones that may set it.
+
+    **BI-10 is not at risk from this field.** A `ConceptKey` locator is never
+    rendered into frontmatter or body prose — the rendered pointer for a
+    residual document is its `sources[]` entry, minted by
+    `resource_uri.build_source_document_uri`, which is the sanctioned
+    ingress. The concept's `rel_path` carries only the first 8 hex characters
+    of the uuid, which `resource_uri.contains_record_pointer` does not match
+    (it requires the full `8-4-4-4-12` form).
+
+    Adding it is a whole-corpus memo invalidation, exactly as {427.12}
+    measured for a rename: `memo_fingerprint._canonicalize_dataclass`
+    canonicalises EVERY field regardless of value, so a `topic` key whose new
+    locator is `None` fingerprints differently too. It rides the wave's single
+    `version=3` bump ({427.7}, DR-060/TECH §5) rather than adding a second —
+    that bump has not been consumed by a producer run yet, so the corpus
+    re-draft it already mandates absorbs this change at no extra cost. This
+    was MEASURED at {427.10}, not assumed."""
+
     content_version: str = ""
     """**MEMO-FINGERPRINT-ONLY** (ID-132 {132.38} G-MEMO-DELTA, MD-3/MD-4,
     DR-060). A deterministic, per-concept content signal computed by
@@ -246,7 +277,8 @@ class ConceptKey:
     grain routing, the bundle write path, the won-bid buyer dedup, or
     `find()`'s `_concept_haystack`. A content change must re-draft the SAME
     concept, not mint a new one. Kept LAST in field
-    order (after `form_instance_id`) so every existing positional/keyword
+    order (after `source_document_id`, which {427.10} inserted ahead of it for
+    exactly this reason) so every existing positional/keyword
     `ConceptKey(...)` construction stays valid with its `""` default."""
 
     def __post_init__(self) -> None:
@@ -530,8 +562,40 @@ class GrainSpec:
     drafts_via: str = "pass1"
     """`"pass1"` (the ordinary agent loop) or `"template"` (a deterministic
     render, no model call). Declared here so {427.10}'s undistilled-document
-    grain is a registry entry rather than a special case in the draft loop;
-    every grain that exists today is `"pass1"`."""
+    grain is a registry entry rather than a special case in the draft loop.
+
+    **ID-427 {427.10} — a correction to TECH §2.3, taken on reading.** The
+    spec describes the switch per CLUSTER (*"`drafts_via="pass1"` when the
+    cluster has >=1 published `q_a_pair` … `"template"` when it has none"*)
+    while TECH §1 declares it a per-GRAIN constant, and the two cannot both
+    hold for one residual-documents grain whose members differ. It is
+    resolved as {427.7}'s own docstring already anticipated — by naming *"the
+    undistilled-document grain"* in the singular, distinct from the document
+    grain — so the residual document population splits into TWO registry
+    entries sharing one `directory` and one `type_label` (id-429 IA-4 permits
+    many-to-one) and differing only here. The enumeration already knows which
+    half a document falls in, because it counts that document's published
+    pairs to build `content_version` anyway.
+
+    A document that gains its first published answer therefore changes GRAIN
+    but not `rel_path`: its identity, its file and its BI-9 citation key are
+    untouched (PI-5's property, applied to routing rather than to labels), and
+    it re-drafts once — which is correct, since it stopped being undistilled.
+    """
+
+    runs_last: bool = False
+    """ID-427 {427.10}, TECH §1 (*"runs the residual grain last, handed that
+    union"*): declares that this grain enumerates the COMPLEMENT of what the
+    others cover, so `list_concepts` must call it after every preferred grain
+    has contributed its `Coverage`.
+
+    A declared property rather than a position in the registry tuple, because
+    position cannot express it: `LRecordsSource` composes its registry as
+    `(*_BUILTIN_GRAINS, *self._feeder_grains())`, so a residual grain placed
+    last in the built-in tuple would still run BEFORE every client-declared
+    feeder grain and would then treat that feeder's units as unrouted. Adding
+    a residual grain stays one registry entry, which is the property {427.7}
+    exists to preserve."""
 
     sample_kind: str = "q_a_pairs"
     """What `sample` returns: `"q_a_pairs"` rows, or `"source_documents"`

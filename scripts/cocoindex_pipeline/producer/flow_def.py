@@ -282,6 +282,22 @@ def _resolve_bundle_class() -> "str | None":
     return os.environ.get("OKF_BUNDLE_CLASS", "") or None
 
 
+def _drafts_via_template(source: Any, key: Any) -> bool:
+    """Does `key`'s grain declare `drafts_via="template"` (ID-427 {427.10},
+    TECH §2.3)?
+
+    Duck-typed through `grain_for`, the posture `enrich._samples_source_
+    documents` already takes toward the two concept models: a Source with no
+    grain registry (`RepoDocsSource`) answers `False`, which is its behaviour
+    today. Read here, at the drafting call site, rather than inside
+    `enrich_concept` — that function IS the agent loop, and a grain declaring
+    it does not use the loop should not have to enter it to say so."""
+    grain_for = getattr(source, "grain_for", None)
+    if grain_for is None:
+        return False
+    return getattr(grain_for(key), "drafts_via", "pass1") == "template"
+
+
 async def _draft_concepts(
     concepts: "Sequence[Any]",
     source: Any,
@@ -315,6 +331,25 @@ async def _draft_concepts(
     pass2_ran = False
     for key in concepts:
         try:
+            if _drafts_via_template(source, key):
+                # ID-427 {427.10}, TECH §2.3: a deterministic render, and
+                # NEITHER pass runs. Pass-1 is skipped because there is no
+                # published answer to distil; Pass-2 is skipped for the same
+                # reason, and skipping it is not an extension of the ruling
+                # but its precondition — a web-research pass over a document
+                # nobody has read would produce exactly the plausible prose
+                # PI-4 rejects, and it would do it to the one page whose
+                # value is that its every sentence is derivable from the
+                # record. `render_undistilled_draft`'s output is therefore
+                # what reaches disk, byte for byte.
+                from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: PLC0415
+                    render_undistilled_draft,
+                )
+
+                drafts.append(
+                    render_undistilled_draft(key, await source.read_concept(key))
+                )
+                continue
             draft = await enrich_concept(key, source)
             if gated_corpus is not None:
                 result = await run_web_pass(
