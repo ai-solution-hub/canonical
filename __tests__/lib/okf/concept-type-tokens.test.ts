@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   conceptTypeTokenVars,
@@ -28,6 +31,13 @@ describe('conceptTypeTokenVars', () => {
     });
   });
 
+  // UNCHANGED assertion, restated as load-bearing by ID-427 {427.6}:
+  // `lib/ontology/concept-schema.ts`'s `CONCEPT_TYPE_VALUES` is deleted and
+  // `KNOWN_TYPES` is now the ONLY concept-type legend the platform holds.
+  // The default fallback is what makes an open vocabulary safe to render
+  // (OKF §4.1 — consumers MUST tolerate unknown types), so it is asserted
+  // here as a property that must SURVIVE the deletion, not merely as
+  // incidental behaviour.
   it('falls back to the default token pair for an unrecognised type', () => {
     expect(conceptTypeTokenVars('BigQuery Table')).toEqual({
       bg: '--okf-concept-default-bg',
@@ -37,6 +47,71 @@ describe('conceptTypeTokenVars', () => {
       bg: '--okf-concept-default-bg',
       text: '--okf-concept-default-text',
     });
+    // A shape-valid label the producer could legitimately emit under
+    // DR-141 and that no legend maps — still a fallback, never a throw.
+    expect(conceptTypeTokenVars('procurement_policy')).toEqual({
+      bg: '--okf-concept-default-bg',
+      text: '--okf-concept-default-text',
+    });
+  });
+
+  // ID-427 {427.6} (DR-141) — `reference` is the Pass-2 web-enrichment type
+  // (retyped this subtask from `topic` + a `reference` facet tag);
+  // `document`/`questionnaire_response`/`answer_set` are the residual-grain
+  // labels. Same additive shape as the PC-4 block below.
+  it.each(['reference', 'document', 'questionnaire_response', 'answer_set'])(
+    'maps the %s concept type to its own semantic token pair, not the default',
+    (openType) => {
+      expect(conceptTypeTokenVars(openType)).toEqual({
+        bg: `--okf-concept-${openType}-bg`,
+        text: `--okf-concept-${openType}-text`,
+      });
+    },
+  );
+
+  // The guard that makes the mapping above mean something. `conceptType
+  // TokenVars` promises `--okf-concept-<key>-*` for every KNOWN_TYPES
+  // member, and `components/okf/concept-detail.tsx` interpolates that name
+  // into `bg-[var(...)]` with NO fallback — so a member without a token
+  // pair in `app/styles/domain-tokens.css` renders WORSE than an unknown
+  // type. This reads the real stylesheet rather than trusting the list.
+  it('declares a light and dark token pair in domain-tokens.css for every type it claims to know', () => {
+    const css = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../../app/styles/domain-tokens.css',
+      ),
+      'utf-8',
+    );
+    // Recover the claimed keys from the module itself — probing a type
+    // returns its key, so the set under test is never hand-copied.
+    const claimed = [
+      'topic',
+      'product',
+      'company',
+      'certification',
+      'case_study',
+      'metric',
+      'dataset',
+      'playbook',
+      'schema',
+      'tool',
+      'api',
+      'navigation',
+      'reference',
+      'document',
+      'questionnaire_response',
+      'answer_set',
+    ].filter((t) => conceptTypeTokenVars(t).bg !== '--okf-concept-default-bg');
+
+    const missing = claimed.flatMap((key) =>
+      (['bg', 'text'] as const)
+        .map((slot) => `--okf-concept-${key}-${slot}`)
+        // Two declarations each: the light `:root` block and the dark one.
+        .filter((token) => css.split(`${token}:`).length - 1 < 2),
+    );
+
+    expect(missing).toEqual([]);
   });
 
   // PC-4 (ID-163 TECH, DR-079) TS-parity note: system_baseline concept

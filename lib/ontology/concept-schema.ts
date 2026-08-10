@@ -22,28 +22,27 @@
  * Google okf-skills concept convention — the RULE SET only, not its
  * runtime (no okf-skills dependency here).
  *
- * `CONCEPT_TYPE_VALUES` is the S448 default set (owner joint-ratify
- * pending) — mirrors `ontology/37-concept-type.md` (docs-site, authored in
- * parallel as {133.8}). It is encoded as a single exported const array so a
- * future ratification changes exactly one place.
+ * **`type` is an open label (ID-427 {427.6}, DR-141).**
+ * `ConceptFrontmatterSchema.type` accepts any non-empty string, and there
+ * is no concept-type vocabulary in this module to compare it against:
+ * `CONCEPT_TYPE_VALUES` — the S448 base-5 array — is DELETED. It was
+ * exported "for documentary/UI purposes (e.g. a future type-legend)", and
+ * a future use is not a current source: the legend duty is discharged by
+ * `lib/okf/concept-type-tokens.ts`'s `KNOWN_TYPES`, which maps a type to
+ * badge tokens and falls back to a default for anything unmapped. Keeping
+ * a second, narrower list here only invited it to drift back into a gate.
  *
- * **{132.36} G-CONCEPT-FEEDER `type` parity note.** `ConceptFrontmatterSchema
- * .type` does NOT gate against `CONCEPT_TYPE_VALUES` — it accepts any
- * non-empty string. This mirrors the Python pipeline's own evolution:
- * `producer/validator.py`'s BI-4 closed-set check now runs ONLY against a
- * per-run `EffectiveOntology` (base ∪ client `ontology-overlay.json`,
- * OV-8) that this static, run-context-free schema has no way to
- * replicate — and the OKF landing render this schema exists to serve
- * (`lib/okf/bundle-graph.ts`, `lib/okf/concept-type-tokens.ts`) already
- * treats `type` as an open string, falling back to a default badge colour
- * for anything outside `CONCEPT_TYPE_VALUES` rather than throwing. A HARD
- * ZodError on an overlay-added type here would therefore be a REGRESSION
- * relative to that already-generic render path. `CONCEPT_TYPE_VALUES`
- * stays exported as the ratified BASE-5 vocabulary for documentary/UI
- * purposes (e.g. a future type-legend); it is simply no longer the
- * `type` field's parse-time gate. Closed-set LEGALITY for a given bundle
- * remains a producer-write-time concern (BI-13), never this reader-side
- * contract's job.
+ * The open `type` predates the deletion and is unchanged by it ({132.36}
+ * G-CONCEPT-FEEDER): the producer's own check was already run-scoped in a
+ * way this static, run-context-free schema cannot replicate, and the OKF
+ * landing render this schema serves (`lib/okf/bundle-graph.ts`, which
+ * derives its type list from the bundle itself) has always treated `type`
+ * as an open string. A HARD ZodError on an unrecognised type would be a
+ * REGRESSION relative to that already-generic render path — and under
+ * DR-141 it would also be the inversion this task exists to remove. OKF
+ * §4.1: type values are not centrally registered and consumers MUST
+ * tolerate unknown ones. Write-time LEGALITY is a producer concern
+ * (BI-13), never this reader-side contract's job.
  *
  * ID-132 owns the `canonical://` URI scheme and the producer call site
  * that writes concept files onto disk. This module owns only the
@@ -87,19 +86,14 @@
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-export const CONCEPT_TYPE_VALUES = [
-  'topic',
-  'product',
-  'company',
-  'certification',
-  'case_study',
-] as const;
-
 /**
  * {132.41} bl-477 — the ratified A19 confidence vocabulary. Mirrors
  * `producer/frontmatter.py` / `producer/validator.py`'s own
  * `_CONFIDENCE_VALUES` frozenset — by convention, not import (cross-language,
- * same S448 `CONCEPT_TYPE_VALUES` single-const-array precedent above). A
+ * the single-const-array idiom). Unlike the deleted `CONCEPT_TYPE_VALUES`
+ * this one IS a gate (`z.enum` below) and is deliberately left alone by
+ * {427.6}: DR-141 opened the concept-TYPE vocabulary, and `confidence` is a
+ * separate v0.2 question that id-428 owns. A
  * concept's `confidence` is OPTIONAL and, when present, computed
  * deterministically by the producer — never model-authored (see
  * FRONTMATTER-WAVE.md §"Design — A19 producer-drafted confidence-setting
@@ -182,10 +176,9 @@ const ConceptGeneratedSchema = z.looseObject({
 });
 
 export const ConceptFrontmatterSchema = z.looseObject({
-  // {132.36} G-CONCEPT-FEEDER: a non-empty string, NOT `z.enum(
-  // CONCEPT_TYPE_VALUES)` — see the module docstring's "type parity note"
-  // for the full rationale (mirrors the Python validator's own OV-8 move
-  // away from a static closed-set check).
+  // An open label, never a `z.enum` — see the module docstring's "`type` is
+  // an open label" note. DR-141: a producer picks a descriptive value and a
+  // consumer MUST tolerate one it does not know (OKF §4.1).
   type: z.string().min(1),
   title: z.string().min(1),
   description: z.string().min(1),

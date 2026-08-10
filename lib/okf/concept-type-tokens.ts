@@ -2,28 +2,34 @@
  * OKF concept `type` → semantic design-token map (ID-132 {132.14} G-VIEWER,
  * Reframe A). Replaces the reference viewer's hardcoded `_TYPE_PALETTE` hex
  * map (`generator.py:13-17`) with the `--okf-concept-*` token family
- * (`app/styles/domain-tokens.css`), keyed onto OUR concept types
- * `{topic, product, company, certification, case_study, metric, dataset,
- * playbook}` (TECH-ADDENDUM-reference-agents.md Part 2 §Target TS surface).
+ * (`app/styles/domain-tokens.css`), keyed onto the concept types the
+ * producer emits (TECH-ADDENDUM-reference-agents.md Part 2 §Target TS
+ * surface).
  *
- * A type outside this closed set (e.g. `Unknown`, or a reference-fixture
+ * A type this module does not map (e.g. `Unknown`, or a reference-fixture
  * value like `BigQuery Table`) falls back to `--okf-concept-default-*` —
- * this module never throws on an unrecognised type, since the producer's
- * frontmatter `type` field is not (yet) enforced against a shared CV at the
- * viewer boundary.
+ * it never throws on an unrecognised type. `KNOWN_TYPES` is a colour
+ * LEGEND, not a vocabulary: the set of types is open (DR-141), so the
+ * legend is expected to lag the corpus and the fallback is the mechanism
+ * that makes lagging safe.
  *
- * **PC-4 (ID-163 TECH, DR-079) TS-parity note.** The producer validator's
- * BI-4 concept-type gate is now bundle-CLASS-scoped
- * (`scripts/cocoindex_pipeline/producer/validator.py`'s
- * `EffectiveOntology.base_for_class`) — a `system_baseline` bundle's
- * concept types are `{schema, tool, api, navigation, playbook}`, distinct
- * from the `client_business`/`showcase` business set above. This module's
- * `type` render was ALREADY generic (see `lib/ontology/concept-schema.ts`'s
- * "type parity note" — `ConceptFrontmatterSchema.type` never hard-gated
- * against a closed set), so full parity here is additive-only: `schema`/
- * `tool`/`api`/`navigation` get their own Warm Meridian token mappings
- * below (`playbook` already existed as a business-facet tag colour and is
- * reused unchanged for its system-type sense). No hard-gate/schema change.
+ * **PC-4 (ID-163 TECH, DR-079) TS-parity note.** `schema`/`tool`/`api`/
+ * `navigation` — the `system_baseline` bundle's concept types — get their
+ * own Warm Meridian token mappings below, additive alongside the business
+ * types (`playbook` already existed as a business-facet tag colour and is
+ * reused unchanged for its system-type sense). This module's `type` render
+ * was ALREADY generic, so parity here was additive-only: no hard-gate or
+ * schema change.
+ *
+ * **ID-427 {427.6} / DR-141 — this is now the ONLY concept-type legend.**
+ * Every closed concept-type register the platform held is deleted: the
+ * producer's `ALLOWED_CONCEPT_TYPES` / `CONCEPT_TYPES` / `_CLASS_CONCEPT_
+ * TYPES` in {427.5}, and `lib/ontology/concept-schema.ts`'s
+ * `CONCEPT_TYPE_VALUES` in {427.6}. `KNOWN_TYPES` survives BECAUSE it was
+ * never a gate — it maps a type to a colour and falls back to
+ * `--okf-concept-default-*` for anything unmapped, which is precisely the
+ * consumer tolerance OKF §4.1 requires. It must never acquire a rejection
+ * path, and no narrow union is derived from it (see the note below).
  */
 import type {
   OkfBundleClassSignal,
@@ -46,16 +52,36 @@ const KNOWN_TYPES = [
   'tool',
   'api',
   'navigation',
+  // ID-427 {427.6} (DR-141) — additive again, and for the same reason the
+  // PC-4 block above was: these are types the producer emits.
+  // `reference` is the Pass-2 web-enrichment type ({427.6} retyped it from
+  // `topic` + a `reference` facet tag); `document`,
+  // `questionnaire_response` and `answer_set` are the residual-grain type
+  // labels ({427.7}/{427.10}, TECH §1). Listed here BEFORE their emitters
+  // land so the legend never lags the bundle — membership is only a colour
+  // mapping and never a gate, so an early entry costs nothing.
+  //
+  // MEMBERSHIP IS A PROMISE THAT TOKENS EXIST. `conceptTypeTokenVars`
+  // returns `--okf-concept-<key>-bg/-text` for anything in this list, and
+  // `components/okf/concept-detail.tsx` interpolates those names straight
+  // into `bg-[var(...)]` with NO fallback — so a key added here without a
+  // matching pair in `app/styles/domain-tokens.css` renders worse than an
+  // unknown type, which at least resolves to `--okf-concept-default-*`.
+  // Every addition below ships with its hue + light/dark token pair.
+  'reference',
+  'document',
+  'questionnaire_response',
+  'answer_set',
 ] as const;
 
 // No `OkfConceptType` narrow union is derived from `KNOWN_TYPES` on purpose.
-// Concept `type` is an OPEN string everywhere it matters — the producer's
-// closed-set check is per-run and bundle-class-scoped (see the parity note in
-// `lib/ontology/concept-schema.ts`), `conceptTypeTokenVars` deliberately
-// widens to `readonly string[]` so an unmapped type falls back to the default
-// token, and `<GraphLegend>`/the type filter enumerate the SERVER-computed
-// `types: string[]` from the actual bundle. A narrow alias here would have no
-// place to apply itself.
+// Concept `type` is an OPEN string everywhere it matters — the producer has
+// no closed set at all since {427.5}/DR-141, `conceptTypeTokenVars`
+// deliberately widens to `readonly string[]` so an unmapped type falls back
+// to the default token, and `<GraphLegend>`/the type filter enumerate the
+// SERVER-computed `types: string[]` from the actual bundle. A narrow alias
+// here would have no place to apply itself — and deriving one would quietly
+// recreate the closed vocabulary DR-141 withdrew.
 
 /** CSS custom-property names for one concept type's badge/node colours. */
 export interface ConceptTypeTokenVars {

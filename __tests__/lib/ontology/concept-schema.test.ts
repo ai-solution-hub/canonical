@@ -23,7 +23,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
 import {
-  CONCEPT_TYPE_VALUES,
   CONFIDENCE_VALUES,
   parseConceptFrontmatter,
 } from '@/lib/ontology/concept-schema';
@@ -79,14 +78,30 @@ describe('parseConceptFrontmatter', () => {
     });
   });
 
-  it('exposes the concept-type set as a single ratifiable source of truth', () => {
-    expect(CONCEPT_TYPE_VALUES).toEqual([
-      'topic',
-      'product',
-      'company',
-      'certification',
-      'case_study',
-    ]);
+  // INVERTED by ID-427 {427.6} / DR-141 from `exposes the concept-type set
+  // as a single ratifiable source of truth`, which pinned
+  // `CONCEPT_TYPE_VALUES` to the base-5 array. Pinning a concept-type
+  // vocabulary is the thing DR-141 withdrew, and the const itself is
+  // deleted — so the claim inverts: the reader parses the types the
+  // producer will actually emit after this wave, none of which any
+  // ratified base-5 array ever held. (Absence of the export is enforced by
+  // the compiler — `bun run typecheck`, NOT `bun run test`, which is
+  // `vitest run` and does not type-check — so a re-added
+  // `CONCEPT_TYPE_VALUES` would not be caught by this file alone.)
+  it.each([
+    'reference',
+    'document',
+    'questionnaire_response',
+    'answer_set',
+    'procurement_policy',
+  ])('parses a concept typed %s, which no base vocabulary held', (openType) => {
+    const parsed = parseConceptFrontmatter(
+      conceptMarkdown(
+        WELL_FORMED_FRONTMATTER.replace('type: topic', `type: ${openType}`),
+      ),
+    );
+
+    expect(parsed.type).toBe(openType);
   });
 
   it('accepts a concept type outside the base concept-type set (ID-132 {132.36} G-CONCEPT-FEEDER parity: this reader-side contract does not gate type membership — the Python producer validator only gates it against a per-run EffectiveOntology, base ∪ client overlay, that this static schema cannot replicate; see module docstring)', () => {

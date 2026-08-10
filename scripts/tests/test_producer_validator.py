@@ -667,69 +667,103 @@ def test_as_mapping_carries_generated_and_sources_from_a_dataclass():
 
 
 # ──────────────────────────────────────────
-# S443 Amendment / DR-029 — bid-outcome facet-tag re-entry (BI-4 ruling):
-# `policy`/`capability` enter as recognised facet TAGS on `topic` concepts;
-# the retired `methodology` type aliases onto the existing `playbook` facet
-# (no separate tag). The enumerated `type:` set is UNCHANGED — these are
-# tags, not types. `tags:` stays an OPEN list (BI-12) — the registry is the
-# recognised vocabulary, not a rejection allowlist.
+# ID-427 {427.6} / DR-141 — the facet-tag REGISTRY is retired. What used to
+# live here was the S443 Amendment / DR-029 block asserting that
+# `policy`/`capability` were recognised facet TAGS on `topic` concepts and
+# that `methodology` aliased onto `playbook`. Every one of those assertions
+# had `RECOGNISED_FACET_TAGS` / `FACET_TAG_ALIASES` as its entire subject,
+# and the registry's own reason for existing was that the enumerated type
+# set would not admit those terms as types — DR-141's headline evidence.
+#
+# So the block below asserts the OPPOSITE property, in behaviour rather
+# than in registry membership: `tags:` is an open list (BI-12), it always
+# was, and it keeps working with no registry behind it.
 # ──────────────────────────────────────────
 
 
-def test_recognised_facet_tags_include_the_new_bid_outcome_facets():
-    # S443/DR-029 registers `policy` and `capability` as recognised facets.
-    assert "policy" in v.RECOGNISED_FACET_TAGS
-    assert "capability" in v.RECOGNISED_FACET_TAGS
+def test_the_producer_holds_no_facet_tag_registry_at_all():
+    # REPLACES four registry-membership tests in one, each of which had the
+    # registry as its whole subject and so cannot be "repaired":
+    #   * test_recognised_facet_tags_include_the_new_bid_outcome_facets
+    #   * test_recognised_facet_tags_carry_the_pre_existing_bi4_facets
+    #   * test_methodology_is_not_a_recognised_facet_tag_only_an_alias
+    #   * test_a_facet_name_is_now_also_a_well_formed_type_label
+    # The first three pinned membership of a register {427.6} deletes; the
+    # fourth ({427.5}'s own rewrite) iterated that register to reach its
+    # assertion, so it loses its subject too — its behavioural claim is
+    # re-made without the registry by
+    # `test_a_former_facet_name_is_accepted_as_a_concept_type` below.
+    assert not hasattr(v, "RECOGNISED_FACET_TAGS")
+    assert not hasattr(v, "FACET_TAG_ALIASES")
+    assert not hasattr(v, "canonical_facet_tag")
+    assert not hasattr(v, "normalise_facet_tags")
 
 
-def test_recognised_facet_tags_carry_the_pre_existing_bi4_facets():
-    # The BI-4 tag-carried facets already ratified before S443.
-    assert {"metric", "dataset", "playbook"} <= v.RECOGNISED_FACET_TAGS
+@pytest.mark.parametrize(
+    "former_facet", ["metric", "dataset", "playbook", "reference", "policy", "capability"]
+)
+def test_a_former_facet_name_is_accepted_as_a_concept_type(former_facet):
+    # Carries the behavioural claim of the deleted
+    # `test_a_facet_name_is_now_also_a_well_formed_type_label` without
+    # reading a registry to source its cases — the six names are now
+    # spelled out, because there is no longer any register to enumerate.
+    # These are the terms that were forced into a parallel facet vocabulary
+    # BECAUSE the closed type set refused them; each is now simply a
+    # well-formed label the gate accepts.
+    errors = v.check_concept(_valid_frontmatter(type=former_facet), body=_VALID_BODY)
+    assert errors == []
 
 
-def test_methodology_is_not_a_recognised_facet_tag_only_an_alias():
-    # "document methodology≡playbook; NO separate tag" — methodology folds
-    # onto playbook, it is never its own recognised facet tag.
-    assert "methodology" not in v.RECOGNISED_FACET_TAGS
+def test_methodology_tag_is_no_longer_folded_onto_playbook():
+    # INVERTED from `test_methodology_tag_canonicalises_to_the_playbook_
+    # facet` and `test_normalise_facet_tags_folds_methodology_onto_playbook_
+    # and_dedupes` (S443/DR-029). Their behavioural CLAIM — that
+    # `methodology` must be rewritten to `playbook` on the way to disk — is
+    # exactly what DR-141 withdraws: the fold existed only because the type
+    # set would not admit a sixth type, so a retired won-bid content_type
+    # had to be aliased onto an existing facet. With no registry, a
+    # `methodology` tag survives to disk verbatim, alongside `playbook`,
+    # and both are ordinary open tags.
+    errors = v.check_concept(
+        _valid_frontmatter(type="topic", tags=["methodology", "playbook"]),
+        body=_VALID_BODY,
+    )
+    assert errors == []
 
 
-def test_a_facet_name_is_now_also_a_well_formed_type_label():
-    # REPLACES `test_recognised_facet_tags_are_disjoint_from_the_concept_
-    # type_set`, whose subject (`ALLOWED_CONCEPT_TYPES`) is deleted. That
-    # test asserted facets could never be types — the very constraint that
-    # forced `reference`/`policy`/`capability` to be invented as facets
-    # because the closed set would not admit them (DR-141's headline
-    # evidence). Under DR-141 the constraint is withdrawn: a facet name is
-    # an ordinary label, and {427.6} resolves the three bends AS types.
-    for facet in sorted(v.RECOGNISED_FACET_TAGS):
-        assert v.check_type_shape(facet) == [], facet
+def test_a_concept_carrying_former_facet_tags_is_validated():
+    # REPLACES `test_recognised_facet_tags_canonicalise_to_themselves` and
+    # `test_normalise_facet_tags_leaves_an_already_canonical_list_untouched`
+    # — both asserted an identity transform through a function that no
+    # longer exists. The surviving requirement is that free-form facet tags
+    # keep working WITHOUT a registry, so it is asserted at the gate.
+    # (The on-disk half — that nothing rewrites them on the way out — is
+    # asserted end-to-end in `test_producer_bundle_writer.py`'s
+    # `test_declare_concept_writes_free_form_facet_tags_unrewritten`; a
+    # round-trip through `_as_mapping` here would only re-read this test's
+    # own input dict.)
+    assert (
+        v.check_concept(
+            _valid_frontmatter(type="topic", tags=["metric", "dataset"]),
+            body=_VALID_BODY,
+        )
+        == []
+    )
 
 
-def test_methodology_tag_canonicalises_to_the_playbook_facet():
-    # S443: `methodology` ≡ the existing `playbook` facet.
-    assert v.canonical_facet_tag("methodology") == "playbook"
-
-
-@pytest.mark.parametrize("tag", ["policy", "capability", "playbook", "metric", "dataset"])
-def test_recognised_facet_tags_canonicalise_to_themselves(tag):
-    assert v.canonical_facet_tag(tag) == tag
-
-
-def test_non_facet_tags_pass_through_canonicalisation_unchanged():
-    # `tags:` is OPEN (BI-12) — an arbitrary domain tag is not rewritten.
-    assert v.canonical_facet_tag("encryption") == "encryption"
-
-
-def test_normalise_facet_tags_folds_methodology_onto_playbook_and_dedupes():
-    # methodology→playbook, order-preserving, and the fold collapses onto an
-    # existing playbook entry rather than duplicating it.
-    assert v.normalise_facet_tags(
-        ["methodology", "policy", "playbook", "security"]
-    ) == ("playbook", "policy", "security")
-
-
-def test_normalise_facet_tags_leaves_an_already_canonical_list_untouched():
-    assert v.normalise_facet_tags(["policy", "capability"]) == ("policy", "capability")
+def test_an_arbitrary_domain_tag_is_still_accepted():
+    # REPLACES `test_non_facet_tags_pass_through_canonicalisation_
+    # unchanged`. Unchanged BEHAVIOUR — `check_concept` never rejected an
+    # unregistered tag — but asserted here precisely because the guard that
+    # made it interesting (`RECOGNISED_FACET_TAGS`) is being deleted, and a
+    # deletion that silently started rejecting open tags would otherwise
+    # have nothing failing to catch it.
+    assert (
+        v.check_concept(
+            _valid_frontmatter(type="topic", tags=["encryption"]), body=_VALID_BODY
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize("facet_name", ["methodology", "policy", "capability"])

@@ -98,7 +98,7 @@ validation-failure posture (TECH-ADDENDUM-reference-agents.md retro-check,
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from scripts.cocoindex_pipeline.producer.frontmatter import (
@@ -149,64 +149,36 @@ _TYPE_MIN_LEN, _TYPE_MAX_LEN, _TYPE_MAX_WORDS = 3, 40, 4
 _RESERVED_TYPES = frozenset({"q_a_pair"})
 
 # ──────────────────────────────────────────
-# BI-4 facet TAGS (S443 Amendment / DR-029). Facets are carried in the OPEN
-# `tags:` list (BI-12), NEVER as enumerated `type:` values — so this registry
-# is the RECOGNISED facet vocabulary, not a rejection allowlist. `check_
-# concept` does not reject a tag for being absent here (a concept may still
-# carry arbitrary short domain tags); the registry names the facets the
-# producer treats as first-class, for downstream consumers ({132.21}) and to
-# keep the enumerated type set and the facet vocabulary from silently
-# diverging. **The second of those two stated requirements died with the
-# enumerated type set in {427.5}** — there is nothing left for the facet
-# vocabulary to diverge FROM. This whole block retires in {427.6}, which
-# resolves the three bends as types.
+# ID-427 {427.6} / DR-141 — there is NO facet-tag registry here any more.
+# `RECOGNISED_FACET_TAGS`, `FACET_TAG_ALIASES`, `canonical_facet_tag` and
+# `normalise_facet_tags` are deleted; `tags:` is simply the open list BI-12
+# always said it was, and `check_concept` has never rejected a tag for being
+# unregistered.
 #
-# - `metric`/`dataset`/`playbook` — the BI-4 tag-carried facets already
-#   ratified (PRODUCT.md §BI-4 "genuine discretion" — a metric is a citeable
-#   number, a playbook a "how we do X" narrative, a dataset a structured
-#   reference).
-# - `reference` — the facet `producer/web_pass.py` tags onto the
-#   `references/<slug>.md` concepts it mints (`_REFERENCE_CONCEPT_TAG`); a
-#   reference concept is a `topic` + this tag, never a sixth type.
-# - `policy`/`capability` — the two NEW facets S443/DR-029 admits for
-#   bid-outcome re-entry: a policy IS a citeable answer-cluster, a capability
-#   a "we can do X" answer-cluster — both `topic`-concept facets, no new type,
-#   no new G-SOURCE join.
+# The registry existed to serve two stated requirements (its own comment,
+# S443 Amendment / DR-029) and both have ended:
+#   (a) name the facets downstream consumers treat as first-class ({132.21})
+#       — discharged TS-side by `lib/okf/concept-type-tokens.ts`'s
+#       `KNOWN_TYPES` legend, which is additive and never a gate;
+#   (b) stop the enumerated type set and the facet vocabulary silently
+#       diverging — the enumerated type set died in {427.5}, so there is
+#       nothing left to diverge FROM.
 #
-# `methodology` (a retired won-bid content_type) is deliberately NOT its own
-# facet: S443 folds it onto the existing `playbook` facet — see
-# `FACET_TAG_ALIASES` / `canonical_facet_tag`.
+# The registry is also DR-141's headline evidence, which is why it goes
+# rather than being re-homed: `reference`, `policy` and `capability` became
+# "facets" precisely because the closed five-value type set would not admit
+# them, and `methodology` was ALIASED onto `playbook` for the same reason.
+# A parallel vocabulary invented to say what the type vocabulary refused is
+# the inversion showing its working. With `type` a shape-validated label
+# ({427.5}), each is just a well-formed label; `web_pass.py` now emits
+# `type="reference"` directly, and `policy`/`capability` had no emitter to
+# re-point in the first place (RESEARCH M2 — measured, not assumed).
+#
+# NOTE for anyone grepping: `capability` and `methodology` still appear
+# below in `ALLOWED_ENTITY_TYPES`. That is the ENTITY vocabulary — a closed
+# platform CV that DR-141 explicitly does NOT touch (TECH §2.10) — and it is
+# unrelated to the concept-facet sense retired here.
 # ──────────────────────────────────────────
-
-RECOGNISED_FACET_TAGS = frozenset(
-    {"metric", "dataset", "playbook", "reference", "policy", "capability"}
-)
-
-# S443 / DR-029: retired won-bid content_types that re-enter as an ALIAS onto
-# an existing recognised facet rather than as a new tag. `methodology` ≡ the
-# `playbook` facet (the same "how we do X" narrative shape BI-4 already names
-# for the Secure Development Lifecycle / incident procedures) — so a
-# `methodology`-tagged concept is treated as the `playbook` facet, and no
-# separate `methodology` tag is ever registered.
-FACET_TAG_ALIASES = {"methodology": "playbook"}
-
-
-def canonical_facet_tag(tag: str) -> str:
-    """Fold a facet-tag alias onto its canonical facet (S443/DR-029:
-    `methodology` → `playbook`). A tag that is not an alias — whether a
-    recognised facet or an arbitrary open domain tag (BI-12) — passes through
-    unchanged."""
-    return FACET_TAG_ALIASES.get(tag, tag)
-
-
-def normalise_facet_tags(tags: "Iterable[str]") -> "tuple[str, ...]":
-    """Apply `canonical_facet_tag` across `tags`, de-duplicating while
-    preserving first-seen order. Folding `methodology` onto `playbook`
-    collapses it onto an existing `playbook` entry rather than emitting a
-    duplicate — the shared normalisation downstream writers ({132.21}) call so
-    a bid-outcome `methodology` facet lands on disk as the `playbook` facet,
-    never both."""
-    return tuple(dict.fromkeys(canonical_facet_tag(tag) for tag in tags))
 
 
 # ──────────────────────────────────────────

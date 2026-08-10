@@ -87,14 +87,17 @@ refuses loudly (`Pass2EnrichError`) rather than silently accepting such a
 client. Dormant today (no production caller injects `http_client` yet —
 `{132.10}` will wire one), closed pre-emptively.
 
-**Reference-concept `type:` (a documented judgement call, mirrors
-`producer/validator.py`'s own flagged spec-tension findings).** BI-4's
-ratified concept-type set is the closed `{topic, product, company,
-certification, case_study}` — there is no dedicated "reference" type, and
-`metric`/`playbook` already establish the "distinct concern, carried as a
-`tags:` entry, not a type" precedent (BI-4). `references/<slug>.md`
-concepts are therefore typed `"topic"` with a `"reference"` tag appended,
-never a sixth type.
+**Reference-concept `type:` (ID-427 {427.6}, DR-141).** A
+`references/<slug>.md` concept is typed **`"reference"`** — what it is.
+It used to be typed `"topic"` with a `"reference"` tag appended, and that
+was a documented judgement call forced by BI-4's closed five-value type
+set: with no sixth type admissible, a genuinely new kind of concept had to
+be expressed as a facet tag instead. DR-141 withdrew the closure and
+`type` is now a shape-validated label ({427.5}), so the bend resolves the
+way it always should have — as a type. The tag is NOT retained alongside
+it: carrying the same term in both vocabularies is the double-bookkeeping
+DR-141 diagnoses. `rel_path` is unchanged (`references/<slug>.md` is set
+directly, never derived from `type`).
 
 **Collection safety.** Like `producer/enrich.py`, this module transitively
 requires `cocoindex` at import time — NOT because it uses `@coco.fn` itself
@@ -171,9 +174,10 @@ _MAX_TOKENS_PASS2 = 8192
 
 _PASS2_ENVELOPE_KEYS = ("title", "description", "tags", "body", "citations")
 
-# BI-4: reference concepts use the general "topic" type + this tag — see the
-# module docstring's "Reference-concept type:" note.
-_REFERENCE_CONCEPT_TAG = "reference"
+# ID-427 {427.6}: reference concepts carry `type="reference"`. There is no
+# `_REFERENCE_CONCEPT_TAG` any more — see the module docstring's
+# "Reference-concept `type:`" note.
+_REFERENCE_CONCEPT_TYPE = "reference"
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -708,12 +712,12 @@ def _parse_reference_concept(
             f"{citations[0]!r} (mint-ledger invariant)"
         )
     frontmatter = build_concept_frontmatter(
-        type="topic",
+        type=_REFERENCE_CONCEPT_TYPE,
         title=title,
         description=description,
         generated_by=generated_by,
         generated_at=datetime.now(timezone.utc),
-        tags=(*tags_raw, _REFERENCE_CONCEPT_TAG),
+        tags=tuple(tags_raw),
         resource=fetched_url,
         # A19 (bl-477) — inputs unchanged under v0.2 (id-426 point 7): the
         # confidence rule still reads the ANCHOR (`citations[0]`, now a

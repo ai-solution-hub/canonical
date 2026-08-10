@@ -223,9 +223,15 @@ def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
 def test_declare_concept_reference_draft_uses_rel_path_not_key(tmp_path: Path) -> None:
     # v0.2 reference-concept shape (id-426 point 4): resource is the REAL
     # fetched URL; the record anchor rides sources[].
+    # FIXTURE UPDATED by {427.6}/DR-141 — was `type="topic", tags=("reference",)`.
+    # This test's own claim (a ReferenceConceptDraft is routed by `rel_path`,
+    # never by `key`) is untouched; only the fixture's fidelity to what
+    # `web_pass.py` now emits changed. The two are independent — `rel_path`
+    # was never derived from `type` — which is exactly why the assertions
+    # below still read the same.
     ref_fm = _fm(
-        type="topic",
-        tags=("reference",),
+        type="reference",
+        tags=(),
         resource="https://client.example/certifications/iso-27001",
     )
     ref_draft = ReferenceConceptDraft(
@@ -240,6 +246,43 @@ def test_declare_concept_reference_draft_uses_rel_path_not_key(tmp_path: Path) -
     assert result.rel_path == "references/iso-27001.md"
     assert result.written is True
     assert (tmp_path / "references/iso-27001.md").exists()
+
+
+def test_declare_concept_writes_free_form_facet_tags_unrewritten(
+    tmp_path: Path,
+) -> None:
+    """ID-427 {427.6} / DR-141 — facet tags survive with no registry behind
+    them. `metric` and `dataset` were `RECOGNISED_FACET_TAGS` members; a
+    `methodology` tag was ALIASED onto `playbook` by `normalise_facet_tags`.
+    All four names now ride `tags:` as ordinary open BI-12 entries and land
+    on disk verbatim — nothing folds `methodology`, and nothing rejects a
+    tag for being unregistered.
+
+    NET-NEW, and deliberately at the WRITE boundary rather than the gate:
+    the deleted alias-fold was a write-path normalisation
+    (`normalise_facet_tags`' own docstring called itself "the shared
+    normalisation downstream writers call"), so proving it is gone means
+    reading the emitted file, not a validator return value.
+    """
+    draft = ConceptDraft(
+        key=ConceptKey(
+            rel_path="topics/facets.md", concept_type="topic", scope_tag="facets"
+        ),
+        frontmatter=_fm(
+            type="topic", tags=("metric", "dataset", "methodology", "playbook")
+        ),
+        body="A distilled synthesis about facets.\n\n"
+        + render_source_footnotes(sources_from_citations([_SD_URI])),
+        primary_anchor=_SD_URI,
+    )
+
+    result = bundle_writer.declare_concept(tmp_path, draft)
+
+    assert result.written is True
+    assert result.errors == ()
+    written = (tmp_path / "topics/facets.md").read_text(encoding="utf-8")
+    # Verbatim and in order — `methodology` is NOT collapsed onto `playbook`.
+    assert "tags:\n  - metric\n  - dataset\n  - methodology\n  - playbook\n" in written
 
 
 def test_declare_concept_classifies_new_changed_unchanged(tmp_path: Path) -> None:

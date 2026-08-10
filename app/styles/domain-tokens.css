@@ -52,6 +52,15 @@
   --hue-okf-concept-tool: 130;
   --hue-okf-concept-api: 195;
   --hue-okf-concept-navigation: 305;
+  /* ID-427 {427.6} (DR-141) — reference + residual-grain concept types.
+     Hues sit in the widest gaps left on the ramp above so the four read as
+     distinct from their neighbours: 352 (between playbook 330 and
+     case_study 15), 36 (between case_study 15 and schema 57), 78 (between
+     schema 57 and metric 100), 227 (between topic 210 and company 245). */
+  --hue-okf-concept-reference: 227;
+  --hue-okf-concept-document: 36;
+  --hue-okf-concept-questionnaire_response: 78;
+  --hue-okf-concept-answer_set: 352;
 
   /* Knowledge Hub domain colours — badge backgrounds (light) */
   --domain-security-bg: oklch(0.93 0.04 var(--hue-domain-security));
@@ -278,6 +287,26 @@
   --okf-concept-navigation-text: oklch(
     0.35 0.12 var(--hue-okf-concept-navigation)
   );
+  /* ID-427 {427.6} (DR-141) reference + residual-grain concept-type badge
+     colours (light) — additive alongside the types above. */
+  --okf-concept-reference-bg: oklch(0.93 0.04 var(--hue-okf-concept-reference));
+  --okf-concept-reference-text: oklch(
+    0.35 0.12 var(--hue-okf-concept-reference)
+  );
+  --okf-concept-document-bg: oklch(0.93 0.04 var(--hue-okf-concept-document));
+  --okf-concept-document-text: oklch(0.35 0.12 var(--hue-okf-concept-document));
+  --okf-concept-questionnaire_response-bg: oklch(
+    0.93 0.04 var(--hue-okf-concept-questionnaire_response)
+  );
+  --okf-concept-questionnaire_response-text: oklch(
+    0.4 0.12 var(--hue-okf-concept-questionnaire_response)
+  );
+  --okf-concept-answer_set-bg: oklch(
+    0.93 0.04 var(--hue-okf-concept-answer_set)
+  );
+  --okf-concept-answer_set-text: oklch(
+    0.35 0.12 var(--hue-okf-concept-answer_set)
+  );
   /* Fallback for an unmapped/"Unknown" concept type. */
   --okf-concept-default-bg: var(--stone-100);
   --okf-concept-default-text: var(--stone-500);
@@ -456,6 +485,24 @@
   );
   --okf-concept-navigation-text: oklch(
     0.8 0.1 var(--hue-okf-concept-navigation)
+  );
+  /* ID-427 {427.6} (DR-141) reference + residual-grain concept-type badge
+     colours (dark) — additive alongside the types above. */
+  --okf-concept-reference-bg: oklch(0.25 0.06 var(--hue-okf-concept-reference));
+  --okf-concept-reference-text: oklch(0.8 0.1 var(--hue-okf-concept-reference));
+  --okf-concept-document-bg: oklch(0.25 0.06 var(--hue-okf-concept-document));
+  --okf-concept-document-text: oklch(0.8 0.1 var(--hue-okf-concept-document));
+  --okf-concept-questionnaire_response-bg: oklch(
+    0.25 0.04 var(--hue-okf-concept-questionnaire_response)
+  );
+  --okf-concept-questionnaire_response-text: oklch(
+    0.82 0.1 var(--hue-okf-concept-questionnaire_response)
+  );
+  --okf-concept-answer_set-bg: oklch(
+    0.25 0.06 var(--hue-okf-concept-answer_set)
+  );
+  --okf-concept-answer_set-text: oklch(
+    0.8 0.12 var(--hue-okf-concept-answer_set)
   );
   --okf-concept-default-bg: var(--stone-800);
   --okf-concept-default-text: var(--stone-400);

@@ -744,8 +744,24 @@ class TestParseReferenceConcept:
         anchor = reference_item_uri_from_source_url(_REF_URL)
         draft = self._parse(self._raw(), seen_gated_anchors={anchor})
         assert draft.rel_path == "references/lms-public-docs.md"
-        assert draft.frontmatter.type == "topic"
-        assert "reference" in draft.frontmatter.tags
+        # INVERTED by ID-427 {427.6} / DR-141 — was `type == "topic"` plus
+        # `"reference" in tags`. That pairing was not an implementation
+        # detail to repair but the BEND ITSELF: the closed five-value type
+        # set had no room for a sixth type, so a genuinely new kind of
+        # concept was expressed as a `topic` carrying a facet tag, and
+        # `web_pass.py`'s own docstring recorded it as a judgement call.
+        # DR-141 withdrew the closure, so the claim inverts in both halves —
+        # the type IS `reference`, and the tag is gone rather than kept
+        # alongside it (carrying one term in two vocabularies is the
+        # double-bookkeeping DR-141 diagnoses).
+        assert draft.frontmatter.type == "reference"
+        assert "reference" not in draft.frontmatter.tags
+        # The model-supplied tags are untouched — dropping the injected tag
+        # must not drop the ones Pass-2 actually returned.
+        assert list(draft.frontmatter.tags) == ["docs"]
+        # `rel_path` was never derived from `type`, so the directory is
+        # unchanged by the retype (asserted above, and re-stated here
+        # because it is the thing a reader would most expect to move).
         # id-426 point 4 (S546 F2-B, deliberate improvement ruling): the
         # top-level resource is the REAL fetched URL — followable,
         # §4.1-conformant — never the canonical:// pointer; the pointer
