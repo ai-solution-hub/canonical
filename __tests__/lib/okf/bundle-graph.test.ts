@@ -351,10 +351,18 @@ describe('buildBundleGraph', () => {
     });
   });
 
+  // ID-427 {427.11} (DR-027 as amended S546): the producer's
+  // `ontology.json` payload is now `{ overlay: ... }` — the `base` key
+  // retired. Both fixtures below carried `base: {}` and have been restaged
+  // onto the shipped shape, so these assertions exercise the read against
+  // what the writer actually emits rather than against a payload no
+  // producer produces any more. The signal itself is unchanged:
+  // `readBundleClassSignal` only ever tested for the presence and nullness
+  // of `overlay`.
   it('carries a "platform" bundleClass when ontology.json ships a null overlay', () => {
     const root = bundle({
       'tables/orders.md': orders,
-      'ontology.json': JSON.stringify({ base: {}, overlay: null }),
+      'ontology.json': JSON.stringify({ overlay: null }),
     });
 
     const graph = buildBundleGraph(root);
@@ -366,7 +374,6 @@ describe('buildBundleGraph', () => {
     const root = bundle({
       'tables/orders.md': orders,
       'ontology.json': JSON.stringify({
-        base: {},
         overlay: { concept_types: ['bespoke_type'] },
       }),
     });

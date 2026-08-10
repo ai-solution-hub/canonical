@@ -852,11 +852,12 @@ class TestDegradation:
         ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
         assert ontology["overlay"]["entity_types"] == ["widget"]
         assert ontology["overlay"]["source"] == "ontology-overlay.json"
-        # OV-6a: the base snapshot is TWO dimensions since ID-427 {427.5}
-        # — `concept_types` went with `ALLOWED_CONCEPT_TYPES` (DR-141).
-        assert "concept_types" not in ontology["base"]
-        assert ontology["base"]["entity_types"]
-        assert ontology["base"]["relationship_types"]
+        # The three `ontology["base"][...]` assertions that stood here are
+        # INVERTED, not dropped: ID-427 {427.11} retires the `base` key
+        # itself (DR-027 as amended S546), so a real end-to-end run must
+        # now prove the artefact is the overlay carrier and nothing else.
+        assert "base" not in ontology
+        assert set(ontology) == {"overlay"}
 
     def test_is_base_only_when_no_overlay_file_present_in_the_bundle_dir(
         self, env, bundle_dir: Path

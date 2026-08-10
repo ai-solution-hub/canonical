@@ -249,8 +249,11 @@ class EffectiveOntology:
     """OV-7: the deterministic sorted-union effective ontology for one
     producer run. Each field is `base ∪ overlay` for that dimension — a
     de-duplicated frozenset; a caller needing a stable rendering order
-    calls `sorted(...)` on it (mirrors the base snapshot's own
-    `sorted(...)` convention)."""
+    calls `sorted(...)` on it — `iri_projection.project_context` is the
+    live example (its `_mint_bucket` calls are fed sorted term lists for
+    IRI-1/IRI-12 determinism). The former cross-reference here was
+    `bundle_writer._base_ontology_snapshot`, retired by ID-427 {427.11}
+    with the bundle-shipped base half of DR-027."""
 
     entity_types: "frozenset[str]"
     relationship_types: "frozenset[str]"

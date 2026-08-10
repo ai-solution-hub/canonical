@@ -173,8 +173,6 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
 )
 from scripts.cocoindex_pipeline.producer import iri_projection
 from scripts.cocoindex_pipeline.producer.validator import (
-    ALLOWED_ENTITY_TYPES,
-    ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
     check_concept,
     check_type_shape,
@@ -189,7 +187,9 @@ from scripts.cocoindex_pipeline.sources.l_records import (
 # Reserved bundle-level filenames — never treated as a concept `.md` path by
 # `_existing_concept_paths`'s previous-run keyset scan (BI-11: N concept
 # files PLUS index.md/log.md; DR-027 adds two more bundle-level artefacts,
-# the ontology snapshot + the client-authored overlay source; S464 rider R1
+# the overlay-carrier `ontology.json` (DR-027 as amended S546 — no longer a
+# base snapshot, see its own section below) + the client-authored overlay
+# source; S464 rider R1
 # additionally reserves the committed bundle README, and the OKF v0.1
 # conformance wave reserves the hand-authored bundle-root CONFORMANCE.md, so
 # neither ever surfaces as a false `RunSummary.removed` entry — see
@@ -974,28 +974,26 @@ def append_log_entry(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# DR-027 — the materialised effective ontology artefact
+# DR-027 as amended (S546) — the client-overlay carrier artefact
+#
+# `ontology.json` was DR-027's "materialised effective ontology (pinned
+# base snapshot + client overlay)". ID-427 {427.11} executes the S546
+# amendment: the `base` half — `_base_ontology_snapshot`, a pinned
+# bundle-shipped copy of the platform entity/relationship registers — is
+# RETIRED, and the artefact reduces to DR-054's client-overlay carrier
+# (re-affirmed S546 as `ontology.json`'s surviving purpose).
+#
+# DR-027's platform-repo half is UNCHANGED: the base CVs still live in
+# this repo and still version with the linter that enforces them
+# (`validator.ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES` remain
+# the BI-13 gate, and `EffectiveOntology` still composes them). They are
+# simply no longer ASSERTED to bundle consumers. Under DR-141's open
+# concept vocabulary a closed declaration would assert something false,
+# and the bundle self-describes the OKF-native way — through its concepts
+# and the id-429 per-directory indexes — rather than by shipping a schema
+# registry alongside them ("there is no schema registry, no central
+# authority, and no required tooling", OKF §1).
 # ─────────────────────────────────────────────────────────────────────────
-
-
-def _base_ontology_snapshot() -> "dict[str, object]":
-    """DR-027's "pinned base snapshot" half — sourced from `producer/
-    validator.py`'s `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES`
-    frozensets, the SAME closed registers BI-13 lints every concept's
-    entity/relationship mentions against (not invented here — see
-    `validator.py`'s own docstring for provenance back to `extraction.py`'s
-    Pydantic Literals).
-
-    **TWO dimensions since ID-427 {427.5}.** The `concept_types` row is
-    gone with `ALLOWED_CONCEPT_TYPES` itself (DR-141): concept `type` is a
-    shape-validated label, so there is no base concept-type vocabulary to
-    pin — publishing one would re-assert the closed taxonomy in an artefact
-    after deleting it from the gate. `{427.11}` retires this whole function
-    (DR-027 as amended S546: the artefact becomes overlay-only)."""
-    return {
-        "entity_types": sorted(ALLOWED_ENTITY_TYPES),
-        "relationship_types": sorted(ALLOWED_RELATIONSHIP_TYPES),
-    }
 
 
 class OntologyOverlayError(ValueError):
@@ -1372,26 +1370,34 @@ def read_concept_feeder_config(bundle_dir: Path) -> "dict[str, dict[str, str]] |
 def write_ontology_artefact(
     bundle_dir: Path, *, client_overlay: "Mapping[str, object] | None" = None
 ) -> str:
-    """DR-027: "every bundle repo carries the materialised effective
-    ontology (pinned base snapshot + client overlay)". Ships the BASE
-    snapshot (`_base_ontology_snapshot`) always; `client_overlay` — the
-    OV-6 provenance-wrapped mapping `write_bundle` supplies via
-    `read_client_overlay` (or an explicit caller-supplied mapping) — is
+    """DR-027 as amended (S546): `ontology.json` is the **client-overlay
+    carrier**, and nothing else. The payload is exactly
+    `{"overlay": <mapping or null>}` — `client_overlay` is the OV-6
+    provenance-wrapped mapping `write_bundle` supplies via
+    `read_client_overlay` (or an explicit caller-supplied mapping),
     nested verbatim under its own `overlay` key when present.
 
+    **No `base` key** since ID-427 {427.11}. The pinned base snapshot the
+    S441 ruling shipped alongside the overlay retired at S546: the
+    platform's entity/relationship CVs stay in this repo, versioned with
+    the linter that enforces them, and are no longer asserted to bundle
+    consumers. Two dimensions had already stopped matching the three the
+    writer emitted, and under DR-141 a closed concept-type declaration
+    would have asserted something false.
+
     Deliberately PLAIN JSON, not a bespoke ontology DSL — the {132.10}
-    brief is explicit not to invent an ontology FORMAT; this only
-    serialises the already-ratified vocabulary plus an explicit
-    `overlay: null` placeholder when no client-overlay source is
-    available, so a bundle consumer can detect "no overlay shipped yet"
-    (or "platform bundle, never a client-overlay consumer" — OV-10) rather
-    than silently assuming a base-only artefact IS the full effective
-    ontology. Pure echo of whatever `client_overlay` mapping it is given —
-    the provenance-stamping and OV-2/OV-3/OV-5 validation both happen
-    upstream, in `read_client_overlay`.
+    brief is explicit not to invent an ontology FORMAT. The explicit
+    `overlay: null` placeholder STAYS when no client-overlay source is
+    available, so a bundle consumer can still distinguish "no overlay
+    shipped yet" from "platform-owned bundle, never a client-overlay
+    consumer" (OV-10) — and so `lib/okf/bundle-graph.ts`'s
+    `readBundleClassSignal` keeps a present-and-null key to read rather
+    than falling through to `'unknown'`. Pure echo of whatever
+    `client_overlay` mapping it is given — the provenance-stamping and
+    OV-2/OV-3/OV-5 validation both happen upstream, in
+    `read_client_overlay`.
     """
     payload = {
-        "base": _base_ontology_snapshot(),
         "overlay": dict(client_overlay) if client_overlay is not None else None,
     }
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"

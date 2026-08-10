@@ -1304,24 +1304,28 @@ def test_the_root_index_still_enumerates_every_concept(tmp_path: Path) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# DR-027 ontology artefact
+# DR-027 as amended (S546) — the overlay-carrier ontology artefact
 # ─────────────────────────────────────────────────────────────────────────
 
 
-def test_write_ontology_artefact_base_only_when_no_overlay(tmp_path: Path) -> None:
+def test_write_ontology_artefact_has_no_base_key_and_ships_overlay_null(
+    tmp_path: Path,
+) -> None:
+    """REPLACES `test_write_ontology_artefact_base_only_when_no_overlay`,
+    whose entire subject — the shape of the pinned `base` snapshot — is
+    what DR-027's S546 amendment retired. Its three `payload["base"]`
+    assertions are INVERTED here into a single absence assertion, not
+    dropped: `base` is the key whose removal is this Subtask.
+
+    `overlay: null` SURVIVES the amendment (DR-054, re-affirmed S546 — the
+    overlay carrier is `ontology.json`'s surviving purpose), so a bundle
+    with no overlay still ships a present-and-null key rather than an
+    empty object."""
     content = bundle_writer.write_ontology_artefact(tmp_path)
     payload = json.loads(content)
 
-    # ID-427 {427.5}: the pinned base snapshot lost its `concept_types`
-    # row with `ALLOWED_CONCEPT_TYPES` — publishing a base concept-type
-    # vocabulary in an artefact after deleting it from the gate would
-    # re-assert the closed taxonomy in a different file. ({427.11} retires
-    # the whole `base` key; the two surviving dimensions are asserted here
-    # because they are genuinely closed CVs and must NOT vanish with it.)
-    assert "concept_types" not in payload["base"]
-    assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
-    assert payload["base"]["relationship_types"] == sorted(ALLOWED_RELATIONSHIP_TYPES)
-    assert payload["overlay"] is None
+    assert "base" not in payload
+    assert payload == {"overlay": None}
     on_disk = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
     assert on_disk == payload
 
@@ -1346,8 +1350,42 @@ def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
     # declaration still surfaces in the artefact; it simply no longer
     # gates any write ({427.5}).
     assert payload["overlay"] == overlay
-    assert "concept_types" not in payload["base"]
-    assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
+    # The two `payload["base"][...]` assertions that stood here are
+    # INVERTED, not dropped: {427.11} retires the key they read.
+    assert "base" not in payload
+    assert set(payload) == {"overlay"}
+
+
+def test_base_ontology_snapshot_is_absent_from_the_module() -> None:
+    """DR-027 as amended (S546), executed by ID-427 {427.11}: the pinned
+    bundle-shipped base snapshot is GONE from the writer, not merely
+    unreferenced by the payload. Asserted on the module surface because a
+    helper left behind is a helper the next wave re-wires — the register
+    itself stays in `validator.py`, where DR-027's UNCHANGED platform-repo
+    half keeps it (still the BI-13 gate, still composed by
+    `EffectiveOntology`)."""
+    assert not hasattr(bundle_writer, "_base_ontology_snapshot")
+    # DR-027's platform half is untouched — the registers are still live,
+    # they are just no longer asserted to bundle consumers.
+    assert EffectiveOntology.base_only().entity_types == ALLOWED_ENTITY_TYPES
+    assert (
+        EffectiveOntology.base_only().relationship_types == ALLOWED_RELATIONSHIP_TYPES
+    )
+
+
+def test_overlay_schema_still_admits_all_three_dimensions() -> None:
+    """OV-2's closed schema keeps all THREE keys, `concept_types` included
+    (TECH §2.10): the overlay file is client-authored and the schema is
+    closed, so dropping the key would turn an already-valid client file
+    into a fail-loud validation error. The key still MEANS something — it
+    declares the client's own vocabulary for the artefact echo, which
+    `lib/okf/bundle-graph.ts` reads as a styling signal — it simply feeds
+    no gate."""
+    assert bundle_writer._OVERLAY_DIMENSIONS == (
+        "concept_types",
+        "entity_types",
+        "relationship_types",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1369,7 +1407,21 @@ def test_context_filename_is_reserved() -> None:
 def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> None:
     """IRI-4/5: every base-vocabulary term across both surviving dimensions
     resolves to its base IRI; no `client` prefix is emitted absent a
-    client-id (IRI-6)."""
+    client-id (IRI-6).
+
+    **This test pins a CONTESTED behaviour — read before repairing it.**
+    It asserts the two-dimension projection PLAN {427.11} asks for, which
+    is TECH §2.10's text. TECH §6 carries that text's own caveat as
+    UNDECIDABLE **TQ-1**, and the S546 post-authoring rulings then RULED
+    TQ-1 the other way: *"`context.jsonld` follows `ontology.json`'s F6
+    fate — overlay-driven emission only; the base-only projection
+    retires"*, folded into DR-027 as an amendment extension. Under that
+    ruling the base-term assertions below INVERT to an absence assertion,
+    exactly as `ontology.json`'s `base` assertions just did. {427.11}
+    executed the `ontology.json` half only and carried the `context.jsonld`
+    half back to the owner rather than guessing which of the ruling's two
+    readings (file still written but overlay-only, vs. not written at all
+    absent an overlay) was meant."""
     eo = EffectiveOntology.base_only()
     content = bundle_writer.write_context_artefact(tmp_path, eo)
     payload = json.loads(content)
@@ -1749,6 +1801,43 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     assert (overlay_dir / "topics/widget.md").exists()
 
 
+def test_client_concept_types_overlay_echoes_into_the_artefact_and_gates_nothing(
+    tmp_path: Path,
+) -> None:
+    """The three halves of a shipped client bundle that still declares
+    `concept_types`, asserted together on ONE run because they are one
+    claim ({427.11}): the overlay still VALIDATES (OV-2's schema keeps the
+    key), its terms are still ECHOED into the artefact's `overlay` (DR-054's
+    carrier, re-affirmed S546), and it GATES NOTHING — a concept whose type
+    the overlay never mentions is written on the same run as one it does.
+
+    The echo matters beyond bookkeeping: it is the only surface on which a
+    client's declared vocabulary reaches a bundle consumer now that the
+    `base` snapshot is gone."""
+    declared = _draft("topics/declared.md", title="Declared", type="declared_type")
+    undeclared = _draft(
+        "topics/undeclared.md", title="Undeclared", type="undeclared_type"
+    )
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"concept_types": ["declared_type"]}), encoding="utf-8"
+    )
+
+    summary = bundle_writer.write_bundle(
+        tmp_path, [declared, undeclared], bundle_class="client_business"
+    )
+
+    # Gates nothing — the type the overlay never declared is written too.
+    assert summary.validator_failures == ()
+    assert set(summary.added) == {"topics/declared.md", "topics/undeclared.md"}
+    assert (tmp_path / "topics/undeclared.md").exists()
+
+    # Still echoed, verbatim, into the surviving carrier.
+    payload = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert payload["overlay"]["concept_types"] == ["declared_type"]
+    assert payload["overlay"]["source"] == "ontology-overlay.json"
+    assert "base" not in payload
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Bundle-CLASS discriminator (ID-132 {132.37} G-OVERLAY-PLATFORM-REJECT,
 # DR-054/DR-079) — OV-10
@@ -1784,6 +1873,35 @@ def test_write_bundle_hard_rejects_overlay_for_each_non_client_business_class(
         assert not (tmp_path / "topics/alpha.md").exists()
         assert not (tmp_path / "ontology.json").exists()
         assert not (tmp_path / "log.md").exists()
+
+
+def test_a_concept_types_only_stray_overlay_still_trips_the_class_gate(
+    tmp_path: Path,
+) -> None:
+    """The OV-10 class gate is UNCHANGED by {427.11} — asserted here in the
+    one adjacency where the deletion could plausibly be mistaken for
+    reaching it.
+
+    `concept_types` is now the inert dimension: it composes nothing and
+    gates no write. The tempting inference is that an overlay declaring
+    ONLY `concept_types` is therefore harmless in a platform-owned bundle.
+    It is not. DR-054/DR-079's gate is keyed on the FILE's presence in a
+    non-`client_business` class, never on what the file happens to
+    declare, and its live requirement — a platform-owned bundle must never
+    compose client-owned config — is untouched by DR-027's amendment. This
+    test fails the moment someone 'tidies' the gate to skip inert
+    dimensions."""
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps({"concept_types": ["bespoke_type"]}), encoding="utf-8"
+    )
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    for non_client_class in ("system_baseline", "showcase", "internal_dev"):
+        with pytest.raises(bundle_writer.OntologyOverlayClassError):
+            bundle_writer.write_bundle(tmp_path, [draft], bundle_class=non_client_class)
+
+        assert not (tmp_path / "topics/alpha.md").exists()
+        assert not (tmp_path / "ontology.json").exists()
 
 
 def test_write_bundle_hard_rejects_overlay_when_bundle_class_is_unset(

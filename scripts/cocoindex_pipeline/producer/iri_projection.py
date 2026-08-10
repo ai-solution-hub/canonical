@@ -141,10 +141,15 @@ def slug(term: str) -> str:
     every run of characters outside `[a-z0-9_-]` with a single `-` ->
     collapse repeated `-` -> strip leading/trailing `-`.
 
-    Identity on the existing snake_case base terms (`case_study` ->
-    `case_study`, ... every one of the 5 concept / 12 entity / 10
-    relationship ratified types) since they already contain only
-    `[a-z_]`. Folds accents (NFKD decomposes a combining diacritic onto its
+    Identity on the existing snake_case base terms (`complies_with` ->
+    `complies_with`, ... every one of the 12 entity / 10 relationship
+    ratified types) since they already contain only `[a-z_]`. The counts
+    read `5 concept / 12 entity / 10 relationship` until ID-427: {427.5}
+    dropped the concept-type dimension with `ALLOWED_CONCEPT_TYPES`, and
+    the worked example named here was `case_study` — itself a retired
+    concept type, and a member of NEITHER surviving base register, so it
+    is replaced by a term that is actually in one.
+    Folds accents (NFKD decomposes a combining diacritic onto its
     own codepoint, which the invalid-run substitution then strips) and
     normalises arbitrary runtime overlay strings (`"Product Line"` ->
     `"product-line"`)."""
