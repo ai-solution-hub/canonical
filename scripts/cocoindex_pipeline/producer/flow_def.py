@@ -86,20 +86,21 @@ Two more pieces wire in at this same seam:
   `proposed_change_set` carries its `source_form_instance_id` (BI-28: "never an
   automatic bundle write ... gated by human accept/edit/reject review").
 
-**Physical-vs-identity key reconciliation (ID-132 {132.29} fix-forward).**
-`write_bundle`'s `RunSummary.added`/`.changed` report the PHYSICAL bundle
-write path (`bundle_writer.bundle_write_path`) — which redirects a won-bid
-`case_study` draft into a `case-studies/won-bid/<slug>.md` sibling
-directory, distinct from its identity `rel_path` (`ConceptKey.rel_path`,
-BI-2/DR-016). Both the G-EMBED lookup below and the BI-28 provenance map
-key on that SAME physical path (via `bundle_write_path`/`bundle_write_
-path_for_key`) — never the identity `rel_path` — so a won-bid entry
-resolves correctly instead of silently missing (the {132.29} checker-FAIL
-this fixes): identity-keyed lookups against a physical-path-keyed summary
-always miss for a redirected concept, and in the cross-grain same-slug
-collision case (a named-client and a won-bid `case_study` sharing one
-identity `rel_path`) an identity-keyed embed lookup can additionally
-resolve to the WRONG draft's body.
+**One path, not two (ID-427 {427.8}).** `write_bundle`'s
+`RunSummary.added`/`.changed`, the G-EMBED lookup below and the BI-28
+provenance map are all keyed on `ConceptKey.rel_path` (BI-2/DR-016) —
+because that is now, for every grain without exception, the path the
+concept is written to.
+
+This module previously carried the other half of the {132.29} fix: while
+`bundle_writer.bundle_write_path` redirected a won-bid `case_study` draft
+into a `case-studies/won-bid/` sibling, its on-disk location differed from
+its identity, so every lookup here had to be re-derived through that same
+redirect or silently miss the one grain BI-28 exists for. That whole class
+of bug is retired at the source — the won-bid grain DECLARES
+`case-studies/won-bid` as its directory (`sources/l_records._BUILTIN_
+GRAINS`), so there is no second path and nothing here to keep in step. The
+emitted paths are byte-identical to what the redirect produced.
 """
 
 from __future__ import annotations
@@ -299,12 +300,14 @@ async def _draft_concepts(
     G-DEPLOY-PROOF Defect B) is the raw `ConceptKey` for each concept whose
     draft failed this run — a superset-by-shape of `failures` (which keeps
     the rel_path string + error text for the warning log), kept as the raw
-    key object because `run_producer_flow` needs `bundle_writer.
-    bundle_write_path_for_key` (which requires `.grain` alongside `.rel_path`,
-    not just a rel_path string) to resolve each failure to
-    its PHYSICAL bundle write path before threading it into `write_bundle`'s
-    `failed_rel_paths` — so a transient failure is never mistaken for a
-    confirmed source deletion (Defect B)."""
+    key object because `run_producer_flow` threads each failure's bundle path
+    into `write_bundle`'s `failed_rel_paths` — so a transient failure is
+    never mistaken for a confirmed source deletion (Defect B). It needed the
+    raw key when that resolution went through `bundle_writer.bundle_write_
+    path_for_key` (which read `.grain` alongside `.rel_path`); since ID-427
+    {427.8} deleted that function the key is still what is kept, because
+    `failures` deliberately holds strings for the warning log and the two
+    lists must stay a superset-by-shape of one another."""
     drafts: "list[Any]" = []
     reference_drafts: "list[Any]" = []
     failures: "list[tuple[str, str]]" = []
@@ -346,23 +349,21 @@ async def _embed_written_concepts(
     across runs when the backing records are unchanged — the frontmatter's
     per-run timestamp is deliberately excluded).
 
-    `drafts_by_write_path`/`changed_write_paths` are keyed by the PHYSICAL
-    bundle write path (`bundle_writer.bundle_write_path`) — `RunSummary.
-    added`/`.changed` report physical paths (ID-132 {132.29}: a won-bid
-    `case_study` draft's physical path is redirected away from its identity
-    `rel_path`), so the lookup here MUST match on that same key, and
-    `declare_concept_embedding`'s own `rel_path` argument is ALSO the
-    physical path here — not the draft's identity `rel_path`. This matters
-    for the {132.29} cross-grain same-slug collision case: a named-client
-    and a won-bid `case_study` concept can share one identity `rel_path`
-    while resolving to two DISTINCT physical write paths (bundle_writer's
-    own pre-write collision guard enforces this); embedding by the shared
-    identity would collide both concepts onto the SAME `record_embeddings`
-    natural key (BI-26's `concept_owner_id` is a pure hash of whatever
-    string it is given) and let the second `declare_row` silently clobber
-    the first. Embedding by the (already collision-free) physical path
-    keeps them distinct, mirroring how they are already kept distinct
-    on-disk.
+    `drafts_by_write_path`/`changed_write_paths` are keyed by the concept's
+    bundle path, which since ID-427 {427.8} is its identity `rel_path` for
+    every grain — the same key `RunSummary.added`/`.changed` report, and the
+    same string passed as `declare_concept_embedding`'s own `rel_path`
+    argument.
+
+    **Why the key still matters even though there is now only one.** BI-26's
+    `concept_owner_id` is a pure hash of whatever string it is given, so two
+    concepts sharing one key collide onto one `record_embeddings` row and the
+    second `declare_row` silently clobbers the first. That is what the
+    {132.29} named-client/won-bid pair used to risk: they shared an identity
+    `rel_path` and were kept apart only by `bundle_writer`'s write-time
+    redirect, so this lookup had to use the redirected path. The two grains
+    now declare different directories, so they are distinct at identity and
+    the distinction no longer depends on anything this module does.
 
     A `changed_write_paths` entry with no matching draft is an internal
     invariant violation — every physical path `write_bundle` reports as
@@ -473,8 +474,6 @@ async def run_producer_flow(
     # Lazy imports — see the module docstring's Collection-safety note.
     from scripts.cocoindex_pipeline.producer.bundle_writer import (  # noqa: PLC0415
         CONCEPT_FEEDER_FILENAME,
-        bundle_write_path,
-        bundle_write_path_for_key,
         read_concept_feeder_config,
         require_client_business_bundle_class,
         write_bundle,
@@ -541,11 +540,17 @@ async def run_producer_flow(
         http_client=http_client,
     )
 
-    # G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, Defect B): resolve each failed
-    # concept's PHYSICAL bundle write path (won-bid case_study redirect
-    # included) so write_bundle's reconcile never mistakes a transient
-    # drafting failure for a confirmed source deletion.
-    failed_write_paths = tuple(bundle_write_path_for_key(k) for k in failed_keys)
+    # G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, Defect B): each failed concept's
+    # bundle path, so write_bundle's reconcile never mistakes a transient
+    # drafting failure for a confirmed source deletion. ID-427 {427.8}: this
+    # was `bundle_writer.bundle_write_path_for_key`, which existed solely to
+    # re-apply the {132.29} won-bid redirect off a bare key; the grain now
+    # declares its own directory, so `key.rel_path` IS the path written.
+    # Deliberately `.rel_path`, NOT the tolerant `_rel_path_of_key` used for
+    # the warning log above: the deleted function read the attribute
+    # directly, so a key without one still fails loudly here rather than
+    # feeding `repr(key)` into write_bundle's reconcile as a bundle path.
+    failed_write_paths = tuple(k.rel_path for k in failed_keys)
 
     summary = write_bundle(
         resolved_bundle_dir,
@@ -571,7 +576,7 @@ async def run_producer_flow(
     embedded: "tuple[str, ...]" = ()
     if re_target is not None:
         drafts_by_write_path = {
-            bundle_write_path(d): d for d in (*drafts, *reference_drafts)
+            _rel_path_of(d): d for d in (*drafts, *reference_drafts)
         }
         resolved_embedder = embedder or _default_embedder()
         embedded = await _embed_written_concepts(
@@ -613,16 +618,19 @@ async def run_producer_flow(
         new_output = reapply_overrides(new_output, overrides)
 
     # BI-28 provenance ({132.21}/{132.22}): concept_path -> form_instance_id,
-    # from every won-bid case_study ConceptKey this run enumerated. Keyed by the
-    # PHYSICAL bundle write path (bundle_write_path_for_key) — NOT the
-    # identity key.rel_path — because `sync_bundle`'s `proposed_changes` are
-    # built from `new_output` (this run's on-disk bundle contents, i.e.
-    # physical paths); an identity-keyed map here would never match a
-    # redirected won-bid entry (ID-132 {132.29} checker-FAIL remediation). A
-    # path absent from the map keeps ProposedChange.source_form_instance_id at
-    # its None default (the ordinary Pass-1/Pass-2 producer flow).
+    # from every won-bid case_study ConceptKey this run enumerated. `sync_
+    # bundle`'s `proposed_changes` are built from `new_output` (this run's
+    # on-disk bundle contents), so this map must be keyed by the path each
+    # concept was written to. ID-427 {427.8}: that is `key.rel_path`. It was
+    # `bundle_write_path_for_key(key)` while the {132.29} redirect made a
+    # won-bid concept's on-disk location differ from its identity — an
+    # identity-keyed map then matched nothing for exactly the grain BI-28 is
+    # about. The won-bid grain now DECLARES `case-studies/won-bid`, so the
+    # two are one string and the re-derivation is gone, not relocated. A path
+    # absent from the map keeps ProposedChange.source_form_instance_id at its
+    # None default (the ordinary Pass-1/Pass-2 producer flow).
     source_form_instance_ids = {
-        bundle_write_path_for_key(key): key.form_instance_id
+        key.rel_path: key.form_instance_id
         for key in concepts
         if key.form_instance_id is not None
     }

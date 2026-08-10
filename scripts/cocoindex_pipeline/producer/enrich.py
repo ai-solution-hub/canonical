@@ -392,8 +392,8 @@ def _samples_source_documents(source: Any, key: Any) -> bool:
     answers it: `GrainSpec.sample_kind` is declared next to the `sample`
     callable it describes.
 
-    Duck-typed via `getattr`, the posture `bundle_writer._rel_path_of` /
-    `bundle_write_path` already take toward the two concept models. A Source
+    Duck-typed via `getattr`, the posture `bundle_writer._rel_path_of`
+    already takes toward the two concept models. A Source
     with no grain registry (`RepoDocsSource`, whose `sample_rows` returns
     line dicts, not rows) answers `False`, which is its behaviour today."""
     grain_for = getattr(source, "grain_for", None)

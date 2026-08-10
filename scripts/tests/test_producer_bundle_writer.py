@@ -41,7 +41,7 @@ import hashlib
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest.mock import MagicMock
 
 import pytest
@@ -899,10 +899,27 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
 # ─────────────────────────────────────────────────────────────────────────
 # case_study cross-grain slug collision (ID-132 {132.29}) — a buyer that is
 # BOTH a named-client entity and a won-bid issuing_organisation slugs
-# identically in sources/l_records.py (READ-ONLY, correct: the two
-# ConceptKeys differ by form_instance_id and therefore memoise separately —
-# this is purely a bundle PHYSICAL-write-target clash).
+# identically in sources/l_records.py.
+#
+# **ID-427 {427.8}: resolved at the source, not here.** {132.29} left both
+# grains minting ONE identity `rel_path` and had this module redirect the
+# won-bid file into a `won-bid/` sibling at write time. The won-bid grain now
+# DECLARES `case-studies/won-bid`, so the two grains mint two identities and
+# `bundle_writer` writes each concept to the path it is called by. The files
+# land exactly where they always did; the fixtures below mint the won-bid
+# identity from the grain registry so a future change to that registry entry
+# moves the test with the code rather than leaving a stale literal behind.
 # ─────────────────────────────────────────────────────────────────────────
+
+
+def _won_bid_rel_path(basename: str) -> str:
+    """The won-bid grain's own declared directory, read off the registry —
+    never a literal. This is the {427.8} property under test: there is one
+    place that decides where a won-bid concept lives."""
+    spec = next(
+        s for s in l_records._BUILTIN_GRAINS if s.name == l_records.WON_BID_GRAIN
+    )
+    return f"{spec.directory}/{basename}"
 
 
 def _case_study_draft(
@@ -941,18 +958,37 @@ def _case_study_draft(
 def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
     tmp_path: Path,
 ) -> None:
-    # Same buyer -> same slugified rel_path from BOTH grains (the {132.29}
-    # collision scenario) — l_records.py's Source adapter is correct; the
-    # collision is purely a bundle-write-target clash bundle_writer must
-    # resolve.
+    """THE {132.29} claim, carried unchanged across {427.8}: a named-client
+    and a won-bid case study for the SAME buyer both write, and neither
+    overwrites the other.
+
+    The claim is the same; the mechanism it rests on is not. The buyer slugs
+    identically in both grains, so before {427.8} the two drafts shared one
+    identity `rel_path` and were separated only by a write-time redirect in
+    this module. They now arrive already distinct, because the won-bid grain
+    declares its own directory. Kept — and kept at `write_bundle`, not at a
+    path helper — because "both files exist with the right bodies" is the
+    property the client actually has, and it must survive whichever
+    mechanism delivers it. The **shipped showcase bundle collides on exactly
+    this shape** (`case-studies/northgate-borough-council.md` and
+    `case-studies/won-bid/northgate-borough-council.md` are both committed),
+    so this is a real layout, not a constructed one."""
     named_client = _case_study_draft(
         "case-studies/acme-ltd.md", title="Acme Ltd (named client)", entity_id="Acme Ltd"
     )
     won_bid = _case_study_draft(
-        "case-studies/acme-ltd.md",
+        _won_bid_rel_path("acme-ltd.md"),
         title="Acme Ltd (won-bid outcome)",
         entity_id="Acme Ltd",
         form_instance_id=_SAMPLE_UUID,
+    )
+    # The two identities differ, and they differ by DIRECTORY — the same
+    # buyer slug in both. This is what the redirect used to manufacture at
+    # write time and what the grain registry now supplies at mint time.
+    assert named_client.key.rel_path != won_bid.key.rel_path
+    assert (
+        PurePosixPath(named_client.key.rel_path).name
+        == PurePosixPath(won_bid.key.rel_path).name
     )
 
     summary = bundle_writer.write_bundle(tmp_path, [named_client, won_bid])
@@ -967,13 +1003,128 @@ def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
     assert "named client" in named_client_path.read_text(encoding="utf-8")
     assert "won-bid outcome" in won_bid_path.read_text(encoding="utf-8")
 
-    # The reported bundle paths reflect the actual (redirected) write
-    # targets — index.md/log.md never point at a path that wasn't written.
+    # UNCHANGED PHYSICAL PATHS (TECH §2.5): the two strings below are the
+    # ones the {132.29} redirect produced, byte for byte. No file moves and
+    # `RunSummary.moved` stays empty — the concept's identity changed, not
+    # its location.
     assert set(summary.added) == {"case-studies/acme-ltd.md", "case-studies/won-bid/acme-ltd.md"}
+    assert summary.moved == ()
 
     index_text = (tmp_path / "index.md").read_text(encoding="utf-8")
     assert "case-studies/acme-ltd.md" in index_text
     assert "case-studies/won-bid/acme-ltd.md" in index_text
+
+
+def test_the_shipped_showcase_case_study_layout_is_what_the_grains_declare(
+    tmp_path: Path,
+) -> None:
+    """**Unchanged physical path, asserted against the shipped showcase
+    layout** (the ratified {427.8} test bullet).
+
+    `canonical-okf-showcase` is a separate repo and is deliberately NOT read
+    from here — a test that depends on a checkout outside this one is a test
+    that fails for the wrong reason. Its layout is transcribed instead: the
+    bundle ships `case-studies/<four named clients>.md` alongside
+    `case-studies/won-bid/northgate-borough-council.md`, and Northgate is
+    present in BOTH. Re-emitting that same buyer set through `write_bundle`
+    must reproduce those paths exactly."""
+    shipped = {
+        "case-studies/corvedale-academies-trust.md",
+        "case-studies/northgate-borough-council.md",
+        "case-studies/ridgeway-commercial-services-ltd.md",
+        "case-studies/st-aldhelm-s-nhs-foundation-trust.md",
+        "case-studies/wyndale-metropolitan-borough-council.md",
+        "case-studies/won-bid/northgate-borough-council.md",
+    }
+    named_clients = [
+        _case_study_draft(p, title=p, entity_id=p)
+        for p in sorted(shipped)
+        if not p.startswith("case-studies/won-bid/")
+    ]
+    won_bid = _case_study_draft(
+        _won_bid_rel_path("northgate-borough-council.md"),
+        title="Northgate Borough Council (won bid)",
+        entity_id="Northgate Borough Council",
+        form_instance_id=_SAMPLE_UUID,
+    )
+
+    summary = bundle_writer.write_bundle(tmp_path, [*named_clients, won_bid])
+
+    assert set(summary.added) == shipped
+    for rel in shipped:
+        assert (tmp_path / rel).is_file(), rel
+
+
+def test_a_bi9_cross_link_to_a_won_bid_concept_opens(tmp_path: Path) -> None:
+    """**ID-427 {427.8}, net-new — the ratified test bullet.** A BI-9
+    cross-link to a won-bid concept must resolve to a path the reader can
+    open.
+
+    `producer/enrich.py` builds the BI-9 catalogue from
+    `ConceptKey.rel_path` (`:970`), so a citation names an identity; this
+    module writes to a bundle path. While the two could differ the citation
+    named a file that, for a non-colliding buyer, did not exist — and for a
+    colliding one resolved to the OTHER grain's concept. The two are one
+    string now, so the claim is checkable end-to-end: take the path the
+    catalogue would offer and open it under the emitted bundle.
+
+    (`test_producer_enrich.py::...test_a_won_bid_concept_is_bi9_citable_and_
+    routes_to_its_own_grain` owns the catalogue/router half. This half owns
+    the file.)"""
+    named_client = _case_study_draft(
+        "case-studies/acme-ltd.md", title="Acme Ltd", entity_id="Acme Ltd"
+    )
+    won_bid = _case_study_draft(
+        _won_bid_rel_path("acme-ltd.md"),
+        title="Acme Ltd won bid",
+        entity_id="Acme Ltd",
+        form_instance_id=_SAMPLE_UUID,
+    )
+
+    bundle_writer.write_bundle(tmp_path, [named_client, won_bid])
+
+    # The catalogue enrich.py would offer for these two concepts.
+    catalogue_paths = {d.key.rel_path for d in (named_client, won_bid)}
+    assert len(catalogue_paths) == 2
+    for cited in sorted(catalogue_paths):
+        assert (tmp_path / cited).is_file(), cited
+
+    # …and each opens the RIGHT concept, not its same-slug sibling.
+    assert "won bid" in (tmp_path / won_bid.key.rel_path).read_text(encoding="utf-8")
+    assert "won bid" not in (
+        tmp_path / named_client.key.rel_path
+    ).read_text(encoding="utf-8")
+
+
+def test_content_version_does_not_reach_the_bundle_write_path(
+    tmp_path: Path,
+) -> None:
+    """MD-4 (ID-132 {132.38} G-MEMO-DELTA): `content_version` participates
+    ONLY in the cocoindex memo fingerprint — never in identity, routing,
+    dedup, the write path, or `find()`.
+
+    **MOVED HERE by ID-427 {427.8}** from
+    `test_producer_enrich.py::TestContentVersionNonLeak::test_bundle_write_
+    path_for_key_is_identical`, whose subject function this Subtask deleted.
+    Its two sibling legs (read dispatch, `find` membership) stay in that
+    class, which names this one and where it went. `declare_concept` is the
+    boundary that now decides a concept's file, so it is where the leg has
+    to be if it is to fail when a leak is introduced."""
+    base = dict(
+        concept_type="topic", grain="topic_scope_tag", scope_tag="gdpr"
+    )
+    drafts = [
+        dataclasses.replace(
+            _draft("topics/gdpr.md", title="GDPR"),
+            key=ConceptKey(rel_path="topics/gdpr.md", **base, content_version=v),
+        )
+        for v in ("v-a", "v-b")
+    ]
+
+    results = [bundle_writer.declare_concept(tmp_path, d) for d in drafts]
+
+    assert [r.rel_path for r in results] == ["topics/gdpr.md", "topics/gdpr.md"]
+    assert all(r.written for r in results)
 
 
 def test_write_bundle_raises_on_duplicate_write_path_instead_of_overwriting(
@@ -1023,9 +1174,9 @@ def _section_entries(text: str, heading: str) -> "list[tuple[str, str, str]]":
 
 
 def _multi_level_drafts():
-    """root concept + `topics/` + `case-studies/` (with the {132.29} won-bid
-    redirect) + `case-studies/won-bid/2025/` + a `reports/` that holds ONLY a
-    child directory."""
+    """root concept + `topics/` + `case-studies/` + the won-bid grain's own
+    `case-studies/won-bid/` + `case-studies/won-bid/2025/` + a `reports/`
+    that holds ONLY a child directory."""
     return [
         _draft("overview.md", title="Overview", description="The bundle root concept."),
         _draft("topics/alpha.md", title="Alpha", description="Alpha topic."),
@@ -1033,10 +1184,13 @@ def _multi_level_drafts():
         _case_study_draft(
             "case-studies/acme-ltd.md", title="Acme Ltd", entity_id="Acme Ltd"
         ),
-        # Identity rel_path `case-studies/acme-ltd.md`; PHYSICAL write path
-        # `case-studies/won-bid/acme-ltd.md` (the {132.29} redirect).
+        # ID-427 {427.8}: this draft's identity is `case-studies/won-bid/
+        # acme-ltd.md`, minted from the grain's declared directory. It was
+        # `case-studies/acme-ltd.md` plus a write-time redirect to the same
+        # place — the emitted tree below is unchanged either way, which is
+        # the point.
         _case_study_draft(
-            "case-studies/acme-ltd.md",
+            _won_bid_rel_path("acme-ltd.md"),
             title="Acme Ltd won bid",
             entity_id="Acme Ltd",
             form_instance_id=_SAMPLE_UUID,
@@ -1144,13 +1298,21 @@ def test_entry_links_are_relative_to_the_index_own_directory(tmp_path: Path) -> 
             assert "/" not in target.rstrip("/"), (directory, target)
 
 
-def test_a_redirected_won_bid_concept_indexes_where_its_file_actually_is(
+def test_a_won_bid_concept_indexes_in_its_own_grain_directory(
     tmp_path: Path,
 ) -> None:
-    """§2 row 2 — proves the PHYSICAL-path keying survived. The won-bid
-    `case_study` draft's IDENTITY rel_path is `case-studies/acme-ltd.md`, but
-    `bundle_write_path` redirects its file to `case-studies/won-bid/`. Group
-    by identity instead and the index links a path that does not exist."""
+    """§2 row 2. RENAMED from `test_a_redirected_won_bid_concept_indexes_
+    where_its_file_actually_is` — the old name asserted the redirect ID-427
+    {427.8} deleted, and its rationale ("group by identity instead and the
+    index links a path that does not exist") described a hazard that can no
+    longer exist, since identity IS the path.
+
+    The claim that survives, and is the reason this is kept rather than
+    folded into the membership test above: two concepts with the SAME
+    basename, from two grains, must index in two different directories and
+    every emitted link must resolve to a real file. That was the visible
+    symptom of the {132.29} collision and is what a future regression would
+    break first."""
     bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
     won_bid_labels = [l for l, _, _ in _section_entries(
@@ -2568,59 +2730,164 @@ class TestAGrainIsOneRegistryEntry:
         written = (tmp_path / "widgets" / "sprocket.md").read_text(encoding="utf-8")
         assert "type: component" in written
 
-    def test_relabelling_the_won_bid_grain_still_redirects_its_write_path(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_relabelling_the_won_bid_grain_does_not_move_its_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """PI-5 asserted where it is HARDEST, not where it is easy.
+        **RENAMED and RE-STAGED by ID-427 {427.8}** from
+        `test_relabelling_the_won_bid_grain_still_redirects_its_write_path`.
 
-        The {132.29} write-path redirect (`case-studies/<slug>.md` ->
-        `case-studies/won-bid/<slug>.md`) was the fifth type-keyed
-        control-flow site, and the one an AST projection could not see — it
-        reads `getattr(key, "concept_type", None)`, not an attribute node.
-        Keyed on the label, a relabel would have stopped the redirect firing
-        and let a won-bid concept silently overwrite a same-slug
-        named-client one: the exact collision the redirect exists to
-        prevent, re-opened by the very relabel PI-5 promises is safe.
+        Its subject — `bundle_writer.bundle_write_path_for_key` and the
+        {132.29} redirect behind it — is deleted by this Subtask, so the old
+        body cannot run. Its CLAIM is kept verbatim and is why the test
+        stays: the won-bid grain is the one grain with a counterexample, so
+        testing the relabel only against a freshly-invented grain (the test
+        directly above) would pass while PI-5 was false here.
 
-        Testing the relabel only against a freshly-invented grain would have
-        passed while the property was false for the one grain that had a
-        counterexample."""
+        {427.7} made the claim true by re-keying the redirect from
+        `concept_type` onto `grain`. {427.8} makes it true by construction
+        instead: the path comes from `GrainSpec.directory`, and nothing on
+        the write path reads a type at all. Asserted end-to-end through
+        `write_bundle` rather than against a path helper, because after this
+        Subtask there IS no path helper — and a test that asserts a field
+        equals itself would prove nothing."""
+        won_bid_dir = next(
+            s.directory
+            for s in l_records._BUILTIN_GRAINS
+            if s.name == l_records.WON_BID_GRAIN
+        )
+        monkeypatch.setattr(
+            l_records,
+            "_BUILTIN_GRAINS",
+            tuple(
+                dataclasses.replace(spec, type_label="won_bid")
+                if spec.name == l_records.WON_BID_GRAIN
+                else spec
+                for spec in l_records._BUILTIN_GRAINS
+            ),
+        )
+        relabelled = next(
+            s for s in l_records._BUILTIN_GRAINS if s.name == l_records.WON_BID_GRAIN
+        )
+        # The emitted label changed; the declared directory did not.
+        assert relabelled.type_label == "won_bid"
+        assert relabelled.directory == won_bid_dir
+
         key = ConceptKey(
-            rel_path="case-studies/acme-corp.md",
+            rel_path=f"{relabelled.directory}/acme-corp.md",
             concept_type="won_bid",  # relabelled: no longer 'case_study'
             grain=l_records.WON_BID_GRAIN,
             entity_id="Acme Corp",
             form_instance_id="ws-1",
         )
-
-        assert (
-            bundle_writer.bundle_write_path_for_key(key)
-            == "case-studies/won-bid/acme-corp.md"
-        )
-
         named_client = ConceptKey(
             rel_path="case-studies/acme-corp.md",
-            concept_type="won_bid",  # same label, different grain
+            concept_type="won_bid",  # SAME label, different grain
             grain="case_study_named_client",
             entity_id="Acme Corp",
         )
-        assert (
-            bundle_writer.bundle_write_path_for_key(named_client)
-            == "case-studies/acme-corp.md"
+
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            [
+                _grain_draft(key, title="Acme Corp won bid", type_label="won_bid"),
+                _grain_draft(named_client, title="Acme Corp", type_label="won_bid"),
+            ],
         )
 
+        # No collision, no clobber, and the file is exactly where it was
+        # before the relabel — the pre-{427.8} outcome, reached without a
+        # redirect.
+        assert summary.moved == ()
+        assert sorted(summary.added) == [
+            "case-studies/acme-corp.md",
+            "case-studies/won-bid/acme-corp.md",
+        ]
+        assert "type: won_bid" in (
+            tmp_path / "case-studies/won-bid/acme-corp.md"
+        ).read_text(encoding="utf-8")
+
     def test_two_grains_may_share_one_directory(self) -> None:
-        """id-429 IA-4: many-to-one is fine, and the shipped bundle already
-        relies on it — both `case_study` grains own `case-studies`. Asserted
-        because {427.8} is about to change one of them, and a uniqueness
-        constraint quietly introduced here would block it."""
-        shared = [
-            spec.directory
+        """id-429 IA-4: many-to-one is permitted.
+
+        **RE-STAGED by ID-427 {427.8}.** This test previously read the
+        property off the built-in registry (`both case_study grains own
+        case-studies`) and said so explicitly so that {427.8} — which
+        changes one of them — could not be blocked by a uniqueness
+        constraint quietly introduced here. That reading is now false as an
+        observation, and reading it off the built-ins was always the weaker
+        test: it measured today's entries, not the rule. IA-4 is a property
+        of the REGISTRY, so it is asserted against the registry: a grain
+        registered into a directory a built-in already owns is enumerated
+        and written there, with no uniqueness check anywhere in the path.
+
+        The {427.8} fact the old assertion carried is kept as its own claim
+        below: the two `case_study` grains share a type LABEL and no longer
+        share a directory, which is DR-141's decoupling made visible."""
+        labels = [
+            (spec.type_label, spec.directory)
             for spec in l_records._BUILTIN_GRAINS
             if spec.type_label == "case_study"
         ]
-        assert shared == ["case-studies", "case-studies"]
-        assert len(l_records.BUILTIN_GRAIN_DIRECTORIES) < len(l_records._BUILTIN_GRAINS)
+        assert labels == [
+            ("case_study", "case-studies"),
+            ("case_study", "case-studies/won-bid"),
+        ]
+
+    def test_a_grain_may_be_registered_into_a_directory_a_builtin_owns(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """id-429 IA-4 at the registry, not at today's entries — the half of
+        the assertion above that {427.8} took away. Nothing rejects two
+        grains naming one directory, and both concepts reach it."""
+        extra = dataclasses.replace(
+            next(
+                s
+                for s in l_records._BUILTIN_GRAINS
+                if s.name == "case_study_named_client"
+            ),
+            name="case_study_partner",
+            directory="case-studies",
+            type_label="partnership",
+        )
+        monkeypatch.setattr(
+            l_records, "_BUILTIN_GRAINS", (*l_records._BUILTIN_GRAINS, extra)
+        )
+        assert (
+            len(l_records.BUILTIN_GRAIN_DIRECTORIES)
+            < len(l_records._BUILTIN_GRAINS)
+        )
+
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            [
+                _grain_draft(
+                    ConceptKey(
+                        rel_path="case-studies/acme-ltd.md",
+                        concept_type="case_study",
+                        grain="case_study_named_client",
+                        entity_id="Acme Ltd",
+                    ),
+                    title="Acme Ltd",
+                    type_label="case_study",
+                ),
+                _grain_draft(
+                    ConceptKey(
+                        rel_path="case-studies/beta-llp.md",
+                        concept_type="partnership",
+                        grain="case_study_partner",
+                        entity_id="Beta LLP",
+                    ),
+                    title="Beta LLP",
+                    type_label="partnership",
+                ),
+            ],
+        )
+
+        assert sorted(summary.added) == [
+            "case-studies/acme-ltd.md",
+            "case-studies/beta-llp.md",
+        ]
 
 
 class TestReservedConceptSlugs:

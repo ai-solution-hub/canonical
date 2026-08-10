@@ -42,7 +42,7 @@ import json
 import subprocess
 import sys
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
 
@@ -60,6 +60,19 @@ from scripts.cocoindex_pipeline.producer.flow_def import (  # noqa: E402
 
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 _EMBEDDING = [0.1] * 1024
+
+
+def _won_bid_rel_path(basename: str) -> str:
+    """The won-bid grain's own declared directory, read off the registry —
+    never a literal (ID-427 {427.8}). Imported inside the function because
+    this module deliberately imports `l_records` under the cocoindex stub
+    context rather than at module scope."""
+    from scripts.cocoindex_pipeline.sources import l_records  # noqa: PLC0415
+
+    spec = next(
+        s for s in l_records._BUILTIN_GRAINS if s.name == l_records.WON_BID_GRAIN
+    )
+    return f"{spec.directory}/{basename}"
 
 
 # ── Test doubles ────────────────────────────────────────────────────────
@@ -1139,8 +1152,12 @@ class TestBI28StagingProvenance:
     def test_a_won_bid_run_lands_staging_and_stamps_source_form_instance_id(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
+        # ID-427 {427.8}: the won-bid grain declares `case-studies/won-bid`,
+        # so its concepts arrive with that identity. This was
+        # `case-studies/acme-corp.md` plus a write-time redirect producing
+        # the same file — the paths asserted below are unchanged.
         won_bid_draft = env.build_draft(
-            "case-studies/acme-corp.md",
+            _won_bid_rel_path("acme-corp.md"),
             title="Acme Corp",
             concept_type="case_study",
             form_instance_id="22222222-2222-4222-8222-222222222222",
@@ -1166,26 +1183,33 @@ class TestBI28StagingProvenance:
         assert _commit_count(repo) == 0
         assert report.committed is False
         assert report.sync_result.staged is True
-        # {132.29}: a won-bid case_study draft's PHYSICAL write path is
-        # redirected into a `won-bid/` sibling directory, distinct from its
-        # identity rel_path — this is what actually lands in the client-owned
-        # repo (bundle_writer.bundle_write_path's redirect rule).
+        # UNCHANGED PHYSICAL PATH across {427.8} (TECH §2.5): a won-bid
+        # case_study lands in the `won-bid/` sibling directory in the
+        # client-owned repo, exactly as it did when `bundle_writer.
+        # bundle_write_path` redirected it there. What changed is that the
+        # path is now the concept's identity, declared by its grain.
         assert (repo / "case-studies/won-bid/acme-corp.md").is_file()
         assert not (repo / "case-studies/acme-corp.md").exists()
 
         # BI-25/26 ({132.29} checker-FAIL regression): the won-bid concept
-        # still gets its embedding row — an identity-rel_path-keyed lookup
-        # would silently miss it, since write_bundle's RunSummary reports the
-        # PHYSICAL (redirected) path, not the identity rel_path.
+        # still gets its embedding row. The regression this guards was a
+        # lookup keyed on identity against a summary reported by physical
+        # path; the two are now one key, so the assertion pins the OUTCOME
+        # (the row exists, under the path the client can open) rather than
+        # the reconciliation that used to be needed to reach it.
         assert len(re_target.rows) == 2
         assert sorted(report.embedded) == [
             "case-studies/won-bid/acme-corp.md",
             "topics/alpha.md",
         ]
 
-        # The proposed_change_set's won-bid entry carries source_form_instance_id
-        # (BI-28), keyed by the PHYSICAL (redirected) path — an identity-keyed
-        # provenance map would never match a redirected won-bid entry here.
+        # The proposed_change_set's won-bid entry carries
+        # source_form_instance_id (BI-28), keyed by the path the concept was
+        # written to — which since {427.8} is `key.rel_path`. THIS is the
+        # assertion that guards the re-key: `flow_def` builds the map from
+        # `key.rel_path` now, and if that ever stopped matching what
+        # `sync_bundle` sees on disk, the stamp would silently go missing
+        # for exactly the grain BI-28 exists for.
         assert report.proposed_change_set is not None
         changes = {
             c["concept_path"]: c for c in report.proposed_change_set["changes"]
@@ -1198,26 +1222,40 @@ class TestBI28StagingProvenance:
     def test_same_slug_collision_embeds_the_correct_bodies_and_provenance(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
-        """{132.29} regression: a named-client and a won-bid `case_study`
-        concept sharing the IDENTICAL identity `rel_path` (the cross-grain
-        slug collision bundle_writer's `won-bid/` redirect exists to solve)
-        must each get their OWN embedding row with the CORRECT body — an
-        identity-rel_path-keyed embed lookup would collide both concepts onto
-        the SAME `record_embeddings` natural key (BI-26's `concept_owner_id`
-        is a pure hash of whatever string it is given) and could let the
-        second `declare_row` silently clobber the first with the wrong body.
-        Only the won-bid entry's `proposed_change_set` row may carry
-        `source_form_instance_id` (BI-28)."""
+        """{132.29} regression, carried across ID-427 {427.8}: a named-client
+        and a won-bid `case_study` concept for the SAME buyer slug must each
+        get their OWN embedding row with the CORRECT body. BI-26's
+        `concept_owner_id` is a pure hash of whatever string it is given, so
+        two concepts reaching this step under one key collide onto one
+        `record_embeddings` row and the second `declare_row` silently
+        clobbers the first with the wrong body. Only the won-bid entry's
+        `proposed_change_set` row may carry `source_form_instance_id`
+        (BI-28).
+
+        **What changed is the premise, not the claim.** The two drafts no
+        longer share an identity `rel_path` — the won-bid grain declares
+        `case-studies/won-bid`, so they arrive distinct instead of being
+        separated by `bundle_writer`'s write-time redirect. The same buyer
+        slug in two grains is still the scenario; the test now proves the
+        outcome holds when the producer is asked to emit both, which is what
+        the client actually gets."""
         named_client_draft = env.build_draft(
             "case-studies/acme-corp.md",
             title="Acme Corp (named client)",
             concept_type="case_study",
         )
         won_bid_draft = env.build_draft(
-            "case-studies/acme-corp.md",
+            _won_bid_rel_path("acme-corp.md"),
             title="Acme Corp (won-bid outcome)",
             concept_type="case_study",
             form_instance_id="33333333-3333-4333-8333-333333333333",
+        )
+        # Same basename, different directory — the {132.29} shape, resolved
+        # at the grain registry rather than at write time.
+        assert named_client_draft.key.rel_path != won_bid_draft.key.rel_path
+        assert (
+            PurePosixPath(named_client_draft.key.rel_path).name
+            == PurePosixPath(won_bid_draft.key.rel_path).name
         )
         _wire_source(
             env,
@@ -1238,9 +1276,8 @@ class TestBI28StagingProvenance:
             )
         )
 
-        # Both grains land at DISTINCT physical paths (bundle_writer's own
-        # {132.29} redirect) despite sharing one identity rel_path — no
-        # ValueError collision, and no on-disk clobber.
+        # Both grains land at DISTINCT paths — no ValueError collision, and
+        # no on-disk clobber. Byte-identical to the pre-{427.8} outcome.
         assert (repo / "case-studies/acme-corp.md").is_file()
         assert (repo / "case-studies/won-bid/acme-corp.md").is_file()
         assert "named client" in (repo / "case-studies/acme-corp.md").read_text(

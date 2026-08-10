@@ -832,10 +832,14 @@ class LRecordsSource:
         named-clients grain. {132.38} MD-7: `content_version` is grouped by
         the won form's own id (the `form_instance_id` locator).
 
-        Shares `directory` with the named-clients grain for now, so the
-        {132.29} write-time redirect still applies — **{427.8}** is the
-        subtask that gives this grain `case-studies/won-bid` of its own and
-        deletes the redirect."""
+        **ID-427 {427.8}:** this grain declares `case-studies/won-bid`, so a
+        buyer who is BOTH a named client and a won-bid issuing organisation
+        now mints two DISTINCT identities rather than two keys sharing one
+        (`case-studies/<slug>.md` vs `case-studies/won-bid/<slug>.md`). The
+        shared identity was what made the won-bid concept unaddressable to
+        the BI-9 catalogue and to Pass-1's `read_concept_raw` router, both of
+        which key on `rel_path` — the {132.29} write-time redirect separated
+        the two files but never the two identities."""
         rows = await self._pool.fetch(_SQL_WON_BID_CASE_STUDIES)
         version_by_form_instance = {
             row["form_instance_id"]: _combine_content_version(
@@ -1122,27 +1126,30 @@ class LRecordsSource:
 # registering a grain, or {427.10} adding the residual grain — gets its
 # grain enumerated, read and sampled with no edit to any of the three.
 #
-# Directories are the SAME five the bundle already ships (RESEARCH M5 / C2 —
+# Directories are the SAME six the bundle already ships (RESEARCH M5 / C2 —
 # they were always grain constants, never a type materialisation), so no
-# concept file moves. Both `case_study` grains share `case-studies` for now:
-# id-429 IA-4 permits many-to-one, and {427.8} is the subtask that gives the
-# won-bid grain `case-studies/won-bid` and deletes the {132.29} write-time
-# redirect that currently stands in for it.
+# concept file moves. **ID-427 {427.8}:** the two `case_study` grains no
+# longer share one directory — the won-bid grain declares
+# `case-studies/won-bid`, the path its concepts were ALREADY written to by
+# the {132.29} write-time redirect, which is deleted. Sharing a directory
+# remains permitted (id-429 IA-4 is a property of the registry, not of
+# today's entries); it is simply no longer used by a built-in grain.
 # ─────────────────────────────────────────────────────────────────────────
 
 WON_BID_GRAIN = "case_study_won_bid"
 """The one grain that declares `ConceptKey.form_instance_id` as its locator
 (S443 amendment / DR-029).
 
-PUBLIC because two rules key on it and both must key on the same string:
-`grain_for`'s locator-ownership guard here, and the {132.29} write-path
-redirect in `producer/bundle_writer.py`. Both were keyed on the
-`'case_study'` LABEL before {427.7}, which a `type_label` relabel would have
-broken in opposite ways — the guard by rejecting every won-bid key, the
-redirect by silently ceasing to fire and letting won-bid concepts collide
-with same-slug named-client ones. **{427.8} retires the redirect** (the grain
-gets `case-studies/won-bid` as its own declared directory), after which this
-constant has one consumer again."""
+PUBLIC because `grain_for`'s locator-ownership guard and this module's own
+registry entry must name the same string. It was keyed on the `'case_study'`
+LABEL before {427.7}, which a `type_label` relabel would have turned into a
+spurious rejection of every won-bid key.
+
+**ID-427 {427.8} retired the second consumer.** The {132.29} write-path
+redirect in `producer/bundle_writer.py` also keyed on this constant, to
+append `won-bid/` to a won-bid concept's physical target. The grain now
+declares `case-studies/won-bid` as its directory, so the path falls out of
+the ordinary `_key` mint and there is no rule left to keep in sync."""
 
 _FEEDER_GRAIN_PREFIX = "feeder:"
 """Namespace for client-declared grains, so a `concept-feeder.json` entry can
@@ -1197,7 +1204,12 @@ _BUILTIN_GRAINS: "tuple[GrainSpec, ...]" = (
     ),
     GrainSpec(
         name=WON_BID_GRAIN,
-        directory="case-studies",
+        # ID-427 {427.8}: the won-bid grain owns this directory outright. It
+        # is the SAME string the {132.29} write-time redirect used to append
+        # in `producer/bundle_writer`, so no file moves — what changes is that
+        # the path is now the concept's IDENTITY (rel_path) rather than a
+        # physical target derived from it (TECH §2.5).
+        directory="case-studies/won-bid",
         type_label="case_study",
         list=lambda src, spec: src._list_won_bid_case_study_concepts(spec),
         read=lambda src, spec, key: src._read_won_bid_case_study(key),
@@ -1222,5 +1234,8 @@ any grain, built-in or client-declared, may mint any well-shaped label."""
 BUILTIN_GRAIN_DIRECTORIES = frozenset(spec.directory for spec in _BUILTIN_GRAINS)
 """The bundle directories the built-in grains own. Exported for callers that
 need the shipped layout without importing the registry itself; **not** a
-uniqueness constraint — id-429 IA-4 states many-to-one is fine, and the two
-`case_study` grains already share one."""
+uniqueness constraint — id-429 IA-4 states many-to-one is fine, and a
+client-declared feeder grain may point at a directory a built-in already
+owns. Since {427.8} no two BUILT-IN grains share one, so this frozenset
+happens to be the same size as the registry — an artefact of today's
+entries, never a rule to enforce."""

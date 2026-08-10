@@ -241,9 +241,9 @@ class ConceptKey:
 
     **EXCLUDED from identity** (BI-2/MD-4) — this field participates ONLY in
     the memo fingerprint, never in `__post_init__` validation, `read_concept`
-    type routing, `bundle_write_path`/`bundle_write_path_for_key`, the
-    won-bid buyer dedup, or `find()`'s `_concept_haystack`. A content change
-    must re-draft the SAME concept, not mint a new one. Kept LAST in field
+    grain routing, the bundle write path, the won-bid buyer dedup, or
+    `find()`'s `_concept_haystack`. A content change must re-draft the SAME
+    concept, not mint a new one. Kept LAST in field
     order (after `form_instance_id`) so every existing positional/keyword
     `ConceptKey(...)` construction stays valid with its `""` default."""
 
@@ -386,9 +386,13 @@ class GrainSpec:
 
     directory: str
     """The bundle directory this grain OWNS (TECH §2.4: "the directory is
-    declared by the grain — there is no type→directory function"). Many-to-one
-    is fine and is used: both `case_study` grains own `case-studies`
-    (id-429 IA-4)."""
+    declared by the grain — there is no type→directory function"). May nest
+    (`case-studies/won-bid`); id-429 IA-5 requires every intermediate
+    directory to be real, which `declare_directory_indexes` satisfies by
+    construction. Many-to-one is permitted (id-429 IA-4) — two grains may
+    name one directory, and a client-declared feeder grain may name a
+    built-in's. No built-in pair does so since {427.8} gave the won-bid
+    `case_study` grain a directory of its own."""
 
     type_label: str
     """The OKF `type` value concepts of this grain carry. A LABEL — changing

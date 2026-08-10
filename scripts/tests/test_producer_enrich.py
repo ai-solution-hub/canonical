@@ -441,6 +441,89 @@ class TestCitationValidationProxy:
             == "topics/gdpr.md"
         )
 
+    def test_a_won_bid_concept_is_bi9_citable_and_routes_to_its_own_grain(
+        self,
+    ) -> None:
+        """**ID-427 {427.8}, net-new.** A BI-9 cross-link to a won-bid
+        concept must name a path the reader can open — and before {427.8} no
+        such path existed to name.
+
+        Both surfaces this exercises key on `ConceptKey.rel_path`: the BI-9
+        catalogue (`enrich.py:970`, `{ck.rel_path for ck in catalogue}`) and
+        the Pass-1 tool router (`:535`, `{ck.rel_path: ck}`). While the two
+        `case_study` grains minted ONE identity for a buyer who is both a
+        named client and a won-bid issuing organisation, the set collapsed
+        to a single entry — the won-bid concept was uncitable — and the dict
+        collapsed to whichever key was enumerated last, so a CROSS-read of
+        that path returned the won-bid grain's rows whatever it named.
+        Measured at the {427.8} base SHA against `Northgate Borough
+        Council`, the buyer the shipped showcase bundle carries in
+        `case-studies/` AND `case-studies/won-bid/`.
+
+        **Scoped precisely:** a concept reading ITSELF was unaffected, because
+        `enrich_concept` pre-seeds `raw_cache[key.rel_path]` and the
+        clobbering key shares that string. The third leg below therefore
+        drives the router with a COLD cache, which is the condition under
+        which the mis-route was real.
+
+        The grain registry supplies the two identities now, so this test
+        mints from it rather than from literals: re-share the directory and
+        it fails."""
+        from scripts.cocoindex_pipeline.sources import l_records  # noqa: PLC0415
+
+        def _mint(grain_name: str) -> ConceptKey:
+            spec = next(
+                s for s in l_records._BUILTIN_GRAINS if s.name == grain_name
+            )
+            extra = (
+                {"form_instance_id": _SD_ID}
+                if grain_name == l_records.WON_BID_GRAIN
+                else {}
+            )
+            return ConceptKey(
+                rel_path=f"{spec.directory}/northgate-borough-council.md",
+                concept_type=spec.type_label,
+                grain=spec.name,
+                entity_id="Northgate Borough Council",
+                **extra,
+            )
+
+        named_client = _mint("case_study_named_client")
+        won_bid = _mint(l_records.WON_BID_GRAIN)
+        catalogue = [named_client, won_bid]
+
+        # 1. Both concepts are addressable — the BI-9 catalogue is a SET, so
+        #    a shared identity silently costs one whole concept.
+        catalogue_paths = {ck.rel_path for ck in catalogue}
+        assert len(catalogue_paths) == 2
+        assert won_bid.rel_path == "case-studies/won-bid/northgate-borough-council.md"
+
+        # 2. A cross-link to the won-bid concept validates (BI-9 provenance).
+        assert (
+            enrich._validate_citation(
+                won_bid.rel_path, seen_anchors=set(), catalogue_paths=catalogue_paths
+            )
+            == won_bid.rel_path
+        )
+
+        # 3. Each path routes to its OWN grain. This is the leg that failed
+        #    before {427.8}: the router is a dict keyed by rel_path, and the
+        #    later-enumerated key won.
+        source = _FakeSource(
+            catalogue,
+            {
+                named_client.rel_path: ConceptRaw(),
+                won_bid.rel_path: ConceptRaw(),
+            },
+        )
+        executors = enrich._build_tool_executors(
+            named_client, source, catalogue, {}, set()
+        )
+        for expected in (named_client, won_bid):
+            source.read_concept_calls.clear()
+            asyncio.run(executors["read_concept_raw"]({"ref": expected.rel_path}))
+            assert [k.grain for k in source.read_concept_calls] == [expected.grain]
+
     def test_validate_citation_rejects_concept_cross_link_path_not_in_catalogue(
         self,
     ) -> None:
@@ -1051,9 +1134,20 @@ class TestMemoisationProxy:
 class TestContentVersionNonLeak:
     """MD-4: `content_version` participates ONLY in the memo fingerprint.
     Two `ConceptKey`s differing ONLY in `content_version` must be
-    indistinguishable to every other consumer: `bundle_write_path_for_key`,
-    `read_concept`'s dispatch (proved via an identical issued-query
-    sequence), and `find()`'s membership test."""
+    indistinguishable to every other consumer: `read_concept`'s dispatch
+    (proved via an identical issued-query sequence), and `find()`'s
+    membership test.
+
+    **The bundle-write-path leg MOVED (ID-427 {427.8}).** It was
+    `test_bundle_write_path_for_key_is_identical`, calling
+    `bundle_writer.bundle_write_path_for_key` — a function that COULD have
+    read `content_version` and which {427.8} deleted. The write path is now
+    `ConceptKey.rel_path` itself, so the same assertion made here would
+    compare a constructor argument with itself and prove nothing. The leg is
+    re-staged onto the boundary that still computes a path,
+    `bundle_writer.declare_concept`, as
+    `test_producer_bundle_writer.py::test_content_version_does_not_reach_
+    the_bundle_write_path`. Not dropped, and not asserted twice."""
 
     @staticmethod
     def _keys() -> "tuple[ConceptKey, ConceptKey]":
@@ -1067,14 +1161,6 @@ class TestContentVersionNonLeak:
             ConceptKey(**base, content_version="v-a"),
             ConceptKey(**base, content_version="v-b"),
         )
-
-    def test_bundle_write_path_for_key_is_identical(self) -> None:
-        from scripts.cocoindex_pipeline.producer.bundle_writer import (
-            bundle_write_path_for_key,
-        )
-
-        key_a, key_b = self._keys()
-        assert bundle_write_path_for_key(key_a) == bundle_write_path_for_key(key_b)
 
     def test_read_concept_issues_the_identical_query_sequence(self) -> None:
         from scripts.cocoindex_pipeline.sources.l_records import LRecordsSource

@@ -663,7 +663,41 @@ class TestListConceptsWonBidCaseStudy:
         key = case_studies[0]
         assert key.entity_id == "Transport for London"
         assert key.form_instance_id == "ws-1"
-        assert key.rel_path == "case-studies/transport-for-london.md"
+        # ID-427 {427.8}: was `case-studies/transport-for-london.md`. The
+        # won-bid grain declares `case-studies/won-bid`, so its IDENTITY is
+        # now the path its file was already written to — `producer/bundle_
+        # writer` used to append `won-bid/` at write time and leave identity
+        # behind. The physical layout is unchanged; what moved is which of
+        # the two strings the concept is called by.
+        assert key.rel_path == "case-studies/won-bid/transport-for-london.md"
+
+    def test_the_won_bid_identity_is_the_path_its_file_is_written_to(self):
+        """The {427.8} collapse, asserted where it is decided.
+
+        Before {427.8} a won-bid concept had TWO paths: an identity
+        `rel_path` minted here and a physical write target `producer/
+        bundle_writer._won_bid_case_study_redirect` derived from it. Every
+        consumer then had to know which one it wanted, and three of them
+        (the BI-9 catalogue, Pass-1's `read_concept_raw` router, the DR-016
+        override key) silently wanted identity and silently got the wrong
+        concept. The property that replaces all of it: the directory on the
+        key is the directory the grain declares, and there is no second
+        rule."""
+        won_bid_spec = next(
+            s for s in l_records._BUILTIN_GRAINS if s.name == l_records.WON_BID_GRAIN
+        )
+        assert won_bid_spec.directory == "case-studies/won-bid"
+
+        src = LRecordsSource(
+            _won_bid_only_pool([{"form_instance_id": "ws-1", "buyer": "TfL"}])
+        )
+        key = next(
+            k
+            for k in _run(src.list_concepts())
+            if k.grain == l_records.WON_BID_GRAIN
+        )
+        assert key.rel_path.startswith(f"{won_bid_spec.directory}/")
+        assert key.rel_path == "case-studies/won-bid/tfl.md"
 
     def test_won_bid_grain_extends_rather_than_replaces_the_named_client_grain(self):
         # The named-client (Acme Corp) grain AND the won-bid (TfL) grain both
@@ -715,7 +749,12 @@ class TestListConceptsWonBidCaseStudy:
 
         hits = _run(src.find("transport"))
 
-        assert [k.rel_path for k in hits] == ["case-studies/transport-for-london.md"]
+        # {427.8}: `find` returns whatever `list_concepts` minted, so the
+        # won-bid hit follows the grain's declared directory. `find` itself
+        # is unchanged — it matches on the buyer, never on the path.
+        assert [k.rel_path for k in hits] == [
+            "case-studies/won-bid/transport-for-london.md"
+        ]
 
 
 class TestReadConceptWonBidCaseStudy:
