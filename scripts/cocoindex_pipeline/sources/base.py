@@ -209,6 +209,17 @@ class ConceptKey:
     ONE re-draft instead of two (TECH §5 / DR-060). **No second bump was added
     by {427.12}.**
 
+    That rationale was MEASURED at {427.12}, not assumed — the first time in
+    this wave the fingerprint claim was probed rather than asserted.
+    `memo_fingerprint._canonicalize_dataclass` emits
+    `("dataclass", module, qualname, ((field_name, value), ...))`, so field
+    NAMES are fingerprinted: the same key under the two names fingerprints
+    `#04c7c14f…` vs `#15803fa4…`. And because every field is canonicalised
+    regardless of value, a `topic` key whose locator is `None` invalidates
+    too — so a rename here is a WHOLE-CORPUS invalidation, exactly like
+    adding a field. Sequencing it behind {427.7} is therefore what makes it
+    free; run separately it would have cost a second full re-draft.
+
     Note for anyone grepping: `workspace_id` remains a live column name on
     eleven UNRELATED tables (intelligence workspaces, feed, queue,
     `q_a_pair_history`). None of them is read by this producer, and none was
