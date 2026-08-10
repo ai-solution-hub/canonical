@@ -300,7 +300,7 @@ _SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS = (
 
 _SQL_RECORD_LIFECYCLE_FOR_OWNERS = (
     "SELECT id, owner_kind, source_document_id, q_a_pair_id, owner_id, "
-    "domain, governance_review_status, governance_review_due, freshness, "
+    "governance_review_status, governance_review_due, freshness, "
     "freshness_checked_at, lifecycle_type, expiry_date, next_review_date, "
     "created_at, updated_at FROM record_lifecycle "
     "WHERE (owner_kind = 'source_document' AND source_document_id = ANY($1::uuid[])) "

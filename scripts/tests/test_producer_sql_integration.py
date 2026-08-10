@@ -46,6 +46,7 @@ from scripts.cocoindex_pipeline.sources.l_records import (
     _SQL_COVERAGE_PUBLISHED_QA_BY_PATTERNS_OR_TAGS,
     _SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS,
     _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY,
+    _SQL_RECORD_LIFECYCLE_FOR_OWNERS,
     _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS,
     _SQL_SOURCE_DOCUMENTS_BY_IDS,
 )
@@ -169,6 +170,40 @@ class TestTheCensusCorpusDefinitionIsExecuted:
         rows = pg_session(body)
         assert len(rows) == 1
         assert set(rows[0].keys()) == {SOURCE_DOCUMENTS, Q_A_PAIRS}
+
+
+class TestEveryReadQuerysColumnListResolves:
+    """THE S551 finding, executed.
+
+    A real closing producer run failed to draft **11 of 15 concepts** with
+    `column "domain" does not exist`. `_SQL_RECORD_LIFECYCLE_FOR_OWNERS`
+    still selected `record_lifecycle.domain`, which id-417 dropped under
+    DR-130 (`20260805190000_id417_dr130_sd_ri_taxonomy_retirement.sql` §6).
+    That migration's §6 enumerates the column's readers — hybrid_search's
+    q_a_pair arm and `get_aggregate_win_rate_stats` — and **the OKF producer
+    is not among them**, so the retirement swept past this consumer.
+
+    `FakePool` dispatches on marker substrings and hands back whatever rows
+    the test registered; it has no column list, so a SELECT naming a column
+    that no longer exists is invisible to the entire fake-backed suite. Only
+    execution against a real schema distinguishes them. This class asserts
+    nothing about the RESULTS — the query merely has to run.
+    """
+
+    def test_record_lifecycle_read_resolves_against_the_live_schema(
+        self, pg_session
+    ) -> None:
+        """Executing it IS the assertion: asyncpg raises `UndefinedColumnError`
+        for a dropped column, so a green run proves every name in the SELECT
+        list still exists."""
+
+        async def body(pool):
+            return await pool.fetch(
+                _SQL_RECORD_LIFECYCLE_FOR_OWNERS, [uuid.uuid4()], [uuid.uuid4()]
+            )
+
+        rows = pg_session(body)
+        assert rows == [] or rows is not None
 
 
 class TestTheCoverageQueriesAreExecuted:
