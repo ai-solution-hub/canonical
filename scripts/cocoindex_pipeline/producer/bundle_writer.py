@@ -1136,11 +1136,26 @@ def _validate_overlay_schema(data: object) -> "dict[str, list[str]]":
     fail-loud exists so its author can act on the failure. `concept_types`
     was a documented dimension, not a typo or an invention, and
     `specs/id-132-okf-concept-producer/OVERLAY-CV.md` §OV-2 — the ratified
-    carrier a client is handed — still documents it as one of three
-    permitted keys. Until that spec is amended, telling an author their key
-    is "unknown" contradicts the document they followed and leaves them
-    nowhere to go. This branch may retire once OVERLAY-CV.md OV-2/OV-6 are
-    amended to two dimensions."""
+    carrier a client is handed — documented it as one of three permitted
+    keys, so telling an author their key was "unknown" would have
+    contradicted the document they followed and left them nowhere to go.
+
+    **ID-427 {427.13}: that condition is now DISCHARGED.** OVERLAY-CV.md
+    §OV-2 and §OV-6 were amended to two dimensions on 2026-08-10 (and §OV-8,
+    which named the deleted `check_type_membership`, with them). The
+    document a client is handed no longer offers this key, so the targeted
+    diagnosis no longer protects anyone from a contradiction — **this branch
+    and `_RETIRED_OVERLAY_DIMENSIONS` are RETIRABLE.**
+
+    Deliberately NOT retired here: removing them changes what a malformed
+    overlay raises, which is a behaviour change, and {427.13} is an audit
+    and artefact sweep whose gate is that the test suites do not move.
+    Retiring it is a one-line deletion plus its test
+    (`test_an_overlay_declaring_the_retired_concept_types_dimension_is_
+    refused`), and the honest sequencing is one grace period: a client who
+    read the pre-amendment OV-2 still exists in principle, and the generic
+    unknown-key text is only a WORSE diagnosis, never a wrong outcome —
+    both abort the run."""
     if not isinstance(data, dict):
         raise OntologyOverlayError(
             f"{OVERLAY_FILENAME} must be a JSON object at the top level, "
