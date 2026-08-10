@@ -370,22 +370,50 @@ _PG_SKIP_REASON = (
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres). DR-131."
 )
 
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
-def _dsn_host(dsn: str) -> str | None:
-    """Return the hostname of a Postgres DSN, or None if unparseable.
+def _dsn_hosts(dsn: str) -> list[str] | None:
+    """Return EVERY host a Postgres DSN can reach, or None if unparseable.
 
-    Pure helper so the interlock below is unit-testable without an env or a
-    live DB (mirrors `_bare_cocoindex_alias_keys`).
+    **Every**, not the first — this is the S550 audit finding. libpq and
+    asyncpg both accept a comma-separated failover list in the authority
+    (`@127.0.0.1:9,shared.example.com:5432`) and try each address in order.
+    `urlsplit().hostname` splits the netloc on the first `:` and returns only
+    `127.0.0.1`, so a guard built on it admits the DSN, the dead first port
+    fails, and asyncpg silently connects to the second address. The auditor
+    demonstrated this end-to-end against a genuinely non-loopback host that
+    the guard refuses when spelled directly.
+
+    Pure helper so the interlock is unit-testable without an env or a live DB.
     """
     from urllib.parse import urlsplit
 
     try:
-        host = urlsplit(dsn).hostname
+        netloc = urlsplit(dsn).netloc
     except ValueError:
         return None
-    return host
+    if not netloc:
+        return None
+    # Userinfo may itself contain '@' in a password; the authority is what
+    # follows the LAST one.
+    authority = netloc.rsplit("@", 1)[-1]
+    hosts: list[str] = []
+    for entry in authority.split(","):
+        entry = entry.strip()
+        if not entry:
+            return None
+        if entry.startswith("["):  # bracketed IPv6, port optional
+            close = entry.find("]")
+            if close == -1:
+                return None
+            host = entry[1:close]
+        else:
+            host = entry.split(":", 1)[0]
+        if not host:
+            return None
+        hosts.append(host.lower())
+    return hosts or None
 
 
 def require_disposable_dsn(dsn: str | None, suite_name: str) -> str:
@@ -424,18 +452,23 @@ def require_disposable_dsn(dsn: str | None, suite_name: str) -> str:
                 "into staging). Use a disposable loopback stack."
             )
 
-    host = _dsn_host(dsn)
-    if host is None:
+    hosts = _dsn_hosts(dsn)
+    if hosts is None:
         raise RuntimeError(
             f"{suite_name}: {_PG_INTEGRATION_DSN_ENV} is not a parseable DSN, "
             "so the target database cannot be confirmed disposable."
         )
-    if host not in _LOOPBACK_HOSTS and not host.endswith(".localhost"):
+    # EVERY host must be loopback. One non-loopback entry anywhere in a
+    # failover list is enough to reach a shared database (S550 audit).
+    offenders = [h for h in hosts if h not in _LOOPBACK_HOSTS]
+    if offenders:
         raise RuntimeError(
             f"{suite_name}: refusing to run against a NON-DISPOSABLE database "
-            f"(host: {host}). Loopback is the disposability signal (DR-131) — "
-            "it is what `supabase start` and local dev serve, and what no "
-            "shared project can be. Run `supabase start` and point "
+            f"(host(s): {', '.join(offenders)}). Loopback is the "
+            "disposability signal (DR-131) — it is what `supabase start` and "
+            "local dev serve, and what no shared project can be. Every host "
+            "in the DSN is checked, because a comma-separated failover list "
+            "reaches all of them. Run `supabase start` and point "
             f"{_PG_INTEGRATION_DSN_ENV} at 127.0.0.1:54322."
         )
 
@@ -470,15 +503,35 @@ def pg_session(disposable_pg_dsn: str):
     surrounding suites already drive coroutines through an `asyncio.run`
     helper.
 
-    The yielded pool satisfies the same `await pool.fetch(query, *args)`
-    contract `LRecordsSource` is constructed with, so a test can pass it
-    straight into the production Source and exercise the real SQL:
+    The object handed to `body` satisfies the same
+    `await conn.fetch(query, *args)` contract `LRecordsSource` is constructed
+    with, so a test can pass it straight into the production Source and
+    exercise the real SQL:
 
         def test_coverage_filters_unpublished(pg_session):
-            async def body(pool):
-                source = LRecordsSource(pool)
+            async def body(conn):
+                source = LRecordsSource(conn)
                 return await source.census()
             census = pg_session(body)
+
+    **Everything the body writes is ROLLED BACK** — a single connection
+    inside one transaction, rolled back in a `finally`. Three defects the
+    S550 audit measured are all closed by that one choice:
+
+    - *Rows leaked when a body raised.* Each test's trailing `_purge` is
+      unreachable on the exception path, and every write was committed, so a
+      failing test left rows in the database for the next one.
+    - *There was no isolation at all.* A second `pg_session` call saw the
+      first's committed rows.
+    - *Concurrent runs deleted each other's rows.* `_purge` is keyed on a
+      shared literal prefix with no per-run scoping, and this Postgres is
+      shared with parallel agent worktrees — two runs of the suite would
+      purge each other mid-test.
+
+    A connection rather than a pool is what makes this possible: pooled
+    `fetch` calls take arbitrary connections, so they cannot share one
+    transaction. Nothing in the production read path needs a pool — only
+    `.fetch`.
     """
     import asyncio
 
@@ -486,13 +539,14 @@ def pg_session(disposable_pg_dsn: str):
         async def _main():
             import asyncpg
 
-            pool = await asyncpg.create_pool(
-                dsn=disposable_pg_dsn, min_size=1, max_size=4
-            )
+            conn = await asyncpg.connect(dsn=disposable_pg_dsn)
+            transaction = conn.transaction()
+            await transaction.start()
             try:
-                return await body(pool)
+                return await body(conn)
             finally:
-                await pool.close()
+                await transaction.rollback()
+                await conn.close()
 
         return asyncio.run(_main())
 

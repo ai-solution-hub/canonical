@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.tests.conftest import _dsn_host, require_disposable_dsn
+from scripts.tests.conftest import _dsn_hosts, require_disposable_dsn
 
 _LOCAL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 
@@ -30,7 +30,8 @@ class TestLoopbackIsTheDisposabilitySignal:
             "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
             "postgresql://postgres:postgres@localhost:54322/postgres",
             "postgresql://postgres:postgres@[::1]:54322/postgres",
-            "postgresql://postgres:postgres@db.test.localhost:54322/postgres",
+            # NOTE: `*.localhost` is deliberately NOT here — see
+            # TestTheLocalhostSuffixIsNoLongerTrusted.
         ],
     )
     def test_accepts_every_loopback_form(self, dsn: str) -> None:
@@ -116,17 +117,91 @@ class TestRefusesRatherThanGuesses:
             require_disposable_dsn("postgresql://u:p@[unclosed:5432/db", "suite")
 
 
-class TestDsnHostHelper:
+class TestFailoverDsnsCannotSmuggleAsharedHost:
+    """The S550 adversarial audit's finding, and the reason `_dsn_hosts`
+    returns a LIST.
+
+    libpq and asyncpg both accept a comma-separated failover list in the
+    authority and try each address in order. `urlsplit().hostname` returns
+    only the first, so the previous guard admitted
+    `@127.0.0.1:9,<shared-host>:5432`, the dead first port failed, and
+    asyncpg silently connected to the second. The auditor demonstrated it
+    end-to-end against a real non-loopback address that the guard refuses
+    when spelled directly.
+
+    This is the interlock that matters most in practice: both project-ref env
+    vars are typically UNSET in a local run (nothing loads a dotenv for
+    pytest), so loopback is usually the ONLY interlock in force — and client
+    prod/staging refs are not in those two env vars at all.
+    """
+
+    def test_a_failover_list_hiding_a_shared_host_is_refused(self) -> None:
+        dsn = "postgresql://u:p@127.0.0.1:9,db.example.supabase.co:5432/postgres"
+        with pytest.raises(RuntimeError, match="NON-DISPOSABLE"):
+            require_disposable_dsn(dsn, "suite")
+
+    def test_the_refusal_names_the_smuggled_host_not_the_loopback_one(self) -> None:
+        dsn = "postgresql://u:p@127.0.0.1:9,db.example.supabase.co:5432/postgres"
+        with pytest.raises(RuntimeError) as exc:
+            require_disposable_dsn(dsn, "suite")
+        assert "db.example.supabase.co" in str(exc.value)
+
+    def test_an_all_loopback_failover_list_is_still_allowed(self) -> None:
+        dsn = "postgresql://u:p@127.0.0.1:9,localhost:54322/postgres"
+        assert require_disposable_dsn(dsn, "suite") == dsn
+
+    def test_a_password_containing_an_at_sign_does_not_break_host_extraction(
+        self,
+    ) -> None:
+        """The authority is what follows the LAST `@` — splitting on the first
+        would read the password as the host and admit anything."""
+        dsn = "postgresql://u:p@ss@evil.example.com:5432/postgres"
+        with pytest.raises(RuntimeError, match="evil.example.com"):
+            require_disposable_dsn(dsn, "suite")
+
+
+class TestTheLocalhostSuffixIsNoLongerTrusted:
+    """`host.endswith('.localhost')` was a SPELLING check, not a resolution
+    check. Docker/Traefik setups routinely add a `*.localhost` wildcard, under
+    which an arbitrary name resolves off-loopback. The suffix rule is gone;
+    only the exact loopback names are admitted."""
+
+    @pytest.mark.parametrize(
+        "host", ["evil.localhost", "prod.example.com.localhost", "db.localhost"]
+    )
+    def test_a_localhost_suffixed_name_is_refused(self, host: str) -> None:
+        with pytest.raises(RuntimeError, match="NON-DISPOSABLE"):
+            require_disposable_dsn(f"postgresql://u:p@{host}:5432/postgres", "suite")
+
+
+class TestDsnHostsHelper:
     @pytest.mark.parametrize(
         ("dsn", "expected"),
         [
-            (_LOCAL, "127.0.0.1"),
-            ("postgresql://u:p@localhost/db", "localhost"),
-            ("postgresql://u:p@[::1]:54322/db", "::1"),
+            (_LOCAL, ["127.0.0.1"]),
+            ("postgresql://u:p@localhost/db", ["localhost"]),
+            ("postgresql://u:p@[::1]:54322/db", ["::1"]),
+            ("postgresql://u:p@LOCALHOST:5432/db", ["localhost"]),
         ],
     )
-    def test_extracts_the_host(self, dsn: str, expected: str) -> None:
-        assert _dsn_host(dsn) == expected
+    def test_extracts_every_host(self, dsn: str, expected: list[str]) -> None:
+        assert _dsn_hosts(dsn) == expected
 
-    def test_returns_none_on_an_unparseable_dsn(self) -> None:
-        assert _dsn_host("postgresql://u:p@[unclosed:5432/db") is None
+    @pytest.mark.parametrize(
+        "dsn",
+        [
+            "postgresql://u:p@[unclosed:5432/db",
+            "postgresql:///postgres?host=/var/run/postgresql",  # unix socket
+            "host=db.example.com port=5432 dbname=postgres",  # libpq keyword form
+            "postgresql://u:p@127.0.0.1:5432,/db",  # empty failover entry
+            # `urlsplit` raises "Invalid IPv6 URL" on a failover list with a
+            # bracketed address anywhere but the start. We fail CLOSED on it
+            # rather than hand-rolling an authority parser — a DSN shape we
+            # cannot read is exactly one we must not admit.
+            "postgresql://u:p@127.0.0.1:9,[::1]:54322,localhost/db",
+        ],
+    )
+    def test_returns_none_when_the_hosts_cannot_be_established(self, dsn: str) -> None:
+        """None means "cannot confirm", and the caller turns that into a
+        refusal. Failing OPEN here is the dangerous direction."""
+        assert _dsn_hosts(dsn) is None

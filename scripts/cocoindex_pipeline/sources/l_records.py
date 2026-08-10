@@ -822,10 +822,12 @@ _SQL_PRODUCT_VERSION = (
     "FROM (SELECT DISTINCT canonical_name FROM entity_mentions "
     "WHERE entity_type = $1) p "
     "LEFT JOIN source_documents sd ON "
-    "sd.filename ILIKE ('%' || p.canonical_name || '%') "
-    "OR sd.logical_path ILIKE ('%' || p.canonical_name || '%') "
-    "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
-    "OR qa.scope_tag @> ARRAY[p.canonical_name]::text[] "
+    "(sd.filename ILIKE ('%' || p.canonical_name || '%') "
+    "OR sd.logical_path ILIKE ('%' || p.canonical_name || '%')) "
+    "AND sd.publication_status = 'published' "
+    "LEFT JOIN q_a_pairs qa ON (qa.source_document_id = sd.id "
+    "OR qa.scope_tag @> ARRAY[p.canonical_name]::text[]) "
+    "AND qa.publication_status = 'published' "
     "GROUP BY p.canonical_name ORDER BY p.canonical_name"
 )
 
@@ -837,7 +839,9 @@ _SQL_COMPANY_VERSION = (
     "count(DISTINCT em.id) AS em_count, max(em.updated_at) AS em_max "
     "FROM source_documents sd "
     "LEFT JOIN entity_mentions em ON em.source_document_id = sd.id "
-    "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
+    "WHERE (sd.filename ILIKE ANY($1::text[]) "
+    "OR sd.logical_path ILIKE ANY($1::text[])) "
+    "AND sd.publication_status = 'published'"
 )
 
 # certification (MD-7 grid: source_documents, entity_mentions — matches
@@ -849,7 +853,9 @@ _SQL_COMPANY_VERSION = (
 _SQL_CERTIFICATION_SD_VERSION = (
     "SELECT count(DISTINCT sd.id) AS sd_count, max(sd.updated_at) AS sd_max "
     "FROM source_documents sd "
-    "WHERE sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])"
+    "WHERE (sd.filename ILIKE ANY($1::text[]) "
+    "OR sd.logical_path ILIKE ANY($1::text[])) "
+    "AND sd.publication_status = 'published'"
 )
 
 _SQL_CERTIFICATION_ENTITY_MENTIONS_VERSION = (
@@ -871,11 +877,14 @@ _SQL_CASE_STUDY_NAMED_CLIENT_VERSION = (
     "FROM (SELECT DISTINCT em.canonical_name FROM entity_mentions em "
     "JOIN source_documents sd0 ON sd0.id = em.source_document_id "
     "WHERE em.entity_type = 'organisation' "
-    "AND (sd0.filename ILIKE ANY($1::text[]) OR sd0.logical_path ILIKE ANY($1::text[]))) c "
+    "AND (sd0.filename ILIKE ANY($1::text[]) OR sd0.logical_path ILIKE ANY($1::text[])) "
+    "AND sd0.publication_status = 'published') c "
     "LEFT JOIN source_documents sd ON "
-    "sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[]) "
-    "LEFT JOIN q_a_pairs qa ON qa.source_document_id = sd.id "
-    "OR qa.scope_tag @> ARRAY[c.canonical_name]::text[] "
+    "(sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])) "
+    "AND sd.publication_status = 'published' "
+    "LEFT JOIN q_a_pairs qa ON (qa.source_document_id = sd.id "
+    "OR qa.scope_tag @> ARRAY[c.canonical_name]::text[]) "
+    "AND qa.publication_status = 'published' "
     "GROUP BY c.canonical_name ORDER BY c.canonical_name"
 )
 

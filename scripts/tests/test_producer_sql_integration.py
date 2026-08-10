@@ -39,6 +39,7 @@ from __future__ import annotations
 import uuid
 
 from scripts.cocoindex_pipeline.sources.l_records import (
+    LRecordsSource,
     Q_A_PAIRS,
     SOURCE_DOCUMENTS,
     _SQL_CENSUS_CORPUS_TOTALS,
@@ -272,6 +273,16 @@ class TestTheCoverageQueriesAreExecuted:
             )
 
         considered_delta, routed = pg_session(body)
+        # FLOOR FIRST. The S550 adversarial audit over-filtered both coverage
+        # queries to `publication_status = 'zzz_never'` — a totally dead
+        # coverage query — and this test PASSED on `0 <= 1`. The one test
+        # whose stated purpose is to defend `routed <= considered` was
+        # satisfied by coverage returning nothing at all.
+        assert routed == 1, (
+            f"coverage returned {routed} for a corpus seeded with exactly one "
+            "published document — the invariant below is vacuous unless "
+            "coverage is actually reaching something"
+        )
         assert routed <= considered_delta, (
             f"routed ({routed}) exceeded considered ({considered_delta}) — "
             "`unrouted` would render negative"
@@ -310,10 +321,23 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
             orphan_parent = await _seed_document(
                 slug="undec-parent", publication_status="draft", pool=pool
             )
-            pair = await _seed_pair(
+            await _seed_pair(
                 slug="undec-pair",
                 publication_status="published",
                 source_document_id=orphan_parent,
+                pool=pool,
+            )
+            # POSITIVE CONTROL, in the same body and the same pattern scope.
+            # Without it the assertion below is satisfied by the coverage
+            # query being dead — which the S550 audit demonstrated by
+            # over-filtering it to `publication_status = 'zzz_never'`.
+            good_parent = await _seed_document(
+                slug="undec-goodparent", publication_status="published", pool=pool
+            )
+            control = await _seed_pair(
+                slug="undec-goodpair",
+                publication_status="published",
+                source_document_id=good_parent,
                 pool=pool,
             )
             covered = await pool.fetch(
@@ -322,13 +346,15 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
                 [],
             )
             await _purge(pool)
-            return [r["id"] for r in covered], pair
+            return [r["id"] for r in covered], control
 
-        covered, _pair = pg_session(body)
-        assert covered == [], (
-            "coverage counts a published pair whose only lineage is an "
-            "unpublished parent — the read cannot reach it, so this is the "
-            "overcount the {427.17} auditor named"
+        covered, control = pg_session(body)
+        assert covered == [control], (
+            "coverage must count the published pair under a PUBLISHED parent "
+            "(the control) and NOT the one whose only lineage is an "
+            "unpublished parent — the read cannot reach the latter, which is "
+            "the overcount the {427.17} auditor named. Getting [] here means "
+            "the coverage query is dead, not that the filter works."
         )
 
     def test_coverage_and_read_agree_after_the_filter_landed(
@@ -361,6 +387,21 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
                 source_document_id=orphan_parent,
                 pool=pool,
             )
+            # POSITIVE CONTROL. Every assertion in this test used to be
+            # `== []`, so it could not tell "coverage now mirrors the read"
+            # from "both queries return nothing at all" — the S550 audit
+            # proved it passes with both coverage queries over-filtered to
+            # match nothing. It was the most vacuous of the ten, and it is
+            # the one that supposedly resolves the {427.17} UNDECIDABLE.
+            good_parent = await _seed_document(
+                slug="undec2-goodparent", publication_status="published", pool=pool
+            )
+            control = await _seed_pair(
+                slug="undec2-goodpair",
+                publication_status="published",
+                source_document_id=good_parent,
+                pool=pool,
+            )
             doc_rows = await pool.fetch(
                 _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS,
                 [f"{_TEST_PREFIX}-undec2-%"],
@@ -375,15 +416,106 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
                 [],
             )
             await _purge(pool)
-            return doc_ids, [r["id"] for r in read_rows], [r["id"] for r in covered]
+            return (
+                doc_ids,
+                [r["id"] for r in read_rows],
+                [r["id"] for r in covered],
+                good_parent,
+                control,
+            )
 
-        doc_ids, read_ids, covered_ids = pg_session(body)
-        assert doc_ids == [], "the unpublished parent is still passed to the pair read"
-        assert read_ids == [], "the read still reaches a pair under an unpublished parent"
-        assert covered_ids == [], (
-            "coverage still counts a pair the read cannot reach — `routed` is "
-            "an overcount and `unrouted` under-reports what the bundle left "
-            "behind, which is the negative answer DR-141 requires to be true"
+        doc_ids, read_ids, covered_ids, good_parent, control = pg_session(body)
+        assert doc_ids == [good_parent], (
+            "the document read must pass the PUBLISHED parent and drop the "
+            "unpublished one; [] here means the read is dead, not filtered"
+        )
+        assert read_ids == [control], (
+            "the pair read must reach the control pair and not the one under "
+            "an unpublished parent"
+        )
+        assert covered_ids == [control], (
+            "coverage and the read must agree — coverage counting a pair the "
+            "read cannot reach makes `routed` an overcount and `unrouted` "
+            "under-report what the bundle left behind, which is the negative "
+            "answer DR-141 requires to be trustworthy"
+        )
+
+
+class TestTheFingerprintTracksTheSameCorpusAsTheRead:
+    """The pairing DR-143's filter broke, and the regression net for it.
+
+    **Found by the S550 adversarial audit, after {427.15} shipped.**
+    `source_documents` has **no `updated_at` trigger** (verified against
+    `pg_trigger`: only `trg_coerce_empty_classification_to_null` and
+    `trg_record_lifecycle_mint_source_document`), and no app path sets it on
+    a publication change. So flipping `publication_status` moves neither
+    `max(sd.updated_at)` nor an unfiltered `count(DISTINCT sd.id)`.
+
+    Before {427.15} the read was unfiltered too, so a status flip changed
+    neither the content nor the fingerprint — a matched pair. Filtering the
+    read while leaving the `*_VERSION` fingerprints unfiltered **broke the
+    pairing**: publishing a document changed what a concept's read returned
+    **without moving its `content_version`**, so cocoindex never re-drafted
+    it. *Publishing a document silently failed to enter the concept it
+    belongs to* — DR-143's own requirement failing in the mirror direction.
+
+    {427.15}'s commit message argued the split was safe because the
+    fingerprints are "memo-invalidation, not admission reads". That is
+    backwards, and this test is why: once the read is publication-dependent
+    and the fingerprint is not, they are no longer independent concerns.
+    """
+
+    def test_publishing_a_document_moves_the_company_concept_fingerprint(
+        self, pg_session
+    ) -> None:
+        async def body(pool):
+            await _purge(pool)
+            await _seed_document(
+                slug="company-overview-alpha",
+                publication_status="published",
+                pool=pool,
+            )
+            await _seed_document(
+                slug="company-overview-beta", publication_status="draft", pool=pool
+            )
+            source = LRecordsSource(pool)
+            before_keys = [
+                k for k in await source.list_concepts() if k.concept_type == "company"
+            ]
+            before_raw = await source.read_concept(before_keys[0])
+
+            await pool.execute(
+                "UPDATE public.source_documents SET publication_status = 'published' "
+                "WHERE filename LIKE $1",
+                f"{_TEST_PREFIX}-company-overview-beta%",
+            )
+
+            after_source = LRecordsSource(pool)
+            after_keys = [
+                k
+                for k in await after_source.list_concepts()
+                if k.concept_type == "company"
+            ]
+            after_raw = await after_source.read_concept(after_keys[0])
+            await _purge(pool)
+            return (
+                before_keys[0].content_version,
+                after_keys[0].content_version,
+                len(before_raw.source_documents or []),
+                len(after_raw.source_documents or []),
+            )
+
+        v_before, v_after, docs_before, docs_after = pg_session(body)
+
+        # The control: publishing genuinely changed what the concept reads.
+        assert (docs_before, docs_after) == (1, 2), (
+            "the read did not change when the second document was published "
+            "— the fingerprint assertion below would be vacuous"
+        )
+        assert v_before != v_after, (
+            "publishing a document changed the concept's content but NOT its "
+            "content_version, so cocoindex will not re-draft it — the "
+            "document silently fails to enter the concept it belongs to"
         )
 
 
