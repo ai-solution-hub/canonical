@@ -998,3 +998,71 @@ class TestTheCensusOverTheRepoCorpus:
         ]
         assert dict(census.considered)["tool_source_files"] == len(files)
         assert dict(census.routed)["tool_source_files"] == len(with_tools)
+
+
+# ── ID-429 IA-3 over the TOOL pillar (S548 spec-compliance audit) ────────
+
+
+class TestIA3ReservedStemGuardCoversBothPillars:
+    """IA-3 is a property of the FORMAT, not of one pillar.
+
+    {427.7} homed `mint_concept_slug` in `sources/base.py` on the stated
+    ground that the reservation belongs to the format rather than to one
+    adapter — but wired only the NAVIGATION pillar through it; the tool
+    pillar interpolated the raw `defineTool` name. `index` and `log` are
+    well-formed snake_case tool names, so the guard was bypassable on a
+    pillar it was meant to cover. Found by the S548 independent
+    spec-compliance audit, after {427.7} was already recorded `done`.
+
+    The consequence is the one `mint_concept_slug`'s own docstring calls
+    blocking rather than cosmetic: `write_bundle` declares every concept and
+    THEN declares one `index.md` per directory, so a concept minted at
+    `tool/index.md` is actively overwritten in the same run, last write wins.
+    """
+
+    _RESERVED_TOOLS = (
+        "import { defineTool } from './shared';\n"
+        "export async function registerContentTools(server) {\n"
+        "  defineTool(\n"
+        "    server,\n"
+        "    'index',\n"
+        "    { title: 'Index', description: 'Reserved stem' },\n"
+        "    async () => ({}),\n"
+        "  );\n"
+        "  defineTool(\n"
+        "    server,\n"
+        "    'log',\n"
+        "    { title: 'Log', description: 'Reserved stem too' },\n"
+        "    async () => ({}),\n"
+        "  );\n"
+        "}\n"
+    )
+
+    def test_a_tool_named_index_does_not_mint_over_its_directory_index(
+        self, tmp_path: Path
+    ) -> None:
+        repo = FakeRepo(tmp_path)
+        repo.write(_TOOL_FILE, self._RESERVED_TOOLS)
+        repo.commit("tools whose names are reserved bundle stems")
+
+        paths = {k.rel_path for k in _run(RepoDocsSource(tmp_path).list_concepts())}
+
+        # Neither may occupy the path the emitted index/log will claim.
+        assert "tool/index.md" not in paths
+        assert "tool/log.md" not in paths
+        # Renamed, not refused (TECH §2.6) — the concept still exists.
+        assert "tool/index-concept.md" in paths
+        assert "tool/log-concept.md" in paths
+
+    def test_an_ordinary_tool_name_is_untouched_by_the_guard(
+        self, tmp_path: Path
+    ) -> None:
+        """Without this, the test above could pass because the guard mangles
+        every tool name on the way past, not because it caught the reserved
+        stems."""
+        _seed_two_pillars(FakeRepo(tmp_path))
+
+        paths = {k.rel_path for k in _run(RepoDocsSource(tmp_path).list_concepts())}
+
+        assert "tool/get.md" in paths
+        assert "tool/create_content_item.md" in paths

@@ -124,6 +124,7 @@ from scripts.cocoindex_pipeline.producer.validator import check_type_shape
 # `navigation/index.md` and be overwritten by that directory's emitted
 # index exactly as an L-records concept would.
 from scripts.cocoindex_pipeline.sources.base import (
+    RESERVED_CONCEPT_STEMS,
     CorpusCensus,
     Coverage,
     GrainEnumeration,
@@ -684,7 +685,29 @@ class RepoDocsSource:
                 span_text = "".join(file_lines[lstart - 1 : lend])
                 keys.append(
                     RepoConceptKey(
-                        rel_path=f"tool/{name}.md",
+                        # ID-429 IA-3, over the TOOL pillar. {427.7} left this
+                        # pillar behind: the navigation pillar below mints through
+                        # `mint_concept_slug`, this one interpolated the raw
+                        # `defineTool` name. IA-3 is a property of the FORMAT, not
+                        # of one pillar — `index` and `log` are well-formed
+                        # snake_case tool names, and `tool/index.md` is ACTIVELY
+                        # OVERWRITTEN by the emitted directory index in the same run
+                        # (indexes declare after concepts, last write wins). Found
+                        # by the S548 independent spec-compliance audit.
+                        #
+                        # The guard ONLY, deliberately not `mint_concept_slug`:
+                        # `_slugify` folds `_` to `-`, so minting through it would
+                        # rewrite `create_content_item` to `create-content-item` and
+                        # move every multi-word tool concept on disk. An MCP tool
+                        # name is already slug-shaped by the `defineTool`
+                        # snake_case convention; the reserved stem is the only
+                        # thing it can get wrong. `RESERVED_CONCEPT_STEMS` stays
+                        # single-declared in `sources/base.py`.
+                        rel_path=(
+                            f"tool/{name}-concept.md"
+                            if name.casefold() in RESERVED_CONCEPT_STEMS
+                            else f"tool/{name}.md"
+                        ),
                         concept_type="tool",
                         source_ref=f"{rel_file}#L{lstart}-L{lend}",
                         span_content_hash=_span_content_hash(span_text),
