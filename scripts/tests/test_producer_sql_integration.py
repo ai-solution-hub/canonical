@@ -38,8 +38,6 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
-
 from scripts.cocoindex_pipeline.sources.l_records import (
     Q_A_PAIRS,
     SOURCE_DOCUMENTS,
@@ -304,7 +302,7 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
     silently.
     """
 
-    def test_a_published_pair_under_an_unpublished_parent_is_counted_as_covered(
+    def test_a_published_pair_under_an_unpublished_parent_is_not_counted(
         self, pg_session
     ) -> None:
         async def body(pool):
@@ -326,26 +324,30 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
             await _purge(pool)
             return [r["id"] for r in covered], pair
 
-        covered, pair = pg_session(body)
-        assert covered == [pair], (
-            "coverage no longer counts a published pair under an unpublished "
-            "parent — if {427.15} has landed, the read now diverges from "
-            "coverage and this grain's `routed` is an overcount"
+        covered, _pair = pg_session(body)
+        assert covered == [], (
+            "coverage counts a published pair whose only lineage is an "
+            "unpublished parent — the read cannot reach it, so this is the "
+            "overcount the {427.17} auditor named"
         )
 
-    def test_today_the_read_reaches_that_same_pair_so_coverage_is_honest(
+    def test_coverage_and_read_agree_after_the_filter_landed(
         self, pg_session
     ) -> None:
-        """The other half. The read's document id list comes from
-        `_SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS`, which is unfiltered today
-        — so the unpublished parent IS in the list and the pair IS reached.
-        Coverage and read agree, and `routed` is not an overcount.
+        """The half that resolved the UNDECIDABLE, and the regression net for
+        it.
 
-        **This is the test that flips when {427.15} lands.** When it does, the
-        parent leaves the id list, the read returns nothing, and coverage's
-        claim to reproduce "the id list the read actually passes" is false.
-        That is a finding about the coverage query, not a reason to weaken
-        {427.15}.
+        Authored before {427.15} asserting the OPPOSITE — that the read did
+        reach the pair, so coverage was honest. Landing DR-143's predicate
+        flipped it, exactly as predicted: the unpublished parent left the
+        document id list, the read stopped reaching the pair, and coverage's
+        docstring claim to reproduce *"the id list the read actually passes"*
+        became false. That is the overcount the auditor could not measure.
+
+        The fix filtered the coverage query's inner document subquery to
+        mirror the read. This test now pins BOTH sides together — neither may
+        move without the other — which is what the auditor's question was
+        really asking for.
         """
 
         async def body(pool):
@@ -353,7 +355,7 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
             orphan_parent = await _seed_document(
                 slug="undec2-parent", publication_status="draft", pool=pool
             )
-            pair = await _seed_pair(
+            await _seed_pair(
                 slug="undec2-pair",
                 publication_status="published",
                 source_document_id=orphan_parent,
@@ -367,32 +369,41 @@ class TestTheAuditorsUndecidableOnTheUnfilteredInnerSubquery:
             read_rows = await pool.fetch(
                 _SQL_QA_BY_SOURCE_DOCS_OR_ENTITY, doc_ids, "__no_such_tag__"
             )
+            covered = await pool.fetch(
+                _SQL_COVERAGE_PUBLISHED_QA_BY_PATTERNS_OR_TAGS,
+                [f"{_TEST_PREFIX}-undec2-%"],
+                [],
+            )
             await _purge(pool)
-            return doc_ids, [r["id"] for r in read_rows], orphan_parent, pair
+            return doc_ids, [r["id"] for r in read_rows], [r["id"] for r in covered]
 
-        doc_ids, read_ids, parent, pair = pg_session(body)
-        assert doc_ids == [parent], "the document read no longer passes the unpublished parent"
-        assert read_ids == [pair], "the pair read no longer reaches the pair"
+        doc_ids, read_ids, covered_ids = pg_session(body)
+        assert doc_ids == [], "the unpublished parent is still passed to the pair read"
+        assert read_ids == [], "the read still reaches a pair under an unpublished parent"
+        assert covered_ids == [], (
+            "coverage still counts a pair the read cannot reach — `routed` is "
+            "an overcount and `unrouted` under-reports what the bundle left "
+            "behind, which is the negative answer DR-141 requires to be true"
+        )
 
 
 class TestCq1TheSourceDocumentReadsAdmitUnpublishedRows:
     """CQ-1 / **DR-143** — an unpublished `source_document` may not back or be
-    cited by a concept. Both pattern-matched reads currently carry NO
-    `publication_status` predicate (`l_records.py:214`, `:219`) while every
-    `q_a_pairs` read filters to `published`.
+    cited by a concept. Both pattern-matched reads carried NO
+    `publication_status` predicate while every `q_a_pairs` read filtered to
+    `published`.
 
-    These are the acceptance tests for {427.15}, written BEFORE the fix and
-    marked `xfail(strict=True)`: they fail today because the defect is real,
-    and the moment {427.15} lands they XPASS — which strict xfail turns into a
-    failure, forcing whoever lands it to delete the marker rather than leaving
-    a stale one behind.
+    These are {427.15}'s acceptance tests. They were authored BEFORE the fix
+    as `xfail(strict=True)` and failed, which is what proved the defect real
+    rather than the fixture broken; landing the predicate flipped them to
+    XPASS and strict xfail turned that into a failure, which is what forced
+    the markers off. They now assert the fixed behaviour directly.
+
+    The class name is kept as the historical record of what was wrong. The
+    third test that pinned the defect's presence is deleted, per its own
+    instruction — it existed only to make the two xfails evidence.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="DR-143 / {427.15} not yet landed — the by-ids read has no "
-        "publication_status predicate",
-    )
     def test_by_ids_read_excludes_an_unpublished_document(self, pg_session) -> None:
         async def body(pool):
             await _purge(pool)
@@ -411,11 +422,6 @@ class TestCq1TheSourceDocumentReadsAdmitUnpublishedRows:
         returned, published = pg_session(body)
         assert returned == [published]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="DR-143 / {427.15} not yet landed — the filename-pattern read "
-        "has no publication_status predicate",
-    )
     def test_filename_pattern_read_excludes_an_unpublished_document(
         self, pg_session
     ) -> None:
@@ -437,29 +443,24 @@ class TestCq1TheSourceDocumentReadsAdmitUnpublishedRows:
         returned, published = pg_session(body)
         assert returned == [published]
 
-    def test_the_defect_is_real_today(self, pg_session) -> None:
-        """Not a duplicate of the two above — this one PASSES now and would
-        fail if the reads were already filtered. It is what makes the pair of
-        xfails above evidence of a defect rather than of a broken fixture."""
+    def test_over_filtering_guard_a_published_document_still_reads(
+        self, pg_session
+    ) -> None:
+        """{427.15}'s stated guard against over-filtering. The predicate must
+        remove unpublished rows and nothing else — a filter that returned
+        nothing would satisfy both tests above vacuously."""
 
         async def body(pool):
             await _purge(pool)
-            await _seed_document(
-                slug="defect-published", publication_status="published", pool=pool
-            )
-            await _seed_document(
-                slug="defect-draft", publication_status="draft", pool=pool
+            published = await _seed_document(
+                slug="guard-published", publication_status="published", pool=pool
             )
             rows = await pool.fetch(
                 _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS,
-                [f"{_TEST_PREFIX}-defect-%"],
+                [f"{_TEST_PREFIX}-guard-%"],
             )
             await _purge(pool)
-            return [r["publication_status"] for r in rows]
+            return [r["id"] for r in rows], published
 
-        statuses = pg_session(body)
-        assert "draft" in statuses, (
-            "the by-pattern read no longer returns unpublished rows — if "
-            "{427.15} has landed, delete this test and the two xfail markers "
-            "above; CQ-1 is closed"
-        )
+        returned, published = pg_session(body)
+        assert returned == [published]

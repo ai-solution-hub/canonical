@@ -1704,8 +1704,18 @@ class _BothHolesPool:
                 [{"source_documents": 2, "q_a_pairs": 1}],
             ),
             # ── the residual document read grid (TECH §2.3).
+            # ID-427 {427.15} / DR-143: the by-ids read gained
+            # `AND publication_status = 'published'`, so the old marker
+            # (`... ANY($1::uuid[]) ORDER BY id`) stopped matching — the two
+            # clauses are no longer adjacent. The marker now carries the
+            # predicate, which also makes it match
+            # `_SQL_PUBLISHED_SOURCE_DOCUMENTS_BY_IDS` (the residual
+            # cascade's step-2 join): the two queries now differ only in
+            # their SELECT list, and `_by_document_id` returns whole rows, so
+            # one rule serves both correctly.
             (
-                "FROM source_documents WHERE id = ANY($1::uuid[]) ORDER BY id",
+                "FROM source_documents WHERE id = ANY($1::uuid[]) "
+                "AND publication_status = 'published' ORDER BY id",
                 _by_document_id,
             ),
             (

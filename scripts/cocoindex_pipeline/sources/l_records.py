@@ -226,20 +226,65 @@ _SOURCE_DOCUMENT_COLUMNS = (
     "extracted_text, created_at, updated_at"
 )
 
+# ID-427 {427.15} / DR-143: an unpublished `source_document` may not back or
+# be cited by a concept. Every `q_a_pairs` read already filtered to
+# `published`; these did not, so four of the six built-in grains could draft
+# a concept from — and cite — a row that never passed the gate.
+#
+# The predicate is `publication_status = 'published'` because that is the
+# corpus definition TECH §2.1's ratified residual anti-join already uses
+# (`_SQL_RESIDUAL_DOCUMENTS`) and the census counts
+# (`_SQL_CENSUS_CORPUS_TOTALS`). A read and the anti-join that complements it
+# must agree about what the corpus is, or {427.10}'s "zero unrouted"
+# acceptance is computed against two different corpora.
+#
+# `_SQL_PUBLISHED_SOURCE_DOCUMENTS_BY_IDS` (:531, {427.10}) already carried
+# the predicate for the residual cascade. These converge onto it rather than
+# inventing a second definition.
+#
+# NOTE the parenthesisation on the pattern queries: the existing `OR` had to
+# be wrapped before `AND` could be appended, or the filter would bind to the
+# `logical_path` arm alone and the `filename` arm would stay unfiltered —
+# silently keeping half the defect. `_SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS`
+# already brackets it the same way.
+
 _SQL_SOURCE_DOCUMENTS_BY_IDS = (
     f"SELECT {_SOURCE_DOCUMENT_COLUMNS} FROM source_documents "
-    "WHERE id = ANY($1::uuid[]) ORDER BY id"
+    "WHERE id = ANY($1::uuid[]) AND publication_status = 'published' "
+    "ORDER BY id"
 )
 
 _SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS = (
     f"SELECT {_SOURCE_DOCUMENT_COLUMNS} FROM source_documents "
-    "WHERE filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[]) "
+    "WHERE (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) "
+    "AND publication_status = 'published' "
     "ORDER BY id"
 )
 
+# Filtered for a SECOND reason beyond DR-143, and it is the one that makes it
+# non-optional: this is the `company` grain's EXISTENCE PROBE (`:1365`) — it
+# decides whether the grain enumerates a concept at all. Filtering the reads
+# while leaving the probe open mints a concept whose own read then returns
+# nothing: a bodyless concept, which is a fresh defect of exactly the class
+# {427.15} exists to remove. Its coverage query
+# (`_SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS`) has always been filtered, so the
+# probe was already the odd one out.
+#
+# The predicate leads here, where the two reads above trail it. That is
+# deliberate and it is NOT cosmetic: appended, this query became a strict
+# prefix-match of `_SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS` (the two then
+# differed only in `ORDER BY id` vs `LIMIT 1`), and `FakePool` dispatches on
+# substring markers — so the fixtures silently routed the probe to the
+# coverage rule and the `company` grain enumerated nothing. Leading with the
+# predicate makes the two queries diverge immediately after
+# `source_documents WHERE`, which is what keeps the marker unambiguous.
+# Recorded because the next person to tidy this into the trailing form will
+# reintroduce it, and the failure looks like a grain bug rather than a
+# fixture one.
 _SQL_SOURCE_DOCUMENT_EXISTS_BY_PATTERNS = (
     "SELECT id FROM source_documents "
-    "WHERE filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[]) "
+    "WHERE publication_status = 'published' "
+    "AND (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) "
     "LIMIT 1"
 )
 
@@ -286,11 +331,19 @@ _SQL_DISTINCT_ENTITY_CANONICAL_NAMES = (
     "WHERE entity_type = $1 ORDER BY 1"
 )
 
+# ID-427 {427.15} / DR-143: the named-client `case_study` grain's ENUMERATION
+# query — each `canonical_name` it returns becomes a concept. Unfiltered, an
+# organisation mentioned only in an unpublished document minted a case-study
+# concept whose `_read_case_study` then found no published document to cite.
+# Same reasoning as the `company` probe above: filtering the read without the
+# enumeration that feeds it produces a bodyless concept rather than no
+# concept.
 _SQL_DISTINCT_CASE_STUDY_ENTITIES = (
     "SELECT DISTINCT em.canonical_name FROM entity_mentions em "
     "JOIN source_documents sd ON sd.id = em.source_document_id "
     "WHERE em.entity_type = 'organisation' "
     "AND (sd.filename ILIKE ANY($1::text[]) OR sd.logical_path ILIKE ANY($1::text[])) "
+    "AND sd.publication_status = 'published' "
     "ORDER BY 1"
 )
 
@@ -438,14 +491,34 @@ _SQL_COVERAGE_PUBLISHED_QA_BY_PATTERNS_OR_TAGS = (
     "SELECT id FROM q_a_pairs "
     "WHERE (source_document_id IN ("
     "SELECT id FROM source_documents "
-    "WHERE filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])"
+    "WHERE (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) "
+    "AND publication_status = 'published'"
     ") OR scope_tag && $2::text[]) "
     "AND publication_status = 'published' ORDER BY id"
 )
 """The pair-side mirror of `_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY`, generalised
 from one entity to the whole grain: `&&` (array overlap) is the set form of
-that query's `@> ARRAY[$2]` for a single tag. The inner document subquery is
-UNFILTERED on purpose — it reproduces the id list the read actually passes."""
+that query's `@> ARRAY[$2]` for a single tag.
+
+The inner document subquery reproduces the id list the read actually passes,
+so it filters `publication_status` exactly as the read does.
+
+**ID-427 {427.15}: it did NOT, and that was the {427.17} auditor's carried
+UNDECIDABLE** — *"whether an unpublished parent document can yield a
+published pair that the read never actually reaches, which would make that
+grain's `routed` an overcount against a corpus it does not read"*. It could
+not be answered from the test corpus because no test executed this SQL.
+Executed against Postgres with a published-pair/unpublished-parent row, the
+answer is: it did not overcount BEFORE this Subtask (the read was equally
+unfiltered, so both reached the pair), and it WOULD have started overcounting
+the moment DR-143 filtered the read. The two move together, so they are
+filtered together.
+
+The outer clause is untouched and its {427.9} reasoning still holds: **it is
+the pair that must be counted, on its own publication status.** What changed
+is only which pairs the grain can REACH — the doc-lineage arm now mirrors the
+read, while the `scope_tag` arm still reaches a pair whose parent is
+unpublished, exactly as the read does."""
 
 _SQL_COVERAGE_WON_BID_QA = (
     "SELECT id FROM q_a_pairs "
