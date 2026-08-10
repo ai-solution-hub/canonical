@@ -293,7 +293,10 @@ def test_declare_concept_writes_free_form_facet_tags_unrewritten(
     """
     draft = ConceptDraft(
         key=ConceptKey(
-            rel_path="topics/facets.md", concept_type="topic", scope_tag="facets"
+            rel_path="topics/facets.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="facets",
         ),
         frontmatter=_fm(
             type="topic", tags=("metric", "dataset", "methodology", "playbook")
