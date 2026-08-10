@@ -72,6 +72,39 @@ describe('ConceptDetail', () => {
     expect(screen.getByText('orders')).toBeInTheDocument();
   });
 
+  // PC-7c (TECH id-163) residual check: {163.3} added the schema/tool/api/
+  // navigation semantic-token MAPPINGS to conceptTypeTokenVars, and
+  // concept-type-tokens.test.ts already proves the mapping function itself
+  // resolves them. What is missing without this test is proof at the RENDER
+  // site — that a system-type concept's badge actually picks up its own
+  // token pair rather than silently falling through to the default the way
+  // an unrecognised business type (the fixture's "BigQuery Table" above)
+  // does.
+  //
+  // Asserted against the badge's INLINE STYLE, not its className: the badge
+  // consumes the token through a `style` prop because concept `type` is an
+  // open vocabulary (DR-141), so a Tailwind arbitrary-value class name would
+  // only be known at runtime and the build-time scanner would never emit the
+  // utility. See the matching note in `lib/okf/concept-type-tokens.ts`.
+  it('renders a system-type concept badge with its own semantic token, not the default fallback (PC-7c)', () => {
+    renderDetail({
+      node: {
+        data: {
+          ...ORDERS_NODE.data,
+          id: 'schemas/orders-table',
+          label: 'Orders table schema',
+          type: 'schema',
+        },
+      },
+      knownConceptIds: new Set(['schemas/orders-table']),
+    });
+
+    const style = screen.getByText('schema').getAttribute('style') ?? '';
+    expect(style).toContain('--okf-concept-schema-bg');
+    expect(style).toContain('--okf-concept-schema-text');
+    expect(style).not.toContain('--okf-concept-default-');
+  });
+
   it('renders the body as markdown, rewriting a known internal link to an in-app button', () => {
     const onNavigate = vi.fn();
     renderDetail({ onNavigate });
