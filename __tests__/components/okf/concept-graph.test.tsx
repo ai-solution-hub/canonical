@@ -383,11 +383,15 @@ describe('ConceptGraph', () => {
     expect(screen.getByText('Platform baseline')).toBeInTheDocument();
     expect(screen.getByText('Cites')).toBeInTheDocument();
     expect(screen.getByText('Related')).toBeInTheDocument();
+    // S550: the legend dropped from FOUR channels to THREE. The retired
+    // border entry must not linger — a legend that still explains a colour
+    // the canvas no longer paints is worse than no legend.
+    expect(screen.queryByText('Client-declared type')).not.toBeInTheDocument();
   });
 
-  it('derives per-node shape (bundleClass) and border colour (typeDeclaration), and per-edge colour (relationship) into the Cytoscape element data', () => {
+  it('derives per-node shape (bundleClass) and per-edge colour (relationship) into the Cytoscape element data', () => {
     // jsdom never loads app/styles/domain-tokens.css — set the custom
-    // properties directly so resolveTypeDeclarationBorderColor/
+    // properties directly so resolveGraphChromeColors/
     // resolveEdgeRelationshipColor have something real to resolve (mirrors
     // lib/okf/concept-type-tokens.test.ts's own pattern).
     document.documentElement.style.setProperty(
@@ -396,15 +400,11 @@ describe('ConceptGraph', () => {
     );
     document.documentElement.style.setProperty(
       '--okf-graph-selected-border',
-      'oklch(0.6 0.14 70)',
+      SELECTED_TOKEN,
     );
     document.documentElement.style.setProperty(
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
-    );
-    document.documentElement.style.setProperty(
-      '--okf-graph-type-declared-border',
-      DECLARED_TOKEN,
     );
     document.documentElement.style.setProperty(
       '--okf-graph-edge-cites',
@@ -412,20 +412,8 @@ describe('ConceptGraph', () => {
     );
 
     const nodesWithUnionFields: OkfBundleGraphNode[] = [
-      {
-        data: {
-          ...NODES[0].data,
-          bundleClass: 'client',
-          typeDeclaration: 'client-declared',
-        },
-      },
-      {
-        data: {
-          ...NODES[1].data,
-          bundleClass: 'platform',
-          typeDeclaration: 'undeclared',
-        },
-      },
+      { data: { ...NODES[0].data, bundleClass: 'client' } },
+      { data: { ...NODES[1].data, bundleClass: 'platform' } },
     ];
     const edgesWithRelationship: OkfBundleGraphEdge[] = [
       { data: { ...EDGES[0].data, relationship: 'cites' } },
@@ -452,31 +440,50 @@ describe('ConceptGraph', () => {
 
     expect(orders?.data.shape).toBe('ellipse');
     expect(customers?.data.shape).toBe('round-rectangle');
-    // Assert the TOKENS, not merely that the two differ: the old form of
-    // this assertion (`not.toBe`) passes for any two distinct strings,
-    // including two wrong ones.
-    expect(orders?.data.borderColor).toBe(DECLARED_TOKEN);
-    expect(customers?.data.borderColor).toBe(NEUTRAL_TOKEN);
     expect(edge?.data.edgeColor).toBeTruthy();
+    // S550: `borderColor` was the retired channel's per-node payload. It is
+    // gone from element data entirely — the border is now a static value on
+    // the stylesheet's base `node` rule (asserted at the render site below).
+    expect(orders?.data).not.toHaveProperty('borderColor');
+    expect(customers?.data).not.toHaveProperty('borderColor');
   });
 });
 
 // ---------------------------------------------------------------------------
-// ID-427 {427.14} — the typeDeclaration border channel, proved at the RENDER
+// S550 — the typeDeclaration border channel is RETIRED, proved at the RENDER
 // SITE over a real bundle.
 //
-// {427.6}'s badge-token lesson, applied deliberately: a mapping function's
-// own unit test stayed green through the whole {427.5} regression while the
-// render site was where the meaning was lost. `resolveTypeDeclarationBorder
-// Color`'s unit test above cannot catch a producer that stops emitting the
-// signal, a builder that stops deriving it, or a component that stops
-// passing it — so this block runs the WHOLE chain: an `ontology.json` on
-// disk -> `buildBundleGraph` -> `<ConceptGraph>` -> the `borderColor` handed
-// to Cytoscape, asserted against the exact design token.
+// This block INVERTS the {427.14} block it replaces, and keeps its method for
+// the same reason {427.6} taught: a mapping function's own unit test stayed
+// green through the whole {427.5} regression while the render site was where
+// the meaning was lost. Asserting that a deleted export is deleted proves
+// almost nothing — a `data(borderColor)` mapper left in the Cytoscape
+// stylesheet would still type-check, and Cytoscape resolves that string at
+// RUNTIME. So this block runs the WHOLE chain — an `ontology.json` on disk ->
+// `buildBundleGraph` -> `<ConceptGraph>` -> the style array and element data
+// handed to Cytoscape — with the retired signal deliberately made LIVE and
+// affirmative, and asserts nothing downstream can spend it.
 // ---------------------------------------------------------------------------
 
+// The token the retired channel used to paint. Nothing should read it now;
+// these tests define it anyway, so "the channel is gone" is proved against a
+// stylesheet that could still feed it rather than against its absence.
 const DECLARED_TOKEN = 'oklch(0.55 0.15 290)';
 const NEUTRAL_TOKEN = 'oklch(0.65 0.012 48)';
+const SELECTED_TOKEN = 'oklch(0.6 0.14 70)';
+
+interface CyStyleRule {
+  selector: string;
+  style: Record<string, unknown>;
+}
+
+/** The style array `<ConceptGraph>` handed to Cytoscape on the current render. */
+function styleRuleFor(selector: string): CyStyleRule {
+  const rules = (cytoscapeCalls[0] as { style: CyStyleRule[] }).style;
+  const rule = rules.find((r) => r.selector === selector);
+  if (!rule) throw new Error(`no \`${selector}\` rule in the Cytoscape style`);
+  return rule;
+}
 
 const conceptDoc = (title: string, type: string) =>
   [
@@ -489,7 +496,7 @@ const conceptDoc = (title: string, type: string) =>
     '.',
   ].join('\n');
 
-describe('ConceptGraph — client-declared concept types reach the canvas as a border colour', () => {
+describe('ConceptGraph — a node border is chrome now, and carries no concept-type signal', () => {
   const roots: string[] = [];
 
   function bundleWithOverlay(declaredConceptTypes: string[] | null): string {
@@ -536,11 +543,9 @@ describe('ConceptGraph — client-declared concept types reach the canvas as a b
         onSelectConcept={vi.fn()}
       />,
     );
-    const opts = cytoscapeCalls[0] as {
-      elements: { data: Record<string, unknown> }[];
-    };
-    return (id: string) =>
-      opts.elements.find((e) => e.data.id === id)?.data.borderColor;
+    return (
+      cytoscapeCalls[0] as { elements: { data: Record<string, unknown> }[] }
+    ).elements;
   }
 
   beforeEach(() => {
@@ -550,12 +555,14 @@ describe('ConceptGraph — client-declared concept types reach the canvas as a b
     );
     document.documentElement.style.setProperty(
       '--okf-graph-selected-border',
-      'oklch(0.6 0.14 70)',
+      SELECTED_TOKEN,
     );
     document.documentElement.style.setProperty(
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
     );
+    // Deliberately DEFINED, though nothing should read it — see the block
+    // comment above. The retirement is proved against a live token.
     document.documentElement.style.setProperty(
       '--okf-graph-type-declared-border',
       DECLARED_TOKEN,
@@ -569,41 +576,69 @@ describe('ConceptGraph — client-declared concept types reach the canvas as a b
     }
   });
 
-  it('draws the declared-type token on a node the bundle can vouch for, and the neutral one on a node it cannot', () => {
-    const borderOf = renderBundle(bundleWithOverlay(['bid_response']));
+  it('states one flat neutral border on the base node rule, not a per-node data mapper', () => {
+    renderBundle(bundleWithOverlay(['bid_response']));
+    const node = styleRuleFor('node');
 
-    // `bid_response` IS in the client's declared vocabulary; `topic` is not.
-    expect(borderOf('concepts/alpha')).toBe(DECLARED_TOKEN);
-    expect(borderOf('concepts/beta')).toBe(NEUTRAL_TOKEN);
+    // The border is now CHROME: one resolved colour for every node.
+    expect(node.style['border-color']).toBe(NEUTRAL_TOKEN);
+    // The retired channel's exact shape. Cytoscape resolves a `data(...)`
+    // mapper at RUNTIME from a string, so a leftover would survive both the
+    // type-checker and any assertion about deleted exports.
+    expect(node.style['border-color']).not.toBe('data(borderColor)');
+    // And the colour must be STATED, not omitted: Cytoscape defaults
+    // `border-color` to `#000`, so dropping it while keeping a non-zero
+    // `border-width` paints a black ring on every node — the accidentally
+    // inherited border this retirement must not produce.
+    expect(node.style['border-width']).toBe(2);
+    expect(node.style['border-color']).toBeTruthy();
   });
 
-  it('NEGATIVE CONTROL — removing the declaration from the source artefact collapses the border to the neutral token', () => {
-    // The same bundle, the same concept, the same stylesheet — only the
-    // SOURCE SIGNAL is gone from `ontology.json`. If this still painted
-    // DECLARED_TOKEN the channel would be reading something other than the
-    // client's declaration, which is exactly the defect {427.14} repairs.
-    const borderOf = renderBundle(bundleWithOverlay(['something_else']));
+  it('ADVERSARIAL — a bundle that DOES declare the concept type still reaches the canvas neutral', () => {
+    // Every link in the chain is live and the retired signal is affirmative:
+    // `ontology.json` declares `bid_response`, `concepts/alpha` IS of that
+    // type, and `--okf-graph-type-declared-border` is defined in the
+    // document (see beforeEach). Under the old channel this node wore
+    // DECLARED_TOKEN. If any link — producer read, builder, component,
+    // stylesheet — still carried the channel, this is where it would show.
+    const elements = renderBundle(bundleWithOverlay(['bid_response']));
 
-    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
-    expect(borderOf('concepts/alpha')).not.toBe(DECLARED_TOKEN);
+    expect(styleRuleFor('node').style['border-color']).toBe(NEUTRAL_TOKEN);
+    expect(styleRuleFor('node').style['border-color']).not.toBe(DECLARED_TOKEN);
+    // Nothing per-node survives to feed a border either.
+    for (const el of elements) {
+      expect(el.data).not.toHaveProperty('borderColor');
+      expect(el.data).not.toHaveProperty('typeDeclaration');
+    }
   });
 
-  it('NEGATIVE CONTROL — a platform bundle (overlay: null) declares nothing, so no node wears the declared token', () => {
-    const borderOf = renderBundle(bundleWithOverlay(null));
+  it('keeps the selected-node ring the neutral border exists to be thickened against', () => {
+    // The retirement removed a channel, not the selection affordance. This
+    // is the reason the base rule keeps a border at all, so it is asserted
+    // here rather than assumed: `node:selected` is declared AFTER `node`, so
+    // it still wins the cascade.
+    renderBundle(bundleWithOverlay(null));
+    const selected = styleRuleFor('node:selected');
 
-    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
-    expect(borderOf('concepts/beta')).toBe(NEUTRAL_TOKEN);
-  });
-
-  it('falls back to the neutral colour when the declared-type token itself is undefined', () => {
-    // The token is the channel's only affirmative output — if the
-    // stylesheet stops defining it, the border must go neutral rather than
-    // render an empty/invalid colour string onto the canvas.
-    document.documentElement.style.removeProperty(
-      '--okf-graph-type-declared-border',
+    expect(selected.style['border-color']).toBe(SELECTED_TOKEN);
+    expect(selected.style['border-width']).toBe(3);
+    expect(selected.style['border-color']).not.toBe(
+      styleRuleFor('node').style['border-color'],
     );
-    const borderOf = renderBundle(bundleWithOverlay(['bid_response']));
+  });
 
-    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
+  it('falls back to the un-themed neutral literal when the chrome tokens are undefined', () => {
+    // SSR, or a environment that never loaded domain-tokens.css. The border
+    // must still be a real colour string — a border resolving to '' would
+    // hand Cytoscape an invalid value at the exact moment nothing else works.
+    document.documentElement.style.removeProperty('--okf-graph-node-fallback');
+    document.documentElement.style.removeProperty(
+      '--okf-graph-selected-border',
+    );
+    document.documentElement.style.removeProperty('--okf-graph-edge');
+
+    renderBundle(bundleWithOverlay(['bid_response']));
+
+    expect(styleRuleFor('node').style['border-color']).toBe(NEUTRAL_TOKEN);
   });
 });

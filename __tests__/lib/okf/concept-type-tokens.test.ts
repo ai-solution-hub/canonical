@@ -7,7 +7,6 @@ import {
   conceptTypeTokenVars,
   resolveConceptTypeColor,
   bundleClassShape,
-  resolveTypeDeclarationBorderColor,
   resolveEdgeRelationshipColor,
   resetRenderableColorContextForTests,
   toRenderableColor,
@@ -173,43 +172,14 @@ describe('bundleClassShape', () => {
   });
 });
 
-describe('resolveTypeDeclarationBorderColor', () => {
-  it('resolves the client-declared custom property when defined', () => {
-    document.documentElement.style.setProperty(
-      '--okf-graph-type-declared-border',
-      'oklch(0.55 0.15 290)',
-    );
-
-    expect(
-      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
-    ).toBe('oklch(0.55 0.15 290)');
-  });
-
-  it('falls back for "undeclared" or an absent typeDeclaration', () => {
-    expect(resolveTypeDeclarationBorderColor('undeclared', 'FALLBACK')).toBe(
-      'FALLBACK',
-    );
-    expect(resolveTypeDeclarationBorderColor(undefined, 'FALLBACK')).toBe(
-      'FALLBACK',
-    );
-  });
-
-  it('falls back when the custom property is not defined', () => {
-    document.documentElement.style.removeProperty(
-      '--okf-graph-type-declared-border',
-    );
-    expect(
-      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
-    ).toBe('FALLBACK');
-  });
-
-  it('has its token defined in domain-tokens.css, and the retired iri-scope pair removed from it', () => {
-    // The channel's tokens "follow whatever is decided" ({427.14} scope).
-    // Asserted against the REAL stylesheet, in BOTH directions: the
-    // surviving token must exist (a channel resolving an undefined property
-    // renders neutral forever — a silent vestigial channel by another
-    // route), and the two retired ones must be gone (a token nothing reads
-    // is exactly the debris this Subtask exists to clear).
+describe('the retired node-border channel tokens (S550, ID-427 {427.14})', () => {
+  it('leaves no node-border data-channel token declared in domain-tokens.css', () => {
+    // INVERTS the {427.14} guard, which required
+    // `--okf-graph-type-declared-border` to EXIST. S550 retired the channel
+    // that spent it (partly collinear with `bundleClass`, already the node
+    // SHAPE), and the standing rule is that a retired channel takes its
+    // tokens and its legend entry with it — a token nothing reads is exactly
+    // the debris a retirement exists to clear.
     const css = readFileSync(
       resolve(
         dirname(fileURLToPath(import.meta.url)),
@@ -218,42 +188,24 @@ describe('resolveTypeDeclarationBorderColor', () => {
       'utf-8',
     );
 
-    // Matched in DECLARATION form (trailing `:`), like the KNOWN_TYPES
-    // guard above. The retired names still appear in that file as prose —
-    // the comment recording why they went — and a comment is not a live
-    // token. What must not survive is a declaration.
-    expect(css).toContain('--okf-graph-type-declared-border:');
+    // Matched in DECLARATION form (trailing `:`), like the KNOWN_TYPES guard
+    // above. All three names still appear in that file as prose — the
+    // comment recording why they went — and a comment is not a live token.
+    expect(css).not.toContain('--okf-graph-type-declared-border:');
     expect(css).not.toContain('--okf-graph-iri-base-border:');
     expect(css).not.toContain('--okf-graph-iri-client-border:');
-  });
+    // The `@theme inline` alias that would emit a `bg-*`/`text-*` utility
+    // class for the retired token must go too, or the token survives by
+    // another name.
+    expect(css).not.toContain('--color-okf-graph-type-declared-border');
 
-  it('no longer spends the retired iri-scope tokens, even when they are defined', () => {
-    // ID-427 {427.14}: `--okf-graph-iri-base-border`/`--okf-graph-iri-client-
-    // border` retired with the channel they coloured. A stale stylesheet
-    // still defining them must not resurrect a border colour — the mapping
-    // reads ONE token now, and a value it does not read cannot be rendered.
-    document.documentElement.style.removeProperty(
-      '--okf-graph-type-declared-border',
-    );
-    document.documentElement.style.setProperty(
-      '--okf-graph-iri-base-border',
-      'oklch(0.55 0.12 240)',
-    );
-    document.documentElement.style.setProperty(
-      '--okf-graph-iri-client-border',
-      'oklch(0.55 0.15 290)',
-    );
-
-    expect(
-      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
-    ).toBe('FALLBACK');
-
-    document.documentElement.style.removeProperty(
-      '--okf-graph-iri-base-border',
-    );
-    document.documentElement.style.removeProperty(
-      '--okf-graph-iri-client-border',
-    );
+    // The OTHER direction, and the reason this test is not merely a deletion
+    // check: the retirement REPLACED the per-node border with a uniform
+    // neutral one, so the two chrome tokens that border now depends on must
+    // still be declared. Losing either would leave every node drawing
+    // Cytoscape's `#000` default.
+    expect(css).toContain('--okf-graph-node-fallback:');
+    expect(css).toContain('--okf-graph-selected-border:');
   });
 });
 
@@ -289,7 +241,7 @@ describe('resolveEdgeRelationshipColor', () => {
 //
 // Tokens are authored in oklch, Cytoscape's canvas parser only reads legacy CSS
 // colour syntax, and its second complaint ("no mapping for property … with data
-// field `borderColor`") reads like missing data when the data is present and the
+// field `color`") reads like missing data when the data is present and the
 // VALUE is what it could not parse. These tests bind the conversion and, just as
 // importantly, the no-op path — this helper must never be the reason a colour
 // goes missing.

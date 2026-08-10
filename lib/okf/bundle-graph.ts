@@ -41,7 +41,7 @@
  *    end-to-end. The best available on-disk signal is the DR-027 ontology
  *    artefact's `overlay` key (`write_ontology_artefact`): `null` for every
  *    non-`client_business` class (OV-10), a composed object for
- *    `client_business`. `readOntologySignals` derives a coarser binary
+ *    `client_business`. `readBundleClassSignal` derives a coarser binary
  *    `'platform' | 'client'` from that key (`'unknown'` when
  *    `ontology.json` is absent/malformed — never throws), which is
  *    sufficient for the union view's styling need (the decision memo frames
@@ -52,37 +52,40 @@
  *    tier. DR-081a: the producer currently emits only `strong`/`partial` in
  *    practice; the map still covers the full ratified vocabulary
  *    defensively. Absent confidence renders full-opacity.
- * 4. **Relationship-typed edges + concept-type declaration provenance.**
- *    `extractTypedLinks` splits each concept body at its `# Citations`
- *    heading (mirroring the S451-rider convention already documented above
- *    `RESERVED_ROOT_DOCS`): a link found within that trailer types `cites`;
- *    any other internal link types `related`. `resolveTypeDeclaration`
- *    answers, per node, whether the client DECLARED this concept `type` in
- *    its `ontology-overlay.json` — read from `ontology.json`'s
- *    `overlay.concept_types` echo (OV-2/OV-6), the same artefact §2 already
- *    opens.
+ * 4. **Relationship-typed edges.** `extractTypedLinks` splits each concept
+ *    body at its `# Citations` heading (mirroring the S451-rider convention
+ *    already documented above `RESERVED_ROOT_DOCS`): a link found within
+ *    that trailer types `cites`; any other internal link types `related`.
  *
- * **§4's source moved at ID-427 {427.14}, and the channel's MEANING moved
- * with it (DR-027 as amended S548).** This channel used to read
- * `context.jsonld`'s `@context` and answer `'base' | 'client' | 'unmapped'`
- * — was this `type` term a platform-registered one or a client-overlay one.
- * Two things ended that. DR-141 made concept `type` an OPEN label with no
- * base register, so {427.5} correctly dropped the `concept_types` row from
- * the projection — after which this module was resolving a CONCEPT type
- * against a map minting only ENTITY and RELATIONSHIP terms, and of the ten
- * concept-type labels the producer emits exactly two (`certification`,
- * `product`) still resolved, by accidental collision with the entity
- * vocabulary. Then {427.14} retired the base projection outright (TQ-1), so
- * `context.jsonld` carries client-overlay entity/relationship terms only
- * and can never speak to a concept type at all.
+ * **§4 used to have a second half — the per-node concept-type declaration
+ * channel — RETIRED by owner ruling at S550.** From {132.49} this module
+ * emitted a `typeDeclaration` field that `<ConceptGraph>` spent as a node
+ * BORDER COLOUR. ID-427 {427.14} had already re-sourced it once, because it
+ * was broken: it read `context.jsonld`'s `@context` and answered
+ * `'base' | 'client' | 'unmapped'`, but DR-141 made concept `type` an OPEN
+ * label with no base register, so {427.5} correctly dropped the
+ * `concept_types` row from the projection — after which this module was
+ * resolving a CONCEPT type against a map minting only ENTITY and
+ * RELATIONSHIP terms, and of the ten concept-type labels the producer
+ * emits exactly two (`certification`, `product`) still resolved, by
+ * accidental collision with the entity vocabulary. {427.14} re-pointed the
+ * channel at `ontology.json`'s `overlay.concept_types` echo and renamed it,
+ * which made it honest — and an honest channel exposed the product question
+ * the owner then answered.
  *
- * The re-sourced channel answers a question the bundle can still support
- * honestly: **`'client-declared'`** — this `type` appears in the client's
- * own declared concept vocabulary — versus **`'undeclared'`**, which covers
- * both "the client shipped an overlay and this type is not in it" and "this
- * bundle ships no overlay at all". It asserts no vocabulary and needs no
- * `context.jsonld`. It is NOT the old question renamed: a platform-baseline
- * bundle's nodes were `'base'` before and are `'undeclared'` now.
+ * The ruling: the signal is partly COLLINEAR with §2's `bundleClass`, which
+ * the graph already encodes as node SHAPE. Only a `client_business` bundle
+ * ships an overlay, so the border could only ever discriminate WITHIN a
+ * client bundle, and its one affirmative state is rare — too little signal
+ * for the visual budget a whole channel spends. Retiring it took the design
+ * token and the legend entry with it (the {132.49} legend is now THREE
+ * channels: shape, opacity, edge colour); `<ConceptGraph>` draws one uniform
+ * neutral chrome border on every node, which is chrome, not a channel.
+ *
+ * **The PRODUCER side is untouched.** `ontology.json` still carries
+ * `overlay.concept_types` (`producer/bundle_writer.py::read_client_overlay`,
+ * OV-2/OV-6) and this module still opens that same artefact for §2's
+ * `bundleClass` — only the concept-type READER retired.
  *
  * **OKF v0.2 `sources[]` provenance (id-439 consumer alignment, S546).**
  * The v0.2 producer (id-426) moved concept citations out of the
@@ -122,11 +125,11 @@ const RESERVED_ROOT_DOCS = new Set(['README.md', 'CONFORMANCE.md']);
 const LINK_RE = /\]\(([^)\s]+\.md)(?:#[A-Za-z0-9_-]*)?\)/g;
 
 // {132.49} G-CONCEPT-GRAPH-UNION — the reserved bundle-root artefact this
-// module reads for the union doctrine deltas (never walked as a concept
-// doc — it is `.json`, already excluded by `walkMarkdownFiles`'s `.md`-only
-// filter, so no change to that filter is needed). `context.jsonld` was the
-// second such read until ID-427 {427.14} re-sourced §4 onto this same file
-// — one artefact now carries both signals.
+// module reads for §2's `bundleClass` (never walked as a concept doc — it is
+// `.json`, already excluded by `walkMarkdownFiles`'s `.md`-only filter, so no
+// change to that filter is needed). It briefly fed a second signal too —
+// {427.14}'s concept-type declaration channel — until S550 retired that
+// channel; `bundleClass` is the only union-doctrine signal it feeds now.
 const ONTOLOGY_FILENAME = 'ontology.json';
 // The S451-rider citation-trailer heading (`# Citations`, any `#`-`######`
 // level) — mirrors the producer/reference convention every existing
@@ -141,7 +144,6 @@ const CITATIONS_HEADING_RE = /^ {0,3}(#{1,6})[ \t]+Citations[ \t]*$/im;
 // `app/api/okf/[bundleId]/graph/route.ts` and `app/api/okf/union-graph/route.ts`
 // — not by sharing a declaration.
 type BundleClassSignal = 'client' | 'platform' | 'unknown';
-type TypeDeclaration = 'client-declared' | 'undeclared';
 type EdgeRelationship = 'cites' | 'related';
 
 /** One v0.2 `sources[]` frontmatter entry (id-439 — see module doc). The
@@ -169,8 +171,6 @@ interface BundleGraphNodeData {
   confidence: string | null;
   /** `confidence` mapped to a Cytoscape opacity tier (module doc §3) — absent confidence renders full-opacity (`1`). */
   opacity: number;
-  /** Whether the client DECLARED this node's concept `type` in its ontology overlay (module doc §4) — `'undeclared'` when the bundle ships no overlay, or ships one that does not name this type. */
-  typeDeclaration: TypeDeclaration;
   /** v0.2 `sources[]` provenance entries (id-439) — `[]` for legacy v0.1 concepts. */
   sources: ConceptSourceEntry[];
 }
@@ -221,7 +221,6 @@ interface Concept {
 interface BundleMeta {
   bundleId: string;
   bundleClass: BundleClassSignal;
-  declaredConceptTypes: ReadonlySet<string>;
 }
 
 function walkMarkdownFiles(root: string): string[] {
@@ -456,108 +455,49 @@ export function confidenceToOpacity(
   return CONFIDENCE_OPACITY[confidence] ?? 1;
 }
 
-/** Both `ontology.json`-derived per-node signals, from ONE read of the artefact — the coarse bundle class (module doc §2) and the client's declared concept vocabulary (module doc §4). */
-interface OntologySignals {
-  bundleClass: BundleClassSignal;
-  /**
-   * The concept-type labels the client declared in `ontology-overlay.json`,
-   * as echoed verbatim into `ontology.json`'s `overlay.concept_types`
-   * (`producer/bundle_writer.py::read_client_overlay`, OV-2/OV-6 — a list
-   * of strings). Empty when the bundle ships no overlay, declares no
-   * concept types, or the artefact is unreadable.
-   */
-  declaredConceptTypes: ReadonlySet<string>;
-}
-
-const NO_DECLARED_TYPES: ReadonlySet<string> = new Set<string>();
-
-/** `'unknown'` bundle class + nothing declared — the never-throws answer for an absent/malformed `ontology.json`. */
-const UNKNOWN_ONTOLOGY_SIGNALS: OntologySignals = {
-  bundleClass: 'unknown',
-  declaredConceptTypes: NO_DECLARED_TYPES,
-};
-
 /** The DR-027-as-amended `ontology.json` payload — the client-overlay carrier and nothing else ({427.11} retired its `base` key). */
 interface OntologyArtefact {
   overlay?: unknown;
 }
 
 /**
- * Read `ontology.json` once and derive both union-doctrine signals from it
- * (module doc §2 + §4).
+ * Read `ontology.json` for the module doc §2 bundle-class signal:
+ * `null`/absent overlay -> `'platform'`, a composed overlay object ->
+ * `'client'`, anything unreadable/malformed/absent -> `'unknown'`.
  *
- * `bundleClass`: `null`/absent overlay -> `'platform'`, a composed overlay
- * object -> `'client'`, anything unreadable/malformed/absent ->
- * `'unknown'`.
- *
- * `declaredConceptTypes`: the overlay's `concept_types` list, when it is
- * one. A non-list, or entries that are not strings, are skipped rather than
- * throwing — the artefact is client-influenced (its `overlay` half is an
- * echo of a client-authored file), so this reader treats every shape it did
- * not expect as "declared nothing".
+ * Only the PRESENCE of the `overlay` key is read, never its contents.
+ * {427.14} briefly also pulled `overlay.concept_types` out of this same
+ * parse to feed the concept-type declaration channel; S550 retired that
+ * channel, so this reader is back to answering one question (its shape
+ * before {427.14} merged the two reads). The producer still emits
+ * `overlay.concept_types` — see the module doc — this consumer just no
+ * longer looks inside.
  *
  * Never throws.
  */
-function readOntologySignals(bundleRootResolved: string): OntologySignals {
+function readBundleClassSignal(bundleRootResolved: string): BundleClassSignal {
   const ontologyPath = path.join(bundleRootResolved, ONTOLOGY_FILENAME);
   try {
-    if (!fs.existsSync(ontologyPath)) return UNKNOWN_ONTOLOGY_SIGNALS;
+    if (!fs.existsSync(ontologyPath)) return 'unknown';
     const parsed = JSON.parse(
       fs.readFileSync(ontologyPath, 'utf-8'),
     ) as OntologyArtefact;
     if (!parsed || typeof parsed !== 'object' || !('overlay' in parsed)) {
-      return UNKNOWN_ONTOLOGY_SIGNALS;
+      return 'unknown';
     }
     const { overlay } = parsed;
-    if (overlay === null || overlay === undefined) {
-      return {
-        bundleClass: 'platform',
-        declaredConceptTypes: NO_DECLARED_TYPES,
-      };
-    }
-    return {
-      bundleClass: 'client',
-      declaredConceptTypes: readDeclaredConceptTypes(overlay),
-    };
+    return overlay === null || overlay === undefined ? 'platform' : 'client';
   } catch (err) {
     logger.warn(
       {
         err,
-        op: 'bundle-graph.read-ontology-signals.failed',
+        op: 'bundle-graph.read-bundle-class.failed',
         bundleRootResolved,
       },
-      `readOntologySignals: could not read/parse ${ONTOLOGY_FILENAME}, defaulting to 'unknown' bundle class and no declared concept types`,
+      `readBundleClassSignal: could not read/parse ${ONTOLOGY_FILENAME}, defaulting to 'unknown'`,
     );
-    return UNKNOWN_ONTOLOGY_SIGNALS;
+    return 'unknown';
   }
-}
-
-/** Pull the `concept_types` string list out of an `ontology.json` `overlay` value — anything else yields the empty set. */
-function readDeclaredConceptTypes(overlay: unknown): ReadonlySet<string> {
-  if (typeof overlay !== 'object' || overlay === null) {
-    return NO_DECLARED_TYPES;
-  }
-  const declared = (overlay as { concept_types?: unknown }).concept_types;
-  if (!Array.isArray(declared)) return NO_DECLARED_TYPES;
-  const terms = declared.filter(
-    (term): term is string => typeof term === 'string' && term.length > 0,
-  );
-  return terms.length > 0 ? new Set(terms) : NO_DECLARED_TYPES;
-}
-
-/**
- * Resolve a node's concept `type` against the client's declared concept
- * vocabulary (module doc §4). `'client-declared'` when the overlay names
- * this exact label; `'undeclared'` otherwise — which deliberately does NOT
- * distinguish "overlay present, type absent from it" from "no overlay at
- * all", because the bundle-class channel (node shape) already carries that
- * distinction and a border colour that duplicates it says nothing new.
- */
-function resolveTypeDeclaration(
-  declaredConceptTypes: ReadonlySet<string>,
-  type: string,
-): TypeDeclaration {
-  return declaredConceptTypes.has(type) ? 'client-declared' : 'undeclared';
 }
 
 function walkConcepts(bundleRoot: string): Concept[] {
@@ -636,10 +576,6 @@ function toNode(concept: Concept, meta: BundleMeta): BundleGraphNode {
       bundleClass: meta.bundleClass,
       confidence: concept.confidence,
       opacity: confidenceToOpacity(concept.confidence),
-      typeDeclaration: resolveTypeDeclaration(
-        meta.declaredConceptTypes,
-        concept.type,
-      ),
       sources: concept.sources,
     },
   };
@@ -699,14 +635,9 @@ export function buildBundleGraph(
   }
   const bundleRootResolved = path.resolve(bundleRoot);
   const bundleId = options.bundleId ?? path.basename(bundleRootResolved);
-  const { bundleClass, declaredConceptTypes } =
-    readOntologySignals(bundleRootResolved);
+  const bundleClass = readBundleClassSignal(bundleRootResolved);
   const concepts = walkConcepts(bundleRoot);
-  return buildGraph(concepts, {
-    bundleId,
-    bundleClass,
-    declaredConceptTypes,
-  });
+  return buildGraph(concepts, { bundleId, bundleClass });
 }
 
 /** One sibling bundle root the deployment-level union graph merges in. */

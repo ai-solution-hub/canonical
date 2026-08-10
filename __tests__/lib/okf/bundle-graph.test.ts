@@ -403,18 +403,21 @@ describe('buildBundleGraph', () => {
   });
 
   // ────────────────────────────────────────
-  // typeDeclaration — the ID-427 {427.14} re-sourced §4 channel.
+  // S550 — the concept-type declaration channel is RETIRED at the BUILDER.
   //
-  // These REPLACE three `iriScope` tests that read `context.jsonld`'s
-  // `@context`. They are not those tests renamed: the old ones asserted a
-  // base-vs-client VOCABULARY split that DR-027 as amended (S548) retired,
-  // and which — measured at S548 — no concept type could answer anyway,
-  // since {427.5} had already dropped the `concept_types` row from the
-  // projection. The channel's source is now `ontology.json`'s
-  // `overlay.concept_types` echo (OV-2/OV-6).
+  // These REPLACE the ID-427 {427.14} `typeDeclaration` tests (which had
+  // themselves replaced three `iriScope` tests). The owner ruling retired
+  // the channel as partly COLLINEAR with `bundleClass` — already the node
+  // SHAPE — so the assertion inverts: the builder must emit nothing for it,
+  // while still reading the same artefact for the signal that stayed.
   // ────────────────────────────────────────
 
-  it("marks a node client-declared when the bundle's overlay declares its concept type", () => {
+  it('emits no concept-type declaration, even when the overlay declares that exact type', () => {
+    // The retired channel's AFFIRMATIVE case: `BigQuery Table` is in the
+    // client's declared vocabulary, so this is the node the old channel gave
+    // its declared-type border. Asserting the KEY is absent (rather than
+    // that its value changed) is what makes this fail against a half-done
+    // retirement that deletes the resolver but leaves the field behind.
     const root = bundle({
       'tables/orders.md': orders, // type: BigQuery Table
       'ontology.json': JSON.stringify({
@@ -428,76 +431,40 @@ describe('buildBundleGraph', () => {
       }),
     });
 
-    const graph = buildBundleGraph(root);
+    const node = buildBundleGraph(root).nodes[0].data;
 
-    expect(graph.nodes[0].data.typeDeclaration).toBe('client-declared');
+    expect(node).not.toHaveProperty('typeDeclaration');
+    // The node still carries every channel that SURVIVED, so this test
+    // fails if the retirement took a neighbour with it.
+    expect(node).toMatchObject({ bundleClass: 'client', opacity: 1 });
   });
 
-  it('leaves a node undeclared when the overlay is present but does not name its concept type', () => {
-    const root = bundle({
-      'tables/orders.md': orders, // type: BigQuery Table
+  it('still reads the overlay it stopped looking inside — a declaring bundle is still classed "client"', () => {
+    // `ontology.json`'s `overlay` key carried TWO consumer meanings and only
+    // one retired ({427.11} deliberately preserved `overlay: null` for OV-10
+    // "no overlay shipped yet"). If the retirement over-deleted the read,
+    // every client bundle would answer 'unknown' and the node SHAPE channel
+    // would go silently with it.
+    const declaring = bundle({
+      'tables/orders.md': orders,
       'ontology.json': JSON.stringify({
-        overlay: {
-          source: 'ontology-overlay.json',
-          sha256: 'b'.repeat(64),
-          concept_types: ['Some Other Type'],
-          entity_types: [],
-          relationship_types: [],
-        },
+        overlay: { concept_types: ['BigQuery Table'] },
       }),
     });
-
-    const graph = buildBundleGraph(root);
-
-    expect(graph.nodes[0].data.typeDeclaration).toBe('undeclared');
-  });
-
-  it('leaves every node undeclared for a platform bundle, an absent artefact, or a malformed overlay', () => {
-    // OV-10: a non-client bundle ships `overlay: null` — nothing declared.
-    const platform = bundle({
-      'tables/orders.md': orders,
-      'ontology.json': JSON.stringify({ overlay: null }),
-    });
-    expect(buildBundleGraph(platform).nodes[0].data.typeDeclaration).toBe(
-      'undeclared',
+    expect(buildBundleGraph(declaring).nodes[0].data.bundleClass).toBe(
+      'client',
     );
 
-    const absent = bundle({ 'tables/orders.md': orders });
-    expect(buildBundleGraph(absent).nodes[0].data.typeDeclaration).toBe(
-      'undeclared',
-    );
-
-    // The `overlay` half echoes a CLIENT-authored file, so a shape this
-    // reader did not expect must degrade to "declared nothing", never throw.
+    // A shape this reader did not expect must still degrade, never throw —
+    // the `overlay` half echoes a CLIENT-authored file.
     const malformed = bundle({
       'tables/orders.md': orders,
       'ontology.json': JSON.stringify({
         overlay: { concept_types: 'BigQuery Table' },
       }),
     });
-    expect(buildBundleGraph(malformed).nodes[0].data.typeDeclaration).toBe(
-      'undeclared',
-    );
-  });
-
-  it('stops reading context.jsonld for the border channel — a bundle carrying only an @context declares nothing', () => {
-    // The {427.14} retirement, asserted as a NEGATIVE at the read site: a
-    // `context.jsonld` naming this exact type under the client namespace —
-    // which under the OLD channel produced `iriScope: 'client'` — now moves
-    // nothing, because concept types are not what that artefact carries.
-    const root = bundle({
-      'tables/orders.md': orders,
-      'context.jsonld': JSON.stringify({
-        '@context': {
-          client: 'https://w3id.org/canonical/ontology/client/acme#',
-          'BigQuery Table':
-            'https://w3id.org/canonical/ontology/client/acme#BigQuery Table',
-        },
-      }),
-    });
-
-    expect(buildBundleGraph(root).nodes[0].data.typeDeclaration).toBe(
-      'undeclared',
+    expect(buildBundleGraph(malformed).nodes[0].data.bundleClass).toBe(
+      'client',
     );
   });
 });

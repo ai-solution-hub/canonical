@@ -33,7 +33,6 @@
  */
 import type {
   OkfBundleClassSignal,
-  OkfTypeDeclaration,
   OkfEdgeRelationship,
 } from '@/lib/query/okf';
 
@@ -144,14 +143,18 @@ export function conceptTypeTokenVars(type: string): ConceptTypeTokenVars {
 //
 //   The style property `background-color: oklch(.93 .04 160)` is invalid
 //   Do not assign mappings to elements without corresponding data (i.e. ele
-//   `certifications/sscm` has no mapping for property `border-color` with data
-//   field `borderColor`); try a `[borderColor]` selector to limit scope …
+//   `certifications/sscm` has no mapping for property `background-color` with
+//   data field `color`); try a `[color]` selector to limit scope …
 //
 // The second message reads like a missing-data bug and is not one — `color`
-// and `borderColor` are set on every element by `toElements`. Cytoscape drops
-// the mapping when it cannot parse the mapped VALUE, then reports the element
-// as having no mapping. Chasing the `[borderColor]` selector the message
-// suggests would be chasing a symptom.
+// (and, on edges, `edgeColor`) is set on every element by `toElements`.
+// Cytoscape drops the mapping when it cannot parse the mapped VALUE, then
+// reports the element as having no mapping. Chasing the `[color]` selector the
+// message suggests would be chasing a symptom.
+//
+// The message named `border-color`/`borderColor` too until S550, which retired
+// the typeDeclaration border channel; the node border is now a static colour,
+// not a data mapper, so it can no longer produce this pair of lines at all.
 //
 // So the colours are normalised where they are read, not where they are used:
 // one boundary, every consumer covered, and the tokens stay authored in oklch.
@@ -326,8 +329,8 @@ export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
 // Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) — a
 // per-bundleClass node SHAPE (a structural, non-colour Cytoscape channel —
 // no design token needed, `components/CLAUDE.md`'s "no raw Tailwind
-// colours" rule scopes to COLOUR properties only) plus typeDeclaration /
-// edge-relationship COLOUR resolvers, following the exact never-throws /
+// colours" rule scopes to COLOUR properties only) plus the edge-relationship
+// COLOUR resolver, following the exact never-throws /
 // SSR-returns-fallback / computed-style-read pattern established above by
 // `resolveConceptTypeColor`/`resolveGraphChromeColors`. Types imported from
 // the CLIENT-safe `lib/query/okf.ts` wire types, never from the
@@ -349,39 +352,16 @@ export function bundleClassShape(
 }
 
 /**
- * The ONE token this channel now spends, since ID-427 {427.14}. Its
- * predecessor `IRI_SCOPE_BORDER_VARS` held two — `--okf-graph-iri-base-
- * border` and `--okf-graph-iri-client-border`, for the retired
- * base-vs-client-vocabulary question. The re-sourced channel has a single
- * affirmative state (the client DECLARED this concept type), so it has a
- * single token; "undeclared" is the absence of a signal, and the neutral
- * chrome fallback is the honest way to draw an absence.
+ * S550 — the node-BORDER resolver that used to live here is RETIRED with the
+ * concept-type declaration channel it coloured, and so is its
+ * `--okf-graph-type-declared-border` token. `<ConceptGraph>` now draws a
+ * uniform neutral `--okf-graph-node-fallback` border on every node, straight
+ * from `resolveGraphChromeColors` above — a border that varies with no datum
+ * is chrome, not a channel, so it needs no resolver and no token of its own.
+ * The predecessor `IRI_SCOPE_BORDER_VARS` pair went the same way at
+ * {427.14}. Node SHAPE (`bundleClassShape`) still carries `bundleClass`,
+ * which is what the retired border was partly collinear with.
  */
-const TYPE_DECLARED_BORDER_VAR = '--okf-graph-type-declared-border';
-
-/**
- * Resolve a node's `typeDeclaration` to a concrete border-colour string.
- * `'undeclared'`/absent (or SSR / a test environment without
- * `domain-tokens.css`) falls back to `fallbackColor` — callers pass the
- * already-resolved `--okf-graph-node-fallback` chrome colour, keeping an
- * undeclared-type border visually neutral rather than a hardcoded literal.
- */
-export function resolveTypeDeclarationBorderColor(
-  typeDeclaration: OkfTypeDeclaration | undefined,
-  fallbackColor: string,
-): string {
-  if (
-    typeDeclaration !== 'client-declared' ||
-    typeof window === 'undefined' ||
-    typeof document === 'undefined'
-  ) {
-    return fallbackColor;
-  }
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(TYPE_DECLARED_BORDER_VAR)
-    .trim();
-  return value ? toRenderableColor(value) : fallbackColor;
-}
 
 /**
  * Resolve an edge's {132.49} `relationship` to a concrete line-colour

@@ -12,25 +12,37 @@
  * `_TYPE_PALETTE`. Selection/search/type-filter/layout/reset are the same
  * imperative Cytoscape calls as the reference, just React-effect-scoped.
  *
- * **{132.49} G-CONCEPT-GRAPH-UNION doctrine deltas.** Four additional
+ * **{132.49} G-CONCEPT-GRAPH-UNION doctrine deltas.** THREE additional
  * per-node/per-edge visual channels, layered onto the existing
  * `background-color`(type)/`border-color`(selection) pair so no channel
  * collides:
  *  - `bundleClass` -> node **shape** (`bundleClassShape` — a structural,
  *    non-colour channel, so no new design token).
- *  - `typeDeclaration` -> node **border-color** (only when NOT selected —
- *    `node:selected` is declared after `node` in the style array, so it
- *    still wins the cascade for a selected node). ID-427 {427.14} re-sourced
- *    this channel: it was `iriScope` (`context.jsonld`'s base-vs-client IRI
- *    namespace) until DR-027 as amended (S548) retired the base vocabulary,
- *    and it now answers whether the client DECLARED this concept type in
- *    its ontology overlay. One affirmative state, one token — an
- *    `'undeclared'` node draws the neutral chrome colour, because that is
- *    what "no signal" should look like.
  *  - `confidence` (A19) -> node **opacity**, pre-computed server-side.
  *  - `relationship` (cites/related) -> edge **line/arrow colour**.
- * `<GraphLegend>` renders a compact key for all four so a union view (or a
+ * `<GraphLegend>` renders a compact key for all three so a union view (or a
  * single bundle carrying the same fields) is legible without a doc lookup.
+ *
+ * **A fourth channel was retired at S550: `typeDeclaration` -> node
+ * border-colour.** It was partly COLLINEAR with `bundleClass`, which is
+ * already the node SHAPE — only a client bundle can declare a concept type,
+ * so the border discriminated solely within a client bundle, and its
+ * affirmative state is rare. A channel that almost always renders its
+ * neutral value does not earn a slot in the visual budget.
+ *
+ * **What a node's border IS now — a deliberate choice, not a leftover.**
+ * Every non-selected node draws a uniform 2px `--okf-graph-node-fallback`
+ * (the neutral graph-chrome colour), set as a STATIC style value on the base
+ * `node` rule rather than a `data(...)` mapper. Three reasons: (1) that is
+ * exactly what an `'undeclared'` node already drew, so retiring the signal
+ * does not restyle the graph; (2) Cytoscape's own default `border-color` is
+ * `#000`, so leaving `border-width: 2` with no explicit colour would silently
+ * paint a black ring on every node — an accidentally-inherited border is the
+ * one outcome the retirement must not produce; (3) the border still does two
+ * NON-semantic jobs — separating overlapping nodes in a dense `cose` layout,
+ * and giving `node:selected` a width to thicken (2 -> 3) beside its colour
+ * change. A border identical on every node varies with no datum, so it is
+ * chrome, not a vestigial channel.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, {
@@ -43,7 +55,6 @@ import {
   resolveGraphChromeColors,
   toRenderableColor,
   bundleClassShape,
-  resolveTypeDeclarationBorderColor,
   resolveEdgeRelationshipColor,
 } from '@/lib/okf/concept-type-tokens';
 import { cn } from '@/lib/utils';
@@ -93,10 +104,6 @@ function toElements(
       ...n.data,
       color: resolveConceptTypeColor(n.data.type)?.bg ?? fallbackNodeColor,
       shape: bundleClassShape(n.data.bundleClass),
-      borderColor: resolveTypeDeclarationBorderColor(
-        n.data.typeDeclaration,
-        fallbackNodeColor,
-      ),
       opacity: n.data.opacity ?? 1,
     },
   }));
@@ -112,7 +119,7 @@ function toElements(
   return [...nodeElements, ...edgeElements];
 }
 
-/** Compact key for the four {132.49} visual channels — shape (bundleClass), border colour (typeDeclaration, ID-427 {427.14}), opacity (A19 confidence), edge colour (relationship). */
+/** Compact key for the three {132.49} visual channels — shape (bundleClass), opacity (A19 confidence), edge colour (relationship). The fourth, a `typeDeclaration` border colour, was retired at S550 (see module doc), so this legend no longer claims a border means anything. */
 function GraphLegend() {
   return (
     <div
@@ -131,10 +138,6 @@ function GraphLegend() {
       <span className="flex items-center gap-1">
         <span className="inline-block size-2 rotate-45 border border-foreground/50" />
         Unknown bundle class
-      </span>
-      <span className="flex items-center gap-1">
-        <span className="inline-block size-2.5 rounded-full border-2 bg-[var(--okf-graph-type-declared-border)]" />
-        Client-declared type
       </span>
       <span className="flex items-center gap-1">
         <span className="inline-block h-0.5 w-4 bg-[var(--okf-graph-edge-cites)]" />
@@ -181,6 +184,12 @@ export function ConceptGraph({
     const chrome = resolveGraphChromeColors();
     const selectedBorderColor =
       chrome?.selectedBorder ?? toRenderableColor(SELECTED_BORDER_COLOR);
+    // S550: the non-selected node border is now ONE uniform neutral colour
+    // (see module doc). Stated explicitly rather than omitted — Cytoscape's
+    // own `border-color` default is `#000`, so dropping this line while
+    // keeping `border-width: 2` would paint a black ring on every node.
+    const neutralBorderColor =
+      chrome?.fallbackNode ?? toRenderableColor(FALLBACK_NODE_COLOR);
     const cy = cytoscape({
       container: containerRef.current,
       elements,
@@ -195,17 +204,19 @@ export function ConceptGraph({
             'text-margin-y': 4,
             width: 'data(size)',
             height: 'data(size)',
-            // {132.49}: bundleClass -> shape, typeDeclaration -> border,
-            // A19 confidence -> opacity (pre-computed server-side). Cytoscape's
-            // own style DSL supports a `'data(x)'` mapper STRING for any
-            // property at runtime, but its TS types only model the mapper
-            // FUNCTION form (`(ele) => value`) for non-`Colour` (non-string)
-            // property types — `shape`/`opacity` need the function form to
-            // type-check; `background-color`/`border-color` above/below only
-            // "work" with the string form because `Colour` IS `string`.
+            // {132.49}: bundleClass -> shape, A19 confidence -> opacity
+            // (pre-computed server-side). Cytoscape's own style DSL supports
+            // a `'data(x)'` mapper STRING for any property at runtime, but
+            // its TS types only model the mapper FUNCTION form
+            // (`(ele) => value`) for non-`Colour` (non-string) property types
+            // — `shape`/`opacity` need the function form to type-check;
+            // `background-color` above only "works" with the string form
+            // because `Colour` IS `string`.
             shape: (ele: NodeSingular) => ele.data('shape'),
+            // NOT a data mapper any more — S550 retired the typeDeclaration
+            // border channel, so this is one flat chrome colour for every node.
             'border-width': 2,
-            'border-color': 'data(borderColor)',
+            'border-color': neutralBorderColor,
             opacity: (ele: NodeSingular) => ele.data('opacity'),
           },
         },

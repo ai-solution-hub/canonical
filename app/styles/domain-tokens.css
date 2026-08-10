@@ -321,21 +321,24 @@
   --okf-graph-edge: var(--stone-300);
 
   /* Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) —
-     <ConceptGraph>'s node border colour (the client DECLARED this concept
-     type in its ontology overlay) and edge line colour (relationship-typed
-     edges: a `# Citations`-trailer link vs any other internal cross-link).
-     Alias the existing `--*-solid` functional-ramp primitives (already
-     theme-adaptive light/dark in app/globals.css) rather than new oklch
-     literals — one definition here resolves correctly in both themes, no
+     <ConceptGraph>'s edge line colour for relationship-typed edges (a
+     `# Citations`-trailer link vs any other internal cross-link). Aliases
+     the existing `--*-solid` functional-ramp primitive (already
+     theme-adaptive light/dark in app/globals.css) rather than a new oklch
+     literal — one definition here resolves correctly in both themes, no
      separate `.dark` override needed.
 
-     ID-427 {427.14}: `--okf-graph-iri-base-border` (--blue-solid) and
-     `--okf-graph-iri-client-border` (--violet-solid) RETIRED with the
-     bl-457 @context IRI-scope channel they coloured — DR-027 as amended
-     (S548) retired the base vocabulary those two states named. The single
-     surviving affirmative state keeps the violet the client-overlay state
-     wore, so a client-authored vocabulary still reads as the same hue. */
-  --okf-graph-type-declared-border: var(--violet-solid);
+     Every node-BORDER token this block once held is now retired, and no
+     replacement is coming: the border is not a data channel any more.
+     ID-427 {427.14} retired `--okf-graph-iri-base-border` (--blue-solid) and
+     `--okf-graph-iri-client-border` (--violet-solid) with the bl-457
+     @context IRI-scope channel they coloured. S550 then retired that
+     channel's successor outright — `--okf-graph-type-declared-border`
+     (--violet-solid), the client-declared-concept-type border — by owner
+     ruling: it was partly collinear with `bundleClass`, which <ConceptGraph>
+     already encodes as node SHAPE. Non-selected nodes now draw the neutral
+     `--okf-graph-node-fallback` chrome colour above; the selected-node ring
+     is still `--okf-graph-selected-border`. */
   --okf-graph-edge-cites: var(--teal-solid);
 
   /* Relevance score (article review) */
@@ -717,7 +720,6 @@
   --color-okf-graph-node-fallback: var(--okf-graph-node-fallback);
   --color-okf-graph-selected-border: var(--okf-graph-selected-border);
   --color-okf-graph-edge: var(--okf-graph-edge);
-  --color-okf-graph-type-declared-border: var(--okf-graph-type-declared-border);
   --color-okf-graph-edge-cites: var(--okf-graph-edge-cites);
 
   --color-relevance-high: var(--relevance-high);

@@ -79,7 +79,6 @@ const UNION_GRAPH = {
         bundleClass: 'client' as const,
         confidence: 'strong',
         opacity: 1,
-        typeDeclaration: 'undeclared' as const,
       },
     },
     {
@@ -95,7 +94,6 @@ const UNION_GRAPH = {
         bundleClass: 'platform' as const,
         confidence: null,
         opacity: 1,
-        typeDeclaration: 'undeclared' as const,
       },
     },
   ],
