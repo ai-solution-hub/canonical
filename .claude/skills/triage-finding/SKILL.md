@@ -342,7 +342,7 @@ A finding is a **backlog** candidate when **all** of these hold:
    (otherwise Branch A's parent-Task-AC predicate would have matched).
 5. The current Subtask ID-N.M is not already touching the same surface (otherwise Branch
    A's file-path predicate would have matched).
-6. NO active (`in_progress`) Task ID-N owns the finding's scope at Task level (DR-021 —
+6. NO active (`doing`) Task ID-N owns the finding's scope at Task level (DR-021 —
    the active-task-first rule above; an owning active task takes the finding as
    add-subtask or journal-append, even for next-session work).
 
@@ -530,8 +530,8 @@ stating the finding's origin (`tasks/AGENTS.md` §5, finding hand-off).
    `## Acceptance criteria` (Branch A predicate 3). Treating the empty "current Subtask"
    context as definitively OOS produces false-negative Branch A misses.
 7. **Demoting a started/in-flight Subtask to the backlog at session close.** In-flight
-   Subtasks carry over across session boundaries as `in_progress`/`pending` Subtask
-   records — committed work stays on the Task List; the backlog is only for
+   Subtasks carry over across session boundaries as `doing`/`todo` `## Subtasks`
+   entries — committed work stays on the task file; the backlog is only for
    not-yet-committed ideas.
 
 ---

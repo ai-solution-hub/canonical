@@ -66,7 +66,7 @@ as direct children — no engineer-named subdirectories.
 
 ## Before writing
 
-Gather only the context you need: directory id (task-list ID, or kebab feature name),
+Gather only the context you need: directory id (ordna task id, or kebab feature name),
 feature summary, target users, key behaviors, edge cases, and how the feature will be
 validated. Use `AskUserQuestion` for missing context rather than guessing. The task's
 {N.1} `RESEARCH.md` (same spec dir, produced by the `research` skill) feeds this spec —

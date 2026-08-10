@@ -13,7 +13,8 @@ Roots swept (rediscover, never trust this list blindly):
 - canonical `.claude/skills/` (+ each skill's `references/`, `scripts/`)
 - canonical `.claude/agents/` — currently absent; quarantined ID-164 agents live in
   `.dev-workflow/sdlc/.claude/`, stale-by-design — **never sweep that tree**
-- docs-site `.claude/skills/`, docs-site `CLAUDE.md`, docs-site `tasks/AGENTS.md`
+- docs-site `.claude/skills/`, docs-site `.claude/workflows/` (JS schema/prompt files
+  carry metric definitions too), docs-site `CLAUDE.md`, docs-site `tasks/AGENTS.md`
 
 Seed re-grep:
 
@@ -96,10 +97,11 @@ excluded from every sweep.
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `tasks/AGENTS.md`                                           | THE conventions home — ordna mechanics adapted to this repo + canonical conventions layer; most changes propagate HERE first |
 | `CLAUDE.md`                                                 | describes workflow tooling + cross-repo layout                                                                          |
-| `.claude/skills/evaluate-workflow/` + `references/`         | pre-cutover it read task-list.json journals — docs-site flips are {165.16}; re-verify after that lands                  |
-| `.claude/skills/evaluate-findings/SKILL.md`                 | pre-cutover it read `product-retros.json` — re-verify after {165.16}                                                    |
-| `.claude/skills/sync-ledger-context/SKILL.md`               | ledger→docs drift back-propagation — re-verify after {165.16}                                                           |
-| `.claude/skills/check-for-broken-links/SKILL.md`            | pre-cutover it wrote backlog notes via ledger-cli — re-verify after {165.16}                                            |
+| `.claude/skills/evaluate-workflow/` + `references/`         | Checker verdicts now read from `## Progress` appends in `tasks/id-N.md` (the JSON journals + `ledgers/archive/` are gone); E4 coordination metric counts task-file merge conflicts |
+| `.claude/workflows/evaluator-efficiency-sweep.js`           | carries the same E4 metric definition as `evaluate-workflow/references/metrics.md` — the two must move together         |
+| `.claude/skills/evaluate-findings/SKILL.md`                 | STILL STALE — reads `product-retros.json`, which is gone; retros are now one file per session at `ledgers/retros/S<NNN>.md`. A separate retro-store migration, not the ordna task-ledger one |
+| `.claude/skills/sync-ledger-context/SKILL.md`               | `kh_source` globs may point at task files — repointed from the retired per-record mirrors (`ledgers/tasks/ID-N.md`) to repo-root `tasks/id-N.md` |
+| `.claude/skills/check-for-broken-links/SKILL.md`            | carries an explicit RETIRED section naming the old `ledger-cli`/`product-backlog.json` protocol — deliberate history, not drift |
 
 **Cross-cutting habit:** handoff prompts a `propagate-workflow-change` run before
 teardown when a session changed workflow tooling/shapes/process — this skill's own
