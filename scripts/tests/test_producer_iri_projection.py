@@ -122,12 +122,27 @@ class TestBaseVsClientSeparation:
         assert context["acme_widget"] == ip.mint_iri("acme_widget", scope="acme")
         assert "/base#" not in context["acme_widget"]
 
-    def test_project_context_base_terms_all_under_base_namespace(self):
+    def test_project_context_projects_no_base_term_and_no_base_prefix(self):
+        """INVERTS `test_project_context_base_terms_all_under_base_
+        namespace` (ID-427 {427.14}, TQ-1 / DR-027 as amended S548). The
+        base half of the base/overlay split still EXISTS — `mint_iri(...,
+        scope=None)` below still mints under it, and the two asserts above
+        this one still hold — it simply never reaches an artefact."""
         eo = EffectiveOntology.base_only()
         result = ip.project_context(eo, client_id=None)
         context = result["@context"]
+
+        assert "base" not in context
         for term in ALLOWED_ENTITY_TYPES:
-            assert context[term] == f"{ip.IRI_BASE_NAMESPACE}/base#{term}"
+            assert term not in context
+        assert context == {}
+
+        # IRI-1/IRI-3's pure primitive is untouched — the projection stopped
+        # calling it for base scope; it did not stop working.
+        assert (
+            ip.mint_iri("organisation", scope=None)
+            == f"{ip.IRI_BASE_NAMESPACE}/base#organisation"
+        )
 
     def test_project_context_diagnostics_empty_when_no_collision_or_overlay(self):
         eo = EffectiveOntology.base_only()
@@ -241,26 +256,30 @@ class TestCollisionGuard:
 
 
 class TestReservedPrefixKeyGuard:
-    """A term whose `slug()` equals the reserved `"base"`/`"client"` prefix
-    key is a collision against that reserved key — logged + recorded in
+    """A term whose `slug()` equals a reserved prefix key is a collision
+    against that reserved key — logged + recorded in
     `diagnostics.collisions` — never a silent `dict` overwrite of the
-    namespace-prefix entry. Currently unreachable via the ratified base
-    vocabulary (no base term is named `base`/`client`); exercised here via
-    an overlay term, the only reachable path today."""
+    namespace-prefix entry.
 
-    def test_overlay_term_slugging_to_base_is_dropped_not_overwritten(self):
+    **The reserved set shrank to `{"client"}` at ID-427 {427.14}.** The
+    guard protects the keys `project_context` actually seeds, and `"base"`
+    stopped being one when TQ-1 retired the base projection. A reservation
+    that outlives its key is not free: it silently DROPS a client whose own
+    overlay declares a term named `base`, defending an entry that is never
+    written."""
+
+    def test_overlay_term_named_base_is_now_minted_not_dropped(self):
+        """INVERTS `test_overlay_term_slugging_to_base_is_dropped_not_
+        overwritten`. There is no `base` prefix key left to clobber, so a
+        client's own `base` term is an ordinary overlay term and mints
+        under the client namespace like any other."""
         eo = EffectiveOntology.compose({"entity_types": ["base"]})
         result = ip.project_context(eo, client_id="acme")
         context = result["@context"]
 
-        # The reserved "base" prefix key still holds the base NAMESPACE —
-        # never clobbered by the "base" overlay term's own minted IRI.
-        assert context["base"] == f"{ip._base_namespace()}#"
-
-        collisions = result["diagnostics"]["collisions"]
-        assert any(
-            c["slug"] == "base" and c["dropped"] == "base" for c in collisions
-        )
+        assert context["base"] == ip.mint_iri("base", scope="acme")
+        assert "/client/acme#" in context["base"]
+        assert result["diagnostics"]["collisions"] == []
 
     def test_overlay_term_slugging_to_client_is_dropped_not_overwritten(self):
         eo = EffectiveOntology.compose({"entity_types": ["client"]})
@@ -275,12 +294,12 @@ class TestReservedPrefixKeyGuard:
         )
 
     def test_reserved_prefix_collision_never_raises(self):
-        eo = EffectiveOntology.compose({"entity_types": ["base"]})
+        eo = EffectiveOntology.compose({"entity_types": ["client"]})
         # Must not raise despite the reserved-key collision.
         ip.project_context(eo, client_id="acme")
 
     def test_reserved_prefix_collision_logs_warning(self, caplog):
-        eo = EffectiveOntology.compose({"entity_types": ["base"]})
+        eo = EffectiveOntology.compose({"entity_types": ["client"]})
         with caplog.at_level(logging.WARNING):
             ip.project_context(eo, client_id="acme")
         assert any(
@@ -311,13 +330,20 @@ class TestClientIdNone:
             {"term": "acme_widget", "dimension": "entity_types"}
         ]
 
-    def test_client_id_none_still_projects_base_terms(self):
+    def test_client_id_none_leaves_the_context_completely_empty(self):
+        """INVERTS `test_client_id_none_still_projects_base_terms`
+        (ID-427 {427.14}). IRI-6 withholds the overlay half absent a
+        client-id and TQ-1 retired the base half, so this combination —
+        which is the DEFAULT for every non-client bundle — now declares
+        nothing at all. That emptiness is the point, not a degradation: the
+        run still completes and the overlay term is still reported as an
+        advisory diagnostic (asserted in the sibling tests above)."""
         eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id=None)
+
+        assert result["@context"] == {}
         for term in ALLOWED_ENTITY_TYPES:
-            assert result["@context"][term] == (
-                f"{ip.IRI_BASE_NAMESPACE}/base#{term}"
-            )
+            assert term not in result["@context"]
 
     def test_client_id_none_never_raises(self):
         eo = EffectiveOntology.compose(

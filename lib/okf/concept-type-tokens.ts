@@ -33,7 +33,7 @@
  */
 import type {
   OkfBundleClassSignal,
-  OkfIriScope,
+  OkfTypeDeclaration,
   OkfEdgeRelationship,
 } from '@/lib/query/okf';
 
@@ -326,7 +326,7 @@ export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
 // Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) — a
 // per-bundleClass node SHAPE (a structural, non-colour Cytoscape channel —
 // no design token needed, `components/CLAUDE.md`'s "no raw Tailwind
-// colours" rule scopes to COLOUR properties only) plus bl-457 iriScope /
+// colours" rule scopes to COLOUR properties only) plus typeDeclaration /
 // edge-relationship COLOUR resolvers, following the exact never-throws /
 // SSR-returns-fallback / computed-style-read pattern established above by
 // `resolveConceptTypeColor`/`resolveGraphChromeColors`. Types imported from
@@ -348,31 +348,37 @@ export function bundleClassShape(
   }
 }
 
-const IRI_SCOPE_BORDER_VARS: Record<'base' | 'client', string> = {
-  base: '--okf-graph-iri-base-border',
-  client: '--okf-graph-iri-client-border',
-};
+/**
+ * The ONE token this channel now spends, since ID-427 {427.14}. Its
+ * predecessor `IRI_SCOPE_BORDER_VARS` held two — `--okf-graph-iri-base-
+ * border` and `--okf-graph-iri-client-border`, for the retired
+ * base-vs-client-vocabulary question. The re-sourced channel has a single
+ * affirmative state (the client DECLARED this concept type), so it has a
+ * single token; "undeclared" is the absence of a signal, and the neutral
+ * chrome fallback is the honest way to draw an absence.
+ */
+const TYPE_DECLARED_BORDER_VAR = '--okf-graph-type-declared-border';
 
 /**
- * Resolve a node's bl-457 `iriScope` to a concrete border-colour string.
- * `'unmapped'`/absent (or SSR / a test environment without
+ * Resolve a node's `typeDeclaration` to a concrete border-colour string.
+ * `'undeclared'`/absent (or SSR / a test environment without
  * `domain-tokens.css`) falls back to `fallbackColor` — callers pass the
  * already-resolved `--okf-graph-node-fallback` chrome colour, keeping an
- * unmapped-scope border visually neutral rather than a hardcoded literal.
+ * undeclared-type border visually neutral rather than a hardcoded literal.
  */
-export function resolveIriScopeBorderColor(
-  iriScope: OkfIriScope | undefined,
+export function resolveTypeDeclarationBorderColor(
+  typeDeclaration: OkfTypeDeclaration | undefined,
   fallbackColor: string,
 ): string {
   if (
-    (iriScope !== 'base' && iriScope !== 'client') ||
+    typeDeclaration !== 'client-declared' ||
     typeof window === 'undefined' ||
     typeof document === 'undefined'
   ) {
     return fallbackColor;
   }
   const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(IRI_SCOPE_BORDER_VARS[iriScope])
+    .getPropertyValue(TYPE_DECLARED_BORDER_VAR)
     .trim();
   return value ? toRenderableColor(value) : fallbackColor;
 }

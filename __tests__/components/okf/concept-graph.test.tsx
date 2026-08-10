@@ -8,9 +8,13 @@
  * `cytoscape()` factory that reproduces just the collection/element methods
  * the component calls.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import nodePath from 'node:path';
 import { ConceptGraph } from '@/components/okf/concept-graph';
+import { buildBundleGraph } from '@/lib/okf/bundle-graph';
 import type { OkfBundleGraphEdge, OkfBundleGraphNode } from '@/lib/query/okf';
 
 // ---------------------------------------------------------------------------
@@ -381,18 +385,26 @@ describe('ConceptGraph', () => {
     expect(screen.getByText('Related')).toBeInTheDocument();
   });
 
-  it('derives per-node shape (bundleClass) and border colour (iriScope), and per-edge colour (relationship) into the Cytoscape element data', () => {
+  it('derives per-node shape (bundleClass) and border colour (typeDeclaration), and per-edge colour (relationship) into the Cytoscape element data', () => {
     // jsdom never loads app/styles/domain-tokens.css — set the custom
-    // properties directly so resolveIriScopeBorderColor/
+    // properties directly so resolveTypeDeclarationBorderColor/
     // resolveEdgeRelationshipColor have something real to resolve (mirrors
     // lib/okf/concept-type-tokens.test.ts's own pattern).
     document.documentElement.style.setProperty(
-      '--okf-graph-iri-base-border',
-      'oklch(0.55 0.12 240)',
+      '--okf-graph-node-fallback',
+      NEUTRAL_TOKEN,
     );
     document.documentElement.style.setProperty(
-      '--okf-graph-iri-client-border',
-      'oklch(0.55 0.15 290)',
+      '--okf-graph-selected-border',
+      'oklch(0.6 0.14 70)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-edge',
+      'oklch(0.82 0.014 48)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-type-declared-border',
+      DECLARED_TOKEN,
     );
     document.documentElement.style.setProperty(
       '--okf-graph-edge-cites',
@@ -404,14 +416,14 @@ describe('ConceptGraph', () => {
         data: {
           ...NODES[0].data,
           bundleClass: 'client',
-          iriScope: 'base',
+          typeDeclaration: 'client-declared',
         },
       },
       {
         data: {
           ...NODES[1].data,
           bundleClass: 'platform',
-          iriScope: 'client',
+          typeDeclaration: 'undeclared',
         },
       },
     ];
@@ -440,7 +452,158 @@ describe('ConceptGraph', () => {
 
     expect(orders?.data.shape).toBe('ellipse');
     expect(customers?.data.shape).toBe('round-rectangle');
-    expect(orders?.data.borderColor).not.toBe(customers?.data.borderColor);
+    // Assert the TOKENS, not merely that the two differ: the old form of
+    // this assertion (`not.toBe`) passes for any two distinct strings,
+    // including two wrong ones.
+    expect(orders?.data.borderColor).toBe(DECLARED_TOKEN);
+    expect(customers?.data.borderColor).toBe(NEUTRAL_TOKEN);
     expect(edge?.data.edgeColor).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ID-427 {427.14} — the typeDeclaration border channel, proved at the RENDER
+// SITE over a real bundle.
+//
+// {427.6}'s badge-token lesson, applied deliberately: a mapping function's
+// own unit test stayed green through the whole {427.5} regression while the
+// render site was where the meaning was lost. `resolveTypeDeclarationBorder
+// Color`'s unit test above cannot catch a producer that stops emitting the
+// signal, a builder that stops deriving it, or a component that stops
+// passing it — so this block runs the WHOLE chain: an `ontology.json` on
+// disk -> `buildBundleGraph` -> `<ConceptGraph>` -> the `borderColor` handed
+// to Cytoscape, asserted against the exact design token.
+// ---------------------------------------------------------------------------
+
+const DECLARED_TOKEN = 'oklch(0.55 0.15 290)';
+const NEUTRAL_TOKEN = 'oklch(0.65 0.012 48)';
+
+const conceptDoc = (title: string, type: string) =>
+  [
+    '---',
+    `type: ${type}`,
+    `title: ${title}`,
+    'description: .',
+    '---',
+    '',
+    '.',
+  ].join('\n');
+
+describe('ConceptGraph — client-declared concept types reach the canvas as a border colour', () => {
+  const roots: string[] = [];
+
+  function bundleWithOverlay(declaredConceptTypes: string[] | null): string {
+    const root = mkdtempSync(nodePath.join(tmpdir(), 'okf-concept-graph-'));
+    roots.push(root);
+    mkdirSync(nodePath.join(root, 'concepts'), { recursive: true });
+    writeFileSync(
+      nodePath.join(root, 'concepts', 'alpha.md'),
+      conceptDoc('Alpha', 'bid_response'),
+      'utf-8',
+    );
+    writeFileSync(
+      nodePath.join(root, 'concepts', 'beta.md'),
+      conceptDoc('Beta', 'topic'),
+      'utf-8',
+    );
+    writeFileSync(
+      nodePath.join(root, 'ontology.json'),
+      JSON.stringify({
+        overlay:
+          declaredConceptTypes === null
+            ? null
+            : {
+                source: 'ontology-overlay.json',
+                sha256: 'c'.repeat(64),
+                concept_types: declaredConceptTypes,
+                entity_types: [],
+                relationship_types: [],
+              },
+      }),
+      'utf-8',
+    );
+    return root;
+  }
+
+  function renderBundle(root: string) {
+    const graph = buildBundleGraph(root);
+    render(
+      <ConceptGraph
+        nodes={graph.nodes as OkfBundleGraphNode[]}
+        edges={graph.edges as OkfBundleGraphEdge[]}
+        types={graph.types}
+        selectedConceptId={null}
+        onSelectConcept={vi.fn()}
+      />,
+    );
+    const opts = cytoscapeCalls[0] as {
+      elements: { data: Record<string, unknown> }[];
+    };
+    return (id: string) =>
+      opts.elements.find((e) => e.data.id === id)?.data.borderColor;
+  }
+
+  beforeEach(() => {
+    document.documentElement.style.setProperty(
+      '--okf-graph-node-fallback',
+      NEUTRAL_TOKEN,
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-selected-border',
+      'oklch(0.6 0.14 70)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-edge',
+      'oklch(0.82 0.014 48)',
+    );
+    document.documentElement.style.setProperty(
+      '--okf-graph-type-declared-border',
+      DECLARED_TOKEN,
+    );
+  });
+
+  afterEach(() => {
+    while (roots.length > 0) {
+      const root = roots.pop();
+      if (root) rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('draws the declared-type token on a node the bundle can vouch for, and the neutral one on a node it cannot', () => {
+    const borderOf = renderBundle(bundleWithOverlay(['bid_response']));
+
+    // `bid_response` IS in the client's declared vocabulary; `topic` is not.
+    expect(borderOf('concepts/alpha')).toBe(DECLARED_TOKEN);
+    expect(borderOf('concepts/beta')).toBe(NEUTRAL_TOKEN);
+  });
+
+  it('NEGATIVE CONTROL — removing the declaration from the source artefact collapses the border to the neutral token', () => {
+    // The same bundle, the same concept, the same stylesheet — only the
+    // SOURCE SIGNAL is gone from `ontology.json`. If this still painted
+    // DECLARED_TOKEN the channel would be reading something other than the
+    // client's declaration, which is exactly the defect {427.14} repairs.
+    const borderOf = renderBundle(bundleWithOverlay(['something_else']));
+
+    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
+    expect(borderOf('concepts/alpha')).not.toBe(DECLARED_TOKEN);
+  });
+
+  it('NEGATIVE CONTROL — a platform bundle (overlay: null) declares nothing, so no node wears the declared token', () => {
+    const borderOf = renderBundle(bundleWithOverlay(null));
+
+    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
+    expect(borderOf('concepts/beta')).toBe(NEUTRAL_TOKEN);
+  });
+
+  it('falls back to the neutral colour when the declared-type token itself is undefined', () => {
+    // The token is the channel's only affirmative output — if the
+    // stylesheet stops defining it, the border must go neutral rather than
+    // render an empty/invalid colour string onto the canvas.
+    document.documentElement.style.removeProperty(
+      '--okf-graph-type-declared-border',
+    );
+    const borderOf = renderBundle(bundleWithOverlay(['bid_response']));
+
+    expect(borderOf('concepts/alpha')).toBe(NEUTRAL_TOKEN);
   });
 });

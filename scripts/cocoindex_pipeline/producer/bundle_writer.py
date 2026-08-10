@@ -1424,13 +1424,38 @@ def write_context_artefact(
     *,
     client_id: "str | None" = None,
 ) -> str:
-    """{132.44} bl-457 G-IRI-PROJECTION (IRI-4/5/6/9/12): serialises
+    """{132.44} bl-457 G-IRI-PROJECTION (IRI-4/6/9/12): serialises
     `iri_projection.project_context`'s `@context` term->IRI map to the
     reserved `context.jsonld` bundle artefact — self-contained (IRI-4),
-    all three CV dimensions (IRI-5), client-overlay-gated (IRI-6), never
-    gating the run (IRI-9), byte-deterministic (IRI-12).
+    client-overlay-gated (IRI-6), never gating the run (IRI-9),
+    byte-deterministic (IRI-12).
 
-    **Diagnostics-persistence design decision (this Subtask).**
+    **Overlay-driven emission only since ID-427 {427.14}** (TQ-1, DR-027's
+    S546 extension as amended S548). The `@context` carries the client's
+    OVERLAY terms and the `client` namespace prefix, and nothing else — no
+    base term, no `base` prefix key. IRI-5's "every CV dimension" clause is
+    what retired; the other four invariants are unchanged.
+
+    **The artefact is still ALWAYS written**, including on a run that
+    composes no overlay (payload `{"@context": {}}`) — which is the
+    resolution of only ONE of TQ-1a's two readings, and TQ-1a is carried
+    forward UNRESOLVED, verbatim, in `tasks/id-427.md`. This branch is
+    taken because it is the reversible one and it matches the nearest
+    ratified analogue (`write_ontology_artefact`'s surviving `overlay:
+    null`, OV-10): a file that stops being declared is a file cocoindex's
+    reconciliation DELETES from every existing bundle, whereas an empty
+    `@context` asserts nothing and can be withdrawn later by a one-line
+    change. **It is a default, not an answer** — do not cite this docstring
+    as the ruling that closed TQ-1a.
+
+    Note the asymmetry with OV-10 that made TQ-1a undecidable here rather
+    than settled by analogy: `ontology.json`'s present-and-null `overlay`
+    is OBSERVABLY different from an absent file to its consumer
+    (`readBundleClassSignal` answers `'platform'` vs `'unknown'`), while an
+    empty `@context` and an absent `context.jsonld` are indistinguishable
+    to every reader this repo has.
+
+    **Diagnostics-persistence design decision ({132.44}).**
     `project_context` returns `{"@context": {...}, "diagnostics": {...}}`
     — `"diagnostics"` (slug collisions + un-projected overlay terms) is a
     SIBLING key, advisory only (see `iri_projection.py`'s own docstring),
@@ -1544,10 +1569,11 @@ def write_bundle(
     `client_id` (bl-457 G-IRI-PROJECTION IRI-2/6/10) threads through to
     `write_context_artefact`'s `iri_projection.project_context` call —
     `None` (the default; no `OKF_CLIENT_ID` resolved at the `flow_def.py`
-    call site) mints `context.jsonld` base-only, with every overlay term
-    recorded as an advisory un-projected diagnostic rather than guessing a
-    client namespace (IRI-6: published IRIs are irreversible, so an
-    overlay IRI is never minted under an unconfirmed client-id).
+    call site) mints an EMPTY `context.jsonld` `@context` since ID-427
+    {427.14} retired the base half, with every overlay term recorded as an
+    advisory un-projected diagnostic rather than guessing a client
+    namespace (IRI-6: published IRIs are irreversible, so an overlay IRI is
+    never minted under an unconfirmed client-id).
 
     **`census` — the corpus census (ID-427 {427.9}, TECH §2.11, AC 4).**
     The caller's `Source.census()` result: how many published units of each

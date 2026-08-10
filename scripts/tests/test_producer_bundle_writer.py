@@ -1567,24 +1567,24 @@ def test_context_filename_is_reserved() -> None:
     assert bundle_writer.CONTEXT_FILENAME == "context.jsonld"
 
 
-def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> None:
-    """IRI-4/5: every base-vocabulary term across both surviving dimensions
-    resolves to its base IRI; no `client` prefix is emitted absent a
-    client-id (IRI-6).
+def test_write_context_artefact_asserts_no_base_vocabulary(tmp_path: Path) -> None:
+    """**TQ-1's acceptance, asserted on the ARTEFACT.** REPLACES
+    `test_write_context_artefact_base_only_when_no_client_id`, whose whole
+    subject — the base projection — is what ID-427 {427.14} retires under
+    DR-027 as amended (S546 extension, S548 amendment). Its two
+    `mint_iri(..., scope=None)` loops are INVERTED here into absence
+    assertions rather than dropped: the base terms are what this Subtask
+    removes, so their absence is the claim.
 
-    **This test pins a CONTESTED behaviour — read before repairing it.**
-    It asserts the two-dimension projection PLAN {427.11} asks for, which
-    is TECH §2.10's text. TECH §6 carries that text's own caveat as
-    UNDECIDABLE **TQ-1**, and the S546 post-authoring rulings then RULED
-    TQ-1 the other way: *"`context.jsonld` follows `ontology.json`'s F6
-    fate — overlay-driven emission only; the base-only projection
-    retires"*, folded into DR-027 as an amendment extension. Under that
-    ruling the base-term assertions below INVERT to an absence assertion,
-    exactly as `ontology.json`'s `base` assertions just did. {427.11}
-    executed the `ontology.json` half only and carried the `context.jsonld`
-    half back to the owner rather than guessing which of the ruling's two
-    readings (file still written but overlay-only, vs. not written at all
-    absent an overlay) was meant."""
+    The emitted `@context` asserts NO base entity term, NO base
+    relationship term, and no `base` namespace prefix — DR-027 as amended
+    says the platform CVs *"are simply no longer asserted to bundle
+    consumers"*, and 22 base IRIs written into a client's repo is that
+    assertion.
+
+    The `base` register itself is UNTOUCHED (DR-027's platform-repo half):
+    asserted below so a future reader cannot mistake this for a retirement
+    of the vocabulary rather than of its projection."""
     eo = EffectiveOntology.base_only()
     content = bundle_writer.write_context_artefact(tmp_path, eo)
     payload = json.loads(content)
@@ -1592,17 +1592,74 @@ def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> N
     assert set(payload) == {"@context"}
     context = payload["@context"]
     assert "client" not in context
-    # {427.5}: no concept-type term is projected — the dimension went with
-    # its base register, so `context.jsonld` carries entity and
-    # relationship terms only (TECH §2.10).
-    assert "case_study" not in context
+    assert "base" not in context
     for term in ALLOWED_ENTITY_TYPES:
-        assert context[term] == iri_projection.mint_iri(term, scope=None)
+        assert term not in context
     for term in ALLOWED_RELATIONSHIP_TYPES:
-        assert context[term] == iri_projection.mint_iri(term, scope=None)
+        assert term not in context
+    # A base-only run therefore declares nothing at all.
+    assert context == {}
+
+    # The registers survive — this Subtask retires an ASSERTION, not a
+    # vocabulary (DR-027's platform-repo half, explicitly unchanged).
+    assert EffectiveOntology.base_only().entity_types == ALLOWED_ENTITY_TYPES
+    assert (
+        EffectiveOntology.base_only().relationship_types == ALLOWED_RELATIONSHIP_TYPES
+    )
 
     on_disk = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
     assert on_disk == payload
+
+
+def test_write_context_artefact_still_writes_the_file_with_no_overlay(
+    tmp_path: Path,
+) -> None:
+    """**TQ-1a is UNRESOLVED — this test pins a DEFAULT, not a ruling.**
+
+    TQ-1a, carried verbatim in `tasks/id-427.md`, asks which of two
+    observably-different readings of *"overlay-driven emission only"* is
+    meant: (a) the artefact is not WRITTEN AT ALL on a run composing no
+    overlay, or (b) it is still always written and its `@context` carries
+    only overlay-derived terms. {427.14} could not name a requirement whose
+    current source discriminates them — both satisfy *"declare the client's
+    overlay vocabulary"* vacuously when there is no overlay — so it took
+    (b) as the reversible default and left the question open.
+
+    Why (b) and not (a): a file that stops being `declare_file`d is a file
+    cocoindex's reconciliation DELETES from every existing bundle, whereas
+    an empty `@context` asserts nothing and withdraws later in one line.
+
+    **If TQ-1a is ever ruled (a), this test inverts to
+    `assert not (tmp_path / "context.jsonld").exists()`.** Do not read its
+    green as the answer."""
+    bundle_writer.write_context_artefact(tmp_path, EffectiveOntology.base_only())
+
+    assert (tmp_path / "context.jsonld").is_file()
+    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    assert payload == {"@context": {}}
+
+
+def test_write_context_artefact_keeps_overlay_terms_when_a_client_declares_them(
+    tmp_path: Path,
+) -> None:
+    """The retirement is of the BASE half only. A client bundle whose
+    `ontology-overlay.json` extends a dimension still gets those terms in
+    `@context`, minted under its own client namespace — that is the whole
+    of what "overlay-driven emission" leaves behind."""
+    eo = EffectiveOntology.compose(
+        {"entity_types": ["widget"], "relationship_types": ["ships_with"]}
+    )
+    content = bundle_writer.write_context_artefact(tmp_path, eo, client_id="acme")
+    context = json.loads(content)["@context"]
+
+    assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
+    assert context["ships_with"] == iri_projection.mint_iri(
+        "ships_with", scope="acme"
+    )
+    assert context["client"] == f"{iri_projection._client_namespace('acme')}#"
+    # ...and the base half is still absent, alongside them.
+    for term in ALLOWED_ENTITY_TYPES:
+        assert term not in context
 
 
 def test_write_context_artefact_projects_overlay_under_client_ns_when_client_id_set(
@@ -1636,26 +1693,31 @@ def test_write_context_artefact_persists_only_the_context_key(tmp_path: Path) ->
     assert list(on_disk.keys()) == ["@context"]
 
 
-def test_write_bundle_writes_context_jsonld_base_only_when_no_client_id(
+def test_write_bundle_ships_a_context_jsonld_that_declares_no_vocabulary(
     tmp_path: Path,
 ) -> None:
-    """IRI-4/5/9: a full `write_bundle` run (no `client_id` kwarg) ships
-    `context.jsonld` base-only, alongside every other bundle artefact."""
+    """IRI-4/9: a full `write_bundle` run (no `client_id` kwarg) still ships
+    `context.jsonld` alongside every other bundle artefact — and it declares
+    nothing, because there is no client overlay to declare.
+
+    The pre-{427.14} form of this test asserted `payload["@context"]
+    ["organisation"] == mint_iri("organisation", scope=None)`. That
+    assertion is inverted, not deleted: `organisation` is exactly the kind
+    of base term DR-027 as amended stopped asserting to bundle
+    consumers."""
     draft = _draft("topics/alpha.md", title="Alpha")
 
     bundle_writer.write_bundle(tmp_path, [draft])
 
     assert (tmp_path / "context.jsonld").is_file()
-    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
-    assert "client" not in payload["@context"]
-    # {427.5}: no concept-type term is projected any more, so the base
-    # assertion moves to a surviving dimension (`organisation` is an
-    # `ALLOWED_ENTITY_TYPES` member). The claim is unchanged: a base term
-    # ships under the base namespace with no client prefix.
-    assert "topic" not in payload["@context"]
-    assert payload["@context"]["organisation"] == iri_projection.mint_iri(
-        "organisation", scope=None
-    )
+    context = json.loads(
+        (tmp_path / "context.jsonld").read_text(encoding="utf-8")
+    )["@context"]
+    assert "client" not in context
+    assert "base" not in context
+    assert "topic" not in context
+    assert "organisation" not in context
+    assert context == {}
 
 
 def test_write_bundle_projects_overlay_iris_under_client_ns_when_client_id_passed(

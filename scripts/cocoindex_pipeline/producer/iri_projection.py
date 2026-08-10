@@ -3,13 +3,27 @@
 
 Pure, I/O-free. Given a term and a scope, mints an absolute IRI; given a
 run's composed `EffectiveOntology` (`producer.validator.EffectiveOntology`,
-OV-7/OV-8) and an optional client-id, projects EVERY ontology term (across
-`entity_types`/`relationship_types` — ID-427 {427.5} dropped the
-`concept_types` dimension with its base register) into a flat `@context`
-term->IRI mapping for the reserved `context.jsonld` bundle artefact —
-{132.44} serialises the `"@context"` key to disk via
+OV-7/OV-8) and an optional client-id, projects the run's CLIENT-OVERLAY
+terms (across `entity_types`/`relationship_types` — ID-427 {427.5} dropped
+the `concept_types` dimension with its base register) into a flat
+`@context` term->IRI mapping for the reserved `context.jsonld` bundle
+artefact — {132.44} serialises the `"@context"` key to disk via
 `json.dumps(..., sort_keys=True)`; that is NOT this module's concern, and
 this module performs zero I/O of its own.
+
+**The BASE projection retired at ID-427 {427.14} (TQ-1, DR-027's S546
+extension as amended S548).** `project_context` used to mint every base
+entity/relationship term under `{IRI_BASE_NAMESPACE}/base` and seed a
+`"base"` namespace-prefix key alongside them. DR-027 as amended is explicit
+that the platform's base CVs *"are simply no longer asserted to bundle
+consumers"* — an artefact that mints 22 base IRIs into a client's repo
+asserts exactly that. The registers themselves are UNTOUCHED (DR-027's
+platform-repo half): `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES`
+still gate `lint_entity_relation_mentions`, and they still classify a term
+here — they simply classify it in order to EXCLUDE the base half rather
+than to mint it. `mint_iri(term, scope=None)` survives as the pure
+primitive its IRI-1/IRI-3 invariants describe (and as TQ-2's documented
+door), it is just no longer driven from a bundle write.
 
 Spec: IRI-PROJECTION.md §Projection mechanics + §Design decisions 1-4 +
 invariants IRI-1/2/3/7/8 (this Subtask's slice; IRI-4/5/6/9/10/12 land in
@@ -24,7 +38,9 @@ invariants IRI-1/2/3/7/8 (this Subtask's slice; IRI-4/5/6/9/10/12 land in
   classifies base-vs-overlay by importing `ALLOWED_ENTITY_TYPES`/
   `ALLOWED_RELATIONSHIP_TYPES` from `producer.validator` — the SAME
   closed-vocabulary registers the BI-13 gate lints against, so a term is
-  never independently reclassified here.
+  never independently reclassified here. Since {427.14} only the OVERLAY
+  side of that split reaches an artefact; the base side is what the
+  classification now excludes.
 - **IRI-3 (versionless / stable base IRIs).** `mint_iri` carries no
   version segment and never mutates an existing base IRI's meaning — an
   incompatible meaning change is a governance act producing a NEW IRI,
@@ -80,8 +96,12 @@ IRI_BASE_NAMESPACE: str = "https://w3id.org/canonical/ontology"
 # `concept_types` row went with `ALLOWED_CONCEPT_TYPES`: base-vs-overlay
 # classification needs a base register to test membership against, and a
 # concept `type` no longer has one — it is a shape-validated label, so
-# there is nothing to classify and no term to mint. `context.jsonld` now
-# carries entity and relationship terms only.
+# there is nothing to classify and no term to mint.
+#
+# **The register is now an EXCLUSION filter, not a mint list** (ID-427
+# {427.14}). `project_context` mints `terms - allowed` and drops
+# `terms & allowed` on the floor: a base term is recognised precisely so it
+# is NOT asserted into the bundle.
 _DIMENSIONS: tuple[tuple[str, frozenset[str]], ...] = (
     ("entity_types", ALLOWED_ENTITY_TYPES),
     ("relationship_types", ALLOWED_RELATIONSHIP_TYPES),
@@ -101,17 +121,20 @@ _INVALID_RUN_RE = re.compile(r"[^a-z0-9_-]+")
 _DASH_COLLAPSE_RE = re.compile(r"-{2,}")
 
 # {132.44} rider A ({132.43} checker-nit): `project_context`'s returned
-# `@context` dict carries these two RESERVED namespace-prefix keys
-# (`"base"` always; `"client"` when a client-id is set) alongside every
-# minted term entry. A term whose `slug()` collides with one of these
-# reserved keys would otherwise silently `dict`-overwrite the namespace
-# prefix itself (`context.update(_mint_bucket(...))` runs AFTER the prefix
-# keys are seeded) — `_mint_bucket` below treats that as a collision
-# (logged + `diagnostics.collisions`), never a silent overwrite. Currently
-# unreachable via the ratified base vocabulary (no base term is named
-# `base`/`client`); reachable only via an arbitrary client-authored overlay
-# term.
-_RESERVED_PREFIX_SLUGS: frozenset[str] = frozenset({"base", "client"})
+# `@context` dict seeds RESERVED namespace-prefix keys alongside every
+# minted term entry. A term whose `slug()` collides with one of them would
+# otherwise silently `dict`-overwrite the namespace prefix itself
+# (`context.update(_mint_bucket(...))` runs AFTER the prefix keys are
+# seeded) — `_mint_bucket` below treats that as a collision (logged +
+# `diagnostics.collisions`), never a silent overwrite.
+#
+# **`"base"` LEFT this set at ID-427 {427.14}, with the prefix key it
+# protected.** The set exists to protect keys `project_context` actually
+# seeds; `"base"` is no longer one of them, and a reservation outliving the
+# thing it reserves is not conservative — it silently DROPS a client whose
+# own overlay declares a term named `base`, to defend an entry that is not
+# written. Only `"client"` is still seeded, so only `"client"` is reserved.
+_RESERVED_PREFIX_SLUGS: frozenset[str] = frozenset({"client"})
 
 
 def _base_namespace() -> str:
@@ -239,29 +262,42 @@ def _mint_bucket(
 def project_context(
     effective_ontology: EffectiveOntology, *, client_id: str | None
 ) -> dict[str, object]:
-    """Project every term of `effective_ontology` (base union overlay
-    across `entity_types`/`relationship_types`) into the `context.jsonld`
-    `@context` term->IRI mapping. Performs no I/O — the `"@context"` key is
-    what {132.44}'s `write_context_artefact` serialises to disk.
+    """Project the CLIENT-OVERLAY terms of `effective_ontology` (the
+    `entity_types`/`relationship_types` members that are NOT in the base
+    registers) into the `context.jsonld` `@context` term->IRI mapping.
+    Performs no I/O — the `"@context"` key is what {132.44}'s
+    `write_context_artefact` serialises to disk.
 
-    Base-vs-overlay classification imports `ALLOWED_ENTITY_TYPES`/
+    **Overlay-driven emission only, since ID-427 {427.14}** (TQ-1, DR-027's
+    S546 extension as amended S548). No base term mints, and the `"base"`
+    namespace-prefix key is not seeded — the platform's entity/relationship
+    CVs are no longer asserted to bundle consumers through this artefact any
+    more than through `ontology.json`. A run with no client overlay
+    therefore projects an EMPTY `"@context"`, and that is the honest
+    payload: the bundle declares what its client declared, and nothing else.
+
+    Base-vs-overlay classification still imports `ALLOWED_ENTITY_TYPES`/
     `ALLOWED_RELATIONSHIP_TYPES` from `producer.validator` — the SAME
-    closed-vocabulary registers the BI-13 gate lints against. ID-427
-    {427.5} dropped the `concept_types` dimension: concept `type` is a
-    shape-validated label with no base register, so no concept-type term
-    mints an IRI.
+    closed-vocabulary registers the BI-13 gate lints against — but as the
+    EXCLUSION filter that keeps base terms out. ID-427 {427.5} dropped the
+    `concept_types` dimension: concept `type` is a shape-validated label
+    with no base register, so no concept-type term mints an IRI here. A
+    client's DECLARED concept types still reach consumers, via
+    `ontology.json`'s `overlay.concept_types` echo — see
+    `lib/okf/bundle-graph.ts`'s `readOntologySignals`.
 
     `client_id=None` (IRI-6, no `OKF_CLIENT_ID` set at the {132.44} call
     site): the `"client"` prefix and every overlay-term entry are OMITTED
-    from `"@context"` (base-only); each un-projected overlay term is
-    recorded in the returned `"diagnostics"` and logged at WARNING. Never
-    raises — a run with no client-id, or with a slug collision, still
-    produces a valid `"@context"`.
+    from `"@context"` — which, with the base half retired, leaves it EMPTY;
+    each un-projected overlay term is recorded in the returned
+    `"diagnostics"` and logged at WARNING. Never raises — a run with no
+    client-id, or with a slug collision, still produces a valid
+    `"@context"`.
 
     Returns `{"@context": {...}, "diagnostics": {"collisions": [...],
     "unprojected_overlay": [...]}}`. `"diagnostics"` is advisory only —
     it is not part of the on-disk `context.jsonld` shape."""
-    context: dict[str, str] = {"base": f"{_base_namespace()}#"}
+    context: dict[str, str] = {}
     if client_id is not None:
         context["client"] = f"{_client_namespace(client_id)}#"
 
@@ -270,18 +306,7 @@ def project_context(
 
     for dimension, allowed in _DIMENSIONS:
         terms: frozenset[str] = getattr(effective_ontology, dimension)
-        base_terms = sorted(terms & allowed)
         overlay_terms = sorted(terms - allowed)
-
-        context.update(
-            _mint_bucket(
-                base_terms,
-                scope=None,
-                scope_label="base",
-                dimension=dimension,
-                collisions=collisions,
-            )
-        )
 
         if client_id is not None:
             context.update(

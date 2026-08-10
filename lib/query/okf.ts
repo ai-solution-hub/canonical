@@ -22,8 +22,18 @@ import { fetchJson } from '@/lib/query/fetchers';
  */
 export type OkfBundleClassSignal = 'client' | 'platform' | 'unknown';
 
-/** bl-457 `@context` IRI scope for a node's `type` term (DR-082) — see `lib/okf/bundle-graph.ts` module doc §4. */
-export type OkfIriScope = 'base' | 'client' | 'unmapped';
+/**
+ * Whether a node's concept `type` was DECLARED in the client's ontology
+ * overlay — see `lib/okf/bundle-graph.ts` module doc §4.
+ *
+ * Replaces `OkfIriScope` (`'base' | 'client' | 'unmapped'`) at ID-427
+ * {427.14}: that channel read `context.jsonld`, whose base vocabulary
+ * retired under DR-027 as amended (S548) and which never carried a concept
+ * type in the first place after {427.5}. This is a different question with
+ * a different answer set, not a rename — a platform-baseline bundle's nodes
+ * answered `'base'` before and answer `'undeclared'` now.
+ */
+export type OkfTypeDeclaration = 'client-declared' | 'undeclared';
 
 /** Relationship type of a resolved internal `.md` link — see `lib/okf/bundle-graph.ts` module doc §4. */
 export type OkfEdgeRelationship = 'cites' | 'related';
@@ -42,7 +52,8 @@ export interface OkfConceptSource {
 
 /**
  * One Cytoscape node in the bundle concept graph. The five `{132.49}`
- * fields (`bundleId`/`bundleClass`/`confidence`/`opacity`/`iriScope`) are
+ * fields (`bundleId`/`bundleClass`/`confidence`/`opacity`/
+ * `typeDeclaration`) are
  * OPTIONAL here even though the server always populates them from
  * `lib/okf/bundle-graph.ts` onward — kept optional so older cached
  * responses/test fixtures that predate this Subtask remain valid without a
@@ -61,7 +72,7 @@ export interface OkfBundleGraphNode {
     bundleClass?: OkfBundleClassSignal;
     confidence?: string | null;
     opacity?: number;
-    iriScope?: OkfIriScope;
+    typeDeclaration?: OkfTypeDeclaration;
     /** v0.2 `sources[]` provenance (id-439) — optional for the same back-compat reason as the `{132.49}` fields; legacy concepts serve `[]`. */
     sources?: OkfConceptSource[];
   };

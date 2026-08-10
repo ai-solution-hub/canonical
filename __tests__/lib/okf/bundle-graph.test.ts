@@ -402,29 +402,93 @@ describe('buildBundleGraph', () => {
     expect(graph.nodes[0].data.bundleClass).toBe('unknown');
   });
 
-  it('projects a node\'s type to iriScope "base" via context.jsonld\'s @context (bl-457/DR-082)', () => {
+  // ────────────────────────────────────────
+  // typeDeclaration — the ID-427 {427.14} re-sourced §4 channel.
+  //
+  // These REPLACE three `iriScope` tests that read `context.jsonld`'s
+  // `@context`. They are not those tests renamed: the old ones asserted a
+  // base-vs-client VOCABULARY split that DR-027 as amended (S548) retired,
+  // and which — measured at S548 — no concept type could answer anyway,
+  // since {427.5} had already dropped the `concept_types` row from the
+  // projection. The channel's source is now `ontology.json`'s
+  // `overlay.concept_types` echo (OV-2/OV-6).
+  // ────────────────────────────────────────
+
+  it("marks a node client-declared when the bundle's overlay declares its concept type", () => {
     const root = bundle({
       'tables/orders.md': orders, // type: BigQuery Table
-      'context.jsonld': JSON.stringify({
-        '@context': {
-          base: 'https://w3id.org/canonical/ontology/base#',
-          'BigQuery Table':
-            'https://w3id.org/canonical/ontology/base#BigQuery Table',
+      'ontology.json': JSON.stringify({
+        overlay: {
+          source: 'ontology-overlay.json',
+          sha256: 'a'.repeat(64),
+          concept_types: ['BigQuery Table'],
+          entity_types: [],
+          relationship_types: [],
         },
       }),
     });
 
     const graph = buildBundleGraph(root);
 
-    expect(graph.nodes[0].data.iriScope).toBe('base');
+    expect(graph.nodes[0].data.typeDeclaration).toBe('client-declared');
   });
 
-  it('projects a node\'s type to iriScope "client" when its minted IRI sits under the client namespace', () => {
+  it('leaves a node undeclared when the overlay is present but does not name its concept type', () => {
+    const root = bundle({
+      'tables/orders.md': orders, // type: BigQuery Table
+      'ontology.json': JSON.stringify({
+        overlay: {
+          source: 'ontology-overlay.json',
+          sha256: 'b'.repeat(64),
+          concept_types: ['Some Other Type'],
+          entity_types: [],
+          relationship_types: [],
+        },
+      }),
+    });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.nodes[0].data.typeDeclaration).toBe('undeclared');
+  });
+
+  it('leaves every node undeclared for a platform bundle, an absent artefact, or a malformed overlay', () => {
+    // OV-10: a non-client bundle ships `overlay: null` — nothing declared.
+    const platform = bundle({
+      'tables/orders.md': orders,
+      'ontology.json': JSON.stringify({ overlay: null }),
+    });
+    expect(buildBundleGraph(platform).nodes[0].data.typeDeclaration).toBe(
+      'undeclared',
+    );
+
+    const absent = bundle({ 'tables/orders.md': orders });
+    expect(buildBundleGraph(absent).nodes[0].data.typeDeclaration).toBe(
+      'undeclared',
+    );
+
+    // The `overlay` half echoes a CLIENT-authored file, so a shape this
+    // reader did not expect must degrade to "declared nothing", never throw.
+    const malformed = bundle({
+      'tables/orders.md': orders,
+      'ontology.json': JSON.stringify({
+        overlay: { concept_types: 'BigQuery Table' },
+      }),
+    });
+    expect(buildBundleGraph(malformed).nodes[0].data.typeDeclaration).toBe(
+      'undeclared',
+    );
+  });
+
+  it('stops reading context.jsonld for the border channel — a bundle carrying only an @context declares nothing', () => {
+    // The {427.14} retirement, asserted as a NEGATIVE at the read site: a
+    // `context.jsonld` naming this exact type under the client namespace —
+    // which under the OLD channel produced `iriScope: 'client'` — now moves
+    // nothing, because concept types are not what that artefact carries.
     const root = bundle({
       'tables/orders.md': orders,
       'context.jsonld': JSON.stringify({
         '@context': {
-          base: 'https://w3id.org/canonical/ontology/base#',
           client: 'https://w3id.org/canonical/ontology/client/acme#',
           'BigQuery Table':
             'https://w3id.org/canonical/ontology/client/acme#BigQuery Table',
@@ -432,25 +496,8 @@ describe('buildBundleGraph', () => {
       }),
     });
 
-    const graph = buildBundleGraph(root);
-
-    expect(graph.nodes[0].data.iriScope).toBe('client');
-  });
-
-  it('projects iriScope "unmapped" when context.jsonld is absent, or the type has no @context entry', () => {
-    const rootAbsent = bundle({ 'tables/orders.md': orders });
-    expect(buildBundleGraph(rootAbsent).nodes[0].data.iriScope).toBe(
-      'unmapped',
-    );
-
-    const rootNoEntry = bundle({
-      'tables/orders.md': orders,
-      'context.jsonld': JSON.stringify({
-        '@context': { base: 'https://w3id.org/canonical/ontology/base#' },
-      }),
-    });
-    expect(buildBundleGraph(rootNoEntry).nodes[0].data.iriScope).toBe(
-      'unmapped',
+    expect(buildBundleGraph(root).nodes[0].data.typeDeclaration).toBe(
+      'undeclared',
     );
   });
 });

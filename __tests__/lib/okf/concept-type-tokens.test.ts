@@ -7,7 +7,7 @@ import {
   conceptTypeTokenVars,
   resolveConceptTypeColor,
   bundleClassShape,
-  resolveIriScopeBorderColor,
+  resolveTypeDeclarationBorderColor,
   resolveEdgeRelationshipColor,
   resetRenderableColorContextForTests,
   toRenderableColor,
@@ -173,39 +173,87 @@ describe('bundleClassShape', () => {
   });
 });
 
-describe('resolveIriScopeBorderColor', () => {
-  it('resolves the "base" scope custom property when defined', () => {
+describe('resolveTypeDeclarationBorderColor', () => {
+  it('resolves the client-declared custom property when defined', () => {
+    document.documentElement.style.setProperty(
+      '--okf-graph-type-declared-border',
+      'oklch(0.55 0.15 290)',
+    );
+
+    expect(
+      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
+    ).toBe('oklch(0.55 0.15 290)');
+  });
+
+  it('falls back for "undeclared" or an absent typeDeclaration', () => {
+    expect(resolveTypeDeclarationBorderColor('undeclared', 'FALLBACK')).toBe(
+      'FALLBACK',
+    );
+    expect(resolveTypeDeclarationBorderColor(undefined, 'FALLBACK')).toBe(
+      'FALLBACK',
+    );
+  });
+
+  it('falls back when the custom property is not defined', () => {
+    document.documentElement.style.removeProperty(
+      '--okf-graph-type-declared-border',
+    );
+    expect(
+      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
+    ).toBe('FALLBACK');
+  });
+
+  it('has its token defined in domain-tokens.css, and the retired iri-scope pair removed from it', () => {
+    // The channel's tokens "follow whatever is decided" ({427.14} scope).
+    // Asserted against the REAL stylesheet, in BOTH directions: the
+    // surviving token must exist (a channel resolving an undefined property
+    // renders neutral forever — a silent vestigial channel by another
+    // route), and the two retired ones must be gone (a token nothing reads
+    // is exactly the debris this Subtask exists to clear).
+    const css = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../../app/styles/domain-tokens.css',
+      ),
+      'utf-8',
+    );
+
+    // Matched in DECLARATION form (trailing `:`), like the KNOWN_TYPES
+    // guard above. The retired names still appear in that file as prose —
+    // the comment recording why they went — and a comment is not a live
+    // token. What must not survive is a declaration.
+    expect(css).toContain('--okf-graph-type-declared-border:');
+    expect(css).not.toContain('--okf-graph-iri-base-border:');
+    expect(css).not.toContain('--okf-graph-iri-client-border:');
+  });
+
+  it('no longer spends the retired iri-scope tokens, even when they are defined', () => {
+    // ID-427 {427.14}: `--okf-graph-iri-base-border`/`--okf-graph-iri-client-
+    // border` retired with the channel they coloured. A stale stylesheet
+    // still defining them must not resurrect a border colour — the mapping
+    // reads ONE token now, and a value it does not read cannot be rendered.
+    document.documentElement.style.removeProperty(
+      '--okf-graph-type-declared-border',
+    );
     document.documentElement.style.setProperty(
       '--okf-graph-iri-base-border',
       'oklch(0.55 0.12 240)',
     );
-
-    expect(resolveIriScopeBorderColor('base', 'FALLBACK')).toBe(
-      'oklch(0.55 0.12 240)',
-    );
-  });
-
-  it('resolves the "client" scope custom property when defined', () => {
     document.documentElement.style.setProperty(
       '--okf-graph-iri-client-border',
       'oklch(0.55 0.15 290)',
     );
 
-    expect(resolveIriScopeBorderColor('client', 'FALLBACK')).toBe(
-      'oklch(0.55 0.15 290)',
-    );
-  });
+    expect(
+      resolveTypeDeclarationBorderColor('client-declared', 'FALLBACK'),
+    ).toBe('FALLBACK');
 
-  it('falls back for "unmapped" or an absent iriScope', () => {
-    expect(resolveIriScopeBorderColor('unmapped', 'FALLBACK')).toBe('FALLBACK');
-    expect(resolveIriScopeBorderColor(undefined, 'FALLBACK')).toBe('FALLBACK');
-  });
-
-  it('falls back when the custom property is not defined', () => {
     document.documentElement.style.removeProperty(
       '--okf-graph-iri-base-border',
     );
-    expect(resolveIriScopeBorderColor('base', 'FALLBACK')).toBe('FALLBACK');
+    document.documentElement.style.removeProperty(
+      '--okf-graph-iri-client-border',
+    );
   });
 });
 

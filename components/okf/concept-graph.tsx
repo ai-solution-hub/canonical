@@ -18,9 +18,15 @@
  * collides:
  *  - `bundleClass` -> node **shape** (`bundleClassShape` — a structural,
  *    non-colour channel, so no new design token).
- *  - `iriScope` (bl-457) -> node **border-color** (only when NOT selected —
+ *  - `typeDeclaration` -> node **border-color** (only when NOT selected —
  *    `node:selected` is declared after `node` in the style array, so it
- *    still wins the cascade for a selected node).
+ *    still wins the cascade for a selected node). ID-427 {427.14} re-sourced
+ *    this channel: it was `iriScope` (`context.jsonld`'s base-vs-client IRI
+ *    namespace) until DR-027 as amended (S548) retired the base vocabulary,
+ *    and it now answers whether the client DECLARED this concept type in
+ *    its ontology overlay. One affirmative state, one token — an
+ *    `'undeclared'` node draws the neutral chrome colour, because that is
+ *    what "no signal" should look like.
  *  - `confidence` (A19) -> node **opacity**, pre-computed server-side.
  *  - `relationship` (cites/related) -> edge **line/arrow colour**.
  * `<GraphLegend>` renders a compact key for all four so a union view (or a
@@ -37,7 +43,7 @@ import {
   resolveGraphChromeColors,
   toRenderableColor,
   bundleClassShape,
-  resolveIriScopeBorderColor,
+  resolveTypeDeclarationBorderColor,
   resolveEdgeRelationshipColor,
 } from '@/lib/okf/concept-type-tokens';
 import { cn } from '@/lib/utils';
@@ -87,8 +93,8 @@ function toElements(
       ...n.data,
       color: resolveConceptTypeColor(n.data.type)?.bg ?? fallbackNodeColor,
       shape: bundleClassShape(n.data.bundleClass),
-      borderColor: resolveIriScopeBorderColor(
-        n.data.iriScope,
+      borderColor: resolveTypeDeclarationBorderColor(
+        n.data.typeDeclaration,
         fallbackNodeColor,
       ),
       opacity: n.data.opacity ?? 1,
@@ -106,7 +112,7 @@ function toElements(
   return [...nodeElements, ...edgeElements];
 }
 
-/** Compact key for the four {132.49} visual channels — shape (bundleClass), border colour (bl-457 iriScope), opacity (A19 confidence), edge colour (relationship). */
+/** Compact key for the four {132.49} visual channels — shape (bundleClass), border colour (typeDeclaration, ID-427 {427.14}), opacity (A19 confidence), edge colour (relationship). */
 function GraphLegend() {
   return (
     <div
@@ -127,12 +133,8 @@ function GraphLegend() {
         Unknown bundle class
       </span>
       <span className="flex items-center gap-1">
-        <span className="inline-block size-2.5 rounded-full border-2 bg-[var(--okf-graph-iri-base-border)]" />
-        Base vocabulary term
-      </span>
-      <span className="flex items-center gap-1">
-        <span className="inline-block size-2.5 rounded-full border-2 bg-[var(--okf-graph-iri-client-border)]" />
-        Client-overlay term
+        <span className="inline-block size-2.5 rounded-full border-2 bg-[var(--okf-graph-type-declared-border)]" />
+        Client-declared type
       </span>
       <span className="flex items-center gap-1">
         <span className="inline-block h-0.5 w-4 bg-[var(--okf-graph-edge-cites)]" />
@@ -193,7 +195,7 @@ export function ConceptGraph({
             'text-margin-y': 4,
             width: 'data(size)',
             height: 'data(size)',
-            // {132.49}: bundleClass -> shape, bl-457 iriScope -> border,
+            // {132.49}: bundleClass -> shape, typeDeclaration -> border,
             // A19 confidence -> opacity (pre-computed server-side). Cytoscape's
             // own style DSL supports a `'data(x)'` mapper STRING for any
             // property at runtime, but its TS types only model the mapper
