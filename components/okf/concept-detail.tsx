@@ -284,10 +284,11 @@ export function ConceptDetail({
     >
       <header className="mb-3">
         <Badge
-          className={cn(
-            `bg-[var(${tokenVars.bg})] text-[var(${tokenVars.text})]`,
-            'uppercase tracking-wide',
-          )}
+          className="uppercase tracking-wide"
+          style={{
+            backgroundColor: `var(${tokenVars.bg})`,
+            color: `var(${tokenVars.text})`,
+          }}
         >
           {node.data.type}
         </Badge>

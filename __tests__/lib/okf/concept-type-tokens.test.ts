@@ -72,9 +72,12 @@ describe('conceptTypeTokenVars', () => {
   // The guard that makes the mapping above mean something. `conceptType
   // TokenVars` promises `--okf-concept-<key>-*` for every KNOWN_TYPES
   // member, and `components/okf/concept-detail.tsx` interpolates that name
-  // into `bg-[var(...)]` with NO fallback — so a member without a token
-  // pair in `app/styles/domain-tokens.css` renders WORSE than an unknown
-  // type. This reads the real stylesheet rather than trusting the list.
+  // into an inline `style` `var(...)` reference with NO fallback — so a
+  // member without a token pair in `app/styles/domain-tokens.css` renders
+  // WORSE than an unknown type. This reads the real stylesheet rather than
+  // trusting the list. (Described, not quoted: Tailwind v4 scans this file's
+  // text and would emit an unparseable rule from a literal placeholder —
+  // see the matching note in `lib/okf/concept-type-tokens.ts`.)
   it('declares a light and dark token pair in domain-tokens.css for every type it claims to know', () => {
     const css = readFileSync(
       resolve(

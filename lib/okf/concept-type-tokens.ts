@@ -64,10 +64,21 @@ const KNOWN_TYPES = [
   // MEMBERSHIP IS A PROMISE THAT TOKENS EXIST. `conceptTypeTokenVars`
   // returns `--okf-concept-<key>-bg/-text` for anything in this list, and
   // `components/okf/concept-detail.tsx` interpolates those names straight
-  // into `bg-[var(...)]` with NO fallback — so a key added here without a
-  // matching pair in `app/styles/domain-tokens.css` renders worse than an
-  // unknown type, which at least resolves to `--okf-concept-default-*`.
-  // Every addition below ships with its hue + light/dark token pair.
+  // into an inline `style` `var(...)` reference with NO fallback — so a
+  // key added here without a matching pair in `app/styles/domain-tokens.css`
+  // renders worse than an unknown type, which at least resolves to
+  // `--okf-concept-default-*`. Every addition below ships with its hue +
+  // light/dark token pair.
+  //
+  // Deliberately consumed via inline `style`, never a Tailwind arbitrary-
+  // value class (`components/CLAUDE.md`'s documented `bg-[var(--token)]`
+  // pattern only works for a STATIC literal Tailwind's build-time scanner
+  // can see): `type` is an open vocabulary, so the class name would only be
+  // known at runtime and Tailwind would never generate the utility at all.
+  // Also never spell that bracket syntax out literally in a comment with a
+  // placeholder inside it — Tailwind v4 auto-scans file TEXT, comments
+  // included, and a `var(...)` placeholder there gets emitted as an
+  // unparseable CSS rule that fails the `app/globals.css` build.
   'reference',
   'document',
   'questionnaire_response',
