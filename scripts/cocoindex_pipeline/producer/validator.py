@@ -16,10 +16,18 @@ validator (BI-13)", as amended by the v0.2 wave:
   level (a concept's citation non-emptiness is BI-17's draft-time gate,
   `producer/enrich.py`), and `check_sources` validates every entry when
   present.
-- **BI-4 type set** — `type` MUST be one of the five ratified concept
-  types. Mirrors `CONCEPT_TYPE_VALUES` in `lib/ontology/concept-schema.ts`
-  (TS source of truth for the concept-frontmatter contract; not imported —
-  cross-language). `metric`/`playbook` are TAGS, not types.
+- **`type` is a shape-validated LABEL, not a membership** (ID-427
+  {427.5}, DR-141). `type` MUST be a lowercase snake_case ASCII label of
+  3–40 characters and at most 4 underscore-separated words, and must not
+  be the reserved `q_a_pair` (BI-3). It is checked against **no
+  vocabulary**: OKF §1 lists "defining a fixed taxonomy of concept types"
+  under Non-goals, consumers MUST tolerate unknown types, and producers
+  pick values that are descriptive and self-explanatory. The former
+  closed five-type register (`ALLOWED_CONCEPT_TYPES`), its per-bundle-class
+  variants (`_CLASS_CONCEPT_TYPES`) and the Source-side mirror
+  (`sources/base.py:CONCEPT_TYPES`) are all DELETED — a producer that
+  enumerates its own permitted types is the inversion DR-141 withdraws.
+  See `check_type_shape`.
 - **Resource scheme (v0.2, F2-B inversion)** — the `canonical://` grammar
   (per-row anchor `canonical://{source_documents,reference_items}/<uuid>`
   or the BI-8 `q_a_pairs?scope_tag=<tag>` query form) now belongs to
@@ -92,7 +100,6 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
 
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
@@ -108,14 +115,38 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (
 )
 
 # ──────────────────────────────────────────
-# BI-4: the closed concept type set.
-# Mirrors `CONCEPT_TYPE_VALUES` — `lib/ontology/concept-schema.ts:36-42`.
-# `metric`/`playbook` are TAGS, never types.
+# ID-427 {427.5} / DR-141 — the `type` SHAPE rule (TECH §2.8). There is no
+# permitted-value register here and no `ALLOWED_CONCEPT_TYPES` any more:
+# `type` is a label the producer picks, and the only thing the gate asserts
+# is that the label is well-formed enough to be self-explanatory and to
+# survive projection unchanged.
+#
+# Why this shape:
+#   * `iri_projection.slug()` is IDENTITY on it, so no term is silently
+#     rewritten downstream;
+#   * every type the platform emits today (`topic`, `product`, `company`,
+#     `certification`, `case_study`, `schema`, `tool`, `api`, `navigation`,
+#     `playbook`) already matches — the rule ratifies existing output rather
+#     than forcing a migration;
+#   * `api` is 3 characters, which sets the floor and excludes the
+#     uninformative 1–2 character token;
+#   * the word cap keeps a type a LABEL rather than a sentence, which is
+#     what "descriptive and self-explanatory" buys.
+#
+# Deliberately NOT checked: singular-vs-plural (not objectively decidable,
+# and it would reject nothing a human would call wrong); collision with a
+# `content_type` value (DR-050 forbids MERGING the two vocabularies, not
+# string coincidence — checking it would be the overreach DR-050 warns
+# against).
 # ──────────────────────────────────────────
 
-ALLOWED_CONCEPT_TYPES = frozenset(
-    {"topic", "product", "company", "certification", "case_study"}
-)
+_TYPE_SHAPE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+_TYPE_MIN_LEN, _TYPE_MAX_LEN, _TYPE_MAX_WORDS = 3, 40, 4
+
+# BI-3, unconditional and permanent: a Q&A pair is never a concept. This is
+# a RESERVED NAME, not a permitted-value register — it says what `type` may
+# never be, never what it must be.
+_RESERVED_TYPES = frozenset({"q_a_pair"})
 
 # ──────────────────────────────────────────
 # BI-4 facet TAGS (S443 Amendment / DR-029). Facets are carried in the OPEN
@@ -124,8 +155,11 @@ ALLOWED_CONCEPT_TYPES = frozenset(
 # concept` does not reject a tag for being absent here (a concept may still
 # carry arbitrary short domain tags); the registry names the facets the
 # producer treats as first-class, for downstream consumers ({132.21}) and to
-# keep the enumerated type set (`ALLOWED_CONCEPT_TYPES`) and the facet
-# vocabulary from silently diverging.
+# keep the enumerated type set and the facet vocabulary from silently
+# diverging. **The second of those two stated requirements died with the
+# enumerated type set in {427.5}** — there is nothing left for the facet
+# vocabulary to diverge FROM. This whole block retires in {427.6}, which
+# resolves the three bends as types.
 #
 # - `metric`/`dataset`/`playbook` — the BI-4 tag-carried facets already
 #   ratified (PRODUCT.md §BI-4 "genuine discretion" — a metric is a citeable
@@ -218,44 +252,23 @@ ALLOWED_RELATIONSHIP_TYPES = frozenset(
 )
 
 # ──────────────────────────────────────────
-# PC-4 (ID-163 TECH, DR-054/DR-079): the run's bundle CLASS scopes the BI-4
-# concept-type dimension. `BundleClass` is DUPLICATED (not imported) from
-# `bundle_writer.py:745` — deliberately, by design: `bundle_writer.py`
-# already imports FROM this module at its own module scope (`EffectiveOntology`,
-# `ALLOWED_CONCEPT_TYPES`, `check_concept`, …), so importing `BundleClass`
-# the other way round would be a circular import. This mirrors the SAME
-# established cross-module duplication precedent already in this file (see
-# `_CONFIDENCE_VALUES` below — "duplicated (not imported) ... by design").
-# Keep the two Literal definitions in sync by hand; they are not enforced
-# structurally equal.
-# ──────────────────────────────────────────
-
-BundleClass = Literal["client_business", "system_baseline", "showcase", "internal_dev"]
-
-# DR-079 ratified FOUR bundle classes, each with its own type set. Only
-# THREE are populated here: `client_business`/`showcase` share the existing
-# ratified business set (`ALLOWED_CONCEPT_TYPES`); `system_baseline` gets
-# its own closed platform-knowledge set. `internal_dev` (bl-478) is
-# deliberately OMITTED — it has no ratified BI-4 type set yet, and
-# `base_for_class` fails loud on it rather than silently returning an
-# empty/permissive set (see `base_for_class` docstring).
-_CLASS_CONCEPT_TYPES: "dict[BundleClass, frozenset[str]]" = {
-    "client_business": ALLOWED_CONCEPT_TYPES,
-    "showcase": ALLOWED_CONCEPT_TYPES,
-    "system_baseline": frozenset(
-        {"schema", "tool", "api", "navigation", "playbook"}
-    ),
-}
-
-# ──────────────────────────────────────────
 # OV-7/OV-8 (ID-132 {132.34} G-OVERLAY-CV, DR-054): the run's EFFECTIVE
 # ontology — base ∪ client-overlay per dimension. Threaded through
-# `check_concept`/`validate_concept` -> `check_type_membership`/
-# `lint_entity_relation_mentions` so a run that composed a client overlay
-# (`bundle_writer.read_client_overlay`) lints against base+overlay, not the
-# bare base frozensets above. `effective_ontology=None` (the default at
-# EVERY pre-overlay call site) is exactly `base_only()` — zero behaviour
-# change for a bundle with no overlay.
+# `check_concept`/`validate_concept` -> `lint_entity_relation_mentions` so a
+# run that composed a client overlay (`bundle_writer.read_client_overlay`)
+# lints against base+overlay, not the bare base frozensets above.
+# `effective_ontology=None` (the default at EVERY pre-overlay call site) is
+# exactly `base_only()` — zero behaviour change for a bundle with no overlay.
+#
+# **TWO dimensions, not three** (ID-427 {427.5}, DR-141). `concept_types`
+# is gone: entity and relationship types are genuinely closed platform
+# controlled vocabularies (they mirror `extraction.py`'s Pydantic
+# `Literal`s, which the extractor really does enforce), whereas concept
+# `type` is an open label validated by SHAPE (`check_type_shape`). A
+# dimension that gates nothing has no business being composed.
+# `_CLASS_CONCEPT_TYPES`/`base_for_class` deleted with it — the owner's S546
+# uniformity ruling: bundle classes are conformant and uniform, so
+# `system_baseline` is no longer gated against its own five-type set either.
 # ──────────────────────────────────────────
 
 
@@ -267,43 +280,21 @@ class EffectiveOntology:
     calls `sorted(...)` on it (mirrors the base snapshot's own
     `sorted(...)` convention)."""
 
-    concept_types: "frozenset[str]"
     entity_types: "frozenset[str]"
     relationship_types: "frozenset[str]"
-
-    @classmethod
-    def base_for_class(cls, bundle_class: "BundleClass") -> "EffectiveOntology":
-        """PC-4 (ID-163 TECH, DR-079): the bundle-CLASS-scoped BASE
-        effective ontology — `concept_types` is keyed off
-        `_CLASS_CONCEPT_TYPES[bundle_class]`; `entity_types`/
-        `relationship_types` stay the shared base frozensets (TECH id-163
-        only class-scopes the concept-type dimension — no per-class
-        entity/relationship registry exists). Raises `ValueError` for a
-        class with no ratified type set yet (`internal_dev`, deferred
-        bl-478) rather than silently returning an empty or permissive set."""
-        try:
-            concept_types = _CLASS_CONCEPT_TYPES[bundle_class]
-        except KeyError as exc:
-            raise ValueError(
-                f"no ratified BI-4 concept-type set for bundle_class "
-                f"{bundle_class!r} yet (internal_dev is deferred — bl-478)"
-            ) from exc
-        return cls(
-            concept_types=concept_types,
-            entity_types=ALLOWED_ENTITY_TYPES,
-            relationship_types=ALLOWED_RELATIONSHIP_TYPES,
-        )
 
     @classmethod
     def base_only(cls) -> "EffectiveOntology":
         """The default effective ontology when no overlay is composed —
         gating against this is identical to gating against the bare base
-        frozensets directly (pre-overlay behaviour, unchanged). PC-4 (ID-163
-        TECH): delegates to `base_for_class('client_business')` so every
-        pre-163 `base_only()` call site (`check_type_membership`,
-        `lint_entity_relation_mentions`) is behaviourally unchanged —
-        client_business is the validator's original, sole pre-163 gate."""
-        return cls.base_for_class("client_business")
+        frozensets directly. Identical for EVERY bundle class since {427.5}
+        withdrew the per-class concept-type scoping (DR-141 + the S546
+        uniformity ruling); there is no `base_for_class` any more, and no
+        class fails loud for want of a ratified type set."""
+        return cls(
+            entity_types=ALLOWED_ENTITY_TYPES,
+            relationship_types=ALLOWED_RELATIONSHIP_TYPES,
+        )
 
     @classmethod
     def compose(cls, overlay: "Mapping[str, object] | None") -> "EffectiveOntology":
@@ -311,16 +302,19 @@ class EffectiveOntology:
         provenance-wrapped mapping `bundle_writer.read_client_overlay`
         returns (or any equivalent `{dimension: [terms, ...]}` mapping,
         e.g. the raw dict an explicit `client_ontology_overlay` kwarg
-        supplies) — any of the three OV-2 dimension keys it omits
-        contributes no extension for that dimension. `overlay=None` (OV-4:
-        no overlay file present) is exactly `base_only()`. Restating a base
-        term is an idempotent union no-op (OV-3)."""
+        supplies) — any dimension key it omits contributes no extension for
+        that dimension. `overlay=None` (OV-4: no overlay file present) is
+        exactly `base_only()`. Restating a base term is an idempotent union
+        no-op (OV-3).
+
+        An overlay's `concept_types` key stays SCHEMA-VALID
+        (`bundle_writer._OVERLAY_DIMENSIONS` keeps all three keys, and the
+        artefact still echoes the client's declared terms) but composes
+        nothing and gates nothing — under DR-141 a concept type needs no
+        permission to be emitted, so there is no set for it to widen."""
         if overlay is None:
             return cls.base_only()
         return cls(
-            concept_types=frozenset(
-                ALLOWED_CONCEPT_TYPES | set(overlay.get("concept_types") or ())
-            ),
             entity_types=frozenset(
                 ALLOWED_ENTITY_TYPES | set(overlay.get("entity_types") or ())
             ),
@@ -428,21 +422,52 @@ def check_required_keys(frontmatter: "Mapping[str, object]") -> "list[str]":
     return errors
 
 
-def check_type_membership(
-    type_value: object, *, effective_ontology: "EffectiveOntology | None" = None
-) -> "list[str]":
-    """BI-4: `type` must be one of the ratified concept types — the base
-    five, or base ∪ client-overlay when `effective_ontology` is supplied
-    (OV-8, ID-132 {132.34}). Defaults to base-only, so every pre-overlay
-    call site is unchanged."""
-    allowed = (effective_ontology or EffectiveOntology.base_only()).concept_types
-    if type_value not in allowed:
+def check_type_shape(type_value: object) -> "list[str]":
+    """ID-427 {427.5} / DR-141 (TECH §2.8): `type` is a LABEL, validated by
+    SHAPE. It is valid iff it is a `str`; it is lowercase ASCII snake_case
+    with a leading letter; its length is 3–40; it has at most 4
+    underscore-separated words; and it is not a reserved name (`q_a_pair`,
+    BI-3 — unconditional).
+
+    **No permitted set exists, and no error message here may name one.**
+    The name of this function is load-bearing: an identifier that says
+    "membership" *is* the inversion DR-141 withdrew. Every message below
+    says what is wrong with the LABEL — never what the label should have
+    been chosen from.
+
+    Takes no `effective_ontology`: there is no set to compose against.
+    `check_concept`/`validate_concept` still thread one through for
+    `lint_entity_relation_mentions`, whose closed 12-entity/10-relation
+    vocabulary is unchanged."""
+    if not isinstance(type_value, str):
+        return [f"type must be a string; got {type_value!r}"]
+    if not type_value:
+        return ["type must not be empty"]
+    if type_value in _RESERVED_TYPES:
         return [
-            f"type {type_value!r} is outside the closed BI-4 type set "
-            f"{sorted(allowed)} (metric/playbook are tags, "
-            "not types)"
+            f"type {type_value!r} is reserved and may never be a concept "
+            "type (BI-3: a Q&A pair is never a concept)"
         ]
-    return []
+    errors: "list[str]" = []
+    if not _TYPE_SHAPE_RE.fullmatch(type_value):
+        errors.append(
+            f"type {type_value!r} must be lowercase ASCII snake_case "
+            "starting with a letter (a-z, 0-9 and single underscores only) "
+            "— it is a label, so it must survive IRI projection unchanged"
+        )
+    if not _TYPE_MIN_LEN <= len(type_value) <= _TYPE_MAX_LEN:
+        errors.append(
+            f"type {type_value!r} must be {_TYPE_MIN_LEN}-{_TYPE_MAX_LEN} "
+            f"characters long; got {len(type_value)}"
+        )
+    words = type_value.split("_")
+    if len(words) > _TYPE_MAX_WORDS:
+        errors.append(
+            f"type {type_value!r} must be at most {_TYPE_MAX_WORDS} "
+            f"underscore-separated words; got {len(words)} — a type is a "
+            "label, not a sentence"
+        )
+    return errors
 
 
 def check_resource_scheme(resource: object) -> "list[str]":
@@ -674,15 +699,17 @@ def check_concept(
     valid). Non-raising — `validate_concept` wraps this and raises.
 
     `effective_ontology` (OV-8, ID-132 {132.34}) is the run's composed
-    base ∪ client-overlay set — threaded into `check_type_membership`
-    (concept `type`) and `lint_entity_relation_mentions` (entity/
-    relationship mentions). `None` (every pre-overlay call site) gates
-    against the bare base frozensets, unchanged."""
+    base ∪ client-overlay set — threaded into `lint_entity_relation_
+    mentions` (entity/relationship mentions) ONLY. Since {427.5} it is NOT
+    threaded into the concept-`type` check: `check_type_shape` validates a
+    label's shape and has no vocabulary to compose against (DR-141).
+    `None` (every pre-overlay call site) lints against the bare base
+    frozensets, unchanged."""
     fm = _as_mapping(frontmatter)
     errors: "list[str]" = []
     errors += check_required_keys(fm)
     if "type" in fm:
-        errors += check_type_membership(fm["type"], effective_ontology=effective_ontology)
+        errors += check_type_shape(fm["type"])
     if "resource" in fm:
         errors += check_resource_scheme(fm["resource"])
     if "sources" in fm:

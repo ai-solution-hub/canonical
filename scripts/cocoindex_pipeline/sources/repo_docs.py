@@ -113,20 +113,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
-from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
-
-# ── PC-4 (ID-163 TECH, DR-079): the `system_baseline` bundle-class base
-# concept-type set (163.3's `EffectiveOntology.base_for_class`) — the ONLY
-# set a `RepoConceptKey.concept_type` may belong to. Computed once at
-# import time (a cheap dict lookup + frozen-dataclass construction,
-# `validator.py`'s own `_CLASS_CONCEPT_TYPES` registry is the single
-# source of truth — never duplicated here). Unlike `ConceptKey` (BI-4),
-# there is no overlay-widening mechanism for a `RepoConceptKey`: PC-6
-# hard-rejects a discovered `ontology-overlay.json` for `system_baseline`
-# runs upstream of this module, so the base set IS the effective set. ────
-SYSTEM_BASELINE_CONCEPT_TYPES: "frozenset[str]" = EffectiveOntology.base_for_class(
-    "system_baseline"
-).concept_types
+from scripts.cocoindex_pipeline.producer.validator import check_type_shape
 
 
 @dataclass(frozen=True)  # frozen → deterministic cocoindex memo key (BI-18 analogue)
@@ -143,11 +130,18 @@ class RepoConceptKey:
     identity (mirrors `ConceptKey.rel_path`, BI-2)."""
 
     concept_type: str
-    """One of `SYSTEM_BASELINE_CONCEPT_TYPES` (PC-4) — validated in
-    `__post_init__`. Never a `client_business` type (e.g. `company`); the
-    two bundle-class type sets are disjoint, and a `RepoConceptKey` never
-    widens via the {132.36} overlay mechanism (PC-6 rejects overlays for
-    `system_baseline` outright)."""
+    """The concept's OKF `type` LABEL — validated in `__post_init__` by the
+    SAME `producer/validator.check_type_shape` rule `ConceptKey` and the
+    BI-13 write gate apply (ID-427 {427.5}).
+
+    **The per-bundle-class type sets are gone** (DR-141 + the owner's S546
+    uniformity ruling: *"we should be conformant and uniform across bundle
+    classes"*). There is no `SYSTEM_BASELINE_CONCEPT_TYPES` and no
+    disjointness rule — a system-bundle grain may mint `document` or any
+    other well-shaped label exactly as a client-bundle grain may. The five
+    labels this adapter's grains actually emit (`schema`, `tool`, `api`,
+    `navigation`, `playbook`) are properties of the grains, not of a
+    register."""
 
     source_ref: str
     """The backing-artefact locator: `file#Lstart-Lend` for the E1
@@ -200,14 +194,11 @@ class RepoConceptKey:
                 "RepoConceptKey.rel_path must be non-empty (identity = "
                 "bundle rel_path = the cocoindex memo key)"
             )
-        if self.concept_type not in SYSTEM_BASELINE_CONCEPT_TYPES:
+        shape_errors = check_type_shape(self.concept_type)
+        if shape_errors:
             raise ValueError(
-                "RepoConceptKey.concept_type must be one of "
-                f"{sorted(SYSTEM_BASELINE_CONCEPT_TYPES)} (PC-4 "
-                "system_baseline base type set); got "
-                f"{self.concept_type!r}. A client_business type "
-                "(e.g. 'company') is never valid here — the two "
-                "bundle-class type sets are disjoint."
+                f"RepoConceptKey.concept_type is not a well-formed OKF type "
+                f"label: {'; '.join(shape_errors)}"
             )
 
 

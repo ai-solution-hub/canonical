@@ -104,7 +104,6 @@ from scripts.cocoindex_pipeline.producer.resource_uri import (  # noqa: E402
     build_source_document_uri,
 )
 from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
-    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
@@ -1226,7 +1225,13 @@ def test_write_ontology_artefact_base_only_when_no_overlay(tmp_path: Path) -> No
     content = bundle_writer.write_ontology_artefact(tmp_path)
     payload = json.loads(content)
 
-    assert payload["base"]["concept_types"] == sorted(ALLOWED_CONCEPT_TYPES)
+    # ID-427 {427.5}: the pinned base snapshot lost its `concept_types`
+    # row with `ALLOWED_CONCEPT_TYPES` — publishing a base concept-type
+    # vocabulary in an artefact after deleting it from the gate would
+    # re-assert the closed taxonomy in a different file. ({427.11} retires
+    # the whole `base` key; the two surviving dimensions are asserted here
+    # because they are genuinely closed CVs and must NOT vanish with it.)
+    assert "concept_types" not in payload["base"]
     assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
     assert payload["base"]["relationship_types"] == sorted(ALLOWED_RELATIONSHIP_TYPES)
     assert payload["overlay"] is None
@@ -1249,8 +1254,12 @@ def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
     content = bundle_writer.write_ontology_artefact(tmp_path, client_overlay=overlay)
     payload = json.loads(content)
 
+    # The overlay is still echoed VERBATIM, `concept_types` key and all —
+    # a client bundle declaring concept types stays schema-valid and its
+    # declaration still surfaces in the artefact; it simply no longer
+    # gates any write ({427.5}).
     assert payload["overlay"] == overlay
-    assert payload["base"]["concept_types"] == sorted(ALLOWED_CONCEPT_TYPES)
+    assert "concept_types" not in payload["base"]
     assert payload["base"]["entity_types"] == sorted(ALLOWED_ENTITY_TYPES)
 
 
@@ -1271,7 +1280,7 @@ def test_context_filename_is_reserved() -> None:
 
 
 def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> None:
-    """IRI-4/5: every base-vocabulary term across all three dimensions
+    """IRI-4/5: every base-vocabulary term across both surviving dimensions
     resolves to its base IRI; no `client` prefix is emitted absent a
     client-id (IRI-6)."""
     eo = EffectiveOntology.base_only()
@@ -1281,8 +1290,10 @@ def test_write_context_artefact_base_only_when_no_client_id(tmp_path: Path) -> N
     assert set(payload) == {"@context"}
     context = payload["@context"]
     assert "client" not in context
-    for term in ALLOWED_CONCEPT_TYPES:
-        assert context[term] == iri_projection.mint_iri(term, scope=None)
+    # {427.5}: no concept-type term is projected — the dimension went with
+    # its base register, so `context.jsonld` carries entity and
+    # relationship terms only (TECH §2.10).
+    assert "case_study" not in context
     for term in ALLOWED_ENTITY_TYPES:
         assert context[term] == iri_projection.mint_iri(term, scope=None)
     for term in ALLOWED_RELATIONSHIP_TYPES:
@@ -1314,7 +1325,7 @@ def test_write_context_artefact_persists_only_the_context_key(tmp_path: Path) ->
     `diagnostics` (a slug collision here) — `project_context` already logs
     every diagnostic finding at WARNING as it occurs, so nothing is
     silently lost by leaving it out of the file."""
-    eo = EffectiveOntology.compose({"concept_types": ["Foo Bar", "foo-bar"]})
+    eo = EffectiveOntology.compose({"entity_types": ["Foo Bar", "foo-bar"]})
     content = bundle_writer.write_context_artefact(tmp_path, eo, client_id="acme")
     payload = json.loads(content)
 
@@ -1335,7 +1346,14 @@ def test_write_bundle_writes_context_jsonld_base_only_when_no_client_id(
     assert (tmp_path / "context.jsonld").is_file()
     payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
     assert "client" not in payload["@context"]
-    assert payload["@context"]["topic"] == iri_projection.mint_iri("topic", scope=None)
+    # {427.5}: no concept-type term is projected any more, so the base
+    # assertion moves to a surviving dimension (`organisation` is an
+    # `ALLOWED_ENTITY_TYPES` member). The claim is unchanged: a base term
+    # ships under the base namespace with no client prefix.
+    assert "topic" not in payload["@context"]
+    assert payload["@context"]["organisation"] == iri_projection.mint_iri(
+        "organisation", scope=None
+    )
 
 
 def test_write_bundle_projects_overlay_iris_under_client_ns_when_client_id_passed(
@@ -1610,29 +1628,38 @@ def test_overlay_present_empty_is_distinct_from_overlay_absent(tmp_path: Path) -
     assert overlay["source"] == "ontology-overlay.json"
 
 
-def test_write_bundle_accepts_overlay_added_concept_type_only_with_overlay(
+def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     tmp_path: Path,
 ) -> None:
-    """OV-8 — the core testStrategy assertion, exercised through
-    `write_bundle` (not just the bare validator unit): a concept whose
-    `type` is outside the closed BI-4 set is rejected by the base-only
-    gate (no overlay file present) and accepted once the SAME bundle_dir
-    carries an overlay naming that type."""
+    """REPLACES `test_write_bundle_accepts_overlay_added_concept_type_
+    only_with_overlay`, whose whole subject was that a client\'s own
+    concept type needed PERMISSION from an `ontology-overlay.json` — the
+    "only_with_overlay" in its name is the inversion DR-141 withdrew.
+
+    Asserted the other way round now, at the same `write_bundle` surface:
+    the SAME concept is written with no overlay AND with one, and a shipped
+    client bundle that still declares `concept_types` keeps validating (the
+    overlay key stays schema-valid — {427.11} owns the artefact half)."""
     draft = _draft("topics/widget.md", title="Widget", type="widget_type")
 
-    base_only_summary = bundle_writer.write_bundle(tmp_path, [draft])
-    assert base_only_summary.added == ()
-    assert len(base_only_summary.validator_failures) == 1
-    assert not (tmp_path / "topics/widget.md").exists()
+    no_overlay_dir = tmp_path / "no-overlay"
+    no_overlay_dir.mkdir()
+    no_overlay_summary = bundle_writer.write_bundle(no_overlay_dir, [draft])
+    assert no_overlay_summary.added == ("topics/widget.md",)
+    assert no_overlay_summary.validator_failures == ()
+    assert (no_overlay_dir / "topics/widget.md").exists()
 
-    (tmp_path / "ontology-overlay.json").write_text(
+    overlay_dir = tmp_path / "with-overlay"
+    overlay_dir.mkdir()
+    (overlay_dir / "ontology-overlay.json").write_text(
         json.dumps({"concept_types": ["widget_type"]}), encoding="utf-8"
     )
     overlay_summary = bundle_writer.write_bundle(
-        tmp_path, [draft], bundle_class="client_business"
+        overlay_dir, [draft], bundle_class="client_business"
     )
     assert overlay_summary.added == ("topics/widget.md",)
-    assert (tmp_path / "topics/widget.md").exists()
+    assert overlay_summary.validator_failures == ()
+    assert (overlay_dir / "topics/widget.md").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1807,134 +1834,123 @@ def test_client_business_bundle_class_still_composes_a_present_overlay_control(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Per-class effective ontology (ID-163 {163.17} G-CLASS-EFFECTIVE-ONTOLOGY,
-# PC-4/DR-054) — `write_bundle` threads `bundle_class` into the effective-
-# ontology computation instead of unconditionally delegating to
-# `base_only()` (the `client_business` set). See `check-163-5`'s deep trace:
-# pre-{163.17}, a `system_baseline` run fails BI-13 LATE (after drafting
-# cost) for every RepoDocsSource concept, and `internal_dev` never reaches
-# its `base_for_class` `ValueError` (bl-478) at all.
+# ID-427 {427.5} / DR-141 — `type` is a label, and bundle classes are
+# UNIFORM (owner ruling, S546).
+#
+# REPLACES the five per-class effective-ontology tests ({163.17}/PC-4):
+# `system_baseline accepts the five system types`, `system_baseline rejects
+# a business type`, `client_business and unset stay byte-identical` (which
+# proved its point by asserting `schema` was REJECTED under both),
+# `showcase is provably the business set` (same, by rejection), and
+# `internal_dev fails loud at gate entry`. Every one of them asserted the
+# class-scoped taxonomy as behaviour, so none can be restated once the
+# taxonomy is deleted — they are replaced, not repaired. What survives is
+# their genuine subject: that `write_bundle` writes what a run drafts, and
+# does not silently swallow a rejection.
 # ─────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("system_type", ["schema", "tool", "api", "navigation", "playbook"])
-def test_write_bundle_system_baseline_accepts_the_five_system_types(
-    tmp_path: Path, system_type: str
-) -> None:
-    """PC-4: a `system_baseline` run's effective ontology is
-    `base_for_class("system_baseline")` — each of the five ratified system
-    types is `declare_file`-written, not rejected by the BI-4 gate."""
-    draft = _draft("topics/alpha.md", title="Alpha", type=system_type)
+def test_write_bundle_writes_a_type_no_register_ever_held(tmp_path: Path) -> None:
+    """AC 2, stated as the artefact. `procurement_policy` was never a
+    member of `ALLOWED_CONCEPT_TYPES`, of any `_CLASS_CONCEPT_TYPES` entry,
+    of the Source-side `CONCEPT_TYPES`, or of the TS legend — and no
+    register was edited to make this pass. It lands on disk, it is reported
+    in the run summary, and it reaches `log.md`."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="procurement_policy")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="system_baseline")
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.added == ("topics/alpha.md",)
+    assert summary.validator_failures == ()
+    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
+    assert "type: procurement_policy" in written
+    assert "topics/alpha.md" in (tmp_path / "log.md").read_text(encoding="utf-8")
+
+
+def test_write_bundle_system_baseline_writes_a_concept_typed_document(
+    tmp_path: Path,
+) -> None:
+    """PI-7 — the owner's S546 uniformity ruling as behaviour, on the
+    class that used to own the narrowest set. `document` belonged to NO
+    class's type set; a `system_baseline` run writes it."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="document")
+
+    summary = bundle_writer.write_bundle(
+        tmp_path, [draft], bundle_class="system_baseline"
+    )
 
     assert summary.added == ("topics/alpha.md",)
     assert summary.validator_failures == ()
     assert (tmp_path / "topics/alpha.md").exists()
 
 
-def test_write_bundle_system_baseline_rejects_a_business_type(tmp_path: Path) -> None:
-    """PC-4 control: a business-only type (`topic`, outside the five-type
-    `system_baseline` set) is rejected by the BI-13/BI-4 gate under
-    `bundle_class="system_baseline"` — this is the exact check-163-5
-    consequence (RepoDocsSource concepts failing BI-13) that {163.17} does
-    NOT change; only the CORRECT set is now gated against for this class.
-    Nothing is written for the rejected concept."""
+@pytest.mark.parametrize(
+    "bundle_class", [None, "client_business", "showcase", "system_baseline"]
+)
+def test_every_bundle_class_gates_a_type_identically(
+    tmp_path: Path, bundle_class
+) -> None:
+    """The four replaced tests' shared claim, inverted into one. `schema`
+    was previously written under `system_baseline` and REJECTED under
+    `client_business`/`showcase`/unset; `topic` was the mirror image. Both
+    are now written under every class — there is one gate, not four."""
+    for concept_type in ("schema", "topic"):
+        run_dir = tmp_path / f"{bundle_class}-{concept_type}"
+        run_dir.mkdir()
+        summary = bundle_writer.write_bundle(
+            run_dir,
+            [_draft("topics/alpha.md", title="Alpha", type=concept_type)],
+            bundle_class=bundle_class,
+        )
+        assert summary.added == ("topics/alpha.md",), (bundle_class, concept_type)
+        assert summary.validator_failures == ()
+
+
+def test_write_bundle_internal_dev_reaches_the_write_loop(tmp_path: Path) -> None:
+    """REPLACES `test_write_bundle_internal_dev_fails_loud_at_gate_entry_
+    with_value_error` (bl-478). That fail-loud's stated requirement was
+    that `internal_dev` had "no ratified BI-4 type set YET" — it guarded a
+    register, and it deletes with it. An `internal_dev` run is now an
+    ordinary run: it reaches the write loop, writes its concept, and emits
+    its bundle artefacts."""
     draft = _draft("topics/alpha.md", title="Alpha", type="topic")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="system_baseline")
+    summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="internal_dev")
+
+    assert summary.added == ("topics/alpha.md",)
+    assert summary.validator_failures == ()
+    assert (tmp_path / "topics/alpha.md").exists()
+    assert (tmp_path / "log.md").exists()
+    assert (tmp_path / "ontology.json").exists()
+
+
+def test_write_bundle_still_soft_rejects_a_malformed_type(tmp_path: Path) -> None:
+    """The control the replaced rejection tests were really buying: the
+    BI-13 gate still refuses, still reports the refusal in `validator_
+    failures`, and still writes nothing for the refused concept. Only the
+    REASON changed — malformed shape, not non-membership."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="Not A Type!")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
 
     assert summary.added == ()
     assert len(summary.validator_failures) == 1
     rel_path, errors = summary.validator_failures[0]
     assert rel_path == "topics/alpha.md"
-    assert any("topic" in error for error in errors)
+    assert any("snake_case" in error for error in errors)
     assert not (tmp_path / "topics/alpha.md").exists()
 
 
-def test_write_bundle_client_business_and_unset_bundle_class_stay_byte_identical(
-    tmp_path: Path,
-) -> None:
-    """testStrategy: the `client_business`/`None` paths are untouched by
-    {163.17} — both still gate against the business set via `base_only()`
-    (`client_business` via `EffectiveOntology.compose(overlay)`, which
-    delegates to `base_only()` when `overlay=None`; `None`/unset via the
-    same `base_only()` path). A business type (`topic`) is accepted under
-    both; a system-only type (`schema`, valid ONLY for `system_baseline`)
-    is rejected under both — proving neither path silently widened."""
-    business_dir = tmp_path / "business"
-    unset_dir = tmp_path / "unset"
-    business_dir.mkdir()
-    unset_dir.mkdir()
+def test_write_bundle_still_refuses_q_a_pair_as_a_type(tmp_path: Path) -> None:
+    """BI-3 at the write gate, unconditional and unaffected by {427.5}."""
+    draft = _draft("topics/alpha.md", title="Alpha", type="q_a_pair")
 
-    business_summary = bundle_writer.write_bundle(
-        business_dir, [_draft("topics/alpha.md", title="Alpha", type="topic")],
-        bundle_class="client_business",
-    )
-    unset_summary = bundle_writer.write_bundle(
-        unset_dir, [_draft("topics/alpha.md", title="Alpha", type="topic")]
-    )
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
 
-    assert business_summary.added == unset_summary.added == ("topics/alpha.md",)
-    assert business_summary.validator_failures == unset_summary.validator_failures == ()
-
-    system_only_rejected = bundle_writer.write_bundle(
-        tmp_path / "business-reject",
-        [_draft("topics/beta.md", title="Beta", type="schema")],
-        bundle_class="client_business",
-    )
-    unset_rejected = bundle_writer.write_bundle(
-        tmp_path / "unset-reject", [_draft("topics/beta.md", title="Beta", type="schema")]
-    )
-    assert system_only_rejected.added == unset_rejected.added == ()
-    assert len(system_only_rejected.validator_failures) == len(unset_rejected.validator_failures) == 1
-
-
-def test_write_bundle_showcase_effective_ontology_is_provably_the_business_set(
-    tmp_path: Path,
-) -> None:
-    """Design caution: `showcase` now routes through
-    `base_for_class("showcase")` rather than `base_only()` — assert the
-    resulting concept-type set is PROVABLY identical to the
-    `client_business` set (both accept a business type, both reject a
-    system-only type) rather than assuming the {163.3}-level frozenset
-    equivalence carries through `write_bundle`'s own per-class dispatch."""
-    business_type_summary = bundle_writer.write_bundle(
-        tmp_path / "showcase-business-type",
-        [_draft("topics/alpha.md", title="Alpha", type="topic")],
-        bundle_class="showcase",
-    )
-    assert business_type_summary.added == ("topics/alpha.md",)
-    assert business_type_summary.validator_failures == ()
-
-    system_type_summary = bundle_writer.write_bundle(
-        tmp_path / "showcase-system-type",
-        [_draft("topics/beta.md", title="Beta", type="schema")],
-        bundle_class="showcase",
-    )
-    assert system_type_summary.added == ()
-    assert len(system_type_summary.validator_failures) == 1
-
-
-def test_write_bundle_internal_dev_fails_loud_at_gate_entry_with_value_error(
-    tmp_path: Path,
-) -> None:
-    """PC-4/bl-478: `internal_dev` has no ratified BI-4 type set yet —
-    `write_bundle` must fail LOUD and EARLY (a `ValueError` at effective-
-    ontology computation, before any `declare_file` call this run would
-    otherwise make) rather than the pre-{163.17} behaviour of silently
-    gating against the business set and failing LATE inside the BI-13
-    `declare_concept` loop for every drafted concept. Mirrors the OV-5/
-    OV-10 all-or-nothing fail-loud posture already proven above."""
-    draft = _draft("topics/alpha.md", title="Alpha", type="topic")
-
-    with pytest.raises(ValueError, match="internal_dev"):
-        bundle_writer.write_bundle(tmp_path, [draft], bundle_class="internal_dev")
-
-    _localfs_stub.declare_file.assert_not_called()
-    assert not (tmp_path / "topics/alpha.md").exists()
-    assert not (tmp_path / "ontology.json").exists()
-    assert not (tmp_path / "log.md").exists()
+    assert summary.added == ()
+    assert len(summary.validator_failures) == 1
+    _, errors = summary.validator_failures[0]
+    assert any("BI-3" in error for error in errors)
 
 
 # ── ID-132 {132.36} G-CONCEPT-FEEDER — `concept-feeder.json` reader +
@@ -2091,6 +2107,51 @@ def test_concept_feeder_config_empty_entity_type_fails_loud(tmp_path: Path) -> N
 
     with pytest.raises(bundle_writer.ConceptFeederConfigError):
         bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_malformed_type_label_fails_loud_at_read(
+    tmp_path: Path,
+) -> None:
+    """ID-427 {427.5}, net-new. Before this subtask the {132.36} contextvar
+    widened `ConceptKey`'s gate to accept whatever the feeder declared, so
+    a malformed name reached enumeration and was soft-rejected at BI-13.
+    `ConceptKey` now applies the shape rule, so an unchecked malformed name
+    would abort the run mid-`list_concepts`. It is caught at READ instead —
+    this module's own stated fail-loud-at-read posture."""
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "Partner Co": {"grain": "entity_mention", "entity_type": "partner"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(bundle_writer.ConceptFeederConfigError, match="well-formed"):
+        bundle_writer.read_concept_feeder_config(tmp_path)
+
+
+def test_concept_feeder_config_accepts_a_novel_well_formed_label(tmp_path: Path) -> None:
+    """The other half: a feeder may declare a label no register ever held,
+    with no `ontology-overlay.json` permitting it (DR-141)."""
+    (tmp_path / "concept-feeder.json").write_text(
+        json.dumps(
+            {
+                "concept_types": {
+                    "framework": {"grain": "entity_mention", "entity_type": "framework"},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = bundle_writer.read_concept_feeder_config(tmp_path)
+
+    assert config == {
+        "framework": {"grain": "entity_mention", "entity_type": "framework"}
+    }
 
 
 def test_require_client_business_bundle_class_accepts_client_business() -> None:

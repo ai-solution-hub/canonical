@@ -516,16 +516,15 @@ class TestSourceSelection:
         tmp_path: Path,
         bundle_class: str,
     ) -> None:
-        """`internal_dev` (ID-163 {163.17} G-CLASS-EFFECTIVE-ONTOLOGY,
-        PC-4/bl-478): Source selection (this test's actual subject) still
-        completes normally — `RepoDocsSource` is constructed over
-        `source_repo` exactly like `system_baseline` — but the run as a
-        whole now fails loud INSIDE `write_bundle`'s effective-ontology gate
-        (before any `declare_file` call) because `internal_dev` has no
-        ratified BI-4 type set yet. Pre-{163.17} this run completed
-        successfully (a latent bug: `internal_dev` silently gated against
-        the business set); the `ValueError` is the intended, spec-mandated
-        outcome now, not a regression."""
+        """Source selection is this test's subject and is unchanged: both
+        Path-2 classes construct `RepoDocsSource` over `source_repo`.
+
+        ID-427 {427.5}: the `internal_dev` special case is REMOVED. It
+        existed only because {163.17}/bl-478 made the run fail loud inside
+        `write_bundle`'s effective-ontology gate for want of a ratified
+        BI-4 type set — that fail-loud deletes with the register (DR-141),
+        so `internal_dev` now completes exactly like `system_baseline` and
+        both parametrisations take one path again."""
         monkeypatch.setenv("OKF_BUNDLE_CLASS", bundle_class)
         source_repo = tmp_path / "platform-repo"
         source_repo.mkdir()
@@ -544,14 +543,6 @@ class TestSourceSelection:
                 env.repo_docs, "RepoDocsSource", _CapturingRepoDocsSource
             )
             env.monkeypatch.setattr(env.l_records, "LRecordsSource", _ExplodingSource)
-
-            if bundle_class == "internal_dev":
-                with pytest.raises(ValueError, match="internal_dev"):
-                    asyncio.run(
-                        flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
-                    )
-                assert captured == [str(source_repo)]
-                return
 
             result = asyncio.run(
                 flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
@@ -839,7 +830,11 @@ class TestDegradation:
         ontology = json.loads((bundle_dir / "ontology.json").read_text(encoding="utf-8"))
         assert ontology["overlay"]["entity_types"] == ["widget"]
         assert ontology["overlay"]["source"] == "ontology-overlay.json"
-        assert ontology["base"]["concept_types"]  # OV-6a: three-dimension base
+        # OV-6a: the base snapshot is TWO dimensions since ID-427 {427.5}
+        # — `concept_types` went with `ALLOWED_CONCEPT_TYPES` (DR-141).
+        assert "concept_types" not in ontology["base"]
+        assert ontology["base"]["entity_types"]
+        assert ontology["base"]["relationship_types"]
 
     def test_is_base_only_when_no_overlay_file_present_in_the_bundle_dir(
         self, env, bundle_dir: Path

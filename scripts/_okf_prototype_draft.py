@@ -44,7 +44,10 @@ from scripts.cocoindex_pipeline.producer.validator import (  # noqa: E402
 from scripts.cocoindex_pipeline.producer.resource_uri import is_git_blob_citation  # noqa: E402
 
 BUNDLE_DIR = Path(os.environ["OKF_PROTOTYPE_BUNDLE_DIR"])
-SYSTEM_ONT = EffectiveOntology.base_for_class("system_baseline")
+# ID-427 {427.5}: `base_for_class` is gone — the effective ontology is no
+# longer scoped per bundle class (DR-141 + the S546 uniformity ruling), so
+# every class resolves to the same two-dimension base.
+SYSTEM_ONT = EffectiveOntology.base_only()
 PRIVATE_DOCS_MARKERS = ("docs-site", "kh-private", "private")  # S3: never a citation host
 
 

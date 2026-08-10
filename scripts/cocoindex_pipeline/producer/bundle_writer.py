@@ -173,11 +173,11 @@ from scripts.cocoindex_pipeline.producer.frontmatter import (
 )
 from scripts.cocoindex_pipeline.producer import iri_projection
 from scripts.cocoindex_pipeline.producer.validator import (
-    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
     check_concept,
+    check_type_shape,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
 
@@ -963,19 +963,19 @@ def append_log_entry(
 
 def _base_ontology_snapshot() -> "dict[str, object]":
     """DR-027's "pinned base snapshot" half — sourced from `producer/
-    validator.py`'s `ALLOWED_CONCEPT_TYPES`/`ALLOWED_ENTITY_TYPES`/
-    `ALLOWED_RELATIONSHIP_TYPES` frozensets, the SAME closed register BI-13
-    already gates every concept write against (not invented here — see
+    validator.py`'s `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES`
+    frozensets, the SAME closed registers BI-13 lints every concept's
+    entity/relationship mentions against (not invented here — see
     `validator.py`'s own docstring for provenance back to `extraction.py`'s
-    Pydantic Literals). Carries all THREE CV dimensions (OV-6a, ID-132
-    {132.34}) so every dimension is uniformly overlay-extensible — the
-    concept-`type` set joined `entity_types`/`relationship_types` here.
-    This is the Python-consumable materialisation source that DOES exist
-    in-repo today; `lib/ontology/concept-schema.ts` (ID-133) has no
-    Python-consumable export yet (per the {132.10} brief — FLAGGED, see
-    this module's own docstring / the {132.10} report)."""
+    Pydantic Literals).
+
+    **TWO dimensions since ID-427 {427.5}.** The `concept_types` row is
+    gone with `ALLOWED_CONCEPT_TYPES` itself (DR-141): concept `type` is a
+    shape-validated label, so there is no base concept-type vocabulary to
+    pin — publishing one would re-assert the closed taxonomy in an artefact
+    after deleting it from the gate. `{427.11}` retires this whole function
+    (DR-027 as amended S546: the artefact becomes overlay-only)."""
     return {
-        "concept_types": sorted(ALLOWED_CONCEPT_TYPES),
         "entity_types": sorted(ALLOWED_ENTITY_TYPES),
         "relationship_types": sorted(ALLOWED_RELATIONSHIP_TYPES),
     }
@@ -1158,8 +1158,9 @@ class ConceptFeederConfigError(ValueError):
     """ID-132 {132.36} G-CONCEPT-FEEDER, DR-054: raised when a PRESENT
     `concept-feeder.json` fails validation — invalid JSON, a non-object top
     level, an unknown top-level key, a `concept_types` entry naming a type
-    that collides with a BASE ratified type (`ALLOWED_CONCEPT_TYPES`) or
-    `'q_a_pair'` (BI-3), or a grain config with an unrecognised `grain`
+    that collides with a built-in grain's own label
+    (`_BUILTIN_GRAIN_TYPE_LABELS`) or `'q_a_pair'` (BI-3), or a grain
+    config with an unrecognised `grain`
     value or a non-string/empty `entity_type`. Mirrors `OntologyOverlayError`
     (OV-5) — a present-but-invalid feeder config ABORTS the producer run for
     that bundle rather than silently skipping the malformed entry (fail-loud,
@@ -1168,6 +1169,23 @@ class ConceptFeederConfigError(ValueError):
     config` returns `None`, mirroring `read_client_overlay`'s OV-4 absence
     posture."""
 
+
+# ID-427 {427.5}: the type labels `sources/l_records.LRecordsSource` already
+# routes in its OWN `read_concept` dispatch (`l_records.py`'s `topic`/
+# `product`/`company`/`certification`/`case_study` branches, which are
+# checked BEFORE the feeder branch). A `concept-feeder.json` entry naming
+# one of these would enumerate a second time and then never reach
+# `_read_feeder_concept` — an ambiguous shadow that surfaces later as an
+# opaque write-path collision. This is NOT the deleted `ALLOWED_CONCEPT_
+# TYPES` register under another name: it gates a CONFIG FILE against the
+# built-in dispatch, and never gates a concept's `type` (DR-141).
+#
+# **{427.7} re-sources this from the grain registry**, which is where the
+# built-in labels will actually be declared; until then the dispatch
+# branches are their only home and this tuple mirrors them by hand.
+_BUILTIN_GRAIN_TYPE_LABELS = frozenset(
+    {"topic", "product", "company", "certification", "case_study"}
+)
 
 _CONCEPT_FEEDER_GRAINS = frozenset({"entity_mention"})
 """ID-132 {132.36} v1: the CLOSED set of feeder grain strategies the
@@ -1186,11 +1204,14 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
     `concept_types`, itself an object mapping a client-chosen concept-type
     name to a grain-config object `{"grain": <one of
     _CONCEPT_FEEDER_GRAINS>, "entity_type": <non-empty string>}`. A declared
-    type name may not equal a BASE ratified type (`ALLOWED_CONCEPT_TYPES` —
-    those already route via the base `_list_*_concepts` methods; a feeder
-    entry for one would be an ambiguous shadow) or `'q_a_pair'` (BI-3,
-    defence in depth ahead of `ConceptKey.__post_init__`'s own runtime
-    guard). Raises `ConceptFeederConfigError` on any violation."""
+    type name may not equal a built-in grain's own label
+    (`_BUILTIN_GRAIN_TYPE_LABELS` — those already route via the base
+    `_list_*_concepts` methods; a feeder entry for one would be an
+    ambiguous shadow) or `'q_a_pair'` (BI-3, defence in depth ahead of
+    `ConceptKey.__post_init__`'s own runtime guard). It is NOT otherwise
+    constrained: since ID-427 {427.5} a feeder may declare any well-shaped
+    label without an `ontology-overlay.json` entry permitting it (DR-141).
+    Raises `ConceptFeederConfigError` on any violation."""
     if not isinstance(data, dict):
         raise ConceptFeederConfigError(
             f"{CONCEPT_FEEDER_FILENAME} must be a JSON object at the top "
@@ -1215,12 +1236,29 @@ def _validate_concept_feeder_schema(data: object) -> "dict[str, dict[str, str]]"
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'] keys must be "
                 f"non-empty strings, got {concept_type!r}"
             )
-        if concept_type == "q_a_pair" or concept_type in ALLOWED_CONCEPT_TYPES:
+        if concept_type == "q_a_pair" or concept_type in _BUILTIN_GRAIN_TYPE_LABELS:
             raise ConceptFeederConfigError(
                 f"{CONCEPT_FEEDER_FILENAME}['concept_types'] declares "
-                f"{concept_type!r}, which is a BASE ratified type or "
-                "'q_a_pair' — a feeder entry may only name a NEW, "
-                "overlay-added concept type (BI-3/BI-4)"
+                f"{concept_type!r}, which is either 'q_a_pair' (BI-3, never "
+                "a concept) or a label a BUILT-IN grain already routes — a "
+                "feeder entry naming one would be enumerated twice and read "
+                "by the built-in branch, never the feeder branch"
+            )
+        # ID-427 {427.5}: the declared name must be a well-formed OKF type
+        # label. Checked HERE, at read time, to preserve this module's own
+        # fail-loud-at-read posture (see `ConceptFeederConfigError`): before
+        # {427.5} the {132.36} contextvar widened `ConceptKey`'s gate to
+        # accept whatever the config declared, so a malformed name reached
+        # enumeration and was soft-rejected at BI-13. `ConceptKey` now
+        # applies the shape rule, so without this check a malformed name
+        # would raise mid-`list_concepts` and abort the run at a strictly
+        # worse point than the config read that could have caught it.
+        shape_errors = check_type_shape(concept_type)
+        if shape_errors:
+            raise ConceptFeederConfigError(
+                f"{CONCEPT_FEEDER_FILENAME}['concept_types'] declares "
+                f"{concept_type!r}, which is not a well-formed OKF type "
+                f"label: {'; '.join(shape_errors)}"
             )
         if not isinstance(grain_config, dict):
             raise ConceptFeederConfigError(
@@ -1523,25 +1561,21 @@ def write_bundle(
     any `declare_file` call this run would otherwise make, exactly
     mirroring OV-5's all-or-nothing fail-loud posture.
 
-    **Per-class effective ontology (PC-4, ID-163 {163.17} G-CLASS-EFFECTIVE-
-    ONTOLOGY).** The gate above guarantees that by the time `overlay` is
-    non-`None` here, either `bundle_class == "client_business"` (the file-
-    discovered path) or `client_ontology_overlay` was supplied explicitly
-    (a caller-supplied escape hatch that composes regardless of class — see
-    that kwarg's own docstring paragraph above). Either way a present
-    `overlay` always composes via `EffectiveOntology.compose`. When
-    `overlay` is `None`, the effective ontology is resolved from
-    `bundle_class` itself: `client_business`/unset stay `base_only()`
-    (byte-identical to pre-{163.17} behaviour — every pre-163 call site
-    unconditionally composed against the business set); `showcase`/
-    `system_baseline` resolve via `EffectiveOntology.base_for_class`
-    (showcase's own registry entry is the same business set, kept
-    authoritative rather than assumed); `internal_dev` has no ratified BI-4
-    type set yet, so `base_for_class` raises `ValueError` (bl-478) HERE —
-    fail-loud at gate entry, before any `declare_file` call this run would
-    otherwise make, replacing the pre-{163.17} behaviour of silently
-    gating every concept against the business set and failing late inside
-    the BI-13 `declare_concept` loop instead.
+    **The effective ontology is no longer class-scoped (ID-427 {427.5},
+    DR-141 + the owner's S546 uniformity ruling).** PC-4/{163.17} scoped
+    the BI-4 concept-type dimension per bundle class, and `internal_dev`
+    — which had no ratified type set — raised `ValueError` HERE, fail-loud
+    at gate entry, before any `declare_file` call. **That fail-loud is
+    deleted with the register it guarded:** its requirement was "this class
+    has no ratified type set *yet*", and under DR-141 no class has one or
+    needs one, so an `internal_dev` run now reaches the write loop like any
+    other. `EffectiveOntology` keeps only `entity_types`/`relationship_
+    types` — genuinely closed platform CVs, identical for every class — so
+    `compose(overlay)` is the single resolution path: it is exactly
+    `base_only()` when `overlay` is `None` (OV-4), and base ∪ overlay
+    otherwise. The OV-10 class gate above is UNCHANGED and still the thing
+    that stops a platform-owned bundle composing a stray client overlay
+    (DR-054/DR-079 — a different, live requirement).
     """
     if client_ontology_overlay is not None:
         overlay = client_ontology_overlay
@@ -1556,10 +1590,7 @@ def write_bundle(
                 "(DR-054/DR-079, OV-10). Aborting rather than silently "
                 "composing."
             )
-    if overlay is not None or bundle_class is None or bundle_class == _CLIENT_BUSINESS_BUNDLE_CLASS:
-        effective_ontology = EffectiveOntology.compose(overlay)
-    else:
-        effective_ontology = EffectiveOntology.base_for_class(bundle_class)
+    effective_ontology = EffectiveOntology.compose(overlay)
 
     previous_paths = _existing_concept_paths(bundle_dir)
     moved_from = set(moved)

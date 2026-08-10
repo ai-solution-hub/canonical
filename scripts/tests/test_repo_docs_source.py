@@ -2,8 +2,9 @@
 two-extractor PROTOTYPE).
 
 Verifies: `RepoConceptKey`'s frozen/deterministic memo-key shape (mirrors
-`ConceptKey`, BI-18), its `__post_init__` gate against the `system_baseline`
-bundle-class type set (PC-4, `EffectiveOntology.base_for_class`), the E1
+`ConceptKey`, BI-18), its `__post_init__` SHAPE gate (ID-427 {427.5} —
+the shared `check_type_shape` rule; the per-bundle-class type sets are
+gone with DR-141 and the S546 uniformity ruling), the E1
 (tool, code-symbol grain) + E2 (navigation, markdown-page grain) split
 enumerating without a third `RepoConceptKey` shape or read grid (the KA3
 judged gate), and the S4 `git_blob_sha` change signal (memo-HIT on an
@@ -30,7 +31,6 @@ from pathlib import Path
 import pytest
 
 from scripts.cocoindex_pipeline.producer.resource_uri import build_git_blob_citation
-from scripts.cocoindex_pipeline.producer.validator import EffectiveOntology
 from scripts.cocoindex_pipeline.sources.base import Source
 from scripts.cocoindex_pipeline.sources.repo_docs import (
     RepoConceptKey,
@@ -177,18 +177,20 @@ class TestRepoConceptKeyShape:
         assert hash(a) != hash(b)
 
 
-class TestRepoConceptKeyPC4TypeGate:
-    """PC-4 (ID-163 TECH, DR-079): `RepoConceptKey.__post_init__` validates
-    `concept_type` against `EffectiveOntology.base_for_class('system_baseline')`
-    (163.3), NOT the business `client_business` set — the two classes are
-    disjoint, and a `RepoConceptKey` never widens via the {132.36}
-    overlay mechanism (PC-6 rejects overlays for `system_baseline`
-    outright)."""
+class TestRepoConceptKeyTypeShapeGate:
+    """REPLACES `TestRepoConceptKeyPC4TypeGate` (ID-427 {427.5}).
 
-    def test_accepts_every_system_baseline_type(self) -> None:
-        allowed = EffectiveOntology.base_for_class("system_baseline").concept_types
-        assert allowed == {"schema", "tool", "api", "navigation", "playbook"}
-        for concept_type in sorted(allowed):
+    That class asserted PC-4/DR-079's per-class gate: a `RepoConceptKey`
+    accepted exactly the five `system_baseline` types and rejected a
+    `client_business` type "proving the per-class gate is class-CORRECT".
+    DR-141 plus the owner's S546 uniformity ruling withdraw the per-class
+    taxonomy outright — *"we should be conformant and uniform across bundle
+    classes"* — so class-correctness is no longer a property to assert.
+    `RepoConceptKey` now applies the SAME `check_type_shape` rule as
+    `ConceptKey` and the write gate: one rule, every bundle class."""
+
+    def test_accepts_every_label_this_adapter_actually_emits(self) -> None:
+        for concept_type in ("schema", "tool", "api", "navigation", "playbook"):
             RepoConceptKey(
                 rel_path=f"{concept_type}/x.md",
                 concept_type=concept_type,
@@ -196,23 +198,55 @@ class TestRepoConceptKeyPC4TypeGate:
                 git_blob_sha="sha1",
             )
 
-    def test_rejects_a_business_type_off_the_system_baseline_class(self) -> None:
-        """`company` is a `client_business`-class type (BI-4) — never a
-        valid `system_baseline` `RepoConceptKey.concept_type`, proving the
-        per-class gate is class-CORRECT, not merely "some closed set"."""
-        with pytest.raises(ValueError, match="system_baseline"):
-            RepoConceptKey(
-                rel_path="company/x.md",
-                concept_type="company",
-                source_ref="x",
-                git_blob_sha="sha1",
-            )
+    def test_a_system_bundle_key_accepts_a_business_label(self) -> None:
+        """INVERTS `test_rejects_a_business_type_off_the_system_baseline_
+        class`. The bundle-class type sets are not disjoint any more
+        because they do not exist; `company` here is just a label."""
+        key = RepoConceptKey(
+            rel_path="company/x.md",
+            concept_type="company",
+            source_ref="x",
+            git_blob_sha="sha1",
+        )
+        assert key.concept_type == "company"
 
-    def test_rejects_an_arbitrary_off_class_type(self) -> None:
-        with pytest.raises(ValueError, match="system_baseline"):
+    def test_a_system_bundle_key_accepts_document_the_uniformity_ruling(self) -> None:
+        """PI-7 as behaviour at the key layer: `document` belonged to no
+        class's set, and a system-baseline concept can now carry it."""
+        key = RepoConceptKey(
+            rel_path="documents/x.md",
+            concept_type="document",
+            source_ref="x",
+            git_blob_sha="sha1",
+        )
+        assert key.concept_type == "document"
+
+    def test_rejects_a_malformed_type_label(self) -> None:
+        """REPLACES `test_rejects_an_arbitrary_off_class_type`. `bogus` was
+        rejected for being off-class and is now accepted; what survives is
+        the refusal of a label that is not well FORMED."""
+        RepoConceptKey(
+            rel_path="bogus/x.md",
+            concept_type="bogus",
+            source_ref="x",
+            git_blob_sha="sha1",
+        )  # no longer raises
+        for malformed in ("Q A Pair!", "x", "a_very_long_five_word_type_label", ""):
+            with pytest.raises(ValueError, match="well-formed OKF type label"):
+                RepoConceptKey(
+                    rel_path="bogus/x.md",
+                    concept_type=malformed,
+                    source_ref="x",
+                    git_blob_sha="sha1",
+                )
+
+    def test_q_a_pair_is_refused_here_too(self) -> None:
+        """BI-3 reaches `RepoConceptKey` for the first time — it inherits
+        the reserved name from the shared shape rule."""
+        with pytest.raises(ValueError, match="q_a_pair"):
             RepoConceptKey(
-                rel_path="bogus/x.md",
-                concept_type="bogus",
+                rel_path="q_a_pairs/1.md",
+                concept_type="q_a_pair",
                 source_ref="x",
                 git_blob_sha="sha1",
             )

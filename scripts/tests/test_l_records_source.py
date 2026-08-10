@@ -18,11 +18,23 @@ import threading
 import pytest
 
 from scripts.cocoindex_pipeline.sources.base import (
-    CONCEPT_TYPES,
     ConceptKey,
     ConceptRaw,
     Source,
 )
+
+# ID-427 {427.5}: the built-in grains' own type labels. NOT a register the
+# producer holds (`CONCEPT_TYPES` is deleted) — just what these six
+# enumeration methods happen to emit, named here so the fixture assertions
+# below stay readable. {427.7} makes these declarations of the grain
+# registry; until then they are literals in `l_records.read_concept`.
+_BUILTIN_GRAIN_LABELS = {
+    "topic",
+    "product",
+    "company",
+    "certification",
+    "case_study",
+}
 from scripts.cocoindex_pipeline.sources.l_records import (
     LRecordsSource,
 )
@@ -99,27 +111,37 @@ class TestConceptKeyShape:
                 subtopic="data-protection",
             )
 
-    def test_concept_types_is_the_5_ratified_bi4_set(self):
-        assert CONCEPT_TYPES == {
-            "topic",
-            "product",
-            "company",
-            "certification",
-            "case_study",
-        }
+    def test_a_concept_key_accepts_a_type_no_register_ever_held(self):
+        # REPLACES `test_concept_types_is_the_5_ratified_bi4_set`, which
+        # pinned the deleted `CONCEPT_TYPES` frozenset. ID-427 {427.5} /
+        # DR-141: the Source model imposes no vocabulary, so a grain can
+        # mint a label this codebase has never contained without editing
+        # anything. `procurement_policy` was in no register, ever.
+        key = ConceptKey(
+            rel_path="topics/procurement-policy.md",
+            concept_type="procurement_policy",
+        )
+        assert key.concept_type == "procurement_policy"
 
 
 class TestBI3AQaPairIsNeverAConcept:
     """BI-3: no bundle file represents a single q_a_pair — a Q&A pair is a
-    *record*, never a concept."""
+    *record*, never a concept. UNCONDITIONAL, and deliberately untouched by
+    {427.5}: BI-3 is a reserved NAME, not a permitted-value register."""
 
     def test_constructing_a_q_a_pair_concept_key_raises(self):
         with pytest.raises(ValueError, match="q_a_pair"):
             ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
 
-    def test_rejects_any_type_outside_the_ratified_set(self):
-        with pytest.raises(ValueError, match="BI-4"):
-            ConceptKey(rel_path="x.md", concept_type="metric")
+    def test_rejects_a_malformed_type_label(self):
+        # REPLACES `test_rejects_any_type_outside_the_ratified_set`, which
+        # asserted `metric` was refused for being outside the BI-4 set —
+        # `metric` is now a perfectly good label and is accepted. What the
+        # key still refuses is a label that is not well FORMED.
+        ConceptKey(rel_path="x.md", concept_type="metric")  # no longer raises
+        for malformed in ("Q A Pair!", "x", "a_very_long_five_word_type_label", ""):
+            with pytest.raises(ValueError, match="well-formed OKF type label"):
+                ConceptKey(rel_path="x.md", concept_type=malformed)
 
     def test_list_concepts_never_yields_a_q_a_pair_type(self):
         pool = _five_type_pool()
@@ -129,7 +151,7 @@ class TestBI3AQaPairIsNeverAConcept:
 
         assert keys, "the fixture corpus must yield at least one concept"
         assert all(k.concept_type != "q_a_pair" for k in keys)
-        assert all(k.concept_type in CONCEPT_TYPES for k in keys)
+        assert all(k.concept_type in _BUILTIN_GRAIN_LABELS for k in keys)
 
 
 # ── Source protocol conformance ─────────────────────────────────────────
@@ -209,7 +231,7 @@ class TestListConceptsFiveTypeSet:
 
         keys = _run(src.list_concepts())
 
-        assert {k.concept_type for k in keys} == CONCEPT_TYPES
+        assert {k.concept_type for k in keys} == _BUILTIN_GRAIN_LABELS
 
     def test_topic_concepts_enumerate_scope_tags_only(self):
         """S531: scope_tag is the sole topic grain — no `--` fallback
@@ -249,7 +271,10 @@ class TestListConceptsFiveTypeSet:
         src = LRecordsSource(_five_type_pool())
 
         keys = _run(src.list_concepts())
-        by_type = {t: [k for k in keys if k.concept_type == t] for t in CONCEPT_TYPES}
+        by_type = {
+            t: [k for k in keys if k.concept_type == t]
+            for t in _BUILTIN_GRAIN_LABELS
+        }
 
         assert {k.entity_id for k in by_type["product"]} == {"LMS", "Audit"}
         assert {k.rel_path for k in by_type["product"]} == {
@@ -1321,41 +1346,38 @@ def _feeder_pool(entity_type: str, rows: "list[dict]") -> FakePool:
     return _other_types_empty(pool)
 
 
-class TestConceptFeederConceptKeyWidening:
-    """`_permit_overlay_concept_types` scopes `ConceptKey.__post_init__`'s
-    BI-4 widening to exactly its `with`-block — every OTHER construction
-    site keeps the pre-{132.36} closed-set behaviour."""
+class TestAFeederTypeNeedsNoWidening:
+    """REPLACES `TestConceptFeederConceptKeyWidening` (ID-427 {427.5}).
 
-    def test_permits_a_type_inside_the_context_manager(self):
-        from scripts.cocoindex_pipeline.sources.base import (
-            _permit_overlay_concept_types,
-        )
+    That class tested `_permit_overlay_concept_types`, the {132.36}
+    contextvar that scoped a BI-4 gate LIFT to exactly the `with`-block
+    constructing feeder keys. Two of its three assertions had the gate as
+    their whole subject — "permitted inside the block", "rejected again
+    once it exits" — and neither can be restated once the gate is deleted;
+    a mechanism whose only job was lifting a gate does not survive the
+    gate. Its third assertion is load-bearing and is kept verbatim in
+    substance below: BI-3 was unconditional even under widening, and must
+    stay unconditional now there is nothing to widen."""
 
-        with _permit_overlay_concept_types(["partner"]):
-            key = ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
+    def test_a_feeder_type_is_constructible_with_no_widening_at_all(self):
+        # The behaviour the deleted contextvar bought, now free: no
+        # `with`-block, no config, no overlay.
+        key = ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
         assert key.concept_type == "partner"
 
-    def test_type_is_rejected_again_once_the_context_manager_exits(self):
-        from scripts.cocoindex_pipeline.sources.base import (
-            _permit_overlay_concept_types,
-        )
+    def test_q_a_pair_is_still_refused_unconditionally(self):
+        """BI-3 — the one refusal that outlives the register. There is no
+        longer any widening mechanism to smuggle it through, so assert it
+        at the only remaining construction path."""
+        with pytest.raises(ValueError, match="q_a_pair"):
+            ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
 
-        with _permit_overlay_concept_types(["partner"]):
-            pass
+    def test_no_widening_mechanism_survives_for_a_caller_to_reach_for(self):
+        import scripts.cocoindex_pipeline.sources.base as base_module
 
-        with pytest.raises(ValueError, match="BI-4"):
-            ConceptKey(rel_path="partner/contoso.md", concept_type="partner")
-
-    def test_q_a_pair_is_rejected_even_inside_the_context_manager(self):
-        """BI-3 is unconditional — an overlay can never smuggle in
-        'q_a_pair' as a permitted type."""
-        from scripts.cocoindex_pipeline.sources.base import (
-            _permit_overlay_concept_types,
-        )
-
-        with _permit_overlay_concept_types(["q_a_pair"]):
-            with pytest.raises(ValueError, match="q_a_pair"):
-                ConceptKey(rel_path="q_a_pairs/1.md", concept_type="q_a_pair")
+        assert not hasattr(base_module, "_permit_overlay_concept_types")
+        assert not hasattr(base_module, "_permitted_overlay_concept_types")
+        assert not hasattr(base_module, "CONCEPT_TYPES")
 
 
 class TestConceptFeederListConcepts:
@@ -1408,7 +1430,7 @@ class TestConceptFeederListConcepts:
 
         keys = _run(src.list_concepts())
 
-        assert {k.concept_type for k in keys} == CONCEPT_TYPES | {"partner"}
+        assert {k.concept_type for k in keys} == _BUILTIN_GRAIN_LABELS | {"partner"}
 
     def test_multiple_feeder_types_all_enumerate(self):
         # Built manually (not via `_feeder_pool`, which already finalises

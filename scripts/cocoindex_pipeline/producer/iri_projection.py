@@ -4,7 +4,8 @@
 Pure, I/O-free. Given a term and a scope, mints an absolute IRI; given a
 run's composed `EffectiveOntology` (`producer.validator.EffectiveOntology`,
 OV-7/OV-8) and an optional client-id, projects EVERY ontology term (across
-`concept_types`/`entity_types`/`relationship_types`) into a flat `@context`
+`entity_types`/`relationship_types` — ID-427 {427.5} dropped the
+`concept_types` dimension with its base register) into a flat `@context`
 term->IRI mapping for the reserved `context.jsonld` bundle artefact —
 {132.44} serialises the `"@context"` key to disk via
 `json.dumps(..., sort_keys=True)`; that is NOT this module's concern, and
@@ -20,10 +21,10 @@ invariants IRI-1/2/3/7/8 (this Subtask's slice; IRI-4/5/6/9/10/12 land in
 - **IRI-2 (base/overlay namespace split).** Base terms mint under
   `{IRI_BASE_NAMESPACE}/base`; overlay terms under
   `{IRI_BASE_NAMESPACE}/client/{slug(client_id)}`. `project_context`
-  classifies base-vs-overlay by importing `ALLOWED_CONCEPT_TYPES`/
-  `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES` from
-  `producer.validator` — the SAME closed-vocabulary registers the BI-13
-  gate lints against, so a term is never independently reclassified here.
+  classifies base-vs-overlay by importing `ALLOWED_ENTITY_TYPES`/
+  `ALLOWED_RELATIONSHIP_TYPES` from `producer.validator` — the SAME
+  closed-vocabulary registers the BI-13 gate lints against, so a term is
+  never independently reclassified here.
 - **IRI-3 (versionless / stable base IRIs).** `mint_iri` carries no
   version segment and never mutates an existing base IRI's meaning — an
   incompatible meaning change is a governance act producing a NEW IRI,
@@ -56,7 +57,6 @@ import unicodedata
 from collections.abc import Iterable
 
 from scripts.cocoindex_pipeline.producer.validator import (
-    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
@@ -71,12 +71,18 @@ logger = logging.getLogger(__name__)
 # unratified -> ratified.
 IRI_BASE_NAMESPACE: str = "https://w3id.org/canonical/ontology"
 
-# The three EffectiveOntology dimensions, paired with the base-vocabulary
+# The EffectiveOntology dimensions, paired with the base-vocabulary
 # register that classifies a term as base (member) vs overlay (non-member)
 # for that dimension. Iterated in this FIXED order so `project_context`'s
 # flat `@context` dict is built deterministically (IRI-1/IRI-12).
+#
+# **TWO dimensions since ID-427 {427.5}** (DR-141, TECH §2.10). The
+# `concept_types` row went with `ALLOWED_CONCEPT_TYPES`: base-vs-overlay
+# classification needs a base register to test membership against, and a
+# concept `type` no longer has one — it is a shape-validated label, so
+# there is nothing to classify and no term to mint. `context.jsonld` now
+# carries entity and relationship terms only.
 _DIMENSIONS: tuple[tuple[str, frozenset[str]], ...] = (
-    ("concept_types", ALLOWED_CONCEPT_TYPES),
     ("entity_types", ALLOWED_ENTITY_TYPES),
     ("relationship_types", ALLOWED_RELATIONSHIP_TYPES),
 )
@@ -229,15 +235,16 @@ def project_context(
     effective_ontology: EffectiveOntology, *, client_id: str | None
 ) -> dict[str, object]:
     """Project every term of `effective_ontology` (base union overlay
-    across `concept_types`/`entity_types`/`relationship_types`) into the
-    `context.jsonld` `@context` term->IRI mapping. Performs no I/O — the
-    `"@context"` key is what {132.44}'s `write_context_artefact` serialises
-    to disk.
+    across `entity_types`/`relationship_types`) into the `context.jsonld`
+    `@context` term->IRI mapping. Performs no I/O — the `"@context"` key is
+    what {132.44}'s `write_context_artefact` serialises to disk.
 
-    Base-vs-overlay classification imports `ALLOWED_CONCEPT_TYPES`/
-    `ALLOWED_ENTITY_TYPES`/`ALLOWED_RELATIONSHIP_TYPES` from
-    `producer.validator` — the SAME closed-vocabulary registers the BI-13
-    gate lints against.
+    Base-vs-overlay classification imports `ALLOWED_ENTITY_TYPES`/
+    `ALLOWED_RELATIONSHIP_TYPES` from `producer.validator` — the SAME
+    closed-vocabulary registers the BI-13 gate lints against. ID-427
+    {427.5} dropped the `concept_types` dimension: concept `type` is a
+    shape-validated label with no base register, so no concept-type term
+    mints an IRI.
 
     `client_id=None` (IRI-6, no `OKF_CLIENT_ID` set at the {132.44} call
     site): the `"client"` prefix and every overlay-term entry are OMITTED

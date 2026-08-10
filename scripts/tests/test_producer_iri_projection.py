@@ -18,15 +18,20 @@ import pytest
 
 from scripts.cocoindex_pipeline.producer import iri_projection as ip
 from scripts.cocoindex_pipeline.producer.validator import (
-    ALLOWED_CONCEPT_TYPES,
     ALLOWED_ENTITY_TYPES,
     ALLOWED_RELATIONSHIP_TYPES,
     EffectiveOntology,
 )
 
-_ALL_BASE_TERMS = sorted(
-    ALLOWED_CONCEPT_TYPES | ALLOWED_ENTITY_TYPES | ALLOWED_RELATIONSHIP_TYPES
-)
+# ID-427 {427.5}: the `concept_types` dimension left `EffectiveOntology`
+# with `ALLOWED_CONCEPT_TYPES` (DR-141 — a concept `type` is a label with
+# no base register, so there is nothing to classify base-vs-overlay and no
+# term to mint). Every mechanic below — determinism, the base/client split,
+# collision first-wins, the reserved-prefix guard, the client_id=None
+# diagnostic — is dimension-AGNOSTIC and is re-pointed onto `entity_types`
+# rather than deleted: the behaviour each asserts is unchanged, only the
+# dimension carrying it.
+_ALL_BASE_TERMS = sorted(ALLOWED_ENTITY_TYPES | ALLOWED_RELATIONSHIP_TYPES)
 
 
 # ──────────────────────────────────────────
@@ -65,7 +70,7 @@ class TestDeterminismAndIdempotence:
         assert first == second
 
     def test_project_context_deterministic_with_client_id(self):
-        eo = EffectiveOntology.compose({"concept_types": ["Acme Widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["Acme Widget"]})
         first = ip.project_context(eo, client_id="Acme Corp")
         second = ip.project_context(eo, client_id="Acme Corp")
         assert first == second
@@ -110,7 +115,7 @@ class TestBaseVsClientSeparation:
         assert "client" not in result["@context"]
 
     def test_project_context_with_client_id_projects_overlay_under_client_ns(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id="acme")
         context = result["@context"]
         assert context["client"] == f"{ip._client_namespace('acme')}#"
@@ -121,7 +126,7 @@ class TestBaseVsClientSeparation:
         eo = EffectiveOntology.base_only()
         result = ip.project_context(eo, client_id=None)
         context = result["@context"]
-        for term in ALLOWED_CONCEPT_TYPES:
+        for term in ALLOWED_ENTITY_TYPES:
             assert context[term] == f"{ip.IRI_BASE_NAMESPACE}/base#{term}"
 
     def test_project_context_diagnostics_empty_when_no_collision_or_overlay(self):
@@ -173,7 +178,7 @@ class TestSlugArbitraryStrings:
 class TestCollisionGuard:
     def test_mint_bucket_slug_collision_keeps_sorted_first(self, caplog):
         eo = EffectiveOntology.compose(
-            {"concept_types": ["Foo Bar", "foo-bar"]}
+            {"entity_types": ["Foo Bar", "foo-bar"]}
         )
         with caplog.at_level(logging.WARNING):
             result = ip.project_context(eo, client_id="acme")
@@ -189,7 +194,7 @@ class TestCollisionGuard:
         assert collisions == [
             {
                 "scope": "client/acme",
-                "dimension": "concept_types",
+                "dimension": "entity_types",
                 "slug": "foo-bar",
                 "kept": "Foo Bar",
                 "dropped": "foo-bar",
@@ -197,12 +202,12 @@ class TestCollisionGuard:
         ]
 
     def test_collision_never_raises(self):
-        eo = EffectiveOntology.compose({"concept_types": ["Foo Bar", "foo-bar"]})
+        eo = EffectiveOntology.compose({"entity_types": ["Foo Bar", "foo-bar"]})
         # Must not raise despite the collision.
         ip.project_context(eo, client_id="acme")
 
     def test_collision_logs_warning(self, caplog):
-        eo = EffectiveOntology.compose({"concept_types": ["Foo Bar", "foo-bar"]})
+        eo = EffectiveOntology.compose({"entity_types": ["Foo Bar", "foo-bar"]})
         with caplog.at_level(logging.WARNING):
             ip.project_context(eo, client_id="acme")
         assert any(
@@ -210,16 +215,23 @@ class TestCollisionGuard:
         )
 
     def test_no_collision_when_terms_are_in_different_dimensions(self):
-        """Cross-dimension identical raw term names (e.g. 'certification'
-        is a member of both ALLOWED_CONCEPT_TYPES and
-        ALLOWED_ENTITY_TYPES) are processed as separate (scope, dimension)
-        buckets and never flagged as a collision — both mint to the same
-        base IRI regardless."""
-        eo = EffectiveOntology.base_only()
-        result = ip.project_context(eo, client_id=None)
+        """Cross-dimension identical raw term names are processed as
+        separate (scope, dimension) buckets and never flagged as a
+        collision — both mint to the same IRI regardless.
+
+        Re-staged for ID-427 {427.5}. The original used `certification`,
+        a term the BASE vocabulary carried in BOTH `concept_types` and
+        `entity_types`; with the concept-type dimension deleted, the two
+        surviving base registers share no term, so the ONLY reachable way
+        to put one raw term in two dimensions is an overlay declaring it
+        twice. Same mechanic, same claim, a vehicle that still exists."""
+        eo = EffectiveOntology.compose(
+            {"entity_types": ["shared_term"], "relationship_types": ["shared_term"]}
+        )
+        result = ip.project_context(eo, client_id="acme")
         assert result["diagnostics"]["collisions"] == []
-        assert result["@context"]["certification"] == (
-            f"{ip.IRI_BASE_NAMESPACE}/base#certification"
+        assert result["@context"]["shared_term"] == ip.mint_iri(
+            "shared_term", scope="acme"
         )
 
 
@@ -237,7 +249,7 @@ class TestReservedPrefixKeyGuard:
     an overlay term, the only reachable path today."""
 
     def test_overlay_term_slugging_to_base_is_dropped_not_overwritten(self):
-        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        eo = EffectiveOntology.compose({"entity_types": ["base"]})
         result = ip.project_context(eo, client_id="acme")
         context = result["@context"]
 
@@ -263,12 +275,12 @@ class TestReservedPrefixKeyGuard:
         )
 
     def test_reserved_prefix_collision_never_raises(self):
-        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        eo = EffectiveOntology.compose({"entity_types": ["base"]})
         # Must not raise despite the reserved-key collision.
         ip.project_context(eo, client_id="acme")
 
     def test_reserved_prefix_collision_logs_warning(self, caplog):
-        eo = EffectiveOntology.compose({"concept_types": ["base"]})
+        eo = EffectiveOntology.compose({"entity_types": ["base"]})
         with caplog.at_level(logging.WARNING):
             ip.project_context(eo, client_id="acme")
         assert any(
@@ -283,26 +295,26 @@ class TestReservedPrefixKeyGuard:
 
 class TestClientIdNone:
     def test_client_id_none_omits_client_prefix(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id=None)
         assert "client" not in result["@context"]
 
     def test_client_id_none_omits_overlay_term_entries(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id=None)
         assert "acme_widget" not in result["@context"]
 
     def test_client_id_none_records_unprojected_overlay_diagnostic(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id=None)
         assert result["diagnostics"]["unprojected_overlay"] == [
-            {"term": "acme_widget", "dimension": "concept_types"}
+            {"term": "acme_widget", "dimension": "entity_types"}
         ]
 
     def test_client_id_none_still_projects_base_terms(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id=None)
-        for term in ALLOWED_CONCEPT_TYPES:
+        for term in ALLOWED_ENTITY_TYPES:
             assert result["@context"][term] == (
                 f"{ip.IRI_BASE_NAMESPACE}/base#{term}"
             )
@@ -310,6 +322,8 @@ class TestClientIdNone:
     def test_client_id_none_never_raises(self):
         eo = EffectiveOntology.compose(
             {
+                # `concept_types` stays SCHEMA-valid in an overlay file
+                # ({427.11} keeps the key) but composes nothing now.
                 "concept_types": ["acme_widget"],
                 "entity_types": ["acme_entity"],
                 "relationship_types": ["acme_relation"],
@@ -319,7 +333,7 @@ class TestClientIdNone:
         ip.project_context(eo, client_id=None)
 
     def test_client_id_none_logs_warning(self, caplog):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         with caplog.at_level(logging.WARNING):
             ip.project_context(eo, client_id=None)
         assert any(
@@ -343,7 +357,7 @@ class TestAliasAffordanceReserved:
         assert set(ip.ALIAS_SHAPE_EXAMPLE.keys()) == {"@id", "sameAs"}
 
     def test_project_context_never_emits_samAs_this_wave(self):
-        eo = EffectiveOntology.compose({"concept_types": ["acme_widget"]})
+        eo = EffectiveOntology.compose({"entity_types": ["acme_widget"]})
         result = ip.project_context(eo, client_id="acme")
         for value in result["@context"].values():
             assert not isinstance(value, dict)

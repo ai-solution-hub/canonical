@@ -111,14 +111,14 @@ from typing import (
 # ID-427 {427.4}: the concept model + the `Source` protocol this adapter
 # implements now live in the neutral `sources/base.py` (id-362 F1 leg 1) —
 # `repo_docs.py` imports the SAME declarations, so the two adapters are no
-# longer parallel implementations of one idea. Re-homed unchanged: no
-# behaviour, field or gate difference. `_permit_overlay_concept_types`
-# travelled with `ConceptKey` because `ConceptKey.__post_init__` is its only
-# consumer; `list_concepts` below is its only caller.
+# longer parallel implementations of one idea. {427.5} then deleted
+# `CONCEPT_TYPES` and the {132.36} `_permit_overlay_concept_types` widener
+# that had travelled with `ConceptKey`: with `concept_type` validated by
+# shape rather than membership (DR-141) there is no gate left for a feeder
+# config to widen.
 from scripts.cocoindex_pipeline.sources.base import (
     ConceptKey,
     ConceptRaw,
-    _permit_overlay_concept_types,
 )
 
 # Owner-discretion filename/logical_path substring patterns (ILIKE ANY),
@@ -516,13 +516,19 @@ class LRecordsSource:
     # ── list_concepts (abstract, base.py) ───────────────────────────────
 
     async def list_concepts(self) -> "list[ConceptKey]":
-        """Enumerate the concept set across all 5 ratified types (BI-4),
-        PLUS — ID-132 {132.36} G-CONCEPT-FEEDER — any overlay-added type
+        """Enumerate the concept set across the built-in grains, PLUS —
+        ID-132 {132.36} G-CONCEPT-FEEDER — any type
         `self._concept_feeder_config` declares (`{}`/absent: zero extra
-        concepts, unchanged pre-{132.36} behaviour). **Never enumerates a
-        q_a_pair as a concept** (BI-3) — structurally guaranteed by
-        `ConceptKey.__post_init__`'s unconditional `q_a_pair` check, in
-        addition to no branch below ever constructing one."""
+        concepts). **Never enumerates a q_a_pair as a concept** (BI-3) —
+        structurally guaranteed by `ConceptKey.__post_init__`'s
+        unconditional `q_a_pair` check, in addition to no branch below ever
+        constructing one.
+
+        ID-427 {427.5}: the feeder pass no longer needs a type-widening
+        `with` block. `ConceptKey` validates its `concept_type` by shape,
+        so a feeder-declared type is constructible on the same terms as a
+        built-in one — the widener existed only to lift a gate that is
+        gone."""
         keys: "list[ConceptKey]" = []
         keys.extend(await self._list_topic_concepts())
         keys.extend(await self._list_product_concepts())
@@ -530,8 +536,7 @@ class LRecordsSource:
         keys.extend(await self._list_certification_concepts())
         keys.extend(await self._list_case_study_concepts())
         keys.extend(await self._list_won_bid_case_study_concepts())
-        with _permit_overlay_concept_types(self._concept_feeder_config):
-            keys.extend(await self._list_feeder_concepts())
+        keys.extend(await self._list_feeder_concepts())
         return keys
 
     async def _list_feeder_concepts(self) -> "list[ConceptKey]":

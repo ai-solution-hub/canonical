@@ -3,7 +3,8 @@ gate (ID-132 {132.7} G-VALIDATE), upgraded to the OKF v0.2 emission contract
 (id-426, S546 F1-A/F2-B).
 
 Covers: the v0.2 required-key check (`generated` replaces `timestamp`),
-BI-4 type-set membership, the F2-B top-level-resource inversion (never
+the ID-427 {427.5} `type` SHAPE rule (DR-141 — a label, never a
+membership), the F2-B top-level-resource inversion (never
 canonical://), the §5.1 `sources` shape gate (`check_sources`), the BI-10
 "no uuid outside sources[].resource" assertion, the closed
 12-entity/10-relation ontology semantic lint, and the S451 rider fold-in 2
@@ -125,22 +126,110 @@ def test_resource_and_sources_are_not_required_keys():
 
 
 # ──────────────────────────────────────────
-# BI-4: type-set membership
+# ID-427 {427.5} / DR-141: `type` is a shape-validated LABEL.
+#
+# The gate asserts a label is WELL-FORMED. It asserts nothing about which
+# labels exist, because a producer that enumerates its permitted types is
+# the inversion DR-141 withdrew ("consumers MUST tolerate unknown types";
+# OKF §1 lists a fixed concept-type taxonomy under Non-goals).
 # ──────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
-    "concept_type", ["topic", "product", "company", "certification", "case_study"]
+    "concept_type",
+    [
+        # Every label the platform emits today — the shape rule ratifies
+        # existing output rather than forcing a migration.
+        "topic",
+        "product",
+        "company",
+        "certification",
+        "case_study",
+        "schema",
+        "tool",
+        "api",
+        "navigation",
+        "playbook",
+    ],
 )
-def test_bi4_type_set_members_are_accepted(concept_type):
+def test_every_type_the_platform_emits_today_still_validates(concept_type):
     errors = v.check_concept(_valid_frontmatter(type=concept_type), body=_VALID_BODY)
     assert errors == []
 
 
-@pytest.mark.parametrize("bad_type", ["metric", "playbook", "person", "not-a-type", ""])
-def test_non_bi4_type_is_rejected(bad_type):
+@pytest.mark.parametrize(
+    "novel_type",
+    [
+        # THE assertion of this subtask. Not one of these was ever a member
+        # of any register the producer held — `ALLOWED_CONCEPT_TYPES`, the
+        # per-class sets, the Source-side `CONCEPT_TYPES`, or the TS legend.
+        # Each is emitted-and-valid now with no register edited.
+        "procurement_policy",
+        "document",
+        "questionnaire_response",
+        "answer_set",
+        "reference",
+        "framework",
+    ],
+)
+def test_a_type_no_register_ever_held_validates(novel_type):
+    errors = v.check_concept(_valid_frontmatter(type=novel_type), body=_VALID_BODY)
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("bad_type", "expected_fault"),
+    [
+        # Each rejection names WHAT IS WRONG WITH THE LABEL.
+        ("Q A Pair!", "snake_case"),
+        ("x", "characters long"),
+        ("a_very_long_five_word_type_label", "words"),
+        ("", "empty"),
+    ],
+)
+def test_a_malformed_type_is_rejected_with_a_shape_fault(bad_type, expected_fault):
     errors = v.check_concept(_valid_frontmatter(type=bad_type), body=_VALID_BODY)
-    assert any("type" in err.lower() for err in errors)
+    type_errors = [e for e in errors if "type" in e.lower()]
+    assert type_errors, f"{bad_type!r} should have produced a type error"
+    assert any(expected_fault in e for e in type_errors), type_errors
+
+
+@pytest.mark.parametrize(
+    "bad_type", ["Q A Pair!", "x", "a_very_long_five_word_type_label", "", "q_a_pair"]
+)
+def test_a_shape_error_never_enumerates_a_permitted_vocabulary(bad_type):
+    # The regression this subtask most needs to hold: a shape error that
+    # lists the types it WOULD have accepted has reintroduced the closed
+    # taxonomy in prose. Assert on the message, because prose is where a
+    # deleted gate comes back.
+    errors = v.check_type_shape(bad_type)
+    assert errors
+    message = " ".join(errors)
+    for withdrawn_term in (
+        "topic",
+        "product",
+        "company",
+        "certification",
+        "case_study",
+        "schema",
+        "navigation",
+        "playbook",
+    ):
+        assert withdrawn_term not in message, message
+    for enumerating_word in ("one of", "outside", "allowed", "permitted set"):
+        assert enumerating_word not in message.lower(), message
+
+
+def test_q_a_pair_is_refused_unconditionally_at_the_write_gate():
+    # BI-3 survives the register's deletion — it is a RESERVED NAME, not a
+    # permitted-value set, and it is the one thing `type` may never be.
+    errors = v.check_concept(_valid_frontmatter(type="q_a_pair"), body=_VALID_BODY)
+    assert any("BI-3" in e for e in errors), errors
+
+
+def test_a_non_string_type_is_rejected():
+    assert v.check_type_shape(None)
+    assert v.check_type_shape(42)
 
 
 # ──────────────────────────────────────────
@@ -604,9 +693,16 @@ def test_methodology_is_not_a_recognised_facet_tag_only_an_alias():
     assert "methodology" not in v.RECOGNISED_FACET_TAGS
 
 
-def test_recognised_facet_tags_are_disjoint_from_the_concept_type_set():
-    # Facets are TAGS, never enumerated types (BI-4).
-    assert v.RECOGNISED_FACET_TAGS.isdisjoint(v.ALLOWED_CONCEPT_TYPES)
+def test_a_facet_name_is_now_also_a_well_formed_type_label():
+    # REPLACES `test_recognised_facet_tags_are_disjoint_from_the_concept_
+    # type_set`, whose subject (`ALLOWED_CONCEPT_TYPES`) is deleted. That
+    # test asserted facets could never be types — the very constraint that
+    # forced `reference`/`policy`/`capability` to be invented as facets
+    # because the closed set would not admit them (DR-141's headline
+    # evidence). Under DR-141 the constraint is withdrawn: a facet name is
+    # an ordinary label, and {427.6} resolves the three bends AS types.
+    for facet in sorted(v.RECOGNISED_FACET_TAGS):
+        assert v.check_type_shape(facet) == [], facet
 
 
 def test_methodology_tag_canonicalises_to_the_playbook_facet():
@@ -637,11 +733,16 @@ def test_normalise_facet_tags_leaves_an_already_canonical_list_untouched():
 
 
 @pytest.mark.parametrize("facet_name", ["methodology", "policy", "capability"])
-def test_bid_outcome_facet_names_are_rejected_as_concept_types(facet_name):
-    # No new enumerated type: methodology/policy/capability must NOT pass the
-    # BI-4 type-membership gate — they are facet tags, not types.
+def test_bid_outcome_facet_names_are_accepted_as_concept_types(facet_name):
+    # INVERTED from `test_bid_outcome_facet_names_are_rejected_as_concept_
+    # types` (S443/DR-029), and the inversion is the point. Those three
+    # names became "facets" precisely BECAUSE the closed type set refused a
+    # sixth type — `validator.py`'s own comments recorded the bend. With
+    # the set gone, they are simply well-formed labels; nothing emits them
+    # yet (RESEARCH M2 measured no emitter for policy/capability), and
+    # nothing has to for the gate to stop refusing them.
     errors = v.check_concept(_valid_frontmatter(type=facet_name), body=_VALID_BODY)
-    assert any("type" in err.lower() for err in errors)
+    assert errors == []
 
 
 @pytest.mark.parametrize("facet_tag", ["policy", "capability", "methodology"])
@@ -655,11 +756,15 @@ def test_topic_concept_tagged_with_a_bid_outcome_facet_passes_the_gate(facet_tag
     assert errors == []
 
 
-def test_concept_type_set_is_unchanged_by_the_s443_amendment():
-    # Regression guard: the S443 facet-tag re-entry adds NO enumerated type.
-    assert v.ALLOWED_CONCEPT_TYPES == frozenset(
-        {"topic", "product", "company", "certification", "case_study"}
-    )
+def test_the_producer_holds_no_concept_type_register_at_all():
+    # REPLACES `test_concept_type_set_is_unchanged_by_the_s443_amendment`,
+    # a regression guard PINNING the five-member set. Pinning it is exactly
+    # what {427.5} withdraws, so the guard inverts: assert the module
+    # exports no concept-type register for anything to pin.
+    assert not hasattr(v, "ALLOWED_CONCEPT_TYPES")
+    assert not hasattr(v, "_CLASS_CONCEPT_TYPES")
+    assert not hasattr(v.EffectiveOntology, "base_for_class")
+    assert not hasattr(v.EffectiveOntology.base_only(), "concept_types")
 
 
 # ──────────────────────────────────────────
@@ -670,7 +775,6 @@ def test_concept_type_set_is_unchanged_by_the_s443_amendment():
 
 def test_effective_ontology_base_only_matches_the_bare_base_frozensets():
     eo = v.EffectiveOntology.base_only()
-    assert eo.concept_types == v.ALLOWED_CONCEPT_TYPES
     assert eo.entity_types == v.ALLOWED_ENTITY_TYPES
     assert eo.relationship_types == v.ALLOWED_RELATIONSHIP_TYPES
 
@@ -716,19 +820,30 @@ def test_effective_ontology_compose_ignores_provenance_keys():
     assert "widget" in eo.entity_types
 
 
-def test_check_type_membership_rejects_overlay_type_without_effective_ontology():
-    # OV-8 core assertion (base-only half): the bare base gate rejects an
-    # overlay-shaped type when no effective_ontology is supplied.
-    errors = v.check_type_membership("widget_type")
-    assert errors
-
-
-def test_check_type_membership_accepts_overlay_type_with_effective_ontology():
-    # OV-8 core assertion (overlay half): the SAME type is accepted once an
-    # effective_ontology composed from an overlay naming it is supplied.
+def test_a_client_type_needs_no_overlay_to_be_accepted():
+    # REPLACES the OV-8 concept-type pair (`check_type_membership` rejects
+    # `widget_type` without an overlay / accepts it with one). Both halves
+    # asserted that a client's own concept type required PERMISSION from an
+    # `ontology-overlay.json`. DR-141 withdraws the permission model for
+    # this dimension, so the behavioural claim inverts: the same label is
+    # accepted either way, and an overlay changes nothing about it.
+    without = v.check_concept(_valid_frontmatter(type="widget_type"), body=_VALID_BODY)
     eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
-    errors = v.check_type_membership("widget_type", effective_ontology=eo)
-    assert errors == []
+    with_overlay = v.check_concept(
+        _valid_frontmatter(type="widget_type"), body=_VALID_BODY, effective_ontology=eo
+    )
+    assert without == []
+    assert with_overlay == []
+
+
+def test_an_overlay_declaring_concept_types_stays_schema_valid_and_composes_nothing():
+    # {427.11} owns the artefact half. Here: an overlay may still DECLARE
+    # `concept_types` (the key stays in the closed overlay schema, and a
+    # shipped client bundle carrying one must not start failing), but the
+    # composed ontology has no such dimension to widen.
+    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+    assert not hasattr(eo, "concept_types")
+    assert eo == v.EffectiveOntology.base_only()
 
 
 def test_lint_entity_relation_mentions_rejects_overlay_entity_type_without_effective_ontology():
@@ -744,109 +859,89 @@ def test_lint_entity_relation_mentions_accepts_overlay_entity_type_with_effectiv
     assert errors == []
 
 
-def test_check_concept_threads_effective_ontology_through_to_type_membership():
-    # OV-8 — the core testStrategy assertion at the check_concept/
-    # validate_concept API surface: an overlay-added concept type is
-    # rejected by the base-only gate and accepted only when the run's
-    # composed effective_ontology includes it.
-    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+def test_check_concept_still_threads_effective_ontology_to_the_entity_lint():
+    # OV-8 survives for the dimensions that are GENUINELY closed. Rewritten
+    # from `test_check_concept_threads_effective_ontology_through_to_type_
+    # membership` onto `entity_types` — same threading behaviour asserted
+    # at the same API surface, on the dimension that still gates.
+    eo = v.EffectiveOntology.compose({"entity_types": ["widget"]})
+    mentions = [{"entity_type": "widget"}]
 
-    errors_without = v.check_concept(_valid_frontmatter(type="widget_type"), body=_VALID_BODY)
+    errors_without = v.check_concept(
+        _valid_frontmatter(), body=_VALID_BODY, entities=mentions
+    )
     errors_with = v.check_concept(
-        _valid_frontmatter(type="widget_type"), body=_VALID_BODY, effective_ontology=eo
+        _valid_frontmatter(), body=_VALID_BODY, entities=mentions, effective_ontology=eo
     )
 
-    assert errors_without  # base-only gate rejects
-    assert errors_with == []  # overlay-composed gate accepts
+    assert errors_without  # base-only lint rejects
+    assert errors_with == []  # overlay-composed lint accepts
 
 
 def test_validate_concept_raises_without_overlay_and_passes_with_it():
-    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
-    fm = _valid_frontmatter(type="widget_type")
+    # Same rewrite as above, one level up at the raising boundary.
+    eo = v.EffectiveOntology.compose({"entity_types": ["widget"]})
+    fm = _valid_frontmatter()
+    mentions = [{"entity_type": "widget"}]
 
     with pytest.raises(v.ConceptValidationError):
-        v.validate_concept(fm, body=_VALID_BODY)
+        v.validate_concept(fm, body=_VALID_BODY, entities=mentions)
 
-    v.validate_concept(fm, body=_VALID_BODY, effective_ontology=eo)  # does not raise
+    v.validate_concept(
+        fm, body=_VALID_BODY, entities=mentions, effective_ontology=eo
+    )  # does not raise
+
+
+def test_validate_concept_never_raises_for_an_unheard_of_type():
+    # The write gate itself, not just the check helper: no register, no
+    # overlay, a type string this codebase has never contained — published.
+    v.validate_concept(_valid_frontmatter(type="procurement_policy"), body=_VALID_BODY)
 
 
 # ──────────────────────────────────────────
-# PC-4 (ID-163 TECH, DR-079) — per-bundle-class BASE concept-type set.
-# `base_for_class` scopes the BI-4 concept_types dimension to the run's
-# bundle class; entity_types/relationship_types stay the shared base sets
-# (TECH id-163 only class-scopes concept_types, not the other two
-# dimensions — no per-class entity/relationship registry exists).
+# PI-7 (ID-427 {427.5}, owner ruling S546) — bundle classes are UNIFORM.
+#
+# This block REPLACES the eight PC-4/`base_for_class` tests, which asserted
+# the opposite: a per-class concept-type set, `client_business`/`showcase`
+# sharing the business five, `system_baseline` owning its own five, the two
+# being mutually rejecting, and `internal_dev` failing loud for want of a
+# ratified set. Every one of those assertions encoded the class-scoped
+# taxonomy DR-141 and the owner's S546 uniformity ruling withdraw —
+# *"we should be conformant and uniform across bundle classes. Our current
+# setup missed the very purpose of OKF (organic knowledge base growth)"*.
+# What survives from the old block is its LOAD-BEARING half: the shared
+# entity/relationship dimensions, asserted below.
 # ──────────────────────────────────────────
-
-
-def test_base_for_class_client_business_matches_the_pre_163_business_set():
-    eo = v.EffectiveOntology.base_for_class("client_business")
-    assert eo.concept_types == v.ALLOWED_CONCEPT_TYPES
-
-
-def test_base_for_class_showcase_matches_the_client_business_set():
-    # DR-079: showcase shares the existing business type set with
-    # client_business (brief: "client_business/showcase -> existing
-    # business set").
-    business = v.EffectiveOntology.base_for_class("client_business")
-    showcase = v.EffectiveOntology.base_for_class("showcase")
-    assert showcase.concept_types == business.concept_types
 
 
 @pytest.mark.parametrize(
-    "system_type", ["schema", "tool", "api", "navigation", "playbook"]
+    "concept_type", ["company", "schema", "document", "procurement_policy"]
 )
-def test_base_for_class_system_baseline_accepts_the_five_system_types(system_type):
-    eo = v.EffectiveOntology.base_for_class("system_baseline")
-    errors = v.check_type_membership(system_type, effective_ontology=eo)
-    assert errors == []
+def test_no_type_is_scoped_to_a_bundle_class(concept_type):
+    # The old block's `system_baseline rejects a business type` /
+    # `client_business rejects a system type` pair, inverted. A business
+    # label, a system label and two labels belonging to neither all pass
+    # the same single gate, because there is only one gate now.
+    assert v.check_type_shape(concept_type) == []
 
 
-def test_base_for_class_system_baseline_is_exactly_the_five_system_types():
-    eo = v.EffectiveOntology.base_for_class("system_baseline")
-    assert eo.concept_types == frozenset(
-        {"schema", "tool", "api", "navigation", "playbook"}
-    )
+def test_the_effective_ontology_is_identical_for_every_bundle_class():
+    # There is no longer any per-class entry point to compare, which IS the
+    # assertion — one base ontology, whatever the run's class.
+    base = v.EffectiveOntology.base_only()
+    assert base.entity_types == v.ALLOWED_ENTITY_TYPES
+    assert base.relationship_types == v.ALLOWED_RELATIONSHIP_TYPES
+    assert v.EffectiveOntology.compose(None) == base
 
 
-def test_base_for_class_system_baseline_rejects_a_business_type():
-    eo = v.EffectiveOntology.base_for_class("system_baseline")
-    errors = v.check_type_membership("company", effective_ontology=eo)
-    assert errors
-
-
-def test_base_for_class_client_business_rejects_a_system_type():
-    eo = v.EffectiveOntology.base_for_class("client_business")
-    errors = v.check_type_membership("schema", effective_ontology=eo)
-    assert errors
-
-
-def test_base_for_class_internal_dev_is_deferred():
-    # bl-478: internal_dev has no ratified BI-4 type set yet —
-    # base_for_class must fail loud, not silently return an empty or
-    # permissive set.
-    with pytest.raises(ValueError, match="internal_dev"):
-        v.EffectiveOntology.base_for_class("internal_dev")
-
-
-def test_base_only_still_delegates_to_client_business_unchanged():
-    # PC-4: base_only()'s existing (pre-163) call sites —
-    # check_type_membership and lint_entity_relation_mentions — must
-    # observe IDENTICAL behaviour post-change.
-    assert v.EffectiveOntology.base_only() == v.EffectiveOntology.base_for_class(
-        "client_business"
-    )
-
-
-def test_base_for_class_shares_entity_and_relationship_dimensions_across_classes():
-    system = v.EffectiveOntology.base_for_class("system_baseline")
-    business = v.EffectiveOntology.base_for_class("client_business")
-    assert system.entity_types == business.entity_types == v.ALLOWED_ENTITY_TYPES
-    assert (
-        system.relationship_types
-        == business.relationship_types
-        == v.ALLOWED_RELATIONSHIP_TYPES
-    )
+def test_internal_dev_no_longer_has_a_deferred_type_set_to_fail_on():
+    # REPLACES `test_base_for_class_internal_dev_is_deferred`. bl-478's
+    # fail-loud existed because internal_dev had "no ratified BI-4 type set
+    # YET". Under DR-141 no class has one or needs one, so the deferral has
+    # no subject and the entry point it lived on is gone. The behavioural
+    # consequence at the write gate is asserted in
+    # test_producer_bundle_writer.py.
+    assert not hasattr(v.EffectiveOntology, "base_for_class")
 
 
 # ──────────────────────────────────────────

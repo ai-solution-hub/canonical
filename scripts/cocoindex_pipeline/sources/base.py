@@ -17,85 +17,33 @@ posture `url_source.py`/`l_records.py`/`repo_docs.py` all keep (bare-MagicMock
 pipeline unit tests, TECH id-132:41/135). A consumer can `isinstance()`-check
 any Source implementation by importing this module alone.
 
-**The re-home changed no behaviour, no field and no gate** ({427.4} is
-explicitly a pure move). `CONCEPT_TYPES` and the {132.36} overlay-widening
-contextvar travel with `ConceptKey` only because `ConceptKey.__post_init__` is
-their sole consumer and a dataclass cannot be separated from its own
-validation; both are deleted outright by {427.5}, which turns `type` into a
-shape-validated label rather than a membership gate.
+**The re-home changed no behaviour, no field and no gate** ({427.4} was
+explicitly a pure move). It carried `CONCEPT_TYPES` and the {132.36}
+overlay-widening contextvar along as a waypoint, because
+`ConceptKey.__post_init__` was their sole consumer; **{427.5} has since
+deleted both** (DR-141). `ConceptKey.concept_type` is now validated by
+`producer/validator.check_type_shape` — the SAME shape rule the BI-13 write
+gate and `repo_docs.RepoConceptKey` apply, so there is exactly one
+definition of what a concept type may look like, and it is not a set of
+permitted values.
 """
 
 from __future__ import annotations
 
-import contextvars
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import (
     Any,
-    Iterable,
-    Iterator,
     Mapping,
     Protocol,
     TypeVar,
     runtime_checkable,
 )
 
-# ── BI-4: the ratified concept-type set (topic/product/company/certification/
-# case_study — metric/playbook/dataset stay tags on `topic`, not types). ─────
-CONCEPT_TYPES: frozenset[str] = frozenset(
-    {"topic", "product", "company", "certification", "case_study"}
-)
-
-# ── ID-132 {132.36} G-CONCEPT-FEEDER — overlay-added concept-type widening.
-# `ConceptKey.__post_init__`'s BI-4 membership check is closed against
-# `CONCEPT_TYPES` by default — UNCHANGED for every call site that never uses
-# the mechanism below (every existing test, every base-5-type `_list_*_
-# concepts` method). A client-configured `concept-feeder.json` (read by
-# `producer/bundle_writer.read_concept_feeder_config`, threaded into
-# `LRecordsSource.__init__`) can declare an OVERLAY-added concept type this
-# Source adapter should also enumerate/read; `_permit_overlay_concept_types`
-# scopes the WIDENED set to exactly the `with`-block that constructs those
-# `ConceptKey`s (see `list_concepts`) so no OTHER construction site — a
-# test, a future caller — is affected.
-#
-# A `contextvars.ContextVar` (not a bare module global): `list_concepts`
-# `await`s between the `_list_*_concepts` calls it wraps, so a bare mutable
-# global would leak across any concurrently-scheduled asyncio Task that ALSO
-# constructs a `ConceptKey` during that window; a `ContextVar` does not
-# (each Task gets its own context).
-#
-# Deliberately NOT threaded as a `ConceptKey` field: cocoindex's own
-# `_canonicalize_dataclass` (`cocoindex/_internal/memo_fingerprint.py`)
-# fingerprints EVERY dataclass field unconditionally (it does not honour
-# `field(compare=False)`), so a per-instance "allowed types" field would
-# silently invalidate EVERY concept's memo cache — not just feeder-fed
-# ones — on any feeder-config edit (a BI-18 memo-hygiene regression this
-# module must not introduce).
-#
-# The ACTUAL legality gate for an overlay-added type remains `producer/
-# validator.py`'s OV-8-composed `check_type_membership` — this mechanism
-# only lifts the Source adapter's OWN defence-in-depth guard so it does not
-# itself block a feeder-constructed key; a feeder-declared type absent from
-# the run's `ontology-overlay.json` still drafts (wasted work) but is
-# soft-rejected at the BI-13 gate (`RunSummary.validator_failures`), never
-# silently published. ───────────────────────────────────────────────────
-_permitted_overlay_concept_types: "contextvars.ContextVar[frozenset[str]]" = (
-    contextvars.ContextVar(
-        "_l_records_permitted_overlay_concept_types", default=frozenset()
-    )
-)
-
-
-@contextmanager
-def _permit_overlay_concept_types(types: "Iterable[str]") -> "Iterator[None]":
-    """Scope `ConceptKey.__post_init__`'s BI-4 check to ALSO accept `types`
-    for the duration of this `with` block only — see the constant above for
-    the full rationale (async-task-safe, memo-fingerprint-safe)."""
-    token = _permitted_overlay_concept_types.set(frozenset(types))
-    try:
-        yield
-    finally:
-        _permitted_overlay_concept_types.reset(token)
+# ID-427 {427.5}: the one shape rule (TECH §2.8). Importing `producer/
+# validator.py` keeps collection-safety — neither it nor its own imports
+# (`producer/frontmatter.py`, `producer/resource_uri.py`) touch `cocoindex`
+# at module scope — and it mirrors what `sources/repo_docs.py` already did.
+from scripts.cocoindex_pipeline.producer.validator import check_type_shape
 
 
 @dataclass(frozen=True)  # frozen → deterministic cocoindex memo key (BI-18)
@@ -113,12 +61,14 @@ class ConceptKey:
     changes the concept's identity."""
 
     concept_type: str
-    """One of the BI-4 ratified set (`CONCEPT_TYPES`), OR — ID-132 {132.36}
-    G-CONCEPT-FEEDER — a client-configured overlay-added type currently
-    permitted via `_permit_overlay_concept_types` (`list_concepts`'s feeder
-    pass only; every other construction site is unaffected). Never
-    `'q_a_pair'` (BI-3: a Q&A pair is never a concept — unconditional, even
-    for an overlay-permitted type). Validated in `__post_init__`."""
+    """The concept's OKF `type` LABEL — any well-shaped label
+    (`producer/validator.check_type_shape`: lowercase snake_case, 3–40
+    chars, ≤4 words). ID-427 {427.5}/DR-141: there is no permitted-value
+    set and no per-bundle-class set, so a grain may mint a type this
+    codebase has never seen without editing any register — that openness is
+    the point (OKF §1 lists a fixed concept-type taxonomy under Non-goals).
+    Never `'q_a_pair'` (BI-3: a Q&A pair is never a concept —
+    unconditional). Validated in `__post_init__`."""
 
     scope_tag: "str | None" = None
     """`topic` locator: a single `q_a_pairs.scope_tag` array element this
@@ -185,21 +135,13 @@ class ConceptKey:
         if self.concept_type == "q_a_pair":
             raise ValueError(
                 "ConceptKey.concept_type may never be 'q_a_pair' (BI-3: a "
-                "q_a_pair is never a concept) — this holds unconditionally, "
-                "even for a concept type otherwise permitted via the "
-                "{132.36} concept-feeder mechanism."
+                "q_a_pair is never a concept) — this holds unconditionally."
             )
-        if (
-            self.concept_type not in CONCEPT_TYPES
-            and self.concept_type not in _permitted_overlay_concept_types.get()
-        ):
-            permitted = sorted(_permitted_overlay_concept_types.get())
+        shape_errors = check_type_shape(self.concept_type)
+        if shape_errors:
             raise ValueError(
-                f"ConceptKey.concept_type must be one of {sorted(CONCEPT_TYPES)} "
-                "(BI-4 ratified set) or a concept type currently permitted "
-                "via the {132.36} concept-feeder mechanism "
-                f"({permitted or 'none'}); a q_a_pair is never a concept "
-                f"(BI-3). Got {self.concept_type!r}."
+                f"ConceptKey.concept_type is not a well-formed OKF type "
+                f"label: {'; '.join(shape_errors)}"
             )
         if self.workspace_id is not None and self.concept_type != "case_study":
             raise ValueError(
