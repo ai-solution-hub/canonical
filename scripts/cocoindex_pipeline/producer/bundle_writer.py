@@ -257,6 +257,16 @@ deciding whether an on-disk PATH is reserved must use the two scoped sets
 above (see `_is_reserved_bundle_path`)."""
 
 
+def _has_dotted_segment(rel_path: str) -> bool:
+    """True iff any segment of `rel_path` (bundle-relative, POSIX) begins
+    with a dot — `.claude/skills/validate/SKILL.md`, `.github/…`. Such files
+    are outside the bundle's concept surface entirely: they are tooling that
+    happens to live in the checkout, not artefacts the producer owns or
+    reconciles. See `_existing_concept_paths` for why this is a scan-scope
+    rule rather than a reserved name (S551)."""
+    return any(seg.startswith(".") for seg in PurePosixPath(rel_path).parts)
+
+
 def _is_reserved_bundle_path(rel_path: str) -> bool:
     """True iff `rel_path` (bundle-relative, POSIX) names a reserved bundle
     artefact rather than a concept document — `index.md`/`log.md` at ANY
@@ -1557,15 +1567,29 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     previous form compared the full bundle-relative path against a set of
     bare basenames, so `certifications/index.md` matched nothing and was
     counted as a concept. See `_is_reserved_bundle_path`.
+
+    **Dotted path segments are not part of the concept surface at all**
+    (S551). `rglob("*.md")` descends into dot-directories, so tooling that
+    legitimately lives inside a bundle — `.claude/skills/validate/SKILL.md`
+    is the shipped case — was counted as an existing concept and surfaced as
+    a false `RunSummary.removed` entry on a real run. That is the same defect
+    the reservation list above exists to prevent, and it is NOT expressible
+    as a reserved *name*: the file is not a bundle artefact the producer owns,
+    it is not the producer's file at all. Skipping dotted segments is
+    therefore a scan-scope rule, not another reservation. The TypeScript
+    consumer carries the same defect in `lib/okf/bundle-graph.ts`'s
+    `walkMarkdownFiles` — routed to id-439; fix both or the viewer and the
+    producer keep disagreeing about what the bundle contains.
     """
     if not bundle_dir.is_dir():
         return set()
     return {
         rel
         for p in bundle_dir.rglob("*.md")
-        if not _is_reserved_bundle_path(
+        if not _has_dotted_segment(
             rel := p.relative_to(bundle_dir).as_posix()
         )
+        and not _is_reserved_bundle_path(rel)
     }
 
 

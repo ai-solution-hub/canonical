@@ -1860,6 +1860,33 @@ def test_write_bundle_does_not_report_a_committed_readme_as_removed(tmp_path: Pa
     assert (tmp_path / "README.md").exists()  # untouched, never declare_file'd
 
 
+def test_write_bundle_does_not_report_bundle_tooling_under_a_dot_dir_as_removed(
+    tmp_path: Path,
+) -> None:
+    """S551, measured on a real run against `canonical-okf-showcase`:
+    `rglob("*.md")` descends into dot-directories, so the bundle's own
+    shipped tooling — `.claude/skills/validate/SKILL.md`, a legitimate
+    checked-in skill — was counted as an existing concept and surfaced as a
+    false `RunSummary.removed` entry, then parsed field-by-field by
+    git_sync's human-edit override capture.
+
+    This is NOT fixable by adding a reserved NAME: the file is not a bundle
+    artefact the producer owns. Dotted segments are out of scan scope.
+    """
+    skill = tmp_path / ".claude" / "skills" / "validate" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: validate\n---\n# Validate\n", encoding="utf-8")
+    draft = _draft("topics/alpha.md", title="Alpha")
+
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
+
+    assert summary.removed == ()
+    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    assert "SKILL.md" not in log_text
+    assert skill.exists()  # untouched, never declare_file'd
+    assert skill.read_text(encoding="utf-8").startswith("---\nname: validate\n")
+
+
 def test_overlay_file_is_read_and_never_declared_or_deleted(tmp_path: Path) -> None:
     """OV-1/OV-4: a fixture bundle repo with `ontology-overlay.json` at its
     root is read by the producer and composed into `ontology.json`; the
