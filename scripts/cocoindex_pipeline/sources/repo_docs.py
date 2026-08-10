@@ -123,7 +123,32 @@ from scripts.cocoindex_pipeline.producer.validator import check_type_shape
 # of one adapter — a `docs/navigation/index.md` page would otherwise mint
 # `navigation/index.md` and be overwritten by that directory's emitted
 # index exactly as an L-records concept would.
-from scripts.cocoindex_pipeline.sources.base import mint_concept_slug
+from scripts.cocoindex_pipeline.sources.base import (
+    CorpusCensus,
+    Coverage,
+    GrainEnumeration,
+    mint_concept_slug,
+)
+
+# ── The corpus unit kinds THIS adapter's census counts (ID-427 {427.9},
+# TECH §2.11).
+#
+# The `system_baseline`/`internal_dev` corpus is a repo checkout, not the
+# L-records tables: it has no `source_documents` row and no `q_a_pairs` row
+# to count, which is the measurement behind {427.9}'s correction to TECH §1
+# (see `base.Coverage` — a kind-keyed `Coverage`, not two DB-table-named
+# fields). Reporting `source_documents 9` in a system-baseline bundle's
+# `log.md` would name a table that bundle never reads.
+#
+# The unit is the ARTEFACT FILE, not the concept: a `*.ts` file with no
+# `defineTool(...)` call site backs no concept, and that is exactly the
+# repo-side analogue of RESEARCH's hole 1 (a published document that
+# produced nothing). Measured against this checkout at {427.9}: 9 files
+# under `lib/mcp/tools/`, of which `index.ts` and `shared.ts` define no
+# tool — the census reports `tool_source_files 9 (routed 7)`, so this is a
+# real reading and not a tautology. ────────────────────────────────────────
+TOOL_SOURCE_FILES = "tool_source_files"
+NAVIGATION_PAGES = "navigation_pages"
 
 
 @dataclass(frozen=True)  # frozen → deterministic cocoindex memo key (BI-18 analogue)
@@ -551,6 +576,11 @@ class RepoDocsSource:
     ) -> None:
         self._root = Path(root)
         self._navigation_docs_dir = Path(navigation_docs_dir)
+        self._coverage: "Coverage | None" = None
+        """ID-427 {427.9}: the union of both pillars' `Coverage` from the
+        most recent `list_concepts()`. `None` means not enumerated yet, and
+        `census()` refuses rather than reporting `routed 0` — the same
+        not-measured/measured-zero distinction `LRecordsSource` keeps."""
         self.seen_anchors: "set[str]" = set()
         """PC-5 (ID-163 TECH, DR-086b): the per-run provenance ledger
         `read_concept` mints into — one git-blob/doc-page anchor per
@@ -567,18 +597,65 @@ class RepoDocsSource:
         """Enumerate the KA3-prototyped concept set: every `defineTool(...)`
         call site under `lib/mcp/tools/*.ts` (E1, `tool`), PLUS every
         `*.md` page directly under `navigation_docs_dir` (E2,
-        `navigation`)."""
+        `navigation`).
+
+        ID-427 {427.9}: each pillar now returns a `GrainEnumeration` and
+        this method unions their `Coverage`, exactly as
+        `LRecordsSource.list_concepts` does — the two adapters answer the
+        census question the same way even though their corpora share no
+        table."""
         keys: "list[RepoConceptKey]" = []
-        keys.extend(self._list_tool_concepts())
-        keys.extend(self._list_navigation_concepts())
+        coverage = Coverage()
+        for enumeration in (
+            self._list_tool_concepts(),
+            self._list_navigation_concepts(),
+        ):
+            keys.extend(enumeration.keys)
+            coverage = coverage.union(enumeration.covers)
+        self._coverage = coverage
         return keys
 
-    def _list_tool_concepts(self) -> "list[RepoConceptKey]":
-        keys: "list[RepoConceptKey]" = []
+    async def census(self) -> CorpusCensus:
+        """This run's corpus census (ID-427 {427.9}, TECH §2.11) — the
+        artefact files this checkout holds, and how many of them back at
+        least one enumerated concept.
+
+        The `considered` side is re-globbed here rather than carried out of
+        `list_concepts`, because that method only ever SEES the files a
+        pillar walked; a `considered` count derived from it could never
+        exceed `routed`, and a census that cannot report a hole is not a
+        census. Raises before enumeration for the same reason
+        `LRecordsSource.census` does."""
+        if self._coverage is None:
+            raise ValueError(
+                "RepoDocsSource.census() was called before list_concepts() — "
+                "`routed` is the union of the coverages enumeration produces, "
+                "and reporting zeros here would report the whole checkout as "
+                "unrouted (ID-427 {427.9})"
+            )
+        considered = (
+            (TOOL_SOURCE_FILES, len(self._tool_source_files())),
+            (NAVIGATION_PAGES, len(self._navigation_pages())),
+        )
+        return CorpusCensus(
+            considered=considered,
+            routed=tuple(
+                (kind, len(self._coverage.ids(kind))) for kind, _ in considered
+            ),
+        )
+
+    def _tool_source_files(self) -> "list[Path]":
         tools_dir = self._root / _TOOLS_DIR
-        if not tools_dir.is_dir():
-            return keys
-        for file_path in sorted(tools_dir.glob("*.ts")):
+        return sorted(tools_dir.glob("*.ts")) if tools_dir.is_dir() else []
+
+    def _navigation_pages(self) -> "list[Path]":
+        nav_dir = self._root / self._navigation_docs_dir
+        return sorted(nav_dir.glob("*.md")) if nav_dir.is_dir() else []
+
+    def _list_tool_concepts(self) -> "GrainEnumeration[RepoConceptKey]":
+        keys: "list[RepoConceptKey]" = []
+        covered: "list[str]" = []
+        for file_path in self._tool_source_files():
             text = file_path.read_text(encoding="utf-8")
             rel_file = (_TOOLS_DIR / file_path.name).as_posix()
             # E1 keeps git_blob_sha="" ({163.18}/S488): a file-grained blob
@@ -588,7 +665,15 @@ class RepoDocsSource:
             # lever instead; the citation's real file blob sha is resolved
             # fresh at read_concept (mint) time.
             file_lines = text.splitlines(keepends=True)
-            for match in _DEFINE_TOOL_CALL_RE.finditer(text):
+            matches = list(_DEFINE_TOOL_CALL_RE.finditer(text))
+            if matches:
+                # {427.9}: the file is COVERED once it backs at least one
+                # concept. A `*.ts` file under this directory that defines no
+                # tool (`index.ts`, `shared.ts`) backs none and stays
+                # unrouted — the repo-side analogue of a published document
+                # that produced no pair.
+                covered.append(rel_file)
+            for match in matches:
                 name = match.group("name")
                 open_idx = match.start() + len("defineTool")
                 close_idx = _match_closing_paren(text, open_idx)
@@ -605,14 +690,14 @@ class RepoDocsSource:
                         span_content_hash=_span_content_hash(span_text),
                     )
                 )
-        return keys
+        return GrainEnumeration(
+            keys=tuple(keys), covers=Coverage.of({TOOL_SOURCE_FILES: covered})
+        )
 
-    def _list_navigation_concepts(self) -> "list[RepoConceptKey]":
+    def _list_navigation_concepts(self) -> "GrainEnumeration[RepoConceptKey]":
         keys: "list[RepoConceptKey]" = []
-        nav_dir = self._root / self._navigation_docs_dir
-        if not nav_dir.is_dir():
-            return keys
-        for file_path in sorted(nav_dir.glob("*.md")):
+        covered: "list[str]" = []
+        for file_path in self._navigation_pages():
             rel_file = file_path.relative_to(self._root).as_posix()
             blob_sha = _git_blob_sha(self._root, rel_file)
             keys.append(
@@ -623,7 +708,15 @@ class RepoDocsSource:
                     git_blob_sha=blob_sha,
                 )
             )
-        return keys
+            # E2 is 1:1 today — every page mints a concept — so this kind
+            # reports `considered == routed` on any checkout. That is a true
+            # statement about the pillar, not a placeholder: if a future
+            # filter (a draft marker, a front-matter opt-out) ever skips a
+            # page, the census reports it the same run, with no edit here.
+            covered.append(rel_file)
+        return GrainEnumeration(
+            keys=tuple(keys), covers=Coverage.of({NAVIGATION_PAGES: covered})
+        )
 
     # ── read_concept (abstract, base.py) ────────────────────────────────
 

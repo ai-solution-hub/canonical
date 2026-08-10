@@ -127,11 +127,31 @@ from typing import (
 from scripts.cocoindex_pipeline.sources.base import (
     ConceptKey,
     ConceptRaw,
+    CorpusCensus,
     Coverage,
     GrainEnumeration,
     GrainSpec,
     mint_concept_slug,
 )
+
+# ── The corpus unit kinds this adapter's census counts (ID-427 {427.9},
+# TECH §2.11 / DR-141's "every published unit lands in at least one
+# concept").
+#
+# These name the two L-record tables that hold a *unit of knowledge*. They
+# live HERE, not in `base.py`, for the same reason `Coverage` is kind-keyed
+# rather than field-keyed: they are facts about THIS adapter's corpus.
+# `repo_docs.py` declares its own pair, and neither adapter's kinds leak
+# into the other's `log.md`.
+#
+# `record_lifecycle`/`entity_mentions`/`entity_relationships` are NOT unit
+# kinds: they are per-unit metadata a concept carries along, never knowledge
+# that could be stranded on its own. `reference_items` is not one either —
+# DR-124/DR-130 retired the ri evidence legs entirely and id-422 owns its
+# re-entry; counting a table the producer no longer reads would report a
+# permanent, meaningless hole. ─────────────────────────────────────────────
+SOURCE_DOCUMENTS = "source_documents"
+Q_A_PAIRS = "q_a_pairs"
 
 # Owner-discretion filename/logical_path substring patterns (ILIKE ANY),
 # grounded in PRODUCT.md §"The first client's corpus" (already de-identified
@@ -327,6 +347,105 @@ _SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE = (
     "created_at, updated_at FROM form_instances "
     "WHERE id = $1 AND outcome = 'won' ORDER BY id"
 )
+
+# ── ID-427 {427.9} — the coverage + census queries (TECH §2.11)
+#
+# Each grain's `list` issues one set-based query per unit kind it can reach
+# — never a per-concept round-trip, the MD-5 discipline the `content_version`
+# aggregates already keep. The census itself adds ONE more (the corpus
+# totals), issued at `census()` time rather than enumeration time because it
+# is the only part no grain owns.
+#
+# **Correction to TECH §2.1's arithmetic:** it budgets "six extra set-based
+# queries per run", one per preferred grain. The measured figure is EIGHT
+# for the six built-in grains (+2 per feeder grain, +1 for the totals),
+# because the two grains whose read grid spans BOTH unit kinds — the
+# `product`/feeder entity-pattern grains and the named-client `case_study`
+# grain — need one query per kind. The `company` and `certification` grains
+# need none for `q_a_pairs` (their read grid has no pair leg) and the won-bid
+# grain needs none for `source_documents` (no named-clients doc backs a won
+# bid). A grain that enumerated no keys issues none at all.
+#
+# **Every coverage query filters to the SAME published corpus `census()`
+# counts.** That is what makes `routed <= considered` structural rather than
+# defended: the pattern-matched `source_documents` reads carry no
+# `publication_status` filter, so an unpublished document CAN back a concept
+# today (see `_SQL_SOURCE_DOCUMENTS_BY_FILENAME_PATTERNS`), and counting one
+# as covered would report more units routed than the corpus contains. The
+# pair queries below deliberately keep the read's UNFILTERED document
+# subquery, because a published pair whose parent document is unpublished is
+# still genuinely reached by that concept — it is the pair that must be
+# counted, on its own publication status. ─────────────────────────────────
+
+_SQL_COVERAGE_TOPIC = (
+    "SELECT qa.id AS q_a_pair_id, sd.id AS source_document_id "
+    "FROM q_a_pairs qa "
+    "LEFT JOIN source_documents sd ON sd.id = qa.source_document_id "
+    "AND sd.publication_status = 'published' "
+    "WHERE qa.publication_status = 'published' AND qa.scope_tag IS NOT NULL "
+    "AND array_length(qa.scope_tag, 1) > 0 ORDER BY qa.id"
+)
+"""The `topic_scope_tag` grain's coverage. Every published pair carrying a
+non-empty `scope_tag` lands in at least one topic concept — the enumeration
+is `DISTINCT unnest(scope_tag)` and each concept clusters
+`scope_tag @> ARRAY[tag]`, so the union over tags is exactly this set. It is
+also the precise complement of RESEARCH's **hole 2** (a published pair with
+an EMPTY `scope_tag` array), which is why this grain's unrouted pairs are the
+number {427.10}'s residual grain drives to zero.
+
+The `LEFT JOIN` carries each covered pair's parent document, published only —
+`_read_topic` fetches those parents into the concept's `source_documents`, so
+they are genuinely reached; an unpublished parent is simply not a corpus
+unit."""
+
+_SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS = (
+    "SELECT id FROM source_documents "
+    "WHERE (filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])) "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""Shared by every pattern-matched grain (`company`, `certification`,
+named-client `case_study`, `product` and every feeder grain, each handing in
+its OWN patterns) — the published half of the document set
+`_source_documents_by_patterns` reads."""
+
+_SQL_COVERAGE_PUBLISHED_QA_BY_PATTERNS_OR_TAGS = (
+    "SELECT id FROM q_a_pairs "
+    "WHERE (source_document_id IN ("
+    "SELECT id FROM source_documents "
+    "WHERE filename ILIKE ANY($1::text[]) OR logical_path ILIKE ANY($1::text[])"
+    ") OR scope_tag && $2::text[]) "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""The pair-side mirror of `_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY`, generalised
+from one entity to the whole grain: `&&` (array overlap) is the set form of
+that query's `@> ARRAY[$2]` for a single tag. The inner document subquery is
+UNFILTERED on purpose — it reproduces the id list the read actually passes."""
+
+_SQL_COVERAGE_WON_BID_QA = (
+    "SELECT id FROM q_a_pairs "
+    "WHERE source_form_instance_id = ANY($1::uuid[]) "
+    "AND origin_kind = 'derived_from_form_response' "
+    "AND publication_status = 'published' ORDER BY id"
+)
+"""The won-bid grain's coverage — the set form of
+`_SQL_WON_BID_QA_BY_FORM_INSTANCE` over every form instance the grain
+ENUMERATED. That distinction is load-bearing: the grain dedupes by buyer and
+keeps only the earliest won form, so a buyer's second won bid contributes no
+concept and its published pairs are genuinely unrouted. The census reports
+them; it does not paper over them."""
+
+_SQL_CENSUS_CORPUS_TOTALS = (
+    "SELECT ("
+    "SELECT count(*) FROM source_documents WHERE publication_status = 'published'"
+    ") AS source_documents, ("
+    "SELECT count(*) FROM q_a_pairs WHERE publication_status = 'published'"
+    ") AS q_a_pairs"
+)
+"""The `considered` half — one query, one row, two scalars. `published` is
+the corpus definition TECH §2.1's ratified residual anti-joins already use,
+so the census and the residual grain cannot disagree about what the corpus
+is."""
+
 
 # ── ID-132 {132.38} G-MEMO-DELTA — the `content_version` aggregate signal
 # (MD-3/5/6/7, DR-060). One SET-BASED aggregate query per enumeration branch
@@ -531,6 +650,15 @@ class LRecordsSource:
             spec.name: spec
             for spec in (*_BUILTIN_GRAINS, *self._feeder_grains())
         }
+        self._coverage: "Coverage | None" = None
+        """ID-427 {427.9}: the union of every grain's `Coverage` from the
+        most recent `list_concepts()`. `None` — the state this adapter is
+        constructed in — means **not enumerated yet**, which `census()`
+        refuses rather than reporting as `routed 0`. That distinction is the
+        whole point: an empty `Coverage` is a measurement ("this grain
+        reached nothing"), `None` is the absence of one, and {427.7}'s note
+        that its unpopulated `Coverage` "is not a measurement" is exactly
+        the confusion this field's nullability prevents from recurring."""
 
     def _feeder_grains(self) -> "list[GrainSpec]":
         """ID-132 {132.36} G-CONCEPT-FEEDER, re-described by ID-427 {427.7}
@@ -637,16 +765,89 @@ class LRecordsSource:
         is the property whose absence produced the inversion.
 
         Each grain returns a `GrainEnumeration` carrying a `Coverage`, and
-        this method currently **discards** it — the seam exists, nothing
-        populates or reads it yet. {427.9} unions the coverages and reports
-        the census; {427.10} runs the residual grain over the complement. Do
-        not read today's empty `Coverage` as a measurement of what a grain
-        reaches."""
+        ID-427 {427.9} unions them here — the seam {427.7} introduced empty
+        is now populated. `census()` reports that union against the corpus
+        totals; {427.10} runs the residual grain over its complement, which
+        is why the union is accumulated DURING the loop rather than derived
+        afterwards from the keys (a key does not carry what it covers, and
+        the residual grain must run last, handed the union — TECH §1)."""
         keys: "list[ConceptKey]" = []
+        coverage = Coverage()
         for spec in self._grains.values():
             enumeration = await spec.list(self, spec)
             keys.extend(enumeration.keys)
+            coverage = coverage.union(enumeration.covers)
+        self._coverage = coverage
         return keys
+
+    async def census(self) -> CorpusCensus:
+        """This run's corpus census (ID-427 {427.9}, TECH §2.11) — the
+        published unit count per kind, and how many of them the concepts
+        `list_concepts()` just enumerated reach.
+
+        Raises if enumeration has not run. Returning `routed 0` instead
+        would report the entire corpus as unrouted, which flips
+        `RunSummary.is_no_op` and stages a commit for a run that did
+        nothing wrong — a manufactured alarm is as much a lie as a
+        manufactured silence."""
+        if self._coverage is None:
+            raise ValueError(
+                "LRecordsSource.census() was called before list_concepts() — "
+                "`routed` is the union of the coverages enumeration produces, "
+                "and reporting zeros here would report the whole corpus as "
+                "unrouted (ID-427 {427.9})"
+            )
+        rows = await self._pool.fetch(_SQL_CENSUS_CORPUS_TOTALS)
+        totals = rows[0] if rows else {}
+        considered = tuple(
+            (kind, int(totals.get(kind) or 0))
+            for kind in (SOURCE_DOCUMENTS, Q_A_PAIRS)
+        )
+        return CorpusCensus(
+            considered=considered,
+            routed=tuple(
+                (kind, len(self._coverage.ids(kind))) for kind, _ in considered
+            ),
+        )
+
+    # ── per-grain coverage (ID-427 {427.9}) ─────────────────────────────
+
+    async def _coverage_by_patterns(
+        self,
+        patterns: "Sequence[str]",
+        *,
+        tags: "Sequence[str] | None" = None,
+        pairs: bool = True,
+    ) -> Coverage:
+        """The coverage shared by every pattern-matched grain, mirroring
+        `_read_entity_pattern_grain`/`_read_case_study`/`_read_company`/
+        `_read_certification`.
+
+        `pairs=False` for the `company` and `certification` grains: their
+        read grid has no `q_a_pairs` leg at all, so claiming pair coverage
+        would credit them with units they never reach. `tags` are the entity
+        names those grains ALSO match as `scope_tag` values (the `OR` arm of
+        `_SQL_QA_BY_SOURCE_DOCS_OR_ENTITY`).
+
+        No patterns means no query — a grain that enumerated nothing covers
+        nothing, and issuing an `ILIKE ANY('{}')` to be told so is a
+        round-trip for a value already known."""
+        if not patterns:
+            return Coverage()
+        sd_rows = await self._pool.fetch(
+            _SQL_COVERAGE_PUBLISHED_SD_BY_PATTERNS, list(patterns)
+        )
+        units: "dict[str, list[str]]" = {
+            SOURCE_DOCUMENTS: [str(row["id"]) for row in sd_rows]
+        }
+        if pairs:
+            qa_rows = await self._pool.fetch(
+                _SQL_COVERAGE_PUBLISHED_QA_BY_PATTERNS_OR_TAGS,
+                list(patterns),
+                list(tags or ()),
+            )
+            units[Q_A_PAIRS] = [str(row["id"]) for row in qa_rows]
+        return Coverage.of(units)
 
     def _key(
         self,
@@ -685,17 +886,24 @@ class LRecordsSource:
             )
             for row in await self._pool.fetch(_SQL_PRODUCT_VERSION, entity_type)
         }
+        names = [row["canonical_name"] for row in rows]
         return GrainEnumeration(
             keys=tuple(
                 self._key(
                     spec,
-                    basename=mint_concept_slug(row["canonical_name"]),
-                    entity_id=row["canonical_name"],
-                    content_version=version_by_name.get(row["canonical_name"], ""),
+                    basename=mint_concept_slug(name),
+                    entity_id=name,
+                    content_version=version_by_name.get(name, ""),
                 )
-                for row in rows
+                for name in names
             ),
-            covers=Coverage(),
+            # {427.9}: the union over every enumerated entity's own
+            # `%<canonical_name>%` pattern — the same data-dependent terms
+            # `_read_entity_pattern_grain` builds per concept, which is why
+            # TECH §2.1 rules coverage un-expressible as a static predicate.
+            covers=await self._coverage_by_patterns(
+                [f"%{name}%" for name in names], tags=names
+            ),
         )
 
     async def _list_topic_concepts(self, spec: GrainSpec) -> GrainEnumeration:
@@ -726,7 +934,32 @@ class LRecordsSource:
                     content_version=version_by_tag.get(tag, ""),
                 )
             )
-        return GrainEnumeration(keys=tuple(keys), covers=Coverage())
+        return GrainEnumeration(
+            keys=tuple(keys),
+            covers=await self._topic_coverage() if keys else Coverage(),
+        )
+
+    async def _topic_coverage(self) -> Coverage:
+        """Every published pair with a non-empty `scope_tag`, plus those
+        pairs' published parent documents. See `_SQL_COVERAGE_TOPIC` — the
+        set is the union over the tags this grain enumerated, and its
+        complement on `q_a_pairs` is RESEARCH's hole 2 exactly.
+
+        Skipped when no tag enumerated, and that is not an optimisation
+        shortcut: the enumeration query IS `DISTINCT unnest(scope_tag)` over
+        the published, non-empty-array pairs, so zero tags PROVES zero such
+        pairs. The query would return nothing."""
+        rows = await self._pool.fetch(_SQL_COVERAGE_TOPIC)
+        return Coverage.of(
+            {
+                Q_A_PAIRS: [str(row["q_a_pair_id"]) for row in rows],
+                SOURCE_DOCUMENTS: [
+                    str(row["source_document_id"])
+                    for row in rows
+                    if row.get("source_document_id") is not None
+                ],
+            }
+        )
 
     async def _list_company_concepts(self, spec: GrainSpec) -> GrainEnumeration:
         rows = await self._pool.fetch(
@@ -751,7 +984,12 @@ class LRecordsSource:
                     spec, basename="overview", content_version=content_version
                 ),
             ),
-            covers=Coverage(),
+            # `pairs=False`: `_read_company`'s grid is source_documents +
+            # entity_mentions, with no `q_a_pairs` leg — crediting this grain
+            # with pair coverage would route units it never reaches.
+            covers=await self._coverage_by_patterns(
+                _COMPANY_FILENAME_PATTERNS, pairs=False
+            ),
         )
 
     async def _list_certification_concepts(self, spec: GrainSpec) -> GrainEnumeration:
@@ -792,7 +1030,18 @@ class LRecordsSource:
                 )
                 for row in rows
             ),
-            covers=Coverage(),
+            # The compliance-doc set is SHARED by every certification
+            # concept (MD-7) — one coverage query for the grain, not one per
+            # concept — and `pairs=False` for the same reason as `company`:
+            # `_read_certification` has no `q_a_pairs` leg. No certification
+            # enumerated means no concept reads those documents at all.
+            covers=(
+                await self._coverage_by_patterns(
+                    _CERTIFICATION_FILENAME_PATTERNS, pairs=False
+                )
+                if rows
+                else Coverage()
+            ),
         )
 
     async def _list_case_study_concepts(self, spec: GrainSpec) -> GrainEnumeration:
@@ -808,17 +1057,28 @@ class LRecordsSource:
                 _SQL_CASE_STUDY_NAMED_CLIENT_VERSION, list(_CASE_STUDY_FILENAME_PATTERNS)
             )
         }
+        names = [row["canonical_name"] for row in rows]
         return GrainEnumeration(
             keys=tuple(
                 self._key(
                     spec,
-                    basename=mint_concept_slug(row["canonical_name"]),
-                    entity_id=row["canonical_name"],
-                    content_version=version_by_name.get(row["canonical_name"], ""),
+                    basename=mint_concept_slug(name),
+                    entity_id=name,
+                    content_version=version_by_name.get(name, ""),
                 )
-                for row in rows
+                for name in names
             ),
-            covers=Coverage(),
+            # The named-clients document set is shared across this grain's
+            # concepts (`_read_case_study` matches the GRAIN's patterns, not
+            # the entity's own name — unlike the product grain), while the
+            # pair leg still overlaps each buyer's name as a `scope_tag`.
+            covers=(
+                await self._coverage_by_patterns(
+                    _CASE_STUDY_FILENAME_PATTERNS, tags=names
+                )
+                if names
+                else Coverage()
+            ),
         )
 
     async def _list_won_bid_case_study_concepts(
@@ -866,7 +1126,31 @@ class LRecordsSource:
                     form_instance_id=row["form_instance_id"],
                 )
             )
-        return GrainEnumeration(keys=tuple(keys), covers=Coverage())
+        return GrainEnumeration(
+            keys=tuple(keys),
+            # {427.9}: keyed on the form instances this grain ENUMERATED,
+            # which the buyer-dedupe above makes strictly narrower than the
+            # won-form set. A buyer's second won bid mints no concept, so
+            # its published pairs are unrouted — a real hole the census
+            # surfaces rather than a rounding error.
+            covers=await self._won_bid_coverage(
+                [key.form_instance_id for key in keys]
+            ),
+        )
+
+    async def _won_bid_coverage(
+        self, form_instance_ids: "Sequence[Any]"
+    ) -> Coverage:
+        if not form_instance_ids:
+            return Coverage()
+        rows = await self._pool.fetch(
+            _SQL_COVERAGE_WON_BID_QA, list(form_instance_ids)
+        )
+        # No `source_documents` term at all — not an empty one: this grain's
+        # read grid has no document leg ("no named-clients doc backs a won
+        # bid", `_read_won_bid_case_study`), so it has no opinion about
+        # documents rather than an opinion that it reaches none.
+        return Coverage.of({Q_A_PAIRS: [str(row["id"]) for row in rows]})
 
     # ── read_concept (abstract, base.py) ────────────────────────────────
 

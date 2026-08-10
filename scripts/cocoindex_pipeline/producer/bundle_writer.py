@@ -184,7 +184,10 @@ from scripts.cocoindex_pipeline.producer.validator import (
     check_type_shape,
 )
 from scripts.cocoindex_pipeline.producer.web_pass import ReferenceConceptDraft
-from scripts.cocoindex_pipeline.sources.base import RESERVED_CONCEPT_STEMS
+from scripts.cocoindex_pipeline.sources.base import (
+    RESERVED_CONCEPT_STEMS,
+    CorpusCensus,
+)
 from scripts.cocoindex_pipeline.sources.l_records import BUILTIN_GRAIN_TYPE_LABELS
 
 # Reserved bundle-level filenames — never treated as a concept `.md` path by
@@ -762,6 +765,18 @@ class RunSummary:
     `removed` (confirmed absent from the source catalogue's own
     enumeration)."""
 
+    census: CorpusCensus = CorpusCensus()
+    """ID-427 {427.9} (TECH §2.11, closing AC 4): this run's corpus census —
+    how many units of each kind the Source's corpus holds, and how many of
+    them the enumerated concepts reach. Supplied by `run_producer_flow` from
+    `Source.census()`; left at its empty default by a direct `write_bundle`
+    call, which was handed drafts rather than a corpus and so took no census.
+
+    That default is NOT "a census that found nothing" — a census that ran and
+    found nothing still lists its kinds with zeros. `_render_run_bullets`
+    therefore emits no census line for the default, rather than printing a
+    `Considered (0)` nobody measured."""
+
     @property
     def is_no_op(self) -> bool:
         """BI-18: True iff this run changed NOTHING relative to the prior
@@ -771,7 +786,18 @@ class RunSummary:
         just reports zero changes. A run with a transient drafting failure
         (`failed`) is deliberately NOT a no-op — Defect B's "silent success
         is forbidden" — even though the physical bundle content it
-        produces may be byte-identical to the prior run's."""
+        produces may be byte-identical to the prior run's.
+
+        **ID-427 {427.9}: a run that leaves knowledge UNROUTED is not a
+        no-op either** (TECH §2.11), on exactly the precedent `failed` sets.
+        Its physical bundle may be byte-identical to the prior run's, and it
+        is still the run that has to reach the owner: a non-zero
+        `census.unrouted_total` means published units of the corpus are
+        reachable in no concept at all, which is the failure DR-141 exists
+        to make visible. The consequence is concrete, not decorative —
+        `run_producer_flow` skips git-staging for a no-op run (owner ruling
+        S456), so without this term the one `log.md` line that reports the
+        hole would never be committed."""
         return not (
             self.added
             or self.changed
@@ -780,11 +806,51 @@ class RunSummary:
             or self.orphaned_anchors
             or self.validator_failures
             or self.failed
+            or self.census.unrouted_total
         )
 
 
 def _resolve_run_timestamp(timestamp: "str | None") -> str:
     return timestamp or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _render_census_bullets(census: CorpusCensus, ts: str) -> "list[str]":
+    """The ID-427 {427.9} census lines (TECH §2.11, closing AC 4).
+
+    `Considered` is emitted on EVERY run that took a census, **including a
+    no-op one** — "nothing changed" and "nothing was left behind" are
+    different claims, and before this the log could only make the first.
+    A run with no census (a direct `write_bundle` call, which never saw a
+    corpus) emits neither line: `Considered (0)` there would report a
+    measurement nobody took, which is the error {427.7} named when it
+    warned that its own empty `Coverage` "is not a measurement".
+
+    `Unrouted` follows only when non-zero. It carries no `WARNING` prefix,
+    unlike the `failed`/`orphaned anchors`/`validator rejected` lines: those
+    report something that went wrong THIS run, whereas until {427.10}'s
+    residual grain lands a non-zero count is the expected, structural state
+    the census exists to quantify. `is_no_op` is what gives it teeth.
+
+    **Counts only — no uuids (BI-10).** The census reports how many units
+    are unrouted, never which. A run log is not a record pointer, and the
+    bundle's pointers stay `resource:`/citations."""
+    if not census.considered:
+        return []
+    routed_by_kind = dict(census.routed)
+    lines = [
+        f"* **Run {ts} — Considered ({len(census.considered)}):** "
+        + ", ".join(
+            f"{kind} {count} (routed {routed_by_kind.get(kind, 0)})"
+            for kind, count in census.considered
+        )
+    ]
+    unrouted = census.unrouted
+    if unrouted:
+        lines.append(
+            f"* **Run {ts} — Unrouted ({census.unrouted_total}):** "
+            + ", ".join(f"{kind} {count}" for kind, count in unrouted)
+        )
+    return lines
 
 
 def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
@@ -793,11 +859,25 @@ def _render_run_bullets(summary: RunSummary, ts: str) -> "list[str]":
     (`* **Run <ISO-ts> — <Action> (N):** …`), preserving BI-11 per-run
     visibility and machine-parseability now that runs are grouped under a
     shared `## YYYY-MM-DD` date heading. A no-op run still emits exactly
-    one bullet (BI-11's "one visible record per run" is unconditional).
-    Validator-reject per-path detail stays as nested sub-bullets under its
-    WARNING bullet."""
-    if summary.is_no_op:
-        return [f"* **Run {ts} — No changes** (no-op re-run)."]
+    one change bullet (BI-11's "one visible record per run" is
+    unconditional). Validator-reject per-path detail stays as nested
+    sub-bullets under its WARNING bullet.
+
+    ID-427 {427.9}: the census lines lead, framing the run before its diff,
+    and the `No changes` bullet is now keyed on the absence of CHANGE lines
+    rather than on `is_no_op` directly. Those were the same condition until
+    this change and are no longer: a run whose census reports unrouted units
+    is not a no-op, yet its files really are unchanged, and the log must be
+    able to say both without contradicting itself."""
+    lines: "list[str]" = _render_census_bullets(summary.census, ts)
+    changes = _render_change_bullets(summary, ts)
+    lines.extend(changes or [f"* **Run {ts} — No changes** (no-op re-run)."])
+    return lines
+
+
+def _render_change_bullets(summary: RunSummary, ts: str) -> "list[str]":
+    """This run's concept-level diff bullets — empty when nothing on disk
+    changed."""
     lines: "list[str]" = []
     if summary.added:
         lines.append(
@@ -1443,6 +1523,7 @@ def write_bundle(
     client_ontology_overlay: "Mapping[str, object] | None" = None,
     bundle_class: "BundleClass | None" = None,
     client_id: "str | None" = None,
+    census: CorpusCensus = CorpusCensus(),
     timestamp: "str | None" = None,
 ) -> RunSummary:
     """The per-run G-BUNDLE orchestration: validator-gate + `declare_file`
@@ -1467,6 +1548,16 @@ def write_bundle(
     recorded as an advisory un-projected diagnostic rather than guessing a
     client namespace (IRI-6: published IRIs are irreversible, so an
     overlay IRI is never minted under an unconfirmed client-id).
+
+    **`census` — the corpus census (ID-427 {427.9}, TECH §2.11, AC 4).**
+    The caller's `Source.census()` result: how many published units of each
+    kind the corpus holds and how many the enumerated concepts reach. It
+    rides into `RunSummary.census`, becomes the unconditional `Considered`
+    `log.md` line (and the conditional `Unrouted` one), and makes a run that
+    leaves knowledge unrouted not a no-op. `write_bundle` cannot compute it —
+    it is handed drafts, never a corpus — which is why it is supplied rather
+    than derived, and why its empty default means "no census taken" rather
+    than "a census that found nothing".
 
     `moved` is an explicit caller-supplied `{old_rel_path: new_rel_path}`
     map (BI-2/BI-9: "the producer... must record such moves so inbound
@@ -1647,6 +1738,7 @@ def write_bundle(
         orphaned_anchors=tuple(orphaned_anchors),
         validator_failures=tuple(failures),
         failed=tuple(sorted(failed_set)),
+        census=census,
     )
 
     declare_directory_indexes(bundle_dir, written)

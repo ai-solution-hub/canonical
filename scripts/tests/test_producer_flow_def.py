@@ -62,6 +62,27 @@ _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 _EMBEDDING = [0.1] * 1024
 
 
+async def _fully_covered_census() -> Any:
+    """ID-427 {427.9}: the census a Source stand-in reports.
+
+    `run_producer_flow` calls `Source.census()` unconditionally now, so
+    every fake here answers it — that IS the protocol, and a fake that
+    could opt out would let the real Source opt out too. Fully covered
+    (`considered == routed`) so these fixtures keep asserting what they were
+    written to assert: an unrouted count would make every run non-no-op and
+    silently invert `TestNoOpLogOnlyRuling`. The census's own behaviour is
+    tested where it is produced (`test_l_records_source.py`,
+    `test_repo_docs_source.py`) and where it is rendered
+    (`test_producer_bundle_writer.py`); what this module tests is that it
+    reaches `log.md` through the composed flow."""
+    from scripts.cocoindex_pipeline.sources.base import CorpusCensus  # noqa: PLC0415
+
+    return CorpusCensus(
+        considered=(("source_documents", 2), ("q_a_pairs", 5)),
+        routed=(("source_documents", 2), ("q_a_pairs", 5)),
+    )
+
+
 def _won_bid_rel_path(basename: str) -> str:
     """The won-bid grain's own declared directory, read off the registry —
     never a literal (ID-427 {427.8}). Imported inside the function because
@@ -235,6 +256,8 @@ def _wire_source(env, drafts_by_key: "dict[Any, Any]") -> None:
         async def list_concepts(self):
             return keys
 
+        async def census(self):
+            return await _fully_covered_census()
     async def _fake_enrich(key: Any, _source: Any) -> Any:
         return drafts_by_key[key]
 
@@ -564,6 +587,8 @@ class TestSourceSelection:
                 async def list_concepts(self):
                     return []
 
+                async def census(self):
+                    return await _fully_covered_census()
             env.monkeypatch.setattr(
                 env.repo_docs, "RepoDocsSource", _CapturingRepoDocsSource
             )
@@ -665,6 +690,8 @@ class TestConceptFeederWiring:
             async def list_concepts(self):
                 return [draft.key]
 
+            async def census(self):
+                return await _fully_covered_census()
         async def _fake_enrich(key: Any, _source: Any) -> Any:
             return draft
 
@@ -703,6 +730,8 @@ class TestConceptFeederWiring:
             async def list_concepts(self):
                 return [draft.key]
 
+            async def census(self):
+                return await _fully_covered_census()
         async def _fake_enrich(key: Any, _source: Any) -> Any:
             return draft
 
@@ -797,6 +826,117 @@ class TestNoOpLogOnlyRuling:
         assert second.sync_result is None
         assert second.proposed_change_set is None
         assert _commit_count(repo) == 0
+
+
+# ── ID-427 {427.9} — the census through the COMPOSED flow ───────────────
+#
+# The unit tests for the census live where it is produced
+# (`test_l_records_source.py`, `test_repo_docs_source.py`) and where it is
+# rendered (`test_producer_bundle_writer.py`). What this module owns is the
+# seam between them: `run_producer_flow` asking the Source for a census and
+# threading it into `write_bundle`. That seam is where a census could be
+# silently dropped and every other test would still pass.
+
+
+class TestTheCensusReachesTheBundleThroughTheFlow:
+    def test_a_run_writes_its_considered_line_into_the_bundle_log(
+        self, env, bundle_dir: Path
+    ) -> None:
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+
+        asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(),
+                bundle_dir=bundle_dir,
+                timestamp="2026-08-10T09:00:00Z",
+            )
+        )
+
+        log_text = (bundle_dir / "log.md").read_text(encoding="utf-8")
+        assert (
+            "* **Run 2026-08-10T09:00:00Z — Considered (2):** "
+            "source_documents 2 (routed 2), q_a_pairs 5 (routed 5)"
+        ) in log_text
+
+    def test_a_source_that_cannot_report_a_census_fails_the_run_loudly(
+        self, env, bundle_dir: Path
+    ) -> None:
+        """`Source.census()` is called on the protocol, never probed for
+        with `getattr`. A tolerant call site would let a Source opt out of
+        saying what it left behind — which is the producer DR-141 diagnoses
+        — and the run would look completely healthy while doing it."""
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+
+        class _CensuslessSource:
+            def __init__(self, pool: Any, *, concept_feeder_config: Any = None) -> None:
+                pass
+
+            async def list_concepts(self):
+                return [draft.key]
+
+        env.monkeypatch.setattr(env.l_records, "LRecordsSource", _CensuslessSource)
+
+        with pytest.raises(AttributeError, match="census"):
+            asyncio.run(
+                env.flow_def.run_producer_flow(pool=object(), bundle_dir=bundle_dir)
+            )
+
+    def test_an_unrouted_rerun_still_stages_though_nothing_on_disk_changed(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        """**The concrete consequence of `is_no_op` gaining the census
+        term.** A re-run over an unchanged corpus is byte-identical, so
+        S456's log.md-only rule would skip staging entirely — leaving the
+        one line that reports the hole uncommitted, run after run. This is
+        the same shape `failed` already has, applied to unrouted knowledge.
+        """
+        draft = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {draft.key: draft})
+        census_holder: "dict[str, Any]" = {}
+
+        async def _reported_census() -> Any:
+            return census_holder["value"]
+
+        source_cls = env.l_records.LRecordsSource
+        source_cls.census = lambda self: _reported_census()  # type: ignore[assignment]
+
+        from scripts.cocoindex_pipeline.sources.base import CorpusCensus
+
+        census_holder["value"] = CorpusCensus(
+            considered=(("source_documents", 4),), routed=(("source_documents", 4),)
+        )
+        first = asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(),
+                bundle_dir=bundle_dir,
+                repo_path=repo,
+                timestamp="2026-08-10T09:00:00Z",
+            )
+        )
+        assert first.sync_result.staged is True
+
+        # Identical corpus, identical drafts — but a grain now covers less.
+        census_holder["value"] = CorpusCensus(
+            considered=(("source_documents", 4),), routed=(("source_documents", 1),)
+        )
+        second = asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(),
+                bundle_dir=bundle_dir,
+                repo_path=repo,
+                timestamp="2026-08-10T10:00:00Z",
+            )
+        )
+
+        assert second.summary.added == ()
+        assert second.summary.changed == ()
+        assert second.summary.is_no_op is False
+        assert second.sync_result is not None  # NOT skipped by the S456 rule
+        log_text = (bundle_dir / "log.md").read_text(encoding="utf-8")
+        assert (
+            "* **Run 2026-08-10T10:00:00Z — Unrouted (3):** source_documents 3"
+        ) in log_text
 
 
 # ── Per-stage degradation through injection seams ───────────────────────
@@ -993,6 +1133,8 @@ class TestContainment:
             async def list_concepts(self):
                 return [bad_key, good.key]
 
+            async def census(self):
+                return await _fully_covered_census()
         async def _fake_enrich(key: Any, _source: Any) -> Any:
             if key is bad_key:
                 raise RuntimeError("boom")

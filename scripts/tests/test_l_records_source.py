@@ -55,6 +55,16 @@ class FakePool:
         self._rules.append((marker, rows, arg_matcher))
         return self
 
+    def when_first(self, marker: str, rows: list[dict], *, arg_matcher=None) -> "FakePool":
+        """Register a rule at the FRONT of the match order, so it OVERRIDES
+        an already-registered rule for the same query. ID-427 {427.9}: the
+        shared enumeration fixtures below register the census/coverage
+        queries as empty by default, and a test that asserts on the census
+        re-registers them with real rows — front-insertion is what lets the
+        two compose without every fixture growing census parameters."""
+        self._rules.insert(0, (marker, rows, arg_matcher))
+        return self
+
     async def fetch(self, query: str, *args: object) -> list[dict]:
         self.calls.append((query, args))
         for marker, rows, arg_matcher in self._rules:
@@ -178,6 +188,48 @@ class TestSourceProtocolConformance:
         assert isinstance(LRecordsSource(pool=FakePool()), Source)
 
 
+def _census_queries(
+    pool: "FakePool",
+    *,
+    topic: "list[dict] | None" = None,
+    documents: "list[dict] | None" = None,
+    pairs: "list[dict] | None" = None,
+    won_bid_pairs: "list[dict] | None" = None,
+    totals: "dict | None" = None,
+) -> "FakePool":
+    """ID-427 {427.9}: register the coverage + corpus-total rules every
+    enumerating fixture now needs.
+
+    `list_concepts()` issues one set-based coverage query per unit kind each
+    grain can reach (TECH §2.1 — coverage is not a static predicate, so
+    every grain declares its own), and `census()` issues the corpus totals.
+    That is a real change to what the adapter asks the pool for, so
+    `FakePool`'s unmatched-query `AssertionError` fires until a fixture says
+    so — deliberately left strict rather than softened to a silent `[]`,
+    because that assertion is what catches query drift.
+
+    Defaults are empty/zero: the fixtures below assert on ENUMERATION, and
+    a census they do not exercise must contribute nothing. Registered via
+    `when_first`, so a census-asserting test can call this a SECOND time on
+    the same fixture's pool and have its rows win — see
+    `TestTheCensusIsAMeasurementNotADefault`."""
+    pool.when_first("AS q_a_pair_id", topic if topic is not None else [])
+    pool.when_first(
+        "SELECT id FROM source_documents WHERE (filename ILIKE",
+        documents if documents is not None else [],
+    )
+    pool.when_first("OR scope_tag && $2::text[]", pairs if pairs is not None else [])
+    pool.when_first(
+        "source_form_instance_id = ANY($1::uuid[])",
+        won_bid_pairs if won_bid_pairs is not None else [],
+    )
+    pool.when_first(
+        "count(*) FROM source_documents WHERE publication_status",
+        [totals if totals is not None else {"source_documents": 0, "q_a_pairs": 0}],
+    )
+    return pool
+
+
 # ── list_concepts(): the 5-type set (BI-4/BI-5) ─────────────────────────
 
 
@@ -235,7 +287,7 @@ def _five_type_pool(
         [] if won_bids is None else won_bids,
     )
     pool.when("w.form_instance_id AS form_instance_id", [])
-    return pool
+    return _census_queries(pool)
 
 
 class TestListConceptsFiveTypeSet:
@@ -567,7 +619,7 @@ def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     pool.when("c.canonical_name AS canonical_name", [])
     pool.when("COALESCE(issuing_organisation, name) AS buyer", won_bids)
     pool.when("w.form_instance_id AS form_instance_id", [])
-    return pool
+    return _census_queries(pool)
 
 
 class TestWonBidLocatorOwnership:
@@ -1148,7 +1200,7 @@ def _other_types_empty(pool: "FakePool") -> "FakePool":
     pool.when("c.canonical_name AS canonical_name", [])
     pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
     pool.when("w.form_instance_id AS form_instance_id", [])
-    return pool
+    return _census_queries(pool)
 
 
 def _topic_scope_tag_pool(*, em_max: "str | None") -> "FakePool":
@@ -1316,7 +1368,7 @@ class TestContentVersionSensitivity:
             pool.when("c.canonical_name AS canonical_name", [])
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
             pool.when("w.form_instance_id AS form_instance_id", [])
-            return pool
+            return _census_queries(pool)
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
@@ -1366,7 +1418,7 @@ class TestContentVersionSensitivity:
             pool.when("c.canonical_name AS canonical_name", [])
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
             pool.when("w.form_instance_id AS form_instance_id", [])
-            return pool
+            return _census_queries(pool)
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
@@ -1413,7 +1465,7 @@ class TestContentVersionSensitivity:
             )
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
             pool.when("w.form_instance_id AS form_instance_id", [])
-            return pool
+            return _census_queries(pool)
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
@@ -1462,7 +1514,7 @@ class TestContentVersionSensitivity:
                     }
                 ],
             )
-            return pool
+            return _census_queries(pool)
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
@@ -1744,3 +1796,170 @@ class TestConceptFeederReadConcept:
         results = _run(src.find("contoso"))
 
         assert [k.rel_path for k in results] == ["partner/contoso.md"]
+
+
+# ── ID-427 {427.9} — the corpus census (TECH §2.11, closing AC 4) ────────
+#
+# DR-141's Consequences name the failure this closes: "today it cannot
+# distinguish absent-because-unknown from absent-because-unrouted". These
+# tests are about the SECOND number — how much of the published corpus the
+# enumerated concepts actually reach.
+
+
+class TestTheCensusIsAMeasurementNotADefault:
+    """{427.7} introduced `Coverage` unpopulated and recorded that its empty
+    value "is not a measurement". These are the tests that make the
+    difference between not-measured and measured-zero enforceable."""
+
+    def test_census_before_enumeration_raises_rather_than_reporting_zeros(self):
+        """Reporting `routed 0` here would report the WHOLE corpus as
+        unrouted, flip `RunSummary.is_no_op` and stage a commit for a run
+        that did nothing wrong. A manufactured alarm is as much a lie as a
+        manufactured silence."""
+        src = LRecordsSource(FakePool())  # no rules — must fail before any query
+
+        with pytest.raises(ValueError, match="before list_concepts"):
+            _run(src.census())
+
+    def test_a_grain_that_covers_nothing_reports_the_whole_corpus_unrouted(self):
+        """The stubbed-grain case PLAN {427.9} asks for, at the Source
+        level: the corpus holds units, one topic concept is enumerated, and
+        the grain's coverage is empty — so every published unit is
+        unrouted and the census says so with a number."""
+        pool = _five_type_pool()
+        _census_queries(
+            pool, totals={"source_documents": 9, "q_a_pairs": 40}
+        )
+        src = LRecordsSource(pool)
+
+        _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert census.considered == (("source_documents", 9), ("q_a_pairs", 40))
+        assert census.routed == (("source_documents", 0), ("q_a_pairs", 0))
+        assert census.unrouted == (("source_documents", 9), ("q_a_pairs", 40))
+        assert census.unrouted_total == 49
+
+    def test_a_fully_covered_corpus_reports_considered_equals_routed(self):
+        """The state {427.10} exists to reach. Coverage is driven from the
+        REAL grain queries — the topic grain's own coverage query answers
+        with every published tagged pair and its parent document — so this
+        asserts the wiring from grain to census, not a hand-built value."""
+        pool = _five_type_pool()
+        _census_queries(
+            pool,
+            topic=[
+                {"q_a_pair_id": "qa-1", "source_document_id": "sd-1"},
+                {"q_a_pair_id": "qa-2", "source_document_id": "sd-1"},
+                {"q_a_pair_id": "qa-3", "source_document_id": None},
+            ],
+            totals={"source_documents": 1, "q_a_pairs": 3},
+        )
+        src = LRecordsSource(pool)
+
+        _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert census.considered == (("source_documents", 1), ("q_a_pairs", 3))
+        assert census.routed == (("source_documents", 1), ("q_a_pairs", 3))
+        assert census.unrouted == ()
+        assert census.unrouted_total == 0
+
+    def test_a_unit_two_grains_both_reach_is_counted_once(self):
+        """**DR-141's S546 rider, in code: coverage (>=1), not partition
+        (=1).** RESEARCH C4 measured that a published pair carrying a
+        `scope_tag` whose parent document also matches a pattern-matched
+        grain ALREADY lands in two concepts, and ruled that overlap
+        legitimate evidence reuse rather than a defect. A summing union
+        would report `routed 4` against a corpus of 2 and drive `unrouted`
+        negative; the set union reports what it should."""
+        pool = _five_type_pool()
+        _census_queries(
+            pool,
+            topic=[
+                {"q_a_pair_id": "qa-shared", "source_document_id": "sd-shared"}
+            ],
+            documents=[{"id": "sd-shared"}],
+            pairs=[{"id": "qa-shared"}],
+            totals={"source_documents": 1, "q_a_pairs": 1},
+        )
+        src = LRecordsSource(pool)
+
+        _run(src.list_concepts())
+        census = _run(src.census())
+
+        # The topic grain and the pattern-matched grains each reported the
+        # same two units …
+        assert census.routed == (("source_documents", 1), ("q_a_pairs", 1))
+        # … and neither is double-counted, so nothing is "over-routed".
+        assert census.unrouted == ()
+
+    def test_re_enumerating_replaces_the_coverage_rather_than_accumulating(self):
+        """A second `list_concepts()` on the same adapter must not union
+        onto the first run's coverage — the census answers for THIS run.
+        Accumulation would make `routed` grow monotonically and eventually
+        exceed `considered`."""
+        pool = _five_type_pool()
+        _census_queries(
+            pool,
+            topic=[{"q_a_pair_id": "qa-1", "source_document_id": "sd-1"}],
+            totals={"source_documents": 4, "q_a_pairs": 4},
+        )
+        src = LRecordsSource(pool)
+
+        _run(src.list_concepts())
+        first = _run(src.census())
+        _run(src.list_concepts())
+        second = _run(src.census())
+
+        assert first.routed == second.routed == (
+            ("source_documents", 1),
+            ("q_a_pairs", 1),
+        )
+
+    def test_the_won_bid_dedupe_leaves_a_second_won_bid_unrouted(self):
+        """A real, measured hole rather than a stubbed one. The won-bid
+        grain dedupes by BUYER and keeps the earliest won form, so a buyer's
+        second won bid mints no concept — its published pairs are covered by
+        nothing. The coverage query is keyed on the form instances the grain
+        ENUMERATED, not on the won-form set, which is what lets the census
+        see it."""
+        pool = _won_bid_only_pool(
+            [
+                {"form_instance_id": "fi-1", "buyer": "Transport for London"},
+                {"form_instance_id": "fi-2", "buyer": "Transport for London"},
+            ]
+        )
+        _census_queries(
+            pool,
+            won_bid_pairs=[{"id": "qa-from-fi-1"}],
+            totals={"source_documents": 0, "q_a_pairs": 3},
+        )
+        src = LRecordsSource(pool)
+
+        keys = _run(src.list_concepts())
+        census = _run(src.census())
+
+        assert len(keys) == 1  # deduped by buyer
+        # The coverage query saw ONLY the enumerated form instance.
+        coverage_args = next(
+            args
+            for query, args in pool.calls
+            if "source_form_instance_id = ANY($1::uuid[])" in query
+        )
+        assert coverage_args == (["fi-1"],)
+        assert census.unrouted == (("q_a_pairs", 2),)
+
+    def test_the_census_asks_the_pool_once_for_the_corpus_totals(self):
+        """MD-5's bounded-query discipline extends to the census: the
+        totals are ONE query for the whole run, never one per kind and
+        never one per concept."""
+        pool = _five_type_pool()
+        _census_queries(pool, totals={"source_documents": 2, "q_a_pairs": 2})
+        src = LRecordsSource(pool)
+        _run(src.list_concepts())
+        before = len(pool.calls)
+
+        _run(src.census())
+
+        assert len(pool.calls) - before == 1

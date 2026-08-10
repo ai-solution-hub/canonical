@@ -531,6 +531,16 @@ async def run_producer_flow(
         source = LRecordsSource(pool, concept_feeder_config=concept_feeder_config)
     concepts = await source.list_concepts()
 
+    # ID-427 {427.9} (TECH §2.11, AC 4): the corpus census, taken here —
+    # after enumeration (which is what produces the coverage `routed` counts)
+    # and BEFORE drafting, so a Source that cannot answer fails the run
+    # without first spending a model call per concept. Called
+    # unconditionally on the protocol, never probed for with `getattr`: a
+    # Source that need not report what it left behind is the producer DR-141
+    # diagnoses, and tolerating one here would reintroduce exactly the
+    # silence the census removes.
+    census = await source.census()
+
     drafts, reference_drafts, failures, pass2_ran, failed_keys = await _draft_concepts(
         concepts,
         source,
@@ -562,6 +572,7 @@ async def run_producer_flow(
         # re-reading `OKF_BUNDLE_CLASS` a second time.
         bundle_class=resolved_bundle_class,
         client_id=_resolve_client_id(),
+        census=census,
         timestamp=timestamp,
     )
     if failures:

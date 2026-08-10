@@ -881,3 +881,120 @@ class TestF2RealCorpusRegression:
             span = _read_source_ref(_REPO_ROOT, key.source_ref)
             assert key.span_content_hash == _span_content_hash(span), key.source_ref
             assert key.git_blob_sha == ""
+
+
+# ── ID-427 {427.9} — the corpus census (TECH §2.11, closing AC 4) ────────
+#
+# The owner's S546 uniformity ruling — *"we should be conformant and uniform
+# across bundle classes"* — is what makes the census live for THIS adapter
+# too, not only for the client-corpus one. Its corpus is a repo checkout, so
+# its unit is the ARTEFACT FILE: a `*.ts` file that defines no tool backs no
+# concept, which is the repo-side analogue of RESEARCH's hole 1 (a published
+# document that produced nothing).
+
+
+class TestTheCensusOverTheRepoCorpus:
+    def test_census_before_enumeration_raises_rather_than_reporting_zeros(
+        self, tmp_path: Path
+    ) -> None:
+        """Same posture as `LRecordsSource.census` — reporting `routed 0`
+        would report the whole checkout as unrouted and flip
+        `RunSummary.is_no_op` on an idle run."""
+        source = RepoDocsSource(tmp_path)
+
+        with pytest.raises(ValueError, match="before list_concepts"):
+            _run(source.census())
+
+    def test_a_tool_file_that_defines_no_tool_is_reported_unrouted(
+        self, tmp_path: Path
+    ) -> None:
+        """**Not a tautology.** The enumeration walks files and mints
+        concepts from call sites, so `considered` (files present) and
+        `routed` (files that backed a concept) are independently derived and
+        genuinely differ. Before {427.9} a helper module under this
+        directory was indistinguishable from one whose tools failed to
+        parse — both simply produced no concept, silently."""
+        repo = FakeRepo(tmp_path)
+        repo.write(
+            "lib/mcp/tools/content.ts",
+            "import { defineTool } from './shared';\n"
+            "defineTool(\n  server,\n  'get',\n  { title: 'Get' },\n);\n",
+        )
+        repo.write(
+            "lib/mcp/tools/shared.ts",
+            "export function defineTool(...args) { return args; }\n",
+        )
+        repo.commit("one tool file, one helper")
+        source = RepoDocsSource(tmp_path)
+
+        _run(source.list_concepts())
+        census = _run(source.census())
+
+        assert census.considered == (
+            ("tool_source_files", 2),
+            ("navigation_pages", 0),
+        )
+        assert census.routed == (("tool_source_files", 1), ("navigation_pages", 0))
+        assert census.unrouted == (("tool_source_files", 1),)
+        assert census.unrouted_total == 1
+
+    def test_a_fully_covered_checkout_reports_considered_equals_routed(
+        self, tmp_path: Path
+    ) -> None:
+        """The KA3 corpus every other test in this file uses: both files
+        back concepts, so the census reports no hole at all."""
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+
+        _run(source.list_concepts())
+        census = _run(source.census())
+
+        assert census.considered == (
+            ("tool_source_files", 1),
+            ("navigation_pages", 1),
+        )
+        assert census.routed == census.considered
+        assert census.unrouted_total == 0
+
+    def test_the_census_kinds_are_this_corpus_own_not_the_l_records_tables(
+        self, tmp_path: Path
+    ) -> None:
+        """{427.9}'s correction to TECH §1, asserted. The spec sketched
+        `Coverage` with `source_document_ids`/`q_a_pair_ids` AND asked this
+        adapter to use the same registry shape — but this corpus has neither
+        table, and naming one in a `system_baseline` bundle's `log.md` would
+        assert a table that bundle never reads. Kind-keyed coverage is what
+        lets both clauses hold."""
+        _seed_two_pillars(FakeRepo(tmp_path))
+        source = RepoDocsSource(tmp_path)
+
+        _run(source.list_concepts())
+        census = _run(source.census())
+
+        assert [kind for kind, _ in census.considered] == [
+            "tool_source_files",
+            "navigation_pages",
+        ]
+        assert "source_documents" not in dict(census.considered)
+        assert "q_a_pairs" not in dict(census.considered)
+
+    def test_the_real_corpus_census_matches_an_independent_file_count(self) -> None:
+        """The real checkout, counted twice by different means — the
+        adapter's own census, and a glob + regex done here. Equality proves
+        the census reads the corpus rather than the enumeration's own
+        output (which could never report a hole)."""
+        if not _REAL_TOOLS_DIR.is_dir():
+            pytest.skip("real lib/mcp/tools corpus not present in this checkout")
+        source = RepoDocsSource(_REPO_ROOT)
+        _run(source.list_concepts())
+
+        census = _run(source.census())
+
+        files = sorted(_REAL_TOOLS_DIR.glob("*.ts"))
+        with_tools = [
+            p
+            for p in files
+            if _DEFINE_TOOL_CALL_RE.search(p.read_text(encoding="utf-8"))
+        ]
+        assert dict(census.considered)["tool_source_files"] == len(files)
+        assert dict(census.routed)["tool_source_files"] == len(with_tools)

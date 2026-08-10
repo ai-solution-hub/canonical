@@ -117,6 +117,7 @@ from scripts.cocoindex_pipeline.sources import l_records  # noqa: E402
 from scripts.cocoindex_pipeline.sources.base import (  # noqa: E402
     ConceptKey,
     ConceptRaw,
+    CorpusCensus,
     GrainEnumeration,
     GrainSpec,
     mint_concept_slug,
@@ -3042,3 +3043,237 @@ class TestReservedConceptSlugs:
                     }
                 }
             )
+
+
+# =========================================================================
+# ID-427 {427.9} — the corpus census, asserted as the SILENCE it removes
+#
+# DR-141's load-bearing failure is the negative answer: a user must be able
+# to trust "we do not know this — escalate to an SME" over "I could not find
+# it", and that needs the bundle to be a faithful projection of the corpus.
+# Before this, `RunSummary` had no field that COULD carry an un-enumerated
+# unit (the S546 grounding audit's own finding about
+# `bundle_writer.py:528-570`) — every field is populated from drafts that
+# already exist, so a unit no grain reached left no trace anywhere. These
+# tests are about what the run log can now say.
+# =========================================================================
+
+
+def _census(sd: int, qa: int, *, sd_routed: int, qa_routed: int) -> CorpusCensus:
+    return CorpusCensus(
+        considered=(("source_documents", sd), ("q_a_pairs", qa)),
+        routed=(("source_documents", sd_routed), ("q_a_pairs", qa_routed)),
+    )
+
+
+class TestTheCensusReachesTheLog:
+    """TECH §2.11: the `Considered` line is emitted on every run that took a
+    census — including a no-op one — and the `Unrouted` line follows it when
+    non-zero."""
+
+    def test_a_run_that_changes_nothing_still_says_what_it_considered(
+        self, tmp_path: Path
+    ) -> None:
+        """*"A no-op run still says what it considered."* Before {427.9} a
+        no-op run's entire record was `No changes (no-op re-run)` — a
+        statement about the BUNDLE that says nothing about the corpus behind
+        it. Both claims now sit on the same run's record, and they are
+        genuinely different: nothing changed, AND nothing was left behind."""
+        drafts = [_draft("topics/alpha.md", title="Alpha")]
+        census = _census(42, 310, sd_routed=42, qa_routed=310)
+        bundle_writer.write_bundle(
+            tmp_path, drafts, census=census, timestamp="2026-08-10T09:00:00Z"
+        )
+
+        summary = bundle_writer.write_bundle(
+            tmp_path, drafts, census=census, timestamp="2026-08-10T10:00:00Z"
+        )
+
+        assert summary.is_no_op is True
+        log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+        assert (
+            "* **Run 2026-08-10T10:00:00Z — Considered (2):** "
+            "source_documents 42 (routed 42), q_a_pairs 310 (routed 310)"
+        ) in log_text
+        assert (
+            "* **Run 2026-08-10T10:00:00Z — No changes** (no-op re-run)."
+        ) in log_text
+
+    def test_a_fully_covered_corpus_reports_considered_equals_routed(
+        self, tmp_path: Path
+    ) -> None:
+        """The state {427.10}'s residual grain exists to reach, asserted on
+        the emitted artefact rather than on the dataclass: both kinds report
+        equal counts, and NO `Unrouted` line is written at all."""
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            [_draft("topics/alpha.md", title="Alpha")],
+            census=_census(7, 19, sd_routed=7, qa_routed=19),
+            timestamp="2026-08-10T11:00:00Z",
+        )
+
+        assert summary.census.unrouted == ()
+        assert summary.census.unrouted_total == 0
+        log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+        assert "source_documents 7 (routed 7), q_a_pairs 19 (routed 19)" in log_text
+        assert "Unrouted" not in log_text
+
+    def test_an_unrouted_run_is_not_a_no_op_though_every_file_is_identical(
+        self, tmp_path: Path
+    ) -> None:
+        """**The assertion this subtask exists to make.** A re-run over an
+        unchanged corpus writes byte-identical files, so every pre-{427.9}
+        signal reports a no-op — and `run_producer_flow` skips git-staging
+        for a no-op run (owner ruling S456), which would leave the one line
+        reporting the hole uncommitted. The census is the only thing that
+        can tell this run apart from a genuinely idle one, on exactly the
+        precedent `failed` already sets."""
+        drafts = [_draft("topics/alpha.md", title="Alpha")]
+        covered = _census(9, 40, sd_routed=9, qa_routed=40)
+        bundle_writer.write_bundle(
+            tmp_path, drafts, census=covered, timestamp="2026-08-10T09:00:00Z"
+        )
+        content_after_run1 = {
+            path.relative_to(tmp_path).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(tmp_path.rglob("*"))
+            if path.is_file() and path.name != bundle_writer.LOG_FILENAME
+        }
+
+        summary = bundle_writer.write_bundle(
+            tmp_path,
+            drafts,
+            census=_census(9, 40, sd_routed=6, qa_routed=28),
+            timestamp="2026-08-10T10:00:00Z",
+        )
+
+        # Every pre-census signal reports an idle run …
+        assert summary.added == ()
+        assert summary.changed == ()
+        assert summary.removed == ()
+        assert summary.failed == ()
+        content_after_run2 = {
+            path.relative_to(tmp_path).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(tmp_path.rglob("*"))
+            if path.is_file() and path.name != bundle_writer.LOG_FILENAME
+        }
+        assert content_after_run2 == content_after_run1
+        # … and it is NOT a no-op, because knowledge is unrouted.
+        assert summary.census.unrouted_total == 15
+        assert summary.is_no_op is False
+
+        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        assert (
+            "* **Run 2026-08-10T10:00:00Z — Unrouted (15):** "
+            "source_documents 3, q_a_pairs 12"
+        ) in log_text
+        # The no-op bullet is keyed on the absence of CHANGE lines, not on
+        # `is_no_op` — those were one condition until {427.9} and are no
+        # longer, and the log must be able to report both truths at once.
+        assert (
+            "* **Run 2026-08-10T10:00:00Z — No changes** (no-op re-run)."
+        ) in log_text
+
+    def test_a_run_with_no_census_writes_no_census_line(self, tmp_path: Path) -> None:
+        """The distinction {427.7} asked the next subtask to keep: an empty
+        `CorpusCensus` is NOT "a census that found nothing" — a census that
+        ran and found nothing still lists its kinds with zeros. A direct
+        `write_bundle` call was handed drafts, never a corpus, so printing
+        `Considered (0)` for it would report a measurement nobody took."""
+        bundle_writer.write_bundle(
+            tmp_path,
+            [_draft("topics/alpha.md", title="Alpha")],
+            timestamp="2026-08-10T12:00:00Z",
+        )
+
+        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        assert "Considered" not in log_text
+        assert "Unrouted" not in log_text
+
+    def test_a_census_that_measured_zero_still_says_so(self, tmp_path: Path) -> None:
+        """The other half of that distinction, and the negative control for
+        the test above: a real census over an EMPTY corpus emits the line
+        with zeros. Were the render condition "some count is non-zero"
+        rather than "a census was taken", this line would silently vanish —
+        which is the emptiness-as-evidence error the wave's dispatch
+        controls name."""
+        bundle_writer.write_bundle(
+            tmp_path,
+            [_draft("topics/alpha.md", title="Alpha")],
+            census=_census(0, 0, sd_routed=0, qa_routed=0),
+            timestamp="2026-08-10T13:00:00Z",
+        )
+
+        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        assert (
+            "* **Run 2026-08-10T13:00:00Z — Considered (2):** "
+            "source_documents 0 (routed 0), q_a_pairs 0 (routed 0)"
+        ) in log_text
+
+
+class TestBI10NoUuidReachesTheLog:
+    """BI-10: record pointers are `resource:`/citations. A run log is
+    neither, so no uuid may appear in `log.md` — asserted directly on the
+    artefact (TECH §2.11's "counts only")."""
+
+    _UUID_RE = re.compile(
+        r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    )
+
+    def test_no_uuid_appears_anywhere_in_log_md(self, tmp_path: Path) -> None:
+        """The census identifies the units it counts BY uuid — every
+        coverage query selects `id` — so this is the one place a record uuid
+        could newly leak into a human-readable artefact. The run below
+        carries a real `source_documents` uuid in the drafts' own citations,
+        so a uuid is genuinely in scope: this asserts it does not travel
+        into the log, not that none existed."""
+        bundle_writer.write_bundle(
+            tmp_path,
+            [
+                _draft("topics/alpha.md", title="Alpha"),
+                _draft("topics/beta.md", title="Beta"),
+            ],
+            census=_census(9, 40, sd_routed=6, qa_routed=28),
+            timestamp="2026-08-10T14:00:00Z",
+        )
+
+        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        assert "Unrouted" in log_text  # the census really did report a hole
+        assert self._UUID_RE.search(log_text) is None
+        # Negative control on the assertion itself: the SAME uuid is present
+        # in the concept this run wrote, so the regex can find one when
+        # there is one to find.
+        concept_text = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
+        assert self._UUID_RE.search(concept_text) is not None
+
+    def test_every_census_bullet_matches_the_parse_log_run_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """The census adds a NEW bullet shape to `log.md`, and TECH §3 left
+        `lib/okf/parse-log.ts` explicitly UNSWEPT for it. This is the
+        Python-side half of the S451 defence-in-depth rider: every emitted
+        bullet must match the `**Run <ts> — …**` regex the TS parser groups
+        runs by, and every bullet of one run must carry the SAME timestamp
+        — that is what makes the parser fold the census into the run's own
+        entry rather than splitting it into a run of its own.
+
+        Its limit, stated rather than implied: `_TS_RUN_BULLET_RE` is a
+        TRANSCRIPTION of the TS regex, so a change to `parse-log.ts` itself
+        will not fail this test."""
+        bundle_writer.write_bundle(
+            tmp_path,
+            [_draft("topics/alpha.md", title="Alpha")],
+            census=_census(9, 40, sd_routed=6, qa_routed=28),
+            timestamp="2026-08-10T15:00:00Z",
+        )
+
+        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        bullets = [line for line in log_text.splitlines() if line.startswith("* ")]
+        census_bullets = [
+            line for line in bullets if "Considered" in line or "Unrouted" in line
+        ]
+        assert len(census_bullets) == 2
+        for line in bullets:
+            match = _TS_RUN_BULLET_RE.match(line)
+            assert match is not None, line
+            assert match.group(1) == "2026-08-10T15:00:00Z"

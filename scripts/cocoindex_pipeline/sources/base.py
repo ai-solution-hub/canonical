@@ -44,6 +44,8 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Generic,
+    Iterable,
     Mapping,
     Protocol,
     TypeAlias,
@@ -319,31 +321,154 @@ class ConceptRaw:
 # type registries as well. That structure is *why* nobody added a catch-all,
 # which is the defect DR-141 names.
 
+KeyT_co = TypeVar("KeyT_co", covariant=True)
+"""`GrainEnumeration`'s key type. COVARIANT — it appears in return position
+only (`tuple[KeyT_co, ...]`), unlike `Source`'s `KeyT` further down, which
+is invariant because `read_concept`/`sample_rows` also take it as an
+argument."""
+
 
 @dataclass(frozen=True)
 class Coverage:
-    """The unit ids one grain's concepts REACH — the input to the residual
-    grain's complement (TECH §2.1: coverage cannot be a standalone SQL
-    predicate, because the pattern-matched grains select documents by
-    data-dependent ILIKE terms, so every grain must declare what it covers).
+    """The corpus unit ids one grain's concepts REACH — the input to both
+    the run census ({427.9}) and the residual grain's complement ({427.10}).
 
-    **Not yet populated by any grain.** {427.7} introduces the type and the
-    seam; **{427.9} is what fills it** (one set-based query per grain) and
-    {427.10} is what consumes the complement. An empty `Coverage` here means
-    "this grain has not been asked yet", NOT "this grain covers nothing" —
-    reading it as a measurement before {427.9} lands would be reading an
-    absence as evidence."""
+    TECH §2.1: coverage cannot be a standalone SQL predicate, because the
+    pattern-matched grains select documents by data-dependent ILIKE terms,
+    so **every grain must declare what it covers**.
 
-    source_document_ids: "frozenset[str]" = frozenset()
-    q_a_pair_ids: "frozenset[str]" = frozenset()
+    **Kind-keyed, not field-keyed — a correction to TECH §1 taken on
+    measurement.** The spec sketched two named fields, `source_document_ids`
+    and `q_a_pair_ids`, and {427.7} shipped exactly that. But the same §1
+    also says "`repo_docs.RepoDocsSource` uses the same registry shape", and
+    the repo/docs corpus has neither table: its units are files in a
+    checkout. Both clauses cannot hold with named DB-table fields, and
+    labelling a `lib/mcp/tools/*.ts` file a "source_document" in a
+    `system_baseline` bundle's `log.md` would assert a table that bundle
+    never reads. `CorpusCensus` below was already kind-keyed in TECH §2.11
+    (`("source_documents", 42)`); this makes the two halves of the census
+    agree that unit kinds are OPEN, exactly as concept types became open
+    under DR-141.
+
+    Each adapter names its own kinds (`l_records.SOURCE_DOCUMENTS` /
+    `Q_A_PAIRS`; `repo_docs.TOOL_SOURCE_FILES` / `NAVIGATION_PAGES`).
+
+    **Coverage is a subset of the CORPUS, not of everything a read touches.**
+    A grain's `read` may fetch rows outside the corpus definition — the
+    pattern-matched `source_documents` reads carry no `publication_status`
+    filter, so an unpublished document can back a concept today. Those rows
+    are deliberately NOT counted as covered: `routed` is a count of corpus
+    units reached, and counting a non-corpus unit would let `routed` exceed
+    `considered` and turn `unrouted` negative. `routed <= considered` holds
+    by CONSTRUCTION (every coverage query filters to the same published
+    corpus `census()` counts), which is why no clamp guards it here —
+    an unreachable defensive branch is the DR-139 pattern this programme
+    retires.
+
+    **An empty `Coverage` means "this grain covers nothing", and that is now
+    a real measurement** — {427.7} introduced this type unpopulated and
+    warned that its empty value was not evidence. {427.9} populates it.
+    "Not measured at all" is `LRecordsSource._coverage is None`, a distinct
+    state that makes `census()` raise rather than report zeros."""
+
+    covered: "tuple[tuple[str, frozenset[str]], ...]" = ()
+    """`(unit_kind, ids)` pairs, sorted by kind. A tuple of frozensets, not a
+    dict, because `Coverage` is frozen and therefore hashable — a `Mapping`
+    field would raise only at the moment something hashed it."""
+
+    @classmethod
+    def of(cls, units: "Mapping[str, Iterable[str]]") -> "Coverage":
+        """Build from a `{kind: ids}` mapping. Kinds with no ids are KEPT —
+        "this grain reached none of the 42 documents" is a different claim
+        from "this grain has no opinion about documents", and the census
+        renders the first as `routed 0`."""
+        return cls(
+            covered=tuple(
+                (kind, frozenset(str(unit_id) for unit_id in ids))
+                for kind, ids in sorted(units.items())
+            )
+        )
+
+    def ids(self, kind: str) -> "frozenset[str]":
+        """The unit ids covered for `kind` (empty when the kind is absent)."""
+        for covered_kind, covered_ids in self.covered:
+            if covered_kind == kind:
+                return covered_ids
+        return frozenset()
+
+    def kinds(self) -> "tuple[str, ...]":
+        return tuple(kind for kind, _ in self.covered)
+
+    def union(self, other: "Coverage") -> "Coverage":
+        """Per-kind set union — **this is where DR-141's S546 rider lives**.
+        The guarantee is coverage (>=1), never partition (=1): a unit reached
+        by two grains is counted ONCE, because `routed` asks how many corpus
+        units are reachable at all, not how many concept slots they fill.
+        A summing union would let `routed` exceed `considered` for exactly
+        the overlap RESEARCH C4 measured as legitimate evidence reuse."""
+        merged: "dict[str, frozenset[str]]" = {
+            kind: ids for kind, ids in self.covered
+        }
+        for kind, ids in other.covered:
+            merged[kind] = merged.get(kind, frozenset()) | ids
+        return Coverage(covered=tuple(sorted(merged.items())))
 
 
 @dataclass(frozen=True)
-class GrainEnumeration:
-    """One grain's `list` result: the concept keys it enumerated, plus what
-    those concepts cover."""
+class CorpusCensus:
+    """One run's answer to *"how much of the corpus is reachable in the
+    bundle?"* — TECH §2.11, closing id-427 AC 4.
 
-    keys: "tuple[ConceptKey, ...]" = ()
+    The load-bearing failure DR-141 names is the **negative answer**: a user
+    must be able to trust "we do not know this" over "I could not find it",
+    and that needs the bundle to be a faithful projection of the corpus. The
+    census is what makes the gap between corpus and bundle a MEASURED
+    number in `log.md` rather than a silence.
+
+    `considered` and `routed` are `(unit_kind, count)` pairs over the SAME
+    ordered kind list, so `unrouted` is a per-kind subtraction.
+
+    **Empty means NOT TAKEN.** A census that ran and found nothing still
+    lists its kinds with zeros (`("source_documents", 0)`), so `considered
+    == ()` is unambiguously "no census was supplied for this run" — the
+    state a direct `bundle_writer.write_bundle(...)` call is in, having been
+    handed drafts rather than a corpus. `_render_run_bullets` emits no
+    census line for it, because printing `Considered (0)` there would
+    manufacture a measurement nobody took."""
+
+    considered: "tuple[tuple[str, int], ...]" = ()
+    routed: "tuple[tuple[str, int], ...]" = ()
+
+    @property
+    def unrouted(self) -> "tuple[tuple[str, int], ...]":
+        """Per-kind `considered - routed`, in `considered` order, kinds with
+        zero omitted."""
+        routed_by_kind = dict(self.routed)
+        return tuple(
+            (kind, count - routed_by_kind.get(kind, 0))
+            for kind, count in self.considered
+            if count - routed_by_kind.get(kind, 0) != 0
+        )
+
+    @property
+    def unrouted_total(self) -> int:
+        """The number PI-8 keys on, and the term `RunSummary.is_no_op` gains:
+        a run that leaves knowledge unrouted is never a silent no-op."""
+        return sum(count for _, count in self.unrouted)
+
+
+@dataclass(frozen=True)
+class GrainEnumeration(Generic[KeyT_co]):
+    """One grain's `list` result: the concept keys it enumerated, plus what
+    those concepts cover.
+
+    Generic over the key type ({427.9}) so `RepoDocsSource`'s two pillars
+    return the same object `LRecordsSource`'s grains do rather than a
+    parallel one — the defect {427.4} retired for the `Source` protocol
+    itself, and the reason TECH §1 asks both adapters to share the registry
+    shape."""
+
+    keys: "tuple[KeyT_co, ...]" = ()
     covers: Coverage = Coverage()
 
 
@@ -398,7 +523,7 @@ class GrainSpec:
     """The OKF `type` value concepts of this grain carry. A LABEL — changing
     it changes what the bundle says and nothing else."""
 
-    list: "Callable[[Any, GrainSpec], Awaitable[GrainEnumeration]]"
+    list: "Callable[[Any, GrainSpec], Awaitable[GrainEnumeration[Any]]]"
     read: "Callable[[Any, GrainSpec, Any], Awaitable[Any]]"
     sample: "Callable[[Any, GrainSpec, Any, int], Awaitable[SampledRows]]"
 
@@ -473,3 +598,23 @@ class Source(Protocol[KeyT, RawT_co]):
     ) -> "list[Mapping[str, Any]]": ...
 
     async def find(self, query: str) -> "list[KeyT]": ...
+
+    async def census(self) -> CorpusCensus:
+        """This run's corpus census — how many units of each kind the corpus
+        holds, and how many the enumerated concepts reach (ID-427 {427.9},
+        TECH §2.11).
+
+        **Part of the contract, not an optional extra.** A Source that
+        cannot say what it left behind is precisely the producer DR-141
+        diagnoses, so `run_producer_flow` calls this unconditionally rather
+        than probing for it — a `getattr(source, "census", None)` tolerance
+        would let a Source reintroduce the silence the census exists to
+        remove.
+
+        MUST be called after `list_concepts()`: `routed` is the union of the
+        coverages that enumeration produced. Both implementations raise
+        rather than report zeros when asked first, because a spurious
+        `routed 0` reads as a whole unrouted corpus and would flip
+        `RunSummary.is_no_op` on a genuinely idle run.
+        """
+        ...
