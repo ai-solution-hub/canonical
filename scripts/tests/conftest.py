@@ -322,3 +322,178 @@ def _reset_flow_run_context():
 # DR-130: the `taxonomy_from_snapshot` / `valid_domains` / `valid_subtopics`
 # session fixtures are DELETED with `fixtures/taxonomy_snapshot.json` — the
 # snapshot (and the domain/subtopic soft-warn it fed) is retired entirely.
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Disposable-Postgres substrate (DR-131 / DR-096; ID-427 {427.17})
+# ──────────────────────────────────────────────────────────────────────────
+#
+# WHY THIS EXISTS. Every SQL string in the pipeline is currently asserted
+# against a per-file `FakePool` that dispatches on MARKER SUBSTRINGS — so a
+# predicate the marker does not mention is invisible to the suite. The S548
+# adversarial audit executed that consequence: dropping
+# `AND publication_status = 'published'` from two coverage queries left the
+# whole Python suite GREEN, and produced a NEGATIVE unrouted count that
+# renders into `log.md` and stages a commit. Three separate {427.17}
+# assertions, plus {427.15}'s CQ-1 filter, are claims about SQL that no test
+# executes. This fixture is the shared means of executing them.
+#
+# WHY A SHARED FIXTURE RATHER THAN A FOURTH COPY. `_require_disposable_dsn`
+# already exists at `test_cocoindex_stage_5_crossrun_integration.py:66`, but
+# file-locally, and it checks only project-refs. DR-131 ruled the stronger
+# signal after an unattended CI job fired the authoritative
+# knowledge-admission gate against shared staging and published 88 mock-tier
+# `q_a_pairs`: **loopback is the disposability signal** — it is what
+# `supabase start` and local dev serve, and what no shared project can be.
+# The TS analogue is `requireDisposableDatabase()`
+# (`__tests__/integration/helpers/supabase-client.ts:150`); this is its
+# Python counterpart, and it applies BOTH interlocks (loopback AND the
+# project-ref refusal) rather than choosing between them.
+#
+# GATING. `KH_RUN_PG_INTEGRATION` unset → the test SKIPS (collected, never
+# executed — the `pytestmark` precedent). Set, but with a missing or
+# non-disposable DSN → RAISES. An accidental un-gate must fail loudly, never
+# pass hollow.
+#
+# `asyncpg` is imported INSIDE the fixture bodies, never at module scope:
+# this conftest is imported by every file in `scripts/tests/`, including the
+# ones whose cocoindex/aiohttp stub discipline (ID-44.5, above) depends on a
+# clean `sys.modules` at collection time.
+
+_PG_INTEGRATION_ENV = "KH_RUN_PG_INTEGRATION"
+_PG_INTEGRATION_DSN_ENV = "KH_PG_INTEGRATION_DSN"
+
+_PG_SKIP_REASON = (
+    "producer-SQL integration — disposable DB run only, never shared staging. "
+    f"Set {_PG_INTEGRATION_ENV}=1 + {_PG_INTEGRATION_DSN_ENV}=<loopback-dsn> "
+    "to enable (e.g. `supabase start` → "
+    "postgresql://postgres:postgres@127.0.0.1:54322/postgres). DR-131."
+)
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def _dsn_host(dsn: str) -> str | None:
+    """Return the hostname of a Postgres DSN, or None if unparseable.
+
+    Pure helper so the interlock below is unit-testable without an env or a
+    live DB (mirrors `_bare_cocoindex_alias_keys`).
+    """
+    from urllib.parse import urlsplit
+
+    try:
+        host = urlsplit(dsn).hostname
+    except ValueError:
+        return None
+    return host
+
+
+def require_disposable_dsn(dsn: str | None, suite_name: str) -> str:
+    """Return `dsn`, refusing any database that is not provably disposable.
+
+    Two independent interlocks, both applied:
+
+    1. **Loopback** — DR-131's disposability signal. A non-loopback host is
+       refused whatever the workflow happens to point at that day. This is
+       the check that generalises; the project-ref list below cannot, because
+       it only knows the refs that happen to be in the environment.
+    2. **Known shared refs** — `STAGING_PROJECT_REF` / `PLATFORM_PROJECT_REF`
+       appearing anywhere in the DSN. Defence-in-depth, carried from
+       `test_cocoindex_stage_5_crossrun_integration.py:66`, and it fires even
+       if a shared project were ever reachable over a loopback tunnel.
+
+    Raises `RuntimeError` (never skips) — reaching this function means the
+    gate env var was deliberately set, so a bad target is an operator error
+    that must be loud.
+    """
+    if not dsn:
+        raise RuntimeError(
+            f"{suite_name}: {_PG_INTEGRATION_DSN_ENV} is unset — refusing to "
+            "guess a database. Point it at a DISPOSABLE loopback stack "
+            "(`supabase start`), never shared staging."
+        )
+
+    for ref_env in ("STAGING_PROJECT_REF", "PLATFORM_PROJECT_REF"):
+        ref = os.getenv(ref_env)
+        if ref and ref in dsn:
+            raise RuntimeError(
+                f"{suite_name}: {_PG_INTEGRATION_DSN_ENV} points at the SHARED "
+                f"database named by {ref_env}. These tests execute producer SQL "
+                "and seed rows; they MUST NOT run against a shared project "
+                "(DR-131 — an unattended run published 88 mock-tier q_a_pairs "
+                "into staging). Use a disposable loopback stack."
+            )
+
+    host = _dsn_host(dsn)
+    if host is None:
+        raise RuntimeError(
+            f"{suite_name}: {_PG_INTEGRATION_DSN_ENV} is not a parseable DSN, "
+            "so the target database cannot be confirmed disposable."
+        )
+    if host not in _LOOPBACK_HOSTS and not host.endswith(".localhost"):
+        raise RuntimeError(
+            f"{suite_name}: refusing to run against a NON-DISPOSABLE database "
+            f"(host: {host}). Loopback is the disposability signal (DR-131) — "
+            "it is what `supabase start` and local dev serve, and what no "
+            "shared project can be. Run `supabase start` and point "
+            f"{_PG_INTEGRATION_DSN_ENV} at 127.0.0.1:54322."
+        )
+
+    return dsn
+
+
+@pytest.fixture(scope="session")
+def disposable_pg_dsn(request: pytest.FixtureRequest) -> str:
+    """Session-scoped disposable-Postgres DSN, or a clean skip.
+
+    Skips when `KH_RUN_PG_INTEGRATION` is unset so the default
+    `python3 -m pytest scripts/tests/` sweep never touches a database.
+    """
+    if not os.getenv(_PG_INTEGRATION_ENV):
+        pytest.skip(_PG_SKIP_REASON)
+    # Session-scoped, so `request.node` is the Session and its `name` is the
+    # empty string — falling through to it produced a bare ": refusing to run".
+    # The suite name is the operator's only pointer to the offender.
+    suite_name = getattr(request.node, "name", "") or "producer-SQL integration"
+    return require_disposable_dsn(os.getenv(_PG_INTEGRATION_DSN_ENV), suite_name)
+
+
+@pytest.fixture
+def pg_session(disposable_pg_dsn: str):
+    """Run one async body against a REAL asyncpg pool on the disposable DB.
+
+    Returns a callable taking `async def body(pool) -> T` and returning `T`.
+    The pool is created and closed INSIDE a single `asyncio.run`, because an
+    asyncpg pool binds to the event loop that created it — creating it in one
+    `asyncio.run` and using it in another is the classic cross-loop failure.
+    Sync-callable by design: this repo has no `pytest-asyncio`, and the
+    surrounding suites already drive coroutines through an `asyncio.run`
+    helper.
+
+    The yielded pool satisfies the same `await pool.fetch(query, *args)`
+    contract `LRecordsSource` is constructed with, so a test can pass it
+    straight into the production Source and exercise the real SQL:
+
+        def test_coverage_filters_unpublished(pg_session):
+            async def body(pool):
+                source = LRecordsSource(pool)
+                return await source.census()
+            census = pg_session(body)
+    """
+    import asyncio
+
+    def _run(body):
+        async def _main():
+            import asyncpg
+
+            pool = await asyncpg.create_pool(
+                dsn=disposable_pg_dsn, min_size=1, max_size=4
+            )
+            try:
+                return await body(pool)
+            finally:
+                await pool.close()
+
+        return asyncio.run(_main())
+
+    return _run
