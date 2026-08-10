@@ -2,15 +2,15 @@
 
 Per PRODUCT §S443 BI-28 (and this Subtask's testStrategy): a bid-outcome-seeded
 (won-bid `case_study`) concept draft appears in the producer's STAGED
-proposed-change set stamped with `source_workspace_id` provenance — never
+proposed-change set stamped with `source_form_instance_id` provenance — never
 auto-published, and never a `content_items` write on any path.
 
 This exercises the {132.24} substrate ({132.24} reserved the per-entry
-`source_workspace_id` slot on `ProposedChange`, defaulting `None`); {132.22}
-extends it BY VALUE — propagating the won-bid concept's `workspace_id`
-(`sources/l_records.py`'s `ConceptKey.workspace_id`, {132.21}) into the
-`ProposedChange.source_workspace_id` slot for those entries via a
-`concept_path -> workspace_id` provenance map passed to `sync_bundle`. The
+`source_form_instance_id` slot on `ProposedChange`, defaulting `None`); {132.22}
+extends it BY VALUE — propagating the won-bid concept's `form_instance_id`
+(`sources/l_records.py`'s `ConceptKey.form_instance_id`, {132.21}) into the
+`ProposedChange.source_form_instance_id` slot for those entries via a
+`concept_path -> form_instance_id` provenance map passed to `sync_bundle`. The
 flow assembly that BUILDS that map from the run's `ConceptKey`s and wires the
 `stage_only=True` staging call is {132.16}/{132.23}'s job, not this Subtask's;
 here the map is supplied directly so the producer-side contract is proven
@@ -52,7 +52,7 @@ from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: E402
 
 # A won-bid case_study is seeded by a procurement `workspaces.id` (the S443
 # amendment / DR-029 grain) — a de-identified placeholder here.
-_WORKSPACE_ID = "3f1a9c22-4d0b-4e77-8b21-0a5c9e6b1d84"
+_FORM_INSTANCE_ID = "3f1a9c22-4d0b-4e77-8b21-0a5c9e6b1d84"
 _WON_BID_CONCEPT = "case-studies/buyer-northgate.md"
 _ORDINARY_CONCEPT = "topics/procurement-basics.md"
 
@@ -85,7 +85,7 @@ def repo(tmp_path: Path) -> Path:
 def _case_study_doc(*, buyer: str) -> str:
     """A realistic won-bid `case_study` OKF concept doc (BI-12 frontmatter +
     synthesis body + `# Citations`). Note: the doc content carries NO workspace
-    id — provenance is stamped from the `source_workspace_ids` MAP, never parsed
+    id — provenance is stamped from the `source_form_instance_ids` MAP, never parsed
     from the body — so the stamping tests below genuinely prove the map is the
     driver."""
     return (
@@ -117,12 +117,12 @@ def _topic_doc() -> str:
     )
 
 
-# ── BI-28 invariant 1: won-bid concept stamped with source_workspace_id,
+# ── BI-28 invariant 1: won-bid concept stamped with source_form_instance_id,
 #    landed in STAGING (never auto-published) until human review ───────────
 
 
 class TestBidOutcomeProvenanceStamp:
-    def test_a_won_bid_concept_draft_is_stamped_with_its_source_workspace_id(
+    def test_a_won_bid_concept_draft_is_stamped_with_its_source_form_instance_id(
         self, repo: Path
     ) -> None:
         result = sync_bundle(
@@ -132,13 +132,13 @@ class TestBidOutcomeProvenanceStamp:
                 _ORDINARY_CONCEPT: _topic_doc(),
             },
             stage_only=True,
-            source_workspace_ids={_WON_BID_CONCEPT: _WORKSPACE_ID},
+            source_form_instance_ids={_WON_BID_CONCEPT: _FORM_INSTANCE_ID},
         )
 
         won = next(
             c for c in result.proposed_changes if c.concept_path == _WON_BID_CONCEPT
         )
-        assert won.source_workspace_id == _WORKSPACE_ID
+        assert won.source_form_instance_id == _FORM_INSTANCE_ID
 
     def test_a_concept_with_no_provenance_entry_is_left_unstamped(
         self, repo: Path
@@ -153,13 +153,13 @@ class TestBidOutcomeProvenanceStamp:
                 _ORDINARY_CONCEPT: _topic_doc(),
             },
             stage_only=True,
-            source_workspace_ids={_WON_BID_CONCEPT: _WORKSPACE_ID},
+            source_form_instance_ids={_WON_BID_CONCEPT: _FORM_INSTANCE_ID},
         )
 
         ordinary = next(
             c for c in result.proposed_changes if c.concept_path == _ORDINARY_CONCEPT
         )
-        assert ordinary.source_workspace_id is None
+        assert ordinary.source_form_instance_id is None
 
     def test_the_provenance_survives_into_the_dr013_proposed_change_set_payload(
         self, repo: Path
@@ -171,7 +171,7 @@ class TestBidOutcomeProvenanceStamp:
             repo,
             {_WON_BID_CONCEPT: _case_study_doc(buyer="Northgate Council")},
             stage_only=True,
-            source_workspace_ids={_WON_BID_CONCEPT: _WORKSPACE_ID},
+            source_form_instance_ids={_WON_BID_CONCEPT: _FORM_INSTANCE_ID},
         )
 
         payload = proposed_change_set(result)
@@ -180,7 +180,7 @@ class TestBidOutcomeProvenanceStamp:
         entry = next(
             c for c in payload["changes"] if c["concept_path"] == _WON_BID_CONCEPT
         )
-        assert entry["source_workspace_id"] == _WORKSPACE_ID
+        assert entry["source_form_instance_id"] == _FORM_INSTANCE_ID
 
     def test_a_won_bid_proposal_lands_in_staging_never_auto_published(
         self, repo: Path
@@ -192,7 +192,7 @@ class TestBidOutcomeProvenanceStamp:
             repo,
             {_WON_BID_CONCEPT: _case_study_doc(buyer="Northgate Council")},
             stage_only=True,
-            source_workspace_ids={_WON_BID_CONCEPT: _WORKSPACE_ID},
+            source_form_instance_ids={_WON_BID_CONCEPT: _FORM_INSTANCE_ID},
         )
 
         assert result.staged is True
@@ -208,7 +208,7 @@ class TestBidOutcomeProvenanceStamp:
     def test_an_absent_provenance_map_leaves_every_entry_unstamped(
         self, repo: Path
     ) -> None:
-        """Additive-safety: omitting `source_workspace_ids` entirely (the
+        """Additive-safety: omitting `source_form_instance_ids` entirely (the
         ordinary Pass-1/Pass-2 producer flow, and every pre-{132.22} caller)
         leaves the substrate default — no entry is stamped."""
         result = sync_bundle(
@@ -217,7 +217,7 @@ class TestBidOutcomeProvenanceStamp:
             stage_only=True,
         )
 
-        assert all(c.source_workspace_id is None for c in result.proposed_changes)
+        assert all(c.source_form_instance_id is None for c in result.proposed_changes)
 
 
 # ── BI-28 invariant 2: recording a won outcome triggers NO producer run ───
@@ -322,7 +322,7 @@ class TestNoContentItemsWrite:
             repo,
             {_WON_BID_CONCEPT: _case_study_doc(buyer="Northgate Council")},
             stage_only=True,
-            source_workspace_ids={_WON_BID_CONCEPT: _WORKSPACE_ID},
+            source_form_instance_ids={_WON_BID_CONCEPT: _FORM_INSTANCE_ID},
         )
 
         assert result.staged is True

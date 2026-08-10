@@ -210,9 +210,9 @@ in the bundle `log.md`, not an automatic invalidation — and TECH §5 makes it
   change, hence a memo change.
 - **{427.10}** adds template-drafted residual concepts and makes
   `confidence: no-content` reachable — an output-shape change.
-- **{427.12}** renames `ConceptKey.workspace_id` to `form_instance_id` — a
-  second field-set change, deliberately sequenced to ride this same
-  invalidation rather than a second one.
+- **{427.12} (landed):** renamed `ConceptKey.workspace_id` to
+  `form_instance_id` — a second field-set change, deliberately sequenced to
+  ride this same invalidation rather than a second one. It did NOT re-bump.
 
 **No later subtask in this wave re-bumps `version=`.** A second bump would
 buy nothing (the corpus is already invalidated once) and would cost a second

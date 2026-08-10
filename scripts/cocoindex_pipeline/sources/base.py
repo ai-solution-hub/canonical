@@ -173,7 +173,7 @@ class ConceptKey:
     `case_study` grain it carries the buyer identity (the won form's
     `issuing_organisation`)."""
 
-    workspace_id: "str | None" = None
+    form_instance_id: "str | None" = None
     """The won-bid case_study GRAIN's locator (S443 amendment / DR-029). Set
     by that grain's enumeration, `None` everywhere else.
 
@@ -189,16 +189,30 @@ class ConceptKey:
     knows which grain owns the locator, which is `l_records.py`, not here.
 
     **{145.24} re-point (post-{145.6} W1e workspace-stratum deletion):** this
-    field now holds the won `form_instances.id`, NOT a `workspaces.id` — the
+    field holds the won `form_instances.id`, NOT a `workspaces.id` — the
     procurement `workspaces` stratum no longer exists (W1e wholesale-deletes
-    every procurement workspace row; W1c drops `form_instances.workspace_id`).
-    The field KEEPS the name `workspace_id` deliberately rather than being
-    renamed to `form_instance_id`: `producer/flow_def.py` and
-    `producer/bundle_writer.py` (both outside this Subtask's file-ownership
-    boundary) read `ConceptKey.workspace_id` by attribute name, and renaming
-    it would ripple into those files mid-wave. Recommended to the Curator as
-    backlog-worthy naming-debt cleanup once those files' own Subtask can land
-    the rename alongside its callers."""
+    every procurement workspace row; W1c drops the `form_instances.workspace_id`
+    column).
+
+    **ID-427 {427.12} — RENAMED here, closing id-358.** The field was called
+    `workspace_id` from mint until this change, and {145.24} recorded why it
+    was left that way: `producer/flow_def.py` and `producer/bundle_writer.py`
+    read it by attribute name from outside that Subtask's file-ownership
+    boundary, so renaming it then would have rippled mid-wave. ID-427 rewrites
+    those files anyway, which dissolves the reason. The name was the ONLY thing
+    wrong with it — the value, its meaning and the BI-28 provenance slot it
+    feeds are all unchanged (owner ruling QC3-A, S546: the slot STAYS).
+
+    Sequenced after {427.7} on purpose: that subtask added `grain` to this
+    dataclass, and cocoindex fingerprints every field unconditionally, so
+    landing both field-set changes under one `version=` bump costs the corpus
+    ONE re-draft instead of two (TECH §5 / DR-060). **No second bump was added
+    by {427.12}.**
+
+    Note for anyone grepping: `workspace_id` remains a live column name on
+    eleven UNRELATED tables (intelligence workspaces, feed, queue,
+    `q_a_pair_history`). None of them is read by this producer, and none was
+    touched by the rename."""
 
     content_version: str = ""
     """**MEMO-FINGERPRINT-ONLY** (ID-132 {132.38} G-MEMO-DELTA, MD-3/MD-4,
@@ -219,7 +233,7 @@ class ConceptKey:
     type routing, `bundle_write_path`/`bundle_write_path_for_key`, the
     won-bid buyer dedup, or `find()`'s `_concept_haystack`. A content change
     must re-draft the SAME concept, not mint a new one. Kept LAST in field
-    order (after `workspace_id`) so every existing positional/keyword
+    order (after `form_instance_id`) so every existing positional/keyword
     `ConceptKey(...)` construction stays valid with its `""` default."""
 
     def __post_init__(self) -> None:

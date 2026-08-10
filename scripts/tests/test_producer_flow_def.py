@@ -16,9 +16,9 @@ separate, human-triggered `publish.publish_bundle`/`producer publish` action
 (unchanged, exercised in `test_producer_publish.py`). Two more pieces wire in
 at the same seam: an injected `overrides` seam folds approved
 `git_sync.ProducerOverride`s onto the staged output via
-`git_sync.reapply_overrides`; and a `concept_path -> workspace_id` BI-28
+`git_sync.reapply_overrides`; and a `concept_path -> form_instance_id` BI-28
 provenance map, built here from every won-bid `case_study` ConceptKey this
-run enumerated, stamps `source_workspace_id` onto the emitted
+run enumerated, stamps `source_form_instance_id` onto the emitted
 `proposed_change_set`. `status_source`/BI-21 gating is no longer this
 module's concern — it now lives solely in `producer/publish.py`.
 
@@ -143,7 +143,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
             title: str = "Alpha",
             concept_type: str = "topic",
             entity_id: "str | None" = None,
-            workspace_id: "str | None" = None,
+            form_instance_id: "str | None" = None,
             grain: "str | None" = None,
         ) -> Any:
             # ID-427 {427.7}: `grain` is the dispatch key. Defaulted from the
@@ -153,7 +153,7 @@ def env(monkeypatch: pytest.MonkeyPatch):
             if grain is None:
                 grain = (
                     "case_study_won_bid"
-                    if workspace_id is not None
+                    if form_instance_id is not None
                     else f"{concept_type}_grain"
                 )
             key_kwargs: "dict[str, Any]" = {
@@ -165,8 +165,8 @@ def env(monkeypatch: pytest.MonkeyPatch):
                 key_kwargs["scope_tag"] = rel_path
             else:
                 key_kwargs["entity_id"] = entity_id or title
-                if workspace_id is not None:
-                    key_kwargs["workspace_id"] = workspace_id
+                if form_instance_id is not None:
+                    key_kwargs["form_instance_id"] = form_instance_id
             key = l_records.ConceptKey(**key_kwargs)
             anchor = resource_uri.build_source_document_uri(_SAMPLE_UUID)
             sources = frontmatter.sources_from_citations([anchor])
@@ -1132,18 +1132,18 @@ class TestPass2Optional:
 # ── {132.27} G-FLOW-STAGING-WIRE: the headline testStrategy ──────────────
 # "a full run over a won-bid Source fixture lands STAGING (no per-run
 # commit) and emits a proposed_change_set whose won-bid entries carry
-# source_workspace_id."
+# source_form_instance_id."
 
 
 class TestBI28StagingProvenance:
-    def test_a_won_bid_run_lands_staging_and_stamps_source_workspace_id(
+    def test_a_won_bid_run_lands_staging_and_stamps_source_form_instance_id(
         self, env, bundle_dir: Path, repo: Path
     ) -> None:
         won_bid_draft = env.build_draft(
             "case-studies/acme-corp.md",
             title="Acme Corp",
             concept_type="case_study",
-            workspace_id="22222222-2222-4222-8222-222222222222",
+            form_instance_id="22222222-2222-4222-8222-222222222222",
         )
         ordinary_draft = env.build_draft("topics/alpha.md", title="Alpha")
         _wire_source(
@@ -1183,17 +1183,17 @@ class TestBI28StagingProvenance:
             "topics/alpha.md",
         ]
 
-        # The proposed_change_set's won-bid entry carries source_workspace_id
+        # The proposed_change_set's won-bid entry carries source_form_instance_id
         # (BI-28), keyed by the PHYSICAL (redirected) path — an identity-keyed
         # provenance map would never match a redirected won-bid entry here.
         assert report.proposed_change_set is not None
         changes = {
             c["concept_path"]: c for c in report.proposed_change_set["changes"]
         }
-        assert changes["case-studies/won-bid/acme-corp.md"]["source_workspace_id"] == (
+        assert changes["case-studies/won-bid/acme-corp.md"]["source_form_instance_id"] == (
             "22222222-2222-4222-8222-222222222222"
         )
-        assert changes["topics/alpha.md"]["source_workspace_id"] is None
+        assert changes["topics/alpha.md"]["source_form_instance_id"] is None
 
     def test_same_slug_collision_embeds_the_correct_bodies_and_provenance(
         self, env, bundle_dir: Path, repo: Path
@@ -1207,7 +1207,7 @@ class TestBI28StagingProvenance:
         is a pure hash of whatever string it is given) and could let the
         second `declare_row` silently clobber the first with the wrong body.
         Only the won-bid entry's `proposed_change_set` row may carry
-        `source_workspace_id` (BI-28)."""
+        `source_form_instance_id` (BI-28)."""
         named_client_draft = env.build_draft(
             "case-studies/acme-corp.md",
             title="Acme Corp (named client)",
@@ -1217,7 +1217,7 @@ class TestBI28StagingProvenance:
             "case-studies/acme-corp.md",
             title="Acme Corp (won-bid outcome)",
             concept_type="case_study",
-            workspace_id="33333333-3333-4333-8333-333333333333",
+            form_instance_id="33333333-3333-4333-8333-333333333333",
         )
         _wire_source(
             env,
@@ -1259,13 +1259,13 @@ class TestBI28StagingProvenance:
         ]
 
         # BI-28: only the won-bid entry's proposed_change_set row carries
-        # source_workspace_id; the named-client entry keeps the None default.
+        # source_form_instance_id; the named-client entry keeps the None default.
         assert report.proposed_change_set is not None
         changes = {
             c["concept_path"]: c for c in report.proposed_change_set["changes"]
         }
-        assert changes["case-studies/acme-corp.md"]["source_workspace_id"] is None
-        assert changes["case-studies/won-bid/acme-corp.md"]["source_workspace_id"] == (
+        assert changes["case-studies/acme-corp.md"]["source_form_instance_id"] is None
+        assert changes["case-studies/won-bid/acme-corp.md"]["source_form_instance_id"] == (
             "33333333-3333-4333-8333-333333333333"
         )
 

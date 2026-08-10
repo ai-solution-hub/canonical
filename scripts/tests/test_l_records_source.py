@@ -234,7 +234,7 @@ def _five_type_pool(
         "COALESCE(issuing_organisation, name) AS buyer",
         [] if won_bids is None else won_bids,
     )
-    pool.when("w.workspace_id AS workspace_id", [])
+    pool.when("w.form_instance_id AS form_instance_id", [])
     return pool
 
 
@@ -566,12 +566,12 @@ def _won_bid_only_pool(won_bids: "list[dict]") -> FakePool:
     pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
     pool.when("c.canonical_name AS canonical_name", [])
     pool.when("COALESCE(issuing_organisation, name) AS buyer", won_bids)
-    pool.when("w.workspace_id AS workspace_id", [])
+    pool.when("w.form_instance_id AS form_instance_id", [])
     return pool
 
 
 class TestWonBidLocatorOwnership:
-    """`workspace_id` is the won-bid GRAIN's locator, and only that grain's.
+    """`form_instance_id` is the won-bid GRAIN's locator, and only that grain's.
 
     **ID-427 {427.7} re-keyed this rule, and moved where it is enforced.** It
     was `ConceptKey.__post_init__`'s `concept_type != 'case_study'` check —
@@ -592,9 +592,9 @@ class TestWonBidLocatorOwnership:
             concept_type="case_study",
             grain="case_study_won_bid",
             entity_id="Transport for London",
-            workspace_id="ws-1",
+            form_instance_id="ws-1",
         )
-        assert key.workspace_id == "ws-1"
+        assert key.form_instance_id == "ws-1"
 
     def test_the_locator_on_another_grain_fails_loud_at_read(self):
         src = LRecordsSource(FakePool())  # no rules — must fail before any query
@@ -603,10 +603,10 @@ class TestWonBidLocatorOwnership:
             concept_type="topic",
             grain="topic_scope_tag",
             scope_tag="gdpr",
-            workspace_id="ws-1",
+            form_instance_id="ws-1",
         )
 
-        with pytest.raises(ValueError, match="workspace_id"):
+        with pytest.raises(ValueError, match="form_instance_id"):
             _run(src.read_concept(key))
 
     def test_relabelling_the_won_bid_grain_does_not_trip_the_locator_rule(
@@ -622,13 +622,13 @@ class TestWonBidLocatorOwnership:
             for spec in l_records._BUILTIN_GRAINS
         )
         monkeypatch.setattr(l_records, "_BUILTIN_GRAINS", relabelled)
-        src = LRecordsSource(_won_bid_only_pool([{"workspace_id": "ws-1", "buyer": "TfL"}]))
+        src = LRecordsSource(_won_bid_only_pool([{"form_instance_id": "ws-1", "buyer": "TfL"}]))
 
         keys = _run(src.list_concepts())
 
         won = next(k for k in keys if k.grain == "case_study_won_bid")
         assert won.concept_type == "won_bid"
-        assert won.workspace_id == "ws-1"
+        assert won.form_instance_id == "ws-1"
 
     def test_an_unregistered_grain_fails_loud_naming_what_is_registered(self):
         src = LRecordsSource(FakePool())
@@ -647,12 +647,12 @@ class TestListConceptsWonBidCaseStudy:
     first-class case_study source (TECH G-SOURCE amendment; {145.24}:
     re-pointed off the deleted workspace/application_types join to a direct
     `form_instances` read post-{145.6} W1e). The ConceptKey carries the won
-    form's own id (kept under the `workspace_id` field name — see that
+    form's own id (kept under the `form_instance_id` field name — see that
     field's docstring) + buyer."""
 
     def test_won_procurement_workspace_yields_exactly_one_case_study_for_the_buyer(self):
         pool = _won_bid_only_pool(
-            [{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+            [{"form_instance_id": "ws-1", "buyer": "Transport for London"}]
         )
         src = LRecordsSource(pool)
 
@@ -662,14 +662,14 @@ class TestListConceptsWonBidCaseStudy:
         assert len(case_studies) == 1
         key = case_studies[0]
         assert key.entity_id == "Transport for London"
-        assert key.workspace_id == "ws-1"
+        assert key.form_instance_id == "ws-1"
         assert key.rel_path == "case-studies/transport-for-london.md"
 
     def test_won_bid_grain_extends_rather_than_replaces_the_named_client_grain(self):
         # The named-client (Acme Corp) grain AND the won-bid (TfL) grain both
         # contribute case_study concepts — the won-bid source is additive.
         pool = _five_type_pool(
-            won_bids=[{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+            won_bids=[{"form_instance_id": "ws-1", "buyer": "Transport for London"}]
         )
         src = LRecordsSource(pool)
 
@@ -678,18 +678,18 @@ class TestListConceptsWonBidCaseStudy:
         ]
 
         assert {k.entity_id for k in case_studies} == {"Acme Corp", "Transport for London"}
-        tfl = next(k for k in case_studies if k.workspace_id == "ws-1")
+        tfl = next(k for k in case_studies if k.form_instance_id == "ws-1")
         assert tfl.entity_id == "Transport for London"
         acme = next(k for k in case_studies if k.entity_id == "Acme Corp")
-        assert acme.workspace_id is None  # named-client grain carries no workspace locator
+        assert acme.form_instance_id is None  # named-client grain carries no form-instance locator
 
     def test_dedupes_multiple_won_workspaces_for_the_same_buyer(self):
-        # ORDER BY buyer, workspace_id → the earliest workspace wins
-        # deterministically (one case study per buyer, BI-2 identity).
+        # ORDER BY buyer, form_instance_id → the earliest won form instance
+        # wins deterministically (one case study per buyer, BI-2 identity).
         pool = _won_bid_only_pool(
             [
-                {"workspace_id": "ws-1", "buyer": "Transport for London"},
-                {"workspace_id": "ws-9", "buyer": "Transport for London"},
+                {"form_instance_id": "ws-1", "buyer": "Transport for London"},
+                {"form_instance_id": "ws-9", "buyer": "Transport for London"},
             ]
         )
         src = LRecordsSource(pool)
@@ -699,7 +699,7 @@ class TestListConceptsWonBidCaseStudy:
         ]
 
         assert len(case_studies) == 1
-        assert case_studies[0].workspace_id == "ws-1"
+        assert case_studies[0].form_instance_id == "ws-1"
 
     def test_no_won_bids_yields_no_won_bid_case_study(self):
         src = LRecordsSource(_won_bid_only_pool([]))
@@ -709,7 +709,7 @@ class TestListConceptsWonBidCaseStudy:
     def test_find_matches_a_won_bid_buyer_case_insensitively(self):
         src = LRecordsSource(
             _five_type_pool(
-                won_bids=[{"workspace_id": "ws-1", "buyer": "Transport for London"}]
+                won_bids=[{"form_instance_id": "ws-1", "buyer": "Transport for London"}]
             )
         )
 
@@ -761,7 +761,7 @@ class TestReadConceptWonBidCaseStudy:
             concept_type="case_study",
             grain="case_study_won_bid",
             entity_id="Transport for London",
-            workspace_id="ws-1",
+            form_instance_id="ws-1",
         )
 
     def test_surfaces_no_workspace_row_but_won_qa_pairs_and_outcome_notes(self):
@@ -790,7 +790,7 @@ class TestReadConceptWonBidCaseStudy:
         assert raw.entity_relationships == []
 
     def test_case_study_without_workspace_locator_still_reads_the_named_client_grain(self):
-        # The won-bid grain is additive: a case_study key with NO workspace_id
+        # The won-bid grain is additive: a case_study key with NO form_instance_id
         # still routes to the named-clients source_documents grain unchanged.
         pool = FakePool()
         pool.when(
@@ -830,7 +830,7 @@ class TestSampleRowsWonBidCaseStudy:
             concept_type="case_study",
             grain="case_study_won_bid",
             entity_id="Transport for London",
-            workspace_id="ws-1",
+            form_instance_id="ws-1",
         )
 
         rows = _run(src.sample_rows(key, 2))
@@ -1077,7 +1077,7 @@ class TestMemoKeyProtocolEscalation:
             "grain",
             "scope_tag",
             "entity_id",
-            "workspace_id",
+            "form_instance_id",
             "content_version",
         ]
 
@@ -1108,7 +1108,7 @@ def _other_types_empty(pool: "FakePool") -> "FakePool":
     pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
     pool.when("c.canonical_name AS canonical_name", [])
     pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
-    pool.when("w.workspace_id AS workspace_id", [])
+    pool.when("w.form_instance_id AS form_instance_id", [])
     return pool
 
 
@@ -1276,7 +1276,7 @@ class TestContentVersionSensitivity:
             pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
             pool.when("c.canonical_name AS canonical_name", [])
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
-            pool.when("w.workspace_id AS workspace_id", [])
+            pool.when("w.form_instance_id AS form_instance_id", [])
             return pool
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
@@ -1326,7 +1326,7 @@ class TestContentVersionSensitivity:
             pool.when("JOIN source_documents sd ON sd.id = em.source_document_id", [])
             pool.when("c.canonical_name AS canonical_name", [])
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
-            pool.when("w.workspace_id AS workspace_id", [])
+            pool.when("w.form_instance_id AS form_instance_id", [])
             return pool
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
@@ -1373,16 +1373,16 @@ class TestContentVersionSensitivity:
                 ],
             )
             pool.when("COALESCE(issuing_organisation, name) AS buyer", [])
-            pool.when("w.workspace_id AS workspace_id", [])
+            pool.when("w.form_instance_id AS form_instance_id", [])
             return pool
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
         cs_before = next(
-            k for k in before if k.concept_type == "case_study" and k.workspace_id is None
+            k for k in before if k.concept_type == "case_study" and k.form_instance_id is None
         )
         cs_after = next(
-            k for k in after if k.concept_type == "case_study" and k.workspace_id is None
+            k for k in after if k.concept_type == "case_study" and k.form_instance_id is None
         )
 
         assert cs_before.content_version != cs_after.content_version
@@ -1409,13 +1409,13 @@ class TestContentVersionSensitivity:
             pool.when("c.canonical_name AS canonical_name", [])
             pool.when(
                 "COALESCE(issuing_organisation, name) AS buyer",
-                [{"workspace_id": "ws-1", "buyer": "Transport for London"}],
+                [{"form_instance_id": "ws-1", "buyer": "Transport for London"}],
             )
             pool.when(
-                "w.workspace_id AS workspace_id",
+                "w.form_instance_id AS form_instance_id",
                 [
                     {
-                        "workspace_id": "ws-1",
+                        "form_instance_id": "ws-1",
                         "qa_count": 1,
                         "qa_max": "t0",
                         "fi_count": 1,
@@ -1427,8 +1427,8 @@ class TestContentVersionSensitivity:
 
         before = _run(LRecordsSource(_pool("t0")).list_concepts())
         after = _run(LRecordsSource(_pool("t1")).list_concepts())
-        wb_before = next(k for k in before if k.workspace_id == "ws-1")
-        wb_after = next(k for k in after if k.workspace_id == "ws-1")
+        wb_before = next(k for k in before if k.form_instance_id == "ws-1")
+        wb_after = next(k for k in after if k.form_instance_id == "ws-1")
 
         assert wb_before.content_version != wb_after.content_version
 

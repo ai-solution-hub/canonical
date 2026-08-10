@@ -55,7 +55,7 @@ shipped bundle reads; the grain NAMES are in the registry.
 | `product`        | distinct `entity_mentions.canonical_name` where `entity_type='product'` | `source_documents` (filename/logical_path match) + product-scoped `q_a_pairs` |
 | `company`        | singleton, iff a company-overview/team-structure `source_documents` row exists | `source_documents` (company-overview, team-structure) + the company `entity_mentions` graph |
 | `certification`  | distinct `entity_mentions.canonical_name` where `entity_type='certification'` | `source_documents` (compliance) + the certification's own `entity_mentions` (by canonical_name, across all docs — external evidence) |
-| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs`. won-bid grain (`key.workspace_id` set): `derived_from_form_response` `q_a_pairs` (by `source_form_instance_id`, published-only) + the won `form_instances` row itself (`issuing_organisation`/`name`/`outcome_notes`) — see the {145.24} note below |
+| `case_study`     | distinct named-client `entity_mentions.canonical_name` (`entity_type='organisation'`) mentioned in the named-clients doc, PLUS one per BUYER of a `won` procurement bid (S443 amendment / DR-029) | named-clients grain: `source_documents` (named-clients) + supporting `q_a_pairs`. won-bid grain (`key.form_instance_id` set): `derived_from_form_response` `q_a_pairs` (by `source_form_instance_id`, published-only) + the won `form_instances` row itself (`issuing_organisation`/`name`/`outcome_notes`) — see the {145.24} note below |
 
 **Won-bid case_study grain (S443 amendment / DR-029; re-pointed {145.24}
 post-{145.6} W1e).** A `won` procurement form is a first-class case_study
@@ -64,7 +64,7 @@ source. Originally (pre-ID-145) enumeration joined `workspaces` →
 (`outcome='won'`), and buyer identity/outcome_notes were split across a
 `workspaces` row and a `form_templates` row. {145.6}'s W1e migration
 wholesale-deletes every procurement `workspaces` row (R3/R10) and W1c drops
-`form_instances.workspace_id` entirely — the join target is GONE, not merely
+the `form_instances.workspace_id` column entirely — the join target is GONE, not merely
 renamed, and `form_instances` is exclusively procurement's own table (no
 `application_types` discriminator needed). Ground truth
 (`supabase/migrations/20260712062000_id145_w1c_rename_reshape.sql`,
@@ -72,14 +72,14 @@ renamed, and `form_instances` is exclusively procurement's own table (no
 `workspaces` row supplied is ALREADY denormalised directly onto the form
 (`form_instances.issuing_organisation`/`name` NOT NULL/`outcome`/
 `outcome_notes`), so post-{145.6} enumeration reads `form_instances` alone —
-no join, no `workspaces` fetch. `q_a_pairs.source_workspace_id` is dropped in
-the same batch; its replacement lineage column is `source_form_instance_id`
-(the renamed `source_form_template_id`). `ConceptKey.workspace_id` KEEPS its
-field name (repointed to hold the won form's own `form_instances.id`, not a
-`workspaces.id`) — a rename would ripple into `producer/flow_def.py`/
-`producer/bundle_writer.py`/`producer/git_sync.py`, outside this Subtask's
-file-ownership boundary; see that field's docstring below and the {145.24}
-journal for the naming-debt this leaves for a future Subtask. This grain is
+no join, no `workspaces` fetch. The `q_a_pairs.source_workspace_id` column is
+dropped in the same batch; its replacement lineage column is
+`source_form_instance_id` (the renamed `source_form_template_id`).
+`ConceptKey.form_instance_id` holds the won form's own `form_instances.id`,
+not a `workspaces.id` — it was called `workspace_id` until **ID-427 {427.12}**
+renamed it (closing id-358), which is why the SQL below aliases the same value
+`form_instance_id` rather than the `workspace_id` it aliased before. Nothing
+about the value or the BI-28 slot it feeds changed. This grain is
 READ-ONLY against the `derived_from_form_response` q_a_pair write path
 ({131.28}, `b89ae76a`) — it never writes q_a_pairs or content_items. Buyer =
 `COALESCE(issuing_organisation, name)` (falls back to the form's own
@@ -273,7 +273,7 @@ _SQL_DISTINCT_CASE_STUDY_ENTITIES = (
 # is no longer read at all (every procurement workspace row is wholesale
 # DELETEd by W1e — there is nothing left to join to). ─────────────────────
 _SQL_WON_BID_CASE_STUDIES = (
-    "SELECT DISTINCT id AS workspace_id, "
+    "SELECT DISTINCT id AS form_instance_id, "
     "COALESCE(issuing_organisation, name) AS buyer "
     "FROM form_instances "
     "WHERE outcome = 'won' "
@@ -286,7 +286,7 @@ _SQL_WON_BID_CASE_STUDIES = (
 # — W1e wholesale-deletes every procurement `workspaces` row, so this fetch
 # would always return zero rows post-push; buyer identity/outcome_notes now
 # come straight off the `form_instances` row itself (see
-# `_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE` below). `ConceptRaw.workspaces`
+# `_SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE` below). `ConceptRaw.workspaces`
 # stays in the dataclass shape (structural stability for `enrich.py`'s
 # `list(raw.workspaces)` — outside this Subtask's rename-blast-radius
 # concern) but `_read_won_bid_case_study` now always populates it `[]`.
@@ -297,29 +297,31 @@ _SQL_WON_BID_CASE_STUDIES = (
 # posture the topic/product grains take. Provenance columns
 # (source_form_instance_id/source_form_response_id/source_question_id) are
 # carried so downstream (BI-28 proposal shaping) keeps won-bid lineage.
-# {145.24}: `source_workspace_id` is DROPPED by {145.6} W1c (STEP 5) — its
-# replacement lineage column is `source_form_instance_id` (the renamed
-# `source_form_template_id`), which already carries the same "which form"
-# provenance the workspace column duplicated (ARCH-REVIEW §2 C8).
+# {145.24}: the `q_a_pairs.source_workspace_id` COLUMN is DROPPED by {145.6}
+# W1c (STEP 5) — its replacement lineage column is `source_form_instance_id`
+# (the renamed `source_form_template_id`), which already carries the same
+# "which form" provenance the workspace column duplicated (ARCH-REVIEW §2 C8).
+# Verified against Platform staging this pass ({427.12}): `q_a_pairs` exposes
+# `source_form_instance_id` and no `source_workspace_id`.
 _QA_WON_COLUMNS = (
     f"{_QA_COLUMNS}, source_form_instance_id, source_form_response_id, "
     "source_question_id"
 )
 
-_SQL_WON_BID_QA_BY_WORKSPACE = (
+_SQL_WON_BID_QA_BY_FORM_INSTANCE = (
     f"SELECT {_QA_WON_COLUMNS} FROM q_a_pairs "
     "WHERE source_form_instance_id = $1 "
     "AND origin_kind = 'derived_from_form_response' "
     "AND publication_status = 'published' ORDER BY id"
 )
 
-# {145.24}: table renamed form_templates -> form_instances; `workspace_id`
-# column is DROPPED by W1c — `key.workspace_id` (the ConceptKey locator, kept
-# under its pre-existing field name per the docstring above) now carries the
-# won form's own `form_instances.id`, so this filters on the form's OWN id
-# rather than a workspace grouping id. A single row (0 or 1) in practice —
+# {145.24}: table renamed form_templates -> form_instances; the
+# `form_instances.workspace_id` COLUMN is DROPPED by W1c — `key.form_instance_id`
+# (the ConceptKey locator, named `workspace_id` until {427.12} renamed it)
+# carries the won form's own `form_instances.id`, so this filters on the form's
+# OWN id rather than a workspace grouping id. A single row (0 or 1) in practice —
 # `_SQL_WON_BID_CASE_STUDIES` already enumerates one row per won form.
-_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE = (
+_SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE = (
     "SELECT id, name, form_type, outcome, outcome_notes, "
     "outcome_recorded_at, outcome_recorded_by, issuing_organisation, "
     "created_at, updated_at FROM form_instances "
@@ -450,18 +452,18 @@ _SQL_CASE_STUDY_NAMED_CLIENT_VERSION = (
 
 # case_study, won-bid grain (MD-7 grid: q_a_pairs, form_instances — matches
 # `_read_won_bid_case_study`'s assembly order), grouped by the won form's own
-# id (the `ConceptKey.workspace_id` locator, {145.24}).
+# id (the `ConceptKey.form_instance_id` locator, {145.24}).
 _SQL_WON_BID_CASE_STUDY_VERSION = (
-    "SELECT w.workspace_id AS workspace_id, "
+    "SELECT w.form_instance_id AS form_instance_id, "
     "count(DISTINCT qa.id) AS qa_count, max(qa.updated_at) AS qa_max, "
     "count(DISTINCT fi.id) AS fi_count, max(fi.updated_at) AS fi_max "
-    "FROM (SELECT DISTINCT id AS workspace_id FROM form_instances "
+    "FROM (SELECT DISTINCT id AS form_instance_id FROM form_instances "
     "WHERE outcome = 'won') w "
-    "LEFT JOIN q_a_pairs qa ON qa.source_form_instance_id = w.workspace_id "
+    "LEFT JOIN q_a_pairs qa ON qa.source_form_instance_id = w.form_instance_id "
     "AND qa.origin_kind = 'derived_from_form_response' "
     "AND qa.publication_status = 'published' "
-    "LEFT JOIN form_instances fi ON fi.id = w.workspace_id AND fi.outcome = 'won' "
-    "GROUP BY w.workspace_id ORDER BY w.workspace_id"
+    "LEFT JOIN form_instances fi ON fi.id = w.form_instance_id AND fi.outcome = 'won' "
+    "GROUP BY w.form_instance_id ORDER BY w.form_instance_id"
 )
 
 def _dedupe_ids(ids: "Iterable[Any]") -> "list[Any]":
@@ -611,9 +613,9 @@ class LRecordsSource:
         # `type_label` relabel would have turned into a spurious rejection
         # (PI-5). Keyed on the grain and held HERE, where the registry that
         # knows which grain declares the locator actually lives.
-        if key.workspace_id is not None and spec.name != WON_BID_GRAIN:
+        if key.form_instance_id is not None and spec.name != WON_BID_GRAIN:
             raise ValueError(
-                f"ConceptKey.workspace_id is the {WON_BID_GRAIN!r} grain's "
+                f"ConceptKey.form_instance_id is the {WON_BID_GRAIN!r} grain's "
                 f"locator (S443 amendment / DR-029); it is set on "
                 f"{key.rel_path!r}, which routes to grain {spec.name!r}"
             )
@@ -824,19 +826,19 @@ class LRecordsSource:
     ) -> GrainEnumeration:
         """The won-bid case_study grain (S443 amendment / DR-029): one
         case_study per BUYER of a won procurement bid. The rows arrive ordered
-        by (buyer, workspace_id), so deduping by buyer keeps the earliest
-        workspace deterministically — a single case study per buyer (BI-2),
-        even when a buyer has multiple won workspaces. Additive to the
+        by (buyer, form_instance_id), so deduping by buyer keeps the earliest
+        won form instance deterministically — a single case study per buyer
+        (BI-2), even when a buyer has won multiple bids. Additive to the
         named-clients grain. {132.38} MD-7: `content_version` is grouped by
-        the won form's own id (the `workspace_id` locator).
+        the won form's own id (the `form_instance_id` locator).
 
         Shares `directory` with the named-clients grain for now, so the
         {132.29} write-time redirect still applies — **{427.8}** is the
         subtask that gives this grain `case-studies/won-bid` of its own and
         deletes the redirect."""
         rows = await self._pool.fetch(_SQL_WON_BID_CASE_STUDIES)
-        version_by_workspace = {
-            row["workspace_id"]: _combine_content_version(
+        version_by_form_instance = {
+            row["form_instance_id"]: _combine_content_version(
                 _version_term(row.get("qa_count"), row.get("qa_max")),
                 _version_term(row.get("fi_count"), row.get("fi_max")),
             )
@@ -854,8 +856,10 @@ class LRecordsSource:
                     spec,
                     basename=mint_concept_slug(buyer),
                     entity_id=buyer,
-                    content_version=version_by_workspace.get(row["workspace_id"], ""),
-                    workspace_id=row["workspace_id"],
+                    content_version=version_by_form_instance.get(
+                        row["form_instance_id"], ""
+                    ),
+                    form_instance_id=row["form_instance_id"],
                 )
             )
         return GrainEnumeration(keys=tuple(keys), covers=Coverage())
@@ -866,7 +870,7 @@ class LRecordsSource:
         """Run `key`'s grain's read and return the raw backing rows.
 
         ID-427 {427.7}: this was a five-way `concept_type` cascade with a
-        nested `workspace_id` sub-branch (TECH §1's dispatcher 1 of three).
+        nested `form_instance_id` sub-branch (TECH §1's dispatcher 1 of three).
         It is now a registry lookup — a new grain reaches its own read with
         no edit here."""
         spec = self.grain_for(key)
@@ -1007,7 +1011,7 @@ class LRecordsSource:
         No `workspaces` fetch: {145.6} W1e wholesale-deletes every procurement
         `workspaces` row, so a `workspaces`-table read would always return
         zero rows post-push — buyer identity now comes straight off the
-        `form_instances` row (`_SQL_WON_FORM_TEMPLATES_BY_WORKSPACE`).
+        `form_instances` row (`_SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE`).
         `ConceptRaw.workspaces` stays `[]` for this grain (dataclass shape
         preserved for `enrich.py`'s consumption, per that field's own note).
 
@@ -1017,10 +1021,10 @@ class LRecordsSource:
         q_a_pair master uuid — BI-3); `source_documents` stays empty for
         this grain (no named-clients doc backs a won bid)."""
         qa_rows = await self._pool.fetch(
-            _SQL_WON_BID_QA_BY_WORKSPACE, key.workspace_id
+            _SQL_WON_BID_QA_BY_FORM_INSTANCE, key.form_instance_id
         )
         ft_rows = await self._pool.fetch(
-            _SQL_WON_FORM_TEMPLATES_BY_WORKSPACE, key.workspace_id
+            _SQL_WON_FORM_TEMPLATES_BY_FORM_INSTANCE, key.form_instance_id
         )
         return ConceptRaw(
             workspaces=[], q_a_pairs=qa_rows, form_templates=ft_rows
@@ -1033,7 +1037,7 @@ class LRecordsSource:
         prompt context window.
 
         ID-427 {427.7} — TECH §1's dispatcher 3 of three. Was a four-arm
-        `concept_type` cascade with a `workspace_id` sub-branch and an
+        `concept_type` cascade with a `form_instance_id` sub-branch and an
         implicit fallthrough; now the grain's own `sample`. Which KIND of
         row a grain samples is `GrainSpec.sample_kind`, read by
         `producer/enrich.py` so it can mint the BI-6 anchor a sampled
@@ -1073,8 +1077,8 @@ class LRecordsSource:
         """Sample the won-bid-provenance q_a_pairs directly by
         `source_form_instance_id` ({145.24} — no named-clients
         source_documents exist for this grain)."""
-        sql = f"{_SQL_WON_BID_QA_BY_WORKSPACE} LIMIT $2"
-        return await self._pool.fetch(sql, key.workspace_id, n)
+        sql = f"{_SQL_WON_BID_QA_BY_FORM_INSTANCE} LIMIT $2"
+        return await self._pool.fetch(sql, key.form_instance_id, n)
 
     async def _sample_source_documents(
         self, key: ConceptKey, n: int
@@ -1127,7 +1131,7 @@ class LRecordsSource:
 # ─────────────────────────────────────────────────────────────────────────
 
 WON_BID_GRAIN = "case_study_won_bid"
-"""The one grain that declares `ConceptKey.workspace_id` as its locator
+"""The one grain that declares `ConceptKey.form_instance_id` as its locator
 (S443 amendment / DR-029).
 
 PUBLIC because two rules key on it and both must key on the same string:

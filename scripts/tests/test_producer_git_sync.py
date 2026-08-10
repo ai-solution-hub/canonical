@@ -924,14 +924,14 @@ class TestProposedChangeSet:
     def test_each_entry_reserves_a_per_entry_provenance_slot_defaulting_to_none(
         self, repo: Path
     ) -> None:
-        """{132.22} G-BIDOUTCOME-PROPOSAL stamps `source_workspace_id` onto
+        """{132.22} G-BIDOUTCOME-PROPOSAL stamps `source_form_instance_id` onto
         won-bid DRAFT proposals; this substrate reserves the per-entry slot so
         that extension is a value-set, not a schema change."""
         result = sync_bundle(repo, {"topic-a.md": "draft one\n"}, stage_only=True)
 
         change = next(c for c in result.proposed_changes if c.concept_path == "topic-a.md")
-        assert change.source_workspace_id is None
-        assert "source_workspace_id" in proposed_change_set(result)["changes"][0]
+        assert change.source_form_instance_id is None
+        assert "source_form_instance_id" in proposed_change_set(result)["changes"][0]
 
     def test_a_human_edit_conflict_is_reported_as_such_in_the_change_set(
         self, repo: Path

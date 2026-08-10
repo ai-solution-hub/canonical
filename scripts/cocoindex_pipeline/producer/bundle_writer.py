@@ -88,7 +88,7 @@ concepts`) AND a won-bid `issuing_organisation` (`_list_won_bid_case_study_
 concepts`, S443 amendment/DR-029) slugs identically — both grains build the
 SAME identity `rel_path` `case-studies/<slug>.md`. The Source adapter is
 CORRECT here (READ-ONLY, not touched by this fix): the two `ConceptKey`s
-differ by `workspace_id` and therefore memoise as distinct cocoindex cache
+differ by `form_instance_id` and therefore memoise as distinct cocoindex cache
 entries — the collision is purely a bundle PHYSICAL-write-target clash, not
 an identity/memo-key clash. Rejected merging the two drafts into one bundle
 file: BI-28 requires the won-bid grain to stay a distinct human-reviewable
@@ -293,7 +293,9 @@ def _won_bid_case_study_redirect(rel_path: str, *, grain: "str | None") -> str:
     before any concept has been drafted).
 
     **ID-427 {427.7}: keyed on `grain`, not on `concept_type`.** This was
-    `concept_type != "case_study" or workspace_id is None` — a fifth
+    `concept_type != "case_study" or workspace_id is None` (quoted as it
+    stood; `workspace_id` is the field ID-427 {427.12}/id-358 has since
+    renamed to `form_instance_id`) — a fifth
     type-keyed control-flow site, and the one an AST projection over
     `scripts/` could not see, because it reads the attribute through
     `getattr(key, "concept_type", None)` rather than as an attribute node.
@@ -320,7 +322,7 @@ def bundle_write_path(draft: Any) -> str:
     """The PHYSICAL bundle path `declare_concept` writes `draft` to —
     ordinarily identical to `_rel_path_of(draft)` (the concept's identity /
     cocoindex memo key, BI-2), EXCEPT for the won-bid `case_study` grain
-    (S443 amendment/DR-029, `ConceptKey.workspace_id` set), which this
+    (S443 amendment/DR-029, `ConceptKey.form_instance_id` set), which this
     module redirects into a distinct `won-bid/` sibling directory so it can
     never collide with a same-slug named-client `case_study` concept
     sharing the identical identity `rel_path` (ID-132 {132.29} — see this

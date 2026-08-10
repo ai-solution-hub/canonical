@@ -900,7 +900,7 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
 # case_study cross-grain slug collision (ID-132 {132.29}) — a buyer that is
 # BOTH a named-client entity and a won-bid issuing_organisation slugs
 # identically in sources/l_records.py (READ-ONLY, correct: the two
-# ConceptKeys differ by workspace_id and therefore memoise separately —
+# ConceptKeys differ by form_instance_id and therefore memoise separately —
 # this is purely a bundle PHYSICAL-write-target clash).
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -910,17 +910,17 @@ def _case_study_draft(
     *,
     title: str,
     entity_id: "str | None" = None,
-    workspace_id: "str | None" = None,
+    form_instance_id: "str | None" = None,
 ) -> ConceptDraft:
     key = ConceptKey(
         rel_path=rel_path,
         concept_type="case_study",
         grain=(
-            "case_study_won_bid" if workspace_id is not None
+            "case_study_won_bid" if form_instance_id is not None
             else "case_study_named_client"
         ),
         entity_id=entity_id,
-        workspace_id=workspace_id,
+        form_instance_id=form_instance_id,
     )
     body = (
         f"A distilled synthesis about {title}.\n\n"
@@ -952,7 +952,7 @@ def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
         "case-studies/acme-ltd.md",
         title="Acme Ltd (won-bid outcome)",
         entity_id="Acme Ltd",
-        workspace_id=_SAMPLE_UUID,
+        form_instance_id=_SAMPLE_UUID,
     )
 
     summary = bundle_writer.write_bundle(tmp_path, [named_client, won_bid])
@@ -1039,7 +1039,7 @@ def _multi_level_drafts():
             "case-studies/acme-ltd.md",
             title="Acme Ltd won bid",
             entity_id="Acme Ltd",
-            workspace_id=_SAMPLE_UUID,
+            form_instance_id=_SAMPLE_UUID,
         ),
         _draft(
             "case-studies/won-bid/2025/legacy.md",
@@ -2590,7 +2590,7 @@ class TestAGrainIsOneRegistryEntry:
             concept_type="won_bid",  # relabelled: no longer 'case_study'
             grain=l_records.WON_BID_GRAIN,
             entity_id="Acme Corp",
-            workspace_id="ws-1",
+            form_instance_id="ws-1",
         )
 
         assert (

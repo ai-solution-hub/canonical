@@ -76,7 +76,7 @@ machine-readable per-run proposed-change set (`proposed_change_set` —
 the DR-016 shape the follow-on accept/edit/reject review UI binds to,
 reshaped from the same reconcile decisions this module already renders
 into `log.md`). Each proposed-change entry reserves a per-entry
-`source_workspace_id` provenance slot that `{132.22}`
+`source_form_instance_id` provenance slot that `{132.22}`
 G-BIDOUTCOME-PROPOSAL stamps onto won-bid DRAFT proposals (BI-28) — the
 extension is a value-set on this shape, never a schema change. The flow
 assembly that wires the per-run `stage_only=True` staging call and
@@ -245,7 +245,7 @@ class ProposedChange:
     set (BI-27/DR-016 — the DR-016 shape the follow-on accept/edit/reject
     review UI binds to). `change_kind` is one of `add` / `modify` / `remove`
     / `unchanged` / `human_edit_conflict` / `augmentation_refused`.
-    `source_workspace_id` is the per-entry provenance slot `{132.22}`
+    `source_form_instance_id` is the per-entry provenance slot `{132.22}`
     G-BIDOUTCOME-PROPOSAL stamps onto won-bid DRAFT proposals (BI-28); it
     defaults to `None` for the ordinary Pass-1/Pass-2 producer flow."""
 
@@ -253,7 +253,7 @@ class ProposedChange:
     change_kind: str
     field_changes: "tuple[ProposedFieldChange, ...]" = ()
     dropped_citations: "tuple[str, ...]" = ()
-    source_workspace_id: "str | None" = None
+    source_form_instance_id: "str | None" = None
 
     def to_json_dict(self) -> "dict[str, object]":
         """A JSON-serialisable view — the review UI (DR-016 shape) binds to
@@ -266,7 +266,7 @@ class ProposedChange:
                 for fc in self.field_changes
             ],
             "dropped_citations": list(self.dropped_citations),
-            "source_workspace_id": self.source_workspace_id,
+            "source_form_instance_id": self.source_form_instance_id,
         }
 
 
@@ -754,7 +754,7 @@ def sync_bundle(
     commit_message: "str | None" = None,
     timestamp: "str | None" = None,
     stage_only: bool = False,
-    source_workspace_ids: "Mapping[str, str] | None" = None,
+    source_form_instance_ids: "Mapping[str, str] | None" = None,
 ) -> SyncResult:
     """The per-run G-GITSYNC orchestration (BI-14/18/19/22/27): 3-way
     reconcile + augmentation-guard EVERY managed path, apply what is safe,
@@ -779,14 +779,18 @@ def sync_bundle(
     the publish gate (`producer/publish.py`, which calls this with the default
     `stage_only=False`), not made per-run. `result.staged` reflects the mode.
 
-    `source_workspace_ids` (S443 amendment, BI-28 / {132.22}
-    G-BIDOUTCOME-PROPOSAL) is an optional `concept_path -> workspace_id`
+    `source_form_instance_ids` (S443 amendment, BI-28 / {132.22}
+    G-BIDOUTCOME-PROPOSAL) is an optional `concept_path -> form_instance_id`
     provenance map: for each managed path present in it, the emitted
-    `ProposedChange` is stamped with that `source_workspace_id`, so the
+    `ProposedChange` is stamped with that `source_form_instance_id`, so the
     accept/edit/reject review UI can attribute a bid-outcome-seeded (won-bid
-    `case_study`) draft to the procurement `workspaces.id` that seeded it (the
-    id originates on the won-bid concept's `ConceptKey.workspace_id`,
-    {132.21}). This extends the {132.24} substrate BY VALUE — no schema change;
+    `case_study`) draft to the won `form_instances.id` that seeded it (the id
+    originates on the won-bid concept's `ConceptKey.form_instance_id`,
+    {132.21}). **ID-427 {427.12} corrected this sentence as well as the
+    identifier:** it read "the procurement `workspaces.id`", which has been
+    wrong since {145.24} re-pointed the value onto the won form's own id —
+    the misdescription is exactly the confusion id-358 was raised to end.
+    This extends the {132.24} substrate BY VALUE — no schema change;
     a path absent from the map keeps the per-entry `None` default. The caller
     (the {132.16}/{132.23} flow assembly) builds this map from the run's
     `ConceptKey`s; when omitted, every entry is unstamped, exactly as the
@@ -848,18 +852,18 @@ def sync_bundle(
     captured_overrides = tuple(
         override for d in decisions for override in d.captured
     )
-    # BI-28 / {132.22}: stamp the per-entry `source_workspace_id` provenance
+    # BI-28 / {132.22}: stamp the per-entry `source_form_instance_id` provenance
     # for bid-outcome-seeded (won-bid case_study) concepts from the supplied
-    # `concept_path -> workspace_id` map — a value-set on the {132.24} slot, not
+    # `concept_path -> form_instance_id` map — a value-set on the {132.24} slot, not
     # a schema change; a path absent from the map keeps the `None` default.
-    workspace_provenance = source_workspace_ids or {}
+    form_instance_provenance = source_form_instance_ids or {}
     proposed_changes = tuple(
         ProposedChange(
             concept_path=d.rel_path,
             change_kind=_change_kind(d),
             field_changes=_field_changes(d),
             dropped_citations=d.dropped_citations,
-            source_workspace_id=workspace_provenance.get(d.rel_path),
+            source_form_instance_id=form_instance_provenance.get(d.rel_path),
         )
         for d in decisions
     )
@@ -918,7 +922,7 @@ def proposed_change_set(
     per-run proposed-change set (BI-27/DR-016 — the DR-016 shape the follow-on
     accept/edit/reject review UI binds to). This is the same reconcile data
     this module renders into `log.md`, re-projected as structured records
-    rather than prose. Every entry carries a per-entry `source_workspace_id`
+    rather than prose. Every entry carries a per-entry `source_form_instance_id`
     provenance slot (`{132.22}` G-BIDOUTCOME-PROPOSAL, BI-28)."""
     return {
         "schema": "okf.producer.proposed-change-set/v1",

@@ -252,15 +252,22 @@ def _product_raw() -> ConceptRaw:
 
 
 def _won_bid_case_study_key() -> ConceptKey:
-    """{132.28}: the S443-amendment won-bid case_study locator — `workspace_id`
-    set, `scope_tag`/`domain`/`subtopic` unset (routes `_qa_pairs_anchor` to
-    `None`, per `_annotate_raw_with_anchors`'s existing case_study posture)."""
+    """{132.28}: the S443-amendment won-bid case_study locator —
+    `form_instance_id` set, `scope_tag`/`domain`/`subtopic` unset (routes
+    `_qa_pairs_anchor` to `None`, per `_annotate_raw_with_anchors`'s existing
+    case_study posture).
+
+    **ID-427 {427.12} / id-358:** the locator field was named `workspace_id`
+    until this rename; it has held a `form_instances.id` since {145.24}. The
+    `"workspace_id"`/`"source_workspace_id"` keys still present in
+    `_won_bid_raw()` below are a DIFFERENT thing and are deliberately NOT
+    renamed — see that helper's docstring."""
     return ConceptKey(
         rel_path="case-studies/acme-corp.md",
         concept_type="case_study",
         grain="case_study_won_bid",
         entity_id="Acme Corp",
-        workspace_id=_WS_ID,
+        form_instance_id=_WS_ID,
     )
 
 
@@ -268,7 +275,19 @@ def _won_bid_raw() -> ConceptRaw:
     """{132.28}: a won-bid case_study `ConceptRaw` — the `workspaces`/
     `form_templates` buckets `{132.21}` shipped (buyer identity +
     `outcome_notes`) plus a published `derived_from_form_response` q_a row
-    carrying `source_workspace_id` provenance."""
+    carrying `source_workspace_id` provenance.
+
+    **NOT renamed by ID-427 {427.12} / id-358, deliberately.** The
+    `"workspace_id"` and `"source_workspace_id"` keys below are fabricated
+    *DB row* keys, not the `ConceptKey`/`ProposedChange` field id-358
+    renamed. Measured against Platform staging this pass
+    (`information_schema.columns`): `form_instances` has **no**
+    `workspace_id` column and `q_a_pairs` has **no** `source_workspace_id`
+    column — both were dropped by {145.6} W1c, so these fixture keys name
+    columns that no longer exist. That is stale-fixture debt from the
+    {145.24} lineage migration, NOT naming debt from id-358, and correcting
+    it changes what these payload assertions claim about row shape. Left as
+    found and reported as a follow-up rather than folded into a rename."""
     return ConceptRaw(
         workspaces=[
             {

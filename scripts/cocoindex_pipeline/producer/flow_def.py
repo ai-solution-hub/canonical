@@ -80,10 +80,10 @@ Two more pieces wire in at this same seam:
   seam accepts whatever the caller supplies, exactly like every other
   injection seam in this module.
 - **BI-28 provenance map ({132.21}/{132.22}).** `git_sync.sync_bundle`'s
-  `source_workspace_ids` — a `concept_path -> workspace_id` map — is built
-  HERE from every won-bid `case_study` `ConceptKey.workspace_id` this run's
+  `source_form_instance_ids` — a `concept_path -> form_instance_id` map — is
+  built HERE from every won-bid `case_study` `ConceptKey.form_instance_id` this run's
   `list_concepts()` enumerated, so a won-bid entry in the emitted
-  `proposed_change_set` carries its `source_workspace_id` (BI-28: "never an
+  `proposed_change_set` carries its `source_form_instance_id` (BI-28: "never an
   automatic bundle write ... gated by human accept/edit/reject review").
 
 **Physical-vs-identity key reconciliation (ID-132 {132.29} fix-forward).**
@@ -300,8 +300,8 @@ async def _draft_concepts(
     draft failed this run — a superset-by-shape of `failures` (which keeps
     the rel_path string + error text for the warning log), kept as the raw
     key object because `run_producer_flow` needs `bundle_writer.
-    bundle_write_path_for_key` (which requires `.concept_type`/
-    `.workspace_id`, not just a rel_path string) to resolve each failure to
+    bundle_write_path_for_key` (which requires `.grain` alongside `.rel_path`,
+    not just a rel_path string) to resolve each failure to
     its PHYSICAL bundle write path before threading it into `write_bundle`'s
     `failed_rel_paths` — so a transient failure is never mistaken for a
     confirmed source deletion (Defect B)."""
@@ -453,9 +453,9 @@ async def run_producer_flow(
          `re_target` is supplied (skipped otherwise — BI-25/26).
       5. `git_sync.reapply_overrides(...)` folds any injected `overrides` onto
          this run's bundle output, then `git_sync.sync_bundle(...,
-         stage_only=True, source_workspace_ids=...)` — STAGING (apply +
+         stage_only=True, source_form_instance_ids=...)` — STAGING (apply +
          `git add`, no commit; BI-28 provenance stamped from every won-bid
-         `ConceptKey.workspace_id`) — when a `repo_path` is supplied AND the
+         `ConceptKey.form_instance_id`) — when a `repo_path` is supplied AND the
          run is not a log.md-only no-op (owner ruling S456). Skipped
          otherwise. The ONE gated commit is a SEPARATE, later action
          (`publish.publish_bundle`/`producer publish`), never made here.
@@ -612,19 +612,19 @@ async def run_producer_flow(
         # dropped by a fresh regeneration.
         new_output = reapply_overrides(new_output, overrides)
 
-    # BI-28 provenance ({132.21}/{132.22}): concept_path -> workspace_id, from
-    # every won-bid case_study ConceptKey this run enumerated. Keyed by the
+    # BI-28 provenance ({132.21}/{132.22}): concept_path -> form_instance_id,
+    # from every won-bid case_study ConceptKey this run enumerated. Keyed by the
     # PHYSICAL bundle write path (bundle_write_path_for_key) — NOT the
     # identity key.rel_path — because `sync_bundle`'s `proposed_changes` are
     # built from `new_output` (this run's on-disk bundle contents, i.e.
     # physical paths); an identity-keyed map here would never match a
     # redirected won-bid entry (ID-132 {132.29} checker-FAIL remediation). A
-    # path absent from the map keeps ProposedChange.source_workspace_id at
+    # path absent from the map keeps ProposedChange.source_form_instance_id at
     # its None default (the ordinary Pass-1/Pass-2 producer flow).
-    source_workspace_ids = {
-        bundle_write_path_for_key(key): key.workspace_id
+    source_form_instance_ids = {
+        bundle_write_path_for_key(key): key.form_instance_id
         for key in concepts
-        if key.workspace_id is not None
+        if key.form_instance_id is not None
     }
 
     sync_result = sync_bundle(
@@ -633,7 +633,7 @@ async def run_producer_flow(
         removed_paths=summary.removed,
         timestamp=timestamp,
         stage_only=True,
-        source_workspace_ids=source_workspace_ids or None,
+        source_form_instance_ids=source_form_instance_ids or None,
     )
     return ProducerRunReport(
         summary=summary,
