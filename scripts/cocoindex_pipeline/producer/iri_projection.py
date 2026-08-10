@@ -281,10 +281,16 @@ def project_context(
     closed-vocabulary registers the BI-13 gate lints against — but as the
     EXCLUSION filter that keeps base terms out. ID-427 {427.5} dropped the
     `concept_types` dimension: concept `type` is a shape-validated label
-    with no base register, so no concept-type term mints an IRI here. A
-    client's DECLARED concept types still reach consumers, via
-    `ontology.json`'s `overlay.concept_types` echo — see
-    `lib/okf/bundle-graph.ts`'s `readOntologySignals`.
+    with no base register, so no concept-type term mints an IRI here.
+
+    The sentence that stood here — that a client's DECLARED concept types
+    still reach consumers via `ontology.json`'s `overlay.concept_types`
+    echo — is retired, not relocated. Its named reader
+    (`lib/okf/bundle-graph.ts`'s `readOntologySignals`) went with the S550
+    concept-type channel retirement, and the echo itself went with the
+    S550 retirement of the overlay dimension (`bundle_writer.
+    _OVERLAY_DIMENSIONS`). A client declares entity and relationship types;
+    concept types are declared by the concepts themselves.
 
     `client_id=None` (IRI-6, no `OKF_CLIENT_ID` set at the {132.44} call
     site): the `"client"` prefix and every overlay-term entry are OMITTED

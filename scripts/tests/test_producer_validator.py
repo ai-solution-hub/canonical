@@ -17,6 +17,7 @@ No concept is written/published unless it passes this gate (PRODUCT.md BI-13)
 site.
 """
 
+import dataclasses
 import uuid
 
 import pytest
@@ -861,8 +862,12 @@ def test_a_client_type_needs_no_overlay_to_be_accepted():
     # `ontology-overlay.json`. DR-141 withdraws the permission model for
     # this dimension, so the behavioural claim inverts: the same label is
     # accepted either way, and an overlay changes nothing about it.
+    # S550: the "with an overlay" half is now vehicled on a real overlay
+    # (`entity_types` widens something), because an overlay can no longer
+    # declare a concept type at all. The claim is unchanged and sharper —
+    # the same label is accepted either way.
     without = v.check_concept(_valid_frontmatter(type="widget_type"), body=_VALID_BODY)
-    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+    eo = v.EffectiveOntology.compose({"entity_types": ["widget"]})
     with_overlay = v.check_concept(
         _valid_frontmatter(type="widget_type"), body=_VALID_BODY, effective_ontology=eo
     )
@@ -870,14 +875,24 @@ def test_a_client_type_needs_no_overlay_to_be_accepted():
     assert with_overlay == []
 
 
-def test_an_overlay_declaring_concept_types_stays_schema_valid_and_composes_nothing():
-    # {427.11} owns the artefact half. Here: an overlay may still DECLARE
-    # `concept_types` (the key stays in the closed overlay schema, and a
-    # shipped client bundle carrying one must not start failing), but the
-    # composed ontology has no such dimension to widen.
-    eo = v.EffectiveOntology.compose({"concept_types": ["widget_type"]})
+def test_the_effective_ontology_has_exactly_the_two_composable_dimensions():
+    # INVERTS `test_an_overlay_declaring_concept_types_stays_schema_valid_
+    # and_composes_nothing`, whose subject was that the key stayed
+    # schema-valid while composing nothing. S550 retired the slot: the
+    # schema gate refuses it outright (asserted at its own layer, in
+    # `test_producer_bundle_writer.py` — `_validate_overlay_schema` is
+    # where the overlay file is parsed, not here).
+    #
+    # What belongs at THIS layer is the shape the gate protects: a
+    # dimension exists to be composed, so a third field re-appearing on
+    # this dataclass is the defect to catch. Asserted as an exact field
+    # set, so re-adding one fails loudly rather than being absorbed.
+    assert {f.name for f in dataclasses.fields(v.EffectiveOntology)} == {
+        "entity_types",
+        "relationship_types",
+    }
+    eo = v.EffectiveOntology.compose({"entity_types": ["widget"]})
     assert not hasattr(eo, "concept_types")
-    assert eo == v.EffectiveOntology.base_only()
 
 
 def test_lint_entity_relation_mentions_rejects_overlay_entity_type_without_effective_ontology():

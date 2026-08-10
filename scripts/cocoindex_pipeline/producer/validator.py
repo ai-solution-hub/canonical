@@ -241,6 +241,13 @@ ALLOWED_RELATIONSHIP_TYPES = frozenset(
 # `_CLASS_CONCEPT_TYPES`/`base_for_class` deleted with it — the owner's S546
 # uniformity ruling: bundle classes are conformant and uniform, so
 # `system_baseline` is no longer gated against its own five-type set either.
+#
+# **And no longer DECLARABLE either, since S550.** {427.5} left the key
+# schema-valid in `ontology-overlay.json`, composing nothing — a slot for
+# widening a set that no longer exists. DR-054's contract is that an
+# overlay WIDENS legality, and DR-141 removed the legality this dimension
+# widened, so the slot serves no live requirement and
+# `bundle_writer._validate_overlay_schema` now refuses it.
 # ──────────────────────────────────────────
 
 
@@ -282,11 +289,10 @@ class EffectiveOntology:
         exactly `base_only()`. Restating a base term is an idempotent union
         no-op (OV-3).
 
-        An overlay's `concept_types` key stays SCHEMA-VALID
-        (`bundle_writer._OVERLAY_DIMENSIONS` keeps all three keys, and the
-        artefact still echoes the client's declared terms) but composes
-        nothing and gates nothing — under DR-141 a concept type needs no
-        permission to be emitted, so there is no set for it to widen."""
+        There are exactly TWO dimensions to compose. `concept_types` was a
+        third until S550 and is now refused by the overlay schema itself
+        (`bundle_writer._validate_overlay_schema`) — see the block comment
+        above this class for the ground."""
         if overlay is None:
             return cls.base_only()
         return cls(

@@ -26,9 +26,10 @@ export type OkfBundleClassSignal = 'client' | 'platform' | 'unknown';
 // here, along with the `typeDeclaration` node field below and the node-border
 // colour channel it drove. It was partly collinear with `bundleClass`, which
 // `<ConceptGraph>` already encodes as node SHAPE. Its own predecessor
-// `OkfIriScope` had gone the same way at ID-427 {427.14}. The PRODUCER still
-// emits `overlay.concept_types` into `ontology.json`; nothing on the wire
-// carries it — see `lib/okf/bundle-graph.ts` module doc §4.
+// `OkfIriScope` had gone the same way at ID-427 {427.14}. The producer's
+// `overlay.concept_types` dimension followed later in S550, so nothing
+// emits it and nothing on the wire carries it — see `lib/okf/bundle-graph.ts`
+// module doc §4.
 
 /** Relationship type of a resolved internal `.md` link — see `lib/okf/bundle-graph.ts` module doc §4. */
 export type OkfEdgeRelationship = 'cites' | 'related';

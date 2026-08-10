@@ -348,14 +348,14 @@ class TestClientIdNone:
     def test_client_id_none_never_raises(self):
         eo = EffectiveOntology.compose(
             {
-                # `concept_types` stays SCHEMA-valid in an overlay file
-                # ({427.11} keeps the key) but composes nothing now.
-                "concept_types": ["acme_widget"],
+                # S550 dropped the `concept_types` entry this fixture
+                # carried: the overlay schema now refuses that key, so an
+                # overlay carrying one cannot reach `compose` at all.
                 "entity_types": ["acme_entity"],
                 "relationship_types": ["acme_relation"],
             }
         )
-        # Must not raise despite three un-projected overlay dimensions.
+        # Must not raise despite both overlay dimensions going un-projected.
         ip.project_context(eo, client_id=None)
 
     def test_client_id_none_logs_warning(self, caplog):

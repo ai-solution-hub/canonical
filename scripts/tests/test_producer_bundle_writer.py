@@ -1507,17 +1507,16 @@ def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
     overlay = {
         "source": "ontology-overlay.json",
         "sha256": "d34db33f" * 8,
-        "concept_types": [],
         "entity_types": ["widget"],
         "relationship_types": [],
     }
     content = bundle_writer.write_ontology_artefact(tmp_path, client_overlay=overlay)
     payload = json.loads(content)
 
-    # The overlay is still echoed VERBATIM, `concept_types` key and all —
-    # a client bundle declaring concept types stays schema-valid and its
-    # declaration still surfaces in the artefact; it simply no longer
-    # gates any write ({427.5}).
+    # The overlay is echoed VERBATIM — this writer is a pure echo and does
+    # not know the schema. The `concept_types: []` entry this fixture
+    # carried retired at S550 with the dimension itself; `read_client_
+    # overlay` can no longer produce one.
     assert payload["overlay"] == overlay
     # The two `payload["base"][...]` assertions that stood here are
     # INVERTED, not dropped: {427.11} retires the key they read.
@@ -1542,19 +1541,23 @@ def test_base_ontology_snapshot_is_absent_from_the_module() -> None:
     )
 
 
-def test_overlay_schema_still_admits_all_three_dimensions() -> None:
-    """OV-2's closed schema keeps all THREE keys, `concept_types` included
-    (TECH §2.10): the overlay file is client-authored and the schema is
-    closed, so dropping the key would turn an already-valid client file
-    into a fail-loud validation error. The key still MEANS something — it
-    declares the client's own vocabulary for the artefact echo, which
-    `lib/okf/bundle-graph.ts` reads as a styling signal — it simply feeds
-    no gate."""
+def test_the_overlay_schema_admits_exactly_the_two_widening_dimensions() -> None:
+    """INVERTS the {427.11} guard that pinned all THREE keys with
+    `concept_types` included. That guard's stated reason was
+    backwards-compatibility for an already-valid client file; the owner
+    rejected it at S550 (nothing is live, so nothing is compatible with
+    the old shape) and the requirement reason is the load-bearing one:
+    DR-054 admits a dimension so an overlay can WIDEN legality, and DR-141
+    withdrew the concept-type legality gate, leaving nothing to widen.
+
+    Pinned as an EXACT tuple, both halves, so 'tidying' in either
+    direction fails loudly — re-adding the retired key, or quietly
+    dropping one of the two dimensions that still compose."""
     assert bundle_writer._OVERLAY_DIMENSIONS == (
-        "concept_types",
         "entity_types",
         "relationship_types",
     )
+    assert "concept_types" not in bundle_writer._OVERLAY_DIMENSIONS
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1888,7 +1891,7 @@ def test_write_bundle_is_base_only_when_no_overlay_file_present(tmp_path: Path) 
 
 
 def test_overlay_with_known_keys_parses(tmp_path: Path) -> None:
-    """OV-2: the three permitted dimension keys parse; an omitted key
+    """OV-2: the two permitted dimension keys parse; an omitted key
     defaults to an empty list."""
     (tmp_path / "ontology-overlay.json").write_text(
         json.dumps({"entity_types": ["widget"], "relationship_types": ["partners_with"]}),
@@ -1898,7 +1901,10 @@ def test_overlay_with_known_keys_parses(tmp_path: Path) -> None:
 
     assert overlay["entity_types"] == ["widget"]
     assert overlay["relationship_types"] == ["partners_with"]
-    assert overlay["concept_types"] == []
+    # S550: the retired dimension is not defaulted-in either — a reader
+    # must not find an empty `concept_types` list to mistake for a
+    # declaration the client never made.
+    assert "concept_types" not in overlay
 
 
 def test_overlay_with_unknown_key_fails_loud(tmp_path: Path) -> None:
@@ -1992,10 +1998,12 @@ def test_overlay_present_empty_is_distinct_from_overlay_absent(tmp_path: Path) -
 
     overlay = present_ontology["overlay"]
     assert overlay is not None
-    assert overlay["concept_types"] == []
     assert overlay["entity_types"] == []
     assert overlay["relationship_types"] == []
     assert overlay["source"] == "ontology-overlay.json"
+    # S550: the composed shape is provenance + the two surviving
+    # dimensions, and nothing else.
+    assert set(overlay) == {"source", "sha256", "entity_types", "relationship_types"}
 
 
 def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
@@ -2007,9 +2015,14 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     "only_with_overlay" in its name is the inversion DR-141 withdrew.
 
     Asserted the other way round now, at the same `write_bundle` surface:
-    the SAME concept is written with no overlay AND with one, and a shipped
-    client bundle that still declares `concept_types` keeps validating (the
-    overlay key stays schema-valid — {427.11} owns the artefact half)."""
+    the SAME concept type is written with no overlay AND with one.
+
+    S550 re-vehicled the second half onto an `entity_types` overlay. The
+    fixture used to declare `concept_types: ["widget_type"]`, which made
+    the claim weaker than it looked — it read as "the overlay granted the
+    permission after all". A client bundle can no longer declare a concept
+    type AT ALL, so `widget_type` is written beside an overlay that has no
+    way of mentioning it. That is the DR-141 posture stated exactly."""
     draft = _draft("topics/widget.md", title="Widget", type="widget_type")
 
     no_overlay_dir = tmp_path / "no-overlay"
@@ -2022,7 +2035,7 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     overlay_dir = tmp_path / "with-overlay"
     overlay_dir.mkdir()
     (overlay_dir / "ontology-overlay.json").write_text(
-        json.dumps({"concept_types": ["widget_type"]}), encoding="utf-8"
+        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
     )
     overlay_summary = bundle_writer.write_bundle(
         overlay_dir, [draft], bundle_class="client_business"
@@ -2032,41 +2045,87 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     assert (overlay_dir / "topics/widget.md").exists()
 
 
-def test_client_concept_types_overlay_echoes_into_the_artefact_and_gates_nothing(
+def test_an_overlay_declaring_the_retired_concept_types_dimension_is_refused(
     tmp_path: Path,
 ) -> None:
-    """The three halves of a shipped client bundle that still declares
-    `concept_types`, asserted together on ONE run because they are one
-    claim ({427.11}): the overlay still VALIDATES (OV-2's schema keeps the
-    key), its terms are still ECHOED into the artefact's `overlay` (DR-054's
-    carrier, re-affirmed S546), and it GATES NOTHING — a concept whose type
-    the overlay never mentions is written on the same run as one it does.
+    """INVERTS `test_client_concept_types_overlay_echoes_into_the_artefact_
+    and_gates_nothing`, whose subject was that this key still validated and
+    still echoed. S550 retires the dimension, so a declaring overlay is now
+    a fail-loud OV-5 abort, and NOTHING is published on the run.
 
-    The echo matters beyond bookkeeping: it is the only surface on which a
-    client's declared vocabulary reaches a bundle consumer now that the
-    `base` snapshot is gone."""
+    The MESSAGE is asserted, not just the exception type. The generic
+    unknown-key text would be the wrong diagnosis: `concept_types` is
+    neither a typo nor an invention, it is a dimension that was documented
+    and then retired, and OVERLAY-CV.md §OV-2 — the ratified carrier a
+    client is handed — still lists it. The failure has to say which of
+    those it is, or an author who followed the spec has nowhere to go."""
     declared = _draft("topics/declared.md", title="Declared", type="declared_type")
-    undeclared = _draft(
-        "topics/undeclared.md", title="Undeclared", type="undeclared_type"
-    )
     (tmp_path / "ontology-overlay.json").write_text(
         json.dumps({"concept_types": ["declared_type"]}), encoding="utf-8"
     )
 
-    summary = bundle_writer.write_bundle(
-        tmp_path, [declared, undeclared], bundle_class="client_business"
+    with pytest.raises(bundle_writer.OntologyOverlayError) as excinfo:
+        bundle_writer.write_bundle(
+            tmp_path, [declared], bundle_class="client_business"
+        )
+
+    message = str(excinfo.value)
+    assert "concept_types" in message
+    # Names the retirement and its ratified ground, so the author learns
+    # WHY rather than being told their key is unrecognised.
+    assert "RETIRED" in message
+    assert "DR-141" in message
+    # Points at what still works, so "remove the key" is actionable
+    # without a second trip to the spec.
+    assert "entity_types" in message and "relationship_types" in message
+    # Never the generic diagnosis — this assertion is what fails if the
+    # named branch is later 'tidied' into the unknown-key path.
+    assert "unknown top-level key" not in message
+
+    # OV-5 fail-loud is all-or-nothing: the run publishes nothing.
+    assert not (tmp_path / "topics/declared.md").exists()
+    assert not (tmp_path / "ontology.json").exists()
+
+
+def test_a_surviving_dimension_overlay_still_composes_and_still_echoes(
+    tmp_path: Path,
+) -> None:
+    """The half of the retired test that SURVIVES, kept so the S550
+    retirement cannot quietly take DR-054's carrier with it: an overlay
+    declaring the two remaining dimensions still validates, still WIDENS
+    the effective ontology (the thing DR-054 admits a dimension for), and
+    is still echoed into `ontology.json`.
+
+    The concept-type half is asserted alongside it in its DR-141 form —
+    the client's own `type` label is written on the same run by an overlay
+    that cannot mention it."""
+    concept = _draft("topics/widget.md", title="Widget", type="client_chosen_type")
+    (tmp_path / "ontology-overlay.json").write_text(
+        json.dumps(
+            {"entity_types": ["widget"], "relationship_types": ["partners_with"]}
+        ),
+        encoding="utf-8",
     )
 
-    # Gates nothing — the type the overlay never declared is written too.
-    assert summary.validator_failures == ()
-    assert set(summary.added) == {"topics/declared.md", "topics/undeclared.md"}
-    assert (tmp_path / "topics/undeclared.md").exists()
+    summary = bundle_writer.write_bundle(
+        tmp_path, [concept], bundle_class="client_business"
+    )
 
-    # Still echoed, verbatim, into the surviving carrier.
+    assert summary.validator_failures == ()
+    assert summary.added == ("topics/widget.md",)
+
     payload = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
-    assert payload["overlay"]["concept_types"] == ["declared_type"]
+    assert payload["overlay"]["entity_types"] == ["widget"]
+    assert payload["overlay"]["relationship_types"] == ["partners_with"]
     assert payload["overlay"]["source"] == "ontology-overlay.json"
+    assert "concept_types" not in payload["overlay"]
     assert "base" not in payload
+
+    # It WIDENS, which is the requirement DR-054 admits a dimension for —
+    # and the reason these two stayed while `concept_types` went.
+    composed = EffectiveOntology.compose(payload["overlay"])
+    assert "widget" in composed.entity_types
+    assert "partners_with" in composed.relationship_types
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -2106,25 +2165,29 @@ def test_write_bundle_hard_rejects_overlay_for_each_non_client_business_class(
         assert not (tmp_path / "log.md").exists()
 
 
-def test_a_concept_types_only_stray_overlay_still_trips_the_class_gate(
+def test_a_declaration_free_stray_overlay_still_trips_the_class_gate(
     tmp_path: Path,
 ) -> None:
-    """The OV-10 class gate is UNCHANGED by {427.11} — asserted here in the
-    one adjacency where the deletion could plausibly be mistaken for
-    reaching it.
+    """The OV-10 class gate is UNCHANGED by {427.11} or by S550 — asserted
+    here in the one adjacency where either deletion could plausibly be
+    mistaken for reaching it.
 
-    `concept_types` is now the inert dimension: it composes nothing and
-    gates no write. The tempting inference is that an overlay declaring
-    ONLY `concept_types` is therefore harmless in a platform-owned bundle.
-    It is not. DR-054/DR-079's gate is keyed on the FILE's presence in a
-    non-`client_business` class, never on what the file happens to
-    declare, and its live requirement — a platform-owned bundle must never
-    compose client-owned config — is untouched by DR-027's amendment. This
-    test fails the moment someone 'tidies' the gate to skip inert
-    dimensions."""
-    (tmp_path / "ontology-overlay.json").write_text(
-        json.dumps({"concept_types": ["bespoke_type"]}), encoding="utf-8"
-    )
+    The tempting inference is that an overlay declaring NOTHING is
+    harmless in a platform-owned bundle, since it composes nothing and
+    widens nothing. It is not. DR-054/DR-079's gate is keyed on the FILE's
+    presence in a non-`client_business` class, never on what the file
+    happens to declare, and its live requirement — a platform-owned bundle
+    must never compose client-owned config — is untouched by either
+    retirement. This test fails the moment someone 'tidies' the gate to
+    skip empty or inert overlays.
+
+    S550 re-vehicled the fixture from `{"concept_types": [...]}` onto `{}`.
+    The old vehicle stopped reaching this gate at all: schema validation
+    runs first in `write_bundle`, so a retired-dimension overlay now fails
+    as a schema error and this test would have passed for the wrong
+    reason. An empty object is the stronger vehicle anyway — it is the
+    maximally inert overlay that is still schema-valid."""
+    (tmp_path / "ontology-overlay.json").write_text(json.dumps({}), encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
     for non_client_class in ("system_baseline", "showcase", "internal_dev"):

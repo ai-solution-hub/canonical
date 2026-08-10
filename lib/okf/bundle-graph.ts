@@ -82,10 +82,16 @@
  * channels: shape, opacity, edge colour); `<ConceptGraph>` draws one uniform
  * neutral chrome border on every node, which is chrome, not a channel.
  *
- * **The PRODUCER side is untouched.** `ontology.json` still carries
- * `overlay.concept_types` (`producer/bundle_writer.py::read_client_overlay`,
- * OV-2/OV-6) and this module still opens that same artefact for §2's
- * `bundleClass` — only the concept-type READER retired.
+ * **The producer side followed.** When the reader above retired, this note
+ * read "the PRODUCER side is untouched — `ontology.json` still carries
+ * `overlay.concept_types`". It no longer does: the owner retired the
+ * overlay dimension itself at S550 (`producer/bundle_writer.py`'s
+ * `_OVERLAY_DIMENSIONS`), on the requirement ground that DR-054 admits a
+ * dimension so an overlay may WIDEN legality and DR-141 withdrew the
+ * concept-type legality gate. `ontology.json` and its `overlay` key are
+ * untouched, and this module still opens that same artefact for §2's
+ * `bundleClass` — it is the concept-type dimension that is gone from both
+ * sides now, reader first.
  *
  * **OKF v0.2 `sources[]` provenance (id-439 consumer alignment, S546).**
  * The v0.2 producer (id-426) moved concept citations out of the
@@ -469,9 +475,9 @@ interface OntologyArtefact {
  * {427.14} briefly also pulled `overlay.concept_types` out of this same
  * parse to feed the concept-type declaration channel; S550 retired that
  * channel, so this reader is back to answering one question (its shape
- * before {427.14} merged the two reads). The producer still emits
- * `overlay.concept_types` — see the module doc — this consumer just no
- * longer looks inside.
+ * before {427.14} merged the two reads). The producer no longer emits
+ * `overlay.concept_types` at all — see the module doc — so there is
+ * nothing left inside for this reader to look at.
  *
  * Never throws.
  */

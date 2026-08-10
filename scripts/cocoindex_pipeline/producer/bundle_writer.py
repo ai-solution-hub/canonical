@@ -1102,21 +1102,58 @@ def require_client_business_bundle_class(
         )
 
 
-# OV-2: the overlay's three permitted top-level keys — closed schema, any
-# other key (including a singular typo like `entity_type`, or a `remove`/
+# OV-2: the overlay's permitted top-level keys — closed schema, any other
+# key (including a singular typo like `entity_type`, or a `remove`/
 # `exclude` mechanism) is a validation failure (OQ-OV-4/OV-3).
-_OVERLAY_DIMENSIONS = ("concept_types", "entity_types", "relationship_types")
+#
+# **TWO dimensions, not three (owner ruling, S550).** `concept_types` is
+# retired. DR-054's contract is that an overlay may WIDEN legality; DR-141
+# withdrew the closed, validator-enforced concept-type taxonomy, so concept
+# `type` is a descriptive label with no register behind it and there is no
+# legality for this dimension to widen. `entity_types`/`relationship_types`
+# still widen a real gate (`validator.EffectiveOntology` composes them and
+# the BI-13 lint enforces the result), which is why they stay. DR-141's own
+# Consequences put DR-054 in scope for exactly this amendment.
+_OVERLAY_DIMENSIONS = ("entity_types", "relationship_types")
+
+# The retired dimension, kept ONLY as a diagnosis (see `_validate_overlay_
+# schema`). This is a tombstone, not a slot: it is never read as data,
+# never composed, and never echoed.
+_RETIRED_OVERLAY_DIMENSIONS = ("concept_types",)
 
 
 def _validate_overlay_schema(data: object) -> "dict[str, list[str]]":
     """OV-2 (closed additive schema): `data` must be a JSON object whose
     ONLY permitted keys are `_OVERLAY_DIMENSIONS`, each a list of strings
     (a missing key defaults to an empty list — no extension for that
-    dimension). Raises `OntologyOverlayError` on any violation."""
+    dimension). Raises `OntologyOverlayError` on any violation.
+
+    A `_RETIRED_OVERLAY_DIMENSIONS` key is rejected like any other unknown
+    key (same exception, same fail-loud abort) but with a NAMED message
+    rather than the generic unknown-key text, and it is checked FIRST so
+    the specific diagnosis wins when a file carries both. The reason is
+    OV-5's own: the overlay is a CLIENT-authored file (DR-016) and
+    fail-loud exists so its author can act on the failure. `concept_types`
+    was a documented dimension, not a typo or an invention, and
+    `specs/id-132-okf-concept-producer/OVERLAY-CV.md` §OV-2 — the ratified
+    carrier a client is handed — still documents it as one of three
+    permitted keys. Until that spec is amended, telling an author their key
+    is "unknown" contradicts the document they followed and leaves them
+    nowhere to go. This branch may retire once OVERLAY-CV.md OV-2/OV-6 are
+    amended to two dimensions."""
     if not isinstance(data, dict):
         raise OntologyOverlayError(
             f"{OVERLAY_FILENAME} must be a JSON object at the top level, "
             f"got {type(data).__name__} (OV-2)"
+        )
+    retired_keys = sorted(set(data) & set(_RETIRED_OVERLAY_DIMENSIONS))
+    if retired_keys:
+        raise OntologyOverlayError(
+            f"{OVERLAY_FILENAME} declares {retired_keys}, a dimension "
+            "RETIRED under DR-141: a concept `type` is a descriptive label "
+            "rather than a gate, so the producer holds no concept-type "
+            "register for an overlay to widen. Remove the key — "
+            f"{list(_OVERLAY_DIMENSIONS)} are unaffected (OV-2)"
         )
     unknown_keys = sorted(set(data) - set(_OVERLAY_DIMENSIONS))
     if unknown_keys:
@@ -1141,8 +1178,9 @@ def read_client_overlay(bundle_dir: Path) -> "dict[str, object] | None":
     client-authored `ontology-overlay.json` at `bundle_dir`'s root.
 
     Returns the OV-6 provenance-wrapped mapping — `source` (the reserved
-    filename), `sha256` (of the file's raw bytes), plus the three OV-2
-    dimension keys — or `None` when the file is absent (OV-4/OV-11:
+    filename), `sha256` (of the file's raw bytes), plus the two OV-2
+    dimension keys (`concept_types` retired at S550, see
+    `_OVERLAY_DIMENSIONS`) — or `None` when the file is absent (OV-4/OV-11:
     absence is NOT an error, the bundle composes base-only). Raises
     `OntologyOverlayError` for a present-but-invalid file (OV-5, fail-loud)
     — never silently degrades to a base-only or partial result.
