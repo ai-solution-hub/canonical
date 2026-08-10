@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
+  KNOWN_TYPES,
   conceptTypeTokenVars,
   resolveConceptTypeColor,
   bundleClassShape,
@@ -86,26 +87,13 @@ describe('conceptTypeTokenVars', () => {
       ),
       'utf-8',
     );
-    // Recover the claimed keys from the module itself — probing a type
-    // returns its key, so the set under test is never hand-copied.
-    const claimed = [
-      'topic',
-      'product',
-      'company',
-      'certification',
-      'case_study',
-      'metric',
-      'dataset',
-      'playbook',
-      'schema',
-      'tool',
-      'api',
-      'navigation',
-      'reference',
-      'document',
-      'questionnaire_response',
-      'answer_set',
-    ].filter((t) => conceptTypeTokenVars(t).bg !== '--okf-concept-default-bg');
+    // Enumerate the REAL set, not a copy of it. This guard previously
+    // hand-copied the 16 strings while claiming it did not — so it caught a
+    // token deleted from the stylesheet but never a type added to
+    // `KNOWN_TYPES` without one, which is the only direction the legend
+    // actually grows. Found by the S548 adversarial audit, which added a
+    // bogus member and watched all 31 tests stay green.
+    const claimed = [...KNOWN_TYPES];
 
     const missing = claimed.flatMap((key) =>
       (['bg', 'text'] as const)

@@ -37,7 +37,14 @@ import type {
   OkfEdgeRelationship,
 } from '@/lib/query/okf';
 
-const KNOWN_TYPES = [
+// Exported ONLY so the `domain-tokens.css` guard test can enumerate the real
+// set (S548 adversarial audit). It previously hand-copied these strings while
+// its own comment claimed it did not, which made it directional: it caught a
+// token DELETED from the stylesheet, but never a type ADDED to this list
+// without one — and adding types is the path {427.6} itself took four times.
+// This is a colour LEGEND, never a vocabulary (DR-141): do not gate on it,
+// do not derive a narrow union from it, do not import it to validate a `type`.
+export const KNOWN_TYPES = [
   'topic',
   'product',
   'company',
