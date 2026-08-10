@@ -81,6 +81,7 @@ type LayoutName = (typeof LAYOUTS)[number];
 const FALLBACK_NODE_COLOR = 'oklch(0.65 0.012 48)'; // --okf-graph-node-fallback
 const SELECTED_BORDER_COLOR = 'oklch(0.6 0.14 70)'; // --okf-graph-selected-border
 const EDGE_COLOR = 'oklch(0.82 0.014 48)'; // --okf-graph-edge
+const LABEL_COLOR = 'oklch(0.25 0.016 48)'; // --okf-graph-label (light)
 
 interface ConceptGraphProps {
   nodes: OkfBundleGraphNode[];
@@ -190,6 +191,12 @@ export function ConceptGraph({
     // keeping `border-width: 2` would paint a black ring on every node.
     const neutralBorderColor =
       chrome?.fallbackNode ?? toRenderableColor(FALLBACK_NODE_COLOR);
+    // S550: the SAME hazard as the border above, in the sibling property.
+    // Cytoscape paints to a canvas, so an unset `color` does not inherit
+    // from CSS — it falls through to Cytoscape's own `'#000'` default,
+    // measured at 1.12:1 against the dark canvas by a real-browser review.
+    // Stated explicitly for the same reason `border-color` is.
+    const labelColor = chrome?.label ?? toRenderableColor(LABEL_COLOR);
     const cy = cytoscape({
       container: containerRef.current,
       elements,
@@ -199,6 +206,7 @@ export function ConceptGraph({
           style: {
             'background-color': 'data(color)',
             label: 'data(label)',
+            color: labelColor,
             'font-size': 11,
             'text-valign': 'bottom',
             'text-margin-y': 4,

@@ -319,6 +319,12 @@
   --okf-graph-node-fallback: var(--stone-400);
   --okf-graph-selected-border: var(--amber-solid);
   --okf-graph-edge: var(--stone-300);
+  /* Node LABEL colour. Net-new S550, from a real-browser contrast review:
+     the Cytoscape stylesheet set every text property EXCEPT `color`, so
+     Cytoscape's own `'#000'` default applied — 1.12:1 against the dark
+     canvas, i.e. unreadable. Exactly the hazard {427.14}'s retirement
+     avoided for `border-color`, still live in the sibling property. */
+  --okf-graph-label: var(--stone-800);
 
   /* Union-graph doctrine deltas (ID-132 {132.49} G-CONCEPT-GRAPH-UNION) —
      <ConceptGraph>'s edge line colour for relationship-typed edges (a
@@ -520,6 +526,7 @@
   --okf-graph-node-fallback: var(--stone-300);
   --okf-graph-selected-border: var(--amber-solid);
   --okf-graph-edge: var(--stone-400);
+  --okf-graph-label: var(--stone-200);
 
   /* Relevance score (dark) */
   --relevance-high: oklch(0.25 0.06 var(--hue-relevance-high));
@@ -720,6 +727,7 @@
   --color-okf-graph-node-fallback: var(--okf-graph-node-fallback);
   --color-okf-graph-selected-border: var(--okf-graph-selected-border);
   --color-okf-graph-edge: var(--okf-graph-edge);
+  --color-okf-graph-label: var(--okf-graph-label);
   --color-okf-graph-edge-cites: var(--okf-graph-edge-cites);
 
   --color-relevance-high: var(--relevance-high);

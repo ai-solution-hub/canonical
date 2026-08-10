@@ -406,6 +406,7 @@ describe('ConceptGraph', () => {
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
     );
+    document.documentElement.style.setProperty('--okf-graph-label', LABEL_TOKEN);
     document.documentElement.style.setProperty(
       '--okf-graph-edge-cites',
       'oklch(0.55 0.15 195)',
@@ -471,6 +472,7 @@ describe('ConceptGraph', () => {
 const DECLARED_TOKEN = 'oklch(0.55 0.15 290)';
 const NEUTRAL_TOKEN = 'oklch(0.65 0.012 48)';
 const SELECTED_TOKEN = 'oklch(0.6 0.14 70)';
+const LABEL_TOKEN = 'oklch(0.25 0.016 48)';
 
 interface CyStyleRule {
   selector: string;
@@ -561,6 +563,7 @@ describe('ConceptGraph — a node border is chrome now, and carries no concept-t
       '--okf-graph-edge',
       'oklch(0.82 0.014 48)',
     );
+    document.documentElement.style.setProperty('--okf-graph-label', LABEL_TOKEN);
     // Deliberately DEFINED, though nothing should read it — see the block
     // comment above. The retirement is proved against a live token.
     document.documentElement.style.setProperty(
@@ -592,6 +595,27 @@ describe('ConceptGraph — a node border is chrome now, and carries no concept-t
     // inherited border this retirement must not produce.
     expect(node.style['border-width']).toBe(2);
     expect(node.style['border-color']).toBeTruthy();
+  });
+
+  it('states the node LABEL colour, so Cytoscape cannot fall through to its #000 default', () => {
+    // S550, from a real-browser contrast review: the style array set every
+    // text property EXCEPT `color`, so Cytoscape's own `'#000'` default
+    // applied and dark-mode labels measured 1.12:1 against the canvas —
+    // effectively unreadable. This is the SAME hazard the sibling
+    // `border-color` assertion above guards, which is why it is asserted the
+    // same way: the colour must be STATED, and must be the resolved token
+    // rather than an omission or a per-node mapper.
+    renderBundle(bundleWithOverlay(['bid_response']));
+    const node = styleRuleFor('node');
+
+    expect(node.style.label).toBe('data(label)');
+    expect(node.style.color).toBe(LABEL_TOKEN);
+    expect(node.style.color).toBeTruthy();
+    // Never Cytoscape's default, whatever the token happens to resolve to.
+    expect(node.style.color).not.toBe('#000');
+    expect(node.style.color).not.toBe('#000000');
+    // Chrome, not a channel: one colour for every node, not a data mapper.
+    expect(node.style.color).not.toBe('data(labelColor)');
   });
 
   it('ADVERSARIAL — a bundle that DOES declare the concept type still reaches the canvas neutral', () => {

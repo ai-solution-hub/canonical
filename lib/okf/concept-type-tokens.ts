@@ -289,12 +289,17 @@ export interface GraphChromeTokenVars {
   fallbackNode: string;
   selectedBorder: string;
   edge: string;
+  label: string;
 }
 
 const GRAPH_CHROME_VARS: GraphChromeTokenVars = {
   fallbackNode: '--okf-graph-node-fallback',
   selectedBorder: '--okf-graph-selected-border',
   edge: '--okf-graph-edge',
+  // S550: the node LABEL colour. Cytoscape paints to a canvas, so an
+  // unset `color` falls through to its own `'#000'` default rather than
+  // inheriting anything from CSS — measured at 1.12:1 on the dark canvas.
+  label: '--okf-graph-label',
 };
 
 /**
@@ -317,11 +322,13 @@ export function resolveGraphChromeColors(): GraphChromeTokenVars | null {
     .getPropertyValue(GRAPH_CHROME_VARS.selectedBorder)
     .trim();
   const edge = styles.getPropertyValue(GRAPH_CHROME_VARS.edge).trim();
-  if (!fallbackNode || !selectedBorder || !edge) return null;
+  const label = styles.getPropertyValue(GRAPH_CHROME_VARS.label).trim();
+  if (!fallbackNode || !selectedBorder || !edge || !label) return null;
   return {
     fallbackNode: toRenderableColor(fallbackNode),
     selectedBorder: toRenderableColor(selectedBorder),
     edge: toRenderableColor(edge),
+    label: toRenderableColor(label),
   };
 }
 
