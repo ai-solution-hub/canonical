@@ -14,8 +14,6 @@
  *     one row lands (or the deadline is reached).
  *   - `assertOpIdRoundTrip(...)` — given an `entity_mentions.op_id`, asserts
  *     `pipeline_runs WHERE op_id = <value>` returns exactly one row (Inv-6).
- *   - `seedAliasMap(...)` / `cleanupAliasMap(...)` — INSERT active rows into
- *     `entity_aliases` and remove them in cleanup (Inv-10 preload).
  *   - `injectStage5Failure(...)` — credential-scoped Stage-5 failure injection
  *     (Inv-12/13) that produces a REAL exception from inside an UNMODIFIED
  *     resolution stack. The injection is honoured by the `/stage` + `/walk`
@@ -708,103 +706,6 @@ export async function pollPipelineRunCompleted(
   throw new Error(
     `pollPipelineRunCompleted: timed out after ${timeoutMs}ms waiting for pipeline_runs.status IN ('completed', 'completed_with_errors') for op_id ${opId}`,
   );
-}
-
-// ---------------------------------------------------------------------------
-// seedAliasMap / cleanupAliasMap
-// ---------------------------------------------------------------------------
-
-export interface AliasSeed {
-  /** The non-canonical surface form (the per-doc canonical the run produces). */
-  alias: string;
-  /** The canonical the alias resolves to (what Stage-5 should write). */
-  canonical: string;
-  /**
-   * Provenance label. MUST be one of the platform provenance vocabulary —
-   * `entity_aliases_provenance_check` allows only 'core' | 'client' |
-   * 'recommended' (2026-06-17 squash baseline). Defaults to 'client' (the
-   * right bucket for a runtime-inserted row; 'core' denotes platform-seeded
-   * baseline data).
-   */
-  provenance?: string;
-}
-
-export interface SeededAlias {
-  id: string;
-  alias: string;
-  canonical: string;
-}
-
-/**
- * INSERT one or more active rows into `entity_aliases` (Inv-10 legacy-alias
- * preload). Rows are inserted with `is_active = true` so Stage-5's
- * `_preload_entity_aliases` (`WHERE is_active = true`) picks them up.
- *
- * Returns the inserted rows (with ids) so the caller can assert + clean up.
- * Cleanup scoping is by the returned ids (`cleanupAliasMap`) — provenance
- * was never wired to any query, so a per-test provenance cannot scope
- * concurrent suites (the earlier guidance to pass a test-unique value was
- * inert AND violated `entity_aliases_provenance_check`).
- *
- * Throws when live-DB credentials are not real (callers must env-gate).
- */
-export async function seedAliasMap(seeds: AliasSeed[]): Promise<SeededAlias[]> {
-  if (!hasRealLiveDbCredentials()) {
-    throw new Error(
-      'seedAliasMap: live DB credentials are not real (or absent). Gate the caller behind hasRealLiveDbCredentials() first.',
-    );
-  }
-  if (seeds.length === 0) return [];
-
-  const client = await createLiveServiceClient();
-  const rows = seeds.map((s) => ({
-    alias: s.alias,
-    canonical: s.canonical,
-    is_active: true,
-    provenance: s.provenance ?? 'client',
-  }));
-
-  const { data, error } = await client
-    .from('entity_aliases')
-    .insert(rows)
-    .select('id, alias, canonical');
-
-  if (error) {
-    throw new Error(
-      `seedAliasMap: insert failed — ${error.message ?? String(error)}`,
-    );
-  }
-
-  return (data ?? []).map((r) => ({
-    id: r.id as string,
-    alias: r.alias as string,
-    canonical: r.canonical as string,
-  }));
-}
-
-/**
- * Remove seeded `entity_aliases` rows by id (best-effort cleanup). Refuses to
- * run with an empty id set (defensive scoping guard). Errors are logged and
- * swallowed so a partial cleanup does not block teardown.
- */
-export async function cleanupAliasMap(aliasIds: string[]): Promise<void> {
-  if (!hasRealLiveDbCredentials()) {
-    throw new Error(
-      'cleanupAliasMap: live DB credentials are not real (or absent). Gate the caller first.',
-    );
-  }
-  if (aliasIds.length === 0) return;
-
-  const client = await createLiveServiceClient();
-  const { error } = await client
-    .from('entity_aliases')
-    .delete()
-    .in('id', aliasIds);
-  if (error) {
-    console.warn(
-      `cleanupAliasMap: cleanup warning — ${error.message ?? String(error)}`,
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

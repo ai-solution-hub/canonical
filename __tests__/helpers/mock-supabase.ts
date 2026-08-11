@@ -262,10 +262,10 @@ export interface MockTableResolution<TData = any> {
  * @example Simple terminal `eq` resolution
  * ```ts
  * const supabase = createMockSupabaseTable({
- *   data: [{ alias: 'Examplia', canonical: 'Example Client Limited' }],
+ *   data: [{ id: 'row-1', label: 'Example' }],
  *   error: null,
  * });
- * await loadAliases(supabase);
+ * const { data } = await supabase.from('t').select('*').eq('id', 'row-1');
  * ```
  *
  * @example Override per-test

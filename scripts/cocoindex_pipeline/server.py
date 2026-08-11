@@ -111,19 +111,13 @@ _logger = logging.getLogger(__name__)
 #
 # See docs/audits/cocoindex-state-db-connection-crash-2026-05-26.md §7.5.
 #
-# id-379 {379.3} — the Event carries a REASON slot alongside it. Before this,
-# `mark_worker_crashed()` took no argument and `/health` hardcoded one literal,
-# so every lifespan-entry failure produced a byte-identical 503 body: the
-# {101.10} `entity_aliases` fail-closed gate and the asyncpg gaierror boot crash
-# were indistinguishable over HTTP, and settling a live crash cause needed a
-# container boot log instead of one request. The worker thread now records WHY
-# it died and `/health` returns that.
+# The Event carries a REASON slot alongside it so distinct lifespan-entry
+# failures do not produce a byte-identical 503 body.
 #
 # Thread-safety: the reason is written by the worker thread and read by the
 # aiohttp event loop, so it lives under a lock (same shape as _WALK_REGISTRY).
-# The Event stays the liveness source of truth — the reason is a diagnostic
-# payload hanging off it, and a crash recorded without one still reads as
-# crashed via the fallback literal below.
+# The Event stays the liveness source of truth — a crash recorded without a
+# reason still reads as crashed via the fallback literal below.
 
 _WORKER_CRASHED = threading.Event()
 _WORKER_CRASH_REASON_LOCK = threading.Lock()
@@ -147,14 +141,11 @@ _WORKER_CRASH_REASON_FALLBACK = "cocoindex worker thread crashed"
 #   2. BY SHAPE (backstop). Catches credentials that never came from our own
 #      environment — a third-party DSN, a key echoed from a remote response.
 #
-# Pass 1 exists because pass 2 alone provably failed. PR #159 review found the
-# `{101.10}` fail-closed gate in `flow.py` raising
-# `RuntimeError("[PIPELINE_CLIENT_ORG=<value>] fail-closed …")` — a real, live
-# crash class on client deployments, whose value is neither a URL credential
-# nor an `sk-` key, so both shape patterns pass it straight through to an
-# unauthenticated caller. The repo anonymises clients deliberately (the hosts
-# are named `ca-client-pipeline`, and a guard hook blocks client names in
-# filenames and commands); a 503 body must not undo that.
+# Pass 1 exists because pass 2 alone is insufficient: a configured client name
+# is neither a URL credential nor an `sk-` key, so both shape patterns pass it
+# straight through to an unauthenticated caller. The repo anonymises clients
+# deliberately (the hosts are named `ca-client-pipeline`, and a guard hook
+# blocks client names in filenames and commands); a 503 body must not undo that.
 #
 # Shape-matching a secret is guessing its format. Matching its value is not.
 _CRASH_REASON_MAX_CHARS = 400

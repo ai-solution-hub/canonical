@@ -9,7 +9,7 @@ Two layers:
    census's own acceptance test: the pg scan must surface the search-RPC
    readers of ``content_chunks.content`` that the S507 audit could not see
    (the "written-never-read" false alarm), and the seed.sql writers behind
-   the S507 §6.2 "migration seed data" clusters (entity_aliases).
+   the S507 §6.2 "migration seed data" clusters.
 
 Static-only: no database, no bun — pure file scanning, so this belongs in the
 default pytest lane.
@@ -330,10 +330,12 @@ def test_s507_false_alarm_content_chunks_content_has_db_readers(
 def test_s507_seed_data_clusters_have_visible_writers(
     real_corpus: tuple[list[dict], object],
 ) -> None:
-    """S507 §6.2: entity_aliases is 'migration-seeded — not a gap'.
+    """S507 §6.2: a seed.sql INSERT is a write surface the census must see,
+    so read-never-written seed clusters stop false-alarming.
 
-    The seed actually lives in supabase/seed.sql; the census must see it as
-    a write surface so read-never-written seed clusters stop false-alarming.
+    id-433 retargeted this from entity_aliases (whose core seed rows went with
+    the deterministic naming layer, DR-140) to layer_vocabulary, which §4c
+    still seeds.
     """
     rows, _ = real_corpus
     seed_writes = {
@@ -341,8 +343,8 @@ def test_s507_seed_data_clusters_have_visible_writers(
         for r in rows
         if r["method"] == "seed-sql-dml" and r["direction"] == "write"
     }
-    for column in ("alias", "canonical", "provenance"):
-        assert ("entity_aliases", column) in seed_writes
+    for column in ("key", "label", "description"):
+        assert ("layer_vocabulary", column) in seed_writes
 
 
 def test_real_corpus_rows_all_join_against_current_schema(

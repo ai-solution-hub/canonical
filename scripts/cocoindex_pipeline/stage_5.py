@@ -4,8 +4,8 @@ Hosts the flow-scope cross-document canonicalisation phase that runs AFTER
 the per-item `mount_each` fan-out has settled (Option B per PRODUCT Inv-1 /
 TECH §P-1). The per-item phase (`ingest_file`, {53.11}) writes per-document
 `canonical_name` values via `declare_row`; this post-pass reads the run's
-`entity_mentions` rows, applies the legacy `entity_aliases` map (Inv-10),
-invokes `cocoindex.ops.entity_resolution.resolve_entities` over the
+`entity_mentions` rows, invokes
+`cocoindex.ops.entity_resolution.resolve_entities` over the
 per-document canonicals with the KH entity embedder (§P-7) + KH PairResolver
 (§P-8), and issues op_id-scoped UPDATEs (Inv-5) for rows whose
 `canonical_name` resolves to a different cross-document value.
@@ -77,22 +77,6 @@ if TYPE_CHECKING:  # pragma: no cover
 _logger = logging.getLogger(__name__)
 
 
-async def _preload_entity_aliases(db_pool: asyncpg.Pool) -> dict[str, str]:
-    """Load the active legacy `entity_aliases` map (Inv-10).
-
-    Returns a dict mapping `alias` -> `canonical` for every active row. The
-    map is loaded once per Stage-5 pass (no module-level cache — each run gets
-    a fresh snapshot, so an alias edited between runs takes effect on the next
-    run). Applied to the per-document canonicals BEFORE `resolve_entities`
-    runs so cross-document outputs stay consistent with what app-side callers
-    see through `resolveAlias` (`lib/entities/entity-aliases.ts`).
-    """
-    rows = await db_pool.fetch(
-        "SELECT alias, canonical FROM public.entity_aliases WHERE is_active = true"
-    )
-    return {row["alias"]: row["canonical"] for row in rows}
-
-
 async def _select_run_entity_mentions(
     db_pool: asyncpg.Pool, op_id: UUID
 ) -> list[asyncpg.Record]:
@@ -142,8 +126,8 @@ async def _select_existing_canonical_roster(
     exact case-fold), per ID-81 Inv-1/§4 PERF. Returns a SET for O(1)
     set-membership (the `is_existing_canonical` predicate, Inv-7 self-membership
     caveat: a name that is both 'existing' and 'in this run' is simply
-    is_existing=True — pinned, never demoted). NOT a UNION with entity_aliases
-    (Inv-12). Workspace-agnostic at v1 (Inv-9 — no workspace_id at Stage-5).
+    is_existing=True — pinned, never demoted). Workspace-agnostic at v1
+    (Inv-9 — no workspace_id at Stage-5).
 
     `run_names` is the per-type set from `names_by_type[entity_type]`
     (`stage_5.py:180`, typed `dict[str, set[str]]`) — a set, NOT a list.
@@ -223,11 +207,9 @@ async def _run_stage_5_resolution(
 ) -> int:
     """Stage-5 post-pass: cross-document canonical resolution.
 
-    PRODUCT.md §2 Area B + Area C + Area D: applies cocoindex
-    `resolve_entities` over the run's `entity_mentions`, preloading the
-    legacy `entity_aliases` map (Inv-10), and issuing op_id-scoped UPDATEs
-    (Inv-5) for rows whose `canonical_name` resolves to a different
-    cross-document value.
+    Applies cocoindex `resolve_entities` over the run's `entity_mentions`
+    and issues op_id-scoped UPDATEs (Inv-5) for rows whose `canonical_name`
+    resolves to a different cross-document value.
 
     Args:
       meta:                FlowRunMeta carrying the run's op_id (Inv-5 scope).
@@ -237,25 +219,20 @@ async def _run_stage_5_resolution(
     Returns:
       Count of entity_mentions rows whose canonical_name Stage-5 changed.
     """
-    # Step 1: preload the legacy entity_aliases map (Inv-10).
-    alias_map: dict[str, str] = await _preload_entity_aliases(db_pool)
-
-    # Step 2: read the run's entity_mentions rows (op_id-scoped — Inv-5).
+    # Read the run's entity_mentions rows (op_id-scoped — Inv-5).
     rows = await _select_run_entity_mentions(db_pool, meta.op_id)
     if not rows:
         return 0
 
-    # Step 3: apply alias map to the per-doc canonicals BEFORE resolve_entities.
-    # Inv-10: outputs are consistent with legacy entity_aliases reads.
-    # The row id is carried as its native uuid.UUID (NOT str()) so the Step-6
-    # UPDATE bind satisfies asyncpg's strict uuid typing — see DEVIATION note.
-    # bl-225: each tuple now also carries source_document_id + confidence so Step 5
-    # can group by the post-resolution natural key and pick a deterministic
+    # The row id stays a native uuid.UUID (NOT str()) so the UPDATE bind below
+    # satisfies asyncpg's strict uuid typing — see DEVIATION note. bl-225: each
+    # tuple also carries source_document_id + confidence so the collapse can
+    # group by the post-resolution natural key and pick a deterministic
     # highest-confidence survivor per collision group.
     name_pairs: list[tuple[UUID, str, str, UUID, float | None]] = [
         (
             row["id"],
-            alias_map.get(row["canonical_name"], row["canonical_name"]),
+            row["canonical_name"],
             row["entity_type"],
             row["source_document_id"],
             row["confidence"],
@@ -263,7 +240,7 @@ async def _run_stage_5_resolution(
         for row in rows
     ]
 
-    # Step 4: invoke cocoindex resolve_entities — ONE CALL PER entity_type
+    # Invoke cocoindex resolve_entities — ONE CALL PER entity_type
     # group. resolve_entities is collection-level (faiss IP over Iterable[str]),
     # and the KhPairResolver cache key is (name_a, name_b, entity_type) per
     # P-OQ3 — so each entity_type batch gets a fresh resolver instance carrying
@@ -287,10 +264,10 @@ async def _run_stage_5_resolution(
         KhPairResolver,
     )
 
-    # Group (alias_applied_canonical) by entity_type for per-type batches.
+    # Group (per_doc_canonical) by entity_type for per-type batches.
     names_by_type: dict[str, set[str]] = defaultdict(set)
-    for _row_id, alias_applied_canonical, entity_type, _cid, _conf in name_pairs:
-        names_by_type[entity_type].add(alias_applied_canonical)
+    for _row_id, per_doc_canonical, entity_type, _cid, _conf in name_pairs:
+        names_by_type[entity_type].add(per_doc_canonical)
 
     # ID-81 PC-1/PC-6/PC-7/PC-14 — existing-canonical seeding.
     #
@@ -355,7 +332,7 @@ async def _run_stage_5_resolution(
             existing_policy=ExistingCanonicalPolicy.PINNED,
         )
 
-    # Step 5: walk ResolvedEntities.canonical_of() and GROUP by the
+    # Walk ResolvedEntities.canonical_of() and GROUP by the
     # POST-resolution natural unique key (source_document_id, entity_type,
     # resolved). This is the bl-225 fix: `resolve_entities` resolves over a NAME
     # SET, agnostic of source_document_id, so two DISTINCT per-doc canonicals in
@@ -375,28 +352,28 @@ async def _run_stage_5_resolution(
     # under 1.0.3 (canonical_of never returns None).
     #
     # group key (source_document_id, entity_type, resolved)
-    #   -> [(row_id, alias_applied_canonical, confidence)]
+    #   -> [(row_id, per_doc_canonical, confidence)]
     collision_groups: dict[
         tuple[UUID, str, str], list[tuple[UUID, str, float | None]]
     ] = defaultdict(list)
     for (
         row_id,
-        alias_applied_canonical,
+        per_doc_canonical,
         entity_type,
         source_document_id,
         confidence,
     ) in name_pairs:
         resolved = resolved_by_type[entity_type].canonical_of(
-            alias_applied_canonical
+            per_doc_canonical
         )
         if resolved is None:
-            resolved = alias_applied_canonical  # Inv-20: unresolved retains canonical.
+            resolved = per_doc_canonical  # Inv-20: unresolved retains canonical.
         collision_groups[(source_document_id, entity_type, resolved)].append(
-            (row_id, alias_applied_canonical, confidence)
+            (row_id, per_doc_canonical, confidence)
         )
 
     # planned_updates carries the survivor's UPDATE target key components +
-    # confidence so Step 5b (ID-80.14) can probe for cross-op key-holders and
+    # confidence so the cross-op probe below (ID-80.14) can find key-holders and
     # extend the survivor rule across ops. Narrowed to (row_id, new_canonical)
     # for the Step-6 execution below.
     planned_updates: list[tuple[UUID, str, str, UUID, float | None]] = []
@@ -408,10 +385,10 @@ async def _run_stage_5_resolution(
         # since the post-pass does not SELECT created_at).
         # Note: `(conf if conf is not None else -1.0)` — explicit None check,
         # NOT `conf or`, so a legitimate 0.0 confidence is not treated as missing.
-        survivor_id, survivor_alias_applied, survivor_conf = min(
+        survivor_id, survivor_per_doc, survivor_conf = min(
             members, key=lambda m: (-(m[2] if m[2] is not None else -1.0), m[0])
         )
-        if survivor_alias_applied != resolved:  # PRESERVE original skip-condition
+        if survivor_per_doc != resolved:  # PRESERVE original skip-condition
             planned_updates.append(
                 (survivor_id, resolved, entity_type, source_document_id, survivor_conf)
             )
@@ -419,8 +396,8 @@ async def _run_stage_5_resolution(
             if member_id != survivor_id:
                 deletes.append(member_id)
 
-    # Step 5b (ID-80.14, S316 smoke D1): cross-op canonical-merge collision.
-    # `collision_groups` only ever contains the CURRENT op's rows (Step 2 is
+    # Cross-op canonical-merge collision (ID-80.14, S316 smoke D1).
+    # `collision_groups` only ever contains the CURRENT op's rows (the read is
     # op_id-scoped), so a PRIOR-op (or NULL-op app-side) row already holding a
     # survivor's UPDATE-target key (canonical_name, entity_type,
     # source_document_id) is structurally invisible above — the survivor's UPDATE
@@ -481,7 +458,7 @@ async def _run_stage_5_resolution(
                 cross_op_deletes.append(prior["id"])
                 updates.append((row_id, resolved))
 
-    # Step 6: DELETE-then-UPDATE batch in one transaction.
+    # DELETE-then-UPDATE batch in one transaction.
     # DELETE-FIRST IS LOAD-BEARING: a survivor may UPDATE INTO a canonical
     # currently held by a loser (in-op OR prior-op); deleting losers first
     # prevents that transient collision on UNIQUE(canonical_name, entity_type,
@@ -525,7 +502,7 @@ async def _run_stage_5_resolution(
                 for row_id, new_canonical in updates:
                     # WHERE id = $2 AND op_id = $3 — op_id scope is the forcing
                     # function (Inv-5); the row id is naturally scoped to this
-                    # run because Step 2 selected by op_id. Both binds are
+                    # run because the read selected by op_id. Both binds are
                     # native uuid.UUID objects (asyncpg-strict uuid typing).
                     await conn.execute(
                         "UPDATE public.entity_mentions "
@@ -535,7 +512,7 @@ async def _run_stage_5_resolution(
                         row_id,
                         meta.op_id,
                     )
-                    # Step 7: per-row counter bump (Inv-11 PRODUCT elevation —
+                    # Per-row counter bump (Inv-11 PRODUCT elevation —
                     # mirrors the per-row embedding counter at flow.py:915).
                     flow_stage_counter.increment("entity_resolution")
 

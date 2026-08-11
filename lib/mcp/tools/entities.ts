@@ -63,16 +63,11 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Resolve entity name aliases before querying
         const { canonicalise } = await import('@/lib/entities/entity-dedup');
-        const { resolveAlias, loadAliases } =
-          await import('@/lib/entities/entity-aliases');
-        await loadAliases(supabase);
         const resolvedName = args.entity_name
-          ? resolveAlias(canonicalise(args.entity_name))
+          ? canonicalise(args.entity_name)
           : undefined;
 
-        // Call get_entity_summary RPC
         const rpcArgs: Record<string, string> = {};
         if (resolvedName) rpcArgs.p_entity_name = resolvedName;
         if (args.entity_type) rpcArgs.p_entity_type = args.entity_type;

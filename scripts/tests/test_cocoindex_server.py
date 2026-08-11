@@ -609,12 +609,12 @@ class TestCrashReasonOnHealth:
         server_mod.reset_worker_state()
         try:
             reason = _crash_worker_at_boot(
-                RuntimeError("entity_aliases generation is client-scoped")
+                RuntimeError("pipeline provisioning is client-scoped")
             )
             assert "RuntimeError" in reason, (
                 f"the 503 reason must name the exception type; got: {reason!r}"
             )
-            assert "entity_aliases generation is client-scoped" in reason, (
+            assert "pipeline provisioning is client-scoped" in reason, (
                 f"the 503 reason must carry the exception message; got: {reason!r}"
             )
         finally:
@@ -631,7 +631,7 @@ class TestCrashReasonOnHealth:
         server_mod.reset_worker_state()
         try:
             fail_closed = _crash_worker_at_boot(
-                RuntimeError("entity_aliases fail-closed for client 'default'")
+                RuntimeError("provisioning fail-closed for client 'default'")
             )
             server_mod.reset_worker_state()
             dns_failure = _crash_worker_at_boot(
@@ -676,20 +676,15 @@ class TestCrashReasonOnHealth:
             server_mod.reset_worker_state()
 
     def test_reason_never_names_the_client(self, monkeypatch) -> None:
-        """The `{101.10}` fail-closed gate must not publish the client's name.
+        """A lifespan crash reason must not publish the client's name.
 
-        THE REGRESSION THIS PINS (found in PR #159 review). `flow.py`'s
-        `{101.10}` gate raises
-        `RuntimeError("[PIPELINE_CLIENT_ORG=<value>] fail-closed …")` from
-        inside the lifespan, so its text reaches `/health` verbatim. That value
-        is neither a URL credential nor an `sk-` key, so BOTH shape patterns
-        pass it through — and `/health` is unauthenticated and Traefik-pinned
-        on the client host (`REQUIRED_TRAEFIK_PATHS`), so any caller could read
-        which organisation the deployment belongs to.
-
-        That matters beyond secrecy: the repo anonymises clients deliberately
+        A configured client name is neither a URL credential nor an `sk-` key,
+        so both shape patterns pass it through — and `/health` is
+        unauthenticated and Traefik-pinned on the client host
+        (`REQUIRED_TRAEFIK_PATHS`), so any caller could read which organisation
+        the deployment belongs to. The repo anonymises clients deliberately
         (hosts are `ca-client-pipeline`, and a guard hook blocks client names in
-        filenames and commands). A 503 body must not undo it.
+        filenames and commands); a 503 body must not undo it.
 
         Reverting `_redact_env_values` fails this test.
         """
@@ -702,8 +697,7 @@ class TestCrashReasonOnHealth:
         try:
             reason = _crash_worker_at_boot(
                 RuntimeError(
-                    f"[PIPELINE_CLIENT_ORG={org!r}] fail-closed ({{101.10}}): "
-                    "entity_aliases table has zero provenance='client' rows."
+                    f"[PIPELINE_CLIENT_ORG={org!r}] provisioning fail-closed."
                 )
             )
             assert org not in reason, (
@@ -711,7 +705,7 @@ class TestCrashReasonOnHealth:
             )
             # The whole point of the reason channel survives: an operator can
             # still tell this fail-closed gate from an asyncpg boot crash.
-            assert "RuntimeError" in reason and "entity_aliases" in reason, (
+            assert "RuntimeError" in reason and "fail-closed" in reason, (
                 f"redaction destroyed the diagnosis: {reason!r}"
             )
         finally:
@@ -789,15 +783,14 @@ class TestCrashReasonOnHealth:
         try:
             reason = _crash_worker_at_boot(
                 RuntimeError(
-                    "[PIPELINE_CLIENT_ORG='BP'] fail-closed: "
-                    "entity_aliases table has zero provenance='client' rows"
+                    "[PIPELINE_CLIENT_ORG='BP'] provisioning fail-closed"
                 )
             )
             assert "'BP'" not in reason, (
                 f"/health named a short-named client: {reason!r}"
             )
             # Word-boundary matching, so the diagnosis survives intact.
-            assert "entity_aliases" in reason and "fail-closed" in reason, (
+            assert "provisioning" in reason and "fail-closed" in reason, (
                 f"redaction destroyed the diagnosis: {reason!r}"
             )
         finally:
@@ -1091,18 +1084,10 @@ class TestLifespanOnlyBoot:
         _stop_cocoindex_default_env()
 
         fake_pool = MagicMock(name="fake_asyncpg_pool")
-        # The lifespan-only boot awaits TWO pool coroutines, so both must be
+        # `pool.close()` is awaited at lifespan teardown, so it must be an
         # AsyncMock or `await <plain MagicMock>` raises `TypeError: object
         # MagicMock can't be used in 'await' expression` (worker flagged crashed
-        # → worker_is_healthy() False → the G1 assertion below fails):
-        #   1. `await pool.fetch(...)` — flow._generate_client_alias_snapshot
-        #      (the {101.10} alias-cache prime in kh_pipeline_lifespan, run on
-        #      boot BEFORE the yield). Return [] = the graceful dev/CI path:
-        #      PIPELINE_CLIENT_ORG is unset here so the fail-closed branch is
-        #      skipped and prime_alias_cache_from_db_rows([]) installs the
-        #      baseline-only map — a CLEAN, healthy idle boot.
-        #   2. `await pool.close()` — kh_pipeline_lifespan teardown.
-        fake_pool.fetch = AsyncMock(return_value=[])
+        # → worker_is_healthy() False → the G1 assertion below fails).
         fake_pool.close = AsyncMock()
 
         lifespan_entered = threading.Event()

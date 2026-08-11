@@ -272,10 +272,6 @@ export const PER_TEST_CONTENT = {
   inv09AdminMergeRunBMd: path(
     'per-test-content/synthetic-inv-09-admin-merge-run-b.md',
   ),
-  /** Inv-10 alias preload. One token: `AAB 27019`, the alias source. */
-  inv10LegacyAliasPreloadMd: path(
-    'per-test-content/synthetic-inv-10-legacy-alias-preload.md',
-  ),
   /** Inv-12 Stage-5 failure non-destructive. One token: `TSC 22301`. */
   inv12Stage5FailureMd: path(
     'per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md',

@@ -107,8 +107,6 @@ class _PinProbePool:
         self.conn = _RecordingConn()
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
-        if "FROM public.entity_aliases" in query:
-            return []
         if "op_id IS DISTINCT FROM $4" in query:
             return [self.pinned_holder]
         if "SELECT DISTINCT canonical_name" in query:

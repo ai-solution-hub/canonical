@@ -209,9 +209,9 @@ class _FakeConn:
 class _FakePool:
     """In-memory ``asyncpg.Pool`` stand-in.
 
-    ``fetch`` answers the read queries the post-pass issues: the
-    ``entity_aliases`` preload (returns []), the run's ``entity_mentions``
-    SELECT (returns the fixture rows as dict-like records), and — ID-81 PC-6 —
+    ``fetch`` answers the read queries the post-pass issues: the run's
+    ``entity_mentions`` SELECT (returns the fixture rows as dict-like records),
+    and — ID-81 PC-6 —
     the op-agnostic existing-canonical roster SELECT
     (``SELECT DISTINCT canonical_name ... WHERE entity_type = $1 AND (...)``).
     ``acquire()`` yields the shared ``_FakeConn`` as an async context manager
@@ -233,17 +233,10 @@ class _FakePool:
         self,
         conn: _FakeConn,
         seed_rows: list[tuple[str, str]] | None = None,
-        alias_rows: list[dict[str, str]] | None = None,
     ) -> None:
         self.conn = conn
         # Op-agnostic existing-canonical corpus: (canonical_name, entity_type).
         self.seed_rows: list[tuple[str, str]] = seed_rows or []
-        # Active legacy `entity_aliases` rows answering the Inv-10/Inv-12 preload
-        # (`SELECT alias, canonical FROM public.entity_aliases WHERE is_active`).
-        # The three bl-225 tests + the {81.6}/{81.7} tests default to [] (no
-        # aliases active); the Inv-12 test supplies a non-empty list so the
-        # alias-preload path is genuinely exercised, not stubbed-away.
-        self.alias_rows: list[dict[str, str]] = alias_rows or []
 
     @staticmethod
     def _prefilter_match(canonical: str, probe_lower: list[str]) -> bool:
@@ -263,11 +256,6 @@ class _FakePool:
         return False
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
-        if "FROM public.entity_aliases" in query:
-            # Active legacy alias rows (default [] — most tests run no aliases).
-            # Each row is {"alias": ..., "canonical": ...}; the production
-            # `_preload_entity_aliases` builds {alias: canonical} from these.
-            return list(self.alias_rows)
         if "op_id IS DISTINCT FROM $4" in query:
             # ID-80.14 cross-op key-holder probe (`_select_prior_op_key_holders`).
             # The base pool models a store holding ONLY in-flight rows (no
@@ -452,9 +440,8 @@ class _OpScopedFakePool(_FakePool):
         self,
         conn: _OpScopedFakeConn,
         seed_rows: list[tuple[str, str]] | None = None,
-        alias_rows: list[dict[str, str]] | None = None,
     ) -> None:
-        super().__init__(conn, seed_rows=seed_rows, alias_rows=alias_rows)
+        super().__init__(conn, seed_rows=seed_rows)
         self.op_conn = conn
 
     async def fetch(self, query: str, *args: object) -> list[dict]:
@@ -1237,9 +1224,9 @@ def test_only_in_flight_op_rows_written_with_seed_roster(
 # These extend the {81.7} wiring coverage with the invariants TECH §5 lists but
 # which were not yet covered: Inv-4 (two existings never merged), Inv-5 (seeded
 # existing with no match → no event), Inv-10 (seeded-target bl-225 collapse —
-# REQUIRED regression), Inv-12 (alias applied pre-resolution + roster NOT
-# aliased), Inv-13 (unresolved mention retains per-doc canonical with a non-empty
-# seed roster). All drive the REAL `_run_stage_5_resolution` body with the
+# REQUIRED regression), Inv-13 (unresolved mention retains per-doc canonical
+# with a non-empty seed roster). All drive the REAL `_run_stage_5_resolution`
+# body with the
 # resolver chain stubbed at source via `_stub_pinned_resolver_chain`.
 
 
@@ -1440,107 +1427,6 @@ def test_seeded_target_bl225_collapse(monkeypatch: pytest.MonkeyPatch) -> None:
     assert collapse_logs[0]["collapsed_count"] == 1, "one loser was collapsed"
     # Keep the logging import referenced (the helper uses the logging module).
     assert logging.getLogger("scripts.cocoindex_pipeline.stage_5") is not None
-
-
-def test_alias_applied_pre_resolution_and_roster_not_aliased(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Inv-12 / PC-12: the legacy ``entity_aliases`` rewrite is applied to the
-    per-doc canonical BEFORE resolution, and the seed roster source is
-    ``entity_mentions.canonical_name`` ONLY (NOT a UNION with ``entity_aliases``).
-
-    A NON-empty active alias row (``"eir 2004" → "EIR 2004"``) is supplied via
-    ``_FakePool.alias_rows`` — the ``FROM public.entity_aliases`` fetch branch now
-    genuinely returns it (the other tests return ``[]``, so this exercises the
-    preload path for real). The in-flight per-doc canonical is the alias KEY
-    ``"eir 2004"``. After alias application, the row's canonical becomes
-    ``"EIR 2004"`` BEFORE the resolver sees it; the resolver then receives
-    ``"EIR 2004"`` (the alias VALUE), NOT the raw ``"eir 2004"``.
-
-    Roster-not-aliased proof: the roster reader is invoked with the ALIAS-APPLIED
-    name set, and the only roster SELECT issued is against
-    ``public.entity_mentions`` (the ``_FakePool.fetch`` `SELECT DISTINCT
-    canonical_name` branch); the alias map is NEVER unioned into the roster. We
-    assert the resolver's ``names`` contain the alias VALUE and NOT the alias KEY.
-
-    Falsifiability: if the alias were applied AFTER resolution (or not at all),
-    the resolver's ``names`` would contain the raw ``"eir 2004"`` key and the
-    final row canonical would not be the alias value — this asserts the opposite.
-    """
-    from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
-
-    op_id = uuid.uuid4()
-    entity_type = "regulation"
-    source_document_id = uuid.UUID("077b27e7-0000-4000-8000-0000000000b4")
-    mention_id = uuid.UUID("00000000-0000-4000-8000-000000000701")
-    # The per-doc canonical is the ALIAS KEY; the active alias rewrites it.
-    rows = [_Row(mention_id, "eir 2004", entity_type, source_document_id, 0.8)]
-    conn = _FakeConn(rows)
-    pool = _FakePool(
-        conn,
-        # No seed roster — this test isolates the alias path; the roster reader
-        # still runs (over the alias-applied name) and returns [] (no seeds).
-        seed_rows=[],
-        # NON-EMPTY active alias row → exercises `_preload_entity_aliases`.
-        alias_rows=[{"alias": "eir 2004", "canonical": "EIR 2004"}],
-    )
-
-    capture = _stub_pinned_resolver_chain(monkeypatch)
-    counter = _StubStageCounter()
-
-    changed = asyncio.run(
-        _run_stage_5_resolution(
-            meta=_StubMeta(op_id=op_id),
-            db_pool=pool,  # type: ignore[arg-type]
-            flow_stage_counter=counter,  # type: ignore[arg-type]
-        )
-    )
-
-    # The alias was applied BEFORE resolution: the resolver saw the alias VALUE.
-    calls = capture["calls"]
-    assert isinstance(calls, list) and len(calls) == 1
-    names = calls[0]["names"]
-    assert "EIR 2004" in names, (
-        "resolver received the ALIAS-APPLIED canonical 'EIR 2004' (alias applied "
-        "BEFORE resolution — Inv-12)"
-    )
-    assert "eir 2004" not in names, (
-        "the raw alias KEY 'eir 2004' must NOT reach the resolver — the rewrite "
-        "happens before resolution, not after"
-    )
-
-    # ROSTER-NOT-ALIASED proof: the seed-roster read is NOT a UNION with the
-    # alias map. The roster reader ran over the alias-applied name set and the
-    # ONLY SELECT it issued was against `public.entity_mentions` (the `_FakePool`
-    # roster branch); the alias map ("eir 2004"→"EIR 2004") was never offered as a
-    # roster candidate. With an empty seed corpus the roster is empty, so the
-    # alias VALUE is the ONLY name in the resolver batch (no aliased seed leaked).
-    assert names == ["EIR 2004"], (
-        "the resolver batch is the single alias-applied name — the roster is NOT "
-        "unioned with entity_aliases (Inv-12: roster source is entity_mentions "
-        "canonical_name only)"
-    )
-
-    # WRITE-BACK NOTE (real production behaviour, asserted honestly): the
-    # write-back compares the ALIAS-APPLIED canonical against the RESOLVED value
-    # (`survivor_alias_applied != resolved`, stage_5.py). Here the alias-applied
-    # name "EIR 2004" resolves to ITSELF (empty roster, single mention), so
-    # alias-applied == resolved → NO UPDATE fires, and the stored row retains its
-    # raw per-doc "eir 2004". Inv-12's obligation is that the alias is applied
-    # BEFORE resolution (proven above by the resolver seeing the alias VALUE) and
-    # that the roster is not aliased — NOT that the alias is persisted to the row
-    # absent a resolution move. (Persisting the alias rewrite itself is ID-53
-    # Inv-10's app-side `resolveAlias`, not the Stage-5 write-back.)
-    assert len(conn.rows) == 1
-    survivor = next(iter(conn.rows.values()))
-    assert survivor.canonical_name == "eir 2004", (
-        "no UPDATE fires when the alias-applied canonical resolves to itself — "
-        "the write-back skip-condition is `alias_applied != resolved` (Inv-12 "
-        "concerns the PRE-resolution alias rewrite, not row persistence)"
-    )
-    assert conn.updated == [], "alias-applied == resolved → no canonical_name UPDATE"
-    assert changed == 0
-    assert counter.counts.get("entity_resolution", 0) == 0
 
 
 def test_unresolved_mention_retains_canonical_with_seed_roster(

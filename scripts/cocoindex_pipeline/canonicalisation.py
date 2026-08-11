@@ -53,17 +53,8 @@ def canonicalise_entity_name(name: str, entity_type: str) -> str:
 # Cross-language relationship canonicaliser ({101.5}, PC-3 / PC-6 lane 1).
 #
 # This is a SEPARATE canonicaliser from canonicalise_entity_name() above.
-# It is the Python port of the TypeScript relationship-writer chain
-#   resolveAlias(canonicalise(name)).toLowerCase()
-# used by the legacy relationship writer at lib/ai/classify.ts:1785-1819.
-#
 # It reproduces the 12-step TS canonicalise() body
-# (lib/entities/entity-dedup.ts:114), the BASELINE_ALIASES resolveAlias()
-# pass (lib/entities/entity-aliases.ts:16,92), then a final .lower().
-#
-# Do NOT conflate this with canonicalise_entity_name() (the ISO-only,
-# per-mention canonicaliser). They diverge by design — collapsing them
-# reintroduces the R1 relationship-vs-mention divergence this subtask closes.
+# (lib/entities/entity-dedup.ts:114), then a final .lower().
 # ──────────────────────────────────────────────────────────────────────────
 
 # Known abbreviations that should remain uppercase.
@@ -109,39 +100,6 @@ _ABBREVIATIONS: dict[str, str] = {
     "dpia": "DPIA",
     "ppon": "PPON",
     "hl7": "HL7",
-}
-
-# Generic baseline alias map (client-independent, always available).
-# Source of truth: BASELINE_ALIASES in lib/entities/entity-aliases.ts:16.
-#
-# DB-alias resolution ({101.9}, follow-up CLOSED): the TS resolveAlias() also
-# consults the entity_aliases DB table, merged OVER this baseline (DB wins on
-# conflict — loadAliases() in entity-aliases.ts:50-83). This port mirrors that
-# by priming the module-scope cache from the live DB rows at lifespan boot
-# ({101.10}, `prime_alias_cache_from_db_rows`). Without resolution, a client's
-# SHORT name in source text (e.g. "Acme") is NOT resolved to its full
-# registered canonical ("Acme Holdings Limited"), so the holder self-match in
-# holder_rule.py:187 FAILS and the client's OWN certification is mis-stamped
-# holder='supplier' against a phantom supplier bearing the client's short name.
-#
-# Client aliases exist only at runtime, after the lifespan primes the cache. On
-# a fresh checkout / CI nothing primes it and resolution is baseline-only (the
-# pipeline must still run).
-_BASELINE_ALIASES: dict[str, str] = {
-    "ISO Certification": "ISO 27001",
-    "Iso Certifications": "ISO 27001",
-    "ISO 27001 2013": "ISO 27001",
-    "ISO 27000": "ISO 27001",
-    "ISO 9001 2015": "ISO 9001",
-    "wordpress": "WordPress",
-    "Wordpress": "WordPress",
-    "Csharp": "C#",
-    "csharp": "C#",
-    "Asp Net": "ASP.NET",
-    "Asp.net": "ASP.NET",
-    "agile": "Agile",
-    "Hcaptcha": "hCaptcha",
-    "Wcag 2 1 Aa": "WCAG 2.1 AA",
 }
 
 # Step 1→2: slug detector — starts alphanumeric, contains a '-' or '_',
@@ -262,118 +220,6 @@ def _rel_canonicalise(name: str) -> str:
     return result
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# DB-alias resolution ({101.9}). The merged map is baseline overlaid by the
-# live `entity_aliases` rows, keyed by the RAW `alias` column — matching the TS
-# oracle exactly (entity-aliases.ts:72 `cachedAliases[row.alias] = row.canonical`),
-# so a relationship endpoint resolves only when _rel_canonicalise(name) equals
-# the raw alias string.
-#
-# The DB rows arrive via `prime_alias_cache_from_db_rows()`, called once at
-# pipeline lifespan boot ({101.10}, flow.py `_generate_client_alias_snapshot`).
-# Until it is primed, resolution is baseline-only.
-#
-# id-417 B2 / DR-121: the intermediate `entity_aliases_snapshot.json` file and
-# its `_load_db_entity_aliases()` reader are RETIRED along with the
-# TypeScript generator that was their only writer. DR-121: "either wire the
-# generator into deploy or delete generator + loader branch" — the generator
-# could not be wired, since onprem-deploy.yml packages only `scripts/**/*.py`,
-# so the file branch was unreachable in production by construction.
-# ──────────────────────────────────────────────────────────────────────────
-
-# Merged alias map cache (baseline overlaid by live DB rows). Installed by
-# `prime_alias_cache_from_db_rows()`; reset in tests via `reset_alias_cache()`.
-_MERGED_ALIASES_CACHE: dict[str, str] | None = None
-
-
-def _get_alias_map() -> dict[str, str]:
-    """Return the merged alias map.
-
-    The cache is installed by ``prime_alias_cache_from_db_rows()`` at lifespan
-    boot ({101.10}), where the live ``entity_aliases`` rows are overlaid on
-    ``_BASELINE_ALIASES`` (DB wins on conflict — loadAliases() merge order,
-    entity-aliases.ts:71-73). Before priming — a fresh checkout, CI, or any
-    process with no live pool — resolution is baseline-only.
-
-    Deterministic + DB-free at runtime.
-    """
-    global _MERGED_ALIASES_CACHE
-    if _MERGED_ALIASES_CACHE is None:
-        _MERGED_ALIASES_CACHE = dict(_BASELINE_ALIASES)
-    return _MERGED_ALIASES_CACHE
-
-
-def reset_alias_cache() -> None:
-    """Clear the merged-alias cache so the next resolve falls back to baseline.
-
-    Mirrors clearAliasCache() (entity-aliases.ts:100). Used by tests; the
-    pipeline itself primes once per process at lifespan boot.
-    """
-    global _MERGED_ALIASES_CACHE
-    _MERGED_ALIASES_CACHE = None
-
-
-def prime_alias_cache_from_db_rows(rows: list) -> None:
-    """Build and install the merged alias map from live DB rows.
-
-    Called by the pipeline lifespan ({101.10}) with the rows fetched directly
-    from ``public.entity_aliases WHERE is_active = true`` (including the
-    ``provenance`` column). Mirrors the ``_get_alias_map()`` merge order:
-    ``_BASELINE_ALIASES`` first, then DB rows on top so DB wins on conflict.
-
-    Keyed by the RAW ``alias`` column (TS parity: entity-aliases.ts:72
-    ``cachedAliases[row.alias] = row.canonical``).
-
-    Replaces any previously cached map (including the baseline-only map
-    ``_get_alias_map()`` installs before priming). Safe to call once at
-    lifespan boot; subsequent resolves read the cached map DB-free.
-
-    Args:
-        rows: List of record-like objects (asyncpg Records or dicts) each
-            exposing ``row["alias"]``, ``row["canonical"]``, and
-            ``row["provenance"]``.  Rows with non-string or empty alias /
-            canonical are silently skipped.
-    """
-    global _MERGED_ALIASES_CACHE
-    merged: dict[str, str] = dict(_BASELINE_ALIASES)
-    for row in rows:
-        try:
-            alias = row["alias"]
-            canonical = row["canonical"]
-        except (KeyError, TypeError):
-            continue
-        if isinstance(alias, str) and isinstance(canonical, str) and alias and canonical:
-            merged[alias] = canonical
-    _MERGED_ALIASES_CACHE = merged
-
-
-def _rel_resolve_alias(canonical_name: str) -> str:
-    """Port of resolveAlias() (entity-aliases.ts:92), DB-alias-aware.
-
-    Returns ``map[name] ?? name`` against the merged map (baseline overlaid by
-    the live DB aliases, DB wins on conflict). This closes the {101.9}
-    follow-up: the TS oracle resolves client-specific DB aliases (e.g. a short
-    client name → its full registered canonical) and this port now matches once
-    the lifespan has primed the cache. Falls back to baseline-only before then.
-    """
-    return _get_alias_map().get(canonical_name, canonical_name)
-
-
 def canonicalise_for_relationship(name: str) -> str:
-    """Canonical endpoint for entity-relationship source/target names.
-
-    Cross-language port of the TS relationship-writer chain
-    ``resolveAlias(canonicalise(name)).toLowerCase()``
-    (lib/ai/classify.ts:1788). Used so pipeline-produced relationship
-    endpoints (source_entity / target_entity in entity_relationships)
-    match the TS writer byte-for-byte.
-
-    Distinct from canonicalise_entity_name() — see module-level note above.
-
-    Args:
-        name: The raw entity name as extracted for a relationship endpoint.
-
-    Returns:
-        The lowercase canonical relationship endpoint. Deterministic.
-    """
-    return _rel_resolve_alias(_rel_canonicalise(name)).lower()
+    """Canonical endpoint for entity-relationship source/target names."""
+    return _rel_canonicalise(name).lower()

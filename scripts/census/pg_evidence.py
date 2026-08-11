@@ -36,8 +36,7 @@ runtime writer):
 - ``seed-sql-dml`` /
   ``seed-sql-do-block``     — supabase/seed.sql statements (dev-reset seed
                               surface; the S507 §6.2 "migration seed data"
-                              clusters — entity_aliases, application_types,
-                              taxonomy_domains — actually live here)
+                              clusters actually live here)
 - ``pg-function-body-live`` — statement inside a LIVE-ONLY function supplied
                               via --live-json (exists in pg_proc but in no
                               migration — out-of-band DDL)

@@ -428,20 +428,6 @@
       "notes": "Run B of the Inv-9 near-match pair - COMPACT surface form. Pairs with synthetic-inv-09-admin-merge-run-a.md; the two must never be edited to share a surface form or to become byte-identical."
     },
     {
-      "id": "per-test-content/synthetic-inv-10-legacy-alias-preload.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-10-legacy-alias-preload.md",
-      "tree": "per-test-content",
-      "format": "md",
-      "sha256": "2e987880a9b13a1d2571d0dece75a7770d3b6383f53185ceac4bfe5403dc43ae",
-      "bytes": 3601,
-      "fixture_class": "staged-ephemeral",
-      "staging_mode": "per-test",
-      "consumers": [
-        "__tests__/integration/cocoindex/legacy-alias-preload.integration.test.ts"
-      ],
-      "notes": "Per-test CONTENT document owned by exactly one spec (DR-133 as amended S543). Replaced that spec's staging of the shared blank form FORM_TEMPLATE.cspChecklistXlsx, which ten specs staged simultaneously until S543."
-    },
-    {
       "id": "per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md",
       "path": "scripts/cocoindex_pipeline/fixtures/per-test-content/synthetic-inv-12-stage5-failure-non-destructive.md",
       "tree": "per-test-content",
