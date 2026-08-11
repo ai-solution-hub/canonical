@@ -360,7 +360,7 @@ class TestEmDeclarePinCarryForward:
         # 'acme corporation' and pinned it.
         mentions = [_mention(flow, "Acme Security", "organisation", 0.8)]
         sd_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, "sd:doc.md")
-        canonical = flow.canonicalise_entity_name("Acme Security", "organisation")
+        canonical = flow.canonicalise_entity_name("Acme Security")
         pinned_id = uuid.uuid5(
             _KH_PIPELINE_DOC_NS, f"em:{sd_id}:{canonical}:organisation"
         )
@@ -403,15 +403,11 @@ class TestEmDeclarePinCarryForward:
         flow = fresh_flow_module()
         mentions = [_mention(flow, "Acme Corporation", "organisation", 0.9)]
         sd_id = uuid.uuid5(_KH_PIPELINE_DOC_NS, "sd:doc.md")
-        fresh_canonical = flow.canonicalise_entity_name(
-            "Acme Corporation", "organisation"
-        )
+        fresh_canonical = flow.canonicalise_entity_name("Acme Corporation")
         # Pinned row minted from an EARLIER extraction ('Acme Security') —
         # different id — but admin-merged to the SAME canonical the fresh
         # candidate now carries.
-        earlier_canonical = flow.canonicalise_entity_name(
-            "Acme Security", "organisation"
-        )
+        earlier_canonical = flow.canonicalise_entity_name("Acme Security")
         pinned_id = uuid.uuid5(
             _KH_PIPELINE_DOC_NS, f"em:{sd_id}:{earlier_canonical}:organisation"
         )

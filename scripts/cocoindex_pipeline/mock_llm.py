@@ -140,15 +140,8 @@ def _content_tag(content_text: str) -> str:
 #
 # Certification-shaped tokens (uppercase acronym + 3-6 digits, optional single
 # space: 'ISO 27001', 'ISO27001', 'ISO 9001', ...) are echoed VERBATIM as
-# entity mentions, spans at the real match offsets. entity_type is 'standard'
-# DELIBERATELY, not 'certification': canonicalise_entity_name's
-# certification-only ISO normaliser (canonicalisation.py `_ISO_TIGHT_RE`)
-# rewrites 'iso27001' → 'iso 27001', which would pre-unify the surface
-# variants at the per-doc phase — flow.py's `_em_dedup` would then collapse
-# them to ONE row and Stage-5 would never see a near-match pair. Under
-# 'standard' the per-doc canonicals stay distinct ('iso 27001' vs 'iso27001'),
-# both rows land, and resolution is exercised for real. 'standard' is also
-# what keeps the Inv-20 test contract honest (canonical_name == lowercase+trim
+# entity mentions, spans at the real match offsets. entity_type is 'standard',
+# which keeps the Inv-20 test contract honest (canonical_name == lowercase+trim
 # of the surface form) and the Inv-21 cross-run canonicals distinct.
 
 _CERT_TOKEN_RE = re.compile(r"\b[A-Z]{2,6} ?\d{3,6}\b")

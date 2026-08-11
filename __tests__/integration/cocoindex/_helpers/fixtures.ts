@@ -201,12 +201,6 @@ export const SUPPLEMENTARY = {
  * unsatisfiable for ANY extractor"* (`cross-document-dedup.integration.test.ts:67`).
  * Do not "tidy" these into the platform corpus, and do not let the two files
  * converge on a shared surface form or on identical bytes.
- *
- * Note the entity_type subtlety: `mock_llm.py` echoes certification-shaped
- * tokens as `entity_type='standard'` DELIBERATELY, because
- * `canonicalise_entity_name`'s ISO normaliser fires only for `certification`
- * and would pre-unify the variants per-document — collapsing them before
- * Stage-5 ever sees a pair.
  */
 export const ENTITY_VARIANTS = {
   /** Carries the SPACED surface form `ISO 27001` and no other cert-shaped token. */

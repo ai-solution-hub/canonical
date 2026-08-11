@@ -303,9 +303,7 @@ class TestContentEcho:
         # The Stage-5 testability property: the two surface variants must
         # land as SEPARATE entity_mentions rows (distinct per-doc canonicals
         # — flow.py's _em_dedup collapses same-canonical mentions), leaving
-        # cross-document resolution real work to do. This is why the echo
-        # emits entity_type='standard': the 'certification' ISO normaliser
-        # would pre-unify them ('iso27001' → 'iso 27001').
+        # cross-document resolution real work to do.
         from scripts.cocoindex_pipeline.canonicalisation import (
             canonicalise_entity_name,
         )
@@ -313,8 +311,8 @@ class TestContentEcho:
         mentions = self._mentions(self._CONTENT)
         row_a = next(m for m in mentions if m.entity_name == "ISO 27001")
         row_b = next(m for m in mentions if m.entity_name == "ISO27001")
-        canon_a = canonicalise_entity_name(row_a.entity_name, row_a.entity_type)
-        canon_b = canonicalise_entity_name(row_b.entity_name, row_b.entity_type)
+        canon_a = canonicalise_entity_name(row_a.entity_name)
+        canon_b = canonicalise_entity_name(row_b.entity_name)
         assert canon_a != canon_b
         # Inv-20 read-contract floor: per-doc canonical == lowercase + trim
         # of the surface form (unresolved-mention-retains-canonical asserts

@@ -472,9 +472,7 @@ class TestIngestOnceWritesDerivedRowsOffEngine:
             canonicalise_for_relationship,
         )
 
-        expected_canonical_entity = canonicalise_entity_name(
-            "ACME Ltd", "organisation"
-        )
+        expected_canonical_entity = canonicalise_entity_name("ACME Ltd")
         assert em_rows[0]["canonical_name"] == expected_canonical_entity
         assert em_rows[0]["id"] == uuid.uuid5(
             _flow._KH_PIPELINE_DOC_NS,

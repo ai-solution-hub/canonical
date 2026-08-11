@@ -2939,7 +2939,7 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
         rel_path = (tmp_path / "seed-pin.md").as_posix()
         ns = flow._KH_PIPELINE_DOC_NS  # type: ignore[attr-defined]
 
-        em_canonical = canonicalise_entity_name("ACME Ltd", "organisation")
+        em_canonical = canonicalise_entity_name("ACME Ltd")
         assert em.rows[0]["id"] == uuid.uuid5(
             ns, f"em:{fixed_sd_id}:{em_canonical}:organisation"
         ), "em PK must seed on the STORED source_document_id (registry-keyed)"

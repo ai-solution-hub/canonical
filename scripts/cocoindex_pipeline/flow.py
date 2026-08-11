@@ -2533,9 +2533,7 @@ async def _ingest_content_branch(
     # re-declares hit ON CONFLICT (id) and upsert-absorb.
     _em_dedup: dict[tuple[str, str], Any] = {}
     for mention in entity_mentions:
-        per_doc_canonical = canonicalise_entity_name(
-            mention.entity_name, mention.entity_type
-        )
+        per_doc_canonical = canonicalise_entity_name(mention.entity_name)
         key = (per_doc_canonical, mention.entity_type)
         kept = _em_dedup.get(key)
         if kept is None or (mention.mention_confidence or 0.0) > (
@@ -3643,9 +3641,7 @@ async def ingest_once(
         # deliberately deferred — see docstring). ────────────────────────────
         _em_dedup: dict[tuple[str, str], Any] = {}
         for mention in entity_mentions:
-            per_doc_canonical = canonicalise_entity_name(
-                mention.entity_name, mention.entity_type
-            )
+            per_doc_canonical = canonicalise_entity_name(mention.entity_name)
             key = (per_doc_canonical, mention.entity_type)
             kept = _em_dedup.get(key)
             if kept is None or (mention.mention_confidence or 0.0) > (
