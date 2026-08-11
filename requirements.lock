@@ -51,6 +51,16 @@
 # transitive deps not already covered by docling (e.g. ultralytics,
 # ultralytics-thop, colorama, supervision).
 #
+# id-437 regen (S552): requirements.txt now declares
+# cocoindex[postgres,entity-resolution-llm] rather than hand-pinning two thirds
+# of that extra. The closure delta is exactly three lines — net-new
+# instructor==1.15.4 (the extra's third member, previously dropped, which is why
+# LlmPairResolver would not import) plus the two instructor-driven downgrades
+# jiter 0.16.0 -> 0.14.0 and rich 15.0.0 -> 14.3.4. faiss-cpu==1.14.2 and
+# litellm==1.90.2 are UNCHANGED in version and now annotated `# via cocoindex`
+# instead of `-r requirements.txt`. Nothing else moved: the compile-in-place
+# rule above is what held the other ~700 pins still across the regen.
+#
 # Determinism: two consecutive `uv pip compile` runs from an unchanged
 # requirements.txt produce a byte-identical package list (verified {127.22}).
 accelerate==1.14.0
@@ -62,6 +72,7 @@ aiohappyeyeballs==2.7.1
 aiohttp==3.14.1
     # via
     #   -r requirements.txt
+    #   instructor
     #   litellm
 aiosignal==1.4.0
     # via aiohttp
@@ -163,7 +174,9 @@ docling-parse==7.4.0
 docling-slim==2.108.0
     # via -r requirements.txt
 docstring-parser==0.18.0
-    # via anthropic
+    # via
+    #   anthropic
+    #   instructor
 docxtpl==0.20.2
     # via -r requirements.txt
 et-xmlfile==2.0.0
@@ -171,7 +184,7 @@ et-xmlfile==2.0.0
 extruct==0.18.0
     # via -r requirements.txt
 faiss-cpu==1.14.2
-    # via -r requirements.txt
+    # via cocoindex
 fastuuid==0.14.0
     # via litellm
 filelock==3.29.4
@@ -246,14 +259,18 @@ inflect==7.5.0
     # via -r requirements.txt
 iniconfig==2.3.0
     # via pytest
+instructor==1.15.4
+    # via cocoindex
 jinja2==3.1.6
     # via
     #   docxtpl
+    #   instructor
     #   litellm
     #   torch
-jiter==0.16.0
+jiter==0.14.0
     # via
     #   anthropic
+    #   instructor
     #   openai
 jsonlines==4.0.0
     # via docling-ibm-models
@@ -274,7 +291,7 @@ kiwisolver==1.5.0
 latex2mathml==3.81.0
     # via docling-core
 litellm==1.90.2
-    # via -r requirements.txt
+    # via cocoindex
 lxml==6.1.1
     # via
     #   -r requirements.txt
@@ -363,6 +380,7 @@ onnxslim==0.1.94
 openai==2.21.0
     # via
     #   -r requirements.txt
+    #   instructor
     #   litellm
 opencv-python-headless==4.13.0.92
     # via -r requirements.txt
@@ -437,6 +455,7 @@ pydantic==2.12.5
     #   docling-ibm-models
     #   docling-parse
     #   docling-slim
+    #   instructor
     #   litellm
     #   openai
     #   postgrest
@@ -446,7 +465,9 @@ pydantic==2.12.5
     #   storage3
     #   supabase-auth
 pydantic-core==2.41.5
-    # via pydantic
+    # via
+    #   instructor
+    #   pydantic
 pydantic-settings==2.14.2
     # via
     #   docling-core
@@ -532,6 +553,7 @@ requests==2.33.0
     #   -r requirements.txt
     #   bert-score
     #   docling-slim
+    #   instructor
     #   mf2py
     #   pyrdfa3
     #   rfdetr
@@ -542,9 +564,10 @@ rfdetr==1.8.3
     # via
     #   -r requirements.txt
     #   commonforms
-rich==15.0.0
+rich==14.3.4
     # via
     #   cocoindex
+    #   instructor
     #   typer
 rpds-py==2026.6.3
     # via
@@ -598,7 +621,9 @@ sympy==1.14.0
 tabulate==0.10.0
     # via docling-core
 tenacity==9.1.4
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   instructor
 tiktoken==0.13.0
     # via
     #   -r requirements.txt
@@ -664,6 +689,7 @@ typer==0.24.2
     #   doclang
     #   docling-core
     #   huggingface-hub
+    #   instructor
     #   transformers
 typing-extensions==4.16.0
     # via

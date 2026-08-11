@@ -78,7 +78,18 @@ bert-score>=0.3.13
 # (Prior pin rationale, 1.0.7/bl-252: 1.0.4 SQL-injection hardening +
 # NUL-stripping. bl-239 probe scripts/tests/test_file_branch_memo_fingerprint.py
 # stays the executable guard on the memo-fingerprint scheme.)
-cocoindex[postgres]==1.0.18
+# EXTRAS (id-437): `entity-resolution-llm` IS `faiss-cpu>=1.7` +
+# `instructor>=1.0` + `litellm>=1.81.0` (1.0.18's own metadata). Declare the
+# extra; never re-declare its members here — hand-pinning faiss-cpu + litellm
+# while dropping instructor is what made `LlmPairResolver` unimportable, and
+# `cocoindex.ops.entity_resolution` imports faiss at module load, so Stage-5
+# needs the extra whichever resolver runs. It also supplies Stage-4's
+# `cocoindex.ops.litellm.LiteLLMEmbedder` ("text-embedding-3-large",
+# dimensions=1024) -> vector(1024) (ID-49.2), so no separate `litellm` extra.
+# LLM extraction stays Anthropic-direct via a custom @coco.fn (S256 Path-A), and
+# Stage-5 stays on KhPairResolver — the extra is a declaration, not a resolver
+# switch (id-437).
+cocoindex[postgres,entity-resolution-llm]==1.0.18
 # Docling: MIT-licensed document converter + layout model (1.8 GB weights).
 # Pre-warmed into the image at build time so the model weights ship in-image.
 # Pinned to docling-slim with NO-OCR extras (S437): the full `docling` meta-package
@@ -110,14 +121,6 @@ pylatexenc==2.10
 marko==2.2.3
 beautifulsoup4==4.15.0
 scipy==1.18.0
-# faiss-cpu: similarity index backing Stage-5 entity-resolution canonicalisation
-# (TECH §P-12 / Inv-18). Exact-pinned to 1.14.2 for deterministic IndexFlatIP behaviour.
-faiss-cpu==1.14.2
-# litellm: backs the Stage-4 embedding op — cocoindex.ops.litellm.LiteLLMEmbedder
-# ("text-embedding-3-large", dimensions=1024) → vector(1024) (ID-49.2). NOT used
-# for LLM extraction (that path is Anthropic-direct via a custom @coco.fn — there
-# is no ExtractByLlm in cocoindex (absent through 1.0.7), per the S256 Path-A amendments).
-litellm>=1.40.0,<2.0.0
 # aiohttp: HTTP framework for cocoindex sidecar wrapper server (ID-28.15). Transitive via
 # litellm, pinned explicitly because scripts/cocoindex_pipeline/server.py treats it as a
 # first-class production dependency (Cloud Run sidecar HTTP server).
