@@ -8,8 +8,9 @@
 #     it coexists with the single MCP/daemon writer and never corrupts the index.
 #   - GRACEFUL NO-OP: any error (DB absent, locked, sqlite missing) exits 0 with no output —
 #     a recall hook must never block or fail a session start.
-#   - BOUNDED: a handful of rows, ~1.8 KB cap, CHECKPOINT auto-noise filtered, diary
-#     (curated narrative) ranked ahead of auto-mined chunks.
+#   - BOUNDED: a handful of rows, ~1.8 KB cap, CHECKPOINT auto-noise filtered, room-ranked
+#     (id-383 Q6): diary > decisions > retros > tasks > rest, with the DR-106 stale-family
+#     archive room and the misclassified emotional room demoted to last.
 # Wired in .claude/settings.json under SessionStart matcher "startup|clear" (NOT resume).
 set +e
 set +u
@@ -106,8 +107,16 @@ WHERE f.string_value MATCH '$(printf '%s' "$QUERY" | sed "s/'/''/g")'
   AND f.string_value NOT LIKE '%Base directory for this skill%'
   AND NOT EXISTS (SELECT 1 FROM embedding_metadata t
                   WHERE t.id = f.rowid AND t.key = 'topic' AND t.string_value = 'checkpoint')
-ORDER BY (CASE WHEN r.string_value = 'diary' THEN 0 ELSE 1 END), f.rowid DESC
-LIMIT 6;
+ORDER BY (CASE r.string_value
+            WHEN 'diary'     THEN 0  -- curated narrative, highest signal (S517 doctrine)
+            WHEN 'decisions' THEN 1  -- DR records: settled rulings (mined since DR-112)
+            WHEN 'retros'    THEN 2  -- durable session findings
+            WHEN 'tasks'     THEN 3  -- ordna task state
+            WHEN 'archive'   THEN 9  -- DR-106 stale families, discriminated at recall time
+            WHEN 'emotional' THEN 9  -- misfiring classifier (id-411 {411.4} / id-446)
+            ELSE 5                   -- everything else, incl. auto-mined convo chunks
+          END), f.rowid DESC
+LIMIT 8;
 "
 ROWS=$(sqlite3 "file:${DB}?mode=ro&immutable=1" "$SQL" 2>/dev/null)
 [ -n "$ROWS" ] || exit 0
