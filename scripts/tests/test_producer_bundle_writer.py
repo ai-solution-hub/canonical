@@ -825,6 +825,81 @@ def test_write_bundle_failed_rel_path_with_no_prior_content_has_nothing_to_reaff
     assert not (tmp_path / "topics/never-drafted.md").exists()
 
 
+def test_write_bundle_validator_rejection_keeps_last_good_version_and_is_not_removed(
+    tmp_path: Path,
+) -> None:
+    """id-445 AC-4: a concept the BI-13 validator REJECTED this run is still
+    enumerated by the source catalogue, so `removed` — "confirmed absent from
+    the source catalogue's own enumeration" — is false of it.
+
+    It needs the SAME treatment `failed_rel_paths` already gets, and for both
+    of the same reasons: excluded from `removed`, AND re-declared this run.
+    Without the re-declaration the REAL engine's own orphan-delete
+    reconciliation destroys a concept that merely failed validation (module
+    docstring's EXECUTOR-VERIFY finding) — a physical deletion, not just a
+    mis-report. TECH §BI-13 gates the *write* only: a rejected concept is
+    "not written", never removed.
+
+    Measured on a real run (S551): `company/overview.md` was drafted this
+    run, rejected by the validator, and reported in `removed`.
+    """
+    good = _draft("topics/a.md", title="A")
+    b_good = _draft("topics/b.md", title="B")
+    bundle_writer.write_bundle(tmp_path, [good, b_good])
+    original_b = (tmp_path / "topics/b.md").read_text(encoding="utf-8")
+
+    b_rejected = ConceptDraft(
+        key=ConceptKey(
+            rel_path="topics/b.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="b",
+        ),
+        frontmatter=_fm(type="not-a-real-type"),
+        body="body\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
+    )
+
+    _localfs_stub.declare_file.reset_mock()
+    summary2 = bundle_writer.write_bundle(tmp_path, [good, b_rejected])
+
+    assert summary2.validator_failures[0][0] == "topics/b.md"
+    # A rejection is not a de-enumeration.
+    assert summary2.removed == ()
+    # The last-good version survives on disk, byte-identical...
+    assert (tmp_path / "topics/b.md").read_text(encoding="utf-8") == original_b
+    # ...and was RE-DECLARED, so the engine's orphan-delete cannot take it.
+    called_paths = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
+    assert str(tmp_path / "topics/b.md") in called_paths
+
+
+def test_write_bundle_rejection_of_a_never_written_concept_is_not_removed_either(
+    tmp_path: Path,
+) -> None:
+    """Counterpart: a concept whose FIRST-EVER draft is rejected has no
+    last-good version to reaffirm. It must not error, must not appear in
+    `removed` (it was never on disk), and is still recorded in
+    `validator_failures` — silent success is forbidden."""
+    good = _draft("topics/a.md", title="A")
+    bundle_writer.write_bundle(tmp_path, [good])
+
+    fresh_rejected = ConceptDraft(
+        key=ConceptKey(
+            rel_path="topics/brand-new.md",
+            concept_type="topic",
+            grain="topic_scope_tag",
+            scope_tag="brand-new",
+        ),
+        frontmatter=_fm(type="not-a-real-type"),
+        body="body\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
+    )
+
+    summary2 = bundle_writer.write_bundle(tmp_path, [good, fresh_rejected])
+
+    assert summary2.validator_failures[0][0] == "topics/brand-new.md"
+    assert summary2.removed == ()
+    assert not (tmp_path / "topics/brand-new.md").exists()
+
+
 def test_run_summary_with_only_a_failed_entry_is_not_a_no_op() -> None:
     """Defect B design guidance: silent success is forbidden — a run that
     only has a transient drafting failure (physical bundle content

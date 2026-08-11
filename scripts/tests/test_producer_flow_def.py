@@ -56,7 +56,6 @@ if str(_REPO_ROOT) not in sys.path:
 from conftest import make_cocoindex_stubs, stubbed_sys_modules  # noqa: E402
 from scripts.cocoindex_pipeline.producer.flow_def import (  # noqa: E402
     _draft_concepts,
-    _read_bundle_dir,
 )
 
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
@@ -117,6 +116,34 @@ class _SideEffectLocalfs:
 
     def declare_file(self, path, content, *, create_parent_dirs: bool = False) -> None:
         _declare_file_side_effect(path, content, create_parent_dirs=create_parent_dirs)
+
+
+class _DeferredLocalfs:
+    """Models the REAL cocoindex engine's write timing (measured at the
+    installed 1.0.18 pin): `declare_file` is a DECLARATION, and the physical
+    write lands only AFTER the flow body returns.
+
+    `_SideEffectLocalfs` above writes EAGERLY. That is faithful enough for
+    assertions about final bundle content, but it structurally cannot
+    reproduce ID-445 — with eager writes a mid-body directory read already
+    sees THIS run's output, so the defect (reading the PREVIOUS run's tree)
+    is invisible. **This fixture gap is why the whole producer suite stayed
+    green over a defect that reported 15 removals and performed none.**
+
+    Call `apply()` after the flow returns to play the engine's reconcile
+    pass."""
+
+    def __init__(self) -> None:
+        self.pending: "dict[Path, str]" = {}
+
+    def declare_file(self, path, content, *, create_parent_dirs: bool = False) -> None:
+        self.pending[Path(path)] = content
+
+    def apply(self) -> None:
+        for path, content in self.pending.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        self.pending.clear()
 
 
 class _FakeRecordEmbeddingsTarget:
@@ -357,6 +384,123 @@ class TestFullRun:
         assert report.proposed_change_set["staged"] is True
         changed_paths = {c["concept_path"] for c in report.proposed_change_set["changes"]}
         assert "topics/alpha.md" in changed_paths
+
+
+# ── ID-445: git-sync reconciles against THIS run, not the pre-run tree ───
+
+
+class TestDeEnumeratedConceptIsActuallyRemoved:
+    """ID-445 AC-1: prove a de-enumerated concept is **gone from the working
+    tree**, not merely named in `RunSummary.removed`.
+
+    S551's real run reported 15 removed paths and deleted none. `flow_def`
+    built `new_output` by READING the bundle directory, so a de-enumerated
+    concept — still on disk from the prior run — appeared in `new_output`,
+    `desired` was never `None`, and `git_sync`'s removal branch could not
+    fire. `new_output` now comes from `summary.declared`.
+
+    **Why this needs two runs.** The unit stub for `localfs.declare_file`
+    writes EAGERLY, while the real cocoindex engine defers every write until
+    after the flow body returns — which is why no single-run test could ever
+    have caught this, and why the whole producer suite stayed green over the
+    defect. A second run defeats the stub's eagerness for the removal half:
+    the stale file is on disk from run 1 whatever the write timing is, so a
+    directory read picks it up and the removal branch stays unreachable.
+    """
+
+    def _run(self, env, bundle_dir: Path, repo: Path):
+        return asyncio.run(
+            env.flow_def.run_producer_flow(
+                pool=object(),
+                bundle_dir=bundle_dir,
+                re_target=_FakeRecordEmbeddingsTarget(),
+                repo_path=repo,
+                embedder=_fake_embedder,
+            )
+        )
+
+    def test_a_de_enumerated_concept_is_deleted_from_the_repo_working_tree(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        drafts_by_key = {}
+        for rel_path, title in (
+            ("topics/alpha.md", "Alpha"),
+            ("topics/beta.md", "Beta"),
+            ("topics/gamma.md", "Gamma"),
+        ):
+            draft = env.build_draft(rel_path, title=title)
+            drafts_by_key[draft.key] = draft
+        _wire_source(env, drafts_by_key)
+        self._run(env, bundle_dir, repo)
+        assert (repo / "topics/gamma.md").is_file()
+
+        # Publish run 1, so the repo models a real client-owned bundle: a
+        # git clone with the concepts at HEAD (DR-016). This is load-bearing,
+        # not fixture decoration — `git_sync`'s removal branch reads `last`
+        # from HEAD and treats `last is None` as "nothing to remove", so in a
+        # commitless repo NOTHING is ever deleted and the test would pass
+        # vacuously in both directions.
+        _git(repo, "-c", "user.name=T", "-c", "user.email=t@example.com",
+             "commit", "-q", "-m", "publish run 1")
+
+        # Run 2: gamma de-enumerates — the source catalogue stops offering it.
+        survivors = {
+            key: draft
+            for key, draft in drafts_by_key.items()
+            if draft.key.rel_path != "topics/gamma.md"
+        }
+        _wire_source(env, survivors)
+        report2 = self._run(env, bundle_dir, repo)
+
+        assert "topics/gamma.md" in report2.summary.removed
+        # The headline: reported AND gone. Before ID-445 only the first of
+        # these two assertions held.
+        assert not (repo / "topics/gamma.md").exists()
+        assert (repo / "topics/alpha.md").is_file()
+
+    def test_the_proposed_change_set_describes_this_run_not_the_previous_one(
+        self, env, bundle_dir: Path, repo: Path
+    ) -> None:
+        """ID-445 AC-2. The S551 run emitted 21 of 23 entries `unchanged` and
+        omitted its own 14-concept diff entirely, because every `desired` was
+        the byte-identical pre-run content.
+
+        Runs against `_DeferredLocalfs`, NOT the eager default: under eager
+        writes this assertion passes with or without the fix, because a
+        mid-body directory read already sees this run's bytes. The engine
+        defers, so the test must too or it guards nothing."""
+        engine = _DeferredLocalfs()
+        env.monkeypatch.setattr(env.bundle_writer, "localfs", engine)
+
+        first = env.build_draft("topics/alpha.md", title="Alpha")
+        _wire_source(env, {first.key: first})
+        self._run(env, bundle_dir, repo)
+        engine.apply()  # the engine's reconcile pass, after the body returned
+        # Publish run 1 — again load-bearing. With no commit, `last` is None
+        # while `current` holds run 1's staged bytes, so `current != last AND
+        # current != desired` and run 2 is classified a HUMAN EDIT and left
+        # untouched. A real bundle is a clone with history (DR-016).
+        _git(repo, "-c", "user.name=T", "-c", "user.email=t@example.com",
+             "commit", "-q", "-m", "publish run 1")
+
+        # Run 2 genuinely changes alpha's content.
+        edited = env.build_draft("topics/alpha.md", title="Alpha Revised")
+        _wire_source(env, {edited.key: edited})
+        report2 = self._run(env, bundle_dir, repo)
+        engine.apply()
+
+        assert report2.proposed_change_set is not None
+        changes = {
+            c["concept_path"]: c for c in report2.proposed_change_set["changes"]
+        }
+        assert "topics/alpha.md" in changes
+
+        # The assertion has to be on CONTENT, not on `change_kind`. Under the
+        # defect the kind was still a plausible "add"/"apply" — of the PRIOR
+        # run's bytes. What was actually wrong is WHICH revision got staged.
+        staged = (repo / "topics/alpha.md").read_text(encoding="utf-8")
+        assert "Alpha Revised" in staged
+        assert "title: Alpha\n" not in staged
 
 
 # ── Idle-mode safety (preserved from {132.16}) ──────────────────────────
@@ -1486,72 +1630,6 @@ class TestOverrideReapply:
         # only, never the local bundle_dir working copy.
         bundle_content = (bundle_dir / "topics/alpha.md").read_text(encoding="utf-8")
         assert "description: Desc" in bundle_content
-
-
-# ── _read_bundle_dir: .git-safe reads (ID-132 {132.35} G-DEPLOY-PROOF Defect B) ──
-#
-# RUN 1 of the {132.35} deploy-proof crashed here: `UnicodeDecodeError: 'utf-8'
-# codec can't decode byte 0xe2` reading `.git/**` of the deployed bundle clone.
-# A bundle working tree is ALWAYS a git clone (DR-016) — this module's own
-# `.git`-less `tmp_path` fixtures (this file's `repo`/`bundle_dir` fixtures
-# before this Subtask) never exercised that, the same fixture-blind-spot
-# lesson the {132.32} explorer hit (`gitnexus`-cited precedent, commit
-# 6c54f26a). Reproduced/fixed against a REAL `git init` + commit repo below —
-# the only kind of bundle dir that exists in deployment.
-
-
-def _commit_all(repo_path: Path, message: str) -> None:
-    subprocess.run(["git", "add", "-A"], cwd=repo_path, check=True)
-    subprocess.run(
-        [
-            "git",
-            "-c",
-            "user.name=test",
-            "-c",
-            "user.email=test@example.com",
-            "commit",
-            "--quiet",
-            "-m",
-            message,
-        ],
-        cwd=repo_path,
-        check=True,
-    )
-
-
-class TestReadBundleDir:
-    def test_excludes_git_plumbing_from_a_real_git_backed_bundle(self, repo: Path) -> None:
-        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
-        _commit_all(repo, "seed")
-
-        output = _read_bundle_dir(repo)
-
-        # Before the fix this line never returns — `.git/objects/**` /
-        # `.git/index` are real zlib-compressed binary blobs once a commit
-        # exists, and `rglob("*")` + unconditional `read_text(utf-8)` raised
-        # UnicodeDecodeError on the first one encountered.
-        assert output == {"topic-a.md": "draft body\n"}
-        assert not any(
-            rel == ".git" or rel.startswith(".git/") for rel in output
-        )
-
-    def test_skips_a_hidden_dotfile_alongside_git(self, repo: Path) -> None:
-        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
-        (repo / ".hidden.md").write_text("hidden\n", encoding="utf-8")
-        _commit_all(repo, "seed")
-
-        output = _read_bundle_dir(repo)
-
-        assert output == {"topic-a.md": "draft body\n"}
-
-    def test_skips_a_non_utf8_file_gracefully_rather_than_raising(self, repo: Path) -> None:
-        (repo / "topic-a.md").write_text("draft body\n", encoding="utf-8")
-        (repo / "binary.bin").write_bytes(b"\xff\xfe\x00binary")
-
-        output = _read_bundle_dir(repo)
-
-        assert output == {"topic-a.md": "draft body\n"}
-        assert "binary.bin" not in output
 
 
 # ─────────────────────────────────────────────────────────────────────────

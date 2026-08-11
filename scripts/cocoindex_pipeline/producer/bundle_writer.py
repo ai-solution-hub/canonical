@@ -165,7 +165,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as _dataclass_replace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
@@ -320,6 +320,16 @@ class ConceptWriteResult:
     is_new: bool = False
     changed: bool = False
 
+    content: str = ""
+    """The exact bytes handed to `declare_file` for this concept (empty when
+    `written` is False — a gated concept declares nothing).
+
+    ID-445: `declare_file` is a DECLARATION, not a write — the engine applies
+    it AFTER the flow body returns (measured against cocoindex 1.0.18). So a
+    caller that needs THIS run's output cannot read it back off disk from
+    inside the flow; it has to be handed the bytes here. See
+    `RunSummary.declared`."""
+
 
 def declare_concept(
     bundle_dir: Path,
@@ -382,6 +392,7 @@ def declare_concept(
         written=True,
         is_new=previous is None,
         changed=previous is not None and previous != markdown,
+        content=markdown,
     )
 
 
@@ -605,7 +616,7 @@ def build_directory_indexes(
     about to orphan-delete, and would re-admit the failure mode `written`
     already rules out. Two decided consequences follow (D7): a concept that
     failed to draft this run (`failed_rel_paths`) is absent from its index
-    even though `_reaffirm_failed_concepts` keeps its file alive; and a
+    even though `_reaffirm_unwritten_concepts` keeps its file alive; and a
     directory whose last concept leaves simply stops having an index
     declared, which the engine's own orphan-delete reconciliation then
     cleans up (EXECUTOR-VERIFY, module docstring) — this module never
@@ -774,6 +785,39 @@ class RunSummary:
     from `validator_failures` (a drafted-but-REJECTED concept) and from
     `removed` (confirmed absent from the source catalogue's own
     enumeration)."""
+
+    declared: "Mapping[str, str]" = MappingProxyType({})
+    """THIS run's declared bundle output — `{bundle-relative path: content}` —
+    covering every `declare_file` call `write_bundle` made: concepts, the
+    per-directory indexes, `ontology.json`, `context.jsonld`, `log.md`, and
+    the reaffirmed last-good content of unwritten-but-still-enumerated
+    concepts.
+
+    **Not part of the `log.md` diff** — the four tuples above are that. This
+    is here because ID-445 measured that there is no other way to obtain it
+    from inside the flow body.
+
+    `declare_file` is a DECLARATION; the engine performs the physical write
+    AFTER the flow body returns (measured, cocoindex 1.0.18). So
+    `flow_def`'s `_read_bundle_dir(bundle_dir)` — which runs INSIDE the body —
+    reads the PREVIOUS run's tree, and feeding that to `sync_bundle` as
+    "this run's desired content" made two of its reconcile branches
+    structurally unreachable: removal (`desired is None` could never hold,
+    because a de-enumerated path was still on disk) and human-edit conflict
+    (`desired == current` by construction). This field is what `sync_bundle`
+    must reconcile against instead.
+
+    **Why the git layer has to be able to delete at all** (ID-445 AC-5, and
+    the module docstring's EXECUTOR-VERIFY corollary is too narrow): the
+    engine's orphan-delete is keyed on ITS OWN target-state store, per app
+    namespace, whereas `removed` is derived from an `rglob` of the disk. Those
+    are different populations. A bundle is ALWAYS a git clone in deployment
+    (DR-016), so on a freshly-provisioned container the concept files arrived
+    by `git clone` and the store holds NO declaration for them — nothing can
+    drop out of a keyset it never had, so the engine deletes nothing. The
+    same holds when the run uses a different App name than the one that
+    declared them (`kh_pipeline_producer_forced` vs `KH_PIPELINE_APP` —
+    `server.py:1753-1765` already warns the namespaces are distinct)."""
 
     census: CorpusCensus = CorpusCensus()
     """ID-427 {427.9} (TECH §2.11, closing AC 4): this run's corpus census —
@@ -1593,25 +1637,51 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     }
 
 
-def _reaffirm_failed_concepts(bundle_dir: Path, failed_rel_paths: "set[str]") -> None:
+def _reaffirm_unwritten_concepts(
+    bundle_dir: Path, unwritten_rel_paths: "set[str]"
+) -> "dict[str, str]":
     """G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, {132.35} Defect B): re-declare
     the EXISTING on-disk content, byte-for-byte unchanged, for every concept
-    whose draft transiently failed THIS run — never a fresh write. This is
+    that is STILL enumerated by the source catalogue but produced no write
+    THIS run — never a fresh write. This is
     what actually keeps the concept's last-good bundle version alive: the
     module docstring's EXECUTOR-VERIFY finding established that the REAL
     cocoindex engine orphan-deletes any path NOT re-declared this run
     relative to the prior run's own declared keyset, with NO `DirTarget`
-    required — so a concept simply left undeclared because its draft failed
-    would still be deleted by the engine's own reconciliation on the next
-    actual flow update, regardless of what `RunSummary.removed` reports. A
-    path with no prior on-disk content (its first-ever draft attempt
-    failed) has nothing to reaffirm and is left untouched — `write_bundle`
-    still records it in `RunSummary.failed` for `log.md` visibility."""
-    for rel_path in failed_rel_paths:
+    required — so a concept simply left undeclared would still be deleted by
+    the engine's own reconciliation on the next actual flow update,
+    regardless of what `RunSummary.removed` reports.
+
+    **Two distinct classes reach here, and they stay distinct in REPORTING
+    while sharing these removal semantics** (id-445 AC-4):
+
+    - a **transiently-failed** draft (`RunSummary.failed`) — a caught
+      upstream exception, the original {132.45} case;
+    - a **validator-REJECTED** draft (`RunSummary.validator_failures`) — the
+      BI-13 gate refused this run's bytes. TECH §BI-13 gates the *write*
+      ("a concept missing a required key / wrong type / bad scheme is **not
+      written**"); it does not license destroying the concept's last-good
+      published version. S551 measured the consequence on a real run:
+      `company/overview.md` was drafted, rejected, and reported `removed`.
+
+    A path with no prior on-disk content (its first-ever attempt failed or
+    was rejected) has nothing to reaffirm and is left untouched —
+    `write_bundle` still records it in `RunSummary.failed` /
+    `validator_failures` for `log.md` visibility.
+
+    Returns `{rel_path: reaffirmed content}` for the paths it actually
+    re-declared, so the caller can fold them into `RunSummary.declared`
+    (ID-445) — a reaffirmed concept IS part of this run's declared output,
+    and a `sync_bundle` that did not see it would read the path as
+    de-enumerated and delete the very file this function exists to save."""
+    reaffirmed: "dict[str, str]" = {}
+    for rel_path in unwritten_rel_paths:
         existing = _read_existing(bundle_dir / rel_path)
         if existing is None:
             continue
         localfs.declare_file(bundle_dir / rel_path, existing, create_parent_dirs=True)
+        reaffirmed[rel_path] = existing
+    return reaffirmed
 
 
 def write_bundle(
@@ -1685,7 +1755,7 @@ def write_bundle(
     catalogue (`removed`). Two effects: (a) excluded from the `removed`
     computation below, so a transient drafting glitch can never look
     identical to a confirmed source deletion; (b) re-declared via
-    `_reaffirm_failed_concepts` with their EXISTING on-disk content
+    `_reaffirm_unwritten_concepts` with their EXISTING on-disk content
     UNCHANGED (never a fresh write) — this is not merely bookkeeping: the
     module docstring's EXECUTOR-VERIFY finding means the REAL cocoindex
     engine orphan-deletes any path NOT re-declared THIS run relative to the
@@ -1778,6 +1848,9 @@ def write_bundle(
     changed: "list[str]" = []
     unchanged: "list[str]" = []
     failures: "list[tuple[str, tuple[str, ...]]]" = []
+    # ID-445: every `declare_file` this run makes, by bundle-relative path —
+    # see `RunSummary.declared`.
+    declared: "dict[str, str]" = {}
 
     all_drafts: "list[Any]" = [*drafts, *reference_drafts]
 
@@ -1813,6 +1886,9 @@ def write_bundle(
             failures.append((result.rel_path, result.errors))
             continue
         written[result.rel_path] = draft.frontmatter
+        # ID-445: keep the exact declared bytes — the engine has not written
+        # them yet and will not until this flow body returns.
+        declared[result.rel_path] = result.content
         if result.is_new:
             added.append(result.rel_path)
         elif result.changed:
@@ -1829,8 +1905,21 @@ def write_bundle(
     # this run are reaffirmed — a caller-supplied `failed_rel_paths` entry
     # that also drafted successfully this run (an inconsistent caller
     # state) is left as its fresh write, never double-declared.
-    removed = sorted(previous_paths - set(written) - moved_from - failed_set)
-    _reaffirm_failed_concepts(bundle_dir, failed_set - set(written))
+    #
+    # ID-445 AC-4: a VALIDATOR-REJECTED concept gets the identical treatment,
+    # for both of the same reasons. It was drafted this run and refused by the
+    # BI-13 gate, so it is still enumerated by the source catalogue — which
+    # makes `removed`'s own definition ("confirmed absent from the source
+    # catalogue's own enumeration") false of it. And leaving it un-re-declared
+    # hands it to the engine's orphan-delete: a PHYSICAL deletion of a
+    # concept that merely failed validation, not just a mis-report. TECH
+    # §BI-13 gates the write ("not written"); it never licenses a removal.
+    rejected_set = {rel_path for rel_path, _errors in failures}
+    reaffirm_set = (failed_set | rejected_set) - set(written)
+    removed = sorted(
+        previous_paths - set(written) - moved_from - failed_set - rejected_set
+    )
+    declared.update(_reaffirm_unwritten_concepts(bundle_dir, reaffirm_set))
 
     summary = RunSummary(
         added=tuple(sorted(added)),
@@ -1844,9 +1933,15 @@ def write_bundle(
         census=census,
     )
 
-    declare_directory_indexes(bundle_dir, written)
-    write_ontology_artefact(bundle_dir, client_overlay=overlay)
-    write_context_artefact(bundle_dir, effective_ontology, client_id=client_id)
-    append_log_entry(bundle_dir, summary, timestamp=timestamp)
+    declared.update(declare_directory_indexes(bundle_dir, written))
+    declared[ONTOLOGY_FILENAME] = write_ontology_artefact(
+        bundle_dir, client_overlay=overlay
+    )
+    declared[CONTEXT_FILENAME] = write_context_artefact(
+        bundle_dir, effective_ontology, client_id=client_id
+    )
+    # `append_log_entry` needs the summary, so `declared` can only be complete
+    # after it — hence the replace rather than a later RunSummary construction.
+    declared[LOG_FILENAME] = append_log_entry(bundle_dir, summary, timestamp=timestamp)
 
-    return summary
+    return _dataclass_replace(summary, declared=MappingProxyType(dict(declared)))
