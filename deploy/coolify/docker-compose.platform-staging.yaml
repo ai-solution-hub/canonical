@@ -312,6 +312,43 @@ services:
       retries: 3
       start_period: 30s
 
+  # ----------------------------------------------------------------------------
+  # cloudflared — DR-046 private-ingress tunnel connector ({127.20}; runbook
+  # private-ingress-cutover §3.1).
+  #
+  # OUTBOUND-ONLY: the connector dials out to Cloudflare's edge; it needs no
+  # ports, no volumes, no inbound rules and NO Traefik labels. The tunnel is
+  # token-managed (created in the Zero Trust dashboard, §2.3), so the §3.2
+  # ingress rule lives in the dashboard's Public Hostname config — NOT in a
+  # local config file: service `https://coolify-proxy:443` with
+  # `originServerName` = the pipeline FQDN. Routing through the coolify-proxy
+  # Traefik (reachable on this compose network — the proxy is already attached,
+  # see the labels comment above) is the load-bearing invariant that preserves
+  # the /walk|/health|/extract path-scope: /stage and /producer-run keep having
+  # no router, behind the tunnel exactly as on the public path. Never point the
+  # dashboard ingress rule at the cocoindex container directly.
+  #
+  # CLOUDFLARE_TOKEN is the §2.3 tunnel token for `ca-platform-pipeline-staging`,
+  # injected by Coolify env (secrets discipline {66.10} — no literal here).
+  # Image pinned per the repo's no-:latest discipline. No healthcheck: the
+  # official image ships no in-container probe tooling; connector health is the
+  # tunnel's HEALTHY state in the Zero Trust dashboard + this container's logs.
+  # ----------------------------------------------------------------------------
+  cloudflared-platform-staging:
+    image: cloudflare/cloudflared:2026.7.3
+    container_name: ca-cloudflared-platform-staging
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TOKEN:?set to the ca-platform-pipeline-staging tunnel token (private-ingress-cutover runbook §2.3)}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+        reservations:
+          memory: 32M
+
 # ------------------------------------------------------------------------------
 # Volumes
 #
