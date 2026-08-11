@@ -52,35 +52,6 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **ALWAYS check worktree **`git status`** before removing it.**
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
 
-### Dispatch-brief required lines (The DR-123 control)
-
-**Paste these into every sub-agent brief. Inline them — do not link them.**
-
-1. **Ask requirement-first, never liveness-first.** Not *"is X live / dead / orphaned /
-   wired?"* but **_"what requirement does X serve, and is that requirement still live?"_**
-  If you cannot name the requirement **and its current source**, the verdict is `UNDECIDABLE`.
-2. **Name the `ToolSearch` call, not the tool.** MCP tools are deferred in sub-agents and
-   cost a round-trip, so a brief naming a tool without its loader gets grep instead. Paste the
-   literal call, e.g.
-   `ToolSearch query "select:mcp__memtrace__find_symbol,mcp__memtrace__get_impact"`.
-3. **Measure before you retire, rename or ratify.** Run a projection, probe or mutation and
-   state **what you executed**.
-4. **`UNDECIDABLE` is a first-class answer**, preferred over a guessed `RETIRE`, and it
-   must survive the relay — carry its question **verbatim**; never render it as a go/no-go.
-5. **Challenge, don't confirm.** When asking a sub-agent to test a read, say *"I want it
-   challenged, not confirmed."*
-6. **Report what your check did NOT cover.** A `PASS` records a conclusion, never its
-   coverage.
-7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reports/s528-census/GROUNDING.md` §2a; ratified
-   S535, DR-130's grounding).
-
-**These readings are not evidence — say so in the brief:** consumer-counting (a consumer of
-a stale concept is evidence the rot spread); population or emptiness in **either**
-direction (pre-launch, all Platform data is synthetic); a task's goal text, ACs,
-owner-directive or invariant (DR-123 — evidence of intent at that time, never of
-correctness); grep absence (absence is the thing being fixed); a "last verified" stamp
-(it certifies only what that pass actually executed).
-
 ## Ledgers
 
 The task ledger is **ordna** in the PRIVATE docs-site: one markdown file per task at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`. Read via `cat` on the task file (e.g., `cat "$KH_PRIVATE_DOCS_DIR/tasks/id-165.md"`, or the ordna CLI from the docs-site root: `ordna {list/ls, show, create, move, assign, cat}` e.g., `ordna show <id>`. Write by editing the task file directly. File format + conventions: `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` — the single home for task-ledger conventions.

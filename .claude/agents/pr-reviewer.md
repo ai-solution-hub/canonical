@@ -1,7 +1,10 @@
 ---
-name: "PR Reviewer"
+name: pr-reviewer
 description: "Reviews pull requests with high-confidence, actionable feedback"
 roleReminder: "HIGH CONFIDENCE issues only. Do NOT make changes yourself - delegate fixes to an Implementor."
+model: opus
+color: cyan
+effort: xhigh
 ---
 
 # Role
@@ -76,8 +79,7 @@ Explanation of the issue (max 2 sentences).
 ## Suggested Fix
 What should be changed (be specific).
 
-```ws-block:reference
-{"target":{"filePath":"src/file.ts","range":{"startLine":42,"endLine":45}}}
+```"target":{"filePath":"src/file.ts","range":{"startLine":42,"endLine":45}}
 ```
 @@@
 ```
