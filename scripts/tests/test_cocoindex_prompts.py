@@ -202,60 +202,24 @@ class TestPromptsEnumeratesEnums:
         )
 
 
-class TestRelationshipPromptHolderRules:
-    """{101.6} — the ported §Holder Disambiguation rules must survive verbatim.
+class TestRelationshipPromptAttribution:
+    """id-449 {449.1} §2.2: the 2,603-char HOLDER DISAMBIGUATION block is retired.
 
-    Port-fidelity guards (R5: port once, verbatim, freeze) — these phrasings come
-    straight from `lib/ai/skills/classification.md` §Relationship Extraction +
-    §Holder Disambiguation and must not silently drift.
+    Its consumer (`holder_rule.py` / `PIPELINE_CLIENT_ORG`) was deleted by id-433,
+    and it carried an unsubstituted `{CLIENT_ORGANISATION_NAME}` template token.
+    What survives is one attribution sentence; the no-invention rule is general.
     """
 
-    def test_contains_verbatim_trigger_phrase_rules(self) -> None:
-        """The sentence-level trigger-phrase rule + its phrase list survive."""
-        # The rule's framing sentence.
-        assert (
-            "attribute the `holds` relationship to the named third party, "
-            "not the author organisation" in RELATIONSHIP_PROMPT
-        )
-        # The verbatim trigger phrases (a representative, load-bearing subset).
-        for phrase in (
-            '"held by [party]"',
-            '"managed by [party]"',
-            '"maintained by [party]"',
-            '"via supplier [party]" / "via [party]"',
-            '"delivered through [party]"',
-            '"outsourced to [party]"',
-            '"provided by [party]" (when [party] is not the document author)',
-            '"operated by [party]"',
-        ):
-            assert phrase in RELATIONSHIP_PROMPT, (
-                f"RELATIONSHIP_PROMPT missing verbatim trigger phrase: {phrase}"
-            )
+    def test_holder_block_is_retired(self) -> None:
+        """Neither the block heading nor the template token may return."""
+        assert "HOLDER DISAMBIGUATION" not in RELATIONSHIP_PROMPT
+        assert "{CLIENT_ORGANISATION_NAME}" not in RELATIONSHIP_PROMPT
 
-    def test_contains_verbatim_disclaimer_paragraph_rule(self) -> None:
-        """The content-level disclaimer-paragraph rule survives verbatim."""
+    def test_third_party_attribution_sentence_present(self) -> None:
+        """The surviving attribution rule: source is whoever the content names."""
         assert (
-            "then ALL certification `holds` relationships following the "
-            "disclaimer (or within its stated scope) must use [party] as the "
-            "`source` entity, not the author organisation" in RELATIONSHIP_PROMPT
-        )
-        # The disclaimer exemplars.
-        for phrase in (
-            '"Note: Certifications ... are held by [party], not [author]"',
-            '"The following certifications are held by [party]"',
-            '"Certifications listed ... belong to [party]"',
-            '"These accreditations are maintained by [party]"',
-        ):
-            assert phrase in RELATIONSHIP_PROMPT, (
-                f"RELATIONSHIP_PROMPT missing verbatim disclaimer exemplar: {phrase}"
-            )
-
-    def test_contains_supplier_attribution_example(self) -> None:
-        """The supplier-attribution worked example survives verbatim."""
-        assert "Example Datacentre" in RELATIONSHIP_PROMPT
-        assert (
-            'source: "Example Datacentre", relationship: "holds", '
-            'target: "ISO 27001"' in RELATIONSHIP_PROMPT
+            "Attribute each relationship to the entity the content itself names"
+            in RELATIONSHIP_PROMPT
         )
 
     def test_instructs_empty_list_when_none_found(self) -> None:
