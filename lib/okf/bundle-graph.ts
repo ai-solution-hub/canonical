@@ -234,6 +234,17 @@ function walkMarkdownFiles(root: string): string[] {
   function walk(dir: string) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
+      // id-439: never descend into, or list, a dot-entry. A bundle is a git
+      // clone (DR-016) so its working tree always carries `.git/`, and a
+      // checked-in `.claude/skills/**/SKILL.md` is bundle TOOLING, not a
+      // concept the graph should render. Placed before the dir/file branch so
+      // one guard covers both, mirroring `walk-bundle-tree.ts`'s dot-entry
+      // exclusion and the producer's `_has_dotted_segment` — THREE surfaces,
+      // ONE rule. S551 measured the producer's twin defect on a real run:
+      // `.claude/skills/validate/SKILL.md` was enumerated as a concept and
+      // then reported removed.
+      if (entry.name.startsWith('.')) continue;
+
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(full);

@@ -170,6 +170,25 @@ describe('buildBundleGraph', () => {
     expect(graph.nodes.map((n) => n.data.id)).toEqual(['tables/orders']);
   });
 
+  it('skips markdown under a dot-directory — bundle tooling is not a concept', () => {
+    // id-439: a bundle is a git clone (DR-016) and may carry checked-in
+    // tooling. THREE surfaces share this rule: the `/okf` explorer
+    // (`walk-bundle-tree.ts`) and the producer (`_has_dotted_segment`) both
+    // already had it; the viewer did not. S551 measured the producer's twin
+    // on a real run — `.claude/skills/validate/SKILL.md` was enumerated as a
+    // concept and then reported removed.
+    const root = bundle({
+      'tables/orders.md': orders,
+      '.claude/skills/validate/SKILL.md': customers,
+      '.github/PULL_REQUEST_TEMPLATE.md': customers,
+      '.hidden-note.md': customers,
+    });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.nodes.map((n) => n.data.id)).toEqual(['tables/orders']);
+  });
+
   it('collects concept bodies keyed by concept id', () => {
     const root = bundle({ 'tables/orders.md': orders });
 
