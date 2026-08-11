@@ -63,9 +63,12 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        const { canonicalise } = await import('@/lib/entities/entity-dedup');
+        // The stored canonicals are written by the pipeline's key function and
+        // get_entity_summary matches them by raw string equality, so the lookup
+        // must derive its key the same way (DR-140).
+        const { entityKey } = await import('@/lib/entities/entity-key');
         const resolvedName = args.entity_name
-          ? canonicalise(args.entity_name)
+          ? entityKey(args.entity_name)
           : undefined;
 
         const rpcArgs: Record<string, string> = {};

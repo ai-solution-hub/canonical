@@ -6,9 +6,8 @@
  * Inv-17 statement (paraphrased from
  * `docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md` Inv-17):
  *
- * > "The per-item phase computes context_snippet for each entity_mentions row
- * > via a Python port of lib/ai/classify.ts:1611 extractEntityContext. The
- * > column is NOT left NULL; downstream consumers see it populated for every
+ * > "The per-item phase computes context_snippet for each entity_mentions row.
+ * > The column is NOT left NULL; downstream consumers see it populated for every
  * > Stage-5-produced row. Verifiable: pipeline-produced context_snippet
  * > matches the Python-port output for the same inputs."
  *
@@ -23,8 +22,7 @@
  * References:
  *   - docs/specs/id-53-stage-5-entity-resolution/PRODUCT.md Inv-17.
  *   - docs/specs/id-53-stage-5-entity-resolution/TECH.md §P-3, §P-5, §3.
- *   - scripts/cocoindex_pipeline/entity_context.py (the Python port).
- *   - lib/ai/classify.ts:1611 extractEntityContext (the TS source-of-truth).
+ *   - scripts/cocoindex_pipeline/entity_context.py (the implementation).
  *   - docs/reference/testing/test-philosophy.md (behaviour-not-implementation).
  */
 

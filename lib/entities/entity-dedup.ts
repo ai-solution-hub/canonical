@@ -1,8 +1,9 @@
 /**
- * Entity name canonicalisation for deduplication.
+ * Entity name formatting for DISPLAY.
  *
- * Shared between the classification pipeline (lib/ai/classify.ts) and
- * batch entity extraction scripts. Import from '@/lib/entities/entity-dedup'.
+ * `canonicalise` restores casing, company suffixes and standards spellings for
+ * rendering a stored lowercase canonical_name. It is NOT a key function and must
+ * never build a lookup key — see `./entity-key` (DR-140).
  */
 
 /** Known abbreviations that should remain uppercase */

@@ -859,8 +859,7 @@ class TestNormaliseEntitySpan:
 _REPO_ROOT = Path(__file__).parent.parent.parent
 _SCHEMAS_TS_PATH = _REPO_ROOT / "lib" / "validation" / "schemas.ts"
 # ID-133 BI-5: the public mirror of the KG CVs lives in the ontology baseline
-# fixture. (The former TS leg — the `ExtractedRelationship.relationship` union
-# in `lib/ai/classify.ts` — retired with the TS classification stage, DR-130.)
+# fixture.
 _ONTOLOGY_BASELINES_FIXTURE_PATH = (
     _REPO_ROOT
     / "__tests__"
@@ -945,9 +944,7 @@ class TestRelationshipParity:
 
     Binds the Python `RelationshipExtraction.relationship` Literal to the
     public `relationship` CV baseline_values keys in the ontology baseline
-    fixture. The third leg — the TS `ExtractedRelationship.relationship`
-    union in `lib/ai/classify.ts` — retired with the TS classification stage
-    (DR-130 wave): the Python pipeline is the sole relationship extractor.
+    fixture. The Python pipeline is the sole relationship extractor.
     """
 
     def test_python_literal_matches_fixture(self) -> None:

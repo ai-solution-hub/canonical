@@ -93,10 +93,7 @@ from scripts.cocoindex_pipeline.adapters import (
 # `LiteLLMEmbedder` import below. Stage 5 (entity_resolution) is still OUT OF
 # SCOPE here (lands in ID-49.5, needs faiss-cpu); its placeholder block is
 # preserved at the Stage-5 marker below.
-from scripts.cocoindex_pipeline.canonicalisation import (
-    canonicalise_entity_name,
-    canonicalise_for_relationship,
-)
+from scripts.cocoindex_pipeline.canonicalisation import canonicalise_entity_name
 from scripts.cocoindex_pipeline.entity_context import entity_context_for_mention
 # ID-112.7 — the worker HTML branch cleans fetched HTML IN-PROCESS via the
 # single shared Trafilatura cleaner ({112.5}), replacing the retired
@@ -1533,8 +1530,7 @@ ENTITY_MENTIONS_SCHEMA = TableSchema(
 
 # ID-101 §{101.7} (PC-3 lane). Stage-5 relationship-extraction writes
 # entity_relationships rows via `er_target` declared per-doc inside `ingest_file`
-# (mounted at app_main below). Mirrors the legacy TS relationship writer
-# (`lib/ai/classify.ts:1785-1819`, Inv-16 parity): the table is
+# (mounted at app_main below). The table is
 # `id, source_entity, relationship_type, target_entity, source_item_id,
 # confidence, created_at` only (migration-verified —
 # `20260416102457_pre_squash_reconciliation.sql:3660-3670`; no `op_id` migration
@@ -1558,11 +1554,10 @@ ENTITY_RELATIONSHIPS_SCHEMA = TableSchema(
     primary_key=("id",),
 )
 
-# The EXACTLY-10 relationship predicates of the TS `ExtractedRelationship` union
-# (`lib/ai/classify.ts:653-666`) — the Inv-4 parity contract, also the runtime
-# `Literal` constraint on `RelationshipExtraction.relationship`
-# (extraction.py:415-426). The {101.7} declare loop defensively skips+logs any
-# triple whose predicate falls outside this set (Inv-4 — never crash the doc).
+# The EXACTLY-10 relationship predicates, mirroring the runtime `Literal` on
+# `RelationshipExtraction.relationship`. The {101.7} declare loop defensively
+# skips+logs any triple whose predicate falls outside this set (Inv-4 — never
+# crash the doc).
 _RELATIONSHIP_PREDICATES: frozenset[str] = frozenset(
     {
         "holds",
@@ -1929,8 +1924,7 @@ async def ingest_file(
     `*`) so the existing 5-/6-arg callers stay valid: when None, the relationship
     declare loop is skipped entirely. When supplied, the loop runs in the content
     branch AFTER the entity_mentions declares and declares one entity_relationships
-    row per distinct canonicalised triple (Inv-4 / Inv-16 parity with the legacy TS
-    writer at lib/ai/classify.ts:1785-1819).
+    row per distinct canonicalised triple (Inv-4).
 
     `re_target` (ID-131 {131.11}) is the `record_embeddings` polymorphic write
     target. It is a DEFAULTED 8th positional (defaults to None) appended AFTER
@@ -2687,9 +2681,12 @@ async def _ingest_content_branch(
     # returned becomes ONE entity_relationships row for this document. The raw
     # `RelationshipExtraction` cores (source / relationship / target str fields —
     # NOTE the Pydantic field is `relationship`, NOT `relationship_type`) are
-    # consumed directly; both endpoints are canonicalised via
-    # `canonicalise_for_relationship` so pipeline-produced endpoints match the
-    # legacy TS writer byte-for-byte (lib/ai/classify.ts:1788, Inv-16 parity).
+    # consumed directly.
+    #
+    # DR-140 clause 3 (INTERIM): endpoints go through `canonicalise_entity_name`
+    # — the SAME key function the mention lane uses — so the two tables share one
+    # key-space and `get_entity_summary`'s raw-string join can land. id-435
+    # replaces this by deriving endpoints from resolved mentions.
     #
     # Inv-4 (never crash): the {101.6} extractor's `Literal` already constrains
     # the predicate to the 10-set, but the write site defensively skips+logs any
@@ -2731,8 +2728,8 @@ async def _ingest_content_branch(
                         )
                     )
                     continue
-                source_c = canonicalise_for_relationship(rel.source)
-                target_c = canonicalise_for_relationship(rel.target)
+                source_c = canonicalise_entity_name(rel.source)
+                target_c = canonicalise_entity_name(rel.target)
                 key = (source_c, predicate, target_c)
                 if key in _er_dedup:
                     continue
@@ -3702,8 +3699,8 @@ async def ingest_once(
                             )
                         )
                         continue
-                    source_c = canonicalise_for_relationship(rel.source)
-                    target_c = canonicalise_for_relationship(rel.target)
+                    source_c = canonicalise_entity_name(rel.source)
+                    target_c = canonicalise_entity_name(rel.target)
                     dedup_key = (source_c, predicate, target_c)
                     if dedup_key in _er_dedup:
                         continue

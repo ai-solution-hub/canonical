@@ -469,7 +469,6 @@ class TestIngestOnceWritesDerivedRowsOffEngine:
         # string-folding rule holds.
         from scripts.cocoindex_pipeline.canonicalisation import (
             canonicalise_entity_name,
-            canonicalise_for_relationship,
         )
 
         expected_canonical_entity = canonicalise_entity_name("ACME Ltd")
@@ -479,8 +478,8 @@ class TestIngestOnceWritesDerivedRowsOffEngine:
             f"em:{source_document_id}:{expected_canonical_entity}:organisation",
         )
 
-        expected_source_entity = canonicalise_for_relationship("ACME Ltd")
-        expected_target_entity = canonicalise_for_relationship("ISO 9001")
+        expected_source_entity = canonicalise_entity_name("ACME Ltd")
+        expected_target_entity = canonicalise_entity_name("ISO 9001")
         assert er_rows[0]["source_entity"] == expected_source_entity
         assert er_rows[0]["target_entity"] == expected_target_entity
         assert er_rows[0]["id"] == uuid.uuid5(

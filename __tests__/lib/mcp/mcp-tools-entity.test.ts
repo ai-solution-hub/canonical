@@ -197,15 +197,18 @@ describe('MCP entity tools', () => {
         };
       };
 
+      // Both RPCs are keyed on the pipeline's entity key (DR-140), which is
+      // what the stored canonicals are written with — not on the raw argument
+      // and not on the display formatter's output.
       expect(supabase.rpc).toHaveBeenCalledTimes(2);
       expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'get_entity_summary', {
-        p_entity_name: 'ISO 27001',
+        p_entity_name: 'iso 27001',
       });
       expect(supabase.rpc).toHaveBeenNthCalledWith(
         2,
         'get_entity_relationships_rpc',
         {
-          p_entity_name: 'ISO 27001',
+          p_entity_name: 'iso 27001',
         },
       );
 

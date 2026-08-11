@@ -47,8 +47,7 @@ validator (BI-13)", as amended by the v0.2 wave:
   vocabulary already live in `scripts/cocoindex_pipeline/extraction.py`
   (`EntityMentionExtraction.entity_type` / `RelationshipExtraction.
   relationship` `Literal`s), itself parity-guarded against
-  `lib/validation/schemas.ts:VALID_ENTITY_TYPES` and the TS
-  `ExtractedRelationship` union (`lib/ai/classify.ts`). This is the SAME
+  `lib/validation/schemas.ts:VALID_ENTITY_TYPES`. This is the SAME
   register TECH.md §"Concept-frontmatter validator" says gates both ID-131
   extraction writes AND ID-132 concept writes — NOT an invented placeholder
   value set. It is NOT imported directly from `extraction.py`, which
@@ -184,11 +183,9 @@ _RESERVED_TYPES = frozenset({"q_a_pair"})
 # ──────────────────────────────────────────
 # BI-13 semantic lint: the closed 12-entity/10-relation ontology. Mirrors
 # `EntityMentionExtraction.entity_type` / `RelationshipExtraction.
-# relationship` Literals — `scripts/cocoindex_pipeline/extraction.py:378-391
-# /423-434` — itself parity-guarded against `lib/validation/schemas.ts:
-# VALID_ENTITY_TYPES` and the TS `ExtractedRelationship` union
-# (`lib/ai/classify.ts:684-694`). See module docstring for the ID-133
-# swap-in note.
+# relationship` Literals in `scripts/cocoindex_pipeline/extraction.py`, itself
+# parity-guarded against `lib/validation/schemas.ts:VALID_ENTITY_TYPES`. See
+# module docstring for the ID-133 swap-in note.
 # ──────────────────────────────────────────
 
 ALLOWED_ENTITY_TYPES = frozenset(

@@ -949,7 +949,8 @@ class TestIngestFileRelationshipWritePath:
 
     Proves the {101.7} write site (PC-3 lane): the content branch awaits
     ``extract_relationships``, canonicalises both endpoints via
-    ``canonicalise_for_relationship``, and declares ONE
+    ``canonicalise_entity_name`` — the SAME key function the mention lane uses
+    (DR-140 clause 3) — and declares ONE
     ``entity_relationships`` row per distinct canonical triple onto
     ``er_target`` — with the EXACT legacy TS column set (RULING 2): ``id``,
     ``source_entity``, ``relationship_type``, ``target_entity``,
@@ -1039,7 +1040,7 @@ class TestIngestFileRelationshipWritePath:
     ) -> None:
         flow = _flow_module()
         from scripts.cocoindex_pipeline.canonicalisation import (
-            canonicalise_for_relationship,
+            canonicalise_entity_name,
         )
 
         run_op_id = uuid.uuid4()
@@ -1058,8 +1059,8 @@ class TestIngestFileRelationshipWritePath:
         # a `_FakeTarget` — the sd row no longer flows through sd_target.
         source_document_id = sd[0]["id"]
 
-        # Endpoints are canonicalised (lowercase resolve-alias chain), payload is
-        # EXACTLY the legacy TS column set — NO op_id, NO created_at (RULING 2).
+        # Payload is EXACTLY the legacy TS column set — NO op_id, NO
+        # created_at (RULING 2).
         expected_keys = {
             "id",
             "source_entity",
@@ -1081,16 +1082,16 @@ class TestIngestFileRelationshipWritePath:
             assert row["confidence"] == 1.0, "confidence is a flat 1.0 (Inv-16 TS parity)"
 
         first = er.rows[0]
-        assert first["source_entity"] == canonicalise_for_relationship("ACME Ltd")
+        assert first["source_entity"] == canonicalise_entity_name("ACME Ltd")
         assert first["relationship_type"] == "holds"
-        assert first["target_entity"] == canonicalise_for_relationship("ISO 9001")
+        assert first["target_entity"] == canonicalise_entity_name("ISO 9001")
 
     def test_relationship_pk_is_deterministic_on_canonical_triple(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         flow = _flow_module()
         from scripts.cocoindex_pipeline.canonicalisation import (
-            canonicalise_for_relationship,
+            canonicalise_entity_name,
         )
 
         run_op_id = uuid.uuid4()
@@ -1101,11 +1102,9 @@ class TestIngestFileRelationshipWritePath:
         # rel_path — so byte-identical re-stagings upsert-absorb (id-396 TECH
         # §4 D1; the registry-keyed contract ingest_once had from day one).
         source_document_id = sd[0]["id"]
-        # Endpoints are canonicalised via the SAME chain the write site uses —
-        # do not hardcode the canonical form (the resolve-alias chain is more
-        # than a lowercase).
-        source_c = canonicalise_for_relationship("ACME Ltd")
-        target_c = canonicalise_for_relationship("ISO 9001")
+        # Endpoints are canonicalised via the SAME function the write site uses.
+        source_c = canonicalise_entity_name("ACME Ltd")
+        target_c = canonicalise_entity_name("ISO 9001")
         expected = uuid.uuid5(
             flow._KH_PIPELINE_DOC_NS,  # type: ignore[attr-defined]
             f"er:{source_document_id}:{source_c}:holds:{target_c}",
@@ -2929,7 +2928,7 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
         flow = _flow_module()
         from scripts.cocoindex_pipeline.canonicalisation import (
             canonicalise_entity_name,
-            canonicalise_for_relationship,
+            canonicalise_entity_name,
         )
 
         fixed_sd_id = uuid.uuid4()
@@ -2947,8 +2946,8 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
             ns, f"em:{rel_path}:{em_canonical}:organisation"
         ), "em PK must NOT seed on rel_path (the F4 gap)"
 
-        source_c = canonicalise_for_relationship("ACME Ltd")
-        target_c = canonicalise_for_relationship("ISO 9001")
+        source_c = canonicalise_entity_name("ACME Ltd")
+        target_c = canonicalise_entity_name("ISO 9001")
         assert er.rows[0]["id"] == uuid.uuid5(
             ns, f"er:{fixed_sd_id}:{source_c}:holds:{target_c}"
         ), "er PK must seed on the STORED source_document_id (registry-keyed)"
