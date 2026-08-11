@@ -192,11 +192,6 @@ services:
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
 
-      # Client-org knob for holder derivation. The fixture corpus is the platform's own
-      # default-branding corpus, so the platform organisationName is the
-      # correct self-vs-supplier anchor.
-      PIPELINE_CLIENT_ORG: ${PIPELINE_CLIENT_ORG}
-
     volumes:
       # PLATFORM-PRODUCTION named volume. The engine store lands at
       # /cocoindex-state/lmdb (COCOINDEX_DB); the corpus, once added, goes in a subdir

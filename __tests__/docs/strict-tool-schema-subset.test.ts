@@ -40,7 +40,7 @@ describe('strict tool input_schema stays inside the Anthropic strict-mode subset
       lines.forEach((line, i) => {
         const trimmed = line.trim();
         // Comment lines may legitimately cite the rejected form when
-        // explaining why anyOf is used (e.g. classify.ts source_scope).
+        // explaining why anyOf is used.
         if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
         if (ARRAY_VALUED_TYPE.test(line)) {
           offenders.push(`${file}:${i + 1}: ${trimmed}`);

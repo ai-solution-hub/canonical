@@ -387,7 +387,6 @@ jobs:
       # the choice input constrains the value set.
       LLM_TIER: ${{ inputs.llm_tier || 'mock' }}
       MOCK_LLM_PORT: "8090"
-      PIPELINE_CLIENT_ORG: ${{ vars.PIPELINE_CLIENT_ORG }}
       # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2) — the
       # same credential the deployed producer uses (id-387 regime map).
       PRODUCER_AUTH_TOKEN: ${{ secrets.PRODUCER_AUTH_TOKEN }}
@@ -752,7 +751,6 @@ jobs:
             -e "CRON_SECRET=${CRON_SECRET}" \
             -e "PIPELINE_TRIGGER_SECRET=${PIPELINE_TRIGGER_SECRET}" \
             -e "PIPELINE_RUN_WEBHOOK_URL=${PIPELINE_RUN_WEBHOOK_URL}" \
-            -e "PIPELINE_CLIENT_ORG=${PIPELINE_CLIENT_ORG}" \
             -v "${COCOINDEX_HOST_STATE_PATH}:/cocoindex-state" \
             "${COCOINDEX_IMAGE_TAG}"
 
