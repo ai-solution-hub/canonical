@@ -1,0 +1,156 @@
+{
+  "$schema_version": 1,
+  "purpose": "Per-document entity-extraction reference set for the id-449 bounded-vs-open entity_type comparison ({449.1} §6.5 metric 2). Successor in spirit to the deleted entity-eval-gold-standard.json (14a4d4e36), rekeyed off corpus-manifest fixture ids + sha256 instead of the dropped content_items row ids.",
+  "authored": "S555 (2026-08-12), Coordinator draft",
+  "review_status": "PENDING OWNER REVIEW — {449.1} OQ-4: a reference authored by the session that runs the comparison is a judgement artefact until independently reviewed. Do not run the scored comparison against an unreviewed version of this file.",
+  "scoring_rules": {
+    "required": "Recall denominator. A variant that fails to extract a required entity (any listed surface, span-anchored per DR-135) misses it.",
+    "optional": "No penalty either way. Defensible extractions that reasonable extractors may skip; never counted as false positives, never in the recall denominator.",
+    "excluded": "False-positive terms. Extracting one of these as an entity mention is a precision failure. Generic categories, internal departments (the prompt's own exclusion rule), role titles, and document self-description terms.",
+    "type_bounded": "The correct value under the CURRENT closed 12-value vocabulary — the scoring key for variant A only. Open-variant type emissions are compared via {449.1} §6.5 metrics 1 and 3 (distribution + inter-variant agreement), not against this field.",
+    "type_contested": "Marked true where the bounded typing is itself part of the D11 question; metric 3 adjudicates these on inter-variant disagreement, and per-entity notes say what to look for.",
+    "canonical_group": "Cross-document grouping key for resolution probes (DR-147): all surfaces sharing a canonical_group must resolve to one group. The value is a label for this file, not a prescribed canonical_name."
+  },
+  "cross_corpus_probes": {
+    "iso_9001_group": "ISO 9001 (pdf, compliance overview prose) and ISO 9001:2015 (five docs) must resolve to one group — the corpus's primary pair-resolver probe.",
+    "fas_2100_group": "Facilities Assurance Standard (FAS 2100) long form and FAS 2100 short form must resolve to one group.",
+    "sscm_group": "Sustainable Supply Chain Mark (SSCM) and SSCM must resolve to one group.",
+    "ridgeway_group": "Ridgeway Commercial Services Ltd and the bare Ridgeway short form must resolve to one group.",
+    "tabular_recall": "The six sector entities in synthetic-sector-spend.xlsx exist ONLY as table rows — they are the Trigger-1 ± axis measurement surface ({449.1} §6.3(c): the harness must consume the docling-converted table markdown, not raw bytes)."
+  },
+  "documents": [
+    {
+      "fixture_id": "platform-corpus/content/synthetic-company-overview.md",
+      "sha256": "7a2cac9d2bc17d8ab5f40c72476511e14b7d1092cf24d94b7ddedd650ba8c2ac",
+      "required": [
+        { "canonical_group": "ridgeway", "surfaces": ["Ridgeway Commercial Services Ltd", "Ridgeway"], "type_bounded": "organisation" },
+        { "canonical_group": "iso_9001", "surfaces": ["ISO 9001:2015"], "type_bounded": "certification", "type_contested": true, "note": "The corpus's central contested typing: prompt meanings say certification (holds/accredited), mock hardcoded standard. Metric 3 adjudicates." },
+        { "canonical_group": "iso_27001", "surfaces": ["ISO 27001"], "type_bounded": "certification", "type_contested": true, "note": "Same axis as iso_9001; the document says 'holds ISO 27001'." }
+      ],
+      "optional": [
+        { "canonical_group": "uk_regions", "surfaces": ["the Midlands", "the North West", "the South East", "the South West"], "note": "No bounded type fits a region — a D11 signal: open variants may mint a geography label; bounded variants must either skip or shoehorn (sector is wrong). Watch, don't score." }
+      ],
+      "excluded": ["local authorities", "NHS trusts", "education trusts", "Managing Director", "key performance indicators"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-compliance-certifications.md",
+      "sha256": "e6b1dbac6b82491db59d7a042b8df37bdb51938b14fa884a688e2e7e27b189ea",
+      "required": [
+        { "canonical_group": "ridgeway", "surfaces": ["Ridgeway Commercial Services Ltd", "Ridgeway"], "type_bounded": "organisation" },
+        { "canonical_group": "iso_9001", "surfaces": ["ISO 9001:2015", "ISO 9001"], "type_bounded": "certification", "type_contested": true, "note": "Both surfaces in one document — post-id-434 this is the bl-225-inversion case: one group, no collision." },
+        { "canonical_group": "fas_2100", "surfaces": ["Facilities Assurance Standard (FAS 2100)", "FAS 2100"], "type_bounded": "certification", "type_contested": true, "note": "Text calls it 'a sector accreditation' — accreditation is not in the 12; bounded variants must pick certification or standard." },
+        { "canonical_group": "sscm", "surfaces": ["Sustainable Supply Chain Mark (SSCM)", "SSCM"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "callum_rees", "surfaces": ["Callum Rees"], "type_bounded": "person" },
+        { "canonical_group": "naomi_whitfield", "surfaces": ["Naomi Whitfield"], "type_bounded": "person" },
+        { "canonical_group": "st_aldhelms", "surfaces": ["St Aldhelm's NHS Foundation Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "corvedale", "surfaces": ["Corvedale Academies Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "greencycle", "surfaces": ["GreenCycle Furniture Programme"], "type_bounded": "product" }
+      ],
+      "optional": [],
+      "excluded": ["Compliance and Quality", "Head of Compliance and Quality", "Managing Director", "compliance register", "quality manual"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-methodology.md",
+      "sha256": "7ae014333839a33811f1429a393f6f7eeeeecaa559925f30be7ad4adbf5ba99f",
+      "required": [
+        { "canonical_group": "procurement_act_2023", "surfaces": ["Procurement Act 2023"], "type_bounded": "regulation", "type_contested": true, "note": "An Act is legislation; the nearest bounded value is regulation. Open variants may mint legislation/law — a D11 benefit signal if stable, noise if it fragments." }
+      ],
+      "optional": [],
+      "excluded": ["key performance indicators", "social-value framework", "contract award letter", "next-day delivery"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-named-client-engagements.md",
+      "sha256": "9923e49e90bd5c6ff3f7e492336c825aa890183f0531bfb3e71f016384d264ee",
+      "required": [
+        { "canonical_group": "ridgeway", "surfaces": ["Ridgeway Commercial Services Ltd", "Ridgeway"], "type_bounded": "organisation" },
+        { "canonical_group": "wyndale", "surfaces": ["Wyndale Metropolitan Borough Council"], "type_bounded": "organisation" },
+        { "canonical_group": "st_aldhelms", "surfaces": ["St Aldhelm's NHS Foundation Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "corvedale", "surfaces": ["Corvedale Academies Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "northgate", "surfaces": ["Northgate Borough Council"], "type_bounded": "organisation" },
+        { "canonical_group": "stocksense", "surfaces": ["StockSense Ordering Portal"], "type_bounded": "product" },
+        { "canonical_group": "greencycle", "surfaces": ["GreenCycle Furniture Programme"], "type_bounded": "product" },
+        { "canonical_group": "rapidrestock", "surfaces": ["RapidRestock Managed Print Service"], "type_bounded": "product" },
+        { "canonical_group": "iso_9001", "surfaces": ["ISO 9001:2015"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "fas_2100", "surfaces": ["Facilities Assurance Standard (FAS 2100)"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "sscm", "surfaces": ["Sustainable Supply Chain Mark (SSCM)"], "type_bounded": "certification", "type_contested": true }
+      ],
+      "optional": [],
+      "excluded": ["category team", "estates team", "finance team", "business managers", "multi-academy trust"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-product-catalogue.md",
+      "sha256": "c69254c7c26a0ed54698ef2f18183a4178120b39f729b891007ad8d6b1e708cf",
+      "required": [
+        { "canonical_group": "ridgeway", "surfaces": ["Ridgeway Commercial Services Ltd", "Ridgeway"], "type_bounded": "organisation" },
+        { "canonical_group": "stocksense", "surfaces": ["StockSense Ordering Portal"], "type_bounded": "product" },
+        { "canonical_group": "greencycle", "surfaces": ["GreenCycle Furniture Programme"], "type_bounded": "product" },
+        { "canonical_group": "rapidrestock", "surfaces": ["RapidRestock Managed Print Service"], "type_bounded": "product" },
+        { "canonical_group": "wyndale", "surfaces": ["Wyndale Metropolitan Borough Council"], "type_bounded": "organisation" },
+        { "canonical_group": "corvedale", "surfaces": ["Corvedale Academies Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "st_aldhelms", "surfaces": ["St Aldhelm's NHS Foundation Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "sscm", "surfaces": ["Sustainable Supply Chain Mark (SSCM)"], "type_bounded": "certification", "type_contested": true }
+      ],
+      "optional": [],
+      "excluded": ["punch-out catalogue", "certificate of diversion", "purchase-order matching"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-team-structure.md",
+      "sha256": "0aaac9d6d05f5eaf31d9f0edeb85c88d55c77b030548c7d1534371658f6470c2",
+      "required": [
+        { "canonical_group": "ridgeway", "surfaces": ["Ridgeway Commercial Services Ltd", "Ridgeway"], "type_bounded": "organisation" },
+        { "canonical_group": "naomi_whitfield", "surfaces": ["Naomi Whitfield"], "type_bounded": "person" },
+        { "canonical_group": "callum_rees", "surfaces": ["Callum Rees"], "type_bounded": "person" },
+        { "canonical_group": "priya_anand", "surfaces": ["Priya Anand"], "type_bounded": "person" },
+        { "canonical_group": "daniel_osei", "surfaces": ["Daniel Osei"], "type_bounded": "person" },
+        { "canonical_group": "grace_fenton", "surfaces": ["Grace Fenton"], "type_bounded": "person" },
+        { "canonical_group": "iso_9001", "surfaces": ["ISO 9001:2015"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "fas_2100", "surfaces": ["Facilities Assurance Standard (FAS 2100)"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "sscm", "surfaces": ["Sustainable Supply Chain Mark (SSCM)"], "type_bounded": "certification", "type_contested": true },
+        { "canonical_group": "greencycle", "surfaces": ["GreenCycle Furniture Programme"], "type_bounded": "product" },
+        { "canonical_group": "wyndale", "surfaces": ["Wyndale Metropolitan Borough Council"], "type_bounded": "organisation" },
+        { "canonical_group": "st_aldhelms", "surfaces": ["St Aldhelm's NHS Foundation Trust"], "type_bounded": "organisation" },
+        { "canonical_group": "corvedale", "surfaces": ["Corvedale Academies Trust"], "type_bounded": "organisation" }
+      ],
+      "optional": [],
+      "excluded": ["Account Management", "Operations", "Compliance and Quality", "Commercial", "Managing Director", "Operations Director", "Head of Account Management", "Head of Sustainability and Social Value", "Head of Compliance and Quality"],
+      "note": "The excluded list is the prompt's internal-departments exclusion rule ({449.1} §2.1 row 8) exercised directly: four department names and five role titles that must not become organisation mentions."
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-capability-statement.pdf",
+      "sha256": "b4a67a36eb1ff7bd50316dadf8804961db7ab66a64a4ee245dda175db265ae6c",
+      "required": [
+        { "canonical_group": "iso_9001", "surfaces": ["ISO 9001"], "type_bounded": "certification", "type_contested": true, "note": "The bare-form surface of the iso_9001 cross-document group — the pdf is deliberately anonymous, so this is its only required entity." }
+      ],
+      "optional": [
+        { "canonical_group": "uk", "surfaces": ["United Kingdom"], "note": "Geography — same open-variant signal as uk_regions." }
+      ],
+      "excluded": ["councils", "health bodies", "education trusts", "account manager", "category team"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-sector-intel.docx",
+      "sha256": "1d25a52fa303f5e119255f3b2d84d8a9c72dfd25a1966156ba338fc34ba2a4db",
+      "required": [
+        { "canonical_group": "procurement_act_2023", "surfaces": ["Procurement Act 2023"], "type_bounded": "regulation", "type_contested": true }
+      ],
+      "optional": [],
+      "excluded": ["net-zero commitments", "framework agreements", "social value", "forward plans"]
+    },
+    {
+      "fixture_id": "platform-corpus/content/synthetic-sector-spend.xlsx",
+      "sha256": "b34af1dc7fd77ea09fa938b7de6331d05214cbd48d5df23d3dfac08078810e74",
+      "required": [
+        { "canonical_group": "sector_local_gov_it", "surfaces": ["Local government IT"], "type_bounded": "sector", "table_only": true },
+        { "canonical_group": "sector_nhs_digital", "surfaces": ["NHS digital services"], "type_bounded": "sector", "table_only": true },
+        { "canonical_group": "sector_education_mis", "surfaces": ["Education MIS"], "type_bounded": "sector", "table_only": true },
+        { "canonical_group": "sector_blue_light", "surfaces": ["Blue light communications"], "type_bounded": "sector", "table_only": true },
+        { "canonical_group": "sector_central_gov_cloud", "surfaces": ["Central government cloud"], "type_bounded": "sector", "table_only": true },
+        { "canonical_group": "sector_defence_logistics", "surfaces": ["Defence logistics IT"], "type_bounded": "sector", "table_only": true }
+      ],
+      "optional": [
+        { "canonical_group": "ons", "surfaces": ["ONS"], "note": "Appears only inside the synthetic source labels ('Synthetic ONS series A/B'); extracting it is defensible, skipping it is defensible." }
+      ],
+      "excluded": ["Synthetic ONS series A", "Synthetic ONS series B", "Financial year", "Spend (GBP m)", "YoY change (%)", "Suppliers on framework"],
+      "note": "The Trigger-1 tabular-recall surface: every required entity exists only as a table row in the docling-converted markdown. The ± tabular-section axis is scored on this document's recall delta."
+    }
+  ]
+}
