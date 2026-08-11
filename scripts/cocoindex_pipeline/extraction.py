@@ -345,6 +345,11 @@ class EntityMentionExtraction(_ExtractionCore):
         "methodology",
     ]
     entity_name: str = Field(min_length=1)
+    # Tolerated-and-discarded (id-449 S555): the prompt no longer asks for this
+    # field and no reader ever consumed it (the DB canonical_name is computed by
+    # canonicalise_entity_name). Kept optional so memo-cached payloads and a
+    # stray emission still validate under extra="forbid"; retires with the
+    # {434.3} §2.2 transfer type.
     canonical_name: str | None = None
     source_span_start: int = Field(ge=0)
     source_span_end: int = Field(ge=0)

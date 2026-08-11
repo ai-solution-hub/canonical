@@ -156,7 +156,6 @@ Return ONLY a single JSON array — no markdown fences, no commentary, no preamb
     "extraction_kind": "entity_mention",
     "entity_type": <one of the canonical entity_type values listed below>,
     "entity_name": <verbatim entity-name string as it appears in the document>,
-    "canonical_name": <normalised canonical form of the entity, OR null>,
     "source_span_start": <integer character offset where the mention starts>,
     "source_span_end": <integer character offset where the mention ends (exclusive)>,
     "mention_confidence": <float between 0.0 and 1.0>
@@ -167,7 +166,6 @@ FIELD CONSTRAINTS
 - extraction_kind: MUST be the exact string "entity_mention".
 - entity_type: MUST be ONE of: organisation, certification, regulation, framework, capability, person, technology, project, sector, product, standard, methodology.
 - entity_name: non-empty string, verbatim from the document.
-- canonical_name: the normalised form of the entity (e.g. entity_name "ISO 27001:2022" -> canonical_name "iso_27001"). Use null when no canonicalisation is appropriate.
 - source_span_start / source_span_end: zero-based character offsets into the document text. source_span_end is exclusive (Python slice convention). The substring `content_text[source_span_start:source_span_end]` MUST equal entity_name.
 - mention_confidence: a float between 0.0 and 1.0. Use 0.9+ when the entity is unambiguous; 0.6-0.85 when the surface form is ambiguous but context disambiguates; below 0.5 when classification is uncertain.
 
