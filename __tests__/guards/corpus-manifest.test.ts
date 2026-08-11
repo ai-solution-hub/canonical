@@ -356,12 +356,27 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
       expect(relPaths.filter((p) => p.includes('__qa__/'))).toEqual([]);
     });
 
-    it('carries the content/qa/edge seam coverage (§2.2)', () => {
+    /**
+     * The three content-route rows of §2.2's table: md, PDF, DOCX — one file
+     * per route × format, which is §2's design rule.
+     *
+     * §2.2's OTHER two rows — `qa/synthetic-qa-pairs.md` and
+     * `edge/synthetic-sparse-edge.md` — are gone, and their absence is the
+     * assertion now (the tree-registers-exactly-what-is-tracked test above
+     * enforces it). Owner ruling S552: both sat OUTSIDE `content/`, which is
+     * not a shape this corpus has, and both stay deleted. The qa/ file also
+     * encoded the retired qa_sidecar concept (DR-086a) — q_a_pairs arrive by
+     * promoting extractions now (id-45, DR-025/R4), so zero q_a_pairs off this
+     * corpus is the expected post-retirement state, not missing coverage.
+     * The reasoning lives in the manifest's platform-corpus tree notes, where
+     * anything tempted to restore them will read it first; S551 restored them
+     * without knowing the cause, which is the failure this comment exists to
+     * stop repeating.
+     */
+    it('carries the content/ route × format seam coverage (§2.2)', () => {
       expect(relPaths).toContain('content/synthetic-methodology.md');
       expect(relPaths).toContain('content/synthetic-capability-statement.pdf');
       expect(relPaths).toContain('content/synthetic-sector-intel.docx');
-      expect(relPaths).toContain('qa/synthetic-qa-pairs.md');
-      expect(relPaths).toContain('edge/synthetic-sparse-edge.md');
     });
 
     it('carries the ID-132.30 G-CORPUS-ENRICH grain-bearing files', () => {
@@ -444,9 +459,9 @@ describe('corpus fixture manifest (id-396 TECH §1, DR-118)', () => {
      *
      * The assertion above was written to stop the sweep and the NM-6 showcase
      * guard contradicting each other, and it cannot do it. It asks whether a
-     * `verify/…` dest sits under a baseline DIRECTORY prefix (`content/`,
-     * `qa/`, `edge/`), which is impossible by construction — so it passes
-     * vacuously.
+     * `verify/…` dest sits under a baseline DIRECTORY prefix (`content/` —
+     * `qa/` and `edge/` until S552 deleted them), which is impossible by
+     * construction — so it passes vacuously.
      *
      * The break runs the other way. `acceptablePaths` is what the NM-6 guard
      * protects, and it included the three `verify_dest` values, every one of

@@ -42,7 +42,7 @@
       "id": "platform-corpus",
       "root": "scripts/cocoindex_pipeline/fixtures/platform-corpus",
       "synthetic": true,
-      "notes": "The vendored synthetic Platform corpus. THE walked baseline (S522 owner ruling): id-412 stages this tree onto /cocoindex-state/corpus and the supervised /walk ingests it. Every file is synthetic - no client IP."
+      "notes": "The vendored synthetic Platform corpus. THE walked baseline (S522 owner ruling): id-412 stages this tree onto /cocoindex-state/corpus and the supervised /walk ingests it. Every file is synthetic - no client IP. SHAPE IS content/-ONLY (S552 owner ruling), and that is the register's job to remember: the tree also carried qa/synthetic-qa-pairs.md and edge/synthetic-sparse-edge.md until the owner deleted both mid-S551 as the wrong shape - a sibling directory of content/ is not a corpus shape this tree has. S551 restored them without knowing the cause and left them green, which is why the ruling is written down HERE rather than only in a session record. The qa/ file additionally encoded the RETIRED qa_sidecar concept (DR-086a, status retired, discharged at S499 owner review; walk-side retired by {127.37}, app-side write half by {127.38}); q_a_pairs now arrive by PROMOTING EXTRACTIONS (id-45, DR-025/R4 - one-time ONBOARDING ingest, no watch), so a synthetic corpus yielding zero q_a_pairs is the EXPECTED post-retirement state, not a gap to backfill. Do not re-add either file, and do not relocate their content into content/ to 'preserve coverage'."
     },
     {
       "id": "platform-feed-seeds",
@@ -722,36 +722,6 @@
       "staging_mode": "walked-baseline",
       "consumers": [
         "__tests__/guards/corpus-manifest.test.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/edge/synthetic-sparse-edge.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/edge/synthetic-sparse-edge.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "4f85631899cb4ca37cff3d65fbff1debb28ede8b938806a6ba7399bdadca1b1d",
-      "bytes": 68,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/guards/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
-      ],
-      "notes": ""
-    },
-    {
-      "id": "platform-corpus/qa/synthetic-qa-pairs.md",
-      "path": "scripts/cocoindex_pipeline/fixtures/platform-corpus/qa/synthetic-qa-pairs.md",
-      "tree": "platform-corpus",
-      "format": "md",
-      "sha256": "abef1dd8f8656873a2e22e2cb2ee5e56a6bcb38b81633a8244aac970a030b04e",
-      "bytes": 2103,
-      "fixture_class": "vendored-read-only",
-      "staging_mode": "walked-baseline",
-      "consumers": [
-        "__tests__/guards/corpus-manifest.test.ts",
-        "scripts/verify-platform-promotion-gate.ts"
       ],
       "notes": ""
     },

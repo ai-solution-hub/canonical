@@ -173,9 +173,9 @@ export function verifyDriverDestPaths(manifest: CorpusManifest): string[] {
 }
 
 /**
- * The corpus-relative directory prefixes of the walked baseline — `content/`,
- * `qa/`, `edge/` at time of writing, derived from the manifest rather than
- * re-typed anywhere.
+ * The corpus-relative directory prefixes of the walked baseline — `content/`
+ * alone since the S552 shape ruling (`qa/` and `edge/` were the other two),
+ * derived from the manifest rather than re-typed anywhere.
  *
  * A `staging_mode: 'walked-baseline'` entry's `path` is repo-relative
  * (`scripts/…/fixtures/platform-corpus/content/x.md`); the walk sees it
@@ -191,7 +191,7 @@ export function verifyDriverDestPaths(manifest: CorpusManifest): string[] {
  */
 /**
  * The corpus-relative paths of every walked-baseline fixture — `content/x.md`,
- * `qa/y.md`, … — i.e. where the walk sees them once `sync-platform-corpus.sh`
+ * `content/y.pdf`, … — i.e. where the walk sees them once `sync-platform-corpus.sh`
  * has staged the tree root onto `/cocoindex-state/corpus`.
  *
  * These are what the nightly census gate must assert land as `source_documents`

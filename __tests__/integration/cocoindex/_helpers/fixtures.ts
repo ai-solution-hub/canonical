@@ -91,8 +91,6 @@ export const CONTENT = {
   ),
   /** Markdown — delivery methodology. Long-form prose; the natural chunking-boundary subject. */
   methodologyMd: path('platform-corpus/content/synthetic-methodology.md'),
-  /** Markdown — deliberately sparse. The edge-case seam (short document, thin extraction). */
-  sparseEdgeMd: path('platform-corpus/edge/synthetic-sparse-edge.md'),
 } as const;
 
 /**
