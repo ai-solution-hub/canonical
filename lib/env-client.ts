@@ -48,13 +48,10 @@ const clientSchema = z.object({
     .string()
     .url('NEXT_PUBLIC_APP_URL must be a valid URL'),
   /**
-   * Identifies the client tenant; drives BRANDING.organisationName and
-   * downstream certification-holder derivation.
+   * Identifies the client tenant; drives BRANDING.organisationName.
    *
    * REQUIRED — missing this var caused the S196 incident: BRANDING fell
-   * back to "Knowledge Hub", which corrupted entity_mention metadata
-   * (35 production rows lost before rollback). See
-   * `feedback_branding_client_id_env.md` in user memory.
+   * back to "Knowledge Hub" in production before rollback.
    */
   NEXT_PUBLIC_CLIENT_ID: z
     .string()

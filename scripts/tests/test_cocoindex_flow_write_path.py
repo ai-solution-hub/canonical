@@ -2928,7 +2928,6 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
         flow = _flow_module()
         from scripts.cocoindex_pipeline.canonicalisation import (
             canonicalise_entity_name,
-            canonicalise_entity_name,
         )
 
         fixed_sd_id = uuid.uuid4()
@@ -2954,3 +2953,98 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
         assert er.rows[0]["id"] != uuid.uuid5(
             ns, f"er:{rel_path}:{source_c}:holds:{target_c}"
         ), "er PK must NOT seed on rel_path (the F4 gap)"
+
+
+class TestUnjoinableTrailingPeriodRowClosed:
+    """id-433 AC2: the row class `_TRAILING_PERIOD_RE` made unjoinable.
+
+    `get_entity_summary` joins entity_relationships endpoints against
+    entity_mentions.canonical_name by raw string equality. The deleted
+    relationship canonicaliser stripped a trailing period on the endpoint
+    lane only, so a name like "Acme Ltd." wrote two different keys and the
+    join silently returned nothing. This binds the two REAL write sites
+    through `ingest_file` — not the key function against itself.
+    """
+
+    _MARKDOWN = "# Joinable\n\nAcme Ltd. holds ISO 9001."
+
+    def test_mention_and_endpoint_share_one_key_for_trailing_period_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        flow = _flow_module()
+        from scripts.cocoindex_pipeline.extraction import (
+            EntityMentionExtraction,
+            RelationshipExtraction,
+        )
+        from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
+
+        async def _fake_convert(file: object) -> str:
+            return self._MARKDOWN
+
+        async def _fake_classification(content_text: str):
+            return {"content_type": "case_study"}
+
+        async def _fake_qa(content_text: str):
+            return {"qa_pairs": []}
+
+        async def _fake_entities(content_text: str):
+            return [
+                EntityMentionExtraction(
+                    entity_type="organisation",
+                    entity_name="Acme Ltd.",
+                    source_span_start=12,
+                    source_span_end=21,
+                    mention_confidence=0.9,
+                )
+            ]
+
+        async def _fake_relationships(content_text: str):
+            return [
+                RelationshipExtraction(
+                    source="Acme Ltd.", relationship="holds", target="ISO 9001"
+                )
+            ]
+
+        async def _fake_embed(content_text: str) -> list[float]:
+            return [0.0] * 1024
+
+        fixed_sd_id = uuid.uuid4()
+
+        async def _fixed_identity(**kwargs: object) -> "uuid.UUID":
+            return fixed_sd_id
+
+        monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
+        monkeypatch.setattr(flow, "extract_classification", _fake_classification)
+        monkeypatch.setattr(flow, "extract_qa_form", _fake_qa)
+        monkeypatch.setattr(flow, "extract_entity_mentions", _fake_entities)
+        monkeypatch.setattr(flow, "extract_relationships", _fake_relationships)
+        monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
+        monkeypatch.setattr(flow, "_resolve_source_identity", _fixed_identity)
+
+        src = tmp_path / "joinable.md"
+        src.write_text(self._MARKDOWN)
+        fake_file = _FakeFile(src)
+
+        qa = _FakeTarget("q_a_extractions")
+        sd = _FakeTarget("source_documents")
+        em = _FakeTarget("entity_mentions")
+        er = _FakeTarget("entity_relationships")
+
+        _wire_pool(flow, monkeypatch)
+
+        async def _exercise() -> None:
+            async with bind_flow_meta(op_id=uuid.uuid4()):
+                await flow.ingest_file(  # type: ignore[attr-defined]
+                    fake_file, qa, sd, em, None, er
+                )
+
+        asyncio.run(_exercise())
+
+        assert em.rows and er.rows, "the probe doc must produce both rows"
+        em_key = em.rows[0]["canonical_name"]
+        er_key = er.rows[0]["source_entity"]
+        assert em_key == "acme ltd.", "the period is preserved on the mention lane"
+        assert er_key == em_key, (
+            "mention canonical and relationship endpoint must be ONE key — "
+            "get_entity_summary joins the two tables by raw string equality"
+        )

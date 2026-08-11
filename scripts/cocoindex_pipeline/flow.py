@@ -2537,8 +2537,8 @@ async def _ingest_content_branch(
 
     # ── id-400 Inv-9 RESHAPE: curation-pinned rows the walk may never UPDATE.
     # Preload this document's pinned mentions (admin-curated via the entities
-    # merge route). Best-effort read (mirrors the holder-derivation posture
-    # above): a pin-read fault is LOGGED and the declares proceed unpinned —
+    # merge route). Best-effort read: a pin-read fault is LOGGED and the
+    # declares proceed unpinned —
     # a lookup fault must never abort the doc. NOTE the failure mode is
     # honest-but-degraded: without the pin map a full_reprocess re-declare
     # would clobber curated values, so the warning is the audit trail.
