@@ -361,17 +361,8 @@ class RelationshipExtraction(_ExtractionCore):
     `source` / `target` names and any persistence happens at the {101.7} write
     site, OUTSIDE this stamp-free memo boundary.
 
-    The `relationship` Literal enumerates EXACTLY the 10 relationship types of
-    the TS `ExtractedRelationship` union (`lib/ai/classify.ts:653-666`) — the
-    Inv-4 parity contract. Do not add or drop a type without updating both sides.
-
-    ID-109: `source_scope` is an OPTIONAL in-memory holder-scope tag, byte-parity
-    with the TS `ExtractedRelationship.source_scope` field. It is consumed by
-    `derive_holder_metadata`'s third stamp branch and is NEVER persisted to
-    `entity_relationships` (zero-migration; see id-109 TECH §Persistence).
-    Optional/nullable so it is backward-compatible under
-    `ConfigDict(extra='forbid')` — older prompts that omit the field validate
-    cleanly and degrade to `None` (external/unknown).
+    The `relationship` Literal enumerates EXACTLY the 10 relationship types the
+    public ontology fixture declares; the fixture test binds the two together.
     """
 
     source: str = Field(min_length=1)
@@ -388,7 +379,6 @@ class RelationshipExtraction(_ExtractionCore):
         "evidences",
     ]
     target: str = Field(min_length=1)
-    source_scope: Literal["internal", "external"] | None = None
 
 
 class ClassificationExtraction(_ExtractionCore):
