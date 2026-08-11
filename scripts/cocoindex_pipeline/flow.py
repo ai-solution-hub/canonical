@@ -120,10 +120,6 @@ from scripts.cocoindex_pipeline.extraction import (
     extract_with_memo_self_heal,
     stamp_extraction_base,
 )
-from scripts.cocoindex_pipeline.holder_rule import (
-    CLIENT_ORG_ENV_VAR,
-    derive_holder_metadata,
-)
 
 # Production LLM model tier per cocoindex-extraction-contract TECH §3.1.
 # Single source of truth lives in extraction.py (ID-44.3 dedup); re-exported
@@ -2536,37 +2532,6 @@ async def _ingest_content_branch(
     # the same natural-key tuple under a NEW id (census #40: 423
     # UniqueViolationErrors, lane hard-down). Seeding on source_document_id makes
     # re-declares hit ON CONFLICT (id) and upsert-absorb.
-    #
-    # ── Holder-rule attribution (ID-101 §{101.8}, PC-5) ──────────────────────
-    # Derive per-cert holder metadata ONCE per doc from the SAME raw mentions +
-    # the {101.7} `relationships` list (reused, NOT re-extracted). The result is
-    # a {(per_doc_canonical, entity_type): holder_md} map the em-declare loop
-    # below merges into each cert mention's metadata jsonb (span keys PRESERVED).
-    # `derive_holder_metadata` is a PURE function (no LLM); it raises (R4) when
-    # the required PIPELINE_CLIENT_ORG knob is unset. Inv-15 best-effort: any
-    # stamp fault (incl. that raise) is LOGGED and the em declares still happen
-    # with span-only metadata — a holder-derivation fault never aborts the doc.
-    # The client org is relationship-canonicalised so the self-vs-supplier
-    # comparison lands in the same space as the relationship-canonical holds
-    # sources (see holder_rule.py docstring).
-    _holder_by_mention_id: dict[tuple[str, str], dict[str, Any]] = {}
-    try:
-        _client_org_raw = os.environ.get(CLIENT_ORG_ENV_VAR, "")
-        _client_org_lower = canonicalise_for_relationship(_client_org_raw)
-        _holder_by_mention_id = derive_holder_metadata(
-            entity_mentions, relationships, _client_org_lower
-        )
-    except Exception as exc:  # noqa: BLE001 — Inv-15 best-effort holder stamp
-        _logger.warning(
-            json.dumps(
-                {
-                    "event": "cocoindex.ingest.holder_derivation_failed",
-                    "rel_path": rel_path,
-                    "error": _redact_error_message(str(exc)),
-                }
-            )
-        )
-
     _em_dedup: dict[tuple[str, str], Any] = {}
     for mention in entity_mentions:
         per_doc_canonical = canonicalise_entity_name(
@@ -2654,10 +2619,6 @@ async def _ingest_content_branch(
             # snippet is worse than an absent one, because it reads as
             # provenance downstream.
             continue
-        # ID-101 §{101.8}: MERGE holder keys into the span metadata — span keys
-        # are PRESERVED, holder keys are added (never overwriting a span key).
-        # Non-cert / no-signal mentions resolve to {} so only span keys remain.
-        holder_md = _holder_by_mention_id.get((per_doc_canonical, entity_type), {})
         _em_declares.append(
             {
                 "id": row_id,
@@ -2672,7 +2633,6 @@ async def _ingest_content_branch(
                 "metadata": {
                     "source_span_start": mention.source_span_start,
                     "source_span_end": mention.source_span_end,
-                    **holder_md,
                 },
                 "op_id": op_id,
             }
@@ -5021,7 +4981,7 @@ async def _generate_client_alias_snapshot(pool: "asyncpg.Pool") -> None:  # type
         "FROM public.entity_aliases WHERE is_active = true"
     )
 
-    client_org = os.environ.get(CLIENT_ORG_ENV_VAR, "").strip()
+    client_org = os.environ.get("PIPELINE_CLIENT_ORG", "").strip()
     if client_org:
         client_rows = [r for r in rows if r["provenance"] == "client"]
         if not client_rows:
@@ -5037,11 +4997,11 @@ async def _generate_client_alias_snapshot(pool: "asyncpg.Pool") -> None:  # type
             _logger.error(
                 "%s fail-closed ({101.10}): configured client %r has zero "
                 "provenance='client' rows in entity_aliases",
-                CLIENT_ORG_ENV_VAR,
+                "PIPELINE_CLIENT_ORG",
                 client_org,
             )
             raise RuntimeError(
-                f"[{CLIENT_ORG_ENV_VAR} set] fail-closed ({'{101.10}'}): "
+                f"[PIPELINE_CLIENT_ORG set] fail-closed ({'{101.10}'}): "
                 "entity_aliases table has zero provenance='client' rows. "
                 "Refusing to deploy with baseline-only canonicalisation for a "
                 "configured client — alias data is required for correct holder "

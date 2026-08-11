@@ -32,7 +32,8 @@ from scripts.cocoindex_pipeline.canonicalisation import (
 from scripts.cocoindex_pipeline.flow import (
     _generate_client_alias_snapshot,
 )
-from scripts.cocoindex_pipeline.holder_rule import CLIENT_ORG_ENV_VAR
+
+CLIENT_ORG_ENV_VAR = "PIPELINE_CLIENT_ORG"
 
 
 # ---------------------------------------------------------------------------

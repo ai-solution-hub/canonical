@@ -184,10 +184,6 @@ _SENSITIVE_ENV_VARS: "tuple[str, ...]" = (
 # because they are exempt from the length floor below — real trading names are
 # routinely 2-3 characters ("BP", "IBM"), which is precisely the range a
 # generic floor would wave through.
-#
-# Literal, not an import: `holder_rule.CLIENT_ORG_ENV_VAR` is the definition,
-# but this module boots the container and must not grow an import edge for one
-# constant.
 _IDENTITY_ENV_VARS: "tuple[str, ...]" = ("PIPELINE_CLIENT_ORG",)
 
 # Below this length a value is too generic to substitute safely — a 1-2 char

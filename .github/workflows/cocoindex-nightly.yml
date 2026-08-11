@@ -387,11 +387,6 @@ jobs:
       # the choice input constrains the value set.
       LLM_TIER: ${{ inputs.llm_tier || 'mock' }}
       MOCK_LLM_PORT: "8090"
-      # Client-org knob for holder derivation (holder_rule.py R4 fail-fast) —
-      # unset it costs ~1,080 holder_derivation_failed warnings per run
-      # (graceful degrade, S507). The fixture corpus is the platform's own
-      # default-branding corpus, so the platform organisationName is the
-      # correct self-vs-supplier anchor (S508 owner call).
       PIPELINE_CLIENT_ORG: ${{ vars.PIPELINE_CLIENT_ORG }}
       # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2) — the
       # same credential the deployed producer uses (id-387 regime map).
