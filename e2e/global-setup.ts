@@ -21,7 +21,6 @@ import { createServiceClient } from './fixtures/supabase';
 import { TEST_USERS } from './fixtures/test-data';
 const APP_ROUTE_PREFLIGHT_PATHS = [
   '/api/analytics/win-rate',
-  '/api/certifications',
   '/api/admin/pipeline-runs/recent',
 ] as const;
 

@@ -493,8 +493,7 @@ export interface EntityMentionShape {
  *
  * Provides:
  * - 2 certifications (1 valid, 1 expiring soon, both holder='self') on
- *   the certification item [5] and case study item [6] — drives the
- *   /api/certifications report and the dashboard cert summary card.
+ *   the certification item [5] and case study item [6].
  * - 1 framework (expiring) for framework summary coverage.
  * - 2 organisation entities and 2 standard entities spread across items
  *   so the browse filter panel renders Entity Type, Entities, and
@@ -513,7 +512,7 @@ export function buildEntityMentions(): EntityMentionShape[] {
     .split('T')[0];
 
   return [
-    // --- Certifications (drives /api/certifications) ---
+    // --- Certifications ---
     {
       itemIndex: 5, // ISO 27001 Certification item
       canonical_name: 'ISO 27001',
@@ -619,10 +618,8 @@ export function buildEntityMentions(): EntityMentionShape[] {
 }
 
 /**
- * Build entity relationships for the certifications report.
  * Each "holds" row links a holder entity ("Our Organisation") to a
- * certification entity. The /api/certifications endpoint requires these
- * rows to surface certifications on the dashboard.
+ * certification entity.
  */
 export interface EntityRelationshipShape {
   itemIndex: number;
@@ -655,19 +652,11 @@ export function buildEntityRelationships(): EntityRelationshipShape[] {
       relationship_type: 'holds',
       confidence: 0.9,
     },
-    // Supplier-held certification. {128.23}: `source_entity` must be the
-    // client org, NOT the supplier. app/api/certifications/route.ts:156-159
-    // keeps only `holds` rows whose `source_entity` matches
-    // BRANDING.organisationName, so an 'Acme Ltd'-sourced row never reached
-    // the response and CertificationSummaryCard's collapsible supplier
-    // section rendered null — the seed, not the UI, was what could not
-    // express supplier certifications.
-    //
-    // Supplier semantics live on the entity_mention metadata
-    // (`holder: 'supplier'` + `supplier_name: 'Acme Ltd'` in
-    // buildEntityMentions above), which is exactly what the route reads at
-    // :292-313 to split self-held from supplier-held. The relationship row
-    // only answers "which certifications does this organisation track".
+    // Supplier-held certification. `source_entity` is the client org, not the
+    // supplier: the relationship row answers "which certifications does this
+    // organisation track", and the supplier semantics live on the
+    // entity_mention metadata (`holder` / `supplier_name` in
+    // buildEntityMentions above).
     {
       itemIndex: 6,
       source_entity: BRANDING.organisationName,

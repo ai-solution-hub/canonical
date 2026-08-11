@@ -455,7 +455,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           .throwOnError();
       }
 
-      // --- Seed entity_relationships ('holds') so /api/certifications populates ---
       // See the entity_mentions block above for why we chain `.select('id')`.
       const entityRelationshipShapes = buildEntityRelationships();
       const entityRelationshipInserts = entityRelationshipShapes

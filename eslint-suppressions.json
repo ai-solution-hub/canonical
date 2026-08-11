@@ -49,11 +49,6 @@
       "count": 1
     }
   },
-  "app/api/certifications/route.ts": {
-    "local/no-unlogged-terminal-catch": {
-      "count": 1
-    }
-  },
   "app/api/content-owners/bulk-assign/route.ts": {
     "local/no-unlogged-terminal-catch": {
       "count": 1
