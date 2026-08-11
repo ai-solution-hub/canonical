@@ -63,6 +63,17 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: () => serviceClientRef.current,
 }));
 
+// {127.20} S555: the nudge must be REGISTERED with the serverless runtime
+// (`after()`) or Vercel freezes the instance on response and the in-flight
+// fetch dies silently. Mocked so tests can assert the registration seam;
+// the mock drops the promise, which is the pre-fix behaviour — the chain
+// still executes eagerly, so every existing fetch/warn assertion is
+// unaffected.
+const keepAliveMock = vi.hoisted(() => ({
+  keepAliveAfterResponse: vi.fn(),
+}));
+vi.mock('@/lib/runtime/keep-alive', () => keepAliveMock);
+
 import {
   createMockSupabaseClient,
   type MockSupabaseClient,
@@ -554,6 +565,24 @@ describe('stageAndWalk', () => {
         expect.objectContaining({ objectKey: input.destPath }),
         expect.stringContaining('COCOINDEX_WORKER_URL unset'),
       );
+    });
+
+    it('{127.20} S555: registers the nudge with the runtime keep-alive so it survives the post-response freeze', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
+      keepAliveMock.keepAliveAfterResponse.mockClear();
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 202 } as Response);
+
+      await stageAndWalk({ ...input, supabase: asClient() });
+
+      expect(keepAliveMock.keepAliveAfterResponse).toHaveBeenCalledTimes(1);
+      const [registered] = keepAliveMock.keepAliveAfterResponse.mock
+        .calls[0] as [Promise<unknown>];
+      expect(registered).toBeInstanceOf(Promise);
+      // The registered chain owns its own errors — awaiting it must never throw.
+      await registered;
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     // {127.20} private-ingress-cutover §3.3: Cloudflare Access service-token

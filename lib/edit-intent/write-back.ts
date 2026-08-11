@@ -61,6 +61,7 @@ import { withWriterFence } from '@/lib/corpus/writer-fence';
 import { logger } from '@/lib/logger';
 import { tryQuery, isOk, type PostgrestLike } from '@/lib/supabase/safe';
 import type { Database } from '@/supabase/types/database.types';
+import { keepAliveAfterResponse } from '@/lib/runtime/keep-alive';
 
 /**
  * The private Supabase Storage bucket the corpus's kept-evidence bytes live
@@ -193,33 +194,38 @@ function nudgeCorpusRewalk(objectKey: string): void {
   const cfAccessClientId = process.env.CF_ACCESS_CLIENT_ID?.trim();
   const cfAccessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim();
 
-  void fetch(`${workerUrl}/walk`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${pipelineTriggerSecret}`,
-      ...(cfAccessClientId && cfAccessClientSecret
-        ? {
-            'CF-Access-Client-Id': cfAccessClientId,
-            'CF-Access-Client-Secret': cfAccessClientSecret,
-          }
-        : {}),
-    },
-    signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
-  })
-    .then((res) => {
-      if (!res.ok) {
-        logger.warn(
-          { status: res.status, objectKey },
-          '[write-back] Re-walk nudge rejected by cocoindex worker — the edit will be picked up by the next scheduled walk.',
-        );
-      }
+  // {127.20} S555: fire-and-forget, but REGISTERED with the runtime —
+  // an unregistered `void fetch` dies silently when the serverless instance
+  // freezes on response (proven live: admit logged, zero Access edge events).
+  keepAliveAfterResponse(
+    fetch(`${workerUrl}/walk`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pipelineTriggerSecret}`,
+        ...(cfAccessClientId && cfAccessClientSecret
+          ? {
+              'CF-Access-Client-Id': cfAccessClientId,
+              'CF-Access-Client-Secret': cfAccessClientSecret,
+            }
+          : {}),
+      },
+      signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
     })
-    .catch((err: unknown) => {
-      logger.warn(
-        { err: err instanceof Error ? err.message : String(err), objectKey },
-        '[write-back] Re-walk nudge failed — the edit will be picked up by the next scheduled walk.',
-      );
-    });
+      .then((res) => {
+        if (!res.ok) {
+          logger.warn(
+            { status: res.status, objectKey },
+            '[write-back] Re-walk nudge rejected by cocoindex worker — the edit will be picked up by the next scheduled walk.',
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err), objectKey },
+          '[write-back] Re-walk nudge failed — the edit will be picked up by the next scheduled walk.',
+        );
+      }),
+  );
 }
 
 /**

@@ -44,6 +44,16 @@ const loggerMocks = vi.hoisted(() => ({
   trace: vi.fn(),
 }));
 
+// {127.20} S555: the re-walk nudge must be REGISTERED with the serverless
+// runtime (`after()`) or Vercel freezes the instance on response and the
+// in-flight fetch dies silently. The mock drops the promise (pre-fix
+// behaviour); the chain still executes eagerly, so existing fetch/warn
+// assertions are unaffected.
+const keepAliveMock = vi.hoisted(() => ({
+  keepAliveAfterResponse: vi.fn(),
+}));
+vi.mock('@/lib/runtime/keep-alive', () => keepAliveMock);
+
 vi.mock('@/lib/logger', () => ({
   logger: loggerMocks,
   getRequestContext: () => undefined,
@@ -411,6 +421,35 @@ describe('writeBackFileFirst — file-first write-back with compensating restore
 
     afterEach(() => {
       global.fetch = originalFetch;
+    });
+
+    it('{127.20} S555: registers the nudge with the runtime keep-alive so it survives the post-response freeze', async () => {
+      process.env.COCOINDEX_WORKER_URL = 'https://worker.example.test';
+      process.env.PIPELINE_TRIGGER_SECRET = 'test-pipeline-trigger-secret';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 202 } as Response);
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      configureResolution(mockSupabase, {
+        storagePath: REL_PATH,
+      });
+      const applyDbLeg = vi.fn().mockResolvedValue(undefined);
+
+      await writeBackFileFirst({
+        supabase: client(),
+        contentItemId: CONTENT_ITEM_ID,
+        newContent: NEW_BYTES,
+        applyDbLeg,
+      });
+
+      expect(keepAliveMock.keepAliveAfterResponse).toHaveBeenCalledTimes(1);
+      const [registered] = keepAliveMock.keepAliveAfterResponse.mock
+        .calls[0] as [Promise<unknown>];
+      expect(registered).toBeInstanceOf(Promise);
+      // The registered chain owns its own errors — awaiting it must never throw.
+      await registered;
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('fires a POST to {COCOINDEX_WORKER_URL}/walk on the happy path when configured', async () => {

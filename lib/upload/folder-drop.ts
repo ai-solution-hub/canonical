@@ -74,6 +74,7 @@ import {
   WriterFenceBusyError,
 } from '@/lib/corpus/writer-fence';
 import type { Database } from '@/supabase/types/database.types';
+import { keepAliveAfterResponse } from '@/lib/runtime/keep-alive';
 
 /**
  * Which leg of the admission flow failed — surfaced on the thrown error.
@@ -305,33 +306,38 @@ function nudgeCorpusRewalk(objectKey: string): void {
   const cfAccessClientId = process.env.CF_ACCESS_CLIENT_ID?.trim();
   const cfAccessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim();
 
-  void fetch(`${workerUrl.replace(/\/$/, '')}/walk`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${pipelineTriggerSecret}`,
-      ...(cfAccessClientId && cfAccessClientSecret
-        ? {
-            'CF-Access-Client-Id': cfAccessClientId,
-            'CF-Access-Client-Secret': cfAccessClientSecret,
-          }
-        : {}),
-    },
-    signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
-  })
-    .then((res) => {
-      if (!res.ok) {
-        logger.warn(
-          { status: res.status, objectKey },
-          '[folder-drop] Re-walk nudge rejected by cocoindex worker — the upload will be picked up by the next scheduled walk.',
-        );
-      }
+  // {127.20} S555: fire-and-forget, but REGISTERED with the runtime —
+  // an unregistered `void fetch` dies silently when the serverless instance
+  // freezes on response (proven live: admit logged, zero Access edge events).
+  keepAliveAfterResponse(
+    fetch(`${workerUrl.replace(/\/$/, '')}/walk`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pipelineTriggerSecret}`,
+        ...(cfAccessClientId && cfAccessClientSecret
+          ? {
+              'CF-Access-Client-Id': cfAccessClientId,
+              'CF-Access-Client-Secret': cfAccessClientSecret,
+            }
+          : {}),
+      },
+      signal: AbortSignal.timeout(REWALK_NUDGE_TIMEOUT_MS),
     })
-    .catch((err: unknown) => {
-      logger.warn(
-        { err: err instanceof Error ? err.message : String(err), objectKey },
-        '[folder-drop] Re-walk nudge failed — the upload will be picked up by the next scheduled walk.',
-      );
-    });
+      .then((res) => {
+        if (!res.ok) {
+          logger.warn(
+            { status: res.status, objectKey },
+            '[folder-drop] Re-walk nudge rejected by cocoindex worker — the upload will be picked up by the next scheduled walk.',
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err), objectKey },
+          '[folder-drop] Re-walk nudge failed — the upload will be picked up by the next scheduled walk.',
+        );
+      }),
+  );
 }
 
 /** Row shape returned by the M2 `resolve_or_mint_source_identity` resolver. */

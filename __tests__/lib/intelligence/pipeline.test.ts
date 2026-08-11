@@ -64,6 +64,14 @@ vi.mock('@/lib/intelligence/content-extractor', () => ({
 vi.mock('@/lib/extraction/url-normalise', () => ({
   normaliseUrl: vi.fn((url: string) => url),
 }));
+// {127.20} S555: the walk nudge must be REGISTERED with the serverless
+// runtime (`after()`) or Vercel freezes the instance on response and the
+// in-flight fetch dies silently. The mock drops the promise (pre-fix
+// behaviour); the chain still executes eagerly, so existing fetch/warn
+// assertions are unaffected.
+vi.mock('@/lib/runtime/keep-alive', () => ({
+  keepAliveAfterResponse: vi.fn(),
+}));
 vi.mock('@/lib/intelligence/relevance-scorer', () => ({
   embeddingPreFilter: vi.fn(),
   scoreRelevance: vi.fn(),
@@ -1534,6 +1542,22 @@ describe('runPipeline — cocoindex walk nudge (ID-75 WP-E, D-3)', () => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.clearAllMocks();
+  });
+
+  it('{127.20} S555: registers the nudge with the runtime keep-alive so it survives the post-response freeze', async () => {
+    await primePassedArticleMocks();
+    const { supabase } = buildRunPipelineMock(NUDGE_MOCK_OPTIONS);
+
+    await runPipeline(supabase);
+
+    const { keepAliveAfterResponse } = await import('@/lib/runtime/keep-alive');
+    expect(vi.mocked(keepAliveAfterResponse)).toHaveBeenCalledTimes(1);
+    const [registered] = vi.mocked(keepAliveAfterResponse).mock.calls[0] as [
+      Promise<unknown>,
+    ];
+    expect(registered).toBeInstanceOf(Promise);
+    // The registered chain owns its own errors — awaiting it must never throw.
+    await registered;
   });
 
   it('fires exactly one bearer POST /walk after a run where articlesPassed > 0', async () => {

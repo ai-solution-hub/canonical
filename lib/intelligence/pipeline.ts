@@ -25,6 +25,7 @@ import type {
 import { SOURCES_PER_INVOCATION, DEFAULT_RELEVANCE_THRESHOLD } from './types';
 import { RateLimitError } from './rate-limiter';
 import { logger } from '@/lib/logger';
+import { keepAliveAfterResponse } from '@/lib/runtime/keep-alive';
 
 type Supabase = SupabaseClient<Database>;
 
@@ -601,36 +602,41 @@ function nudgeCocoindexWalk(articlesPassed: number): void {
   const cfAccessClientId = process.env.CF_ACCESS_CLIENT_ID?.trim();
   const cfAccessClientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim();
 
-  void fetch(`${workerUrl}/walk`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${pipelineTriggerSecret}`,
-      ...(cfAccessClientId && cfAccessClientSecret
-        ? {
-            'CF-Access-Client-Id': cfAccessClientId,
-            'CF-Access-Client-Secret': cfAccessClientSecret,
-          }
-        : {}),
-    },
-    signal: AbortSignal.timeout(COCOINDEX_NUDGE_TIMEOUT_MS),
-  })
-    .then((res) => {
-      if (!res.ok) {
-        logger.warn(
-          { status: res.status, articlesPassed },
-          '[Pipeline] Walk nudge rejected by cocoindex worker — ingest delayed until the next scheduled walk',
-        );
-      }
+  // {127.20} S555: fire-and-forget, but REGISTERED with the runtime —
+  // an unregistered `void fetch` dies silently when the serverless instance
+  // freezes on response (proven live: admit logged, zero Access edge events).
+  keepAliveAfterResponse(
+    fetch(`${workerUrl}/walk`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pipelineTriggerSecret}`,
+        ...(cfAccessClientId && cfAccessClientSecret
+          ? {
+              'CF-Access-Client-Id': cfAccessClientId,
+              'CF-Access-Client-Secret': cfAccessClientSecret,
+            }
+          : {}),
+      },
+      signal: AbortSignal.timeout(COCOINDEX_NUDGE_TIMEOUT_MS),
     })
-    .catch((err: unknown) => {
-      logger.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          articlesPassed,
-        },
-        '[Pipeline] Walk nudge failed — ingest delayed until the next scheduled walk',
-      );
-    });
+      .then((res) => {
+        if (!res.ok) {
+          logger.warn(
+            { status: res.status, articlesPassed },
+            '[Pipeline] Walk nudge rejected by cocoindex worker — ingest delayed until the next scheduled walk',
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        logger.warn(
+          {
+            err: err instanceof Error ? err.message : String(err),
+            articlesPassed,
+          },
+          '[Pipeline] Walk nudge failed — ingest delayed until the next scheduled walk',
+        );
+      }),
+  );
 }
 
 /** Run the full pipeline: query due sources, process each, track in queue */
