@@ -46,12 +46,18 @@
  *    `ontology.json` is absent/malformed — never throws), which is
  *    sufficient for the union view's styling need (the decision memo frames
  *    the split as "client vs canonical-okf-system baseline").
- * 3. **A19 `confidence` -> opacity.** `confidenceToOpacity` maps the
- *    producer-emitted categorical `confidence` frontmatter (bl-477,
- *    `producer/frontmatter.py::_CONFIDENCE_VALUES`) to a Cytoscape opacity
- *    tier. DR-081a: the producer currently emits only `strong`/`partial` in
- *    practice; the map still covers the full ratified vocabulary
- *    defensively. Absent confidence renders full-opacity.
+ * 3. **Legacy `confidence` -> opacity.** `confidenceToOpacity` maps the
+ *    categorical `confidence` frontmatter to a Cytoscape opacity tier.
+ *    **The producer no longer emits it** (id-428: SPEC §5.1 refuses a
+ *    stored credibility score, so `derive_concept_confidence` and the A19
+ *    vocabulary are both retired; DR-081a, which ratified the
+ *    `strong`/`partial` emission, is superseded). The map is kept because
+ *    previously-published bundles still carry the field and a bundle
+ *    regenerates incrementally, so one bundle holds both generations
+ *    during the transition. Absent confidence renders full-opacity, which
+ *    is what every newly-drafted concept now gets. The channel is
+ *    therefore fading out, not load-bearing: its replacement is the §5.3
+ *    trust tier derived from `verified`, which id-420 owns.
  * 4. **Relationship-typed edges.** `extractTypedLinks` splits each concept
  *    body at its `# Citations` heading (mirroring the S451-rider convention
  *    already documented above `RESERVED_ROOT_DOCS`): a link found within
@@ -449,10 +455,12 @@ function fmSources(value: unknown): ConceptSourceEntry[] {
   return out;
 }
 
-// A19 (bl-477) confidence -> opacity tiers (module doc §3). Covers the full
-// ratified `producer/frontmatter.py::_CONFIDENCE_VALUES` vocabulary
-// defensively — DR-081a: the producer currently emits only
-// `strong`/`partial` in practice.
+// LEGACY confidence -> opacity tiers (module doc §3). The producer stopped
+// emitting `confidence` at id-428; these four values are the retired A19
+// vocabulary as previously-published bundles carry it. Kept deliberately —
+// deleting the map would flatten every already-published concept to
+// full-opacity, silently losing the only trust signal those bundles have
+// until id-420's `verified`-derived §5.3 tier replaces the channel.
 const CONFIDENCE_OPACITY: Record<string, number> = {
   strong: 1,
   partial: 0.55,

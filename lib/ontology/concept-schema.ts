@@ -9,14 +9,18 @@
  * and validates the extracted frontmatter against
  * `ConceptFrontmatterSchema`.
  *
- * HARD-reject semantics: `parseConceptFrontmatter` calls `.parse()`
- * (not `.safeParse()`), so a malformed concept — bad `type`, a missing
- * required key, or (when present) a malformed `resource:` URI — throws a
- * `ZodError` rather than being coerced or silently dropped. `resource:` is
- * itself OPTIONAL (see {132.19} note below) — its absence is not a
- * violation. This mirrors the Python pipeline's `_validate_content_type`
- * field-validator (`scripts/cocoindex_pipeline/extraction.py`), which
- * raises on an out-of-taxonomy `content_type` instead of coercing.
+ * HARD-reject semantics, NARROWED to what §11 actually permits (id-439).
+ * `parseConceptFrontmatter` still calls `.parse()` (not `.safeParse()`),
+ * so a concept that violates the one v0.2 conformance requirement — a
+ * missing or empty `type` (§11 clause 2) — throws a `ZodError` rather than
+ * being coerced or silently dropped, as does a malformed `resource:` URI
+ * when one is present. What it may NOT throw on is a missing OPTIONAL
+ * family: §11 forbids rejecting a bundle for "missing optional frontmatter
+ * fields", and §4.1 states that "a concept carrying just `type` is fully
+ * conformant". This schema required `title`, `description` AND `tags`, so
+ * the spec's own minimal conformant document threw — that is fixed; all
+ * three are now optional, matching the defaults `lib/okf/bundle-graph.ts`
+ * already applied when reading them.
  *
  * The required-key set + `resource:` URI-shape rule is borrowed from the
  * Google okf-skills concept convention — the RULE SET only, not its
@@ -79,32 +83,37 @@
  * - §4.1: unknown frontmatter keys MUST NOT cause rejection — the root
  *   schema is a `looseObject` (tolerates AND preserves unknown keys).
  * - §11: a bare `verified` mapping normalises to a one-element list
- *   (forward-compatible with id-428; nothing emits it yet). The
- *   `confidence` z.enum is deliberately UNCHANGED this wave — id-428
- *   owns that loosening.
+ *   (forward-compatible with id-420, which owns emitting them; nothing
+ *   emits one yet).
+ * - `confidence` is no longer declared at all. It was gated by a `z.enum`
+ *   deliberately left alone in the S546 wave pending id-428's ruling;
+ *   id-428 retired the field from the producer (SPEC §5.1 refuses a stored
+ *   credibility score), so the gate went with it. Previously-published
+ *   bundles carrying `confidence` keep parsing, via the same §4.1
+ *   unknown-key tolerance as any other extension key.
  */
 import matter from 'gray-matter';
 import { z } from 'zod';
 
 /**
- * {132.41} bl-477 — the ratified A19 confidence vocabulary. Mirrors
- * `producer/frontmatter.py` / `producer/validator.py`'s own
- * `_CONFIDENCE_VALUES` frozenset — by convention, not import (cross-language,
- * the single-const-array idiom). Unlike the deleted `CONCEPT_TYPE_VALUES`
- * this one IS a gate (`z.enum` below) and is deliberately left alone by
- * {427.6}: DR-141 opened the concept-TYPE vocabulary, and `confidence` is a
- * separate v0.2 question that id-428 owns. A
- * concept's `confidence` is OPTIONAL and, when present, computed
- * deterministically by the producer — never model-authored (see
- * FRONTMATTER-WAVE.md §"Design — A19 producer-drafted confidence-setting
- * rule").
+ * {132.41} bl-477's `CONFIDENCE_VALUES` — the ratified A19 vocabulary that
+ * used to live here and back the `confidence` `z.enum` — is DELETED
+ * (id-439, in step with id-428's producer-side retirement).
+ *
+ * It existed for exactly one reason, stated in its own docstring: "Unlike
+ * the deleted `CONCEPT_TYPE_VALUES` this one IS a gate." id-428 removed the
+ * gate (SPEC §5.1 refuses a stored credibility score, so the producer emits
+ * no `confidence` at all), which leaves a vocabulary const with no
+ * consumer — and the `CONCEPT_TYPE_VALUES` deletion note below is the
+ * precedent for what happens next: "Keeping a second, narrower list here
+ * only invited it to drift back into a gate."
+ *
+ * `confidence` survives on previously-published bundles and still parses,
+ * as an ordinary §4.1 extension key (preserved by the root `looseObject`,
+ * never validated). `lib/okf/bundle-graph.ts` keeps its own opacity LOOKUP
+ * over the legacy values — a lookup with a full-opacity default, not a
+ * gate, so an unknown value renders rather than throws.
  */
-export const CONFIDENCE_VALUES = [
-  'strong',
-  'partial',
-  'no-content',
-  'needs-SME',
-] as const;
 
 /**
  * `resource:`, in its per-row anchor form, must be a
@@ -180,8 +189,16 @@ export const ConceptFrontmatterSchema = z.looseObject({
   // an open label" note. DR-141: a producer picks a descriptive value and a
   // consumer MUST tolerate one it does not know (OKF §4.1).
   type: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().min(1),
+  // §4.1: "`type` is the only always-required key; a concept carrying just
+  // `type` is fully conformant (§11)." `title`/`description`/`tags` are
+  // RECOMMENDED, never required — and §11 forbids rejecting a bundle for
+  // "missing optional frontmatter fields", which `.parse()` was doing on
+  // the spec's own minimal conformant document (id-439). The live reader
+  // already assumed this contract: `lib/okf/bundle-graph.ts`'s
+  // `walkConcepts` defaults all three (title falls back to the concept id,
+  // description to '', tags to []) rather than skipping such a concept.
+  title: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
   // v0.1 legacy last-modified stamp — OPTIONAL since v0.2 replaced it with
   // `generated` (id-439; previously-published bundles still carry it).
   timestamp: z.string().min(1).optional(),
@@ -208,9 +225,11 @@ export const ConceptFrontmatterSchema = z.looseObject({
   purpose: z.string().optional(),
   task: z.string().optional(),
   audience: z.string().optional(),
-  // {132.41} bl-477 — A19 confidence, OPTIONAL at read (OKF consumers must
-  // tolerate absence) even though the Path-1 producer always writes it.
-  confidence: z.enum(CONFIDENCE_VALUES).optional(),
+  // `confidence` is deliberately NOT declared. id-428 retired it from the
+  // emission contract; previously-published bundles still carry it, and the
+  // root `looseObject` preserves it as an ordinary §4.1 extension key. A
+  // `z.enum` here would reject exactly those older bundles the moment the
+  // vocabulary moved — the failure mode this loosening exists to prevent.
   resource: z
     .string()
     .refine(isValidConceptResourceUri, {
@@ -218,7 +237,7 @@ export const ConceptFrontmatterSchema = z.looseObject({
         'resource must match canonical://<table>/<uuid>, canonical://q_a_pairs?scope_tag=<tag>, or an http(s) URL',
     })
     .optional(),
-  tags: z.array(z.string()),
+  tags: z.array(z.string()).optional(),
 });
 
 export type ConceptFrontmatter = z.infer<typeof ConceptFrontmatterSchema>;

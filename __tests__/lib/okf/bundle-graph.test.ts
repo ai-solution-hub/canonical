@@ -752,6 +752,50 @@ describe('confidenceToOpacity', () => {
   it('never throws on an unrecognised value — falls back to full-opacity', () => {
     expect(confidenceToOpacity('some-future-A19-value')).toBe(1);
   });
+
+  it('renders a MIXED-generation bundle: legacy scored concepts keep their tier, post-id-428 concepts render neutral', () => {
+    /**
+     * The real id-428/id-439 transition shape. The producer regenerates a
+     * bundle incrementally, so for as long as some concepts are re-drafted
+     * and others are not, ONE bundle carries both generations at once:
+     * pre-id-428 concepts still have `confidence:`, post-id-428 concepts
+     * never will. Neither generation may break the render — the legacy
+     * opacity map must stay (this is why it is not deleted alongside the
+     * producer's emission), and its absent-value default is what carries
+     * the new generation.
+     */
+    const legacyScored = [
+      '---',
+      'type: topic',
+      'title: Legacy Partial',
+      'confidence: partial',
+      '---',
+      '',
+      'Drafted before id-428.',
+    ].join('\n');
+    const regenerated = [
+      '---',
+      'type: topic',
+      'title: Regenerated',
+      '---',
+      '',
+      'Re-drafted after id-428 — carries no confidence at all.',
+    ].join('\n');
+    const root = bundle({
+      'topics/legacy.md': legacyScored,
+      'topics/regenerated.md': regenerated,
+    });
+
+    const graph = buildBundleGraph(root);
+    const byId = Object.fromEntries(
+      graph.nodes.map((n) => [n.data.id, n.data]),
+    );
+
+    expect(byId['topics/legacy'].confidence).toBe('partial');
+    expect(byId['topics/legacy'].opacity).toBeLessThan(1);
+    expect(byId['topics/regenerated'].confidence).toBeNull();
+    expect(byId['topics/regenerated'].opacity).toBe(1);
+  });
 });
 
 describe('buildUnionBundleGraph', () => {

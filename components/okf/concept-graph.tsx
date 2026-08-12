@@ -18,7 +18,11 @@
  * collides:
  *  - `bundleClass` -> node **shape** (`bundleClassShape` — a structural,
  *    non-colour channel, so no new design token).
- *  - `confidence` (A19) -> node **opacity**, pre-computed server-side.
+ *  - `confidence` -> node **opacity**, pre-computed server-side. Retired
+ *    from the producer at id-428, so this channel is live for
+ *    previously-published bundles only and is inert on newly-drafted
+ *    concepts (they render full-opacity). id-420's `verified`-derived §5.3
+ *    trust tier takes the slot.
  *  - `relationship` (cites/related) -> edge **line/arrow colour**.
  * `<GraphLegend>` renders a compact key for all three so a union view (or a
  * single bundle carrying the same fields) is legible without a doc lookup.
@@ -120,7 +124,9 @@ function toElements(
   return [...nodeElements, ...edgeElements];
 }
 
-/** Compact key for the three {132.49} visual channels — shape (bundleClass), opacity (A19 confidence), edge colour (relationship). The fourth, a `typeDeclaration` border colour, was retired at S550 (see module doc), so this legend no longer claims a border means anything. */
+/** Compact key for the three {132.49} visual channels — shape (bundleClass), opacity (legacy confidence), edge colour (relationship). The fourth, a `typeDeclaration` border colour, was retired at S550 (see module doc), so this legend no longer claims a border means anything.
+ *
+ * The opacity entry is qualified "legacy bundles only" rather than dropped: id-428 stopped the producer emitting `confidence`, so every newly-drafted concept renders full-opacity, but already-published concepts still carry it and still dim. Silently keeping the unqualified wording would have the legend explain a difference a reader cannot see on a regenerated bundle; silently dropping it would leave the dimming on legacy bundles unexplained. Both halves are true only while both generations coexist — when id-420's `verified`-derived §5.3 trust tier takes the opacity slot, this entry is rewritten, not deleted. */
 function GraphLegend() {
   return (
     <div
@@ -148,7 +154,7 @@ function GraphLegend() {
         <span className="inline-block h-0.5 w-4 bg-[var(--okf-graph-edge)]" />
         Related
       </span>
-      <span>Fainter node = lower A19 confidence</span>
+      <span>Fainter node = lower confidence (legacy bundles only)</span>
     </div>
   );
 }

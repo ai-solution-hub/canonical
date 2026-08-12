@@ -12,20 +12,18 @@
  * frontmatter contract, so no wiring/caller is exercised here.
  *
  * {132.41} FRONTMATTER-WAVE.md §"Shared frontmatter contract extension":
- * bl-456 routing hints (`purpose`/`task`/`audience`, free optional strings)
- * + bl-477 A19 `confidence` enum — both OPTIONAL, mirroring the landed
- * Python emitter/validator (`producer/frontmatter.py` /
- * `producer/validator.py`).
+ * bl-456 routing hints (`purpose`/`task`/`audience`, free optional
+ * strings), mirroring the landed Python emitter/validator
+ * (`producer/frontmatter.py` / `producer/validator.py`). The bl-477 A19
+ * `confidence` enum that used to sit alongside them is retired (id-428);
+ * it is covered below as an ordinary §4.1 passthrough key.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-import {
-  CONFIDENCE_VALUES,
-  parseConceptFrontmatter,
-} from '@/lib/ontology/concept-schema';
+import { parseConceptFrontmatter } from '@/lib/ontology/concept-schema';
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -124,14 +122,21 @@ describe('parseConceptFrontmatter', () => {
     expect(() => parseConceptFrontmatter(conceptMarkdown(emptyType))).toThrow();
   });
 
-  it('rejects a concept missing a required key (description)', () => {
+  it('accepts a concept missing description — a RECOMMENDED key, not a required one (id-439)', () => {
+    /**
+     * This assertion used to read `.toThrow()`. It encoded the §11
+     * violation id-439 fixes: `description` is RECOMMENDED by §4.1, and
+     * §11 forbids rejecting a bundle for a missing optional field. `type`
+     * remains the only key whose absence throws — see the §11 block below.
+     */
     const missingDescription = WELL_FORMED_FRONTMATTER.split('\n')
       .filter((line) => !line.startsWith('description:'))
       .join('\n');
 
-    expect(() =>
-      parseConceptFrontmatter(conceptMarkdown(missingDescription)),
-    ).toThrow();
+    const parsed = parseConceptFrontmatter(conceptMarkdown(missingDescription));
+
+    expect(parsed.description).toBeUndefined();
+    expect(parsed.type).toBe('topic');
   });
 
   it('rejects a concept whose resource: URI does not match canonical://<table>/<uuid>', () => {
@@ -223,15 +228,6 @@ describe('parseConceptFrontmatter', () => {
   // {132.41} bl-456 routing hints + bl-477 A19 confidence
   // ────────────────────────────────────────
 
-  it('exposes the A19 confidence vocabulary as a single ratifiable source of truth', () => {
-    expect(CONFIDENCE_VALUES).toEqual([
-      'strong',
-      'partial',
-      'no-content',
-      'needs-SME',
-    ]);
-  });
-
   it('accepts a concept carrying all four routing-hint + confidence fields', () => {
     const withHints = [
       WELL_FORMED_FRONTMATTER,
@@ -270,14 +266,6 @@ describe('parseConceptFrontmatter', () => {
       expect(parsed.confidence).toBe(value);
     },
   );
-
-  it('rejects an out-of-vocabulary confidence value via ZodError', () => {
-    const badConfidence = `${WELL_FORMED_FRONTMATTER}\nconfidence: banana`;
-
-    expect(() =>
-      parseConceptFrontmatter(conceptMarkdown(badConfidence)),
-    ).toThrow();
-  });
 });
 
 // ────────────────────────────────────────
@@ -432,5 +420,115 @@ describe('parseConceptFrontmatter — OKF v0.2 (id-439)', () => {
       { by: 'sme@example.com' },
       { by: 'second@example.com' },
     ]);
+  });
+});
+
+// ────────────────────────────────────────
+// id-439 — the two §11 MUST-NOT-reject duties this reader was still
+// violating, closed in step with id-428's producer-side retirement.
+// ────────────────────────────────────────
+
+describe('parseConceptFrontmatter — §11 MUST-NOT-reject (id-439)', () => {
+  it('parses a concept carrying ONLY type', () => {
+    /**
+     * §4.1: "`type` is the only always-required key; a concept carrying
+     * just `type` is fully conformant (§11)." This reader required
+     * `title`, `description` AND `tags` and called `.parse()`, so the
+     * spec's own minimal conformant document threw — the sharpest form of
+     * the §11 duty "MUST NOT reject a bundle because of missing optional
+     * frontmatter fields".
+     */
+    const parsed = parseConceptFrontmatter(conceptMarkdown('type: topic'));
+
+    expect(parsed.type).toBe('topic');
+    expect(parsed.title).toBeUndefined();
+    expect(parsed.description).toBeUndefined();
+    expect(parsed.tags).toBeUndefined();
+  });
+
+  it.each([
+    ['title', 'title: Photovoltaic Panels'],
+    ['description', 'description: A concept.'],
+    ['tags', 'tags:\n  - solar'],
+  ])('parses a concept missing only %s', (_label, omittedLine) => {
+    const all = [
+      'type: topic',
+      'title: Photovoltaic Panels',
+      'description: A concept.',
+      'tags:\n  - solar',
+    ];
+    const withoutOne = all.filter((line) => line !== omittedLine).join('\n');
+
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown(withoutOne)),
+    ).not.toThrow();
+  });
+
+  it('still rejects a concept with no type at all (§11 clause 2)', () => {
+    /** The one thing §11 DOES require: a non-empty `type`. Loosening the
+     * optional families must not loosen this. */
+    expect(() =>
+      parseConceptFrontmatter(conceptMarkdown('title: No type here')),
+    ).toThrow();
+  });
+
+  it('keeps the §11 duties intact on a type-only concept', () => {
+    const minimal = [
+      'type: topic',
+      'verified:',
+      '  by: sme@example.com',
+      '  at: "2026-08-09T00:00:00Z"',
+      'unknown_future_key: kept',
+    ].join('\n');
+
+    const parsed = parseConceptFrontmatter(conceptMarkdown(minimal));
+
+    expect(parsed.verified).toEqual([
+      { by: 'sme@example.com', at: '2026-08-09T00:00:00Z' },
+    ]);
+    expect(parsed.unknown_future_key).toBe('kept');
+  });
+});
+
+describe('parseConceptFrontmatter — confidence is a passthrough key (id-439/id-428)', () => {
+  /**
+   * id-428 retired `confidence` from the emission contract (SPEC §5.1
+   * refuses a stored credibility score). Bundles published BEFORE that
+   * still carry it, so this reader must keep parsing them — and since
+   * there is no vocabulary left to gate against, the field is now an
+   * ordinary §4.1 extension key: preserved, never validated, never a
+   * reason to reject.
+   */
+  const LEGACY = [
+    'type: topic',
+    'title: Data Encryption',
+    'description: Encryption at rest.',
+    'tags:\n  - security',
+  ].join('\n');
+
+  it.each(['strong', 'partial', 'no-content', 'needs-SME'])(
+    'parses a previously-published bundle carrying confidence: %s',
+    (value) => {
+      const parsed = parseConceptFrontmatter(
+        conceptMarkdown(`${LEGACY}\nconfidence: ${value}`),
+      );
+      expect(parsed.confidence).toBe(value);
+    },
+  );
+
+  it('no longer rejects an out-of-vocabulary confidence value', () => {
+    /** The z.enum used to throw here. With the vocabulary retired there is
+     * nothing for a value to be outside OF, and §11 forbids rejecting a
+     * concept over an unrecognised key's contents. */
+    const parsed = parseConceptFrontmatter(
+      conceptMarkdown(`${LEGACY}\nconfidence: banana`),
+    );
+
+    expect(parsed.confidence).toBe('banana');
+  });
+
+  it('does not require confidence on a new bundle', () => {
+    const parsed = parseConceptFrontmatter(conceptMarkdown(LEGACY));
+    expect(parsed.confidence).toBeUndefined();
   });
 });
