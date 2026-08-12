@@ -81,14 +81,20 @@ RUN groupadd --gid 1000 pipeline \
 
 WORKDIR /workspace
 
-# The deployed unit, explicitly. form_extractors/docx.py imports the three
-# sibling modules (scripts.analyse_template, scripts.extract_tender_questions,
-# scripts.docx_utils) — the measured, closed import set; nothing else under
-# scripts/ is reachable from the three entrypoints. fixtures/ is excluded via
+# The deployed unit, explicitly. form_extractors/docx.py imports three sibling
+# modules via the `scripts.` prefix (analyse_template, extract_tender_questions,
+# docx_utils); bid_worker.py additionally sys.path-inserts `scripts/` and BARE-
+# imports fill_template (which bare-imports docx_utils) — bare imports are
+# invisible to a `scripts\.`-prefixed grep, which is exactly how fill_template
+# was missed on the first cut (staging/prod bid-worker crash-looped, Coolify
+# StopApplication reaped both stacks, S560). The import-guard RUN below now
+# closes the set by construction: it imports all three entrypoint modules, so
+# a missing sibling reds the BUILD, not the deploy. fixtures/ is excluded via
 # deploy/docker/cocoindex.Dockerfile.dockerignore (staged from the checkout at
 # run time, never read from the image).
 COPY scripts/cocoindex_pipeline/ scripts/cocoindex_pipeline/
 COPY scripts/bid_worker.py \
+     scripts/fill_template.py \
      scripts/analyse_template.py \
      scripts/extract_tender_questions.py \
      scripts/docx_utils.py \
@@ -108,7 +114,14 @@ import cv2, docling, torch
 assert "+cpu" in torch.__version__, f"expected a +cpu torch build, got {torch.__version__}"
 names = {d.metadata["Name"] for d in md.distributions()}
 assert "opencv-python" not in names, sorted(n for n in names if n and "opencv" in n)
-print(f"guard OK: torch {torch.__version__}, cv2 {cv2.__version__} (headless only)")
+# Entrypoint-module import guard (added after the fill_template miss, S560):
+# importing the three modules the containers actually run resolves their FULL
+# import closure — bare sys.path imports included — at build time. All three
+# are import-safe without env (module level reads env only via .get()).
+import scripts.bid_worker
+import scripts.cocoindex_pipeline.mock_llm
+import scripts.cocoindex_pipeline.server
+print(f"guard OK: torch {torch.__version__}, cv2 {cv2.__version__} (headless only); entrypoint imports resolve")
 PYCHECK
 
 USER pipeline
