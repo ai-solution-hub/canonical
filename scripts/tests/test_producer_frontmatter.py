@@ -14,10 +14,12 @@ v0.2 surface pinned here:
   emits `[^id]:` footnote definitions instead.
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 
 import pytest
+from ruamel.yaml import YAML
 
 from scripts.cocoindex_pipeline.producer import frontmatter as fm
 from scripts.cocoindex_pipeline.producer import resource_uri as ru
@@ -716,10 +718,14 @@ def test_needs_quoting_leaves_ordinary_strings_unquoted(value):
 
 
 @pytest.mark.parametrize("value", ["NO", "99.9", "null", "2026-07-07T09:30:00Z"])
-def test_yaml_scalar_wraps_ambiguous_values_in_double_quotes(value):
+def test_render_wraps_ambiguous_values_in_double_quotes(value):
     # A double-quoted YAML scalar is ALWAYS str-typed on reload — this is
     # the round-trip type-fidelity guarantee the {132.7} rider requires.
-    assert fm._yaml_scalar(value) == f'"{value}"'
+    # Asserted on the RENDERED block rather than on a scalar helper: under
+    # DR-144 the quoting mechanics belong to ruamel, and `_needs_quoting`
+    # only decides which scalars are forced to the double-quoted style.
+    record = fm.build_concept_frontmatter(**_base_kwargs(title=value))
+    assert f'title: "{value}"' in fm.render_concept_frontmatter(record)
 
 
 def test_render_quotes_a_title_that_is_yaml_bool_ambiguous():
@@ -742,8 +748,118 @@ def test_render_always_quotes_generated_at_regardless_of_content():
     assert 'at: "2026-07-07T09:30:00Z"' in text
 
 
-def test_flow_scalar_quotes_a_generated_by_containing_flow_indicators():
-    """A model id containing a comma or brace would corrupt the flow
-    mapping — the flow-context scalar rule quotes it."""
-    assert fm._flow_scalar("producer/a,b") == '"producer/a,b"'
-    assert fm._flow_scalar("kh-concept-producer/glm-5.2") == "kh-concept-producer/glm-5.2"
+def test_render_quotes_a_generated_by_containing_flow_indicators():
+    """A model id containing a comma would corrupt the `generated` flow
+    mapping if emitted plain. ruamel's flow-context analysis quotes it
+    (DR-144) — asserted by reloading, not by pinning a quote character:
+    single- and double-quoted YAML scalars are both always `str`, and
+    which one ruamel picks is its business, not this contract's."""
+    tricky = fm.build_concept_frontmatter(**_base_kwargs(generated_by="producer/a,b"))
+    text = fm.render_concept_frontmatter(tricky)
+    assert dict(_load_emitted_block(text)["generated"])["by"] == "producer/a,b"
+    # Still ONE line — a flow mapping, never split into block form (§5.2).
+    assert len([ln for ln in text.split("\n") if ln.startswith("generated:")]) == 1
+
+    plain = fm.build_concept_frontmatter(
+        **_base_kwargs(generated_by="kh-concept-producer/glm-5.2")
+    )
+    assert "generated: { by: kh-concept-producer/glm-5.2," in fm.render_concept_frontmatter(
+        plain
+    )
+
+
+# ──────────────────────────────────────────
+# DR-144 (S548 owner ruling) — emission runs through `ruamel.yaml`
+# round-trip mode rather than a hand-rolled writer.
+#
+# These are LOADER-BACKED: the emitted block is parsed by a real YAML
+# parser and every value compared against what was handed to the emitter.
+# That is a strictly stronger proof than asserting on the emitted text,
+# and it is what the hand-rolled `_yaml_escape` could not satisfy — it
+# escaped `\` and `"` but NOT newlines, so agent-authored prose carrying a
+# raw newline emitted a broken multi-line plain scalar (id-428/S548).
+# ──────────────────────────────────────────
+
+_MULTILINE_PROSE = "First line\nSecond line"
+
+
+def _load_emitted_block(text: str):
+    """Parse an emitted `---`-fenced block back with a real YAML parser."""
+    assert text.startswith("---\n"), text
+    assert text.endswith("---\n"), text
+    return YAML(typ="rt").load(text[len("---\n") : -len("---\n")])
+
+
+def test_render_round_trips_a_title_carrying_a_raw_newline():
+    """The concrete bug DR-144 retires: a raw newline in a title emitted an
+    unparseable block (`title: First line` then a bare `Second line`)."""
+    record = fm.build_concept_frontmatter(**_base_kwargs(title=_MULTILINE_PROSE))
+    loaded = _load_emitted_block(fm.render_concept_frontmatter(record))
+    assert loaded["title"] == _MULTILINE_PROSE
+
+
+def test_render_round_trips_a_description_carrying_a_raw_newline():
+    record = fm.build_concept_frontmatter(**_base_kwargs(description=_MULTILINE_PROSE))
+    loaded = _load_emitted_block(fm.render_concept_frontmatter(record))
+    assert loaded["description"] == _MULTILINE_PROSE
+
+
+def test_render_round_trips_prose_carrying_quotes_and_backslashes():
+    """The two classes the hand-rolled escaper DID cover stay covered."""
+    tricky = 'A "quoted" phrase with a C:\\path and a trailing backslash \\'
+    record = fm.build_concept_frontmatter(**_base_kwargs(title=tricky))
+    loaded = _load_emitted_block(fm.render_concept_frontmatter(record))
+    assert loaded["title"] == tricky
+
+
+def test_render_round_trips_every_emitted_field_through_a_real_parser():
+    """Whole-shape fidelity, not one field at a time — the emitted block
+    reloads to exactly the values `build_concept_frontmatter` holds."""
+    anchor = "canonical://source_documents/1a2b3c4d-0000-4000-8000-000000000001"
+    record = fm.build_concept_frontmatter(
+        type="topic",
+        title=_MULTILINE_PROSE,
+        description='He said "no" — 99.9% of the time',
+        generated_by="kh-concept-producer/test-model-1",
+        generated_at="2026-07-07T09:30:00Z",
+        tags=("security", "NO", "99.9"),
+        purpose="Explain X",
+        task="answer Y",
+        audience="Z",
+        sources=fm.sources_from_citations(
+            ["https://client.example/about"], primary_anchor=anchor
+        ),
+    )
+    loaded = _load_emitted_block(fm.render_concept_frontmatter(record))
+    assert loaded["type"] == "topic"
+    assert loaded["title"] == _MULTILINE_PROSE
+    assert loaded["description"] == 'He said "no" — 99.9% of the time'
+    assert dict(loaded["generated"]) == {
+        "by": "kh-concept-producer/test-model-1",
+        "at": "2026-07-07T09:30:00Z",
+    }
+    # The S451 rider's whole point: every ambiguous tag reloads as `str`.
+    assert list(loaded["tags"]) == ["security", "NO", "99.9"]
+    assert all(isinstance(tag, str) for tag in loaded["tags"])
+    assert loaded["purpose"] == "Explain X"
+    assert [entry["resource"] for entry in loaded["sources"]] == [
+        anchor,
+        "https://client.example/about",
+    ]
+
+
+@pytest.mark.parametrize(
+    "prose", [_MULTILINE_PROSE, "trailing newline\n", "  leading space", "#hash"]
+)
+def test_every_emitted_frontmatter_line_is_a_key_line_or_an_indented_continuation(prose):
+    """The shape contract `producer/git_sync.py`'s field-level override
+    model depends on (id-440 AC-2): between the fences, every line either
+    opens a `key:` or is an indented continuation of the preceding one. A
+    raw newline in prose broke exactly this — the orphaned second line made
+    `capture_overrides` refuse the producer's OWN output."""
+    record = fm.build_concept_frontmatter(**_base_kwargs(title=prose, description=prose))
+    block = fm.render_concept_frontmatter(record).split("\n")[1:-2]
+    for line in block:
+        assert line.startswith((" ", "\t")) or re.match(
+            r"^[A-Za-z_][A-Za-z0-9_-]*:", line
+        ), f"line {line!r} is neither a `key:` line nor an indented continuation"

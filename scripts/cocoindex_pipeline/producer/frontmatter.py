@@ -32,29 +32,56 @@ decision board) and the OKF v0.2 spec (vendored at
   bundle under v0.2, and every entry must satisfy
   `is_valid_source_resource`.
 
-Deliberately hand-rolled (no `pyyaml` dependency): PyYAML is not pinned in
-`requirements.txt` (only resolves transitively in this environment), and the
-frontmatter shape here is a small, fully-controlled subset — a general YAML
-writer is not warranted. `render_concept_frontmatter` is a plain-scalar /
-double-quoted-scalar emitter sufficient for agent-authored title/description
-strings and our own uri/tag values; it is not a general-purpose YAML encoder.
+**Emission runs through `ruamel.yaml` round-trip mode (DR-144, owner ruling
+S548) — this module hand-rolls no YAML.** It previously did, on the reasoning
+that "the frontmatter shape here is a small, fully-controlled subset" so a
+general YAML writer was not warranted. The owner overturned that at the
+requirement level, and the concrete cost had already been measured: the
+hand-rolled escaper covered backslashes and double quotes but NOT newlines,
+so agent-authored prose carrying a raw newline emitted a broken
+multi-line plain scalar — a
+frontmatter block that no YAML parser would load and that `producer/
+git_sync.py`'s field-level override model refused as unrepresentable
+(id-440 AC-2), i.e. the producer's own output failing its own capture path.
+The shape is only "fully controlled" in its KEYS; its VALUES are model-
+authored prose, which is exactly the input a real encoder exists for.
 
-`_needs_quoting` additionally double-quotes any plain scalar that a YAML-1.1
-loader (e.g. PyYAML) would re-parse as bool/null/number/timestamp instead of
-`str` (a title of `"NO"` or `"99.9"`) — and `generated.at` is ALWAYS
-double-quoted unconditionally, regardless of `_needs_quoting`'s verdict
-(the {132.7} S451 rider rule for the retired `timestamp` field, carried to
-its v0.2 successor).
+`ruamel.yaml` is the only candidate that can hold the contract: PyYAML's
+`safe_dump` normalises the §5.2 `generated: { by, at }` flow mapping into
+block form and re-quotes scalars, breaking id-440 AC-1 by construction.
+Round-trip mode (`YAML(typ='rt')`) preserves flow style per-node.
+
+Two properties the encoder does NOT decide for itself, and why:
+
+- **YAML-1.1 type ambiguity.** ruamel resolves against YAML 1.2, where
+  `NO`/`yes`/`on`/`off` are ordinary strings — so it emits them unquoted and
+  a YAML-1.1 loader (PyYAML's default resolver, which the reference agent
+  uses) reloads them as `bool`. `_needs_quoting` is the {132.7} S451 rider
+  policy that closes that gap: it decides WHICH plain scalars get forced to
+  double-quoted, and ruamel owns all the quoting/escaping MECHANICS from
+  there. `generated.at` is ALWAYS double-quoted regardless of that verdict —
+  the one field DR-019 requires strict machine-parseability for must never
+  depend on the ambiguity heuristic staying exhaustive.
+- **Flow-mapping spacing.** `_SpacedFlowMappingEmitter` emits `{ by: ... }`
+  rather than ruamel's default `{by: ...}`, matching the OKF v0.2 SPEC's own
+  worked examples (§4.3/§5.2) and the already-published bundles, so a
+  regeneration diffs on content rather than on punctuation.
 """
 
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Sequence
 from urllib.parse import urlsplit
+
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.emitter import Emitter
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from scripts.cocoindex_pipeline.producer.resource_uri import (
     contains_record_pointer,
@@ -589,24 +616,55 @@ def _needs_quoting(value: str) -> bool:
     return False
 
 
-def _yaml_escape(value: str) -> str:
-    """Escape `value` for embedding inside a YAML double-quoted scalar."""
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+class _SpacedFlowMappingEmitter(Emitter):
+    """ruamel's emitter, writing a flow mapping as `{ k: v }` rather than
+    its default `{k: v}`.
+
+    The two spellings are the same YAML; we match the spaced one because
+    the OKF v0.2 SPEC writes every flow mapping that way (§4.3/§5.2 worked
+    examples) and every already-published bundle carries it — so a
+    regeneration diffs on content, not on punctuation.
+
+    `flow_map_start` is deliberately NOT overridden: ruamel pushes it onto
+    `flow_context` and later asserts it is exactly `'{'`. The opening space
+    is produced instead by clearing the `whitespace` flag, which makes the
+    emitter write a separator before the first key.
+    """
+
+    flow_map_end = " }"
+
+    def expect_flow_mapping(self, single=False, force_flow_indent=False):
+        super().expect_flow_mapping(single=single, force_flow_indent=force_flow_indent)
+        self.whitespace = False
 
 
-def _yaml_scalar(value: str) -> str:
-    if not _needs_quoting(value):
-        return value
-    return f'"{_yaml_escape(value)}"'
+def _yaml_writer() -> YAML:
+    """A round-trip YAML writer configured for the v0.2 frontmatter shape.
+
+    Built per call rather than shared: a `YAML` instance carries emitter and
+    serialiser state, so one shared instance would interleave output between
+    concurrent renders. Assembling a frontmatter block is not a hot path.
+    """
+    yaml = YAML(typ="rt")
+    yaml.Emitter = _SpacedFlowMappingEmitter
+    # `  - item` indented under its key — the block-sequence shape the
+    # id-440 override model and every published bundle already carry.
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    # Never line-wrap. A folded scalar would split one value across lines,
+    # which the field-level override model reads as a separate entry.
+    yaml.width = 1 << 30
+    # Emit UTF-8 prose as itself, not as `\uXXXX` escapes.
+    yaml.allow_unicode = True
+    return yaml
 
 
-def _flow_scalar(value: str) -> str:
-    """A scalar embedded in a YAML FLOW mapping (`{ by: ..., at: ... }`) —
-    flow context additionally forbids `,`/`{`/`}`/`[`/`]` in plain
-    scalars, so quote on those too."""
-    if _needs_quoting(value) or any(ch in value for ch in ",{}[]"):
-        return f'"{_yaml_escape(value)}"'
-    return value
+def _scalar(value: str) -> "str | DoubleQuotedScalarString":
+    """Hand `value` to ruamel as a plain scalar, or force it to a
+    double-quoted one when `_needs_quoting` says a YAML-1.1 loader would
+    otherwise re-type it (module docstring). Escaping is ruamel's job, not
+    this function's — a double-quoted YAML scalar is ALWAYS `str` on
+    reload, which is the {132.7} S451 rider's round-trip guarantee."""
+    return DoubleQuotedScalarString(value) if _needs_quoting(value) else value
 
 
 def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
@@ -616,48 +674,51 @@ def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
     Fixed emission order (BI-18 memo/diff stability, id-426 golden shape):
     `type`, `title`, `description`, `generated`, then the optional
     `purpose`/`task`/`audience`/`confidence` (each only when set),
-    `resource` (only when set — never canonical://, S546 F2-B), `tags`,
-    and `sources` last (only when non-empty)."""
-    lines = ["---"]
-    lines.append(f"type: {_yaml_scalar(fm.type)}")
-    lines.append(f"title: {_yaml_scalar(fm.title)}")
-    lines.append(f"description: {_yaml_scalar(fm.description)}")
-    # §5.2 generated — `at` is ALWAYS double-quoted (the {132.7} S451 rider
-    # rule for the retired `timestamp`, carried to its v0.2 successor: the
-    # one field DR-019 requires strict machine-parseability for must never
-    # depend on the ambiguity-pattern heuristic staying exhaustive).
-    lines.append(
-        f'generated: {{ by: {_flow_scalar(fm.generated_by)}, '
-        f'at: "{_yaml_escape(fm.generated_at)}" }}'
-    )
+    `resource` (only when set — never canonical://, S546 F2-B), `tags`, and
+    `sources` last (only when non-empty). A `CommentedMap` preserves that
+    insertion order."""
+    block = CommentedMap()
+    block["type"] = _scalar(fm.type)
+    block["title"] = _scalar(fm.title)
+    block["description"] = _scalar(fm.description)
+    # §5.2 generated — a FLOW mapping on one line, and `at` is ALWAYS
+    # double-quoted (the {132.7} S451 rider rule for the retired
+    # `timestamp`, carried to its v0.2 successor).
+    generated = CommentedMap()
+    generated["by"] = _scalar(fm.generated_by)
+    generated["at"] = DoubleQuotedScalarString(fm.generated_at)
+    generated.fa.set_flow_style()
+    block["generated"] = generated
     # bl-456/bl-477 (FRONTMATTER-WAVE.md): fixed emission order for
     # deterministic output — purpose, task, audience, confidence — each
     # only when not `None`.
     if fm.purpose is not None:
-        lines.append(f"purpose: {_yaml_scalar(fm.purpose)}")
+        block["purpose"] = _scalar(fm.purpose)
     if fm.task is not None:
-        lines.append(f"task: {_yaml_scalar(fm.task)}")
+        block["task"] = _scalar(fm.task)
     if fm.audience is not None:
-        lines.append(f"audience: {_yaml_scalar(fm.audience)}")
+        block["audience"] = _scalar(fm.audience)
     if fm.confidence is not None:
-        lines.append(f"confidence: {_yaml_scalar(fm.confidence)}")
+        block["confidence"] = _scalar(fm.confidence)
     if fm.resource is not None:
-        lines.append(f"resource: {_yaml_scalar(fm.resource)}")
-    if fm.tags:
-        lines.append("tags:")
-        for tag in fm.tags:
-            lines.append(f"  - {_yaml_scalar(tag)}")
-    else:
-        lines.append("tags: []")
+        block["resource"] = _scalar(fm.resource)
+    # Always emitted, empty or not (BI-12) — an empty `CommentedSeq`
+    # renders as the flow `[]`.
+    block["tags"] = CommentedSeq(_scalar(tag) for tag in fm.tags)
     if fm.sources:
-        lines.append("sources:")
+        entries = CommentedSeq()
         for source in fm.sources:
-            lines.append(f"  - id: {_yaml_scalar(source.id)}")
-            lines.append(f"    resource: {_yaml_scalar(source.resource)}")
+            entry = CommentedMap()
+            entry["id"] = _scalar(source.id)
+            entry["resource"] = _scalar(source.resource)
             if source.title is not None:
-                lines.append(f"    title: {_yaml_scalar(source.title)}")
-    lines.append("---")
-    return "\n".join(lines) + "\n"
+                entry["title"] = _scalar(source.title)
+            entries.append(entry)
+        block["sources"] = entries
+
+    stream = io.StringIO()
+    _yaml_writer().dump(block, stream)
+    return f"---\n{stream.getvalue()}---\n"
 
 
 def emit_concept_frontmatter(

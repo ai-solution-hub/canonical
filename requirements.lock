@@ -61,6 +61,14 @@
 # instead of `-r requirements.txt`. Nothing else moved: the compile-in-place
 # rule above is what held the other ~700 pins still across the regen.
 #
+# id-428 regen (S553/DR-144): requirements.txt now declares `ruamel.yaml`, the
+# YAML encoder the OKF concept-frontmatter emitter moved onto when the owner
+# retired its hand-rolled writer. The closure delta is exactly ONE line —
+# net-new ruamel-yaml==0.19.1, with no transitive additions (0.19.x no longer
+# pulls the optional `ruamel.yaml.clib` C extension, so this is pure Python and
+# adds no build step to the buildpacks image). Nothing else moved: the
+# compile-in-place rule above is what held the other ~700 pins still.
+#
 # Determinism: two consecutive `uv pip compile` runs from an unchanged
 # requirements.txt produce a byte-identical package list (verified {127.22}).
 accelerate==1.14.0
@@ -575,6 +583,8 @@ rpds-py==2026.6.3
     #   referencing
 rtree==1.4.1
     # via docling-ibm-models
+ruamel-yaml==0.19.1
+    # via -r requirements.txt
 safetensors==0.8.0
     # via
     #   accelerate

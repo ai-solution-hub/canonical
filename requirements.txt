@@ -128,6 +128,19 @@ aiohttp>=3.9.0,<4.0.0
 # asyncpg: async Postgres driver for cocoindex postgres source/sink connector.
 asyncpg>=0.30.0
 httpx==0.28.1  # explicit pin — adapters.py uses httpx.AsyncClient; transitive via cocoindex today (fragile)
+# ruamel.yaml: the OKF concept-frontmatter emitter
+# (scripts/cocoindex_pipeline/producer/frontmatter.py). DR-144 (owner ruling,
+# S548) retired that module's hand-rolled YAML writer, whose escaper covered
+# backslashes and double quotes but NOT newlines — model-authored prose with a
+# raw newline emitted a frontmatter block no parser would load.
+# ruamel is REQUIRED specifically, not "a YAML library": PyYAML's safe_dump
+# normalises the §5.2 `generated: { by, at }` flow mapping into block form and
+# re-quotes scalars, which breaks id-440 AC-1 (byte-faithful capture->reapply
+# over real emitter output) by construction. Round-trip mode (YAML(typ='rt'))
+# is the only mode that preserves per-node flow style.
+# A genuinely NEW direct dependency, not the promotion of a transitive one:
+# `ruamel` had no hit in this file or requirements.lock before this pin.
+ruamel.yaml==0.19.1
 # tenacity: KH-managed retry wrapper around anthropic.AsyncAnthropic.messages.create
 # (ID-28.17). cocoindex 1.0.7 has no retry primitives around the @coco.fn LLM path
 # (empirically verified in S257 W2a + the _FlowRetryCounter docstring; unchanged
