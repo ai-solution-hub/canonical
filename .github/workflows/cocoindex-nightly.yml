@@ -85,40 +85,20 @@
 # v1.1 sub-assertion cleanly (`PGRST`-class error → early return) when it's
 # absent, so landing both tests does NOT require building the table.
 #
-# Sidecar provisioning: this lane BUILDS the cocoindex image locally via the
-# same recipe onprem-deploy.yml uses — `pack build` (pruned context = scripts/
-# + requirements.lock, builder gcr.io/buildpacks/builder:google-22,
-# GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server) FOLLOWED BY
-# the post-`pack` `docker build` layer that bakes git, openssh-client,
-# LibreOffice and the ID-413 opencv-headless enforcement — but WITHOUT
-# `--publish` / `--cache-image` — those are registry-backed (onprem-deploy.yml
-# comment: "requires --publish; there is no persistent local volume across
-# runners") and this lane has no need to publish anywhere. Dropping --publish
-# makes `pack build` load the image straight into the runner's local Docker
-# daemon, which is exactly what `docker run` below needs. Trade-off: no
-# cross-run build-cache, so every nightly run pays the ~9-min cold dependency
-# build onprem-deploy.yml's comment documents (Docling + cocoindex Rust wheel
-# + ML layer) — acceptable for an off-peak, non-blocking, once-nightly lane;
-# a registry-backed --cache-image is a follow-up if the cold build proves a
-# problem.
-#
-# THE "SAME RECIPE" CLAIM WAS FALSE UNTIL S524 and is worth stating plainly,
-# because it is the shape of defect this lane exists to catch and carried for
-# ~4 weeks undetected: the post-`pack` layer above was applied ONLY by
-# onprem-deploy.yml, so this lane exercised an image missing four packages the
-# deployed one carries. Parity restored S524 by duplicating the layer; the
-# duplication is interim (see the build step's own comment) and id-416 owns
-# the unification.
-#
-# WHY BUILD RATHER THAN PULL, and why that is also interim: there is no
-# ":latest" tag (only content-addressed "sha-<sha>" tags, see
-# onprem-deploy.yml env.TAG) and onprem-deploy's detect-changes job gates the
-# publish, so a checked-out commit with no pipeline-relevant diff may have no
-# matching ghcr.io tag at all. Building fresh sidesteps that resolution
-# problem — at the cost of the lane never testing the artefact that actually
-# ships. The target (owner-approved S524, id-416) is a moving `:main` tag for
-# the lane to pull, with the deploy composes still pinning `sha-` for
-# rollback, and a local build kept only as the branch-dispatch fallback.
+# Sidecar provisioning (id-416 / DR-119, S560): the lane PULLS the published
+# image — ghcr.io/<owner>/kh-cocoindex-pipeline:main, the moving tag
+# onprem-deploy.yml repoints on every main build — so the artefact under test
+# IS the artefact that ships. ONE build recipe exists
+# (deploy/docker/cocoindex.Dockerfile via .github/actions/build-cocoindex-image);
+# a local build survives ONLY as the branch-dispatch / bootstrap fallback,
+# through that same composite action. This retires both S524 interim states:
+# the duplicated post-`pack` apt layer (parity is structural now) and the
+# build-fresh-because-there-is-no-tag-to-pull workaround (the :main tag is
+# the resolution mechanism; sha- pins remain the deploy/rollback discipline).
+# History of the parity defect this design exists to prevent: from the lane's
+# creation (2026-07-08) to S524 it exercised an image missing four packages
+# the deployed one carried (git, openssh-client, both LibreOffice
+# metapackages) while claiming to replicate the deploy recipe.
 #
 # Corpus (REWRITTEN S524, id-412 W3 — the previous text described a tree that
 # had already been deleted). Two distinct things, and conflating them is the
@@ -340,12 +320,15 @@ jobs:
     # dropFixture/dropFormFixture). Case-sensitive — must exactly match
     # `Staging` (docs/runbooks/github-environments.md §2).
     environment: Staging
-    # Generous: cold buildpacks build (~9min, no cross-run cache — see header)
+    # Generous: image pull (~2min; fallback Dockerfile build ~9min cold)
     # + stage/walk + up to ~76 sequential (fileParallelism: false) Vitest
     # cases, several of which poll up to 120s for a row to land.
     timeout-minutes: 90
     permissions:
       contents: read
+      # Pull the published sidecar image from ghcr.io (id-416 / DR-119: the
+      # lane tests the artefact that ships, resolving the moving :main tag).
+      packages: read
 
     env:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
@@ -385,7 +368,6 @@ jobs:
       # secrets — literal here is fine).
       COCOINDEX_IMAGE_TAG: "kh-cocoindex-pipeline:nightly-${{ github.run_id }}"
       COCOINDEX_PORT: "8080"
-      COCOINDEX_APP_DIR: "/workspace"
       COCOINDEX_CONTAINER_SOURCE_PATH: "/cocoindex-state/corpus"
       # LLM tier (id-389) — `mock` on every scheduled run (inputs is empty on
       # schedule, so the fallback applies); a dispatcher opts into `anthropic`
@@ -416,7 +398,7 @@ jobs:
           (id-389)
         # One cheap /v1/messages ping against the REAL endpoint whenever a
         # live credential is in play. A dead/disabled key fails HERE — not 75
-        # minutes later after the buildpacks build and a fence-gated walk
+        # minutes later after the image resolve and a fence-gated walk
         # (the S501 failure mode this step exists to kill). The mock tier has
         # no live credential; its own /health gate below is its preflight.
         run: |
@@ -502,89 +484,62 @@ jobs:
           KH_SWEEP_EXPECTED_PROJECT_REF: ${{ secrets.PLATFORM_PROJECT_REF }}
         run: bun run scripts/cocoindex-nightly-sweep.ts
 
-      - name: Setup the Cloud Native Buildpacks `pack` CLI
-        uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned, matches onprem-deploy.yml)
+      - name: Log in to ghcr.io (pull the published sidecar image)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3 (pinned 2026-05-31, matches onprem-deploy.yml)
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build cocoindex sidecar image (local — no publish, see header)
-        # Pruned context mirrors onprem-deploy.yml's IMAGE HYGIENE step
-        # exactly: scripts/ + requirements.lock (renamed requirements.txt,
-        # the LOCKED transitive closure, {127.22}/S438).
+      - name:
+          Resolve cocoindex sidecar image (pull :main; branch-dispatch fallback
+          builds)
+        # id-416 / DR-119 — ONE build recipe, and the lane tests the artefact
+        # that actually ships. onprem-deploy.yml builds + publishes the image
+        # (deploy/docker/cocoindex.Dockerfile via
+        # .github/actions/build-cocoindex-image) as the pinned sha-<sha> tag
+        # PLUS a moving :main tag; this lane PULLS :main. The S524 duplicated
+        # post-`pack` layer is deleted — parity is now structural, not
+        # copy-discipline. Deploy composes still pin sha- tags; :main exists
+        # for test lanes only, so the no-:latest rollback discipline is
+        # untouched.
         #
-        # WHAT THE IMAGE ACTUALLY CARRIES (F2, corrected S524 — the previous
-        # sentence claimed "nothing else, so the image never carries the
-        # Next.js app / docs / .claude / tests"). The first half is true: no
-        # Next.js app, no docs, no .claude. The TESTS clause is false and has
-        # been since the fixtures moved under scripts/. The context is
-        # `cp -R scripts` — the WHOLE tree, with no .gcloudignore /
-        # project.toml / .slugignore narrowing it — so the image ships
-        # scripts/tests/ in full. Measured on a real build of this exact
-        # context: 87 test_*.py, 209 files, 9.2 MB under scripts/tests, in a
-        # 16 MB app dir. (The task file said "99 Python test files"; the
-        # measured figure is 87 test_*.py / 89 .py.)
+        # KNOWN, ACCEPTED LAG: :main is repointed when onprem-deploy.yml's
+        # build finishes, so a scheduled run racing an in-flight main build
+        # tests the previous image (one commit behind) — acceptable for a
+        # nightly; the next run catches up.
         #
-        # The comment is corrected rather than the context narrowed, on an
-        # owner ruling (S524). Narrowing is an image-SHAPE change to the live
-        # deploy path (platform staging + prod + the client boxes all pull
-        # this image, and bid-worker-platform runs it via a command: override),
-        # and it interacts with F1 below: narrowing would make the form-fixture
-        # docker cp NECESSARY again, so the two cannot be decided in sequence.
-        # id-416 rewrites the build context wholesale for the Dockerfile move;
-        # "should the test suite ship in the sidecar image?" is settled there,
-        # once, with both halves in view.
-        #
-        # No --publish / --cache-image (registry-backed, not needed here —
-        # see header) — `pack build` without --publish loads straight into
-        # this runner's local Docker daemon for the `docker run` step below.
+        # FALLBACK (branch dispatch, or :main not yet published — bootstrap):
+        # build locally via the SAME composite action (push=false loads the
+        # image into this runner's daemon), so a feature-branch dispatch tests
+        # its own tree with the identical recipe.
+        env:
+          REF: ${{ github.ref }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/kh-cocoindex-pipeline
         run: |
           set -euo pipefail
-          CTX="$(mktemp -d)"
-          cp -R scripts "${CTX}/scripts"
-          cp requirements.lock "${CTX}/requirements.txt"
-          echo "Pruned build context:"; ls -A "${CTX}"
-          pack build "${COCOINDEX_IMAGE_TAG}" \
-            --path "${CTX}" \
-            --builder gcr.io/buildpacks/builder:google-22 \
-            --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
-            --env "GOOGLE_RUNTIME=python" \
-            --env "GOOGLE_PYTHON_VERSION=3.13.13"
-          echo "Built ${COCOINDEX_IMAGE_TAG} (local daemon only, not pushed)"
+          if [ "${REF}" = "refs/heads/main" ] && docker pull "${IMAGE}:main"; then
+            docker tag "${IMAGE}:main" "${COCOINDEX_IMAGE_TAG}"
+            echo "Resolved ${COCOINDEX_IMAGE_TAG} from published ${IMAGE}:main ($(docker inspect --format '{{index .RepoDigests 0}}' "${IMAGE}:main" 2>/dev/null || echo 'digest unavailable'))."
+            echo "NEEDS_LOCAL_BUILD=false" >> "$GITHUB_ENV"
+          else
+            echo "Published :main unavailable or non-main ref (${REF}) — building locally via the shared recipe."
+            echo "NEEDS_LOCAL_BUILD=true" >> "$GITHUB_ENV"
+          fi
 
-          # POST-`pack` LAYER — byte-for-byte the same two RUN instructions
-          # onprem-deploy.yml applies to the image it publishes. The full
-          # rationale for BOTH lives there; do not let the two drift.
-          #
-          # S524 (id-412 recipe parity): until this session the lane stopped at
-          # bare `pack build`, while onprem-deploy.yml pulled its published
-          # image back and re-published it through an apt layer baking `git`,
-          # `openssh-client`, `libreoffice-writer` and `libreoffice-calc`. The
-          # nightly was therefore exercising an image missing FOUR packages the
-          # deployed one carries — a lane whose entire purpose is dogfooding the
-          # deployed artefact, testing something else. LibreOffice in particular
-          # is not incidental: `soffice` is the DR-059 / ID-145 {145.31}
-          # convert-on-upload bridge for legacy `.doc` / `.xls`, so its absence
-          # here silently hid that whole path from the lane.
-          #
-          # THIS IS A DUPLICATE AND THAT IS THE INTERIM STATE, NOT THE TARGET.
-          # Two copies of a recipe drift — this lane is the proof, and the
-          # duplication is deliberate only because unifying it properly means
-          # touching the live deploy path. The target is one shared build
-          # (composite action or reusable workflow) called by both, with the
-          # nightly PULLING the published image whenever a matching tag exists
-          # and building only as a branch-dispatch fallback. Owner-approved
-          # S524; owned by id-416 alongside the buildpacks -> Dockerfile move,
-          # which retires this heredoc entirely. Until then: any edit to either
-          # copy MUST be made to both, in the same commit.
-          ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${COCOINDEX_IMAGE_TAG}")"
-          WORKDIR="$(mktemp -d)"
-          cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
-          FROM ${COCOINDEX_IMAGE_TAG}
-          USER root
-          RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
-          USER ${ORIG_USER:-cnb}
-          RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
-          DOCKERFILE
-          docker build -t "${COCOINDEX_IMAGE_TAG}" "${WORKDIR}"
-          echo "Applied the post-pack layer to ${COCOINDEX_IMAGE_TAG}: git + openssh-client + LibreOffice (soffice) + ID-413 opencv-headless — same two RUNs as onprem-deploy.yml."
+      - name:
+          Build cocoindex sidecar image (fallback — same shared recipe, local
+          load)
+        if: env.NEEDS_LOCAL_BUILD == 'true'
+        uses: ./.github/actions/build-cocoindex-image
+        with:
+          tags: ${{ env.COCOINDEX_IMAGE_TAG }}
+          push: "false"
+          # Read-only cache reuse of the deploy build's registry cache — the
+          # heavy pip layer cache-hits unless the lock changed on this branch.
+          cache-ref:
+            ghcr.io/${{ github.repository_owner
+            }}/kh-cocoindex-pipeline:buildcache
 
       - name: Prepare host-side corpus bind-mount dir
         # The bind-mount source dir on the RUNNER — the handful of tests that
@@ -598,9 +553,9 @@ jobs:
           # /cocoindex-state volume): corpus/ is the walk source dir and
           # lmdb/ is the cocoindex engine's internal state store
           # (COCOINDEX_DB — run 29125667405 crashed the background thread
-          # without it). World-writable: the buildpack image runs as a
-          # non-root user (cnb) which must write the {62.6} manifest seed
-          # into corpus/ at boot (run 29125080389 EACCESed) and the LMDB
+          # without it). World-writable: the image runs as a non-root user
+          # (uid 1000 — `pipeline`; formerly cnb) which must write the {62.6}
+          # manifest seed into corpus/ at boot (run 29125080389 EACCESed) and the LMDB
           # env under lmdb/. Throwaway single-tenant CI dir, so 0777 is
           # acceptable.
           mkdir -p "${RUNNER_TEMP}/cocoindex-state/corpus" "${RUNNER_TEMP}/cocoindex-state/lmdb"
@@ -672,7 +627,7 @@ jobs:
           set -euo pipefail
           deploy/onprem/sync-platform-corpus.sh --dest "${RUNNER_TEMP}/cocoindex-state/corpus"
           # 0777 again: the sync ran as the runner user, but the sidecar runs
-          # as cnb and writes the {62.6} manifest seed into this dir at boot.
+          # as uid 1000 and writes the {62.6} manifest seed into this dir at boot.
           chmod -R 0777 "${RUNNER_TEMP}/cocoindex-state/corpus"
           echo "Walked baseline seeded from the vendored Platform corpus:"
           find "${RUNNER_TEMP}/cocoindex-state/corpus" -type f | sed "s|${RUNNER_TEMP}/cocoindex-state/corpus/|  |" | sort
@@ -687,12 +642,12 @@ jobs:
           fi
 
       - name: Start mock LLM container (id-389 tier-1 — the default tier)
-        # SAME just-built image, second container, running mock_llm.py via the
-        # /cnb/lifecycle/launcher entrypoint override (the buildpack ENTRYPOINT
-        # pins the `web` process and never execs a command — the CNB gotcha the
-        # Coolify bid-worker service documents). Health-gated before the
-        # sidecar starts so a broken mock fails fast, not as a walk timeout.
-        # The user-defined network gives the sidecar `mock-llm` DNS.
+        # SAME resolved image, second container, running mock_llm.py by
+        # overriding the image CMD (plain-Docker semantics — the CNB
+        # launcher indirection retired with buildpacks, id-416/DR-119).
+        # Health-gated before the sidecar starts so a broken mock fails
+        # fast, not as a walk timeout. The user-defined network gives the
+        # sidecar `mock-llm` DNS.
         if: env.LLM_TIER == 'mock'
         run: |
           set -euo pipefail
@@ -701,7 +656,6 @@ jobs:
             --network coco-nightly \
             -p "${MOCK_LLM_PORT}:${MOCK_LLM_PORT}" \
             -e "PORT=${MOCK_LLM_PORT}" \
-            --entrypoint /cnb/lifecycle/launcher \
             "${COCOINDEX_IMAGE_TAG}" \
             python3 -m scripts.cocoindex_pipeline.mock_llm
           for i in $(seq 1 30); do
@@ -865,52 +819,31 @@ jobs:
           esac
 
       # ─────────────────────────────────────────────────────────────────────
-      # DELETED S524 (id-412, F1): "Seed fixture corpus into the container
-      # (docker cp)". It copied the form-extraction fixtures into the app dir
-      # so verify_driver could read them, on the premise — stated in its own
-      # comment — that "the buildpack image ships ONLY scripts/ +
-      # requirements.txt". That premise stopped being a reason the moment the
-      # fixtures moved under scripts/: they are now IN scripts/, the build
-      # context is `cp -R scripts` (the whole tree), so they ship in the image
-      # already, at the very path the step copied them to.
-      #
-      # Verified against a real image, not inferred — the AC required exactly
-      # that, and the probe images left over from id-413 turned out to be
-      # minimal reproductions rather than the pipeline image, so they proved
-      # nothing. A `pack build` of this workflow's own pruned context
-      # (scripts/ + requirements.lock as requirements.txt, same builder) gives:
-      #
-      #   /workspace                     <- CNB app dir == COCOINDEX_APP_DIR
-      #   /workspace/scripts/cocoindex_pipeline/fixtures/form-templates/
-      #                                  <- all 10 templates, present
-      #   /workspace/scripts/cocoindex_pipeline/fixtures/platform-corpus/
-      #                                  <- all 11 corpus files, present
-      #
-      # The step was copying files that were already there, to where they
-      # already were. The step's comment also still named docs/testing — a
-      # tree deleted three commits before the step was last touched.
-      #
-      # NOTE for id-416: this deletion is coupled to the F2 build-context
-      # decision. If the context is ever narrowed to exclude scripts/tests/
-      # (or narrowed at all in a way that drops the fixtures), THIS STEP MUST
-      # COME BACK. The same measurement shows the image currently carries 87
-      # test_*.py files / 209 files / 9.2 MB under scripts/tests — which is
-      # what F2's comment now describes honestly instead of denying.
+      # F2 SETTLED (id-416 / DR-119, S560): the image ships NO tests and NO
+      # fixtures. The Dockerfile's explicit COPY set (deploy/docker/
+      # cocoindex.Dockerfile + its .dockerignore allowlist) carries the
+      # runtime package + the three sibling modules only — the "should the
+      # test suite ship in the sidecar image?" question S524 deferred here is
+      # answered: no. Every test input therefore comes from the CHECKOUT:
+      # the walked baseline via sync-platform-corpus.sh (bind-mount, above),
+      # and the per-test form templates via verify_driver running HOST-SIDE
+      # (below) — the S524-deleted docker-cp step stays deleted, replaced by
+      # the host-side invocation rather than by re-shipping fixtures.
       # ─────────────────────────────────────────────────────────────────────
 
-      - name: Stage fixture set (verify_driver, loopback POST /stage)
+      - name: Stage fixture set (verify_driver, host-side POST /stage)
         # A non-zero driver exit fails HERE, before /walk and before Vitest
-        # (ID-62 {62.9}). The buildpack image's exec PATH omits the buildpack
-        # layers (a bare `python3` 127s), so every docker exec below injects
-        # PYTHONUSERBASE + PATH explicitly. id-416 retires this env block with
-        # the Dockerfile move (DR-119) — it is a CNB artefact, not a
-        # requirement.
+        # (ID-62 {62.9}). Runs on the RUNNER from the checkout (the image
+        # carries no fixtures — F2 above): verify_driver resolves fixture
+        # paths relative to its own module file, POSTs them to the published
+        # localhost:<port>/stage, and needs only `requests` beyond stdlib
+        # (pinned to the requirements.txt version). The old docker-exec form
+        # needed a CNB PYTHONUSERBASE/PATH env block — retired with
+        # buildpacks (id-416 / DR-119).
         run: |
           set -euo pipefail
-          docker exec \
-            -e PYTHONUSERBASE=/layers/google.python.pip/pip \
-            -e PATH=/layers/google.python.pip/pip/bin:/layers/google.python.runtime/python/bin:/usr/bin:/bin \
-            cocoindex-sidecar \
+          python3 -m pip install --user --quiet 'requests==2.33.0'
+          COCOINDEX_STAGING_URL="http://localhost:${COCOINDEX_PORT}/stage" \
             python3 -m scripts.cocoindex_pipeline.verify_driver --fixtures templates
 
       - name:

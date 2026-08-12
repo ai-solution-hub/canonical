@@ -1,0 +1,143 @@
+# =============================================================================
+# pipeline-lock — requirements.lock is CI-generated, never laptop-generated
+# (id-416 AC-1, DR-119; owner ruling S524).
+#
+# WHY: the lock used to be compiled with `uv pip compile` on a developer's
+# macOS/arm64 machine and installed into a linux-x86_64 image. A macOS
+# resolution carries no `nvidia-*`/CUDA distributions and near-zero
+# environment markers, so pip silently re-resolved ("backfilled") the gap at
+# build time — the mechanism behind id-413's opencv defect and the {145.13}
+# commonforms/pypdf gap. Generating the lock HERE, with an explicit
+# linux-x86_64 target, removes the laptop from the loop; the drift check
+# turns any divergence into a red check instead of a silent difference.
+#
+# TORCH IS CPU-ONLY (--torch-backend cpu; decided id-416, S560, on the
+# measurement): nothing in this pipeline uses a GPU, and the old image was
+# already paying ~4.6 GB of CUDA/triton payload via pip's backfill. The
+# +cpu wheels live on download.pytorch.org/whl/cpu — the image build passes
+# `--extra-index-url` for exactly that (deploy/docker/cocoindex.Dockerfile).
+#
+# COMPILE-IN-PLACE (id-413): uv reuses the pins already in the output file,
+# so unrelated transitives do not float on regen — only genuine input
+# changes (requirements.txt / requirements.overrides.txt / index state for
+# NEW packages) move the output. The committed lock is both input and output.
+#
+# JOBS
+#   check       (pull_request / push main touching the requirements files):
+#               re-resolve and FAIL if the committed lock differs.
+#   regenerate  (workflow_dispatch, or PR labeled `regenerate-lock`):
+#               re-resolve and COMMIT the result back to the branch — the
+#               only sanctioned way the lock ever changes.
+# =============================================================================
+
+name: pipeline-lock
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - requirements.txt
+      - requirements.lock
+      - requirements.overrides.txt
+      - .github/workflows/pipeline-lock.yml
+  push:
+    branches: [main]
+    paths:
+      - requirements.txt
+      - requirements.lock
+      - requirements.overrides.txt
+      - .github/workflows/pipeline-lock.yml
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit the regenerated lock back to the dispatched branch
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  # Pin uv itself — the resolver's behaviour is part of the recipe.
+  UV_VERSION: "0.9.4"
+
+jobs:
+  lock:
+    name:
+      ${{ (github.event_name == 'workflow_dispatch' || (github.event_name ==
+      'pull_request' && contains(github.event.pull_request.labels.*.name,
+      'regenerate-lock'))) && 'regenerate' || 'check' }} requirements.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # The regenerate path pushes the new lock back to the branch.
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4 (pinned 2026-05-31, matches onprem-deploy.yml)
+        with:
+          # PRs: check out the HEAD branch itself (not the merge ref) so the
+          # regenerate path can push back to it.
+          ref:
+            ${{ github.event_name == 'pull_request' &&
+            github.event.pull_request.head.ref || '' }}
+
+      - name: Install uv ${{ env.UV_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Re-resolve the lock (linux-x86_64, CPU torch, compile-in-place)
+        run: |
+          set -euo pipefail
+          uv pip compile requirements.txt \
+            --python 3.13 \
+            --python-platform x86_64-unknown-linux-gnu \
+            --override requirements.overrides.txt \
+            --torch-backend cpu \
+            --custom-compile-command "gh workflow run pipeline-lock.yml  # CI-generated (id-416/DR-119) — never regenerate on a laptop" \
+            -o requirements.lock
+
+      - name: Determinism probe (second compile must be byte-identical)
+        run: |
+          set -euo pipefail
+          cp requirements.lock /tmp/lock.first
+          uv pip compile requirements.txt \
+            --python 3.13 \
+            --python-platform x86_64-unknown-linux-gnu \
+            --override requirements.overrides.txt \
+            --torch-backend cpu \
+            --custom-compile-command "gh workflow run pipeline-lock.yml  # CI-generated (id-416/DR-119) — never regenerate on a laptop" \
+            -o requirements.lock
+          diff /tmp/lock.first requirements.lock
+
+      - name: Drift check (fails red when the committed lock differs)
+        if:
+          github.event_name != 'workflow_dispatch' && !(github.event_name ==
+          'pull_request' && contains(github.event.pull_request.labels.*.name,
+          'regenerate-lock'))
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code requirements.lock; then
+            echo "::error::requirements.lock drifts from the CI resolution. Never hand-edit or laptop-regen it — apply the 'regenerate-lock' label to this PR (or dispatch pipeline-lock.yml) and CI will commit the correct lock."
+            exit 1
+          fi
+          echo "Lock is the CI resolution — no drift."
+
+      - name: Commit the regenerated lock
+        if:
+          github.event_name == 'workflow_dispatch' && inputs.commit ||
+          (github.event_name == 'pull_request' &&
+          contains(github.event.pull_request.labels.*.name, 'regenerate-lock'))
+        run: |
+          set -euo pipefail
+          if git diff --quiet requirements.lock; then
+            echo "Lock already matches the CI resolution — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add requirements.lock
+          git commit -m "chore(id-416): regenerate requirements.lock in CI (linux-x86_64, cpu torch)"
+          git push
