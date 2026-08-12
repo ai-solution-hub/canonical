@@ -945,11 +945,21 @@ jobs:
           # ── id-414 AC-3: the in-scope / out-of-scope gate ────────────────
           # Boundary rule (the W2 purpose framing), stated here because this
           # is the code that enforces its corpus half: the corpus THIS walk
-          # just walked is exactly the vendored Platform corpus — the id-412
-          # seed step above staged it as the walked baseline, and the
-          # verify_driver step stages only Platform-corpus-derived copies
-          # under verify/ (its `templates` set reads
-          # scripts/cocoindex_pipeline/fixtures/platform-corpus/content/).
+          # just walked is the vendored Platform corpus (the id-412 seed step
+          # above staged it as the walked baseline) PLUS the verify_driver
+          # set: three BLANK FORM TEMPLATES staged under verify/ from
+          # scripts/cocoindex_pipeline/fixtures/form-templates/ (repointed
+          # BACK from corpus copies at 1bff2c0cc — corpus bytes at a second
+          # path resolve onto the existing row under content-hash-first
+          # identity, so corpus copies bought zero coverage and froze
+          # storage_paths; the templates are the lane's only xlsx/pdf/docx
+          # converter-route probes, consumed by the census gate's
+          # row-existence check ONLY — no content assertion, S522 corollary
+          # respected). This gate therefore counts 3 form templates among
+          # its in-scope items — S560 verified they mint cleanly on the mock
+          # tier; whether the id-414 gate SHOULD count verify/ dests is an
+          # open owner question, recorded so the justification here is at
+          # least true.
           # Every item in this pass is therefore IN-SCOPE by construction: a
           # per-item drop here is a real Platform-E2E regression and REDS the
           # job — the S522 class (159 drops under a green `completed`) can
