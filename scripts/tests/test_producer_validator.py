@@ -994,62 +994,55 @@ def test_internal_dev_no_longer_has_a_deferred_type_set_to_fail_on():
 
 
 # ──────────────────────────────────────────
-# bl-456 routing hints + bl-477 A19 confidence — shared frontmatter contract
-# extension (FRONTMATTER-WAVE.md), carried UNCHANGED through v0.2.
+# bl-456 routing hints — shared frontmatter contract extension
+# (FRONTMATTER-WAVE.md), carried UNCHANGED through v0.2. The bl-477 A19
+# `confidence` gate that used to share this section is RETIRED (id-428).
 # ──────────────────────────────────────────
 
 
-def test_as_mapping_carries_the_four_new_fields_from_a_concept_frontmatter_instance():
-    """Load-bearing: `_as_mapping` must carry purpose/task/audience/confidence
-    so downstream checks (BI-10 stray-pointer, A19 membership) see them."""
+def test_as_mapping_carries_the_routing_hints_from_a_concept_frontmatter_instance():
+    """Load-bearing: `_as_mapping` must carry purpose/task/audience so the
+    BI-10 stray-pointer scan sees them."""
     record = _dataclass_frontmatter(
         purpose="Explain X",
         task="answer Y",
         audience="Z",
-        confidence="strong",
     )
     mapping = v._as_mapping(record)
     assert mapping["purpose"] == "Explain X"
     assert mapping["task"] == "answer Y"
     assert mapping["audience"] == "Z"
-    assert mapping["confidence"] == "strong"
 
 
-def test_absence_of_all_four_new_fields_is_never_an_error():
+def test_absence_of_all_routing_hints_is_never_an_error():
     errors = v.check_concept(_valid_frontmatter(), body=_VALID_BODY)
     assert errors == []
 
 
-@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
-def test_check_confidence_accepts_every_a19_value(value):
-    assert v.check_confidence(value) == []
+# ──────────────────────────────────────────
+# id-428 (S546 F3-A, rescoped S553) — the A19 `confidence` gate is retired.
+# SPEC §5.1 refuses a stored credibility score, so there is no vocabulary
+# left to validate membership against.
+# ──────────────────────────────────────────
 
 
-def test_check_confidence_returns_empty_on_absence():
-    assert v.check_confidence(None) == []
+def test_the_confidence_gate_is_retired():
+    assert not hasattr(v, "check_confidence")
+    assert not hasattr(v, "_CONFIDENCE_VALUES")
 
 
-def test_check_confidence_rejects_an_invalid_value():
-    errors = v.check_confidence("banana")
-    assert len(errors) == 1
-
-
-def test_concept_with_invalid_confidence_fails_the_gate():
-    errors = v.check_concept(
-        _valid_frontmatter(confidence="banana"), body=_VALID_BODY
-    )
-    assert any("confidence" in err.lower() for err in errors)
-
-
-@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
-def test_concept_with_each_a19_confidence_value_passes_the_gate(value):
+@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "banana"])
+def test_a_previously_published_concept_carrying_confidence_still_passes_the_gate(value):
+    """§4.1/§11: a consumer MUST NOT reject a concept over an unrecognised
+    key, and the validator also reads already-published bundles. Retiring
+    the gate must therefore TOLERATE the retired field, not start rejecting
+    it — including the value that used to fail (`banana`), since there is no
+    longer a vocabulary for it to be outside of."""
     errors = v.check_concept(_valid_frontmatter(confidence=value), body=_VALID_BODY)
     assert errors == []
 
 
 def test_concept_without_confidence_key_passes_the_gate():
-    """Absence — the key not present at all in a raw mapping (as opposed to
-    a dataclass-carried explicit `None`) — is also never an error."""
     fm = _valid_frontmatter()
     assert "confidence" not in fm
     errors = v.check_concept(fm, body=_VALID_BODY)

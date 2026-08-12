@@ -79,7 +79,6 @@ from scripts.cocoindex_pipeline.producer.enrich import (  # noqa: E402
 )
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
     build_concept_frontmatter,
-    derive_concept_confidence,
     derive_source_id,
     render_concept_frontmatter,
     sources_from_citations,
@@ -205,11 +204,9 @@ def _product_draft(
     Pass-2 test enriches from (id-426): the record anchor is the draft's
     `primary_anchor` and LEADS the `sources[]` list (never the top-level
     `resource:` — S546 F2-B); the body ends in `[^id]` footnote definitions
-    (never a trailer — F1-A). `confidence` mirrors what a real Pass-1 draft
-    always carries (bl-477 A19): a single record anchor and no
-    corroborating citation resolves `partial`. The bl-456 routing hints
-    default to absent (a real Pass-1 draft may or may not carry them —
-    id-318)."""
+    (never a trailer — F1-A). No `confidence` — id-428 retired it. The
+    bl-456 routing hints default to absent (a real Pass-1 draft may or may
+    not carry them — id-318)."""
     anchor = build_source_document_uri(_SD_ID)
     citations = [anchor]
     frontmatter = build_concept_frontmatter(
@@ -222,7 +219,6 @@ def _product_draft(
         purpose=purpose,
         task=task,
         audience=audience,
-        confidence=derive_concept_confidence(resource=anchor, citations=citations),
         sources=sources_from_citations(citations, primary_anchor=anchor),
     )
     body = (
@@ -839,16 +835,17 @@ class TestParseReferenceConcept:
         with pytest.raises(web_pass.Pass2EnrichError, match="missing required"):
             self._parse(raw, seen_gated_anchors=set())
 
-    def test_reference_concept_always_emits_confidence_partial(self) -> None:
-        """A19 (bl-477, {132.42}; inputs unchanged under v0.2 — id-426
-        point 7): the confidence anchor is still `citations[0]` — a gated
-        `reference_items` web anchor, never a per-row anchor — so
-        `derive_concept_confidence` always resolves `partial` here
-        regardless of how many citations it carries (FRONTMATTER-WAVE.md
-        §"Applied at all three call sites")."""
+    def test_reference_concept_emits_no_confidence(self) -> None:
+        """id-428 (S553): a reference concept used to be scored `partial`
+        here. SPEC §5.1 refuses a stored credibility score, so the field is
+        gone and the gated anchor it was scored from is what a consumer now
+        reads instead — present in `sources[]`, not summarised into a
+        verdict."""
         anchor = reference_item_uri_from_source_url(_REF_URL)
         draft = self._parse(self._raw(), seen_gated_anchors={anchor})
-        assert draft.frontmatter.confidence == "partial"
+        assert not hasattr(draft.frontmatter, "confidence")
+        assert "confidence" not in render_concept_frontmatter(draft.frontmatter)
+        assert [s.resource for s in draft.frontmatter.sources] == [anchor]
 
 
 # ============================================================================
@@ -1240,17 +1237,17 @@ class TestRunWebPassEndToEnd:
             assert [s.resource for s in reference.frontmatter.sources] == [gated_anchor]
             assert f"[^{derive_source_id(gated_anchor)}]:" in reference.body
 
-            # ── A19 (bl-477, {132.42}): the enriched concept's final
-            # citations (prior source_documents anchor + the newly-minted
-            # reference_items anchor) are TWO distinct record anchors
-            # corroborating the Pass-1 per-row `resource:` — the Pass-1
-            # draft was `partial`; recomputed from the FINAL (resource,
-            # citations) this legitimately upgrades to `strong` (monotonic,
-            # never a silent downgrade). The reference concept itself stays
-            # `partial` — its resource is a gated web anchor, not per-row.
-            assert draft.frontmatter.confidence == "partial"
-            assert result.concept.frontmatter.confidence == "strong"
-            assert reference.frontmatter.confidence == "partial"
+            # ── id-428 (S553): this block used to assert the A19 upgrade
+            # (Pass-1 `partial` -> enriched `strong`, reference stays
+            # `partial`). The field is retired, so what the enrichment
+            # earned is asserted where §5.1 actually records it: the
+            # enriched concept now carries BOTH record anchors in
+            # `sources[]`, which is the signal the score summarised.
+            assert not hasattr(result.concept.frontmatter, "confidence")
+            assert "confidence" not in render_concept_frontmatter(
+                result.concept.frontmatter
+            )
+            assert set(concept_sources) == {prior_citation, gated_anchor}
 
             return result
 
@@ -1259,13 +1256,17 @@ class TestRunWebPassEndToEnd:
         with tempfile.TemporaryDirectory() as tmp:
             _run(Path(tmp))
 
-    def test_recomputes_confidence_from_final_citations_never_carries_over_pass1_value(
+    def test_the_enriched_concept_emits_no_confidence_and_shows_its_grounding_in_sources(
         self, tmp_path: Path
     ) -> None:
-        """A19 (bl-477, {132.42}), isolated from the full egress-confinement
-        exercise above: `run_web_pass` recomputes `confidence` from the
-        FINAL enriched `(resource, citations)` rather than copying
-        `draft.frontmatter.confidence` forward unchanged."""
+        """id-428 (S553), isolated from the full egress-confinement exercise
+        above. This used to prove `run_web_pass` RECOMPUTED `confidence`
+        from the final citations rather than carrying Pass-1's value
+        forward — the enrichment's whole point being that new grounding
+        upgraded the score. The score is retired; the grounding is not, so
+        the same enrichment is asserted against §5.1's actual carrier: the
+        rebuilt `sources[]`, which gains the newly-fetched anchor while
+        keeping the Pass-1 one."""
         (tmp_path / "services").mkdir()
         (tmp_path / "services" / "lms.md").write_text("Our LMS is ISO 27001-certified.")
         key = _product_key()
@@ -1273,7 +1274,9 @@ class TestRunWebPassEndToEnd:
             catalogue=[key, _gdpr_key()], raw_by_path={key.rel_path: _product_raw()}
         )
         draft = _product_draft(key)
-        assert draft.frontmatter.confidence == "partial"  # sanity on the Pass-1 fixture
+        # Sanity on the Pass-1 fixture: one anchor in, no score anywhere.
+        assert len(draft.frontmatter.sources) == 1
+        assert not hasattr(draft.frontmatter, "confidence")
 
         gated_url = f"https://{_ALLOWED_HOST}/services/lms.md"
         gated_anchor = reference_item_uri_from_source_url(gated_url)
@@ -1307,14 +1310,20 @@ class TestRunWebPassEndToEnd:
                 )
 
         result = asyncio.run(_exercise())
-        # The confidence anchor stays the Pass-1 per-row anchor (carried as
+        # The Pass-1 per-row anchor is still the concept's own (carried as
         # `primary_anchor`/the leading sources[] entry under v0.2 — never
-        # the emitted `resource:`, S546 F2-B); TWO distinct record anchors
-        # now corroborate it — the honest upgrade to `strong`.
+        # the emitted `resource:`, S546 F2-B), and Pass-2's fetched anchor
+        # joins it: TWO distinct record anchors, recorded rather than
+        # scored.
         assert result.concept.frontmatter.resource is None
         assert result.concept.primary_anchor == build_source_document_uri(_SD_ID)
         assert result.concept.frontmatter.sources[0].resource == build_source_document_uri(_SD_ID)
-        assert result.concept.frontmatter.confidence == "strong"
+        assert {s.resource for s in result.concept.frontmatter.sources} == {
+            build_source_document_uri(_SD_ID),
+            gated_anchor,
+        }
+        assert not hasattr(result.concept.frontmatter, "confidence")
+        assert "confidence" not in render_concept_frontmatter(result.concept.frontmatter)
 
     def test_carries_routing_hints_forward_from_the_pass1_draft(
         self, tmp_path: Path
@@ -1322,10 +1331,10 @@ class TestRunWebPassEndToEnd:
         """id-318 (S546 F4-A): the bl-456 routing hints (`purpose`/`task`/
         `audience` — our producer-extension keys, upstream PR #189 unmerged)
         are CARRIED FORWARD verbatim from the Pass-1 draft's frontmatter
-        through the Pass-2 rebuild — unlike `confidence`, which is
-        deliberately RECOMPUTED (A19): Pass-2 adds web citations; it does
-        not re-derive routing intent. The same exercise proves the recompute
-        is untouched by the carry (partial → strong upgrade still fires)."""
+        through the Pass-2 rebuild: Pass-2 adds web citations; it does not
+        re-derive routing intent. (This contrast used to be drawn against
+        `confidence`, which was recomputed rather than carried — id-428
+        retired that field, so only the carry half remains.)"""
         (tmp_path / "services").mkdir()
         (tmp_path / "services" / "lms.md").write_text("Our LMS is ISO 27001-certified.")
         key = _product_key()
@@ -1338,7 +1347,6 @@ class TestRunWebPassEndToEnd:
             task="answering procurement questionnaires",
             audience="bid writers",
         )
-        assert draft.frontmatter.confidence == "partial"  # sanity on the Pass-1 fixture
 
         gated_url = f"https://{_ALLOWED_HOST}/services/lms.md"
         gated_anchor = reference_item_uri_from_source_url(gated_url)
@@ -1376,8 +1384,9 @@ class TestRunWebPassEndToEnd:
         assert result.concept.frontmatter.purpose == "explain the LMS product offering"
         assert result.concept.frontmatter.task == "answering procurement questionnaires"
         assert result.concept.frontmatter.audience == "bid writers"
-        # … while confidence is still recomputed, not carried (A19 unchanged).
-        assert result.concept.frontmatter.confidence == "strong"
+        # … and the rebuild still picked up the newly-fetched anchor, so the
+        # carry did not come at the cost of the enrichment.
+        assert gated_anchor in {s.resource for s in result.concept.frontmatter.sources}
 
     def test_a_draft_without_routing_hints_stays_hintless_after_pass2(self) -> None:
         """id-318, absent-tolerant half: a Pass-1 draft carrying NO routing

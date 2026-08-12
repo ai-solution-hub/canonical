@@ -1301,27 +1301,28 @@ class TestTerminalTextContract:
 
 
 # ============================================================================
-# ID-132 FRONTMATTER-WAVE (bl-456/bl-477, {132.42}) — confidence + routing
-# hints POPULATED at the Pass-1 `build_concept_frontmatter` call site.
+# ID-132 FRONTMATTER-WAVE (bl-456, {132.42}) — routing hints POPULATED at
+# the Pass-1 `build_concept_frontmatter` call site. The bl-477 `confidence`
+# population this section used to cover is RETIRED (id-428, S553).
 # ============================================================================
 
 
-class TestConfidencePopulation:
-    """A19 (bl-477): `enrich_concept` derives `confidence` deterministically
-    from `(resource, envelope.citations)` via `derive_concept_confidence` —
-    never asked of the model. See `derive_concept_confidence`'s own unit
-    tests (`test_producer_frontmatter.py`) for the rule's full truth table;
-    this class proves it is actually WIRED at this call site."""
+class TestNoConfidenceIsEmitted:
+    """id-428 (S553): `enrich_concept` used to derive `confidence` from
+    `(resource, envelope.citations)` at this call site. SPEC §5.1 refuses a
+    stored credibility score, so the derivation is gone — and the grounding
+    it scored is asserted here where the spec actually keeps it, in
+    `sources[]`."""
 
-    def test_draft_with_two_record_anchor_citations_and_per_row_resource_emits_confidence_strong(
-        self,
-    ) -> None:
+    def test_the_best_grounded_draft_emits_no_confidence(self) -> None:
+        """The shape that used to derive `strong` — a per-row anchor plus
+        two distinct record-anchor citations."""
         key = _product_key()
         source = _FakeSource(
             catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
         )
-        # _product_raw() has BOTH source_documents (drives the per-row
-        # `resource:`) and reference_items — two DISTINCT record anchors.
+        # _product_raw() has BOTH source_documents (the per-row anchor) and
+        # reference_items — two DISTINCT record anchors.
         two_record_anchors = [
             build_source_document_uri(_SD_ID),
             build_reference_item_uri(_RI_ID),
@@ -1345,14 +1346,16 @@ class TestConfidencePopulation:
         assert draft.frontmatter.resource is None
         assert draft.primary_anchor == build_source_document_uri(_SD_ID)
         assert draft.frontmatter.sources[0].resource == build_source_document_uri(_SD_ID)
-        assert draft.frontmatter.confidence == "strong"
+        # Both corroborating anchors are RECORDED, not scored.
+        assert set(two_record_anchors) <= {
+            s.resource for s in draft.frontmatter.sources
+        }
+        assert not hasattr(draft.frontmatter, "confidence")
+        assert "confidence" not in draft.rendered_markdown
 
-    def test_draft_with_a_single_record_anchor_citation_emits_confidence_partial(
-        self,
-    ) -> None:
-        """The default envelope fixture cites ONE record anchor plus a
-        concept cross-link (which does not corroborate) — the honest
-        Path-1 default."""
+    def test_a_thinly_grounded_draft_also_emits_no_confidence(self) -> None:
+        """The shape that used to derive `partial` — one record anchor plus
+        a concept cross-link, which never corroborated."""
         key = _product_key()
         source = _FakeSource(
             catalogue=_catalogue_with_gdpr(key), raw_by_path={key.rel_path: _product_raw()}
@@ -1370,7 +1373,8 @@ class TestConfidencePopulation:
                 return await enrich.enrich_concept(key, source)
 
         draft = asyncio.run(_exercise())
-        assert draft.frontmatter.confidence == "partial"
+        assert not hasattr(draft.frontmatter, "confidence")
+        assert "confidence" not in draft.rendered_markdown
 
 
 class TestRoutingHintPopulation:
@@ -2389,19 +2393,23 @@ class TestTheUndistilledPageSaysWhatIsAndIsNotKnown:
 
         assert draft.frontmatter.generated_at == "2026-03-02T10:30:00Z"
 
-    def test_confidence_is_the_a19_no_content_value(self) -> None:
-        """`no-content` has been in the ratified A19 vocabulary and
-        UNREACHABLE since it was ratified (RESEARCH M8) —
-        `derive_concept_confidence` only ever returns `strong`/`partial`.
-        This is the first emitter, and the value is asserted rather than
-        derived: it is a fact about the corpus (no answer exists), not an
-        inference about how well a draft was grounded."""
+    def test_no_confidence_is_emitted_and_the_corpus_fact_survives_in_the_prose(
+        self,
+    ) -> None:
+        """This concept was the sole emitter of `confidence: no-content` —
+        asserted rather than derived, on the reading that "no answer exists"
+        is a fact about the corpus rather than an inference about grounding.
+        id-428 (S553) retired the field; that reading survives but its home
+        does not (a corpus fact of this kind is §5.4 `status`, id-420's
+        half). What must NOT happen is the fact disappearing silently, so
+        this asserts it is still legible to a reader."""
         draft = enrich.render_undistilled_draft(
             _undistilled_key(), _undistilled_raw()
         )
 
-        assert draft.frontmatter.confidence == "no-content"
-        assert enrich.derive_concept_confidence(resource=None, citations=()) == "partial"
+        assert not hasattr(draft.frontmatter, "confidence")
+        assert "confidence" not in draft.rendered_markdown
+        assert "no published answer" in draft.frontmatter.description
 
     def test_the_page_cites_its_own_record(self) -> None:
         """AC 1's "each citing its own record": the concept's single source

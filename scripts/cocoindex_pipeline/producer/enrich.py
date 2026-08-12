@@ -182,7 +182,9 @@ producer's requests — is drafting-config identically to `PRODUCER_MODEL`/
 `{132.41}`/`{132.42}` (bl-456/bl-477) both added 3 optional routing-hint keys
 (`purpose`/`task`/`audience`) to `PASS1_INSTRUCTION_PROMPT` (a drafting-config
 change) AND grew the emitted frontmatter to carry `confidence` (+hints when
-supplied — an output-shape change). Per the manual-bump contract above, this
+supplied — an output-shape change; `confidence` itself was later retired by
+id-428, but this bump's historical reason is recorded as it stood). Per the
+manual-bump contract above, this
 was bumped BEFORE the next deployed producer run (the `{132.35}` GLM-5.2
 Run-1 BI-18 re-proof) so the corpus is treated as invalidated ahead of that
 run, with the reason recorded in the bundle's `log.md` at that run.
@@ -209,8 +211,9 @@ in the bundle `log.md`, not an automatic invalidation — and TECH §5 makes it
   read stop dispatching on `concept_type`.
 - **{427.8}** re-homes the won-bid grain's directory — a concept IDENTITY
   change, hence a memo change.
-- **{427.10}** adds template-drafted residual concepts and makes
-  `confidence: no-content` reachable — an output-shape change.
+- **{427.10}** adds template-drafted residual concepts and made
+  `confidence: no-content` reachable — an output-shape change. (id-428 has
+  since retired `confidence` outright; the residual concepts remain.)
 - **{427.12} (landed):** renamed `ConceptKey.workspace_id` to
   `form_instance_id` — a second field-set change, deliberately sequenced to
   ride this same invalidation rather than a second one. It did NOT re-bump.
@@ -266,7 +269,6 @@ from scripts.cocoindex_pipeline.producer.agent_loop import (
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     build_concept_frontmatter,
-    derive_concept_confidence,
     render_concept_frontmatter,
     render_source_footnotes,
     sources_from_citations,
@@ -357,10 +359,9 @@ class ConceptDraft:
     per-row/BI-8 `canonical://` uri, or `None`). Under v0.2 this is no
     longer emitted as the top-level `resource:` (S546 F2-B — the pointer
     lives only in `sources[]`, where it is the leading entry); it is
-    carried here so Pass-2 (`run_web_pass`) can recompute
-    `derive_concept_confidence` from the SAME information the v0.1
-    `frontmatter.resource` field used to hold, bit-for-bit (id-426
-    emission contract point 7)."""
+    carried here so Pass-2 (`run_web_pass`) still has the concept's record
+    anchor in hand after the rebuild, without re-deriving it from the
+    citation list."""
 
     @property
     def rendered_markdown(self) -> str:
@@ -459,7 +460,7 @@ def _resource_from_raw(key: ConceptKeyLike, raw: Any) -> "str | None":
     `resource_uri.py` builder output may become a Canonical uuid pointer).
     Under v0.2 (S546 F2-B) this is no longer the top-level `resource:`
     frontmatter field: it leads the `sources[]` list and rides
-    `ConceptDraft.primary_anchor` for Pass-2's confidence recomputation.
+    `ConceptDraft.primary_anchor` into Pass-2's rebuild.
 
     **ID-427 {427.16} — the PC-5 branch, closing id-362 F1 leg 2.** A
     `RepoConceptRaw` has no `source_documents` and no `reference_items`; what
@@ -467,9 +468,9 @@ def _resource_from_raw(key: ConceptKeyLike, raw: Any) -> "str | None":
     read_concept` minted for the artefact it actually read (DR-086b). That IS
     that concept's primary anchor by the same definition the two record
     branches use — the one pointer the run can prove it surfaced — so it
-    feeds `sources[]` and `derive_concept_confidence` exactly as a
-    `canonical://` anchor does, and a repo/docs concept stops being scored as
-    though it had no provenance at all."""
+    feeds `sources[]` exactly as a `canonical://` anchor does, and a
+    repo/docs concept stops being published as though it had no provenance
+    at all."""
     if getattr(raw, "source_documents", None):
         return build_source_document_uri(raw.source_documents[0]["id"])
     if getattr(raw, "reference_items", None):
@@ -1122,13 +1123,10 @@ async def enrich_concept(
         purpose=envelope.purpose,
         task=envelope.task,
         audience=envelope.audience,
-        # A19 (bl-477) — deterministic, NEVER model-authored (FRONTMATTER-
-        # WAVE.md); derived from the SAME `(primary anchor, citations)`
-        # information the v0.1 `(resource, citations)` inputs carried —
-        # re-pointed, outputs bit-for-bit preserved (id-426 point 7).
-        confidence=derive_concept_confidence(
-            resource=primary_anchor, citations=envelope.citations
-        ),
+        # No `confidence`: id-428 (S553) retired the field. The grounding
+        # signals it used to score are already ON the concept as `sources[]`
+        # entries, which is where §5.1 says trust is inferred FROM rather
+        # than scored INTO.
         sources=sources_from_citations(
             envelope.citations, primary_anchor=primary_anchor
         ),
@@ -1329,13 +1327,14 @@ def render_undistilled_draft(key: ConceptKey, raw: ConceptRaw) -> ConceptDraft:
         ),
         generated_by=UNDISTILLED_ACTOR,
         generated_at=stamp,
-        # A19 (bl-477): `no-content` has been in the ratified vocabulary and
-        # unreachable since it was ratified (RESEARCH M8) because
-        # `derive_concept_confidence` only ever returns `strong`/`partial`.
-        # It is not derived here — it is ASSERTED, because this concept's
-        # confidence is a fact about the corpus (no answer exists) rather than
-        # an inference from how well a draft was grounded.
-        confidence="no-content",
+        # This concept used to ASSERT `confidence: no-content` — the one
+        # A19 value the derivation rule could not reach — on the grounds
+        # that "no answer exists" is a fact about the corpus rather than an
+        # inference about grounding. That reading survives id-428's
+        # retirement, but its home does not: a corpus fact of this kind is
+        # v0.2 §5.4 `status`, not a credibility score, and emitting §5.4 is
+        # id-420's half. The fact stays visible in the description and body
+        # meanwhile; nothing is silently dropped.
         # TECH §2.3: no tags. A facet tag would claim a cross-cut this page
         # cannot support; there is nothing here to classify.
         tags=(),

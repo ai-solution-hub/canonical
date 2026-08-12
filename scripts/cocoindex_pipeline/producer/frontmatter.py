@@ -154,12 +154,15 @@ class ConceptFrontmatter:
     `generated_by`/`generated_at` render as the single §5.2
     `generated: { by, at }` mapping (they replace the retired v0.1
     `timestamp` — removed, not shadowed). `sources` is the §5.1 provenance
-    list. `purpose`/`task`/`audience` (bl-456 routing hints) and
-    `confidence` (bl-477 A19 vocabulary) are OPTIONAL fields carried
-    unchanged from the ID-132 FRONTMATTER-WAVE shared-contract extension
-    (id-318, S546 — fully conformant §4.1 extension keys; upstream PR #189
-    remains open/unmerged). All four default to `None` (absent from the
-    emitted frontmatter — `render_concept_frontmatter`)."""
+    list. `purpose`/`task`/`audience` (bl-456 routing hints) are OPTIONAL
+    fields carried unchanged from the ID-132 FRONTMATTER-WAVE
+    shared-contract extension (id-318, S546 — fully conformant §4.1
+    extension keys; upstream PR #189 remains open/unmerged); all three
+    default to `None` (absent from the emitted frontmatter —
+    `render_concept_frontmatter`).
+
+    The bl-477 `confidence` field that used to sit alongside them is GONE
+    (id-428, S553) — see the retirement note further down this module."""
 
     type: str
     title: str
@@ -171,7 +174,6 @@ class ConceptFrontmatter:
     purpose: "str | None" = None
     task: "str | None" = None
     audience: "str | None" = None
-    confidence: "str | None" = None
     sources: "tuple[ConceptSource, ...]" = ()
 
 
@@ -179,10 +181,8 @@ class ConceptFrontmatter:
 # BI-6: the two `canonical://` resource forms `producer/resource_uri.py`
 # actually emits. Under v0.2 these are the accepted grammar for a
 # `sources[].resource` record anchor (never the top-level `resource:` —
-# S546 F2-B); `derive_concept_confidence` below classifies a concept's
-# primary anchor as PER-ROW with `_PER_ROW_RESOURCE_RE`. (`validator.py`
-# imports `is_valid_concept_resource_uri` FROM here — the other direction
-# would be a circular import.)
+# S546 F2-B). (`validator.py` imports `is_valid_concept_resource_uri` FROM
+# here — the other direction would be a circular import.)
 # ──────────────────────────────────────────
 _PER_ROW_RESOURCE_RE = re.compile(
     r"^canonical://(?:source_documents|reference_items)/"
@@ -355,53 +355,22 @@ def render_source_footnotes(sources: "Sequence[ConceptSource]") -> str:
     return "\n".join(lines) + "\n" if lines else ""
 
 
-# A19 (bl-477): the ratified confidence vocabulary — duplicated (not
-# imported) in `producer/validator.py`'s own `_CONFIDENCE_VALUES` by design:
-# "confidence, when supplied, is asserted to be in the A19 set (defence in
-# depth alongside the validator)" (FRONTMATTER-WAVE.md). The two constants
-# must be changed together if the vocabulary is ever amended.
-_CONFIDENCE_VALUES = frozenset({"strong", "partial", "no-content", "needs-SME"})
-
-# OQ-1 (FRONTMATTER-WAVE.md): the `strong` corroboration bar — a per-row
-# record anchor AND at least this many distinct record-anchor citations.
-# Named module constant so a later ratification change is one line.
-_STRONG_CONFIDENCE_MIN_RECORD_ANCHORS = 2
-
-
-def derive_concept_confidence(
-    *, resource: "str | None", citations: "Sequence[str]"
-) -> str:
-    """A19 (bl-477) — the deterministic, NEVER model-authored
-    confidence-setting rule (FRONTMATTER-WAVE.md §"Design — A19
-    producer-drafted confidence-setting rule"). Computed by the producer at
-    frontmatter-assembly time from draft-time grounding signals already
-    resolved at the call site (`enrich_concept`, `_parse_reference_concept`,
-    `run_web_pass`).
-
-    Under the v0.2 emission contract (id-426) the SAME information feeds
-    this rule from its new locations: `resource` is the concept's primary
-    record anchor — no longer emitted as the top-level `resource:` (S546
-    F2-B) but carried as `ConceptDraft.primary_anchor` / the leading
-    `sources[]` entry — and `citations` are the validated citation targets
-    the `sources[]` list is built from. Inputs and outputs are preserved
-    bit-for-bit on equivalent inputs (id-428 owns any future change).
-
-    `strong` iff `resource` is a PER-ROW anchor (`source_documents` or
-    `reference_items` — never the BI-8 `q_a_pairs` query form) AND at least
-    `_STRONG_CONFIDENCE_MIN_RECORD_ANCHORS` distinct `citations` are
-    themselves record anchors (a concept cross-link citation does not
-    corroborate — only fresh record grounding does). `partial` otherwise —
-    the honest default for every other Path-1 shape: a single record
-    anchor, a q_a_pairs-query-only anchor, `resource=None`, or a
-    web-enriched reference concept.
-    """
-    record_anchors = {c for c in citations if is_valid_concept_resource_uri(c)}
-    is_per_row_anchor = (
-        resource is not None and _PER_ROW_RESOURCE_RE.match(resource) is not None
-    )
-    if is_per_row_anchor and len(record_anchors) >= _STRONG_CONFIDENCE_MIN_RECORD_ANCHORS:
-        return "strong"
-    return "partial"
+# `confidence` (bl-477's A19 `strong|partial|no-content|needs-SME`
+# vocabulary) and `derive_concept_confidence`, the deterministic rule that
+# computed it, were RETIRED here by owner ruling (S546 F3-A, rescoped S553).
+#
+# The ground is SPEC §5.1, which is stronger than the private-vocabulary
+# framing the retirement was first argued on: OKF "does not store a
+# credibility score: a score is subjective, unportable across consumers, and
+# goes stale. Credibility is INFERRED from the signals, the same way trust
+# tiers are (§5.3), not stored." A `strong`/`partial` verdict IS a stored
+# credibility score, so re-vocabularising it into v0.2's `verified` slot
+# would re-import exactly what the spec refuses — `verified` is a list of
+# verification EVENTS, not a slot a score moves into.
+#
+# Nothing replaces it in this module. Emitting `verified` events and §5.4
+# `status` is id-420's half; deriving the §5.3 tier is the consumer's.
+# DR-081a (which ratified the `strong|partial` emission) is superseded.
 
 
 def _normalise_generated_at(value: "str | datetime") -> str:
@@ -474,7 +443,6 @@ def build_concept_frontmatter(
     purpose: "str | None" = None,
     task: "str | None" = None,
     audience: "str | None" = None,
-    confidence: "str | None" = None,
     sources: "Sequence[ConceptSource]" = (),
 ) -> ConceptFrontmatter:
     """Validate inputs and assemble the v0.2 frontmatter record.
@@ -484,10 +452,9 @@ def build_concept_frontmatter(
     top-level `resource` that IS a `canonical://` pointer (S546 F2-B — the
     pointer lives only in `sources[]`; only a Pass-2 reference concept's
     real fetched URL belongs here), a malformed/duplicate `sources` entry,
-    any field embedding a Canonical record uuid outside `sources[].resource`
-    (BI-10 — including the bl-456 `purpose`/`task`/`audience` routing
-    hints), or a `confidence` outside the A19 vocabulary (bl-477; defence
-    in depth alongside `producer/validator.py`'s own membership check).
+    or any field embedding a Canonical record uuid outside
+    `sources[].resource` (BI-10 — including the bl-456
+    `purpose`/`task`/`audience` routing hints).
     """
     if not type or not type.strip():
         raise ValueError("type is required (BI-12)")
@@ -541,14 +508,6 @@ def build_concept_frontmatter(
                 "(BI-10)"
             )
 
-    # bl-477 A19 confidence — defence in depth alongside the validator's own
-    # `_CONFIDENCE_VALUES` membership check (`producer/validator.py`).
-    if confidence is not None and confidence not in _CONFIDENCE_VALUES:
-        raise ValueError(
-            f"confidence must be one of {sorted(_CONFIDENCE_VALUES)} (A19); "
-            f"got {confidence!r}"
-        )
-
     source_tuple = tuple(sources)
     seen_ids: "set[str]" = set()
     for entry in source_tuple:
@@ -595,7 +554,6 @@ def build_concept_frontmatter(
         purpose=purpose,
         task=task,
         audience=audience,
-        confidence=confidence,
         sources=source_tuple,
     )
 
@@ -673,10 +631,9 @@ def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
 
     Fixed emission order (BI-18 memo/diff stability, id-426 golden shape):
     `type`, `title`, `description`, `generated`, then the optional
-    `purpose`/`task`/`audience`/`confidence` (each only when set),
-    `resource` (only when set — never canonical://, S546 F2-B), `tags`, and
-    `sources` last (only when non-empty). A `CommentedMap` preserves that
-    insertion order."""
+    `purpose`/`task`/`audience` (each only when set), `resource` (only when
+    set — never canonical://, S546 F2-B), `tags`, and `sources` last (only
+    when non-empty). A `CommentedMap` preserves that insertion order."""
     block = CommentedMap()
     block["type"] = _scalar(fm.type)
     block["title"] = _scalar(fm.title)
@@ -689,17 +646,14 @@ def render_concept_frontmatter(fm: ConceptFrontmatter) -> str:
     generated["at"] = DoubleQuotedScalarString(fm.generated_at)
     generated.fa.set_flow_style()
     block["generated"] = generated
-    # bl-456/bl-477 (FRONTMATTER-WAVE.md): fixed emission order for
-    # deterministic output — purpose, task, audience, confidence — each
-    # only when not `None`.
+    # bl-456 (FRONTMATTER-WAVE.md): fixed emission order for deterministic
+    # output — purpose, task, audience — each only when not `None`.
     if fm.purpose is not None:
         block["purpose"] = _scalar(fm.purpose)
     if fm.task is not None:
         block["task"] = _scalar(fm.task)
     if fm.audience is not None:
         block["audience"] = _scalar(fm.audience)
-    if fm.confidence is not None:
-        block["confidence"] = _scalar(fm.confidence)
     if fm.resource is not None:
         block["resource"] = _scalar(fm.resource)
     # Always emitted, empty or not (BI-12) — an empty `CommentedSeq`
@@ -733,7 +687,6 @@ def emit_concept_frontmatter(
     purpose: "str | None" = None,
     task: "str | None" = None,
     audience: "str | None" = None,
-    confidence: "str | None" = None,
     sources: "Sequence[ConceptSource]" = (),
 ) -> str:
     """Convenience: `build_concept_frontmatter` + `render_concept_frontmatter`
@@ -749,7 +702,6 @@ def emit_concept_frontmatter(
         purpose=purpose,
         task=task,
         audience=audience,
-        confidence=confidence,
         sources=sources,
     )
     return render_concept_frontmatter(fm)

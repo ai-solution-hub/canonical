@@ -416,7 +416,6 @@ def test_render_golden_full_v02_shape_with_fixed_field_order():
         purpose="Explain X",
         task="answer Y",
         audience="Z",
-        confidence="partial",
         sources=fm.sources_from_citations(
             ["https://client.example/about", "case-studies/acme.md"],
             primary_anchor=anchor,
@@ -432,7 +431,6 @@ def test_render_golden_full_v02_shape_with_fixed_field_order():
         "purpose: Explain X\n"
         "task: answer Y\n"
         "audience: Z\n"
-        "confidence: partial\n"
         "tags:\n"
         "  - security\n"
         "sources:\n"
@@ -508,8 +506,9 @@ def test_emit_concept_frontmatter_builds_and_renders_in_one_call():
 
 
 # ──────────────────────────────────────────
-# bl-456 routing hints + bl-477 A19 confidence — carried UNCHANGED through
-# the v0.2 wave (id-318/S546; id-428 owns any confidence change).
+# bl-456 routing hints — carried UNCHANGED through the v0.2 wave
+# (id-318/S546). The bl-477 A19 `confidence` field that used to share this
+# section is RETIRED — see the id-428 section below.
 # ──────────────────────────────────────────
 
 
@@ -518,22 +517,19 @@ def test_build_concept_frontmatter_defaults_new_fields_to_none():
     assert record.purpose is None
     assert record.task is None
     assert record.audience is None
-    assert record.confidence is None
 
 
-def test_build_concept_frontmatter_carries_routing_hints_and_confidence():
+def test_build_concept_frontmatter_carries_routing_hints():
     record = fm.build_concept_frontmatter(
         **_base_kwargs(
             purpose="Explain encryption-at-rest options",
             task="answer a procurement question",
             audience="SME buyer",
-            confidence="strong",
         )
     )
     assert record.purpose == "Explain encryption-at-rest options"
     assert record.task == "answer a procurement question"
     assert record.audience == "SME buyer"
-    assert record.confidence == "strong"
 
 
 @pytest.mark.parametrize("hint_field", ["purpose", "task", "audience"])
@@ -551,40 +547,27 @@ def test_routing_hint_embedding_a_bare_uuid_is_rejected(hint_field):
         fm.build_concept_frontmatter(**_base_kwargs(**{hint_field: poisoned}))
 
 
-@pytest.mark.parametrize("value", ["strong", "partial", "no-content", "needs-SME"])
-def test_build_concept_frontmatter_accepts_every_a19_confidence_value(value):
-    record = fm.build_concept_frontmatter(**_base_kwargs(confidence=value))
-    assert record.confidence == value
-
-
-def test_build_concept_frontmatter_rejects_invalid_confidence_value():
-    with pytest.raises(ValueError):
-        fm.build_concept_frontmatter(**_base_kwargs(confidence="banana"))
-
-
-def test_render_omits_routing_hints_and_confidence_when_none():
+def test_render_omits_routing_hints_when_none():
     record = fm.build_concept_frontmatter(**_base_kwargs())
     text = fm.render_concept_frontmatter(record)
     assert "purpose:" not in text
     assert "task:" not in text
     assert "audience:" not in text
-    assert "confidence:" not in text
 
 
-def test_render_emits_routing_hints_and_confidence_only_when_set():
+def test_render_emits_routing_hints_only_when_set():
     record = fm.build_concept_frontmatter(
-        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="partial")
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z")
     )
     text = fm.render_concept_frontmatter(record)
     assert "purpose: Explain X" in text
     assert "task: answer Y" in text
     assert "audience: Z" in text
-    assert "confidence: partial" in text
 
 
 def test_render_new_fields_appear_in_fixed_order_after_generated_before_tags():
     record = fm.build_concept_frontmatter(
-        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="partial")
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z")
     )
     text = fm.render_concept_frontmatter(record)
     order = [
@@ -593,80 +576,78 @@ def test_render_new_fields_appear_in_fixed_order_after_generated_before_tags():
         text.index("purpose:"),
         text.index("task:"),
         text.index("audience:"),
-        text.index("confidence:"),
         text.index("tags:"),
         text.index("sources:"),
     ]
     assert order == sorted(order)
 
 
-@pytest.mark.parametrize("value", ["no-content", "needs-SME"])
-def test_render_hyphenated_confidence_values_are_unquoted(value):
-    """The hyphenated A19 values must not match any _YAML_* ambiguity
-    pattern (both are anchored on `$`, neither is bool/null/number/
-    timestamp-shaped) — they render as plain, unquoted scalars."""
-    record = fm.build_concept_frontmatter(**_base_kwargs(confidence=value))
-    text = fm.render_concept_frontmatter(record)
-    assert f"confidence: {value}\n" in text
-    assert f'confidence: "{value}"' not in text
-
-
-def test_emit_concept_frontmatter_threads_routing_hints_and_confidence():
+def test_emit_concept_frontmatter_threads_routing_hints():
     text = fm.emit_concept_frontmatter(
-        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z", confidence="strong")
+        **_base_kwargs(purpose="Explain X", task="answer Y", audience="Z")
     )
     assert "purpose: Explain X" in text
-    assert "confidence: strong" in text
 
 
 # ──────────────────────────────────────────
-# A19 (bl-477) — derive_concept_confidence: the deterministic, never
-# model-authored confidence-setting rule. Inputs re-pointed to the
-# sources[]-backed values under v0.2 (id-426 contract point 7) — the RULE
-# and its outputs are bit-for-bit unchanged (id-428 owns any change).
+# id-428 (owner rulings S546 F3-A + S553) — `confidence` is RETIRED from
+# the emission contract entirely.
+#
+# The retirement ground is SPEC §5.1, not the private-vocabulary framing:
+# OKF records objective per-source signals and "does not store a
+# credibility score: a score is subjective, unportable across consumers,
+# and goes stale. Credibility is INFERRED from the signals, the same way
+# trust tiers are (§5.3), not stored." A `strong`/`partial` verdict IS a
+# stored credibility score, so no rename or re-vocabulary saves it — the
+# field goes, and nothing takes its slot here. (Emitting `verified` events
+# and §5.4 `status` is id-420's half, NOT this one's; the consumer derives
+# the §5.3 tier.)
+#
+# `derive_concept_confidence` — the A19 rule — is retired with it. It was
+# the producer's only credibility-scoring code path.
 # ──────────────────────────────────────────
 
 
-def test_derive_concept_confidence_is_strong_for_per_row_anchor_plus_two_record_citations():
-    resource = ru.build_source_document_uri(uuid.uuid4())
-    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
-    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "strong"
+def test_the_confidence_derivation_rule_is_retired():
+    """DR-081a ratified the `strong|partial` emission; S553 retired it.
+    No code reference may survive — a live derivation is what would let
+    the field creep back in."""
+    assert not hasattr(fm, "derive_concept_confidence")
+    assert not hasattr(fm, "_CONFIDENCE_VALUES")
 
 
-def test_derive_concept_confidence_is_partial_for_per_row_anchor_with_one_record_citation():
-    resource = ru.build_source_document_uri(uuid.uuid4())
-    citations = [ru.build_reference_item_uri(uuid.uuid4())]
-    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+def test_build_concept_frontmatter_no_longer_accepts_a_confidence_argument():
+    with pytest.raises(TypeError):
+        fm.build_concept_frontmatter(**_base_kwargs(confidence="strong"))
 
 
-def test_derive_concept_confidence_is_partial_for_qa_pairs_query_anchor():
-    """A q_a_pairs query-form resource is not a PER-ROW anchor."""
-    resource = ru.build_q_a_pairs_query_uri(scope_tag="pricing")
-    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
-    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+def test_emit_concept_frontmatter_no_longer_accepts_a_confidence_argument():
+    with pytest.raises(TypeError):
+        fm.emit_concept_frontmatter(**_base_kwargs(confidence="strong"))
 
 
-def test_derive_concept_confidence_is_partial_when_resource_is_none():
-    citations = [ru.build_source_document_uri(uuid.uuid4()), ru.build_reference_item_uri(uuid.uuid4())]
-    assert fm.derive_concept_confidence(resource=None, citations=citations) == "partial"
+def test_the_frontmatter_record_carries_no_confidence_field():
+    record = fm.build_concept_frontmatter(**_base_kwargs())
+    assert not hasattr(record, "confidence")
 
 
-def test_derive_concept_confidence_cross_link_only_second_citation_does_not_lift_to_strong():
-    """Only distinct RECORD anchors corroborate — a concept cross-link path
-    is not fresh record grounding."""
-    resource = ru.build_source_document_uri(uuid.uuid4())
-    citations = [ru.build_source_document_uri(uuid.uuid4()), "topics/gdpr.md"]
-    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
-
-
-def test_derive_concept_confidence_is_partial_for_reference_concept_web_anchor():
-    """A Pass-2 reference concept whose confidence anchor is a gated web
-    `reference_items` anchor is honest "grounded but thin" — partial, even
-    with a corroborating citation, unless it independently clears the
-    per-row + >=2 bar."""
-    resource = ru.build_reference_item_uri(uuid.uuid4())
-    citations = [resource]
-    assert fm.derive_concept_confidence(resource=resource, citations=citations) == "partial"
+def test_the_best_grounded_concept_shape_still_emits_no_confidence():
+    """The shape that used to derive `strong` — a per-row record anchor
+    plus two distinct record-anchor citations — emits nothing at all now.
+    Asserted on the strongest input precisely because that is the one a
+    credibility score would be most tempting to keep."""
+    anchor = ru.build_source_document_uri(uuid.uuid4())
+    citations = [
+        ru.build_source_document_uri(uuid.uuid4()),
+        ru.build_reference_item_uri(uuid.uuid4()),
+    ]
+    text = fm.emit_concept_frontmatter(
+        **_base_kwargs(
+            sources=fm.sources_from_citations(citations, primary_anchor=anchor)
+        )
+    )
+    assert "confidence" not in text
+    assert "confidence" not in _load_emitted_block(text)
 
 
 # ──────────────────────────────────────────

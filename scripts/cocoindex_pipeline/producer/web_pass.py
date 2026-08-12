@@ -149,7 +149,6 @@ from scripts.cocoindex_pipeline.producer.enrich import (
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
     build_concept_frontmatter,
-    derive_concept_confidence,
     render_concept_frontmatter,
     source_citation_targets,
     sources_from_citations,
@@ -719,12 +718,8 @@ def _parse_reference_concept(
         generated_at=datetime.now(timezone.utc),
         tags=tuple(tags_raw),
         resource=fetched_url,
-        # A19 (bl-477) — inputs unchanged under v0.2 (id-426 point 7): the
-        # confidence rule still reads the ANCHOR (`citations[0]`, now a
-        # sources[] entry rather than the emitted `resource:`) + the
-        # citation anchors, so its output is bit-for-bit what v0.1 derived
-        # (FRONTMATTER-WAVE.md §"Applied at all three call sites").
-        confidence=derive_concept_confidence(resource=citations[0], citations=citations),
+        # No `confidence`: id-428 (S553) retired the field (SPEC §5.1 —
+        # credibility is inferred from `sources[]`, never stored).
         sources=sources_from_citations(citations),
     )
     full_body = f"{body.rstrip()}\n\n{_render_source_footnotes(citations)}"
@@ -982,22 +977,15 @@ async def run_web_pass(
         # the Pass-1 draft's frontmatter, absent-tolerant (`None` stays
         # `None`; `render_concept_frontmatter` omits unset fields): Pass-2
         # adds web citations, it does not re-derive routing intent.
-        # Contrast `confidence` below, which IS deliberately recomputed.
         purpose=draft.frontmatter.purpose,
         task=draft.frontmatter.task,
         audience=draft.frontmatter.audience,
-        # A19 (bl-477) — recomputed from the FINAL enriched (primary
-        # anchor, citations), not carried over from
-        # `draft.frontmatter.confidence`: a Pass-1 `partial` concept that
-        # gains a second record citation during Pass-2 enrichment
-        # legitimately becomes `strong` — monotonic in grounding, never a
-        # silent downgrade (FRONTMATTER-WAVE.md §"Applied at all three
-        # call sites"). `draft.primary_anchor` is the SAME value the v0.1
-        # `draft.frontmatter.resource` input held (id-426 point 7 —
-        # re-pointed, outputs bit-for-bit preserved).
-        confidence=derive_concept_confidence(
-            resource=draft.primary_anchor, citations=envelope.citations
-        ),
+        # `confidence` used to be RECOMPUTED here rather than carried, so a
+        # Pass-1 `partial` concept that gained a second record citation
+        # became `strong`. id-428 (S553) retired the field: that "gained
+        # more grounding" fact is now visible directly in the rebuilt
+        # `sources[]` below, which is the §5.1 signal a consumer infers
+        # credibility from instead of reading our stored verdict.
         sources=sources_from_citations(envelope.citations),
     )
     enriched = ConceptDraft(

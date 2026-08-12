@@ -309,12 +309,16 @@ class EffectiveOntology:
 _REQUIRED_STRING_KEYS = ("type", "title", "description")
 _REQUIRED_KEYS = _REQUIRED_STRING_KEYS + ("generated", "tags")
 
-# A19 (bl-477): the ratified confidence vocabulary — duplicated (not
-# imported) from `producer/frontmatter.py`'s own `_CONFIDENCE_VALUES` by
-# design (defence in depth: the producer asserts membership at draft time,
-# this gate re-asserts it at validate time — the two must be changed
-# together, never silently diverge).
-_CONFIDENCE_VALUES = frozenset({"strong", "partial", "no-content", "needs-SME"})
+# The A19 `confidence` vocabulary was duplicated here (not imported) from
+# `producer/frontmatter.py` by design — defence in depth, the two to be
+# changed together and never allowed to diverge. id-428 (S546 F3-A,
+# rescoped S553) changed them together by deleting BOTH: SPEC §5.1 refuses a
+# stored credibility score outright, so there is no vocabulary left to gate.
+# A `confidence` key surviving on a previously-published bundle is simply
+# not checked here — §4.1/§11 forbid rejecting a concept over an
+# unrecognised key, and neither `check_required_keys` nor
+# `check_no_stray_pointer` enumerates keys, so no gate needed removing
+# beyond `check_confidence` itself.
 
 # BI-9/BI-10: the only body section a Canonical uuid may appear in.
 _CITATIONS_HEADING = "Citations"
@@ -349,13 +353,11 @@ def _as_mapping(frontmatter: "Mapping[str, object] | ConceptFrontmatter") -> "Ma
             },
             "tags": list(frontmatter.tags),
             "resource": frontmatter.resource,
-            # bl-456/bl-477 (FRONTMATTER-WAVE.md): load-bearing — omitting
-            # these would silently drop them from every downstream check
-            # (BI-10 stray-pointer scan, A19 confidence membership).
+            # bl-456 (FRONTMATTER-WAVE.md): load-bearing — omitting these
+            # would silently drop them from the BI-10 stray-pointer scan.
             "purpose": frontmatter.purpose,
             "task": frontmatter.task,
             "audience": frontmatter.audience,
-            "confidence": frontmatter.confidence,
             "sources": [
                 {"id": s.id, "resource": s.resource, "title": s.title}
                 for s in frontmatter.sources
@@ -534,23 +536,6 @@ def check_sources(value: object) -> "list[str]":
     return errors
 
 
-def check_confidence(value: object) -> "list[str]":
-    """A19 (bl-477): `confidence`, when present, must be one of the
-    ratified vocabulary (`strong`/`partial`/`no-content`/`needs-SME`).
-    Absence — including an explicit `None`, the `ConceptFrontmatter`
-    dataclass default for a field never populated — is not an error; the
-    OKF SPEC optional-tolerant posture (module docstring) applies here
-    exactly as it does to `resource:`."""
-    if value is None:
-        return []
-    if value not in _CONFIDENCE_VALUES:
-        return [
-            f"confidence {value!r} is outside the ratified A19 vocabulary "
-            f"{sorted(_CONFIDENCE_VALUES)}"
-        ]
-    return []
-
-
 def _find_heading_span(body: str, heading: str) -> "tuple[int, int] | None":
     """Return the `(start, end)` character span of the `# {heading}`
     section, INCLUDING its heading line, up to (but excluding) the next
@@ -692,8 +677,6 @@ def check_concept(
         errors += check_resource_scheme(fm["resource"])
     if "sources" in fm:
         errors += check_sources(fm["sources"])
-    if "confidence" in fm:
-        errors += check_confidence(fm["confidence"])
     errors += check_no_stray_pointer(fm, body)
     errors += lint_entity_relation_mentions(
         entities=entities, relationships=relationships, effective_ontology=effective_ontology
