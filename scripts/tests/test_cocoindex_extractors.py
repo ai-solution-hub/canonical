@@ -1456,3 +1456,56 @@ class TestLlmIdentityIsMemoKeyOnly:
                 f"{extractor}: llm_identity leaked into the request payload — "
                 "it is a memo-key discriminator, not prompt content"
             )
+
+
+# ── S559: reasoning-model responses lead with a ThinkingBlock ───────────────
+#
+# GLM-5.2 through OpenRouter's Anthropic-compat endpoint (id-389 tier-2)
+# returns content=[ThinkingBlock, TextBlock, …] — `response.content[0].text`
+# raised AttributeError and dropped all 14 items in run 31616319688. The
+# extractors must select the TEXT blocks, whichever position they occupy.
+
+
+class _MockThinkingBlock:
+    """Mimics an anthropic ThinkingBlock — has `.thinking`, NO `.text`."""
+
+    type = "thinking"
+
+    def __init__(self, thinking: str = "chain of thought"):
+        self.thinking = thinking
+
+
+class _StubResponse:
+    def __init__(self, blocks):
+        self.content = blocks
+
+
+class TestResponseTextSelectsTextBlocks:
+    def test_thinking_block_first_is_skipped(self):
+        from scripts.cocoindex_pipeline.extraction import _response_text
+
+        resp = _StubResponse([_MockThinkingBlock(), _MockTextBlock('{"a": 1}')])
+        assert _response_text(resp, "extract_classification") == '{"a": 1}'
+
+    def test_text_only_response_unchanged(self):
+        from scripts.cocoindex_pipeline.extraction import _response_text
+
+        resp = _StubResponse([_MockTextBlock('{"b": 2}')])
+        assert _response_text(resp, "extract_classification") == '{"b": 2}'
+
+    def test_multiple_text_blocks_concatenate_in_order(self):
+        from scripts.cocoindex_pipeline.extraction import _response_text
+
+        resp = _StubResponse(
+            [_MockThinkingBlock(), _MockTextBlock('{"c":'), _MockTextBlock(" 3}")]
+        )
+        assert _response_text(resp, "extract_qa_form") == '{"c": 3}'
+
+    def test_no_text_block_raises_loudly_naming_block_types(self):
+        from scripts.cocoindex_pipeline.extraction import _response_text
+
+        import pytest as _pytest
+
+        resp = _StubResponse([_MockThinkingBlock()])
+        with _pytest.raises(ValueError, match="thinking"):
+            _response_text(resp, "extract_entity_mentions")

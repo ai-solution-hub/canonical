@@ -619,6 +619,34 @@ def classify_pydantic_error(exc: ValidationError) -> str:
     return _PYDANTIC_ERROR_TO_ERROR_CLASS.get(first_error_type, "type_coercion")
 
 
+def _response_text(response: Any, extractor: str) -> str:
+    """Concatenate the TEXT blocks of an Anthropic-shaped response, in order.
+
+    Reasoning models served through the Anthropic-compatible skin (id-389
+    tier-2: GLM-5.2 via OpenRouter) lead with a `ThinkingBlock` —
+    `content[0]` then has no `.text` and the previous `content[0].text`
+    read raised `AttributeError`, dropping every item in the walk (run
+    31616319688, S559). Selection rule: blocks whose `type == "text"`,
+    falling back to any block carrying a `.text` attribute (older SDK mocks
+    have no `type`). A response with NO text block raises `ValueError`
+    naming the block types seen, so the id-414 in-scope-drop gate reports a
+    cause rather than an attribute error.
+    """
+    parts = [
+        block.text
+        for block in response.content
+        if getattr(block, "type", None) == "text" or (
+            getattr(block, "type", None) is None and hasattr(block, "text")
+        )
+    ]
+    if not parts:
+        seen = [getattr(b, "type", type(b).__name__) for b in response.content]
+        raise ValueError(
+            f"{extractor}: response carried no text block — block types: {seen}"
+        )
+    return "".join(parts)
+
+
 def _strip_code_fence(text: str) -> str:
     """Strip an enclosing Markdown code fence from an LLM JSON response.
 
@@ -1119,7 +1147,7 @@ async def extract_classification(
     _guard_not_truncated(
         response, "extract_classification", _MAX_TOKENS_CLASSIFICATION
     )
-    response_text = _strip_code_fence(response.content[0].text)
+    response_text = _strip_code_fence(_response_text(response, "extract_classification"))
     return _classification_adapter.validate_json(response_text)
 
 
@@ -1145,7 +1173,7 @@ async def extract_qa_form(content_text: str, llm_identity: str) -> QAFormExtract
         )
     )
     _guard_not_truncated(response, "extract_qa_form", _MAX_TOKENS_QA_FORM)
-    response_text = _strip_code_fence(response.content[0].text)
+    response_text = _strip_code_fence(_response_text(response, "extract_qa_form"))
     return _qa_form_adapter.validate_json(response_text)
 
 
@@ -1176,7 +1204,7 @@ async def extract_entity_mentions(
     _guard_not_truncated(
         response, "extract_entity_mentions", _MAX_TOKENS_ENTITY_MENTIONS
     )
-    response_text = _strip_code_fence(response.content[0].text)
+    response_text = _strip_code_fence(_response_text(response, "extract_entity_mentions"))
     return _entity_mentions_adapter.validate_json(response_text)
 
 
@@ -1210,7 +1238,7 @@ async def extract_relationships(
     _guard_not_truncated(
         response, "extract_relationships", _MAX_TOKENS_RELATIONSHIPS
     )
-    response_text = _strip_code_fence(response.content[0].text)
+    response_text = _strip_code_fence(_response_text(response, "extract_relationships"))
     return _relationships_adapter.validate_json(response_text)
 
 
