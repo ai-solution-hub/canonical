@@ -185,6 +185,17 @@ services:
       # scrubs empty-string credential env (auth_token="" would otherwise
       # send a broken `Authorization: Bearer ` header).
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+      # id-389 AC-3 (S559): the extraction model, defaulting UNSET -> the
+      # claude-opus-4-6 pin in extraction.py (the mock tier above ignores the
+      # model and answers by system prompt, so the default is right for the
+      # default BASE_URL). Set to `z-ai/glm-5.2` alongside the OpenRouter
+      # BASE_URL/AUTH_TOKEN for a tier-2 quality run. Blank-safe:
+      # `_resolve_extraction_model()` treats "" as unset. Flipping this
+      # re-extracts the corpus once under the new identity — that is the
+      # id-389 AC-3 point: this volume's LMDB memo is shared across tier
+      # flips, and the identity is what stops mock outputs being replayed to
+      # a real-model run.
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-}
 
       # --- Supabase / API secrets (PLATFORM STAGING values, injected by Coolify) ---
       # SUPABASE_* MUST be the platform-staging project values, NOT production.

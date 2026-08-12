@@ -2178,6 +2178,13 @@ async def _ingest_content_branch(
     # keep working unchanged — see extraction.py's
     # `extract_with_memo_self_heal` docstring for why this call shape is
     # load-bearing.
+    #
+    # id-389 AC-3 (S559): that same wrapper supplies the extractors' second
+    # argument — the lane's LLM identity (base URL + model), which puts the
+    # serving model INSIDE each extractor's memo key so a mock-tier walk's
+    # canned outputs are never handed to a real-model run. It is resolved
+    # there, not here, deliberately: nothing new goes on THIS component's
+    # signature (id-400/bl-239 — arguments to `ingest_file` are memo inputs).
     classification = await extract_with_memo_self_heal(
         extract_classification,
         content_text,

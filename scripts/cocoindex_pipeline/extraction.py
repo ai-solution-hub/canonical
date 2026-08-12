@@ -112,9 +112,78 @@ def _resolve_coco_deserialization_error() -> type[BaseException]:
     return DeserializationError
 
 
-# Production Anthropic model — single source of truth for the 3 extractors
-# below; mirrors lib/anthropic.ts.
-ANTHROPIC_MODEL = "claude-opus-4-6"
+# Production extraction model — single source of truth for the 4 extractors
+# below (and `pair_resolver.py`, which imports this name); mirrors
+# lib/anthropic.ts.
+_DEFAULT_EXTRACTION_MODEL = "claude-opus-4-6"
+
+
+def _resolve_extraction_model() -> str:
+    """The model this lane runs, from `EXTRACTION_MODEL` (id-389 AC-3, S559).
+
+    S559 ratified tier-2 extraction on `z-ai/glm-5.2` served through
+    OpenRouter's Anthropic-compat endpoint, so the model can no longer be a
+    hardcoded literal — the tier is a deploy-env choice, exactly like
+    `ANTHROPIC_BASE_URL` (`_extraction_async_client()`).
+
+    Empty-string parity with that client factory is deliberate and
+    load-bearing: this var arrives through compose `${EXTRACTION_MODEL:-}`
+    passthrough, which renders an unset Coolify variable as `""`. `or` (not
+    `is None`) makes blank mean UNSET, so a blank render falls back to the
+    production default rather than sending `model=""` to the API. Same
+    posture as the producer package's own model knob (`producer/agent_loop.py`).
+
+    ONE-WAY COUPLING, stated rather than glossed: this lane never reads the
+    producer's variable, but the producer's knob falls back to `<this module>
+    .ANTHROPIC_MODEL` when its own var is unset — so setting `EXTRACTION_MODEL`
+    on a deployment that leaves the producer's unset moves BOTH lanes. That is
+    the pre-existing fallback chain, unchanged by id-389 (it previously
+    resolved to the same hardcoded literal); an operator who wants the lanes to
+    differ must set both, which the deployed producer already does.
+    """
+    return os.environ.get("EXTRACTION_MODEL") or _DEFAULT_EXTRACTION_MODEL
+
+
+# Read ONCE at import, like the producer package's model knob: the deploy
+# environment is set before the process boots (Coolify env / `docker run -e`),
+# and there is no live-reconfiguration need. Kept under the historical name because
+# `pair_resolver.py`, `flow.py` (re-export) and their tests import it.
+ANTHROPIC_MODEL = _resolve_extraction_model()
+
+
+# The "no base URL set" half of the LLM identity below. A literal rather than
+# the empty string so the identity always reads as a name in logs and in a
+# memo-key forensic dump.
+_DIRECT_ANTHROPIC_ENDPOINT = "anthropic-direct"
+
+
+def resolve_llm_identity() -> str:
+    """Name the LLM actually serving this lane: `"{base_url}:{model}"`.
+
+    This is the id-389 AC-3 memo-key discriminator, threaded as a plain `str`
+    argument into all four `@coco.fn(memo=True)` extractors (see
+    `extract_with_memo_self_heal`, the single channel flow.py calls them
+    through).
+
+    WHY it must exist: memo entries used to key on (logic fingerprint,
+    content_text) alone, so one LMDB store served every tier. A mock-tier walk
+    (`ANTHROPIC_BASE_URL` → the canned `mock_llm.py`) persisted its canned
+    outputs under the same key a later GLM or real-Anthropic walk would look
+    up — that run then memo-HIT the mock's fixtures and silently produced
+    fixture-quality rows at real-model cost expectations. Both halves count:
+    OpenRouter serves the real Claude AND GLM from ONE base URL, and the mock
+    answers to whatever model string it is sent.
+
+    Resolved PER CALL (not captured at import) because a tier flip is an env
+    change between processes while the memo store persists across them — the
+    identity must describe the run doing the asking, and monkeypatching
+    `ANTHROPIC_MODEL` in a test must be visible here for the same reason.
+    Empty `ANTHROPIC_BASE_URL` reads as unset, matching
+    `_extraction_async_client()`'s scrub — otherwise a blank render would
+    fork the memo namespace away from the identical direct-Anthropic lane.
+    """
+    base_url = os.environ.get("ANTHROPIC_BASE_URL") or _DIRECT_ANTHROPIC_ENDPOINT
+    return f"{base_url}:{ANTHROPIC_MODEL}"
 
 
 # Content-type runtime validator (Q-EX2 TECH §2.2).
@@ -1005,15 +1074,35 @@ async def _anthropic_message(client, /, **create_kwargs) -> anthropic.types.Mess
     # WHOLE corpus for this extractor a second time — only do so with the
     # same owner burn-valve sign-off as this one (do not bump reflexively
     # on every unrelated schema tweak).
+    #
+    # id-389 AC-3 (S559) DELIBERATELY LEFT THIS AT 1. That change added the
+    # `llm_identity` parameter below, which forces its own one-time
+    # whole-corpus miss through the OTHER half of the key: the engine keys a
+    # memo lookup on `fingerprint_call(fn, args, kwargs)`
+    # (`cocoindex/_internal/function.py:1354`), so a NEW argument makes every
+    # pre-id-389 entry — keyed on `(content_text,)` — unreachable, with no
+    # `version=` change at all. Bumping to 2 as well would have burned the
+    # same corpus twice for one owner-approved burn. Proven in
+    # `test_cocoindex_memo_self_heal.py::TestLlmIdentityParticipatesInTheMemoKey`.
     version=1,
 )
-async def extract_classification(content_text: str) -> ClassificationExtraction:
+async def extract_classification(
+    content_text: str, llm_identity: str
+) -> ClassificationExtraction:
     """Classification extractor — validates LLM JSON into `ClassificationExtraction`.
 
     Returns the STAMP-FREE core (bl-220 / ID-74): no op_id / source_document_id /
     extracted_at cross the memo boundary. The flow wrapper stamps the full
     `*Stamped` shape post-memo via `stamp_extraction_base()`. Memo key is
-    `(content_text,)` per Inv-21.
+    `(content_text, llm_identity)` — Inv-21 plus the id-389 AC-3 tier
+    discriminator (see `resolve_llm_identity`).
+
+    `llm_identity` is memo-key-ONLY: it is never sent on the wire (the model
+    itself rides `ANTHROPIC_MODEL` below, and putting a deploy-topology string
+    in the prompt would bust the cached system block for nothing). An unused
+    parameter is the whole mechanism — a primitive `str` canonicalises as-is
+    into the call fingerprint, which is precisely the property the `version=1`
+    block above records as unavoidable.
     """
     client = _extraction_async_client()
     response = await _anthropic_retry(
@@ -1035,13 +1124,13 @@ async def extract_classification(content_text: str) -> ClassificationExtraction:
 
 
 @coco.fn(memo=True)
-async def extract_qa_form(content_text: str) -> QAFormExtraction:
+async def extract_qa_form(content_text: str, llm_identity: str) -> QAFormExtraction:
     """Q&A form extractor — validates LLM JSON into `QAFormExtraction`.
 
     Per PRODUCT inv 2 the prompt instructs the LLM to return
     `qa_pairs: []` for non-form documents (rather than synthesising
     pairs). Same memoisation + validation-failure contract as
-    `extract_classification`.
+    `extract_classification`, `llm_identity` included (id-389 AC-3).
     """
     client = _extraction_async_client()
     response = await _anthropic_retry(
@@ -1063,12 +1152,14 @@ async def extract_qa_form(content_text: str) -> QAFormExtraction:
 @coco.fn(memo=True)
 async def extract_entity_mentions(
     content_text: str,
+    llm_identity: str,
 ) -> list[EntityMentionExtraction]:
     """Entity-mentions extractor — returns a list (empty if no entities).
 
     The LLM is instructed to return a JSON array (not an object wrapping
     an array), so the TypeAdapter is `list[EntityMentionExtraction]`.
-    Same memoisation + validation-failure contract as `extract_classification`.
+    Same memoisation + validation-failure contract as `extract_classification`,
+    `llm_identity` included (id-389 AC-3).
     """
     client = _extraction_async_client()
     response = await _anthropic_retry(
@@ -1092,6 +1183,7 @@ async def extract_entity_mentions(
 @coco.fn(memo=True)
 async def extract_relationships(
     content_text: str,
+    llm_identity: str,
 ) -> list[RelationshipExtraction]:
     """Relationship extractor — returns a list (empty if no relationships).
 
@@ -1100,7 +1192,8 @@ async def extract_relationships(
     TypeAdapter is `list[RelationshipExtraction]`. The 10-type `relationship`
     Literal mirrors the TS `ExtractedRelationship` union (Inv-4 parity).
     Returns RAW triples; canonicalisation happens at the {101.7} write site.
-    Same memoisation + validation-failure contract as `extract_classification`.
+    Same memoisation + validation-failure contract as `extract_classification`,
+    `llm_identity` included (id-389 AC-3).
     """
     client = _extraction_async_client()
     response = await _anthropic_retry(
@@ -1209,9 +1302,18 @@ async def extract_with_memo_self_heal(
     never raises `DeserializationError`, so the fallback path below never
     triggers in any test that doesn't explicitly ask for it.
 
-    Happy path: delegates straight to `memoized_fn(content_text)` — a valid
-    memo entry (or a genuine cache-miss) behaves EXACTLY as before this
-    change, memo-hit included (no spurious re-extraction).
+    id-389 AC-3 (S559): this helper is also where the lane's LLM identity
+    joins the call. It is the ONLY channel flow.py invokes the four Path-A
+    extractors through, so resolving `resolve_llm_identity()` here — once per
+    extractor call, from the live env — gives every call site the identity
+    without threading a value through `ingest_file`'s memo-sensitive
+    signature (id-400/bl-239 discipline: nothing goes on that signature
+    lightly). Both branches below pass the SAME resolved identity, so a
+    self-heal re-extraction is attributed to the lane that did the lookup.
+
+    Happy path: delegates straight to `memoized_fn(content_text, llm_identity)`
+    — a valid memo entry (or a genuine cache-miss) behaves EXACTLY as before
+    this change, memo-hit included (no spurious re-extraction).
 
     Fallback path: `DeserializationError` from the memo-HIT deserialize
     (resolved lazily via `_resolve_coco_deserialization_error` — see that
@@ -1224,8 +1326,9 @@ async def extract_with_memo_self_heal(
     extraction via the raw undecorated coroutine (`_bypass_memo_extractor`)
     so the item succeeds this walk.
     """
+    llm_identity = resolve_llm_identity()
     try:
-        return await memoized_fn(content_text)
+        return await memoized_fn(content_text, llm_identity)
     except _resolve_coco_deserialization_error() as exc:
         _logger.warning(
             json.dumps(
@@ -1250,4 +1353,4 @@ async def extract_with_memo_self_heal(
             counter.record(extractor=extractor_name)
 
         raw_fn = _bypass_memo_extractor(memoized_fn)
-        return await raw_fn(content_text)
+        return await raw_fn(content_text, llm_identity)

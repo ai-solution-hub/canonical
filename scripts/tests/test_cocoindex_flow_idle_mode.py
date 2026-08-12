@@ -162,22 +162,31 @@ class TestFlowModuleIdleLoad:
         )
 
     def test_anthropic_model_constant_is_canonical(self) -> None:
-        """flow.ANTHROPIC_MODEL == 'claude-opus-4-6' per cocoindex-extraction-
-        contract TECH §3.1 + lib/anthropic.ts:29,
-        AND it is the *same object* re-exported from extraction.py — proving a
-        single source of truth (ID-44.3 dedup), not two equal literals that can
-        silently drift on a model upgrade."""
+        """flow.ANTHROPIC_MODEL is the *same object* re-exported from
+        extraction.py — a single source of truth (ID-44.3 dedup), not two
+        equal literals that can silently drift on a model upgrade.
+
+        id-389 AC-3 (S559) made the value env-driven (`EXTRACTION_MODEL`), so
+        this no longer pins a literal: it pins the DEFAULT (still
+        'claude-opus-4-6' per cocoindex-extraction-contract TECH §3.1 +
+        lib/anthropic.ts:29) and the re-export identity. Asserting the literal
+        outright would now fail in any environment that legitimately selects
+        the tier-2 model."""
         from scripts.cocoindex_pipeline import extraction, flow
 
-        assert flow.ANTHROPIC_MODEL == "claude-opus-4-6", (
-            f"flow.ANTHROPIC_MODEL must be 'claude-opus-4-6' (production "
-            f"drafting tier per Q-EX2 §3.1 + lib/anthropic.ts); got "
-            f"{flow.ANTHROPIC_MODEL!r}"
+        assert extraction._DEFAULT_EXTRACTION_MODEL == "claude-opus-4-6", (
+            f"the extraction lane's DEFAULT model must stay 'claude-opus-4-6' "
+            f"(production drafting tier per Q-EX2 §3.1 + lib/anthropic.ts); "
+            f"got {extraction._DEFAULT_EXTRACTION_MODEL!r}"
         )
         assert flow.ANTHROPIC_MODEL is extraction.ANTHROPIC_MODEL, (
             "flow.ANTHROPIC_MODEL must be the canonical constant re-exported "
             "from extraction.py (single source of truth per ID-44.3), not an "
             "independent literal that can drift on a model upgrade"
+        )
+        assert flow.ANTHROPIC_MODEL == extraction._resolve_extraction_model(), (
+            "the re-exported constant must be the EXTRACTION_MODEL knob's "
+            "resolution, not a literal frozen beside it"
         )
 
 

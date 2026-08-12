@@ -246,7 +246,7 @@ def _rows_for(pool: _CapturingPool, table: str) -> list[dict]:
     return rows
 
 
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -262,16 +262,16 @@ def _stub_path_a(
     async def _fake_convert(file: object) -> str:
         return content_text
 
-    async def _fake_classification(content_text: str):
+    async def _fake_classification(content_text: str, llm_identity: str):
         return {"content_type": "case_study", "primary_domain": "procurement"}
 
-    async def _fake_qa(content_text: str):
+    async def _fake_qa(content_text: str, llm_identity: str):
         return {"qa_pairs": qa_pairs or []}
 
-    async def _fake_entities(content_text: str):
+    async def _fake_entities(content_text: str, llm_identity: str):
         return entities or []
 
-    async def _fake_relationships(content_text: str):
+    async def _fake_relationships(content_text: str, llm_identity: str):
         return relationships or []
 
     async def _fake_embed(content_text: str) -> list[float]:
@@ -628,13 +628,13 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
         async def _fake_convert(file: object) -> str:
             return keep_and_watch_text
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q2?", "answer_text": "A2."}]}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return [mention]
 
         async def _fake_embed(content_text: str) -> list[float]:

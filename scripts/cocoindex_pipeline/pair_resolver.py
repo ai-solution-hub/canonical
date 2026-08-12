@@ -204,7 +204,20 @@ class KhPairResolver:
 
         Anthropic SDK invocation mirrors `extract_classification` in
         `extraction.py`: same client construction (`AsyncAnthropic()`),
-        same `_anthropic_retry` tenacity wrapper, same `ANTHROPIC_MODEL`.
+        same `_anthropic_retry` tenacity wrapper, same `ANTHROPIC_MODEL` —
+        which id-389 AC-3 (S559) made `EXTRACTION_MODEL`-driven, so this
+        resolver follows the extraction lane onto the tier-2 model for free
+        (one lane, one model, no second knob to forget).
+
+        NOT cocoindex-memoised: this call is cache-gated by the
+        `entity_pair_resolutions` TABLE above, not by `@coco.fn(memo=True)`,
+        so the id-389 AC-3 `llm_identity` memo-key argument does not apply
+        here. NB that table's key is `(name_a, name_b, entity_type)` — model-
+        agnostic by schema, so a tier flip replays the previous tier's
+        decisions until the rows are cleared. That is the SAME defect class
+        AC-3 fixes for the extractors, but closing it needs a migration
+        (a model/identity column in the UNIQUE key), so it is deliberately
+        out of scope here rather than silently half-fixed.
         """
         client = _extraction_async_client()
 

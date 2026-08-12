@@ -79,7 +79,7 @@ from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 # ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
 # ingest_file tests make no live Anthropic call (mirrors the
 # extract_entity_mentions stubs alongside).
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -1538,17 +1538,17 @@ class TestPerItemFailureIsolation:
                 raise RuntimeError("synthetic per-item fault on the bad file")
             return good_markdown
 
-        async def _classification(content_text: str):
+        async def _classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "document",
                 "primary_domain": "procurement",
                 "primary_subtopic": "tender_evaluation",
             }
 
-        async def _qa(content_text: str):
+        async def _qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-        async def _entities(content_text: str):
+        async def _entities(content_text: str, llm_identity: str):
             return []
 
         async def _embed(content_text: str) -> list[float]:
@@ -1806,7 +1806,7 @@ class TestPerItemFailureIsolation:
         # ── Stage 3: the bad file's classification exercises the REAL
         # Pydantic gate with a retired content_type — the actual S451
         # {133.13} HARD-reject, not a synthetic stand-in exception.
-        async def _classification(content_text: str):
+        async def _classification(content_text: str, llm_identity: str):
             if content_text == _bad_markdown:
                 return extraction._classification_adapter.validate_json(
                     json.dumps(
@@ -1824,10 +1824,10 @@ class TestPerItemFailureIsolation:
                 "primary_subtopic": "tender_evaluation",
             }
 
-        async def _qa(content_text: str):
+        async def _qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-        async def _entities(content_text: str):
+        async def _entities(content_text: str, llm_identity: str):
             return []
 
         async def _embed(content_text: str) -> list[float]:
@@ -2169,7 +2169,7 @@ class TestUrlPerItemFailureIsolation:
         monkeypatch.setattr(flow, "_url_is_pdf", _never_pdf)
 
         # ── Stage-3 stubs (classification + embedding). ──
-        async def _classification(content_text: str):
+        async def _classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "document",
                 "primary_domain": "procurement",

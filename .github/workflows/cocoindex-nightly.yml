@@ -277,20 +277,26 @@
 # a real-key run at minute 1 when the key is dead/disabled (the S501 lane once
 # burned 75 min discovering exactly that), instead of after the build + walk.
 #
-# `llm_tier: openrouter` = REAL Claude extraction billed via OpenRouter
-# credits (the id-387 producer regime's endpoint), for extraction-QUALITY
-# runs while the direct Anthropic key stays disabled. Mechanics are the
-# probe-proven {132.35} slice C/E recipe from producer/agent_loop.py:
+# `llm_tier: openrouter` = REAL extraction billed via OpenRouter credits (the
+# id-387 producer regime's endpoint), for extraction-QUALITY runs while the
+# direct Anthropic key stays disabled. Mechanics are the probe-proven
+# {132.35} slice C/E recipe from producer/agent_loop.py:
 # ANTHROPIC_BASE_URL=https://openrouter.ai/api (the Anthropic-skin
-# /v1/messages endpoint), auth as a BEARER via ANTHROPIC_AUTH_TOKEN
-# (= secrets.PRODUCER_AUTH_TOKEN), and ANTHROPIC_API_KEY forced EMPTY in the
-# sidecar — a non-empty Anthropic-shaped X-Api-Key silently pins OpenRouter's
-# provider routing AND would transmit the real Anthropic key to a third
-# party (the slice E double rationale). extraction.py's model stays the
-# ANTHROPIC_MODEL constant, which OpenRouter's skin routes to the anthropic
-# provider — so this tier is real-model quality, not the cheap-model
-# variant; a cheap-model tier needs an extraction model-override knob, which
-# is a DR-060 memo-invalidation surface deliberately NOT smuggled in here.
+# /v1/messages endpoint), auth as a BEARER via ANTHROPIC_AUTH_TOKEN, and
+# ANTHROPIC_API_KEY forced EMPTY in the sidecar — a non-empty
+# Anthropic-shaped X-Api-Key silently pins OpenRouter's provider routing AND
+# would transmit the real Anthropic key to a third party (the slice E double
+# rationale).
+#
+# id-389 AC-3 (owner ruling S559) SUPERSEDES this block's former "no model
+# knob here" position: this tier now runs `z-ai/glm-5.2` via
+# EXTRACTION_MODEL. The DR-060 memo-invalidation objection that deferred it
+# is answered rather than ignored — extraction.py threads the LLM identity
+# (base URL + model) into the four extractors' memo key, so tiers no longer
+# share memo entries at all, and the one-time whole-corpus re-extraction that
+# the argument-shape change forces is owner-cost-approved in the same ruling.
+# The bearer prefers `secrets.EXTRACTION_AUTH_TOKEN`, falling back to the
+# producer's credential while no dedicated one is provisioned.
 #
 # Spec: S403-coverage-audit.md gap (2) HIGH.
 
@@ -387,10 +393,22 @@ jobs:
       # the choice input constrains the value set.
       LLM_TIER: ${{ inputs.llm_tier || 'mock' }}
       MOCK_LLM_PORT: "8090"
-      # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2) — the
-      # same credential the deployed producer uses (id-387 regime map).
-      PRODUCER_AUTH_TOKEN: ${{ secrets.PRODUCER_AUTH_TOKEN }}
+      # OpenRouter Bearer for the `openrouter` tier (id-389 tier-2). id-389
+      # AC-3: prefer a dedicated EXTRACTION_AUTH_TOKEN and fall back to the
+      # producer's credential (id-387 regime map) while none is provisioned.
+      # GHA's `||` coerces the empty string to false, so an UNSET-or-BLANK
+      # EXTRACTION_AUTH_TOKEN falls through — the same idiom as
+      # `inputs.llm_tier || 'mock'` above, and the empty-string guard the
+      # brief asks for (an unprovisioned secret resolves to "", never null).
+      EXTRACTION_AUTH_TOKEN:
+        ${{ secrets.EXTRACTION_AUTH_TOKEN || secrets.PRODUCER_AUTH_TOKEN }}
       OPENROUTER_ANTHROPIC_BASE_URL: "https://openrouter.ai/api"
+      # id-389 AC-3 (S559): the tier-2 extraction model. Consumed by BOTH the
+      # credential preflight and the sidecar container env below, so the ping
+      # that gates the run proves the credential against the SAME model the
+      # walk will bill — a preflight on a different model can pass while the
+      # real one 404s on an unentitled route.
+      OPENROUTER_EXTRACTION_MODEL: "z-ai/glm-5.2"
 
     steps:
       - name:
@@ -403,6 +421,11 @@ jobs:
         # no live credential; its own /health gate below is its preflight.
         run: |
           set -euo pipefail
+          # Default ping model: the cheapest thing that proves a direct
+          # Anthropic key is alive. The openrouter tier overrides it with the
+          # model it will actually run (id-389 AC-3) — entitlement to one
+          # OpenRouter route says nothing about entitlement to another.
+          PREFLIGHT_MODEL="claude-haiku-4-5-20251001"
           case "$LLM_TIER" in
             anthropic)
               PREFLIGHT_URL="https://api.anthropic.com/v1/messages"
@@ -412,9 +435,10 @@ jobs:
               # Bearer auth, NEVER x-api-key: an Anthropic-shaped X-Api-Key
               # pins OpenRouter's provider routing (producer slice E).
               PREFLIGHT_URL="${OPENROUTER_ANTHROPIC_BASE_URL}/v1/messages"
-              AUTH_ARGS=(-H "Authorization: Bearer ${PRODUCER_AUTH_TOKEN}")
-              if [ -z "$PRODUCER_AUTH_TOKEN" ]; then
-                echo "llm_tier=openrouter but secrets.PRODUCER_AUTH_TOKEN is empty/unprovisioned — failing at minute 1." >&2
+              AUTH_ARGS=(-H "Authorization: Bearer ${EXTRACTION_AUTH_TOKEN}")
+              PREFLIGHT_MODEL="${OPENROUTER_EXTRACTION_MODEL}"
+              if [ -z "$EXTRACTION_AUTH_TOKEN" ]; then
+                echo "llm_tier=openrouter but neither secrets.EXTRACTION_AUTH_TOKEN nor secrets.PRODUCER_AUTH_TOKEN is provisioned (both empty) — failing at minute 1." >&2
                 exit 1
               fi
               ;;
@@ -428,14 +452,14 @@ jobs:
             "${AUTH_ARGS[@]}" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}' \
+            -d "{\"model\":\"${PREFLIGHT_MODEL}\",\"max_tokens\":8,\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}" \
             || echo "000")
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Credential preflight FAILED for tier '${LLM_TIER}' (HTTP ${HTTP_CODE}) — the credential is dead, disabled, or unreachable. Failing at minute 1 instead of after the walk. Response body:" >&2
+            echo "Credential preflight FAILED for tier '${LLM_TIER}' model '${PREFLIGHT_MODEL}' (HTTP ${HTTP_CODE}) — the credential is dead, disabled, unreachable, or not entitled to that model. Failing at minute 1 instead of after the walk. Response body:" >&2
             cat /tmp/preflight-body.json >&2 || true
             exit 1
           fi
-          echo "Credential preflight OK for tier '${LLM_TIER}' (HTTP 200)."
+          echo "Credential preflight OK for tier '${LLM_TIER}' model '${PREFLIGHT_MODEL}' (HTTP 200)."
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -717,9 +741,10 @@ jobs:
         # the var is simply absent (an empty value would BREAK the SDK:
         # base_url='' beats its default — never pass it blank). On the
         # openrouter tier the base URL is the Anthropic-skin endpoint, auth
-        # is the Bearer ANTHROPIC_AUTH_TOKEN, and ANTHROPIC_API_KEY is
-        # forced EMPTY (provider-pinning defeat + never send the Anthropic
-        # key to a third party — producer slice E, probe-proven).
+        # is the Bearer ANTHROPIC_AUTH_TOKEN, EXTRACTION_MODEL selects the
+        # tier-2 model (id-389 AC-3), and ANTHROPIC_API_KEY is forced EMPTY
+        # (provider-pinning defeat + never send the Anthropic key to a third
+        # party — producer slice E, probe-proven).
         run: |
           set -euo pipefail
           docker network create coco-nightly 2>/dev/null || true
@@ -731,7 +756,10 @@ jobs:
               ;;
             openrouter)
               EXTRA_LLM_ARGS+=(-e "ANTHROPIC_BASE_URL=${OPENROUTER_ANTHROPIC_BASE_URL}")
-              EXTRA_LLM_ARGS+=(-e "ANTHROPIC_AUTH_TOKEN=${PRODUCER_AUTH_TOKEN}")
+              EXTRA_LLM_ARGS+=(-e "ANTHROPIC_AUTH_TOKEN=${EXTRACTION_AUTH_TOKEN}")
+              # id-389 AC-3 (S559): tier-2 runs GLM-5.2, the model the
+              # preflight above just proved this credential against.
+              EXTRA_LLM_ARGS+=(-e "EXTRACTION_MODEL=${OPENROUTER_EXTRACTION_MODEL}")
               SIDECAR_ANTHROPIC_API_KEY=""
               ;;
           esac

@@ -226,9 +226,17 @@ async def probe_ingest_file(file) -> None:
     ctx = flow_context.resolve_flow_run_context()
     OUTER["observed_op_ids"].append(str(ctx.op_id))
     content_text = await convert_binary_to_markdown(file)
-    await extraction.extract_classification(content_text)
-    await extraction.extract_qa_form(content_text)
-    await extraction.extract_entity_mentions(content_text)
+    # id-389 AC-3: the extractors take the lane's LLM identity as their second
+    # positional (the memo-key tier discriminator). Production routes this
+    # through `extraction.extract_with_memo_self_heal`, which resolves it per
+    # call; the probe resolves it the same way so the memo identities under
+    # test stay the production ones. It is CONSTANT across these four walks
+    # (no env flip between them), so it cannot perturb the op_id semantics
+    # this probe measures.
+    identity = extraction.resolve_llm_identity()
+    await extraction.extract_classification(content_text, identity)
+    await extraction.extract_qa_form(content_text, identity)
+    await extraction.extract_entity_mentions(content_text, identity)
 
 
 async def bound_probe_ingest_file(file):

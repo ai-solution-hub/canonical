@@ -265,7 +265,7 @@ def _stub_content_seams(
     async def _conv(file: object) -> str:
         return "# Doc\n\nAcme Security holds ISO 27001."
 
-    async def _cls(content_text: str):
+    async def _cls(content_text: str, llm_identity: str):
         return {
             "content_type": "case_study",
             "primary_domain": "procurement",
@@ -273,10 +273,10 @@ def _stub_content_seams(
             "suggested_title": "Doc Title",
         }
 
-    async def _qa(content_text: str):
+    async def _qa(content_text: str, llm_identity: str):
         return {"qa_pairs": []}
 
-    async def _ent(content_text: str):
+    async def _ent(content_text: str, llm_identity: str):
         return mentions
 
     async def _emb(content_text: str):

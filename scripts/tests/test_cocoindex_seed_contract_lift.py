@@ -277,7 +277,7 @@ def _stub_seams(flow, monkeypatch: pytest.MonkeyPatch, *, markdown: str) -> None
     async def _fake_convert(file):
         return markdown
 
-    async def _fake_classification(content_text: str):
+    async def _fake_classification(content_text: str, llm_identity: str):
         return {
             "content_type": "case_study",
             "primary_domain": "procurement",
@@ -285,13 +285,13 @@ def _stub_seams(flow, monkeypatch: pytest.MonkeyPatch, *, markdown: str) -> None
             "suggested_title": "Doc Title",
         }
 
-    async def _fake_qa(content_text: str):
+    async def _fake_qa(content_text: str, llm_identity: str):
         return {"qa_pairs": [{"question_text": "What is X?", "answer_text": "X is Y."}]}
 
-    async def _fake_entities(content_text: str):
+    async def _fake_entities(content_text: str, llm_identity: str):
         return []
 
-    async def _fake_relationships(content_text: str):
+    async def _fake_relationships(content_text: str, llm_identity: str):
         return []
 
     async def _fake_embed(content_text: str) -> list[float]:

@@ -191,7 +191,7 @@ class _FakeFormFile:
         return hashlib.sha256(self._disk.read_bytes()).digest()
 
 
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -362,7 +362,7 @@ class TestWalkNeverMutatesPromotedQaPair:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
@@ -370,7 +370,7 @@ class TestWalkNeverMutatesPromotedQaPair:
                 "suggested_title": "Promotion boundary doc",
             }
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {
                 "qa_pairs": [
                     {
@@ -380,7 +380,7 @@ class TestWalkNeverMutatesPromotedQaPair:
                 ]
             }
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:

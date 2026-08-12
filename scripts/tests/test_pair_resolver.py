@@ -242,6 +242,39 @@ def test_invoke_llm_thin_string_parser_same() -> None:
     assert 'exactly "same" or "different"' in prompt_text
 
 
+def test_invoke_llm_uses_the_extraction_lanes_resolved_model() -> None:
+    """id-389 AC-3 (S559): the pair resolver rides the SAME model the
+    extraction lane resolved from `EXTRACTION_MODEL` — one lane, one model.
+
+    Asserts the value is SHARED with `extraction.ANTHROPIC_MODEL` rather than
+    matching a literal, which is the property that matters: a tier flip that
+    moves extraction onto GLM must move Stage-5 pair resolution with it, not
+    leave it silently billing the old model.
+    """
+    from scripts.cocoindex_pipeline import extraction
+    from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver
+
+    pool = FakePool()
+    resolver = KhPairResolver(
+        db_pool=pool, op_id=uuid.uuid4(), entity_type="organisation"
+    )
+
+    fake_client = MagicMock()
+    fake_client.messages.create = AsyncMock(
+        return_value=_make_anthropic_response("same")
+    )
+
+    with patch(
+        "scripts.cocoindex_pipeline.pair_resolver.anthropic.AsyncAnthropic",
+        return_value=fake_client,
+    ):
+        asyncio.run(resolver._invoke_llm("Acme Corp", "Acme Corporation"))
+
+    call_kwargs = fake_client.messages.create.await_args.kwargs
+    assert call_kwargs["model"] == extraction.ANTHROPIC_MODEL
+    assert call_kwargs["model"] == extraction._resolve_extraction_model()
+
+
 def test_invoke_llm_thin_string_parser_different() -> None:
     """T-OQ2 thin string-parser: response ' Different\\n' parses to 'different'."""
     from scripts.cocoindex_pipeline.pair_resolver import KhPairResolver

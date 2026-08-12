@@ -565,9 +565,16 @@ class TestProducerModelEnvOverride:
             importlib.reload(_agent_loop_module)
 
     def test_extraction_lane_is_untouched_by_the_producer_override(self) -> None:
-        """DO-NOT (brief): extraction.py's OWN `ANTHROPIC_MODEL` constant and
-        its 4 extractor call sites stay env-free — `PRODUCER_MODEL` is
-        producer-package-scoped only, never threaded into `extraction.py`.
+        """DO-NOT (brief): `PRODUCER_MODEL` is producer-package-scoped only,
+        never threaded into `extraction.py`.
+
+        The boundary — not the env-freedom — is what this guards. id-389 AC-3
+        (S559) gave the extraction lane its OWN knob (`EXTRACTION_MODEL`,
+        `extraction._resolve_extraction_model`) so tier-2 can run GLM-5.2
+        there; the two lanes are independently switchable, which is exactly
+        what this assertion keeps true — extraction must never resolve its
+        model from the producer's variable.
+
         Grep-level static guard: this isolation boundary has no runtime
         behaviour of its own to exercise (test-philosophy.md: behaviour-
         first, but a pure "this module must not import/mention that name"

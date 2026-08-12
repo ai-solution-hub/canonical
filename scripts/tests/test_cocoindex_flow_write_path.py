@@ -150,7 +150,7 @@ class _FakeFile:
 # call must likewise stub `extract_relationships`. The relationship-specific
 # write-path proof (`TestIngestFileRelationshipWritePath`) overrides this with a
 # non-empty triple list — these other suites only need the seam neutralised.
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -271,7 +271,7 @@ class TestIngestFileWritePath:
 
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
@@ -281,7 +281,7 @@ class TestIngestFileWritePath:
                 "suggested_title": "Doc One Title",
             }
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {
                 "qa_pairs": [
                     # Present-value pair: all 4 ID-54.1 (OQ-52-LOSSY) fields populated.
@@ -306,7 +306,7 @@ class TestIngestFileWritePath:
                 ]
             }
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         # Stage-4 embedding (ID-49.2): stub the embedder seam so no OpenAI call
@@ -490,21 +490,21 @@ class TestIngestFileStageCounters:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
                 "primary_subtopic": "tender_evaluation",
             }
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {
                 "qa_pairs": [
                     {"question_text": "What is X?", "answer_text": "X is Y."}
                 ]
             }
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []  # zero entity rows — em declare_row loop does not run
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -569,13 +569,13 @@ class TestIngestFileStageCounters:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -676,13 +676,13 @@ class TestMountEachArityContract:
 
         monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -876,13 +876,13 @@ class TestStablePrimaryKeysAcrossRuns:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -989,16 +989,16 @@ class TestIngestFileRelationshipWritePath:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
-        async def _fake_relationships(content_text: str):
+        async def _fake_relationships(content_text: str, llm_identity: str):
             return triples
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -1220,13 +1220,13 @@ class TestSourceDocumentRawPoolFkOrdering:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -1288,10 +1288,10 @@ class TestSourceDocumentRawPoolFkOrdering:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
         import types
@@ -1304,10 +1304,10 @@ class TestSourceDocumentRawPoolFkOrdering:
             source_span_end=9,
         )
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return [mention]
 
-        async def _fake_relationships(content_text: str):
+        async def _fake_relationships(content_text: str, llm_identity: str):
             return [
                 RelationshipExtraction(
                     source="ACME Ltd", relationship="holds", target="ISO 9001"
@@ -1498,7 +1498,7 @@ class TestInv19QaDeclareSnapshot:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
@@ -1506,7 +1506,7 @@ class TestInv19QaDeclareSnapshot:
                 "suggested_title": "Inv-19 Doc",
             }
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             # The SAME two-pair input the pre-fork write-path contract test
             # used: one fully-populated pair + one defaults-fallback pair.
             return {
@@ -1526,7 +1526,7 @@ class TestInv19QaDeclareSnapshot:
                 ]
             }
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -1611,13 +1611,13 @@ class TestContentFingerprintAwaited:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -1684,13 +1684,13 @@ class TestSourceDocumentProvenanceWritePath:
 
     @staticmethod
     def _stub_extractors(flow: object, monkeypatch: pytest.MonkeyPatch) -> None:
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -2013,17 +2013,17 @@ def _stub_canonical_extractors(
     async def _fake_convert(file: object) -> str:
         return markdown
 
-    async def _fake_classification(content_text: str):
+    async def _fake_classification(content_text: str, llm_identity: str):
         return {
             "content_type": "case_study",
             "primary_domain": "procurement",
             "primary_subtopic": "tender_evaluation",
         }
 
-    async def _fake_qa(content_text: str):
+    async def _fake_qa(content_text: str, llm_identity: str):
         return {"qa_pairs": []}
 
-    async def _fake_entities(content_text: str):
+    async def _fake_entities(content_text: str, llm_identity: str):
         return []
 
     async def _fake_embed(content_text: str) -> list[float]:
@@ -2333,7 +2333,7 @@ class TestStampExtractionBaseWiredIntoIngest:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return ClassificationExtraction(
                 content_type="document",
                 primary_domain="procurement",
@@ -2341,7 +2341,7 @@ class TestStampExtractionBaseWiredIntoIngest:
                 classification_confidence=0.9,
             )
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return QAFormExtraction(
                 form_metadata=FormMetadata(form_type="tender", form_format="pdf"),
                 qa_pairs=[
@@ -2353,7 +2353,7 @@ class TestStampExtractionBaseWiredIntoIngest:
                 ],
             )
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             # Two mentions so the per-mention stamp is proved to run for EACH.
             return [
                 EntityMentionExtraction(
@@ -2500,13 +2500,13 @@ class TestStampExtractionBaseWiredIntoIngest:
         async def _fake_convert(file: object) -> str:
             return markdown
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study", "primary_domain": "procurement"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return []
 
         async def _fake_embed(content_text: str) -> list[float]:
@@ -2609,7 +2609,7 @@ class TestWorkspacePathFixes:
         async def _conv(file: object) -> str:
             return markdown
 
-        async def _cls(content_text: str):
+        async def _cls(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
@@ -2617,10 +2617,10 @@ class TestWorkspacePathFixes:
                 "suggested_title": "Doc Title",
             }
 
-        async def _qa(content_text: str):
+        async def _qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _ent(content_text: str):
+        async def _ent(content_text: str, llm_identity: str):
             return []
 
         async def _emb(content_text: str):
@@ -2731,7 +2731,7 @@ class TestWorkspacePathFixes:
         async def _conv(file: object) -> str:
             return markdown
 
-        async def _cls(content_text: str):
+        async def _cls(content_text: str, llm_identity: str):
             return {
                 "content_type": "case_study",
                 "primary_domain": "procurement",
@@ -2739,7 +2739,7 @@ class TestWorkspacePathFixes:
                 "suggested_title": "T",
             }
 
-        async def _qa(content_text: str):
+        async def _qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
         def _mention(name: str, conf: float):
@@ -2752,7 +2752,7 @@ class TestWorkspacePathFixes:
             )
 
         # Two mentions of the SAME entity (same name + type) -> same canonical.
-        async def _ent(content_text: str):
+        async def _ent(content_text: str, llm_identity: str):
             return [_mention("Acme Ltd", 0.7), _mention("Acme Ltd", 0.9)]
 
         async def _emb(content_text: str):
@@ -2833,13 +2833,13 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
         async def _fake_convert(file: object) -> str:
             return cls._MARKDOWN
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return [
                 EntityMentionExtraction(
                     entity_type="organisation",
@@ -2850,7 +2850,7 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
                 )
             ]
 
-        async def _fake_relationships(content_text: str):
+        async def _fake_relationships(content_text: str, llm_identity: str):
             return [
                 RelationshipExtraction(
                     source="ACME Ltd", relationship="holds", target="ISO 9001"
@@ -2981,13 +2981,13 @@ class TestUnjoinableTrailingPeriodRowClosed:
         async def _fake_convert(file: object) -> str:
             return self._MARKDOWN
 
-        async def _fake_classification(content_text: str):
+        async def _fake_classification(content_text: str, llm_identity: str):
             return {"content_type": "case_study"}
 
-        async def _fake_qa(content_text: str):
+        async def _fake_qa(content_text: str, llm_identity: str):
             return {"qa_pairs": []}
 
-        async def _fake_entities(content_text: str):
+        async def _fake_entities(content_text: str, llm_identity: str):
             return [
                 EntityMentionExtraction(
                     entity_type="organisation",
@@ -2998,7 +2998,7 @@ class TestUnjoinableTrailingPeriodRowClosed:
                 )
             ]
 
-        async def _fake_relationships(content_text: str):
+        async def _fake_relationships(content_text: str, llm_identity: str):
             return [
                 RelationshipExtraction(
                     source="Acme Ltd.", relationship="holds", target="ISO 9001"

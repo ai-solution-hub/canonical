@@ -3,9 +3,13 @@
 Verifies the canonical 1.x extraction pattern (S256 W1 amendment of
 `docs/specs/id-36-cocoindex-extraction-contract/TECH.md` §3.1):
 
-  - `extract_classification(content_text)` -> ClassificationExtraction
-  - `extract_qa_form(content_text)` -> QAFormExtraction
-  - `extract_entity_mentions(content_text)` -> list[EntityMentionExtraction]
+  - `extract_classification(content_text, llm_identity)` -> ClassificationExtraction
+  - `extract_qa_form(content_text, llm_identity)` -> QAFormExtraction
+  - `extract_entity_mentions(content_text, llm_identity)` -> list[EntityMentionExtraction]
+
+(`llm_identity` — the id-389 AC-3 memo-key discriminator — is the second
+positional every extractor gained; see `TestLlmIdentityIsMemoKeyOnly` at the
+foot of this file.)
 
 Each extractor:
   1. Calls `_anthropic_message(client, ...)` (bl-222), which routes through
@@ -281,6 +285,16 @@ def _fake_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-dummy-key-for-mocked-tests")
 
 
+# ── LLM-identity memo-key argument (id-389 AC-3, S559) ──────────────────────
+# Every extractor call in this file passes an explicit llm_identity — the
+# second positional the four `@coco.fn(memo=True)` extractors gained so the
+# LLM lane (base URL + model) joins their memo key. It is a memo-key
+# discriminator ONLY: it never reaches the Anthropic wire (asserted in
+# `TestLlmIdentityIsMemoKeyOnly`). This literal is the direct-Anthropic
+# production identity.
+_TEST_LLM_IDENTITY = "anthropic-direct:claude-opus-4-6"
+
+
 # ============================================================================
 # CLASSIFICATION EXTRACTOR
 # ============================================================================
@@ -297,7 +311,7 @@ class TestExtractClassification:
             return_value=mock_client,
         ):
             result = asyncio.run(
-                extract_classification("Test document content text.")
+                extract_classification("Test document content text.", _TEST_LLM_IDENTITY)
             )
         assert isinstance(result, ClassificationExtraction)
         assert result.content_type == "document"
@@ -329,18 +343,23 @@ class TestExtractClassification:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            asyncio.run(extract_classification(content))
+            asyncio.run(extract_classification(content, _TEST_LLM_IDENTITY))
         assert len(captured_messages) == 1
         kwargs = captured_messages[0]
-        # model=claude-opus-4-6; classification's max_tokens ceiling is the
-        # per-extractor constant ({73.1} — classification output is bounded so
-        # it keeps the modest 4096 budget while qa_form / entity_mentions get
-        # larger ceilings).
+        # model = the lane's RESOLVED model (id-389 AC-3 made it the
+        # EXTRACTION_MODEL knob's value — pinning the literal here would fail
+        # in any environment that legitimately selects the tier-2 model; the
+        # default is pinned in test_cocoindex_flow_idle_mode.py and the knob
+        # itself in TestExtractionModelKnob below). classification's
+        # max_tokens ceiling is the per-extractor constant ({73.1} —
+        # classification output is bounded so it keeps the modest 4096 budget
+        # while qa_form / entity_mentions get larger ceilings).
         from scripts.cocoindex_pipeline.extraction import (
+            ANTHROPIC_MODEL,
             _MAX_TOKENS_CLASSIFICATION,
         )
 
-        assert kwargs["model"] == "claude-opus-4-6"
+        assert kwargs["model"] == ANTHROPIC_MODEL
         assert kwargs["max_tokens"] == _MAX_TOKENS_CLASSIFICATION
         assert kwargs["messages"][0]["role"] == "user"
         # The static prompt rides in the system block (cached — see
@@ -363,7 +382,7 @@ class TestExtractClassification:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_classification("doc text"))
+                asyncio.run(extract_classification("doc text", _TEST_LLM_IDENTITY))
         # Per Q-EX2 §4.1: invalid content_type maps to 'invalid_enum' error_class.
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
@@ -379,7 +398,7 @@ class TestExtractClassification:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_classification("doc text"))
+                asyncio.run(extract_classification("doc text", _TEST_LLM_IDENTITY))
         # Per Q-EX2 §4.1: missing required field maps to 'missing_required'.
         assert classify_pydantic_error(exc_info.value) == "missing_required"
 
@@ -399,7 +418,7 @@ class TestExtractQAForm:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_qa_form("Test form content text."))
+            result = asyncio.run(extract_qa_form("Test form content text.", _TEST_LLM_IDENTITY))
         assert isinstance(result, QAFormExtraction)
         assert result.form_metadata.form_type == "psq"
         assert result.form_metadata.form_format == "docx"
@@ -424,7 +443,7 @@ class TestExtractQAForm:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            asyncio.run(extract_qa_form("form content"))
+            asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         assert len(captured) == 1
         # The Q_A_FORM_PROMPT rides in the cached system block (ID-61.1);
         # the user message carries only the per-document content — proves
@@ -447,7 +466,7 @@ class TestExtractQAForm:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_qa_form("form content"))
+                asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
     def test_unknown_form_type_validates_unchanged(self):
@@ -465,7 +484,7 @@ class TestExtractQAForm:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_qa_form("form content"))
+            result = asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         assert result.form_metadata.form_type == "rfx"
 
 
@@ -484,7 +503,7 @@ class TestExtractEntityMentions:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_entity_mentions("doc with entities"))
+            result = asyncio.run(extract_entity_mentions("doc with entities", _TEST_LLM_IDENTITY))
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(e, EntityMentionExtraction) for e in result)
@@ -505,7 +524,7 @@ class TestExtractEntityMentions:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_entity_mentions("doc with no entities"))
+            result = asyncio.run(extract_entity_mentions("doc with no entities", _TEST_LLM_IDENTITY))
         assert result == []
         assert isinstance(result, list)
 
@@ -519,7 +538,7 @@ class TestExtractEntityMentions:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_entity_mentions("doc text"))
+                asyncio.run(extract_entity_mentions("doc text", _TEST_LLM_IDENTITY))
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
     def test_negative_span_offset_raises_validation_error(self):
@@ -536,7 +555,7 @@ class TestExtractEntityMentions:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError):
-                asyncio.run(extract_entity_mentions("doc text"))
+                asyncio.run(extract_entity_mentions("doc text", _TEST_LLM_IDENTITY))
 
 
 # ============================================================================
@@ -554,7 +573,7 @@ class TestExtractRelationships:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_relationships("doc with relationships"))
+            result = asyncio.run(extract_relationships("doc with relationships", _TEST_LLM_IDENTITY))
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(r, RelationshipExtraction) for r in result)
@@ -578,7 +597,7 @@ class TestExtractRelationships:
             return_value=mock_client,
         ):
             result = asyncio.run(
-                extract_relationships("doc with no relationships")
+                extract_relationships("doc with no relationships", _TEST_LLM_IDENTITY)
             )
         assert result == []
         assert isinstance(result, list)
@@ -594,7 +613,7 @@ class TestExtractRelationships:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError) as exc_info:
-                asyncio.run(extract_relationships("doc text"))
+                asyncio.run(extract_relationships("doc text", _TEST_LLM_IDENTITY))
         assert classify_pydantic_error(exc_info.value) == "invalid_enum"
 
     def test_empty_source_raises_validation_error(self):
@@ -607,7 +626,7 @@ class TestExtractRelationships:
             return_value=mock_client,
         ):
             with pytest.raises(ValidationError):
-                asyncio.run(extract_relationships("doc text"))
+                asyncio.run(extract_relationships("doc text", _TEST_LLM_IDENTITY))
 
 
 # ============================================================================
@@ -634,12 +653,12 @@ class TestExtractorDecoration:
     """
 
     def test_extract_classification_call_returns_awaitable(self):
-        """extract_classification(content) returns an awaitable (cocoindex
+        """extract_classification(content, identity) returns an awaitable (cocoindex
         AsyncFunction in production / plain async function in stubbed-
         cocoindex tests)."""
         import inspect
 
-        coro = extract_classification("hi")
+        coro = extract_classification("hi", _TEST_LLM_IDENTITY)
         try:
             assert inspect.isawaitable(coro), (
                 f"extract_classification call must return an awaitable; "
@@ -650,10 +669,10 @@ class TestExtractorDecoration:
                 coro.close()
 
     def test_extract_qa_form_call_returns_awaitable(self):
-        """extract_qa_form(content) returns an awaitable."""
+        """extract_qa_form(content, identity) returns an awaitable."""
         import inspect
 
-        coro = extract_qa_form("hi")
+        coro = extract_qa_form("hi", _TEST_LLM_IDENTITY)
         try:
             assert inspect.isawaitable(coro), (
                 f"extract_qa_form call must return an awaitable; "
@@ -664,10 +683,10 @@ class TestExtractorDecoration:
                 coro.close()
 
     def test_extract_entity_mentions_call_returns_awaitable(self):
-        """extract_entity_mentions(content) returns an awaitable."""
+        """extract_entity_mentions(content, identity) returns an awaitable."""
         import inspect
 
-        coro = extract_entity_mentions("hi")
+        coro = extract_entity_mentions("hi", _TEST_LLM_IDENTITY)
         try:
             assert inspect.isawaitable(coro), (
                 f"extract_entity_mentions call must return an awaitable; "
@@ -678,10 +697,10 @@ class TestExtractorDecoration:
                 coro.close()
 
     def test_extract_relationships_call_returns_awaitable(self):
-        """extract_relationships(content) returns an awaitable ({101.6})."""
+        """extract_relationships(content, identity) returns an awaitable ({101.6})."""
         import inspect
 
-        coro = extract_relationships("hi")
+        coro = extract_relationships("hi", _TEST_LLM_IDENTITY)
         try:
             assert inspect.isawaitable(coro), (
                 f"extract_relationships call must return an awaitable; "
@@ -700,7 +719,7 @@ class TestExtractorDecoration:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_classification("hi"))
+            result = asyncio.run(extract_classification("hi", _TEST_LLM_IDENTITY))
         assert isinstance(result, ClassificationExtraction)
 
 
@@ -744,7 +763,7 @@ class TestExtractorsTolerateFencedResponse:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_classification("doc text"))
+            result = asyncio.run(extract_classification("doc text", _TEST_LLM_IDENTITY))
         assert isinstance(result, ClassificationExtraction)
         assert result.content_type == "document"
 
@@ -754,7 +773,7 @@ class TestExtractorsTolerateFencedResponse:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_qa_form("doc text"))
+            result = asyncio.run(extract_qa_form("doc text", _TEST_LLM_IDENTITY))
         assert isinstance(result, QAFormExtraction)
         assert result.form_metadata.form_type == "psq"
 
@@ -764,7 +783,7 @@ class TestExtractorsTolerateFencedResponse:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_entity_mentions("doc text"))
+            result = asyncio.run(extract_entity_mentions("doc text", _TEST_LLM_IDENTITY))
         assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(m, EntityMentionExtraction) for m in result)
@@ -825,7 +844,7 @@ class TestMaxTokensCeiling:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            asyncio.run(extract_qa_form("form content"))
+            asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         assert captured[0]["max_tokens"] == _MAX_TOKENS_QA_FORM
 
     def test_entity_mentions_requests_its_per_extractor_ceiling(self):
@@ -846,7 +865,7 @@ class TestMaxTokensCeiling:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            asyncio.run(extract_entity_mentions("doc text"))
+            asyncio.run(extract_entity_mentions("doc text", _TEST_LLM_IDENTITY))
         assert captured[0]["max_tokens"] == _MAX_TOKENS_ENTITY_MENTIONS
 
 
@@ -878,7 +897,7 @@ class TestTruncationGuard:
             return_value=mock_client,
         ):
             with pytest.raises(TruncatedExtractionError) as exc_info:
-                asyncio.run(extract_classification("doc text"))
+                asyncio.run(extract_classification("doc text", _TEST_LLM_IDENTITY))
         msg = str(exc_info.value)
         assert "extract_classification" in msg
         assert "max_tokens" in msg
@@ -894,7 +913,7 @@ class TestTruncationGuard:
             return_value=mock_client,
         ):
             with pytest.raises(TruncatedExtractionError) as exc_info:
-                asyncio.run(extract_qa_form("form content"))
+                asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         msg = str(exc_info.value)
         assert "extract_qa_form" in msg
         assert "max_tokens" in msg
@@ -910,7 +929,7 @@ class TestTruncationGuard:
             return_value=mock_client,
         ):
             with pytest.raises(TruncatedExtractionError) as exc_info:
-                asyncio.run(extract_entity_mentions("doc text"))
+                asyncio.run(extract_entity_mentions("doc text", _TEST_LLM_IDENTITY))
         msg = str(exc_info.value)
         assert "extract_entity_mentions" in msg
         assert "max_tokens" in msg
@@ -933,7 +952,7 @@ class TestTruncationGuard:
             "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
             return_value=mock_client,
         ):
-            result = asyncio.run(extract_qa_form("form content"))
+            result = asyncio.run(extract_qa_form("form content", _TEST_LLM_IDENTITY))
         assert isinstance(result, QAFormExtraction)
         assert len(result.qa_pairs) == 2
 
@@ -996,7 +1015,7 @@ class TestStreamingForLargeMaxTokens:
             # If extract_qa_form still called messages.create, the real SDK
             # guard would raise ValueError('Streaming is required ...') before
             # the mock could intercept. It does not — proving streaming.
-            result = asyncio.run(extract_qa_form("large ITT form content"))
+            result = asyncio.run(extract_qa_form("large ITT form content", _TEST_LLM_IDENTITY))
         assert isinstance(result, QAFormExtraction)
         # The extractor used the streaming surface, never non-streaming create.
         assert mock_client.messages.stream.call_count == 1
@@ -1017,7 +1036,7 @@ class TestStreamingForLargeMaxTokens:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                asyncio.run(runner("doc content"))
+                asyncio.run(runner("doc content", _TEST_LLM_IDENTITY))
             assert mock_client.messages.stream.call_count == 1, runner.__name__
             mock_client.messages.create.assert_not_called()
 
@@ -1042,7 +1061,7 @@ class TestStreamingForLargeMaxTokens:
             return_value=mock_client,
         ):
             with pytest.raises(TruncatedExtractionError) as exc_info:
-                asyncio.run(extract_qa_form("large form content"))
+                asyncio.run(extract_qa_form("large form content", _TEST_LLM_IDENTITY))
         msg = str(exc_info.value)
         assert "extract_qa_form" in msg
         assert "max_tokens" in msg
@@ -1110,7 +1129,7 @@ class TestPromptCachePassthrough:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                asyncio.run(extractor(content))
+                asyncio.run(extractor(content, _TEST_LLM_IDENTITY))
             assert len(captured) == 1, extractor
             assert captured[0]["system"] == [
                 {
@@ -1131,7 +1150,7 @@ class TestPromptCachePassthrough:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                asyncio.run(extractor(content))
+                asyncio.run(extractor(content, _TEST_LLM_IDENTITY))
             assert captured[0]["messages"] == [
                 {"role": "user", "content": content}
             ], f"{extractor}: user message must be exactly the uncached content_text"
@@ -1149,7 +1168,7 @@ class TestPromptCachePassthrough:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                asyncio.run(extractor("doc body"))
+                asyncio.run(extractor("doc body", _TEST_LLM_IDENTITY))
             sent_text = (
                 captured[0]["system"][0]["text"]
                 + captured[0]["messages"][0]["content"]
@@ -1191,8 +1210,8 @@ class TestPromptCachePassthrough:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                asyncio.run(extract_classification("first document body"))
-                asyncio.run(extract_classification("second document body"))
+                asyncio.run(extract_classification("first document body", _TEST_LLM_IDENTITY))
+                asyncio.run(extract_classification("second document body", _TEST_LLM_IDENTITY))
         usage_logs = [
             record.getMessage()
             for record in caplog.records
@@ -1219,9 +1238,221 @@ class TestPromptCachePassthrough:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                result = asyncio.run(extract_classification("doc body"))
+                result = asyncio.run(extract_classification("doc body", _TEST_LLM_IDENTITY))
         assert isinstance(result, ClassificationExtraction)
         assert not any(
             "cache_read_input_tokens" in record.getMessage()
             for record in caplog.records
         )
+
+
+# ============================================================================
+# EXTRACTION MODEL KNOB + LLM IDENTITY (id-389 AC-3, owner ruling S559)
+# ============================================================================
+#
+# S559 ratified tier-2 extraction on `z-ai/glm-5.2` through OpenRouter's
+# Anthropic-compat endpoint, which needs (a) a model knob on the extraction
+# lane and (b) the LLM's identity inside the memo key — without (b) a
+# mock-tier walk's canned outputs are replayed to a GLM / real-Anthropic run
+# out of the SAME LMDB memo store (the defect id-389 AC-3 fixes).
+
+
+class TestExtractionModelKnob:
+    """`EXTRACTION_MODEL` overrides the extraction lane's model; unset OR
+    empty falls back to the production default.
+
+    Empty-string parity is load-bearing, not pedantry: the compose passthrough
+    that carries this var renders an unset Coolify variable as `""` (the same
+    hazard `_extraction_async_client()` scrubs for the credential vars), so
+    `""` MUST mean "unset", never "a model named empty string".
+    """
+
+    def test_unset_resolves_to_the_production_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.delenv("EXTRACTION_MODEL", raising=False)
+        assert extraction._resolve_extraction_model() == "claude-opus-4-6"
+
+    def test_env_override_selects_the_tier_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setenv("EXTRACTION_MODEL", "z-ai/glm-5.2")
+        assert extraction._resolve_extraction_model() == "z-ai/glm-5.2"
+
+    def test_empty_string_falls_back_to_the_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setenv("EXTRACTION_MODEL", "")
+        assert extraction._resolve_extraction_model() == "claude-opus-4-6", (
+            "an empty EXTRACTION_MODEL (an unset Coolify var rendered blank) "
+            "must fall back exactly like an absent one"
+        )
+
+    def test_module_constant_is_the_resolved_value(self) -> None:
+        """`ANTHROPIC_MODEL` — the name every extractor call site and
+        `pair_resolver.py` read — IS the knob's resolution, not an
+        independent literal that can drift from it."""
+        from scripts.cocoindex_pipeline import extraction
+
+        assert extraction.ANTHROPIC_MODEL == extraction._resolve_extraction_model()
+
+    def test_extractor_sends_the_resolved_model_on_the_wire(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The knob is not decorative: whatever it resolves to is the `model`
+        the SDK call carries."""
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "z-ai/glm-5.2")
+        mock_client = _make_mock_client(_classification_json())
+        captured: list[Any] = []
+        original_stream = mock_client.messages.stream
+
+        def _capture_stream(**kwargs: Any) -> Any:
+            captured.append(kwargs)
+            return original_stream(**kwargs)
+
+        mock_client.messages.stream = _capture_stream
+        with patch(
+            "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            asyncio.run(extraction.extract_classification("doc", _TEST_LLM_IDENTITY))
+        assert captured[0]["model"] == "z-ai/glm-5.2"
+
+
+class TestResolveLlmIdentity:
+    """`resolve_llm_identity()` names the LLM actually serving this lane —
+    `"{base_url or 'anthropic-direct'}:{model}"`. It is the memo-key
+    discriminator that keeps one tier's outputs out of another tier's cache.
+    """
+
+    def test_direct_anthropic_when_no_base_url(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "claude-opus-4-6")
+        assert extraction.resolve_llm_identity() == "anthropic-direct:claude-opus-4-6"
+
+    def test_base_url_and_model_both_appear(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "z-ai/glm-5.2")
+        assert (
+            extraction.resolve_llm_identity()
+            == "https://openrouter.ai/api:z-ai/glm-5.2"
+        )
+
+    def test_empty_base_url_reads_as_direct(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same empty-string discipline as `_extraction_async_client()`: a
+        blank-rendered `ANTHROPIC_BASE_URL` is UNSET, so the identity must
+        match the direct-Anthropic one byte-for-byte (otherwise a blank
+        render would silently fork the memo namespace)."""
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "claude-opus-4-6")
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "")
+        blank = extraction.resolve_llm_identity()
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        assert blank == extraction.resolve_llm_identity()
+
+    def test_the_three_id389_tiers_are_mutually_distinct(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The whole point: mock / OpenRouter-GLM / direct-Anthropic must
+        never collide on one identity string."""
+        from scripts.cocoindex_pipeline import extraction
+
+        identities = set()
+        for base_url, model in (
+            ("http://mock-llm:8090", "claude-opus-4-6"),
+            ("https://openrouter.ai/api", "z-ai/glm-5.2"),
+            (None, "claude-opus-4-6"),
+        ):
+            if base_url is None:
+                monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+            else:
+                monkeypatch.setenv("ANTHROPIC_BASE_URL", base_url)
+            monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", model)
+            identities.add(extraction.resolve_llm_identity())
+        assert len(identities) == 3, f"tier identities collided: {identities}"
+
+    def test_same_endpoint_different_model_is_a_different_identity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The model half must count on its own — OpenRouter serves both the
+        real Claude and GLM from ONE base URL."""
+        from scripts.cocoindex_pipeline import extraction
+
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "claude-opus-4-6")
+        opus = extraction.resolve_llm_identity()
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "z-ai/glm-5.2")
+        assert opus != extraction.resolve_llm_identity()
+
+
+class TestLlmIdentityIsMemoKeyOnly:
+    """The identity is a memo-key argument, NOT prompt/wire content: it must
+    never reach the Anthropic request (it would bust prompt caching and put
+    deploy-topology strings into the model's context)."""
+
+    def _cases(self):
+        return (
+            (extract_classification, _classification_json()),
+            (extract_qa_form, _qa_form_json()),
+            (extract_entity_mentions, _entity_mentions_json()),
+            (extract_relationships, _relationships_json()),
+        )
+
+    def test_every_extractor_accepts_the_identity_and_still_validates(self) -> None:
+        for extractor, payload in self._cases():
+            mock_client = _make_mock_client(payload)
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                result = asyncio.run(
+                    extractor("doc body", "https://openrouter.ai/api:z-ai/glm-5.2")
+                )
+            assert result is not None
+
+    def test_identity_never_reaches_the_request(self) -> None:
+        identity = "https://openrouter.ai/api:z-ai/glm-5.2"
+        for extractor, payload in self._cases():
+            mock_client = _make_mock_client(payload)
+            captured: list[Any] = []
+            original_stream = mock_client.messages.stream
+
+            def _capture_stream(_orig=original_stream, **kwargs: Any) -> Any:
+                captured.append(kwargs)
+                return _orig(**kwargs)
+
+            mock_client.messages.stream = _capture_stream
+            with patch(
+                "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
+                return_value=mock_client,
+            ):
+                asyncio.run(extractor("doc body", identity))
+            sent = json.dumps(
+                {
+                    "system": captured[0]["system"],
+                    "messages": captured[0]["messages"],
+                }
+            )
+            assert identity not in sent, (
+                f"{extractor}: llm_identity leaked into the request payload — "
+                "it is a memo-key discriminator, not prompt content"
+            )

@@ -70,7 +70,7 @@ from conftest import fresh_flow_module  # noqa: E402
 # ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
 # ingest_file tests make no live Anthropic call (mirrors the
 # extract_entity_mentions stubs alongside).
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -361,17 +361,17 @@ def _run_app_main_over_dir(
     async def _fake_convert(file: object) -> str:
         return "# Heading\n\nLive ingest body text."
 
-    async def _default_classification(content_text: str):
+    async def _default_classification(content_text: str, llm_identity: str):
         return {
             "content_type": "case_study",
             "primary_domain": "procurement",
             "primary_subtopic": "tender_evaluation",
         }
 
-    async def _fake_qa(content_text: str):
+    async def _fake_qa(content_text: str, llm_identity: str):
         return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-    async def _fake_entities(content_text: str):
+    async def _fake_entities(content_text: str, llm_identity: str):
         return []
 
     async def _fake_embed(content_text: str) -> list[float]:
@@ -597,7 +597,7 @@ class TestLiveIngestAcrossDaemonThreadBoundary:
 
         seen: dict[str, object] = {}
 
-        async def _classification_reads_meta(content_text: str):
+        async def _classification_reads_meta(content_text: str, llm_identity: str):
             # Runs on the worker thread, inside ingest_file. Reads the contextvar
             # the way stamp_extraction_base in extraction.py does — through the
             # flow_context module's current_flow_meta().

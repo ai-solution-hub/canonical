@@ -56,7 +56,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.cocoindex_pipeline import flow  # noqa: E402
+from scripts.cocoindex_pipeline import extraction, flow  # noqa: E402
 from scripts.cocoindex_pipeline.extraction import (  # noqa: E402
     _bypass_memo_extractor,
     _resolve_coco_deserialization_error,
@@ -108,14 +108,20 @@ class _StaleThenRawSucceedsExtractor:
         self._success_value = success_value
         self.memo_call_count = 0
         self.raw_call_count = 0
+        # id-389 AC-3: both call paths record the llm_identity they were
+        # handed, so the forwarding contract is assertable.
+        self.memo_identities: list[str] = []
+        self.raw_identities: list[str] = []
         self._orig_async_fn = self._raw
 
-    async def __call__(self, content_text: str) -> object:
+    async def __call__(self, content_text: str, llm_identity: str) -> object:
         self.memo_call_count += 1
+        self.memo_identities.append(llm_identity)
         raise self._error_cls(f"stale memo payload for {content_text!r}")
 
-    async def _raw(self, content_text: str) -> object:
+    async def _raw(self, content_text: str, llm_identity: str) -> object:
         self.raw_call_count += 1
+        self.raw_identities.append(llm_identity)
         return self._success_value
 
 
@@ -127,13 +133,15 @@ class _HealthyMemoExtractor:
     def __init__(self, success_value: object) -> None:
         self._success_value = success_value
         self.memo_call_count = 0
+        self.memo_identities: list[str] = []
         self._orig_async_fn = self._raw
 
-    async def __call__(self, content_text: str) -> object:
+    async def __call__(self, content_text: str, llm_identity: str) -> object:
         self.memo_call_count += 1
+        self.memo_identities.append(llm_identity)
         return self._success_value
 
-    async def _raw(self, content_text: str) -> object:
+    async def _raw(self, content_text: str, llm_identity: str) -> object:
         raise AssertionError(
             "the memo self-heal bypass must NEVER fire on a healthy memo hit"
         )
@@ -147,7 +155,7 @@ class _NoOrigAsyncFnExtractor:
     def __init__(self, error_cls: type[BaseException]) -> None:
         self._error_cls = error_cls
 
-    async def __call__(self, content_text: str) -> object:
+    async def __call__(self, content_text: str, llm_identity: str) -> object:
         raise self._error_cls("stale memo payload")
 
 
@@ -156,7 +164,7 @@ class _NetworkFailingExtractor:
     requires this propagate UNCHANGED, never routed through the memo
     self-heal fallback."""
 
-    async def __call__(self, content_text: str) -> object:
+    async def __call__(self, content_text: str, llm_identity: str) -> object:
         raise TimeoutError("simulated transient network failure")
 
 
@@ -529,6 +537,257 @@ class TestBindMemoHealCounter:
         assert results["classification"].tally() == {"classification": 1}
         assert results["qa_form"].tally() == {"qa_form": 1}
         assert results["classification"] is not results["qa_form"]
+
+
+# ============================================================================
+# id-389 AC-3 (S559) — the LLM identity rides through the wrapper into the
+# extractor's memo key
+# ============================================================================
+
+
+class TestExtractWithMemoSelfHealForwardsLlmIdentity:
+    """`extract_with_memo_self_heal` is the ONLY channel flow.py calls the
+    four Path-A extractors through, so it is where the lane's LLM identity
+    joins the call — resolved per-call from the live env
+    (`resolve_llm_identity()`), never captured at import time, because a
+    Coolify tier flip changes it between processes and the memo store
+    outlives them.
+    """
+
+    def test_current_identity_is_forwarded_to_the_memoized_extractor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "z-ai/glm-5.2")
+        extractor = _HealthyMemoExtractor(success_value="cached-result")
+
+        asyncio.run(
+            extract_with_memo_self_heal(
+                extractor,
+                "some content",
+                extractor_name="classification",
+                rel_path="content/some-doc.md",
+            )
+        )
+
+        assert extractor.memo_identities == ["https://openrouter.ai/api:z-ai/glm-5.2"]
+
+    def test_the_raw_bypass_gets_the_same_identity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A self-heal re-extraction must be attributed to the SAME lane as
+        the memo lookup it replaces — otherwise the heal would write (or at
+        least compute) under a different identity than it read."""
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://mock-llm:8090")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "claude-opus-4-6")
+        error_cls = _resolve_coco_deserialization_error()
+        extractor = _StaleThenRawSucceedsExtractor(error_cls, success_value="OK")
+
+        result = asyncio.run(
+            extract_with_memo_self_heal(
+                extractor,
+                "some content",
+                extractor_name="classification",
+                rel_path="content/some-doc.md",
+            )
+        )
+
+        assert result == "OK"
+        assert extractor.memo_identities == ["http://mock-llm:8090:claude-opus-4-6"]
+        assert extractor.raw_identities == extractor.memo_identities
+
+    def test_a_tier_flip_changes_the_identity_the_wrapper_forwards(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The behaviour the defect turns on: the same content_text under two
+        different tiers must NOT arrive at the extractor as the same call."""
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://mock-llm:8090")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "claude-opus-4-6")
+        extractor = _HealthyMemoExtractor(success_value="cached-result")
+
+        async def _call() -> None:
+            await extract_with_memo_self_heal(
+                extractor,
+                "identical content",
+                extractor_name="classification",
+                rel_path="content/some-doc.md",
+            )
+
+        asyncio.run(_call())
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://openrouter.ai/api")
+        monkeypatch.setattr(extraction, "ANTHROPIC_MODEL", "z-ai/glm-5.2")
+        asyncio.run(_call())
+
+        assert extractor.memo_identities[0] != extractor.memo_identities[1], (
+            "a mock-tier call and a GLM-tier call over identical content must "
+            "differ in the argument that keys the memo"
+        )
+
+
+# ── id-389 AC-3 memo-KEY probe (runs in a SUBPROCESS) ──────────────────────
+#
+# Same subprocess rationale as the S460 fingerprint probe below (a real,
+# never-stubbed `cocoindex` — see that block's comment). This probe computes
+# the ACTUAL memo key the engine computes: `AsyncFunction.__call__`
+# (`cocoindex/_internal/function.py:1354`) keys a memo lookup with
+# `fingerprint_call(self._any_fn, args, kwargs, state_methods=...)`, and
+# `_any_fn` IS `_orig_async_fn` for an async function (property at :1287).
+# So calling `fingerprint_call` on `_orig_async_fn` with the production
+# argument tuple reproduces the engine's own key byte-for-byte — no
+# re-implementation of the fingerprint rules, and no LMDB/engine boot needed.
+_MEMO_KEY_IDENTITY_PROBE_SRC = """
+import inspect, json, sys
+sys.path.insert(0, sys.argv[1])
+
+from scripts.cocoindex_pipeline import extraction
+from cocoindex._internal.memo_fingerprint import fingerprint_call
+
+MOCK = "http://mock-llm:8090:claude-opus-4-6"
+GLM = "https://openrouter.ai/api:z-ai/glm-5.2"
+DOC = "the identical document body"
+
+
+def _key(fn, args, *, bind=True):
+    # `bind` routes the tuple through the extractor's REAL signature first, so
+    # this probe cannot report a green key for an argument tuple the engine
+    # could never actually pass (a bare fingerprint_call happily fingerprints
+    # any tuple). The legacy content-only shape is deliberately NOT bound —
+    # its whole point is that it no longer binds.
+    if bind:
+        inspect.signature(fn).bind(*args)
+    return fingerprint_call(fn, args, {}, []).as_bytes().hex()
+
+
+result = {}
+for name in (
+    "extract_classification",
+    "extract_qa_form",
+    "extract_entity_mentions",
+    "extract_relationships",
+):
+    raw = getattr(extraction, name)._orig_async_fn
+    result[name] = {
+        "params": list(inspect.signature(raw).parameters),
+        "mock": _key(raw, (DOC, MOCK)),
+        "mock_repeat": _key(raw, (DOC, MOCK)),
+        "glm": _key(raw, (DOC, GLM)),
+        "glm_other_doc": _key(raw, ("a different document body", GLM)),
+        "content_only": _key(raw, (DOC,), bind=False),
+    }
+
+print(json.dumps(result))
+"""
+
+_MEMO_KEY_IDENTITY_PROBE_CACHE: dict | None = None
+
+
+def _run_memo_key_identity_probe() -> dict:
+    global _MEMO_KEY_IDENTITY_PROBE_CACHE
+    if _MEMO_KEY_IDENTITY_PROBE_CACHE is not None:
+        return _MEMO_KEY_IDENTITY_PROBE_CACHE
+
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".py", prefix="id389-memo-key-probe-", delete=False
+    ) as fh:
+        fh.write(_MEMO_KEY_IDENTITY_PROBE_SRC)
+        script_path = fh.name
+
+    proc = subprocess.run(
+        [sys.executable, script_path, str(_REPO_ROOT)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=_REPO_ROOT,
+    )
+    assert proc.returncode == 0, (
+        f"memo-key identity probe subprocess failed (exit {proc.returncode}):\n"
+        f"{proc.stderr}"
+    )
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    _MEMO_KEY_IDENTITY_PROBE_CACHE = result
+    return result
+
+
+_PATH_A_EXTRACTORS = (
+    "extract_classification",
+    "extract_qa_form",
+    "extract_entity_mentions",
+    "extract_relationships",
+)
+
+
+class TestLlmIdentityParticipatesInTheMemoKey:
+    """id-389 AC-3 (S559): the memo key of all four Path-A extractors carries
+    the LLM identity, so a mock-tier walk's canned outputs can never be
+    replayed to a GLM or real-Anthropic run out of the same LMDB store.
+
+    `llm_identity` is a plain `str`, which is exactly why this works without
+    any memo-key hook: `_canonicalize` returns primitives as-is BEFORE either
+    hook path is consulted (the finding recorded in the `version=1` comment
+    block in extraction.py — the same property that made a NARROWER
+    invalidation impossible there makes this discrimination free here).
+    """
+
+    def test_every_extractor_takes_the_identity_as_its_second_positional(
+        self,
+    ) -> None:
+        """Signature-level pin: `(content_text, llm_identity)` — positional,
+        REQUIRED, no default. A default would let a future call site silently
+        omit it and re-open the cross-tier collision under a `""` identity."""
+        result = _run_memo_key_identity_probe()
+        for name in _PATH_A_EXTRACTORS:
+            assert result[name]["params"] == ["content_text", "llm_identity"], (
+                f"{name}: expected (content_text, llm_identity); got "
+                f"{result[name]['params']}"
+            )
+
+    def test_different_tier_yields_a_different_memo_key(self) -> None:
+        result = _run_memo_key_identity_probe()
+        for name in _PATH_A_EXTRACTORS:
+            keys = result[name]
+            assert keys["mock"] != keys["glm"], (
+                f"{name}: identical content under the mock tier and the GLM "
+                "tier must NOT share a memo key — that collision IS the "
+                "id-389 AC-3 defect"
+            )
+
+    def test_same_tier_and_content_still_memo_hits(self) -> None:
+        """The flip side, and the reason this is not just 'add entropy':
+        within ONE tier the key must stay stable, or every walk re-burns."""
+        result = _run_memo_key_identity_probe()
+        for name in _PATH_A_EXTRACTORS:
+            keys = result[name]
+            assert keys["mock"] == keys["mock_repeat"], (
+                f"{name}: the same (content, identity) pair must produce a "
+                "STABLE key — an unstable one would re-burn the whole corpus "
+                "on every walk"
+            )
+
+    def test_content_still_discriminates_within_one_tier(self) -> None:
+        result = _run_memo_key_identity_probe()
+        for name in _PATH_A_EXTRACTORS:
+            keys = result[name]
+            assert keys["glm"] != keys["glm_other_doc"], (
+                f"{name}: content_text must keep keying the memo (Inv-21) — "
+                "the identity is an ADDITIONAL discriminator, not a replacement"
+            )
+
+    def test_the_identity_aware_key_differs_from_the_legacy_content_only_key(
+        self,
+    ) -> None:
+        """The owner-approved one-time burn, measured: every pre-id-389 memo
+        entry (keyed on `(content_text,)` alone) is unreachable from the new
+        `(content_text, llm_identity)` call shape, so the first walk after
+        this deploys re-extracts the corpus once — per S559 cost approval.
+        This is ALSO why `extract_classification`'s `version=1` must NOT be
+        bumped again: the argument-shape change already forces the miss."""
+        result = _run_memo_key_identity_probe()
+        for name in _PATH_A_EXTRACTORS:
+            keys = result[name]
+            assert keys["content_only"] not in (keys["mock"], keys["glm"]), (
+                f"{name}: the legacy content-only memo key must not be "
+                "reachable from the identity-aware call shape"
+            )
 
 
 # ============================================================================

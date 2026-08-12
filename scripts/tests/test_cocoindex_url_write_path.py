@@ -181,7 +181,7 @@ def _wire(
 
     monkeypatch.setattr(flow, "_fetch_url_bytes", _fake_fetch_url_bytes)
 
-    async def _fake_classification(content_text: str):
+    async def _fake_classification(content_text: str, llm_identity: str):
         return {
             "content_type": "news",  # DISCARDED on the URL route (D-10)
             "primary_domain": "procurement",

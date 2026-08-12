@@ -97,6 +97,13 @@ from scripts.cocoindex_pipeline.flow_context import (  # noqa: E402
 )
 
 
+# The id-389 AC-3 memo-key discriminator every extractor now takes as its
+# second positional (see extraction.py `resolve_llm_identity`). Retry
+# behaviour is identity-agnostic; this file just supplies the production
+# direct-Anthropic value so the calls bind.
+_TEST_LLM_IDENTITY = "anthropic-direct:claude-opus-4-6"
+
+
 # ── Test stubs ──────────────────────────────────────────────────────────────
 
 
@@ -312,7 +319,7 @@ class TestRetryOnTransient503:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_classification("test content")
+                    return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -336,7 +343,7 @@ class TestRetryOnTransient503:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_classification("test content")
+                    return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -357,7 +364,7 @@ class TestRetryOnTransient503:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_classification("test content")
+                    return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -379,7 +386,7 @@ class TestRetryOnTransient503:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_classification("test content")
+                    return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -416,7 +423,7 @@ class TestRetryExhaustion:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_classification("test content")
+                    await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         with pytest.raises(anthropic.InternalServerError):
             asyncio.run(_exercise())
@@ -447,7 +454,7 @@ class TestNoRetryOnAuthErrors:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_classification("test content")
+                    await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         with pytest.raises(anthropic.AuthenticationError):
             asyncio.run(_exercise())
@@ -469,7 +476,7 @@ class TestNoRetryOnAuthErrors:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_classification("test content")
+                    await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         with pytest.raises(anthropic.BadRequestError):
             asyncio.run(_exercise())
@@ -504,7 +511,7 @@ class TestWithoutRetryCounterBinding:
                 "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                 return_value=mock_client,
             ):
-                return await extract_classification("test content")
+                return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -534,7 +541,7 @@ class TestAllThreeExtractorsRetry:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_qa_form("test content")
+                    return await extract_qa_form("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, QAFormExtraction)
@@ -554,7 +561,7 @@ class TestAllThreeExtractorsRetry:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_entity_mentions("test content")
+                    return await extract_entity_mentions("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, list)
@@ -572,7 +579,7 @@ class TestAllThreeExtractorsRetry:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_qa_form("test content")
+                    await extract_qa_form("test content", _TEST_LLM_IDENTITY)
 
         with pytest.raises(anthropic.AuthenticationError):
             asyncio.run(_exercise())
@@ -590,7 +597,7 @@ class TestAllThreeExtractorsRetry:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_entity_mentions("test content")
+                    await extract_entity_mentions("test content", _TEST_LLM_IDENTITY)
 
         with pytest.raises(anthropic.AuthenticationError):
             asyncio.run(_exercise())

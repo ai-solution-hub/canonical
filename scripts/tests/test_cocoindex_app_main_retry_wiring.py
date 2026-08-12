@@ -285,6 +285,13 @@ with stubbed_sys_modules(
     )
 
 
+# The id-389 AC-3 memo-key discriminator every extractor takes as its second
+# positional (extraction.py `resolve_llm_identity`). Retry wiring is
+# identity-agnostic; this is just the production direct-Anthropic value so the
+# calls below bind.
+_TEST_LLM_IDENTITY = "anthropic-direct:claude-opus-4-6"
+
+
 # Pin this file's aiohttp stub onto the captured `flow.aiohttp` so the webhook
 # emission helper sees our in-memory session rather than firing live HTTP. We
 # pin onto the STUB module object — never the real aiohttp package — so nothing
@@ -624,7 +631,7 @@ class TestRetryBumpFiresInsideAppMainBindingScope:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    return await extract_classification("test content")
+                    return await extract_classification("test content", _TEST_LLM_IDENTITY)
 
         result = asyncio.run(_exercise())
         assert isinstance(result, ClassificationExtraction)
@@ -671,7 +678,7 @@ class TestRetryBumpFiresInsideAppMainBindingScope:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_classification("test content")
+                    await extract_classification("test content", _TEST_LLM_IDENTITY)
             # After the scope: emit the rollup webhook (mirrors app_main()
             # finally-block emission).
             await flow._emit_pipeline_run_webhook(
@@ -732,7 +739,7 @@ class TestNoRetryHappyPathPreserved:
                     "scripts.cocoindex_pipeline.extraction.anthropic.AsyncAnthropic",
                     return_value=mock_client,
                 ):
-                    await extract_classification("test content")
+                    await extract_classification("test content", _TEST_LLM_IDENTITY)
             await flow._emit_pipeline_run_webhook(
                 op_id=uuid.uuid4(),
                 status="completed",

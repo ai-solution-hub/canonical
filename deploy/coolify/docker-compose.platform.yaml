@@ -183,6 +183,17 @@ services:
       # NO mockllm sibling in prod by design - mock is a staging/CI tier.
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+      # id-389 AC-3 (S559): the extraction model, defaulting UNSET -> the
+      # claude-opus-4-6 pin in extraction.py. Set to `z-ai/glm-5.2` alongside
+      # the OpenRouter BASE_URL/AUTH_TOKEN pair above for the tier-2 lane.
+      # Blank-safe by the same discipline as those two: extraction.py's
+      # `_resolve_extraction_model()` treats "" as unset (a blank render must
+      # never become `model=""` on the wire). Changing this changes the memo
+      # identity (`resolve_llm_identity`) and so re-extracts the corpus once
+      # under the new model — a DELIBERATE, owner-cost-approved property, not
+      # a surprise: it is what stops a mock-tier or prior-model memo entry
+      # being replayed as if this model had produced it.
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}

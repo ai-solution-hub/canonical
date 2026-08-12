@@ -73,7 +73,7 @@ from conftest import passthrough_coco_fn, stubbed_sys_modules  # noqa: E402
 # ID-101 §{101.7}: neutralise the relationship-extraction Path-A seam so
 # ingest_file tests make no live Anthropic call (mirrors the
 # extract_entity_mentions stubs alongside).
-async def _fake_relationships_empty(content_text: str) -> list:
+async def _fake_relationships_empty(content_text: str, llm_identity: str) -> list:
     return []
 
 
@@ -229,13 +229,13 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_convert(file: object) -> str:
         return _MARKDOWN
 
-    async def _fake_classification(content_text: str):
+    async def _fake_classification(content_text: str, llm_identity: str):
         return {"content_type": "document", "primary_domain": "procurement"}
 
-    async def _fake_qa(content_text: str):
+    async def _fake_qa(content_text: str, llm_identity: str):
         return {"qa_pairs": [{"question_text": "Q?", "answer_text": "A."}]}
 
-    async def _fake_entities(content_text: str):
+    async def _fake_entities(content_text: str, llm_identity: str):
         return []
 
     monkeypatch.setattr(flow, "convert_binary_to_markdown", _fake_convert)
