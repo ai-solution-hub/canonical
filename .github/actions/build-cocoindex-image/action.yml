@@ -48,8 +48,15 @@ runs:
           fi
         fi
         if [ "${{ inputs.push }}" = "true" ]; then OUTPUT=--push; else OUTPUT=--load; fi
+        # --provenance/--sbom=false: buildx otherwise attaches an attestation
+        # manifest, turning the pushed tag into an OCI INDEX whose top level
+        # has no layers — which silently degrades onprem-deploy.yml's
+        # image-size budget step to its "registry read unavailable" skip
+        # (observed on the first main build, S560). A single-platform image
+        # manifest keeps that signal alive; we have no attestation consumer.
         docker buildx build \
           --builder kh-cocoindex-builder \
+          --provenance=false --sbom=false \
           --platform linux/amd64 \
           -f deploy/docker/cocoindex.Dockerfile \
           "${TAG_ARGS[@]}" \
