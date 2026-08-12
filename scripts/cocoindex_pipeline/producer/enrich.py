@@ -18,7 +18,8 @@ builders into the producer's first pass (TECH.md §"The two-pass loop"):
 
 **enrich_concept does NOT write files.** Its `ConceptDraft` return value is
 handed onward to `{132.10}`'s bundle-writer, which validator-gates (BI-13,
-`producer/validator.py`) the draft before `localfs.declare_file`.
+`producer/validator.py`) the draft into the run output that `git_sync`
+lands on disk (DR-146).
 
 **Zero web egress (BI-15).** The only tools wired here are the three
 Source-adapter tools — no `httpx`/`aiohttp` import anywhere in this module,
@@ -332,8 +333,9 @@ class _Pass1TerminalJsonError(Pass1DraftError):
 @dataclass(frozen=True)
 class ConceptDraft:
     """Pass-1's in-memory output. Handed to `{132.10}`'s bundle-writer,
-    which validator-gates (BI-13) + `localfs.declare_file`-writes it —
-    `enrich_concept` does NOT write files itself."""
+    which validator-gates (BI-13) + folds it into the run output that
+    `git_sync` writes (DR-146) — `enrich_concept` does NOT write files
+    itself."""
 
     key: ConceptKeyLike
     """ID-427 {427.16}: the shared structural contract, not `ConceptKey`.

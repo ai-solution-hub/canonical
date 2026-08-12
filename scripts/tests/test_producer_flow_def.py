@@ -99,53 +99,6 @@ def _won_bid_rel_path(basename: str) -> str:
 # ── Test doubles ────────────────────────────────────────────────────────
 
 
-def _declare_file_side_effect(path, content, *, create_parent_dirs: bool = False) -> None:
-    """Mirrors the real `cocoindex.connectors.localfs.declare_file` filesystem
-    side effect (`path.parent.mkdir(...)` then `path.write_bytes(...)`) — read
-    off the installed `cocoindex==1.0.7` source during {132.10}'s probe."""
-    target = Path(path)
-    if create_parent_dirs:
-        target.parent.mkdir(parents=True, exist_ok=True)
-    data = content.encode() if isinstance(content, str) else content
-    target.write_bytes(data)
-
-
-class _SideEffectLocalfs:
-    """A stand-in for `bundle_writer.localfs` whose `declare_file` actually
-    writes to disk, so `write_bundle` produces real bundle files."""
-
-    def declare_file(self, path, content, *, create_parent_dirs: bool = False) -> None:
-        _declare_file_side_effect(path, content, create_parent_dirs=create_parent_dirs)
-
-
-class _DeferredLocalfs:
-    """Models the REAL cocoindex engine's write timing (measured at the
-    installed 1.0.18 pin): `declare_file` is a DECLARATION, and the physical
-    write lands only AFTER the flow body returns.
-
-    `_SideEffectLocalfs` above writes EAGERLY. That is faithful enough for
-    assertions about final bundle content, but it structurally cannot
-    reproduce ID-445 — with eager writes a mid-body directory read already
-    sees THIS run's output, so the defect (reading the PREVIOUS run's tree)
-    is invisible. **This fixture gap is why the whole producer suite stayed
-    green over a defect that reported 15 removals and performed none.**
-
-    Call `apply()` after the flow returns to play the engine's reconcile
-    pass."""
-
-    def __init__(self) -> None:
-        self.pending: "dict[Path, str]" = {}
-
-    def declare_file(self, path, content, *, create_parent_dirs: bool = False) -> None:
-        self.pending[Path(path)] = content
-
-    def apply(self) -> None:
-        for path, content in self.pending.items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
-        self.pending.clear()
-
-
 class _FakeRecordEmbeddingsTarget:
     """Dict-keyed fake mirroring cocoindex's `mount_table_target` UPSERT on the
     M1b `UNIQUE (owner_kind, owner_id, model)` natural key (same shape as
@@ -175,8 +128,10 @@ async def _fake_embedder(_text: str) -> "list[float]":
 def env(monkeypatch: pytest.MonkeyPatch):
     """Enter the cocoindex stub for the whole test body (so `run_producer_flow`'s
     lazy imports resolve stub-backed) and hand back the composed modules plus a
-    validator-passing draft builder. `bundle_writer.localfs` is patched with a
-    real filesystem side effect so `write_bundle` writes actual files."""
+    validator-passing draft builder. Since DR-146 (id-448) `write_bundle` is
+    pure content computation and `git_sync` performs every physical write, so
+    no localfs write stub exists any more — the flow's own writer is the real
+    one under test."""
     with stubbed_sys_modules(make_cocoindex_stubs()):
         flow_def = importlib.import_module("scripts.cocoindex_pipeline.producer.flow_def")
         bundle_writer = importlib.import_module(
@@ -196,8 +151,6 @@ def env(monkeypatch: pytest.MonkeyPatch):
         resource_uri = importlib.import_module(
             "scripts.cocoindex_pipeline.producer.resource_uri"
         )
-
-        monkeypatch.setattr(bundle_writer, "localfs", _SideEffectLocalfs())
 
         def build_draft(
             rel_path: str,
@@ -327,9 +280,10 @@ def bundle_dir(tmp_path: Path) -> Path:
 
 class TestFullRun:
     def test_writes_files_embeds_and_stages_without_committing(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
-        # Build three concepts keyed by their ConceptKey.
+        # DR-055/DR-146 deployed shape: bundle_dir == repo_path — ONE
+        # client-owned clone, written solely by git_sync.
         drafts_by_key = {}
         for rel_path, title in (
             ("topics/alpha.md", "Alpha"),
@@ -344,7 +298,7 @@ class TestFullRun:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 re_target=re_target,
                 repo_path=repo,
                 embedder=_fake_embedder,
@@ -352,12 +306,12 @@ class TestFullRun:
         )
 
         # BI-11: concept files + bundle artefacts written to disk.
-        assert (bundle_dir / "topics/alpha.md").is_file()
-        assert (bundle_dir / "topics/beta.md").is_file()
-        assert (bundle_dir / "topics/gamma.md").is_file()
-        assert (bundle_dir / "index.md").is_file()
-        assert (bundle_dir / "log.md").is_file()
-        assert (bundle_dir / "ontology.json").is_file()
+        assert (repo / "topics/alpha.md").is_file()
+        assert (repo / "topics/beta.md").is_file()
+        assert (repo / "topics/gamma.md").is_file()
+        assert (repo / "index.md").is_file()
+        assert (repo / "log.md").is_file()
+        assert (repo / "ontology.json").is_file()
 
         # BI-26: exactly one record_embeddings(owner_kind='concept') row per concept.
         assert len(re_target.rows) == 3
@@ -399,20 +353,20 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
     `desired` was never `None`, and `git_sync`'s removal branch could not
     fire. `new_output` now comes from `summary.declared`.
 
-    **Why this needs two runs.** The unit stub for `localfs.declare_file`
-    writes EAGERLY, while the real cocoindex engine defers every write until
-    after the flow body returns — which is why no single-run test could ever
-    have caught this, and why the whole producer suite stayed green over the
-    defect. A second run defeats the stub's eagerness for the removal half:
-    the stale file is on disk from run 1 whatever the write timing is, so a
-    directory read picks it up and the removal branch stays unreachable.
+    **Why this needs two runs.** The removal branch only has something to
+    remove once a prior run's tree is on disk with the concept committed at
+    HEAD — a single run over an empty clone can classify nothing as
+    de-enumerated. (Historically this class also had to defeat an eager
+    localfs test stub whose write timing hid ID-445; DR-146 removed the
+    engine from the write path entirely, so the hazard is now structural
+    history rather than a fixture trap.)
     """
 
-    def _run(self, env, bundle_dir: Path, repo: Path):
+    def _run(self, env, repo: Path):
         return asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 re_target=_FakeRecordEmbeddingsTarget(),
                 repo_path=repo,
                 embedder=_fake_embedder,
@@ -420,7 +374,7 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
         )
 
     def test_a_de_enumerated_concept_is_deleted_from_the_repo_working_tree(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         drafts_by_key = {}
         for rel_path, title in (
@@ -431,7 +385,7 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
             draft = env.build_draft(rel_path, title=title)
             drafts_by_key[draft.key] = draft
         _wire_source(env, drafts_by_key)
-        self._run(env, bundle_dir, repo)
+        self._run(env, repo)
         assert (repo / "topics/gamma.md").is_file()
 
         # Publish run 1, so the repo models a real client-owned bundle: a
@@ -450,7 +404,7 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
             if draft.key.rel_path != "topics/gamma.md"
         }
         _wire_source(env, survivors)
-        report2 = self._run(env, bundle_dir, repo)
+        report2 = self._run(env, repo)
 
         assert "topics/gamma.md" in report2.summary.removed
         # The headline: reported AND gone. Before ID-445 only the first of
@@ -459,24 +413,20 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
         assert (repo / "topics/alpha.md").is_file()
 
     def test_the_proposed_change_set_describes_this_run_not_the_previous_one(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         """ID-445 AC-2. The S551 run emitted 21 of 23 entries `unchanged` and
         omitted its own 14-concept diff entirely, because every `desired` was
         the byte-identical pre-run content.
 
-        Runs against `_DeferredLocalfs`, NOT the eager default: under eager
-        writes this assertion passes with or without the fix, because a
-        mid-body directory read already sees this run's bytes. The engine
-        defers, so the test must too or it guards nothing."""
-        engine = _DeferredLocalfs()
-        env.monkeypatch.setattr(env.bundle_writer, "localfs", engine)
-
+        (Historically this ran against a deferred-write localfs stub because
+        the eager default hid the defect. DR-146 removed the engine write
+        entirely — `summary.declared` is the only channel — so the test now
+        guards the content-not-kind claim on the production write path.)"""
         first = env.build_draft("topics/alpha.md", title="Alpha")
         _wire_source(env, {first.key: first})
-        self._run(env, bundle_dir, repo)
-        engine.apply()  # the engine's reconcile pass, after the body returned
-        # Publish run 1 — again load-bearing. With no commit, `last` is None
+        self._run(env, repo)
+        # Publish run 1 — load-bearing. With no commit, `last` is None
         # while `current` holds run 1's staged bytes, so `current != last AND
         # current != desired` and run 2 is classified a HUMAN EDIT and left
         # untouched. A real bundle is a clone with history (DR-016).
@@ -486,8 +436,7 @@ class TestDeEnumeratedConceptIsActuallyRemoved:
         # Run 2 genuinely changes alpha's content.
         edited = env.build_draft("topics/alpha.md", title="Alpha Revised")
         _wire_source(env, {edited.key: edited})
-        report2 = self._run(env, bundle_dir, repo)
-        engine.apply()
+        report2 = self._run(env, repo)
 
         assert report2.proposed_change_set is not None
         changes = {
@@ -938,7 +887,7 @@ class TestConceptFeederWiring:
 
 class TestNoOpLogOnlyRuling:
     def test_second_identical_run_skips_staging_too(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         drafts_by_key = {}
         for rel_path, title in (("topics/alpha.md", "Alpha"), ("topics/beta.md", "Beta")):
@@ -950,7 +899,7 @@ class TestNoOpLogOnlyRuling:
             return asyncio.run(
                 env.flow_def.run_producer_flow(
                     pool=object(),
-                    bundle_dir=bundle_dir,
+                    bundle_dir=repo,
                     re_target=_FakeRecordEmbeddingsTarget(),
                     repo_path=repo,
                     embedder=_fake_embedder,
@@ -1028,7 +977,7 @@ class TestTheCensusReachesTheBundleThroughTheFlow:
             )
 
     def test_an_unrouted_rerun_still_stages_though_nothing_on_disk_changed(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         """**The concrete consequence of `is_no_op` gaining the census
         term.** A re-run over an unchanged corpus is byte-identical, so
@@ -1054,7 +1003,7 @@ class TestTheCensusReachesTheBundleThroughTheFlow:
         first = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 repo_path=repo,
                 timestamp="2026-08-10T09:00:00Z",
             )
@@ -1068,7 +1017,7 @@ class TestTheCensusReachesTheBundleThroughTheFlow:
         second = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 repo_path=repo,
                 timestamp="2026-08-10T10:00:00Z",
             )
@@ -1078,7 +1027,7 @@ class TestTheCensusReachesTheBundleThroughTheFlow:
         assert second.summary.changed == ()
         assert second.summary.is_no_op is False
         assert second.sync_result is not None  # NOT skipped by the S456 rule
-        log_text = (bundle_dir / "log.md").read_text(encoding="utf-8")
+        log_text = (repo / "log.md").read_text(encoding="utf-8")
         assert (
             "* **Run 2026-08-10T10:00:00Z — Unrouted (3):** source_documents 3"
         ) in log_text
@@ -1232,7 +1181,7 @@ class TestDegradation:
         assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
 
     def test_stages_regardless_of_seed_contract_status(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         """{132.27}: BI-21 gating is no longer this module's concern — it
         moved entirely to `publish.py`'s own `publish_bundle`/`producer
@@ -1245,7 +1194,7 @@ class TestDegradation:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 repo_path=repo,
                 embedder=_fake_embedder,
             )
@@ -1261,7 +1210,7 @@ class TestDegradation:
 
 class TestContainment:
     def test_one_bad_concept_does_not_abort_the_run(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         good = env.build_draft("topics/good.md", title="Good")
         bad_key = env.l_records.ConceptKey(
@@ -1292,18 +1241,17 @@ class TestContainment:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 re_target=re_target,
                 repo_path=repo,
                 embedder=_fake_embedder,
             )
         )
 
-        assert (bundle_dir / "topics/good.md").is_file()
-        assert not (bundle_dir / "topics/bad.md").exists()
+        assert (repo / "topics/good.md").is_file()
+        assert not (repo / "topics/bad.md").exists()
         assert report.committed is False
         assert report.sync_result.staged is True
-        assert (repo / "topics/good.md").is_file()
         assert _commit_count(repo) == 0
 
 
@@ -1437,7 +1385,7 @@ class TestPass2Optional:
 
 class TestBI28StagingProvenance:
     def test_a_won_bid_run_lands_staging_and_stamps_source_form_instance_id(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         # ID-427 {427.8}: the won-bid grain declares `case-studies/won-bid`,
         # so its concepts arrive with that identity. This was
@@ -1459,7 +1407,7 @@ class TestBI28StagingProvenance:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 re_target=re_target,
                 repo_path=repo,
                 embedder=_fake_embedder,
@@ -1507,7 +1455,7 @@ class TestBI28StagingProvenance:
         assert changes["topics/alpha.md"]["source_form_instance_id"] is None
 
     def test_same_slug_collision_embeds_the_correct_bodies_and_provenance(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         """{132.29} regression, carried across ID-427 {427.8}: a named-client
         and a won-bid `case_study` concept for the SAME buyer slug must each
@@ -1556,7 +1504,7 @@ class TestBI28StagingProvenance:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 re_target=re_target,
                 repo_path=repo,
                 embedder=_fake_embedder,
@@ -1599,7 +1547,7 @@ class TestBI28StagingProvenance:
 
 class TestOverrideReapply:
     def test_an_injected_override_is_folded_onto_the_staged_output(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         from scripts.cocoindex_pipeline.producer.git_sync import ProducerOverride
 
@@ -1615,21 +1563,24 @@ class TestOverrideReapply:
         report = asyncio.run(
             env.flow_def.run_producer_flow(
                 pool=object(),
-                bundle_dir=bundle_dir,
+                bundle_dir=repo,
                 repo_path=repo,
                 embedder=_fake_embedder,
                 overrides=[override],
             )
         )
 
+        # id-448 AC-3 (DR-146): the approved override survives the run — the
+        # WORKING TREE and the GIT INDEX carry the same overridden bytes.
+        # Under the declaration model the engine wrote the un-overridden
+        # declared content over the applied override after the flow body
+        # returned, leaving the two disagreeing.
         assert report.sync_result.staged is True
-        staged_content = (repo / "topics/alpha.md").read_text(encoding="utf-8")
-        assert "description: Human-approved description" in staged_content
-        # The producer's own fresh draft in bundle_dir is untouched by the
-        # override — reapply_overrides folds it onto the STAGED repo output
-        # only, never the local bundle_dir working copy.
-        bundle_content = (bundle_dir / "topics/alpha.md").read_text(encoding="utf-8")
-        assert "description: Desc" in bundle_content
+        tree_content = (repo / "topics/alpha.md").read_text(encoding="utf-8")
+        assert "description: Human-approved description" in tree_content
+        index_content = _git(repo, "show", ":topics/alpha.md")
+        assert "description: Human-approved description" in index_content
+        assert tree_content == index_content
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1956,7 +1907,9 @@ class TestBothMeasuredHolesLandInTheBundle:
         page = (bundle_dir / _UNDISTILLED_PATH).read_text()
 
         assert "Escalate to a subject-matter expert." in page
-        assert "confidence: no-content" in page
+        # (`confidence: no-content` was asserted here until id-428 retired
+        # the `confidence` field; the escalation line above and the type
+        # below are the surviving subject of this test.)
         assert "type: document" in page
 
     def test_both_holes_appear_in_the_run_summary_as_added(self, run) -> None:
@@ -2010,7 +1963,7 @@ class TestTheResidualQuestionnaireCarriesBI28Provenance:
     the residual grain keeps using the field rather than inventing its own."""
 
     def test_a_residual_questionnaire_concept_is_stamped_with_its_form_instance(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         form_instance = "55555555-5555-4555-8555-555555555555"
         residual = env.build_draft(
@@ -2025,7 +1978,7 @@ class TestTheResidualQuestionnaireCarriesBI28Provenance:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                pool=object(), bundle_dir=bundle_dir, repo_path=repo
+                pool=object(), bundle_dir=repo, repo_path=repo
             )
         )
 
@@ -2209,7 +2162,7 @@ class TestATemplateGrainEntersNeitherPass:
         assert env.enrich._samples_source_documents(source, key) is False
 
     def test_a_repo_concept_key_reaches_staging_without_an_attributeerror(
-        self, env, bundle_dir: Path, repo: Path
+        self, env, repo: Path
     ) -> None:
         """ID-427 {427.16} — a REGRESSION, measured before it was fixed, and
         asserted through the REAL `run_producer_flow` rather than against a
@@ -2247,7 +2200,7 @@ class TestATemplateGrainEntersNeitherPass:
 
         report = asyncio.run(
             env.flow_def.run_producer_flow(
-                pool=object(), bundle_dir=bundle_dir, repo_path=repo
+                pool=object(), bundle_dir=repo, repo_path=repo
             )
         )
 

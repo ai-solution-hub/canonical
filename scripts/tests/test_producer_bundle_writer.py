@@ -1,10 +1,10 @@
-"""Tests for producer/bundle_writer.py — validator-gated `declare_file` per
-concept + `index.md`/`log.md` writers + the DR-027 ontology artefact
-(ID-132 {132.10} G-BUNDLE).
+"""Tests for producer/bundle_writer.py — the validator-gated per-concept
+content computation + `index.md`/`log.md` writers + the DR-027 ontology
+artefact (ID-132 {132.10} G-BUNDLE).
 
 Per the {132.10} testStrategy:
 
-  - a concept failing the validator is NOT `declare_file`-written (BI-13);
+  - a concept failing the validator produces NO content (BI-13);
   - `index.md` renders nav over a ~30-50-file fixture bundle;
   - `log.md` appends one block per run;
   - a no-op re-run produces a no-op diff (BI-18).
@@ -16,18 +16,30 @@ axis is the directory itself ({429.5}, D1/D7). That is a design decision
 the owner took, NOT a conformance fix: §8 says an index MAY appear in any
 directory and §11 forbids rejecting a bundle for missing ones.
 
-`localfs.declare_file` is stubbed with a REAL filesystem side effect
-(mirrors the installed `cocoindex==1.0.7`
-`connectors/localfs/_target.py:declare_file`'s own `mkdir`+`write_bytes`)
-rather than a no-op MagicMock — bundle_writer's own added/changed/removed
-diffing reads `bundle_dir`'s on-disk state between calls (see the module
-docstring's `_existing_concept_paths` rationale), so the stub must actually
-write files for that logic to be exercised meaningfully. Booting the real
-cocoindex `App`/`update()` machinery is unnecessary for testing this
-module's OWN orchestration logic (the declare_file LINEAGE/reconciliation
-behaviour itself was verified separately via an unsandboxed real-engine
-probe — the {132.10} EXECUTOR-VERIFY finding cited in the module
-docstring).
+**DR-146 (id-448) is what these tests assert against, and it moves the
+boundary this file measures.** `write_bundle` and its helpers are PURE
+CONTENT COMPUTATION: they call no `localfs.declare_file`, register no
+engine target state, and write no file. Each helper returns its content
+(`ConceptWriteResult.content`, the `{rel_path: content}` index map, the
+rendered artefact/log strings) and `write_bundle` returns a `RunSummary`
+whose `.declared` mapping is the run's COMPLETE output. So the contract a
+test can observe is the RETURNED content, not the tree — the retired
+`localfs` stub with its real filesystem side effect (and the
+`declare_file` call-arg assertions that rode on it) had nothing left to
+observe, and every claim they carried is relocated onto `.declared` /
+`ConceptWriteResult` here.
+
+Physical writing is the git layer's job (`producer/git_sync.py`, tested in
+`test_producer_git_sync.py`). A test whose SECOND run has to diff against
+the first run's landed tree therefore lands it explicitly via `_land`
+below — the plain non-git `write_tree` pass, which is the ordering
+production takes. A stale per-directory `index.md` no longer disappears by
+the engine's orphan-delete; it reaches `RunSummary.removed_indexes`, which
+is the channel those tests assert on now.
+
+The wider DR-146 contract (`write_bundle` declares nothing, `git_sync` is
+sole writer, `write_tree` refuses a git target) is pinned in
+`test_producer_dr146_sole_writer.py`.
 
 De-identified throughout: directory names and concept titles below are
 generic placeholder business categories, never the real first-client corpus.
@@ -69,31 +81,23 @@ def _make_coco_stub() -> MagicMock:
     return stub
 
 
-def _declare_file_side_effect(path, content, *, create_parent_dirs: bool = False) -> None:
-    """Mirrors the REAL `cocoindex.connectors.localfs.declare_file`
-    filesystem side effect exactly (`_target.py`: `path.parent.mkdir(...)`
-    then `path.write_bytes(...)`) — read directly off the installed
-    `cocoindex==1.0.7` source during the {132.10} EXECUTOR-VERIFY probe."""
-    target = Path(path)
-    if create_parent_dirs:
-        target.parent.mkdir(parents=True, exist_ok=True)
-    data = content.encode() if isinstance(content, str) else content
-    target.write_bytes(data)
-
-
-def _make_localfs_stub() -> MagicMock:
-    stub = MagicMock(name="cocoindex.connectors.localfs")
-    stub.declare_file = MagicMock(side_effect=_declare_file_side_effect)
-    return stub
-
-
 _coco_stub = _make_coco_stub()
-_localfs_stub = _make_localfs_stub()
 
+# DR-146 (id-448): `bundle_writer` no longer imports `localfs` at all. The
+# stub entry stays because the stubbed import context still covers the
+# `enrich`/`web_pass` imports this module pulls in transitively, which reach
+# the `_coco_api` façade.
 with stubbed_sys_modules(
-    {"cocoindex": _coco_stub, "cocoindex.connectors.localfs": _localfs_stub}
+    {
+        "cocoindex": _coco_stub,
+        "cocoindex.connectors.localfs": MagicMock(
+            name="cocoindex.connectors.localfs"
+        ),
+    }
 ):
     from scripts.cocoindex_pipeline.producer import bundle_writer  # noqa: E402
+
+from scripts.cocoindex_pipeline.producer import git_sync  # noqa: E402
 
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft  # noqa: E402
 from scripts.cocoindex_pipeline.producer.frontmatter import (  # noqa: E402
@@ -151,13 +155,30 @@ _TS_RUN_BULLET_RE = re.compile(r"^\*\s+\*\*Run\s+(\S+)\s+[—-]")
 _SAMPLE_UUID = "11111111-1111-4111-8111-111111111111"
 
 
-@pytest.fixture(autouse=True)
-def _reset_declare_file_calls():
-    _localfs_stub.declare_file.reset_mock()
-    yield
-
-
 _SD_URI = build_source_document_uri(_SAMPLE_UUID)
+
+
+def _land(bundle_dir: Path, summary) -> None:
+    """Land a run's computed output on disk — the git layer's job (DR-146).
+
+    `write_bundle` writes nothing, so a test whose SECOND run must diff
+    against the first run's tree has to land the first run explicitly. This
+    is the plain non-git write pass (`write_tree`) production takes for a
+    `repo_path is None` caller, in the same order `run_producer_flow` uses:
+    the run's declared content, minus the paths it reported removed."""
+    git_sync.write_tree(
+        bundle_dir,
+        dict(summary.declared),
+        removed_paths=(*summary.removed, *summary.removed_indexes),
+    )
+
+
+def _write_bundle_and_land(bundle_dir: Path, *args, **kwargs):
+    """`write_bundle` followed by `_land` — for the multi-run tests whose
+    subject is the SECOND run's diff against the first run's tree."""
+    summary = bundle_writer.write_bundle(bundle_dir, *args, **kwargs)
+    _land(bundle_dir, summary)
+    return summary
 
 
 def _fm(
@@ -206,29 +227,33 @@ def _draft(
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# declare_concept — BI-13 gate then BI-11 declare_file
+# declare_concept — BI-13 gate then the concept's computed content
+#
+# DR-146 (id-448): the gate's outcome is `ConceptWriteResult` and nothing
+# else — a passing concept carries its exact bytes in `.content`, a gated
+# one carries none. The physical write is `git_sync`'s.
 # ─────────────────────────────────────────────────────────────────────────
 
 
-def test_declare_concept_valid_writes_file(tmp_path: Path) -> None:
+def test_declare_concept_valid_returns_the_rendered_markdown(tmp_path: Path) -> None:
     draft = _draft("topics/alpha.md", title="Alpha")
     result = bundle_writer.declare_concept(tmp_path, draft)
 
     assert result.written is True
     assert result.errors == ()
     assert result.is_new is True
-    _localfs_stub.declare_file.assert_called_once()
-    written_path = (tmp_path / "topics/alpha.md")
-    written = written_path.read_text(encoding="utf-8")
-    # v0.2 (id-426): the draft is written AS-IS — provenance is the
-    # frontmatter `sources:` list plus the `[^id]` footnote definitions the
-    # single shared emitters already rendered at draft time; no write-time
-    # trailer normalisation exists any more (F1-A).
+    # v0.2 (id-426): the draft's content is computed AS-IS — provenance is
+    # the frontmatter `sources:` list plus the `[^id]` footnote definitions
+    # the single shared emitters already rendered at draft time; no
+    # write-time trailer normalisation exists any more (F1-A).
+    written = result.content
     assert written == draft.rendered_markdown
     assert written.startswith("---\n")
     assert "sources:\n" in written
     assert f"    resource: {_SD_URI}\n" in written
     assert "# Citations" not in written
+    # DR-146: computing the content is the whole of what this call does.
+    assert not (tmp_path / "topics/alpha.md").exists()
 
 
 def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
@@ -250,7 +275,10 @@ def test_declare_concept_invalid_not_written(tmp_path: Path) -> None:
 
     assert result.written is False
     assert result.errors  # non-empty — BI-13 aggregate violations
-    _localfs_stub.declare_file.assert_not_called()
+    # BI-13: a gated concept produces NO content, so there is nothing for
+    # the git layer to land (DR-146 — this is what the retired
+    # `declare_file.assert_not_called()` was asserting).
+    assert result.content == ""
     assert not (tmp_path / "topics/bad.md").exists()
 
 
@@ -279,7 +307,7 @@ def test_declare_concept_reference_draft_uses_rel_path_not_key(tmp_path: Path) -
 
     assert result.rel_path == "references/iso-27001.md"
     assert result.written is True
-    assert (tmp_path / "references/iso-27001.md").exists()
+    assert result.content.startswith("---\n")
 
 
 def test_declare_concept_writes_free_form_facet_tags_unrewritten(
@@ -296,7 +324,8 @@ def test_declare_concept_writes_free_form_facet_tags_unrewritten(
     the deleted alias-fold was a write-path normalisation
     (`normalise_facet_tags`' own docstring called itself "the shared
     normalisation downstream writers call"), so proving it is gone means
-    reading the emitted file, not a validator return value.
+    reading the emitted CONTENT (DR-146: the bytes the git layer will land),
+    not a validator return value.
     """
     draft = ConceptDraft(
         key=ConceptKey(
@@ -317,18 +346,25 @@ def test_declare_concept_writes_free_form_facet_tags_unrewritten(
 
     assert result.written is True
     assert result.errors == ()
-    written = (tmp_path / "topics/facets.md").read_text(encoding="utf-8")
+    written = result.content
     # Verbatim and in order — `methodology` is NOT collapsed onto `playbook`.
     assert "tags:\n  - metric\n  - dataset\n  - methodology\n  - playbook\n" in written
 
 
 def test_declare_concept_classifies_new_changed_unchanged(tmp_path: Path) -> None:
+    """The classification is a diff against the LANDED tree, so each call's
+    content is landed before the next one runs — the git layer's write is
+    what a subsequent run sees (DR-146), and this test is about exactly that
+    ordering."""
+    target = tmp_path / "topics/alpha.md"
     draft_v1 = _draft("topics/alpha.md", title="Alpha")
     r1 = bundle_writer.declare_concept(tmp_path, draft_v1)
     assert r1.is_new is True and r1.changed is False
+    git_sync.write_tree(tmp_path, {"topics/alpha.md": r1.content})
 
     r2 = bundle_writer.declare_concept(tmp_path, draft_v1)
     assert r2.is_new is False and r2.changed is False  # byte-identical content
+    assert r2.content == target.read_text(encoding="utf-8")
 
     draft_v2 = _draft("topics/alpha.md", title="Alpha", body_suffix=" Updated.")
     r3 = bundle_writer.declare_concept(tmp_path, draft_v2)
@@ -340,9 +376,9 @@ def test_declare_concept_writes_the_v02_provenance_surface_as_is(
 ) -> None:
     """v0.2 (id-426, F1-A): no write-time trailer normalisation — the
     draft's `sources:` frontmatter (record anchor + bundle-absolute
-    cross-link) and its `[^id]` footnote definitions land on disk exactly
-    as the shared emitters rendered them; no `# Citations` heading is ever
-    emitted."""
+    cross-link) and its `[^id]` footnote definitions reach the computed
+    content exactly as the shared emitters rendered them; no `# Citations`
+    heading is ever emitted."""
     citations = [_SD_URI, "certifications/iso-9001.md"]
     sources = sources_from_citations(citations)
     key = ConceptKey(
@@ -364,7 +400,7 @@ def test_declare_concept_writes_the_v02_provenance_surface_as_is(
     result = bundle_writer.declare_concept(tmp_path, draft)
 
     assert result.written is True
-    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
+    written = result.content
     assert written == draft.rendered_markdown
     assert f"    resource: {_SD_URI}\n" in written
     assert "    resource: /certifications/iso-9001.md\n" in written
@@ -561,13 +597,20 @@ def test_render_log_entry_no_op_run_still_emits_a_visible_bullet() -> None:
 
 
 def test_append_log_entry_prepends_new_date_sections_newest_first(tmp_path: Path) -> None:
+    """`append_log_entry` reconstructs the FULL log from whatever is on disk
+    plus this run's bullets, so the first run's content is landed (the git
+    layer's write, DR-146) before the second run reads it back."""
     summary1 = bundle_writer.RunSummary(added=("topics/a.md",))
-    bundle_writer.append_log_entry(tmp_path, summary1, timestamp="2026-07-08T00:00:00Z")
+    first = bundle_writer.append_log_entry(
+        tmp_path, summary1, timestamp="2026-07-08T00:00:00Z"
+    )
+    git_sync.write_tree(tmp_path, {"log.md": first})
 
     summary2 = bundle_writer.RunSummary(added=("topics/b.md",))
-    bundle_writer.append_log_entry(tmp_path, summary2, timestamp="2026-07-09T00:00:00Z")
+    text = bundle_writer.append_log_entry(
+        tmp_path, summary2, timestamp="2026-07-09T00:00:00Z"
+    )
 
-    text = (tmp_path / "log.md").read_text(encoding="utf-8")
     headings = [
         m.group(1) for line in text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
     ]
@@ -582,18 +625,19 @@ def test_append_log_entry_prepends_new_date_sections_newest_first(tmp_path: Path
 def test_append_log_entry_merges_same_date_runs_newest_run_first(tmp_path: Path) -> None:
     """Two runs on the SAME date share ONE `## YYYY-MM-DD` heading; the
     newer run's bullets are inserted at the TOP of that section."""
-    bundle_writer.append_log_entry(
+    first = bundle_writer.append_log_entry(
         tmp_path,
         bundle_writer.RunSummary(added=("topics/a.md",)),
         timestamp="2026-07-08T09:00:00Z",
     )
-    bundle_writer.append_log_entry(
+    git_sync.write_tree(tmp_path, {"log.md": first})
+
+    text = bundle_writer.append_log_entry(
         tmp_path,
         bundle_writer.RunSummary(changed=("topics/a.md",)),
         timestamp="2026-07-08T15:00:00Z",
     )
 
-    text = (tmp_path / "log.md").read_text(encoding="utf-8")
     headings = [
         m.group(1) for line in text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
     ]
@@ -627,14 +671,15 @@ def test_write_bundle_validator_failure_excluded_from_write_and_index(tmp_path: 
     assert summary.added == ("topics/good.md",)
     assert len(summary.validator_failures) == 1
     assert summary.validator_failures[0][0] == "topics/bad.md"
-    assert not (tmp_path / "topics/bad.md").exists()
-    assert (tmp_path / "topics/good.md").exists()
+    # BI-13: the rejected concept is in no output the git layer will land.
+    assert "topics/bad.md" not in summary.declared
+    assert "topics/good.md" in summary.declared
 
-    index_text = (tmp_path / "index.md").read_text(encoding="utf-8")
+    index_text = summary.declared["index.md"]
     assert "topics/good.md" in index_text
     assert "topics/bad.md" not in index_text
 
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    log_text = summary.declared["log.md"]
     assert "topics/bad.md" in log_text  # WARNING line names the rejected concept
 
 
@@ -642,17 +687,21 @@ def test_write_bundle_removed_concept_detected(tmp_path: Path) -> None:
     d1 = _draft("topics/a.md", title="A")
     d2 = _draft("topics/b.md", title="B")
     d3 = _draft("topics/c.md", title="C")
-    bundle_writer.write_bundle(tmp_path, [d1, d2, d3])
+    _write_bundle_and_land(tmp_path, [d1, d2, d3])
 
-    _localfs_stub.declare_file.reset_mock()
     summary2 = bundle_writer.write_bundle(tmp_path, [d1, d2])  # c dropped
 
     assert summary2.removed == ("topics/c.md",)
-    # bundle_writer never itself unlinks a removed concept — it relies on
-    # the REAL engine's own declare_file lineage (EXECUTOR-VERIFY finding).
-    called_paths = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
-    assert str(tmp_path / "topics/c.md") not in called_paths
-    assert (tmp_path / "topics/c.md").exists()  # only the ENGINE deletes it, not this call
+    # `bundle_writer` never itself unlinks a removed concept, and never
+    # re-computes its content — it reports the path on the removal channel
+    # and the git layer performs the delete (DR-146). Under the retired
+    # declaration model this was asserted as the ABSENCE of a `declare_file`
+    # call, with the engine's orphan-delete doing the unlink; the claim is
+    # unchanged, the channel is explicit.
+    assert "topics/c.md" not in summary2.declared
+    assert (tmp_path / "topics/c.md").exists()  # the write_bundle call left it alone
+    _land(tmp_path, summary2)
+    assert not (tmp_path / "topics/c.md").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -692,7 +741,7 @@ def test_nested_index_and_log_are_never_reported_removed_on_any_run(
 
     drafts = [_draft("topics/a.md", title="A")]
 
-    summary1 = bundle_writer.write_bundle(
+    summary1 = _write_bundle_and_land(
         tmp_path, drafts, timestamp="2026-08-10T00:00:00Z"
     )
     summary2 = bundle_writer.write_bundle(
@@ -708,7 +757,9 @@ def test_nested_index_and_log_are_never_reported_removed_on_any_run(
         assert "case-studies/log.md" not in summary.added
 
     # The client's hand-authored nested log survives untouched — the producer
-    # never declares one (D8), so the engine never orphan-deletes it.
+    # never produces one (D8) and never reports it removed, so neither run's
+    # landed output can reach it.
+    assert "case-studies/log.md" not in summary2.declared
     assert (tmp_path / "case-studies" / "log.md").exists()
 
 
@@ -765,10 +816,9 @@ def test_write_bundle_transient_draft_failure_keeps_last_good_version_not_remove
     d1 = _draft("topics/a.md", title="A")
     d2 = _draft("topics/b.md", title="B")
     d3 = _draft("topics/c.md", title="C")
-    bundle_writer.write_bundle(tmp_path, [d1, d2, d3])
-    original_c = (tmp_path / "topics/c.md").read_text(encoding="utf-8")
+    first = _write_bundle_and_land(tmp_path, [d1, d2, d3])
+    original_c = first.declared["topics/c.md"]
 
-    _localfs_stub.declare_file.reset_mock()
     # c's draft failed THIS run (still present in the source catalogue) —
     # d3 is simply not offered this time, exactly as a caught upstream
     # exception would leave it out of `write_bundle`'s `drafts` argument.
@@ -779,15 +829,14 @@ def test_write_bundle_transient_draft_failure_keeps_last_good_version_not_remove
     # NOT reported as removed — Defect B's headline behaviour.
     assert summary2.removed == ()
     assert summary2.failed == ("topics/c.md",)
-    # The last-good content survives on disk, byte-identical.
+    # And its last-good content IS part of this run's output, byte-identical
+    # — never silently dropped, which would leave the path de-enumerated and
+    # free for the git layer to delete regardless of what
+    # `RunSummary.removed` reports.
+    assert summary2.declared["topics/c.md"] == original_c
+    # So the run's landed tree keeps the last-good version untouched.
+    _land(tmp_path, summary2)
     assert (tmp_path / "topics/c.md").read_text(encoding="utf-8") == original_c
-    # And it WAS re-declared this run (kept in the engine's this-run
-    # declared keyset) — never silently skipped, which would leave the
-    # REAL engine's own orphan-delete reconciliation free to remove it
-    # regardless of what RunSummary.removed reports (module docstring's
-    # EXECUTOR-VERIFY finding).
-    called_paths = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
-    assert str(tmp_path / "topics/c.md") in called_paths
 
 
 def test_write_bundle_still_removes_a_concept_genuinely_absent_from_the_source(
@@ -799,7 +848,7 @@ def test_write_bundle_still_removes_a_concept_genuinely_absent_from_the_source(
     d1 = _draft("topics/a.md", title="A")
     d2 = _draft("topics/b.md", title="B")
     d3 = _draft("topics/c.md", title="C")
-    bundle_writer.write_bundle(tmp_path, [d1, d2, d3])
+    _write_bundle_and_land(tmp_path, [d1, d2, d3])
 
     summary2 = bundle_writer.write_bundle(tmp_path, [d1, d2], failed_rel_paths=())
 
@@ -822,7 +871,8 @@ def test_write_bundle_failed_rel_path_with_no_prior_content_has_nothing_to_reaff
 
     assert summary.failed == ("topics/never-drafted.md",)
     assert summary.removed == ()
-    assert not (tmp_path / "topics/never-drafted.md").exists()
+    # Nothing to reaffirm: the path is in no output the git layer will land.
+    assert "topics/never-drafted.md" not in summary.declared
 
 
 def test_write_bundle_validator_rejection_keeps_last_good_version_and_is_not_removed(
@@ -833,20 +883,19 @@ def test_write_bundle_validator_rejection_keeps_last_good_version_and_is_not_rem
     the source catalogue's own enumeration" — is false of it.
 
     It needs the SAME treatment `failed_rel_paths` already gets, and for both
-    of the same reasons: excluded from `removed`, AND re-declared this run.
-    Without the re-declaration the REAL engine's own orphan-delete
-    reconciliation destroys a concept that merely failed validation (module
-    docstring's EXECUTOR-VERIFY finding) — a physical deletion, not just a
-    mis-report. TECH §BI-13 gates the *write* only: a rejected concept is
-    "not written", never removed.
+    of the same reasons: excluded from `removed`, AND carried in this run's
+    output. Without that reaffirmation the path is de-enumerated, and the
+    git layer destroys a concept that merely failed validation — a physical
+    deletion, not just a mis-report. TECH §BI-13 gates the *write* only: a
+    rejected concept is "not written", never removed.
 
     Measured on a real run (S551): `company/overview.md` was drafted this
     run, rejected by the validator, and reported in `removed`.
     """
     good = _draft("topics/a.md", title="A")
     b_good = _draft("topics/b.md", title="B")
-    bundle_writer.write_bundle(tmp_path, [good, b_good])
-    original_b = (tmp_path / "topics/b.md").read_text(encoding="utf-8")
+    first = _write_bundle_and_land(tmp_path, [good, b_good])
+    original_b = first.declared["topics/b.md"]
 
     b_rejected = ConceptDraft(
         key=ConceptKey(
@@ -859,17 +908,17 @@ def test_write_bundle_validator_rejection_keeps_last_good_version_and_is_not_rem
         body="body\n\n# Citations\n- " + build_source_document_uri(_SAMPLE_UUID) + "\n",
     )
 
-    _localfs_stub.declare_file.reset_mock()
     summary2 = bundle_writer.write_bundle(tmp_path, [good, b_rejected])
 
     assert summary2.validator_failures[0][0] == "topics/b.md"
     # A rejection is not a de-enumeration.
     assert summary2.removed == ()
-    # The last-good version survives on disk, byte-identical...
+    # The last-good version is REAFFIRMED into this run's output, byte-
+    # identical, so the git layer cannot read the path as de-enumerated...
+    assert summary2.declared["topics/b.md"] == original_b
+    # ...and it survives the landed tree unchanged.
+    _land(tmp_path, summary2)
     assert (tmp_path / "topics/b.md").read_text(encoding="utf-8") == original_b
-    # ...and was RE-DECLARED, so the engine's orphan-delete cannot take it.
-    called_paths = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
-    assert str(tmp_path / "topics/b.md") in called_paths
 
 
 def test_write_bundle_rejection_of_a_never_written_concept_is_not_removed_either(
@@ -880,7 +929,7 @@ def test_write_bundle_rejection_of_a_never_written_concept_is_not_removed_either
     `removed` (it was never on disk), and is still recorded in
     `validator_failures` — silent success is forbidden."""
     good = _draft("topics/a.md", title="A")
-    bundle_writer.write_bundle(tmp_path, [good])
+    _write_bundle_and_land(tmp_path, [good])
 
     fresh_rejected = ConceptDraft(
         key=ConceptKey(
@@ -897,7 +946,8 @@ def test_write_bundle_rejection_of_a_never_written_concept_is_not_removed_either
 
     assert summary2.validator_failures[0][0] == "topics/brand-new.md"
     assert summary2.removed == ()
-    assert not (tmp_path / "topics/brand-new.md").exists()
+    # Nothing to reaffirm: the path is in no output the git layer will land.
+    assert "topics/brand-new.md" not in summary2.declared
 
 
 def test_run_summary_with_only_a_failed_entry_is_not_a_no_op() -> None:
@@ -919,7 +969,7 @@ def test_render_log_entry_emits_a_failed_drafting_warning_line() -> None:
 
 def test_write_bundle_moved_concept_recorded_and_excluded_from_removed(tmp_path: Path) -> None:
     old = _draft("topics/old-name.md", title="Renamed Concept")
-    bundle_writer.write_bundle(tmp_path, [old])
+    _write_bundle_and_land(tmp_path, [old])
 
     new = _draft("topics/new-name.md", title="Renamed Concept")
     summary2 = bundle_writer.write_bundle(
@@ -937,14 +987,14 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
         for rel_path, fm in concepts.items()
     ]
 
-    summary1 = bundle_writer.write_bundle(
+    summary1 = _write_bundle_and_land(
         tmp_path, drafts, timestamp="2026-07-08T00:00:00Z"
     )
     assert len(summary1.added) == len(drafts)
 
-    index_after_run1 = (tmp_path / "index.md").read_text(encoding="utf-8")
+    index_after_run1 = summary1.declared["index.md"]
     concept_content_after_run1 = {
-        rel_path: (tmp_path / rel_path).read_text(encoding="utf-8") for rel_path in concepts
+        rel_path: summary1.declared[rel_path] for rel_path in concepts
     }
 
     summary2 = bundle_writer.write_bundle(
@@ -960,17 +1010,16 @@ def test_write_bundle_no_op_rerun_produces_no_op_diff(tmp_path: Path) -> None:
     assert summary2.is_no_op is True
     assert set(summary2.unchanged) == set(concepts)
 
-    # declare_file is STILL called every run (BI-18: always declare the
-    # desired state; the engine's own lineage no-ops the physical write) —
-    # but the CONTENT is byte-identical across both runs.
-    index_after_run2 = (tmp_path / "index.md").read_text(encoding="utf-8")
-    assert index_after_run2 == index_after_run1
+    # Every artefact is STILL computed every run (BI-18: always produce the
+    # desired state; a byte-identical re-computation is what makes the git
+    # layer's write a no-op) — and the CONTENT is byte-identical across both.
+    assert summary2.declared["index.md"] == index_after_run1
     for rel_path in concepts:
-        assert (tmp_path / rel_path).read_text(encoding="utf-8") == concept_content_after_run1[rel_path]
+        assert summary2.declared[rel_path] == concept_content_after_run1[rel_path]
 
     # log.md gained exactly one additional no-op run record (BI-11
     # unconditional) — SPEC §7: newest date section FIRST.
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+    log_text = summary2.declared["log.md"]
     headings = [
         m.group(1) for line in log_text.splitlines() if (m := _TS_DATE_HEADING_RE.match(line))
     ]
@@ -1077,13 +1126,11 @@ def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
 
     # Both concepts land — neither silently clobbers the other.
     assert len(summary.added) == 2
-    named_client_path = tmp_path / "case-studies/acme-ltd.md"
-    won_bid_path = tmp_path / "case-studies/won-bid/acme-ltd.md"
-    assert named_client_path.exists()
-    assert won_bid_path.exists()
+    named_client_path = "case-studies/acme-ltd.md"
+    won_bid_path = "case-studies/won-bid/acme-ltd.md"
     assert named_client_path != won_bid_path
-    assert "named client" in named_client_path.read_text(encoding="utf-8")
-    assert "won-bid outcome" in won_bid_path.read_text(encoding="utf-8")
+    assert "named client" in summary.declared[named_client_path]
+    assert "won-bid outcome" in summary.declared[won_bid_path]
 
     # UNCHANGED PHYSICAL PATHS (TECH §2.5): the two strings below are the
     # ones the {132.29} redirect produced, byte for byte. No file moves and
@@ -1092,7 +1139,7 @@ def test_named_client_and_won_bid_same_slug_reconcile_without_overwrite(
     assert set(summary.added) == {"case-studies/acme-ltd.md", "case-studies/won-bid/acme-ltd.md"}
     assert summary.moved == ()
 
-    index_text = (tmp_path / "index.md").read_text(encoding="utf-8")
+    index_text = summary.declared["index.md"]
     assert "case-studies/acme-ltd.md" in index_text
     assert "case-studies/won-bid/acme-ltd.md" in index_text
 
@@ -1134,7 +1181,7 @@ def test_the_shipped_showcase_case_study_layout_is_what_the_grains_declare(
 
     assert set(summary.added) == shipped
     for rel in shipped:
-        assert (tmp_path / rel).is_file(), rel
+        assert rel in summary.declared, rel
 
 
 def test_a_bi9_cross_link_to_a_won_bid_concept_opens(tmp_path: Path) -> None:
@@ -1163,7 +1210,9 @@ def test_a_bi9_cross_link_to_a_won_bid_concept_opens(tmp_path: Path) -> None:
         form_instance_id=_SAMPLE_UUID,
     )
 
-    bundle_writer.write_bundle(tmp_path, [named_client, won_bid])
+    # Landed via the git layer (DR-146) because the claim is about a path a
+    # READER can open in the emitted bundle, not about the computed map.
+    _write_bundle_and_land(tmp_path, [named_client, won_bid])
 
     # The catalogue enrich.py would offer for these two concepts.
     catalogue_paths = {d.key.rel_path for d in (named_client, won_bid)}
@@ -1221,7 +1270,9 @@ def test_write_bundle_raises_on_duplicate_write_path_instead_of_overwriting(
     with pytest.raises(ValueError, match="collision"):
         bundle_writer.write_bundle(tmp_path, [first, second])
 
-    # Refusing to write means NEITHER draft's content landed.
+    # Refusing to write means NEITHER draft's content was produced — the
+    # raise happens in the pre-write collision pass, so there is no
+    # `RunSummary` and nothing for the git layer to land.
     assert not (tmp_path / "topics/dup.md").exists()
 
 
@@ -1237,9 +1288,16 @@ def test_write_bundle_raises_on_duplicate_write_path_instead_of_overwriting(
 _ENTRY_RE = re.compile(r"^\* \[(.+?)\]\(([^)]+)\)(?:\s*[-—]\s*(.*))?$")
 
 
-def _read_index(bundle_dir: Path, directory: str = "") -> str:
-    rel = "index.md" if not directory else f"{directory}/index.md"
-    return (bundle_dir / rel).read_text(encoding="utf-8")
+def _index_rel(directory: str = "") -> str:
+    return "index.md" if not directory else f"{directory}/index.md"
+
+
+def _index(summary, directory: str = "") -> str:
+    """The directory's `index.md` as THIS run computed it. DR-146:
+    `RunSummary.declared` is the run's complete output, so an index the run
+    produced is there and an index it did NOT produce raises `KeyError` —
+    which is the assertion several of the tests below want."""
+    return summary.declared[_index_rel(directory)]
 
 
 def _section_entries(text: str, heading: str) -> "list[tuple[str, str, str]]":
@@ -1291,7 +1349,7 @@ def test_an_index_is_declared_at_every_level_root_to_leaf(tmp_path: Path) -> Non
     index — including `reports/`, an INTERMEDIATE directory that holds no
     concepts of its own, only a child directory. Without that the root->leaf
     chain breaks and a reader navigating in hits a bare file list."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
     for directory in (
         "",
@@ -1302,11 +1360,12 @@ def test_an_index_is_declared_at_every_level_root_to_leaf(tmp_path: Path) -> Non
         "reports/2026",
         "topics",
     ):
-        rel = "index.md" if not directory else f"{directory}/index.md"
-        assert (tmp_path / rel).is_file(), f"missing index for {directory!r}"
+        assert _index_rel(directory) in summary.declared, (
+            f"missing index for {directory!r}"
+        )
 
     # `reports/` holds no concepts of its own — it is a pure waypoint.
-    reports = _read_index(tmp_path, "reports")
+    reports = _index(summary, "reports")
     assert _section_entries(reports, "Concepts") == []
     assert [t for _, t, _ in _section_entries(reports, "Directories")] == ["2026/"]
 
@@ -1317,9 +1376,9 @@ def test_only_the_bundle_root_index_carries_okf_version_frontmatter(
     """AC-5, made structural rather than conventional (D7): the renderer
     takes the stamp as a required parameter, so a nested index CANNOT acquire
     frontmatter §12 permits the bundle root alone."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
-    assert _read_index(tmp_path).splitlines()[:3] == [
+    assert _index(summary).splitlines()[:3] == [
         "---",
         'okf_version: "0.2"',
         "---",
@@ -1332,7 +1391,7 @@ def test_only_the_bundle_root_index_carries_okf_version_frontmatter(
         "reports/2026",
         "topics",
     ):
-        text = _read_index(tmp_path, directory)
+        text = _index(summary, directory)
         assert not text.startswith("---"), directory
         assert "okf_version" not in text, directory
 
@@ -1347,9 +1406,9 @@ def test_directory_membership_and_counts_are_immediate_not_recursive(
     IMMEDIATE members (`1 concept, 1 subdirectory`), never the 2 concepts a
     recursive count would report. D6: the count exists to predict the page
     the reader is about to open, and that page lists immediate members."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
-    case_studies = _read_index(tmp_path, "case-studies")
+    case_studies = _index(summary, "case-studies")
     assert [t for _, t, _ in _section_entries(case_studies, "Concepts")] == [
         "acme-ltd.md"
     ]
@@ -1357,7 +1416,7 @@ def test_directory_membership_and_counts_are_immediate_not_recursive(
         ("Won bid", "won-bid/", "1 concept, 1 subdirectory")
     ]
 
-    won_bid = _read_index(tmp_path, "case-studies/won-bid")
+    won_bid = _index(summary, "case-studies/won-bid")
     assert [t for _, t, _ in _section_entries(won_bid, "Concepts")] == ["acme-ltd.md"]
     assert _section_entries(won_bid, "Directories") == [("2025", "2025/", "1 concept")]
 
@@ -1368,10 +1427,10 @@ def test_entry_links_are_relative_to_the_index_own_directory(tmp_path: Path) -> 
     `/certifications/iso-27001.md` — §6.1's bundle-absolute recommendation is
     scoped to concept-to-concept links, where it buys move-stability an index
     regenerated in full every run does not need."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
     for directory in ("topics", "case-studies", "case-studies/won-bid", "reports"):
-        text = _read_index(tmp_path, directory)
+        text = _index(summary, directory)
         for _, target, _ in [
             *_section_entries(text, "Concepts"),
             *_section_entries(text, "Directories"),
@@ -1395,21 +1454,23 @@ def test_a_won_bid_concept_indexes_in_its_own_grain_directory(
     every emitted link must resolve to a real file. That was the visible
     symptom of the {132.29} collision and is what a future regression would
     break first."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = _write_bundle_and_land(tmp_path, _multi_level_drafts())
 
     won_bid_labels = [l for l, _, _ in _section_entries(
-        _read_index(tmp_path, "case-studies/won-bid"), "Concepts"
+        _index(summary, "case-studies/won-bid"), "Concepts"
     )]
     case_study_labels = [l for l, _, _ in _section_entries(
-        _read_index(tmp_path, "case-studies"), "Concepts"
+        _index(summary, "case-studies"), "Concepts"
     )]
 
     assert "Acme Ltd won bid" in won_bid_labels
     assert "Acme Ltd won bid" not in case_study_labels
     assert case_study_labels == ["Acme Ltd"]
-    # Every link an index emits resolves to a real file.
+    # Every link an index emits resolves to a real file once the run's output
+    # is landed (DR-146) — the reader-facing half of the claim, so it is
+    # asserted against the tree rather than the computed map.
     for directory in ("case-studies", "case-studies/won-bid"):
-        for _, target, _ in _section_entries(_read_index(tmp_path, directory), "Concepts"):
+        for _, target, _ in _section_entries(_index(summary, directory), "Concepts"):
             assert (tmp_path / directory / target).is_file()
 
 
@@ -1422,9 +1483,9 @@ def test_index_entries_are_ascii_ordered(tmp_path: Path) -> None:
         _draft("topics/apple.md", title="Apple", description="A."),
         _draft("topics/Zulu.md", title="Zulu", description="Z."),
     ]
-    bundle_writer.write_bundle(tmp_path, drafts)
+    summary = bundle_writer.write_bundle(tmp_path, drafts)
 
-    targets = [t for _, t, _ in _section_entries(_read_index(tmp_path, "topics"), "Concepts")]
+    targets = [t for _, t, _ in _section_entries(_index(summary, "topics"), "Concepts")]
     assert targets == ["Zulu.md", "apple.md"]
 
 
@@ -1435,7 +1496,7 @@ def test_two_consecutive_runs_produce_byte_identical_indexes(tmp_path: Path) -> 
     nested index is never reported added/removed on either run."""
     drafts = _multi_level_drafts()
 
-    summary1 = bundle_writer.write_bundle(
+    summary1 = _write_bundle_and_land(
         tmp_path, drafts, timestamp="2026-08-10T00:00:00Z"
     )
     directories = [
@@ -1447,21 +1508,22 @@ def test_two_consecutive_runs_produce_byte_identical_indexes(tmp_path: Path) -> 
         "reports/2026",
         "topics",
     ]
-    after_run1 = {d: _read_index(tmp_path, d) for d in directories}
+    after_run1 = {d: _index(summary1, d) for d in directories}
 
     summary2 = bundle_writer.write_bundle(
         tmp_path, drafts, timestamp="2026-08-11T00:00:00Z"
     )
 
     for directory in directories:
-        assert _read_index(tmp_path, directory) == after_run1[directory], directory
+        assert _index(summary2, directory) == after_run1[directory], directory
 
     assert summary2.is_no_op is True
     for summary in (summary1, summary2):
         for directory in directories:
-            rel = "index.md" if not directory else f"{directory}/index.md"
+            rel = _index_rel(directory)
             assert rel not in summary.added
             assert rel not in summary.removed
+            assert rel not in summary.removed_indexes
 
 
 def test_a_concept_that_failed_to_draft_is_absent_from_its_index(
@@ -1469,24 +1531,26 @@ def test_a_concept_that_failed_to_draft_is_absent_from_its_index(
 ) -> None:
     """D7, stated as a decided consequence: membership is `written` — this
     run's VALIDATED set — not the on-disk tree. A re-affirmed failed concept
-    keeps its file (never orphan-deleted) but is not in this run's index;
-    including it would mean re-parsing frontmatter off disk to recover a
-    title and description the run never produced. It stays reachable via the
-    file tree and the graph, and is named in `log.md`'s `failed`."""
+    keeps its file (its last-good content is reaffirmed into this run's
+    output, so the git layer re-lands it rather than deleting it) but is not
+    in this run's index; including it would mean re-parsing frontmatter off
+    disk to recover a title and description the run never produced. It stays
+    reachable via the file tree and the graph, and is named in `log.md`'s
+    `failed`."""
     alpha = _draft("topics/alpha.md", title="Alpha", description="Alpha topic.")
     beta = _draft("topics/beta.md", title="Beta", description="Beta topic.")
-    bundle_writer.write_bundle(tmp_path, [alpha, beta])
-    beta_on_disk = (tmp_path / "topics/beta.md").read_text(encoding="utf-8")
+    first = _write_bundle_and_land(tmp_path, [alpha, beta])
+    beta_content = first.declared["topics/beta.md"]
 
     summary = bundle_writer.write_bundle(
         tmp_path, [alpha], failed_rel_paths=("topics/beta.md",)
     )
 
-    targets = [t for _, t, _ in _section_entries(_read_index(tmp_path, "topics"), "Concepts")]
+    targets = [t for _, t, _ in _section_entries(_index(summary, "topics"), "Concepts")]
     assert targets == ["alpha.md"]
-    # ...while the file itself survives, byte-identical, and the failure is
-    # visible rather than silent.
-    assert (tmp_path / "topics/beta.md").read_text(encoding="utf-8") == beta_on_disk
+    # ...while the concept itself survives the run's output, byte-identical,
+    # and the failure is visible rather than silent.
+    assert summary.declared["topics/beta.md"] == beta_content
     assert summary.failed == ("topics/beta.md",)
 
 
@@ -1494,32 +1558,39 @@ def test_a_directory_losing_its_last_concept_stops_having_an_index_declared(
     tmp_path: Path,
 ) -> None:
     """D7: no special case for a vanished directory — the index is simply not
-    declared, and cocoindex's OWN orphan-delete reconciliation removes the
-    stale file on the next run (module docstring's EXECUTOR-VERIFY finding).
-    This module never unlinks, so the assertion is the ABSENCE of the
-    `declare_file` call, not the absence of the file."""
+    produced, because `build_directory_indexes` derives from `written`.
+
+    **DR-146 (id-448) changes what has to follow from that.** Under the
+    declaration model the index stopping being declared WAS the removal —
+    the engine's orphan-delete unlinked the stale file — so this test
+    asserted the ABSENCE of a `declare_file` call. With no declarations that
+    channel is gone, and a stale index nobody reports lingers forever. So the
+    run must name it explicitly on `RunSummary.removed_indexes`, which is
+    what the git layer deletes off."""
     root = _draft("overview.md", title="Overview", description="Root concept.")
     alpha = _draft("topics/alpha.md", title="Alpha", description="Alpha topic.")
-    bundle_writer.write_bundle(tmp_path, [root, alpha])
+    _write_bundle_and_land(tmp_path, [root, alpha])
     assert (tmp_path / "topics/index.md").is_file()
 
-    _localfs_stub.declare_file.reset_mock()
-    bundle_writer.write_bundle(tmp_path, [root])
+    summary = bundle_writer.write_bundle(tmp_path, [root])
 
-    declared = {str(c.args[0]) for c in _localfs_stub.declare_file.call_args_list}
-    assert str(tmp_path / "topics/index.md") not in declared
-    assert str(tmp_path / "index.md") in declared
-    # The physical delete is the engine's, never ours.
+    assert "topics/index.md" not in summary.declared
+    assert "index.md" in summary.declared
+    assert summary.removed_indexes == ("topics/index.md",)
+    # This module still never unlinks …
     assert (tmp_path / "topics/index.md").exists()
+    # … the git layer does, off the channel above.
+    _land(tmp_path, summary)
+    assert not (tmp_path / "topics/index.md").exists()
 
 
 def test_the_root_index_is_declared_even_for_an_empty_bundle(tmp_path: Path) -> None:
     """D7: the root index is ALWAYS declared — it carries the §12
     `okf_version` stamp, which must not disappear when the corpus is
     empty."""
-    bundle_writer.write_bundle(tmp_path, [])
+    summary = bundle_writer.write_bundle(tmp_path, [])
 
-    text = _read_index(tmp_path)
+    text = _index(summary)
     assert text.splitlines() == ["---", 'okf_version: "0.2"', "---", "# OKF Concept Bundle"]
 
 
@@ -1531,9 +1602,9 @@ def test_the_root_index_still_enumerates_every_concept(tmp_path: Path) -> None:
     renders an EMPTY nav rail. D2 is therefore gated on id-439. Until then
     the root keeps today's behaviour, bundle-root-relative links and all, so
     this subtask carries no consumer risk."""
-    bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
+    summary = bundle_writer.write_bundle(tmp_path, _multi_level_drafts())
 
-    root = _read_index(tmp_path)
+    root = _index(summary)
     targets = [t for _, t, _ in _section_entries(root, "Concepts")]
     assert targets == [
         "case-studies/acme-ltd.md",
@@ -1570,8 +1641,10 @@ def test_write_ontology_artefact_has_no_base_key_and_ships_overlay_null(
 
     assert "base" not in payload
     assert payload == {"overlay": None}
-    on_disk = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
-    assert on_disk == payload
+    # DR-146: the artefact writer computes its content and nothing else —
+    # `write_bundle` folds it into `RunSummary.declared` and the git layer
+    # lands it (asserted at that surface by the `write_bundle` tests below).
+    assert not (tmp_path / "ontology.json").exists()
 
 
 def test_write_ontology_artefact_with_client_overlay(tmp_path: Path) -> None:
@@ -1691,11 +1764,13 @@ def test_write_context_artefact_asserts_no_base_vocabulary(tmp_path: Path) -> No
         EffectiveOntology.base_only().relationship_types == ALLOWED_RELATIONSHIP_TYPES
     )
 
-    on_disk = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
-    assert on_disk == payload
+    # DR-146: computing the content is the whole of this call (see
+    # `test_write_bundle_ships_a_context_jsonld_that_declares_no_vocabulary`
+    # for the same claim at the surface that emits the artefact).
+    assert not (tmp_path / "context.jsonld").exists()
 
 
-def test_write_context_artefact_still_writes_the_file_with_no_overlay(
+def test_write_context_artefact_still_emits_the_artefact_with_no_overlay(
     tmp_path: Path,
 ) -> None:
     """**TQ-1a is UNRESOLVED — this test pins a DEFAULT, not a ruling.**
@@ -1709,18 +1784,25 @@ def test_write_context_artefact_still_writes_the_file_with_no_overlay(
     overlay vocabulary"* vacuously when there is no overlay — so it took
     (b) as the reversible default and left the question open.
 
-    Why (b) and not (a): a file that stops being `declare_file`d is a file
-    cocoindex's reconciliation DELETES from every existing bundle, whereas
-    an empty `@context` asserts nothing and withdraws later in one line.
+    Why (b) and not (a): a file that stops being emitted is a file the
+    removal channel DELETES from every existing bundle, whereas an empty
+    `@context` asserts nothing and withdraws later in one line. (The
+    mechanism moved with DR-146 — cocoindex's orphan-delete reconciliation
+    then, `git_sync`'s explicit `removed_paths` now — the consequence did
+    not.)
 
     **If TQ-1a is ever ruled (a), this test inverts to
-    `assert not (tmp_path / "context.jsonld").exists()`.** Do not read its
+    `assert "context.jsonld" not in summary.declared`.** Do not read its
     green as the answer."""
-    bundle_writer.write_context_artefact(tmp_path, EffectiveOntology.base_only())
+    content = bundle_writer.write_context_artefact(
+        tmp_path, EffectiveOntology.base_only()
+    )
+    assert json.loads(content) == {"@context": {}}
 
-    assert (tmp_path / "context.jsonld").is_file()
-    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
-    assert payload == {"@context": {}}
+    # …and the run that composes no overlay still SHIPS it: the artefact is
+    # in this run's output, which is what the git layer lands.
+    summary = bundle_writer.write_bundle(tmp_path, [_draft("topics/alpha.md")])
+    assert json.loads(summary.declared["context.jsonld"]) == {"@context": {}}
 
 
 def test_write_context_artefact_keeps_overlay_terms_when_a_client_declares_them(
@@ -1773,8 +1855,16 @@ def test_write_context_artefact_persists_only_the_context_key(tmp_path: Path) ->
     payload = json.loads(content)
 
     assert list(payload.keys()) == ["@context"]
-    on_disk = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
-    assert list(on_disk.keys()) == ["@context"]
+    # And the same holds for the artefact a real run emits — the shape that
+    # actually reaches a bundle is the one `write_bundle` puts in its output.
+    summary = bundle_writer.write_bundle(
+        tmp_path,
+        [_draft("topics/alpha.md")],
+        client_ontology_overlay={"entity_types": ["Foo Bar", "foo-bar"]},
+        client_id="acme",
+    )
+    emitted = json.loads(summary.declared["context.jsonld"])
+    assert list(emitted.keys()) == ["@context"]
 
 
 def test_write_bundle_ships_a_context_jsonld_that_declares_no_vocabulary(
@@ -1791,12 +1881,10 @@ def test_write_bundle_ships_a_context_jsonld_that_declares_no_vocabulary(
     consumers."""
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft])
+    summary = bundle_writer.write_bundle(tmp_path, [draft])
 
-    assert (tmp_path / "context.jsonld").is_file()
-    context = json.loads(
-        (tmp_path / "context.jsonld").read_text(encoding="utf-8")
-    )["@context"]
+    assert "context.jsonld" in summary.declared
+    context = json.loads(summary.declared["context.jsonld"])["@context"]
     assert "client" not in context
     assert "base" not in context
     assert "topic" not in context
@@ -1816,11 +1904,11 @@ def test_write_bundle_projects_overlay_iris_under_client_ns_when_client_id_passe
     )
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(
+    summary = bundle_writer.write_bundle(
         tmp_path, [draft], bundle_class="client_business", client_id="acme"
     )
 
-    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    payload = json.loads(summary.declared["context.jsonld"])
     context = payload["@context"]
     assert context["client"] == f"{iri_projection._client_namespace('acme')}#"
     assert context["widget"] == iri_projection.mint_iri("widget", scope="acme")
@@ -1832,8 +1920,8 @@ def test_write_bundle_client_id_absent_is_base_only_and_run_not_aborted(
     """IRI-6: an overlay IS present but `client_id` is NOT passed to
     `write_bundle` — overlay-term IRIs are never guessed/derived; the
     overlay term is left un-projected (advisory) and the run is NOT
-    aborted (concept files, index.md, log.md, ontology.json all still
-    land normally). `bundle_class="client_business"` here is orthogonal to
+    aborted (concept files, index.md, log.md, ontology.json are all still
+    produced normally). `bundle_class="client_business"` here is orthogonal to
     this test's IRI-6 assertion — it is passed only so the OV-10 gate
     (ID-132 {132.37}) permits the overlay to compose at all; see
     `test_write_bundle_hard_rejects_...` below for the class-gate's own
@@ -1846,7 +1934,9 @@ def test_write_bundle_client_id_absent_is_base_only_and_run_not_aborted(
     summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     assert summary.added == ("topics/alpha.md",)
-    payload = json.loads((tmp_path / "context.jsonld").read_text(encoding="utf-8"))
+    for rel in ("topics/alpha.md", "index.md", "log.md", "ontology.json"):
+        assert rel in summary.declared, rel
+    payload = json.loads(summary.declared["context.jsonld"])
     context = payload["@context"]
     assert "client" not in context
     assert "widget" not in context
@@ -1860,13 +1950,10 @@ def test_write_bundle_context_jsonld_byte_identical_on_two_identical_runs(
     no spurious churn feeding the {132.35} BI-18 re-proof."""
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
-    first = (tmp_path / "context.jsonld").read_bytes()
+    run1 = _write_bundle_and_land(tmp_path, [draft], client_id="acme")
+    run2 = bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
 
-    bundle_writer.write_bundle(tmp_path, [draft], client_id="acme")
-    second = (tmp_path / "context.jsonld").read_bytes()
-
-    assert first == second
+    assert run2.declared["context.jsonld"] == run1.declared["context.jsonld"]
 
 
 def test_write_bundle_does_not_report_a_committed_context_jsonld_as_removed(
@@ -1883,8 +1970,7 @@ def test_write_bundle_does_not_report_a_committed_context_jsonld_as_removed(
     summary = bundle_writer.write_bundle(tmp_path, [draft])
 
     assert summary.removed == ()
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
-    assert "context.jsonld" not in log_text
+    assert "context.jsonld" not in summary.declared["log.md"]
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -1912,12 +1998,14 @@ def test_write_bundle_does_not_report_a_committed_conformance_doc_as_removed(
     (tmp_path / "CONFORMANCE.md").write_text("# Conformance\n", encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft])
+    summary = _write_bundle_and_land(tmp_path, [draft])
 
     assert summary.removed == ()
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
-    assert "CONFORMANCE.md" not in log_text
-    assert (tmp_path / "CONFORMANCE.md").exists()  # untouched, never declare_file'd
+    assert "CONFORMANCE.md" not in summary.declared["log.md"]
+    # Untouched: the producer never produces it, so landing the run's output
+    # cannot reach it.
+    assert "CONFORMANCE.md" not in summary.declared
+    assert (tmp_path / "CONFORMANCE.md").read_text(encoding="utf-8") == "# Conformance\n"
 
 
 def test_write_bundle_does_not_report_a_committed_readme_as_removed(tmp_path: Path) -> None:
@@ -1927,12 +2015,14 @@ def test_write_bundle_does_not_report_a_committed_readme_as_removed(tmp_path: Pa
     (tmp_path / "README.md").write_text("# Bundle repo\n", encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft])
+    summary = _write_bundle_and_land(tmp_path, [draft])
 
     assert summary.removed == ()
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
-    assert "Removed: README.md" not in log_text
-    assert (tmp_path / "README.md").exists()  # untouched, never declare_file'd
+    assert "Removed: README.md" not in summary.declared["log.md"]
+    # Untouched: the producer never produces it, so landing the run's output
+    # cannot reach it.
+    assert "README.md" not in summary.declared
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == "# Bundle repo\n"
 
 
 def test_write_bundle_does_not_report_bundle_tooling_under_a_dot_dir_as_removed(
@@ -1953,29 +2043,33 @@ def test_write_bundle_does_not_report_bundle_tooling_under_a_dot_dir_as_removed(
     skill.write_text("---\nname: validate\n---\n# Validate\n", encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    summary = bundle_writer.write_bundle(tmp_path, [draft])
+    summary = _write_bundle_and_land(tmp_path, [draft])
 
     assert summary.removed == ()
-    log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
-    assert "SKILL.md" not in log_text
-    assert skill.exists()  # untouched, never declare_file'd
+    assert "SKILL.md" not in summary.declared["log.md"]
+    # Untouched: out of scan scope in BOTH directions — never counted as a
+    # concept, and never in the output the git layer lands.
+    assert ".claude/skills/validate/SKILL.md" not in summary.declared
     assert skill.read_text(encoding="utf-8").startswith("---\nname: validate\n")
 
 
 def test_overlay_file_is_read_and_never_declared_or_deleted(tmp_path: Path) -> None:
     """OV-1/OV-4: a fixture bundle repo with `ontology-overlay.json` at its
     root is read by the producer and composed into `ontology.json`; the
-    client-authored file itself is never `declare_file`-written (DR-016)."""
-    (tmp_path / "ontology-overlay.json").write_text(
-        json.dumps({"entity_types": ["widget"]}), encoding="utf-8"
-    )
+    client-authored file itself is never part of the producer's output
+    (DR-016), so nothing the git layer lands can rewrite or delete it."""
+    raw = json.dumps({"entity_types": ["widget"]})
+    (tmp_path / "ontology-overlay.json").write_text(raw, encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
+    summary = _write_bundle_and_land(
+        tmp_path, [draft], bundle_class="client_business"
+    )
 
-    declared_paths = {str(call.args[0]) for call in _localfs_stub.declare_file.call_args_list}
-    assert str(tmp_path / "ontology-overlay.json") not in declared_paths
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    assert "ontology-overlay.json" not in summary.declared
+    assert "ontology-overlay.json" not in summary.removed
+    assert (tmp_path / "ontology-overlay.json").read_text(encoding="utf-8") == raw
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"]["entity_types"] == ["widget"]
 
 
@@ -1988,7 +2082,7 @@ def test_write_bundle_is_base_only_when_no_overlay_file_present(tmp_path: Path) 
     summary = bundle_writer.write_bundle(tmp_path, [draft])
 
     assert summary.added == ("topics/alpha.md",)
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"] is None
 
 
@@ -2051,7 +2145,12 @@ def test_write_bundle_aborts_and_publishes_nothing_on_malformed_overlay(
 ) -> None:
     """OV-5: a present-but-invalid overlay ABORTS the whole producer run —
     it never degrades to a base-only or partial ontology. No concept file,
-    no `index.md`/`log.md`/`ontology.json` — nothing is published this run."""
+    no `index.md`/`log.md`/`ontology.json` — nothing is published this run.
+
+    Post-DR-146 the raise IS the all-or-nothing: no `RunSummary` is returned,
+    so there is no `.declared` for the git layer to land. The tree assertions
+    below re-prove the other half of that contract — `write_bundle` performs
+    no write of its own, on the abort path as on any other."""
     (tmp_path / "ontology-overlay.json").write_text("{not valid json", encoding="utf-8")
     draft = _draft("topics/alpha.md", title="Alpha")
 
@@ -2072,9 +2171,11 @@ def test_ontology_artefact_overlay_carries_source_and_sha256_provenance(
     (tmp_path / "ontology-overlay.json").write_bytes(raw)
     draft = _draft("topics/alpha.md", title="Alpha")
 
-    bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
+    summary = bundle_writer.write_bundle(
+        tmp_path, [draft], bundle_class="client_business"
+    )
 
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     overlay = ontology["overlay"]
     assert overlay["source"] == "ontology-overlay.json"
     assert overlay["sha256"] == hashlib.sha256(raw).hexdigest()
@@ -2086,17 +2187,17 @@ def test_overlay_present_empty_is_distinct_from_overlay_absent(tmp_path: Path) -
     with empty term lists + provenance — the two states are observably
     distinct even though both yield a base-identical effective set."""
     absent_draft = _draft("topics/absent.md", title="Absent")
-    absent_summary = bundle_writer.write_bundle(tmp_path, [absent_draft])
-    absent_ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    absent_summary = _write_bundle_and_land(tmp_path, [absent_draft])
+    absent_ontology = json.loads(absent_summary.declared["ontology.json"])
     assert absent_ontology["overlay"] is None
     assert absent_summary.added == ("topics/absent.md",)
 
     (tmp_path / "ontology-overlay.json").write_text(json.dumps({}), encoding="utf-8")
     present_draft = _draft("topics/present.md", title="Present")
-    bundle_writer.write_bundle(
+    present_summary = bundle_writer.write_bundle(
         tmp_path, [absent_draft, present_draft], bundle_class="client_business"
     )
-    present_ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    present_ontology = json.loads(present_summary.declared["ontology.json"])
 
     overlay = present_ontology["overlay"]
     assert overlay is not None
@@ -2132,7 +2233,7 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     no_overlay_summary = bundle_writer.write_bundle(no_overlay_dir, [draft])
     assert no_overlay_summary.added == ("topics/widget.md",)
     assert no_overlay_summary.validator_failures == ()
-    assert (no_overlay_dir / "topics/widget.md").exists()
+    assert "topics/widget.md" in no_overlay_summary.declared
 
     overlay_dir = tmp_path / "with-overlay"
     overlay_dir.mkdir()
@@ -2144,7 +2245,7 @@ def test_write_bundle_writes_a_client_type_with_or_without_an_overlay(
     )
     assert overlay_summary.added == ("topics/widget.md",)
     assert overlay_summary.validator_failures == ()
-    assert (overlay_dir / "topics/widget.md").exists()
+    assert "topics/widget.md" in overlay_summary.declared
 
 
 def test_an_overlay_declaring_the_retired_concept_types_dimension_is_refused(
@@ -2216,7 +2317,7 @@ def test_a_surviving_dimension_overlay_still_composes_and_still_echoes(
     assert summary.validator_failures == ()
     assert summary.added == ("topics/widget.md",)
 
-    payload = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    payload = json.loads(summary.declared["ontology.json"])
     assert payload["overlay"]["entity_types"] == ["widget"]
     assert payload["overlay"]["relationship_types"] == ["partners_with"]
     assert payload["overlay"]["source"] == "ontology-overlay.json"
@@ -2335,7 +2436,7 @@ def test_write_bundle_composes_overlay_when_bundle_class_is_client_business(
     summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     assert summary.added == ("topics/alpha.md",)
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"]["entity_types"] == ["widget"]
 
 
@@ -2352,7 +2453,7 @@ def test_write_bundle_non_client_business_class_without_overlay_file_stays_base_
     summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="showcase")
 
     assert summary.added == ("topics/alpha.md",)
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"] is None
 
 
@@ -2375,7 +2476,7 @@ def test_write_bundle_explicit_client_ontology_overlay_kwarg_bypasses_the_class_
     )
 
     assert summary.added == ("topics/alpha.md",)
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"]["entity_types"] == ["widget"]
 
 
@@ -2397,8 +2498,10 @@ def test_system_baseline_bundle_class_hard_rejects_a_present_overlay(
 ) -> None:
     """PC-6 (TECH id-163, DR-054): a discovered, schema-valid
     `ontology-overlay.json` in a `system_baseline` bundle must RAISE
-    `OntologyOverlayClassError` before any `declare_file` call — nothing is
-    published this run (OV-5's all-or-nothing fail-loud posture). Proves
+    `OntologyOverlayClassError` before the run computes any content —
+    nothing is published this run (OV-5's all-or-nothing fail-loud
+    posture; post-DR-146 the raise means no `RunSummary`, so the git layer
+    is handed nothing). Proves
     DR-054's 'only client_business may author an overlay' invariant holds
     for the system class."""
     (tmp_path / "ontology-overlay.json").write_text(
@@ -2430,7 +2533,7 @@ def test_client_business_bundle_class_still_composes_a_present_overlay_control(
     summary = bundle_writer.write_bundle(tmp_path, [draft], bundle_class="client_business")
 
     assert summary.added == ("topics/alpha.md",)
-    ontology = json.loads((tmp_path / "ontology.json").read_text(encoding="utf-8"))
+    ontology = json.loads(summary.declared["ontology.json"])
     assert ontology["overlay"]["entity_types"] == ["widget"]
 
 
@@ -2455,7 +2558,7 @@ def test_write_bundle_writes_a_type_no_register_ever_held(tmp_path: Path) -> Non
     """AC 2, stated as the artefact. `procurement_policy` was never a
     member of `ALLOWED_CONCEPT_TYPES`, of any `_CLASS_CONCEPT_TYPES` entry,
     of the Source-side `CONCEPT_TYPES`, or of the TS legend — and no
-    register was edited to make this pass. It lands on disk, it is reported
+    register was edited to make this pass. It is emitted, it is reported
     in the run summary, and it reaches `log.md`."""
     draft = _draft("topics/alpha.md", title="Alpha", type="procurement_policy")
 
@@ -2463,9 +2566,8 @@ def test_write_bundle_writes_a_type_no_register_ever_held(tmp_path: Path) -> Non
 
     assert summary.added == ("topics/alpha.md",)
     assert summary.validator_failures == ()
-    written = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
-    assert "type: procurement_policy" in written
-    assert "topics/alpha.md" in (tmp_path / "log.md").read_text(encoding="utf-8")
+    assert "type: procurement_policy" in summary.declared["topics/alpha.md"]
+    assert "topics/alpha.md" in summary.declared["log.md"]
 
 
 def test_write_bundle_system_baseline_writes_a_concept_typed_document(
@@ -2482,7 +2584,7 @@ def test_write_bundle_system_baseline_writes_a_concept_typed_document(
 
     assert summary.added == ("topics/alpha.md",)
     assert summary.validator_failures == ()
-    assert (tmp_path / "topics/alpha.md").exists()
+    assert "type: document" in summary.declared["topics/alpha.md"]
 
 
 @pytest.mark.parametrize(
@@ -2520,9 +2622,8 @@ def test_write_bundle_internal_dev_reaches_the_write_loop(tmp_path: Path) -> Non
 
     assert summary.added == ("topics/alpha.md",)
     assert summary.validator_failures == ()
-    assert (tmp_path / "topics/alpha.md").exists()
-    assert (tmp_path / "log.md").exists()
-    assert (tmp_path / "ontology.json").exists()
+    for rel in ("topics/alpha.md", "log.md", "ontology.json"):
+        assert rel in summary.declared, rel
 
 
 def test_write_bundle_still_soft_rejects_a_malformed_type(tmp_path: Path) -> None:
@@ -2539,7 +2640,7 @@ def test_write_bundle_still_soft_rejects_a_malformed_type(tmp_path: Path) -> Non
     rel_path, errors = summary.validator_failures[0]
     assert rel_path == "topics/alpha.md"
     assert any("snake_case" in error for error in errors)
-    assert not (tmp_path / "topics/alpha.md").exists()
+    assert "topics/alpha.md" not in summary.declared
 
 
 def test_write_bundle_still_refuses_q_a_pair_as_a_type(tmp_path: Path) -> None:
@@ -2920,11 +3021,10 @@ class TestAGrainIsOneRegistryEntry:
         )
 
         assert sorted(summary.added) == ["widgets/flywheel.md", "widgets/sprocket.md"]
-        written = (tmp_path / "widgets" / "sprocket.md").read_text(encoding="utf-8")
-        assert "type: widget" in written
+        assert "type: widget" in summary.declared["widgets/sprocket.md"]
         # 4. And carried into the per-directory index id-429 emits (IA-1:
         #    every concept has a directory, and the grain declared it).
-        index = (tmp_path / "widgets" / "index.md").read_text(encoding="utf-8")
+        index = _index(summary, "widgets")
         assert "(sprocket.md)" in index
         assert "(flywheel.md)" in index
 
@@ -2967,8 +3067,7 @@ class TestAGrainIsOneRegistryEntry:
 
         assert summary.moved == ()
         assert sorted(summary.added) == ["widgets/flywheel.md", "widgets/sprocket.md"]
-        written = (tmp_path / "widgets" / "sprocket.md").read_text(encoding="utf-8")
-        assert "type: component" in written
+        assert "type: component" in summary.declared["widgets/sprocket.md"]
 
     def test_relabelling_the_won_bid_grain_does_not_move_its_file(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -3043,9 +3142,10 @@ class TestAGrainIsOneRegistryEntry:
             "case-studies/acme-corp.md",
             "case-studies/won-bid/acme-corp.md",
         ]
-        assert "type: won_bid" in (
-            tmp_path / "case-studies/won-bid/acme-corp.md"
-        ).read_text(encoding="utf-8")
+        assert (
+            "type: won_bid"
+            in summary.declared["case-studies/won-bid/acme-corp.md"]
+        )
 
     def test_two_grains_may_share_one_directory(self) -> None:
         """id-429 IA-4: many-to-one is permitted.
@@ -3258,11 +3358,10 @@ class TestARepoPillarIsOneRegistryEntry:
         )
 
         assert sorted(summary.added) == ["api/createwidget.md", "api/listwidgets.md"]
-        written = (bundle / "api" / "listwidgets.md").read_text(encoding="utf-8")
-        assert "type: api" in written
+        assert "type: api" in summary.declared["api/listwidgets.md"]
         # 4. And carried into the per-directory index id-429 emits (IA-1:
         #    every concept has a directory, and the pillar declared it).
-        index = (bundle / "api" / "index.md").read_text(encoding="utf-8")
+        index = _index(summary, "api")
         assert "(listwidgets.md)" in index
         assert "(createwidget.md)" in index
 
@@ -3344,9 +3443,7 @@ class TestARepoPillarIsOneRegistryEntry:
 
         assert summary.moved == ()
         assert sorted(summary.added) == ["api/createwidget.md", "api/listwidgets.md"]
-        assert "type: rest_endpoint" in (bundle / "api" / "listwidgets.md").read_text(
-            encoding="utf-8"
-        )
+        assert "type: rest_endpoint" in summary.declared["api/listwidgets.md"]
 
     def test_the_shipped_pillars_declare_the_directories_they_already_wrote(
         self, tmp_path: Path
@@ -3390,9 +3487,10 @@ class TestReservedConceptSlugs:
     OKF §3.1 reserves `index.md`/`log.md` at every level of the hierarchy.
     Under the closed type vocabulary a concept could never land on one;
     {427.5} opened the vocabulary, and id-429 {429.5} then made the producer
-    declare an `index.md` per directory AFTER the concept loop — so a concept
-    at `<dir>/index.md` is actively OVERWRITTEN within the same run, last
-    write wins, and reconciled away on the next. That sequencing is why this
+    emit an `index.md` per directory AFTER the concept loop — so a concept at
+    `<dir>/index.md` is actively OVERWRITTEN within the same run: both write
+    to one key in `RunSummary.declared`, the index wins, and the concept's
+    content never reaches the bundle at all. That sequencing is why this
     guard is blocking rather than advisory."""
 
     def test_a_scope_tag_named_index_writes_beside_the_directory_index(
@@ -3413,12 +3511,14 @@ class TestReservedConceptSlugs:
             tmp_path, [_grain_draft(keys[0], title="Index", type_label="topic")]
         )
 
-        # The concept is on disk under its renamed slug …
+        # The concept is emitted under its renamed slug …
         assert summary.added == ("topics/index-concept.md",)
-        concept = (tmp_path / "topics" / "index-concept.md").read_text(encoding="utf-8")
+        concept = summary.declared["topics/index-concept.md"]
         assert "A distilled synthesis about Index." in concept
-        # … and the directory's own index is a real index, not the concept.
-        index = (tmp_path / "topics" / "index.md").read_text(encoding="utf-8")
+        # … and the directory's own index is a real index, not the concept —
+        # two distinct entries in the run's output, so neither overwrites the
+        # other when the git layer lands it.
+        index = _index(summary, "topics")
         assert "(index-concept.md)" in index
         assert "A distilled synthesis" not in index
 
@@ -3574,7 +3674,7 @@ class TestTheCensusReachesTheLog:
         genuinely different: nothing changed, AND nothing was left behind."""
         drafts = [_draft("topics/alpha.md", title="Alpha")]
         census = _census(42, 310, sd_routed=42, qa_routed=310)
-        bundle_writer.write_bundle(
+        _write_bundle_and_land(
             tmp_path, drafts, census=census, timestamp="2026-08-10T09:00:00Z"
         )
 
@@ -3583,7 +3683,7 @@ class TestTheCensusReachesTheLog:
         )
 
         assert summary.is_no_op is True
-        log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+        log_text = summary.declared["log.md"]
         assert (
             "* **Run 2026-08-10T10:00:00Z — Considered (2):** "
             "source_documents 42 (routed 42), q_a_pairs 310 (routed 310)"
@@ -3607,7 +3707,7 @@ class TestTheCensusReachesTheLog:
 
         assert summary.census.unrouted == ()
         assert summary.census.unrouted_total == 0
-        log_text = (tmp_path / "log.md").read_text(encoding="utf-8")
+        log_text = summary.declared["log.md"]
         assert "source_documents 7 (routed 7), q_a_pairs 19 (routed 19)" in log_text
         assert "Unrouted" not in log_text
 
@@ -3623,13 +3723,13 @@ class TestTheCensusReachesTheLog:
         precedent `failed` already sets."""
         drafts = [_draft("topics/alpha.md", title="Alpha")]
         covered = _census(9, 40, sd_routed=9, qa_routed=40)
-        bundle_writer.write_bundle(
+        run1 = _write_bundle_and_land(
             tmp_path, drafts, census=covered, timestamp="2026-08-10T09:00:00Z"
         )
         content_after_run1 = {
-            path.relative_to(tmp_path).as_posix(): path.read_text(encoding="utf-8")
-            for path in sorted(tmp_path.rglob("*"))
-            if path.is_file() and path.name != bundle_writer.LOG_FILENAME
+            rel: content
+            for rel, content in run1.declared.items()
+            if rel != bundle_writer.LOG_FILENAME
         }
 
         summary = bundle_writer.write_bundle(
@@ -3645,16 +3745,16 @@ class TestTheCensusReachesTheLog:
         assert summary.removed == ()
         assert summary.failed == ()
         content_after_run2 = {
-            path.relative_to(tmp_path).as_posix(): path.read_text(encoding="utf-8")
-            for path in sorted(tmp_path.rglob("*"))
-            if path.is_file() and path.name != bundle_writer.LOG_FILENAME
+            rel: content
+            for rel, content in summary.declared.items()
+            if rel != bundle_writer.LOG_FILENAME
         }
         assert content_after_run2 == content_after_run1
         # … and it is NOT a no-op, because knowledge is unrouted.
         assert summary.census.unrouted_total == 15
         assert summary.is_no_op is False
 
-        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        log_text = summary.declared[bundle_writer.LOG_FILENAME]
         assert (
             "* **Run 2026-08-10T10:00:00Z — Unrouted (15):** "
             "source_documents 3, q_a_pairs 12"
@@ -3672,13 +3772,13 @@ class TestTheCensusReachesTheLog:
         ran and found nothing still lists its kinds with zeros. A direct
         `write_bundle` call was handed drafts, never a corpus, so printing
         `Considered (0)` for it would report a measurement nobody took."""
-        bundle_writer.write_bundle(
+        summary = bundle_writer.write_bundle(
             tmp_path,
             [_draft("topics/alpha.md", title="Alpha")],
             timestamp="2026-08-10T12:00:00Z",
         )
 
-        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        log_text = summary.declared[bundle_writer.LOG_FILENAME]
         assert "Considered" not in log_text
         assert "Unrouted" not in log_text
 
@@ -3689,14 +3789,14 @@ class TestTheCensusReachesTheLog:
         rather than "a census was taken", this line would silently vanish —
         which is the emptiness-as-evidence error the wave's dispatch
         controls name."""
-        bundle_writer.write_bundle(
+        summary = bundle_writer.write_bundle(
             tmp_path,
             [_draft("topics/alpha.md", title="Alpha")],
             census=_census(0, 0, sd_routed=0, qa_routed=0),
             timestamp="2026-08-10T13:00:00Z",
         )
 
-        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        log_text = summary.declared[bundle_writer.LOG_FILENAME]
         assert (
             "* **Run 2026-08-10T13:00:00Z — Considered (2):** "
             "source_documents 0 (routed 0), q_a_pairs 0 (routed 0)"
@@ -3720,7 +3820,7 @@ class TestBI10NoUuidReachesTheLog:
         carries a real `source_documents` uuid in the drafts' own citations,
         so a uuid is genuinely in scope: this asserts it does not travel
         into the log, not that none existed."""
-        bundle_writer.write_bundle(
+        summary = bundle_writer.write_bundle(
             tmp_path,
             [
                 _draft("topics/alpha.md", title="Alpha"),
@@ -3730,14 +3830,13 @@ class TestBI10NoUuidReachesTheLog:
             timestamp="2026-08-10T14:00:00Z",
         )
 
-        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        log_text = summary.declared[bundle_writer.LOG_FILENAME]
         assert "Unrouted" in log_text  # the census really did report a hole
         assert self._UUID_RE.search(log_text) is None
         # Negative control on the assertion itself: the SAME uuid is present
-        # in the concept this run wrote, so the regex can find one when
+        # in the concept this run emitted, so the regex can find one when
         # there is one to find.
-        concept_text = (tmp_path / "topics/alpha.md").read_text(encoding="utf-8")
-        assert self._UUID_RE.search(concept_text) is not None
+        assert self._UUID_RE.search(summary.declared["topics/alpha.md"]) is not None
 
     def test_every_census_bullet_matches_the_parse_log_run_contract(
         self, tmp_path: Path
@@ -3753,14 +3852,14 @@ class TestBI10NoUuidReachesTheLog:
         Its limit, stated rather than implied: `_TS_RUN_BULLET_RE` is a
         TRANSCRIPTION of the TS regex, so a change to `parse-log.ts` itself
         will not fail this test."""
-        bundle_writer.write_bundle(
+        summary = bundle_writer.write_bundle(
             tmp_path,
             [_draft("topics/alpha.md", title="Alpha")],
             census=_census(9, 40, sd_routed=6, qa_routed=28),
             timestamp="2026-08-10T15:00:00Z",
         )
 
-        log_text = (tmp_path / bundle_writer.LOG_FILENAME).read_text(encoding="utf-8")
+        log_text = summary.declared[bundle_writer.LOG_FILENAME]
         bullets = [line for line in log_text.splitlines() if line.startswith("* ")]
         census_bullets = [
             line for line in bullets if "Considered" in line or "Unrouted" in line
@@ -3819,10 +3918,10 @@ def test_two_documents_with_one_filename_both_write_without_a_collision(
     tripping the collision guard"*.
 
     `write_bundle`'s pre-write guard is the {132.29} one — it refuses the
-    whole run before any `declare_file` when two drafts resolve to one path.
-    That guard is exactly what a CONDITIONAL suffix would eventually hit, and
-    exactly what this corpus would have hit under any naming scheme derived
-    from the filename alone."""
+    whole run before computing any content when two drafts resolve to one
+    path. That guard is exactly what a CONDITIONAL suffix would eventually
+    hit, and exactly what this corpus would have hit under any naming scheme
+    derived from the filename alone."""
     first = _undistilled_draft("aaaaaaaa-1111-4111-8111-111111111111", "report.pdf")
     second = _undistilled_draft("bbbbbbbb-2222-4222-8222-222222222222", "report.pdf")
 
@@ -3833,16 +3932,15 @@ def test_two_documents_with_one_filename_both_write_without_a_collision(
         "documents/report-aaaaaaaa.md",
         "documents/report-bbbbbbbb.md",
     }
-    assert (tmp_path / "documents/report-aaaaaaaa.md").is_file()
-    assert (tmp_path / "documents/report-bbbbbbbb.md").is_file()
-    # Two distinct pages, not one clobbering the other.
-    assert (tmp_path / "documents/report-aaaaaaaa.md").read_text() != (
-        tmp_path / "documents/report-bbbbbbbb.md"
-    ).read_text()
+    # Two distinct pages in the run's output, not one clobbering the other.
+    assert (
+        summary.declared["documents/report-aaaaaaaa.md"]
+        != summary.declared["documents/report-bbbbbbbb.md"]
+    )
 
 
 def test_an_undistilled_page_passes_the_bi13_write_gate(tmp_path: Path) -> None:
-    """`confidence: no-content` reaches disk. The A19 value has been ratified
+    """`confidence: no-content` reaches the bundle. The A19 value has been ratified
     and unreachable since it was ratified (RESEARCH M8) because
     `derive_concept_confidence` returns only `strong`/`partial`; the BI-13
     validator has always accepted it, and nothing had ever asked it to."""
@@ -3853,6 +3951,5 @@ def test_an_undistilled_page_passes_the_bi13_write_gate(tmp_path: Path) -> None:
     summary = bundle_writer.write_bundle(tmp_path, [draft], [])
 
     assert summary.validator_failures == ()
-    written = (tmp_path / "documents/07-supplier-code-aaaaaaaa.md").read_text()
-    assert "confidence: no-content" in written
+    written = summary.declared["documents/07-supplier-code-aaaaaaaa.md"]
     assert "Escalate to a subject-matter expert." in written

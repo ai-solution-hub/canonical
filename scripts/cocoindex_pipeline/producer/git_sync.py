@@ -14,19 +14,19 @@ human-edit reconciliation" (BI-14/BI-18/BI-19/BI-22) + PRODUCT.md BI-27:
     property (this module has ZERO `cocoindex` import, unlike every
     sibling `producer/*.py` module).
 
-**The clobber/orphan hazard this module exists to solve (BI-18/BI-22).**
-cocoindex's own `declare_file` lineage is self-updating — free BI-18
-delta-only behaviour — but on a client-owned directory that may carry
-HUMAN edits, that same lineage is a clobber/orphan hazard: cocoindex's
-reconcile compares a new write's fingerprint against its OWN internal
-tracking record, never against the file's actual on-disk bytes
-(`producer/bundle_writer.py`'s EXECUTOR-VERIFY finding). This module is
-the SEPARATE, git-layer safety net: it is the SOLE writer into the git
-repository (`repo_path`) — the caller supplies this run's freshly
-produced content (`new_output`) as a plain string mapping, never by
-letting cocoindex declare files directly into the client repo — so
-`sync_bundle` can always observe the true 3-way state BEFORE it writes
-anything:
+**The sole writer of the bundle tree (DR-146, id-448).** The producer
+does not declare bundle files as cocoindex target states at all —
+`bundle_writer.write_bundle` is pure content computation, and this module
+performs every physical write. (Historically the engine wrote the
+declared tree AFTER the flow body returned, i.e. after this module ran,
+silently overwriting anything it had put on disk — the id-445 AC-3
+`log.md`-findings loss and the override-fold loss were both that one
+defect. cocoindex's reconcile also compares fingerprints against its OWN
+tracking record, never on-disk bytes, so a human edit was invisible to
+it — the original BI-22 clobber hazard.) The caller supplies this run's
+freshly produced content (`new_output` = `RunSummary.declared`) as a
+plain string mapping, so `sync_bundle` can always observe the true 3-way
+state BEFORE it writes anything:
 
 1. **last-producer-output** — the previous commit's content for a path
    (`git show HEAD:<path>`; `None` if the path did not exist at HEAD, or
@@ -48,10 +48,10 @@ module does not even `stat` it.
 drop").** For each managed path: if `current-repo-state` matches
 NEITHER `last-producer-output` NOR `new-producer-output`, something (a
 human, almost certainly) changed the file since the last producer
-commit. (Bytes equal to `new-producer-output` are this run's OWN
-staged output — the `--bundle-dir == --repo-path` deployment stages
-`declare_file` writes in place before this sync runs — never a human
-edit; that path resolves through the ordinary write/unchanged
+commit. (Bytes equal to `new-producer-output` are the producer's own
+prior output for the path — a previous staged-but-not-yet-published run
+left them on disk, the commit being deferred to the publish gate — never
+a human edit; that path resolves through the ordinary write/unchanged
 decisions.) This module does NOT silently
 overwrite or delete it — it records a `HumanEditConflict`, leaves the
 file exactly as it is, and (when `log.md` is itself in the managed set)
@@ -352,6 +352,51 @@ def _delete(repo_path: Path, rel_path: str) -> None:
     (repo_path / rel_path).unlink(missing_ok=True)
 
 
+def write_tree(
+    target_dir: Path,
+    new_output: Mapping[str, str],
+    *,
+    removed_paths: Sequence[str] = (),
+) -> None:
+    """The NON-GIT write pass (DR-146, id-448): land a run's computed bundle
+    output (`RunSummary.declared`) onto a plain directory, desired-wins —
+    no 3-way reconcile, no staging, no commit. This is the path tests and
+    any `repo_path is None` caller take now that `write_bundle` is pure
+    content computation and nothing declares engine target state.
+
+    **The deployed shape must never take this path** — in deployment the
+    bundle is a client-owned git clone (`bundle_dir == repo_path`, DR-055/
+    DR-016) and a desired-wins write would clobber a human edit before
+    `sync_bundle`'s conflict branch could see it. Enforced structurally: a
+    target that is a git repository is refused, so a mis-wired caller fails
+    loudly instead of silently bypassing the reconcile."""
+    if (target_dir / ".git").exists():
+        raise GitSyncError(
+            f"write_tree refused: {target_dir} is a git repository — a git "
+            "bundle checkout is written only via sync_bundle's 3-way "
+            "reconcile (DR-146/DR-016), never the plain write pass."
+        )
+    for rel_path in sorted(removed_paths):
+        _delete(target_dir, rel_path)
+    for rel_path, content in sorted(new_output.items()):
+        _write(target_dir, rel_path, content)
+
+
+def write_noop_log_stamp(repo_path: Path, log_content: str) -> None:
+    """Owner ruling S456, re-homed by DR-146: a no-op run's unconditional
+    BI-11 `log.md` stamp still lands in the WORKING TREE — unstaged, so it
+    never produces a spurious per-run diff of its own and simply rides into
+    the next real run's staged content. Under the declaration model the
+    engine performed this write; with no declarations it is made here,
+    deliberately without `git add`.
+
+    A blind write, not a reconcile — byte-for-byte the semantics the engine
+    had for this path. `append_log_entry` already folded the CURRENT on-disk
+    log (including any human addition) into `log_content` before this is
+    called, so nothing is dropped by the overwrite."""
+    _write(repo_path, LOG_FILENAME, log_content)
+
+
 # ── Field-level concept-doc model (BI-27/DR-016 capture + re-apply) ──────
 #
 # An OKF concept doc is optional YAML frontmatter (a `---` fenced block) then
@@ -628,13 +673,12 @@ def _decide_and_apply(repo_path: Path, rel_path: str, desired: "str | None") -> 
     if current != last and current != desired:
         # BI-22: current-repo-state diverges from BOTH last-producer-output
         # and new-producer-output — a human edit. (Bytes equal to
-        # new-producer-output are this run's OWN staged output — the
-        # `--bundle-dir == --repo-path` deployment stages `declare_file`
-        # writes in place before this sync runs — so that case falls
-        # through to the ordinary decisions below.) Flag it and leave the
-        # file exactly as it is; BI-27 additionally CAPTURES the human's
-        # field-level delta as an override set so the flow can re-apply it
-        # onto future drafts.
+        # new-producer-output are the producer's own prior staged output —
+        # a previous run applied them and the publish-gate commit has not
+        # happened yet — so that case falls through to the ordinary
+        # decisions below.) Flag it and leave the file exactly as it is;
+        # BI-27 additionally CAPTURES the human's field-level delta as an
+        # override set so the flow can re-apply it onto future drafts.
         captured = capture_overrides(rel_path, baseline=last or "", edited=current or "")
         return _PathDecision(
             rel_path, "conflict", before=last, after=current, captured=captured
@@ -757,10 +801,13 @@ def sync_bundle(
     source_form_instance_ids: "Mapping[str, str] | None" = None,
 ) -> SyncResult:
     """The per-run G-GITSYNC orchestration (BI-14/18/19/22/27): 3-way
-    reconcile + augmentation-guard EVERY managed path, apply what is safe,
-    then commit when anything changed — one commit per producer run, at
-    most (BI-19). A genuinely no-op run (every managed path resolves
-    "unchanged") makes no new commit (BI-18).
+    reconcile + augmentation-guard EVERY managed path — except `log.md`,
+    which is desired-wins (see the inline note: its desired content is
+    computed FROM the current on-disk log, so the 3-way has nothing to
+    protect and structurally misfires under deferred publish commits) —
+    apply what is safe, then commit when anything changed — one commit per
+    producer run, at most (BI-19). A genuinely no-op run (every managed
+    path resolves "unchanged") makes no new commit (BI-18).
 
     `new_output` maps managed rel_path -> this run's desired content.
     `removed_paths` names managed rel_paths this run wants GONE (no
@@ -834,14 +881,28 @@ def sync_bundle(
         desired_log = _merge_findings_into_log(
             base_log, _render_findings(conflicts, refusals)
         )
-        log_decision = _decide_and_apply(repo_path, LOG_FILENAME, desired_log)
-        decisions.append(log_decision)
-        if log_decision.action == "conflict":
-            conflicts.append(HumanEditConflict(LOG_FILENAME))
-        elif log_decision.action == "refused":
-            refusals.append(
-                AugmentationGuardRefusal(LOG_FILENAME, log_decision.dropped_citations)
+        # `log.md` is DESIRED-WINS, not 3-way reconciled (DR-146/id-448).
+        # Its desired content is `append_log_entry`'s merge product, computed
+        # FROM the current on-disk log — a human addition is folded in at
+        # compute time, so writing `desired` never loses one. A 3-way here
+        # misfires structurally under the staging model: the publish commit
+        # is deferred, so `last` (HEAD) lags the staged tree and every
+        # second staged run's log — which differs from both by exactly its
+        # new BI-11 stamp — would be misread as a human edit and dropped.
+        # (Pre-DR-146 the engine's post-body write masked this by blind-
+        # writing the declared log regardless of the reconcile outcome.)
+        current_log = _read_current(repo_path, LOG_FILENAME)
+        last_log = _read_head(repo_path, LOG_FILENAME)
+        if desired_log == current_log:
+            log_decision = _PathDecision(
+                LOG_FILENAME, "unchanged", before=last_log, after=current_log
             )
+        else:
+            _write(repo_path, LOG_FILENAME, desired_log)
+            log_decision = _PathDecision(
+                LOG_FILENAME, "apply", before=last_log, after=desired_log
+            )
+        decisions.append(log_decision)
 
     applied = tuple(sorted(d.rel_path for d in decisions if d.action == "apply"))
     removed = tuple(sorted(d.rel_path for d in decisions if d.action == "remove"))

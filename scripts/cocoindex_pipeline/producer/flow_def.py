@@ -38,7 +38,10 @@ into `app_main` spends no Anthropic/OpenAI tokens and touches no filesystem
 or git repo until an operator deliberately configures the bundle location.
 Each downstream stage degrades independently through its own injection seam:
 no `re_target` -> no embedding write (mirrors `flow._declare_record_embedding`'s
-guard); no `repo_path` -> no git staging; no `gated_corpus` -> Pass-2 skipped.
+guard); no `repo_path` -> no git staging (the run's output lands via
+`git_sync.write_tree`, the DR-146 non-git plain write pass, which refuses a
+git-repository target so the deployed shape can never reach it); no
+`gated_corpus` -> Pass-2 skipped.
 
 **Owner ruling (S456, {132.23}): a log.md-only diff is a no-op — no repo
 mutation at all.** `bundle_writer.append_log_entry` stamps a freshly-
@@ -51,9 +54,10 @@ COMPOSITION layer — the only layer inside this Subtask's file-ownership
 boundary (`git_sync.py`/`publish.py` are out of scope): when `write_bundle`'s
 `RunSummary.is_no_op` is True (no concept-level add/change/remove/move/
 finding), the ONLY diff is the new `log.md` stamp, so the staging step is
-SKIPPED entirely. The BI-11 stamp still lands in the bundle working tree and
-is carried into the NEXT real run; it just never stages a spurious diff of
-its own.
+SKIPPED entirely. The BI-11 stamp still lands in the bundle working tree —
+via `git_sync.write_noop_log_stamp` since DR-146 (the engine's post-body
+write used to do it) — and is carried into the NEXT real run; it just never
+stages a spurious diff of its own.
 
 **STAGING, not a per-run commit (S436 amendment BI-27/DR-016; {132.27}
 G-FLOW-STAGING-WIRE).** Per PRODUCT.md's S436 amendment, "runs land in a
@@ -607,39 +611,55 @@ async def run_producer_flow(
         pass2_ran=pass2_ran,
     )
 
-    # {132.27} G-GITSYNC STAGING — apply + `git add`, no commit. Owner ruling
-    # S456: a log.md-only no-op run (RunSummary.is_no_op) must NOT stage
-    # anything; the BI-11 stamp rides into the next real run instead.
+    from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: PLC0415
+        LOG_FILENAME,
+        proposed_change_set as _proposed_change_set,
+        reapply_overrides,
+        sync_bundle,
+        write_noop_log_stamp,
+        write_tree,
+    )
+
+    # DR-146 (id-448): `git_sync` is the SOLE writer of the bundle tree —
+    # `write_bundle` above computed content only; nothing is declared to the
+    # engine and nothing writes after this function returns. Removal is
+    # explicit in both shapes: concepts confirmed absent from the catalogue
+    # plus stale per-directory indexes (engine orphan-delete used to clean
+    # those up; with no declarations, nothing orphan-deletes).
+    removal_paths = (*summary.removed, *summary.removed_indexes)
+
     if repo_path is None:
+        # The NON-git shape (tests; a caller with no repo) — the plain
+        # write pass. `write_tree` refuses a git-repository target, so the
+        # deployed shape (`bundle_dir == repo_path`, a client-owned clone —
+        # DR-055/DR-016) can never take this path and bypass the 3-way
+        # reconcile.
+        write_tree(
+            resolved_bundle_dir,
+            dict(summary.declared),
+            removed_paths=removal_paths,
+        )
         return report
+
+    # Owner ruling S456: a log.md-only no-op run must NOT stage anything;
+    # the unconditional BI-11 stamp lands in the working tree (unstaged)
+    # and rides into the next real run's staged content.
     if summary.is_no_op:
+        write_noop_log_stamp(Path(repo_path), summary.declared[LOG_FILENAME])
         _logger.info(
             "producer flow: no-op run (log.md-only diff) — nothing staged (S456)."
         )
         return report
 
-    from scripts.cocoindex_pipeline.producer.git_sync import (  # noqa: PLC0415
-        proposed_change_set as _proposed_change_set,
-        reapply_overrides,
-        sync_bundle,
-    )
-
-    # ID-445: THIS run's declared output — never a read of the bundle
-    # directory. `localfs.declare_file` is a DECLARATION; the engine performs
-    # the physical write only AFTER this flow body returns (measured against
-    # cocoindex 1.0.18). The `_read_bundle_dir(resolved_bundle_dir)` that used
-    # to stand here (deleted with this fix — its `.git`-safe rglob lives on in
-    # `publish._read_bundle_dir`, which reads a genuinely-written tree in a
-    # later process) therefore returned the PREVIOUS run's tree, and handing
-    # that to `sync_bundle` as "this run's desired content" made two of its
-    # reconcile branches structurally unreachable for every path on disk:
-    # removal (`git_sync.py` `desired is None` — never, since a de-enumerated
-    # path was still present) and human-edit conflict (`desired == current` by
-    # construction). It also made the DR-016 proposed-change set describe the
-    # PRIOR run.
-    #
-    # `summary.declared` is the same keyset the engine will write, so the two
-    # channels now agree by construction rather than by timing.
+    # ID-445: THIS run's computed output — never a read of the bundle
+    # directory, which at this point still holds the PREVIOUS run's tree
+    # plus any human edit (that ordering is what lets `sync_bundle` observe
+    # a human edit BEFORE anything of this run lands on disk — the reason
+    # DR-146 moves the writer here rather than into `write_bundle`).
+    # Handing a directory read to `sync_bundle` as "this run's desired
+    # content" made two reconcile branches structurally unreachable
+    # (removal and human-edit conflict) and made the DR-016 proposed-change
+    # set describe the PRIOR run.
     new_output = dict(summary.declared)
     if overrides:
         # BI-27/DR-016: fold approved human-edit overrides onto this run's
@@ -685,7 +705,7 @@ async def run_producer_flow(
     sync_result = sync_bundle(
         Path(repo_path),
         new_output,
-        removed_paths=summary.removed,
+        removed_paths=removal_paths,
         timestamp=timestamp,
         stage_only=True,
         source_form_instance_ids=source_form_instance_ids or None,

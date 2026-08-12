@@ -1,16 +1,19 @@
-"""Bundle-writer — validator-gated `declare_file` per concept, `index.md` /
-`log.md` writers, the DR-027 ontology artefact (ID-132 {132.10} G-BUNDLE).
+"""Bundle-writer — validator-gated per-concept content computation,
+`index.md` / `log.md` renderers, the DR-027 ontology artefact (ID-132
+{132.10} G-BUNDLE, as re-shaped by DR-146/id-448).
 
 Consumes the {132.7}/{132.8}/{132.9} drafts (`producer.enrich.ConceptDraft`,
-`producer.web_pass.ReferenceConceptDraft`) and is the ONLY call site that
-turns them into on-disk bundle files, per `docs/specs/id-132-okf-concept-
-producer/TECH.md` §"The two-pass loop" (index.md/log.md paragraph) +
-§"Proposed changes per invariant" BI-11/13/18:
+`producer.web_pass.ReferenceConceptDraft`) and computes the COMPLETE bundle
+output for a run — `RunSummary.declared`, `{rel_path: content}`. **This
+module performs no physical write and declares no cocoindex target state
+(DR-146): `git_sync` is the sole writer of the bundle tree** —
+`sync_bundle` for the deployed git shape, `write_tree` for the non-git
+shape. The TECH §"two-pass loop" contract (BI-11/13/18) is unchanged at
+the content level:
 
-    Per concept: call the validator gate (id 7) THEN
-    localfs.declare_file(bundle_dir/concept_path, markdown,
-    create_parent_dirs=True) (BI-11). log.md (BI-11/BI-18): append one
-    block per producer run.
+    Per concept: call the validator gate (id 7) THEN compute the concept's
+    markdown into the run output (BI-11). log.md (BI-11/BI-18): one block
+    per producer run.
 
 **The index surface is per-directory, and its axis is the directory
 (id-429, DESIGN.md D1/D3/D7 — a design decision the owner took, NOT a
@@ -52,35 +55,21 @@ assertion in `__tests__/lib/okf/` prove this module never silently drifts
 from the parsers' contract (the TS-side fixture/parser refresh for v0.2 is
 id-439's consumer wave).
 
-**EXECUTOR-VERIFY finding (feeds {132.12} G-GITSYNC — TECH §Git
-knowledge-sync).** Confirmed EMPIRICALLY against the real (unsandboxed)
-`cocoindex==1.0.7` engine: a bare `localfs.declare_file(path, content)`
-call — with NO `DirTarget`/`declare_dir_target` keyset — DOES orphan-delete
-a path that was declared in a PRIOR run but is NOT re-declared in the
-CURRENT run. Reading `cocoindex/connectors/localfs/_target.py` confirms
-WHY: every `declare_file` call registers a root-level target state keyed
-by `(base_dir_key, absolute_path)` against the SAME shared
-`"cocoindex/localfs"` root provider (`register_root_target_states_
-provider`), regardless of whether it was reached via the free
-`declare_file` function or a `DirTarget`; the engine's reconcile pass
-diffs THIS run's declared keyset for that provider against the PRIOR
-run's, and issues a delete action (`_reconcile_entry`'s `NON_EXISTENCE`
-branch → `path.unlink`) for any key that dropped out — with NO DirTarget
-required. Practical corollary this module relies on: `write_bundle` below
-declares ONLY the concepts that should exist THIS run (never calls
-`declare_file` for a removed/moved-away path itself) and lets the REAL
-engine's own reconciliation perform the physical delete on the next actual
-flow update — `write_bundle`'s own `removed`/`moved` bookkeeping is
-purely for the `log.md` summary, never a manual `unlink`. A second,
-narrower finding germane to {132.12}'s human-edit 3-way reconcile design:
-`_reconcile_entry` compares the NEW declared content's fingerprint against
-cocoindex's OWN prior TRACKING RECORD (its internal LMDB state), never
-against the file's actual CURRENT on-disk bytes — so a human edit made
-directly to a managed file, between two producer runs, is invisible to
-cocoindex's own dedup and WILL be silently clobbered the next time the
-producer's OWN declared content for that concept changes (the exact
-BI-22 clobber hazard TECH names {132.12} to solve; cocoindex's engine
-provides no help detecting it).
+**EXECUTOR-VERIFY finding — HISTORICAL since DR-146 (id-448); kept
+because it is the measured evidence for why the declaration model was
+retired.** Confirmed empirically against the real engine (1.0.7, re-
+measured at 1.0.18): `declare_file` is a DECLARATION applied only after
+the flow body returns; the engine's reconcile diffs each run's declared
+keyset against the prior run's and orphan-deletes any dropped key; and
+its fingerprint dedup compares against cocoindex's OWN tracking record,
+never on-disk bytes — so a human edit was invisible to it and would be
+silently clobbered (the BI-22 hazard). The post-body write ordering also
+meant the engine overwrote anything `git_sync` had put on disk — the
+id-445 AC-3 `log.md`-findings loss and the override-fold loss, one
+defect class. DR-146's resolution: **nothing here declares; `git_sync`
+writes; removal is explicit** (`RunSummary.removed` for concepts,
+`RunSummary.removed_indexes` for stale per-directory indexes — the two
+jobs engine orphan-delete used to do).
 
 **Cross-grain `case_study` slug collision (ID-132 {132.29}) — resolved at
 the SOURCE since ID-427 {427.8}; this module no longer participates.** A
@@ -152,13 +141,12 @@ that composition in `producer/flow_def.run_producer_flow` — mirroring `{132.8}
 by the composition layer rather than by this module.
 
 **Collection safety.** Like `producer/enrich.py` / `producer/web_pass.py`,
-this module transitively requires `cocoindex` at import time — both for
-its own `localfs` façade import (`_coco_api.py`, mirrors `flow.py`'s
-eager top-level `from _coco_api import (..., localfs, ...)`) and because
-it imports `producer/enrich.py` (`@coco.fn`) and `producer/web_pass.py`.
-Its test file therefore stubs `cocoindex` (+ `cocoindex.connectors.
-localfs`) via `conftest.stubbed_sys_modules` before importing this module,
-exactly mirroring `test_producer_web_pass.py`.
+this module transitively requires `cocoindex` at import time — no longer
+for any write connector of its own (the `localfs` façade import left with
+the declarations, DR-146), but because it imports `producer/enrich.py`
+(`@coco.fn`) and `producer/web_pass.py`. Its test file therefore stubs
+`cocoindex` via `conftest.stubbed_sys_modules` before importing this
+module, exactly mirroring `test_producer_web_pass.py`.
 """
 
 from __future__ import annotations
@@ -171,7 +159,6 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, Literal, Mapping, Sequence, TypeAlias
 
-from scripts.cocoindex_pipeline._coco_api import localfs
 from scripts.cocoindex_pipeline.producer.enrich import ConceptDraft
 from scripts.cocoindex_pipeline.producer.frontmatter import (
     ConceptFrontmatter,
@@ -300,10 +287,12 @@ def _rel_path_of(draft: Any) -> str:
 def _read_existing(path: Path) -> "str | None":
     """The file's CURRENT on-disk content, or `None` if absent. Used only
     for the `added`/`changed`/`unchanged` classification `write_bundle`
-    reports in `log.md` — never to decide whether to call `declare_file`
-    (BI-18: always declare the desired state every run; the ENGINE'S OWN
-    lineage — verified, see module docstring — is what makes a no-op
-    re-run a no-op *physical* write)."""
+    reports in `log.md` — never to decide whether to compute a concept's
+    output (BI-18: the full desired state is computed every run; the git
+    layer's own reconcile is what makes a no-op re-run a no-op *physical*
+    write). Sound because at compute time the tree still holds the
+    PREVIOUS run's landed content — `git_sync` writes only after
+    `write_bundle` returns (DR-146)."""
     try:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -321,14 +310,10 @@ class ConceptWriteResult:
     changed: bool = False
 
     content: str = ""
-    """The exact bytes handed to `declare_file` for this concept (empty when
-    `written` is False — a gated concept declares nothing).
-
-    ID-445: `declare_file` is a DECLARATION, not a write — the engine applies
-    it AFTER the flow body returns (measured against cocoindex 1.0.18). So a
-    caller that needs THIS run's output cannot read it back off disk from
-    inside the flow; it has to be handed the bytes here. See
-    `RunSummary.declared`."""
+    """The concept's exact computed bundle bytes (empty when `written` is
+    False — a gated concept contributes nothing to the run output). The
+    caller folds this into `RunSummary.declared`, which `git_sync` — the
+    sole writer since DR-146 — lands on disk."""
 
 
 def declare_concept(
@@ -339,9 +324,10 @@ def declare_concept(
     relationships: "Sequence[Mapping[str, object]] | None" = None,
     effective_ontology: "EffectiveOntology | None" = None,
 ) -> ConceptWriteResult:
-    """BI-13 gate THEN BI-11 `declare_file` write — the ONLY call site every
-    concept write (a Pass-1 draft, a Pass-2-enriched draft, or a Pass-2
-    `ReferenceConceptDraft`) must go through.
+    """BI-13 gate THEN BI-11 content computation — the ONLY call site every
+    concept (a Pass-1 draft, a Pass-2-enriched draft, or a Pass-2
+    `ReferenceConceptDraft`) must go through on its way into the run
+    output. No physical write happens here (DR-146).
 
     A concept FAILING the gate is **NOT written** (BI-13):
     `ConceptWriteResult.written` is `False` and `.errors` carries every
@@ -386,7 +372,6 @@ def declare_concept(
     target_path = bundle_dir / rel_path
     previous = _read_existing(target_path)
     markdown: str = render_concept_frontmatter(frontmatter) + body
-    localfs.declare_file(target_path, markdown, create_parent_dirs=True)
     return ConceptWriteResult(
         rel_path=rel_path,
         written=True,
@@ -612,15 +597,16 @@ def build_directory_indexes(
     spelled `""`.
 
     Membership is `written` — this run's VALIDATED set — not the on-disk
-    tree. A tree read would include concepts cocoindex's reconciliation is
-    about to orphan-delete, and would re-admit the failure mode `written`
-    already rules out. Two decided consequences follow (D7): a concept that
-    failed to draft this run (`failed_rel_paths`) is absent from its index
-    even though `_reaffirm_unwritten_concepts` keeps its file alive; and a
-    directory whose last concept leaves simply stops having an index
-    declared, which the engine's own orphan-delete reconciliation then
-    cleans up (EXECUTOR-VERIFY, module docstring) — this module never
-    unlinks.
+    tree. A tree read would include concepts this run has de-enumerated
+    (removal is applied by the git layer only AFTER this computation), and
+    would re-admit the failure mode `written` already rules out. Two
+    decided consequences follow (D7): a concept that failed to draft this
+    run (`failed_rel_paths`) is absent from its index even though
+    `_reaffirm_unwritten_concepts` keeps its file alive; and a directory
+    whose last concept leaves simply stops having an index generated — its
+    stale on-disk `index.md` is routed into `RunSummary.removed_indexes`
+    for the git layer to remove (DR-146; engine orphan-delete used to do
+    this) — this module never unlinks.
 
     `written` is keyed by the path each concept was actually written to,
     which since ID-427 {427.8} is its identity `rel_path` — a won-bid
@@ -726,10 +712,10 @@ def build_directory_indexes(
 def declare_directory_indexes(
     bundle_dir: Path, written: "Mapping[str, ConceptFrontmatter]"
 ) -> "dict[str, str]":
-    """D7: `declare_file` one `index.md` per directory, root to leaf, in the
-    SAME declare pass as the concepts and BEFORE `append_log_entry`. Returns
-    `{index bundle-relative path: rendered content}` for the caller's own
-    inspection; the physical write is the engine's.
+    """D7: render one `index.md` per directory, root to leaf, in the SAME
+    pass as the concepts and BEFORE `append_log_entry`. Returns
+    `{index bundle-relative path: rendered content}` — folded into
+    `RunSummary.declared`; the physical write is `git_sync`'s (DR-146).
 
     Only the bundle-ROOT index is rendered with the `okf_version` stamp — the
     renderer takes it as a required parameter, so a nested index cannot
@@ -749,9 +735,6 @@ def declare_directory_indexes(
                 else _directory_label(PurePosixPath(directory).name)
             ),
             okf_version=OKF_VERSION if is_root else None,
-        )
-        localfs.declare_file(
-            bundle_dir / index_rel_path, content, create_parent_dirs=True
         )
         declared[index_rel_path] = content
     return declared
@@ -786,12 +769,28 @@ class RunSummary:
     `removed` (confirmed absent from the source catalogue's own
     enumeration)."""
 
+    removed_indexes: "tuple[str, ...]" = ()
+    """id-448 (DR-146): per-directory `index.md` files whose directory held
+    producer concepts on the previous run and holds none this run. Under the
+    declaration model the engine's orphan-delete cleaned these up as their
+    declarations dropped out of the keyset; with git_sync as sole writer they
+    must reach the removal channel EXPLICITLY (`sync_bundle`'s
+    `removed_paths` / `write_tree`'s), or a stale index lingers forever.
+    Deliberately scoped to directories the PRODUCER previously populated —
+    a hand-authored index in a directory the producer never wrote to (§8
+    permits one anywhere) is not the producer's to remove. Kept distinct
+    from `removed` (concepts confirmed absent from the source catalogue);
+    the two report differently in `log.md`."""
+
     declared: "Mapping[str, str]" = MappingProxyType({})
-    """THIS run's declared bundle output — `{bundle-relative path: content}` —
-    covering every `declare_file` call `write_bundle` made: concepts, the
+    """THIS run's computed bundle output — `{bundle-relative path: content}` —
+    covering every artefact `write_bundle` produced: concepts, the
     per-directory indexes, `ontology.json`, `context.jsonld`, `log.md`, and
     the reaffirmed last-good content of unwritten-but-still-enumerated
-    concepts.
+    concepts. Since DR-146 (id-448) this map IS the run's entire write
+    surface: `write_bundle` performs no physical write and declares no
+    engine target state; `git_sync` (`sync_bundle`, or `write_tree` for the
+    non-git shape) lands it on disk.
 
     **Not part of the `log.md` diff** — the four tuples above are that. This
     is here because ID-445 measured that there is no other way to obtain it
@@ -856,6 +855,7 @@ class RunSummary:
             self.added
             or self.changed
             or self.removed
+            or self.removed_indexes
             or self.moved
             or self.orphaned_anchors
             or self.validator_failures
@@ -947,6 +947,15 @@ def _render_change_bullets(summary: RunSummary, ts: str) -> "list[str]":
             f"* **Run {ts} — Removed ({len(summary.removed)}):** "
             + ", ".join(summary.removed)
         )
+    if summary.removed_indexes:
+        # id-448 (DR-146): stale per-directory indexes are removed by the
+        # git layer now, not by engine orphan-delete — reported so the
+        # cleanup is never silent.
+        lines.append(
+            f"* **Run {ts} — Removed stale indexes "
+            f"({len(summary.removed_indexes)}):** "
+            + ", ".join(summary.removed_indexes)
+        )
     if summary.moved:
         moved_desc = ", ".join(f"{old} -> {new}" for old, new in summary.moved)
         lines.append(f"* **Run {ts} — Moved ({len(summary.moved)}):** {moved_desc}")
@@ -992,9 +1001,9 @@ def append_log_entry(
     bundle_dir: Path, summary: RunSummary, *, timestamp: "str | None" = None
 ) -> str:
     """Read `bundle_dir/log.md`'s CURRENT content (if present) and record
-    this run's entry — SPEC §9: date-grouped, NEWEST FIRST. `declare_file`
-    has no native prepend mode — it always takes the FULL desired content —
-    so this function owns full-content reconstruction:
+    this run's entry — SPEC §9: date-grouped, NEWEST FIRST. The writer
+    (`git_sync`, DR-146) takes the FULL desired content, so this function
+    owns full-content reconstruction:
 
       (a) no existing content — the file is created fresh with this run's
           date section;
@@ -1006,7 +1015,9 @@ def append_log_entry(
 
     Matches `lib/okf/parse-log.ts`'s "FIRST `##` heading is the most recent
     date; runs are the `**Run <ts> — …**` bullets" contract. Returns the
-    new full content.
+    new full content — no physical write happens here (DR-146); because the
+    CURRENT on-disk log is this computation's base, `git_sync` may land the
+    result desired-wins without losing a human addition.
     """
     ts = _resolve_run_timestamp(timestamp)
     date = ts[:10]
@@ -1034,7 +1045,6 @@ def append_log_entry(
             section = "\n".join([f"## {date}", "", *bullets])
             new_content = f"{section}\n\n{existing.lstrip()}".rstrip("\n") + "\n"
 
-    localfs.declare_file(bundle_dir / LOG_FILENAME, new_content, create_parent_dirs=True)
     return new_content
 
 
@@ -1519,9 +1529,6 @@ def write_ontology_artefact(
         "overlay": dict(client_overlay) if client_overlay is not None else None,
     }
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    localfs.declare_file(
-        bundle_dir / ONTOLOGY_FILENAME, content, create_parent_dirs=True
-    )
     return content
 
 
@@ -1583,9 +1590,6 @@ def write_context_artefact(
     projection = iri_projection.project_context(effective_ontology, client_id=client_id)
     payload = {"@context": projection["@context"]}
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    localfs.declare_file(
-        bundle_dir / CONTEXT_FILENAME, content, create_parent_dirs=True
-    )
     return content
 
 
@@ -1600,12 +1604,9 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     against for the `log.md` added/changed/removed summary.
 
     Reading the real directory tree (rather than requiring a caller to
-    persist state externally) is sound because `declare_file` writes are
-    REAL filesystem writes once a run actually applies (EXECUTOR-VERIFY,
-    module docstring) — `bundle_dir` IS the durable record of "what the
-    last run declared", and cocoindex's OWN reconciliation phase (which
-    performs the physical write/delete) always completes before this
-    function's caller runs again for the NEXT producer invocation.
+    persist state externally) is sound because `git_sync` lands each run's
+    output on disk before the NEXT producer invocation begins (DR-146) —
+    `bundle_dir` IS the durable record of what the last run produced.
 
     Reservation is SCOPED, not a flat basename set (id-429 {429.2}): the
     previous form compared the full bundle-relative path against a set of
@@ -1637,20 +1638,33 @@ def _existing_concept_paths(bundle_dir: Path) -> "set[str]":
     }
 
 
+def _ancestor_dirs(rel_paths: "Sequence[str] | set[str] | Mapping[str, Any]") -> "set[str]":
+    """Every directory on the path from the bundle root to each of
+    `rel_paths` (the root itself excluded — spelled `""` elsewhere, it always
+    carries the root index and can never be stale). The same root-to-leaf
+    closure `build_directory_indexes` walks; factored so the stale-index
+    computation below diffs the identical population."""
+    dirs: "set[str]" = set()
+    for rel_path in rel_paths:
+        parts = PurePosixPath(rel_path).parent.parts
+        for depth in range(len(parts)):
+            dirs.add("/".join(parts[: depth + 1]))
+    return dirs
+
+
 def _reaffirm_unwritten_concepts(
     bundle_dir: Path, unwritten_rel_paths: "set[str]"
 ) -> "dict[str, str]":
-    """G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, {132.35} Defect B): re-declare
-    the EXISTING on-disk content, byte-for-byte unchanged, for every concept
-    that is STILL enumerated by the source catalogue but produced no write
-    THIS run — never a fresh write. This is
-    what actually keeps the concept's last-good bundle version alive: the
-    module docstring's EXECUTOR-VERIFY finding established that the REAL
-    cocoindex engine orphan-deletes any path NOT re-declared this run
-    relative to the prior run's own declared keyset, with NO `DirTarget`
-    required — so a concept simply left undeclared would still be deleted by
-    the engine's own reconciliation on the next actual flow update,
-    regardless of what `RunSummary.removed` reports.
+    """G-PARSE-HARDEN Leg 2 (ID-132 {132.45}, {132.35} Defect B): carry the
+    EXISTING on-disk content, byte-for-byte unchanged, into the run output
+    for every concept that is STILL enumerated by the source catalogue but
+    produced no write THIS run — never a fresh write. This is what keeps
+    the concept's last-good bundle version alive under DR-146: a path
+    absent from `RunSummary.declared` is outside `sync_bundle`'s managed
+    keyset for the run, and a `sync_bundle` handed it via `removed_paths`
+    would delete it — so membership in the run output IS the retention
+    mechanism (previously this was a byte-identical re-declaration, for the
+    engine-side analogue of the same reason).
 
     **Two distinct classes reach here, and they stay distinct in REPORTING
     while sharing these removal semantics** (id-445 AC-4):
@@ -1679,7 +1693,6 @@ def _reaffirm_unwritten_concepts(
         existing = _read_existing(bundle_dir / rel_path)
         if existing is None:
             continue
-        localfs.declare_file(bundle_dir / rel_path, existing, create_parent_dirs=True)
         reaffirmed[rel_path] = existing
     return reaffirmed
 
@@ -1698,12 +1711,15 @@ def write_bundle(
     census: CorpusCensus = CorpusCensus(),
     timestamp: "str | None" = None,
 ) -> RunSummary:
-    """The per-run G-BUNDLE orchestration: validator-gate + `declare_file`
-    every concept (BI-13/BI-11), regenerate ONE `index.md` PER DIRECTORY
-    (id-429 D1/D7 — root to leaf, in this same declare pass), append one
+    """The per-run G-BUNDLE orchestration: validator-gate + compute every
+    concept's content (BI-13/BI-11), regenerate ONE `index.md` PER
+    DIRECTORY (id-429 D1/D7 — root to leaf, in this same pass), append one
     `log.md` run block (BI-11/BI-18/BI-22), and ship the DR-027 ontology
     artefact plus the {132.44} bl-457 `context.jsonld` IRI-projection
-    artefact. Returns the `RunSummary` this run produced.
+    artefact. Returns the `RunSummary` this run produced — whose
+    `.declared` map is the run's COMPLETE output; nothing here writes a
+    file or registers engine target state (DR-146: `git_sync` is the sole
+    writer of the bundle tree).
 
     **The index surface takes no config (id-429 D1/D3, {429.3}/{429.5}).**
     The `theme_config` parameter is gone: each index's axis is the directory
@@ -1919,13 +1935,34 @@ def write_bundle(
     removed = sorted(
         previous_paths - set(written) - moved_from - failed_set - rejected_set
     )
-    declared.update(_reaffirm_unwritten_concepts(bundle_dir, reaffirm_set))
+    reaffirmed = _reaffirm_unwritten_concepts(bundle_dir, reaffirm_set)
+    declared.update(reaffirmed)
+
+    # id-448 (DR-146): a directory that held producer concepts on the
+    # previous run and holds none this run stops having an index generated
+    # (`build_directory_indexes` derives from `written`). With no engine
+    # orphan-delete, its stale `index.md` must be removed by the git layer,
+    # so it is reported explicitly. Scoped to previously-producer-populated
+    # directories only — a hand-authored index elsewhere is never touched.
+    # The diff runs against the run's FULL retained concept output —
+    # `written` PLUS the reaffirmed last-good files — because a directory
+    # kept alive by a reaffirmed (failed/rejected) concept still holds a
+    # producer concept, and deleting its index while the reaffirmation
+    # channel saves the concept would contradict the retention it exists
+    # for (W4 migration probe, S556).
+    stale_index_dirs = _ancestor_dirs(previous_paths) - _ancestor_dirs(
+        {*written, *reaffirmed}
+    )
+    removed_indexes = tuple(
+        sorted(f"{d}/{INDEX_FILENAME}" for d in stale_index_dirs)
+    )
 
     summary = RunSummary(
         added=tuple(sorted(added)),
         changed=tuple(sorted(changed)),
         unchanged=tuple(sorted(unchanged)),
         removed=tuple(removed),
+        removed_indexes=removed_indexes,
         moved=tuple(sorted(moved.items())),
         orphaned_anchors=tuple(orphaned_anchors),
         validator_failures=tuple(failures),
