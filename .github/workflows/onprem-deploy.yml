@@ -24,8 +24,11 @@
 #     in-process (Trafilatura, ID-112), so there is no upstream extractor
 #     sidecar image; this workflow builds exactly ONE image.
 #   * NO KH application-code changes — it packages scripts/cocoindex_pipeline/*.py
-#     unchanged; the build config preserves the original Cloud Build setup
-#     (same google-22 builder, GOOGLE_ENTRYPOINT, runtime, Python version).
+#     unchanged. BUILD RECIPE (id-416 / DR-119, S560): a checked-in Dockerfile —
+#     deploy/docker/cocoindex.Dockerfile via .github/actions/build-cocoindex-image,
+#     the ONE recipe shared with cocoindex-nightly.yml. The Cloud-Run-era
+#     buildpacks builder (gcr.io/buildpacks/builder google-22) and both
+#     post-`pack` layers are RETIRED — their rationale lives in the Dockerfile.
 #   * NEXT_PUBLIC_CLIENT_ID is NOT a B1-host concern (OQ-66-6 — Vercel-side bake).
 #
 # BURN-PREVENTION — read docs/runbooks/onprem-b1-deploy.md §B2 before changing
@@ -54,9 +57,11 @@
 # error, no run. The workflow now ALWAYS starts on a main/staging push and the
 # `detect-changes` first job diffs the FULL before..sha compare (no 300-file
 # limit), gating the heavy build/deploy jobs on `outputs.relevant`. The match
-# set preserves the retired filter's semantics exactly: scripts/**/*.py,
-# requirements.txt, deploy/coolify/**. workflow_dispatch stays as the
-# belt-and-braces fallback and is always treated as relevant. None of the
+# set covers everything the image is built from (id-416 widened it):
+# scripts/**/*.py, requirements.txt/.lock/.overrides.txt, deploy/coolify/**,
+# deploy/docker/**, the build composite action and this workflow.
+# workflow_dispatch stays as the belt-and-braces fallback and is always
+# treated as relevant. None of the
 # burn-prevention guarantees above change — the detection job runs no deploys
 # and touches no Coolify state.
 #
@@ -78,7 +83,7 @@
 #      this workflow (ID-127.16) — no client app UUID in this PUBLIC repo.
 #   2. ✅ EXTERNAL REFS PINNED to commit SHAs (workflow-injection hardening per the
 #      cloud-run-deploy.yml header). SHAs resolved 2026-05-31; floated version in the
-#      trailing comment. setup-pack moved off the v5.8.11 placeholder to current v5.12.3.
+#      trailing comment. (setup-pack retired with buildpacks, id-416/DR-119.)
 #   3. ⬜ LIVE TRIGGER TEST ({66.7} testStrategy): run once (workflow_dispatch off the
 #      working branch) and confirm a pullable ghcr.io/<owner>/kh-cocoindex-pipeline:sha-<sha>
 #      appears and the host stays uncontended.
@@ -168,10 +173,13 @@ jobs:
   # push compare — align-class pushes silently skipped the whole workflow).
   # Diffs the FULL before..sha compare via plain `git diff --name-only` (no
   # 300-file limit, no marketplace actions — pure git + shell, matching this
-  # workflow's pinned-deps discipline) and matches against the EXACT path set
-  # the retired filter carried: scripts/**/*.py, requirements.txt,
-  # deploy/coolify/**. Edge cases: all-zeros `before` (branch create /
-  # force-push) and workflow_dispatch are both treated as relevant=true.
+  # workflow's pinned-deps discipline) and matches against the path set the
+  # image is actually built FROM: scripts/**/*.py, requirements.txt,
+  # requirements.lock (S552 finding: the image builds from the LOCK, so a
+  # lock-only commit must trigger a rebuild), deploy/coolify/**, and the
+  # build recipe itself (deploy/docker/**, the build composite action, this
+  # workflow). Edge cases: all-zeros `before` (branch create / force-push)
+  # and workflow_dispatch are both treated as relevant=true.
   # ───────────────────────────────────────────────────────────────────────────
   detect-changes:
     name: Detect pipeline-relevant changes (full compare)
@@ -224,9 +232,10 @@ jobs:
           CHANGED="$(git diff --name-only "${BEFORE_SHA}" "${AFTER_SHA}")"
           TOTAL="$(printf '%s\n' "${CHANGED}" | grep -c . || true)"
           echo "Full compare ${BEFORE_SHA}..${AFTER_SHA}: ${TOTAL} changed file(s)."
-          # Match set == the retired workflow-level paths: filter, verbatim
-          # semantics: scripts/**/*.py | requirements.txt | deploy/coolify/**
-          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(scripts/.*\.py|requirements\.txt|deploy/coolify/.*)$' || true)"
+          # Match set == everything the image is built from (id-416: the lock
+          # is a build input — S552 found a lock-only commit skipped the
+          # rebuild) plus the build recipe itself.
+          MATCHES="$(printf '%s\n' "${CHANGED}" | grep -E '^(scripts/.*\.py|requirements\.(txt|lock|overrides\.txt)|deploy/coolify/.*|deploy/docker/.*|\.github/actions/build-cocoindex-image/.*|\.github/workflows/onprem-deploy\.yml)$' || true)"
           if [ -n "${MATCHES}" ]; then
             echo "Pipeline-relevant changes:"
             printf '%s\n' "${MATCHES}"
@@ -254,247 +263,84 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up the Cloud Native Buildpacks `pack` CLI
-        uses: buildpacks/github-actions/setup-pack@8fe5c9d7f5a3fa22d4b7cc7d50ba8ebd7eddf414 # v5.12.3 (pinned 2026-05-31; was v5.8.11 placeholder)
-
-      - name:
-          Build + publish cocoindex image (buildpacks — faithful to
-          cloudbuild-cocoindex.yaml)
+      - name: Compute image tags (pinned sha- always; moving :main on main)
+        id: tags
+        env:
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          # IMAGE HYGIENE (IP + slim): the cocoindex image must ship ONLY the Python
-          # pipeline + its deps — never the Next.js app, docs/, .planning/ (client IP),
-          # docs-site, .claude, or tests. pack does NOT reliably honour .gcloudignore or
-          # project.toml include/exclude (a whitelist attempt still leaked
-          # .claude / docs-site / __tests__ into /workspace), so we build from an
-          # EXPLICITLY PRUNED context containing nothing but scripts/ + requirements.txt.
-          # This is the authoritative mechanism — verify with `ls /workspace` on the
-          # pulled image (expect: scripts requirements.txt only).
-          CTX="$(mktemp -d)"
-          cp -R scripts "${CTX}/scripts"
-          # Build installs from the LOCKED transitive closure, not the human-edited
-          # requirements.txt directly ({127.22}, S438): the buildpacks Python pip
-          # installer reads exactly one filename (requirements.txt) from the build
-          # context root, so requirements.lock is copied in UNDER that name. This
-          # makes rebuilds reproducible (full closure pinned, not just direct deps)
-          # while requirements.txt itself stays the source developers edit — see the
-          # header comment in requirements.lock for the regenerate command.
-          cp requirements.lock "${CTX}/requirements.txt"
-          echo "Pruned build context:"; ls -A "${CTX}"
-          # Same builder/env as the original Cloud Build config. `-m` invocation
-          # is load-bearing (FX-8): the buildpack runtime does not add /workspace
-          # to sys.path on bare-script invocation, so `scripts.cocoindex_pipeline`
-          # qualified imports need `python3 -m`.
-          #
-          # REMOTE LAYER CACHE (approach B — backlog 216 follow-up): --cache-image
-          # persists the buildpack build cache (incl. the heavy pip / Docling / ML /
-          # cocoindex-Rust-wheel deps layer — the bulk of the ~9-min cold build) to a
-          # STABLE registry tag, so each ephemeral GH runner RESTORES it instead of
-          # rebuilding from cold. It is registry-backed (requires --publish; there is
-          # no persistent local volume across runners). On the FIRST run the tag does
-          # not exist — pack treats it as an empty cache and SEEDS it post-build;
-          # subsequent runs with an unchanged requirements.txt cache-hit the deps
-          # layer (~9 min cold -> ~2-4 min warm; a requirements.txt change re-seeds it).
-          # The :buildcache tag is SEPARATE from the pinned :sha- app image, so the
-          # The size-budget step below still inspects ONLY the app image.
-          pack build "${IMAGE}:${TAG}" \
-            --path "${CTX}" \
-            --builder gcr.io/buildpacks/builder:google-22 \
-            --cache-image "${IMAGE}:buildcache" \
-            --env "GOOGLE_ENTRYPOINT=python3 -m scripts.cocoindex_pipeline.server" \
-            --env "GOOGLE_RUNTIME=python" \
-            --env "GOOGLE_PYTHON_VERSION=3.13.13" \
-            --publish
-          echo "Published ${IMAGE}:${TAG}"
+          TAGS="${IMAGE}:${TAG}"
+          # Moving :main tag (id-416 / DR-119): resolved by cocoindex-nightly.yml
+          # so the lane PULLS the artefact that actually ships instead of
+          # rebuilding its own. Deploy composes keep pinning sha- tags — the
+          # no-:latest rollback discipline is about DEPLOYS, not test lanes,
+          # and is untouched by this moving tag.
+          if [ "${REF}" = "refs/heads/main" ]; then
+            TAGS="${TAGS} ${IMAGE}:main"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Publishing tags: ${TAGS}"
 
       - name:
-          Bake `git` + `openssh-client` + LibreOffice into the published image
-          (thin post-pack layer — ID-132 {132.35} G-DEPLOY-PROOF Defect C +
-          ID-145 {145.31} DR-059 doc/xls convert-on-upload + ID-132 {132.48}
-          G-PUBLISH-TRANSPORT DR-055 ssh transport)
+          Build + publish cocoindex image (Dockerfile — id-416 / DR-119, ONE
+          recipe)
+        # deploy/docker/cocoindex.Dockerfile is the single build recipe, shared
+        # with cocoindex-nightly.yml's branch-dispatch fallback via this same
+        # composite action. Everything the retired buildpacks flow did
+        # implicitly is an explicit line there:
+        #   - IMAGE HYGIENE (IP + slim) — the allowlist in
+        #     deploy/docker/cocoindex.Dockerfile.dockerignore + the explicit
+        #     COPY set (never the Next.js app, docs/, .planning/, docs-site,
+        #     .claude, or tests);
+        #   - the LOCKED closure — `pip install --no-deps -r requirements.lock`
+        #     (the lock is CI-generated linux-x86_64/cpu, pipeline-lock.yml; no
+        #     rename-to-requirements.txt indirection any more);
+        #   - the former post-`pack` apt layer (git + openssh-client +
+        #     LibreOffice, DR-055/DR-059) and the ID-413 opencv-headless
+        #     enforcement — now ordinary Dockerfile RUNs with build-time guards.
+        # REMOTE LAYER CACHE: :buildcache is a buildx registry cache ref
+        # (mode=max), replacing pack's --cache-image — same purpose (the heavy
+        # pip layer survives across ephemeral runners), same tag.
+        uses: ./.github/actions/build-cocoindex-image
+        with:
+          tags: ${{ steps.tags.outputs.tags }}
+          push: "true"
+          cache-ref: ${{ env.IMAGE }}:buildcache
+
+      - name:
+          Verify the pushed tag resolves in the registry (pull-verify, no pull)
+        # The deploy jobs' "never a stale image" guard cites a pull-verified
+        # build; the retired post-pack step provided that implicitly via
+        # `docker pull`. This is the explicit, cheap replacement — manifest
+        # resolution fails the job if the push did not land.
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
         run: |
           set -euo pipefail
-          # DEFECT C (ID-132 {132.35} deploy proof, RUN 1): the deployed
-          # google-22 buildpacks run image ships NO `git` binary, but
-          # `producer/git_sync.py` (the OKF bundle clone reconcile) and
-          # `producer/publish.py` (the DR-055 post-publish push lane) both
-          # shell out to `git`. RUN 1's own remediation already confirmed
-          # empirically that the google-22 run image IS apt-capable
-          # (Debian/Ubuntu-based) — an ephemeral `apt-get install git` inside
-          # the live container unblocked the probe, but was lost on the next
-          # redeploy (no Dockerfile layer bakes it in). There is no
-          # apt/git buildpack wired into this google-22 build, and the
-          # "IMAGE HYGIENE" pruned-context build above is deliberately kept
-          # byte-for-byte faithful to the original cloudbuild-cocoindex.yaml
-          # config (no Dockerfile of our own) — so this is a thin, SEPARATE
-          # post-pack layering step, not a change to the `pack build`
-          # invocation itself: pull the just-published buildpacks image
-          # (`pack build --publish` does not load it into the local daemon —
-          # see the image-size-budget step below), install `git` as root,
-          # restore the base image's ORIGINAL user (read dynamically via
-          # `docker inspect`, never hardcoded — buildpacks images are not
-          # guaranteed to run as the same uid/name across builder versions),
-          # then push the augmented image back to the exact SAME pinned tag.
-          # ENTRYPOINT/CMD need no explicit restoration — standard Docker
-          # FROM semantics inherit them unchanged from the base image as
-          # long as this layer's Dockerfile never redeclares them (it does
-          # not).
-          #
-          # ID-145 {145.31} DR-059 LibreOffice provisioning (this SAME apt
-          # layer is the fix): scripts/bid_worker.py's
-          # `_convert_legacy_office_to_ooxml` shells out to `soffice
-          # --headless --norestore --convert-to <ext> --outdir <dir>
-          # <input>` to convert legacy .doc/.xls (OLE2) uploads to real
-          # OOXML (.docx/.xlsx) — but this image never provisioned
-          # LibreOffice, so every .doc/.xls upload RuntimeErrors in prod
-          # (a {145.13} Checker FAIL gate — DR-059 was 0% functional
-          # despite green mocked-subprocess unit tests). `bid-worker-platform`
-          # (deploy/coolify/docker-compose.platform.yaml) runs the SAME
-          # published image as this cocoindex sidecar via a `command:`
-          # override (G8 folded-worker deploy decision — no second
-          # image/service), so THIS is the one and only place both
-          # consumers get soffice from. Package choice: `libreoffice-writer`
-          # + `libreoffice-calc` — the two metapackages that pull in
-          # `libreoffice-core` (ships the `soffice` binary itself) plus the
-          # legacy .doc/.xls import filters and the .docx/.xlsx export
-          # filters bid_worker.py's `--convert-to` invocation needs.
-          # `--no-install-recommends` keeps `libreoffice-java-common` /
-          # `default-jre` OUT — a plain Writer/Calc `--convert-to` does not
-          # need Java, and pulling a JRE would balloon the shared image far
-          # beyond the LibreOffice-only delta. The cocoindex pipeline itself
-          # never calls soffice — this bloat is accepted, shared-image
-          # collateral from the G8 decision, not something to work around by
-          # splitting the image. `&& soffice --headless --version` is
-          # appended to the RUN below so a broken/missing LibreOffice
-          # install fails THIS `docker build` immediately (a build-time
-          # smoke test: binary present + runs) — this is NOT the deployed-
-          # runtime .doc/.xls -> OOXML conversion smoke-test, which remains
-          # a separate pre-go-live deploy gate (see the {145.31} journal).
-          #
-          # ID-132 {132.48} G-PUBLISH-TRANSPORT DR-055 ssh transport (this
-          # SAME apt layer is the fix): `producer/publish.py`'s
-          # `push_bundle_repo` (DR-055 post-publish push lane, {132.35} S465
-          # fix wave) shells out to `git push` over `GIT_SSH_COMMAND` against
-          # the `OKF_BUNDLE_DEPLOY_KEY_PATH` repo-scoped SSH deploy key
-          # (owner ruling, {132.48}: SSH deploy-key transport RETAINED, an
-          # HTTPS-token alternative was considered and rejected). Baking
-          # `git` (DEFECT C above) is necessary but not sufficient — `git`
-          # itself shells out to a system `ssh` for an `ssh://`/`git@`
-          # remote, and the google-22 run image ships NO `openssh-client`
-          # either, so `git ls-remote`/`git push` over SSH fails "cannot run
-          # ssh" (same class of gap as DEFECT C, same fix shape: baked here,
-          # not an ephemeral per-container `apt-get install`). No `sshd`/
-          # server-side package is needed — this is an outbound SSH CLIENT
-          # only. `&& ssh -V` is appended to the RUN below so a broken/
-          # missing openssh-client install fails THIS `docker build`
-          # immediately, mirroring the LibreOffice smoke-test precedent
-          # above; `ssh -V` prints to stderr and exits 0 on a working
-          # install, so it composes safely with the `&&` chain.
-          docker pull "${IMAGE}:${TAG}"
-          ORIG_USER="$(docker inspect --format '{{.Config.User}}' "${IMAGE}:${TAG}")"
-          echo "Base image user (restored after the root apt-get layer): '${ORIG_USER:-cnb}'"
-          # ⚠ THIS LAYER IS DUPLICATED IN cocoindex-nightly.yml (the two RUN
-          # instructions below are byte-identical there). Any edit here MUST be
-          # made there in the SAME commit. The rule exists because the drift
-          # already happened: from the nightly's creation (2026-07-08) until
-          # S524 that lane ran bare `pack build` and stopped, so it exercised an
-          # image missing git, openssh-client and both LibreOffice packages —
-          # for ~4 weeks, while claiming in its own header to replicate this
-          # recipe. Unification (one shared composite action; the nightly
-          # pulling the published image rather than rebuilding) is owner-approved
-          # and owned by id-416, together with the buildpacks -> Dockerfile move
-          # that deletes this heredoc.
-          WORKDIR="$(mktemp -d)"
-          # NB: an UNQUOTED heredoc delimiter is required for ${IMAGE}/${TAG}/
-          # ${ORIG_USER} substitution below, which also means a trailing
-          # backslash-newline is consumed as a shell line-continuation (not
-          # preserved literally) — so the RUN instruction is written as one
-          # line rather than a visually-multi-line one that would silently
-          # collapse anyway.
-          # ID-413 (W1) opencv-headless enforcement — the SECOND RUN below.
-          # Removing `opencv-python` from requirements.lock is necessary but NOT
-          # sufficient, and this is the non-obvious half. The buildpack installs
-          # the lock with `pip install --requirement` and NO `--no-deps`
-          # (GoogleCloudPlatform/buildpacks, pkg/python/python.go
-          # basePipInstallArgs), so pip re-resolves every pinned package's own
-          # metadata — and `ultralytics` declares `opencv-python>=4.6.0` while
-          # `supervision` declares `opencv-python>=4.5.5.64`. Both arrive via
-          # `commonforms` (the {145.11} PDF Plane-2 field detector) and neither
-          # can be dropped, so the FULL X11-linked variant is reinstated at build
-          # time whatever the lock says. Proven S523 by dry-run resolve of the
-          # lock's own pins. Both distributions write the same site-packages
-          # `cv2/`, so with --force-reinstall the winner was install-order
-          # dependent — which is how EVERY PDF convert came to fail with
-          # `libxcb.so.1: cannot open shared object file` (69 contained per-item
-          # drops in one nightly run; 0 of 73 source_documents were .pdf).
-          #
-          # THE TWO NON-OBVIOUS PARTS, both established empirically against a
-          # local buildpack build (S523) after a first attempt failed in CI:
-          #
-          # (a) `python3` is NOT on PATH in a `docker build` RUN. A CNB image
-          #     puts it there via the launcher at RUN-time, not as image-level
-          #     ENV — PATH here is only
-          #     `/cnb/process:/cnb/lifecycle:/usr/local/sbin:...`, so a bare
-          #     `python3` exits 127. It is discovered from /layers instead.
-          # (b) App dependencies do NOT live in the runtime layer. They are in
-          #     `google.python.pip`, a SEPARATE layer only added to sys.path by
-          #     the launcher. A plain `pip uninstall` here inspects the runtime
-          #     layer, reports "not installed", exits 0 — and removes nothing.
-          #     So the app layer's site-packages is discovered and targeted
-          #     directly.
-          #
-          # Hence: remove BOTH opencv dist-info dirs plus the `cv2/` package and
-          # the `.libs` sidecars they share, then reinstall headless with
-          # `--target` so it is the sole provider. Removing both dist-infos
-          # first is what makes this idempotent and re-runnable; `cv2/` is
-          # deleted because the two distributions overwrite each other in one
-          # directory, which is the root of the install-order nondeterminism.
-          # It runs AS THE APP USER, not root — that layer is cnb-owned and
-          # root-owned files in it would break imports at runtime.
-          #
-          # The trailing `import cv2` is ID-413 AC-2 executed at BUILD TIME on
-          # every build, inside the X11-free image — the same fail-the-build
-          # smoke-test idiom as `soffice --headless --version` / `ssh -V` above,
-          # and a permanent guard rather than a one-off manual check. The
-          # metadata assertion is exact-match because `opencv-python` is a
-          # prefix of `opencv-python-headless`.
-          #
-          # NOT `PIP_NO_DEPS=1` on `pack build` (considered, rejected S523): it
-          # presumes requirements.lock is the closure that ships, and it is not
-          # — the lock carries no nvidia-*/CUDA packages because it is compiled
-          # on macOS, so pip's build-time backfill is currently load-bearing for
-          # torch on linux-x86_64. Disabling deps would ship torch incomplete.
-          # Making the lock a real Linux closure is tracked separately.
-          cat > "${WORKDIR}/Dockerfile" <<DOCKERFILE
-          FROM ${IMAGE}:${TAG}
-          USER root
-          RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client libreoffice-writer libreoffice-calc && rm -rf /var/lib/apt/lists/* && soffice --headless --version && ssh -V
-          USER ${ORIG_USER:-cnb}
-          RUN PY="\$(ls -d /layers/*/*/bin/python3 2>/dev/null | head -1)" && SP="\$(ls -d /layers/google.python.pip/pip/lib/python*/site-packages 2>/dev/null | head -1)" && test -n "\$PY" && test -n "\$SP" && rm -rf "\$SP"/cv2 "\$SP"/opencv_python-*.dist-info "\$SP"/opencv_python_headless-*.dist-info "\$SP"/opencv_python.libs "\$SP"/opencv_python_headless.libs && "\$PY" -m pip install --force-reinstall --no-deps --target "\$SP" opencv-python-headless==4.13.0.92 && PYTHONPATH="\$SP" "\$PY" -c "import cv2, importlib.metadata as md; names = {d.metadata['Name'] for d in md.distributions()}; assert 'opencv-python' not in names, sorted(n for n in names if n and 'opencv' in n); print('ID-413 cv2 OK (headless only):', cv2.__file__)"
-          DOCKERFILE
-          docker build -t "${IMAGE}:${TAG}" "${WORKDIR}"
-          docker push "${IMAGE}:${TAG}"
-          echo "Re-published ${IMAGE}:${TAG} with git + openssh-client + LibreOffice (soffice) baked in (same pinned tag)."
+          for ref in ${TAGS}; do
+            docker buildx imagetools inspect "${ref}" >/dev/null
+            echo "verified in registry: ${ref}"
+          done
 
       - name:
           Inv-9 assertion — cocoindex image carries NO Playwright / Chromium
           (extraction is in-process Trafilatura, ID-112)
         run: |
           set -euo pipefail
-          # The cocoindex image is built by buildpacks from requirements.lock (copied
-          # into the build context AS requirements.txt — {127.22}) + scripts/ (the
-          # Python source) — there is no Dockerfile. This grep intentionally checks the
-          # human-edited direct-dependency SOURCE (requirements.txt): uv pip compile can
-          # only add playwright/chromium to the lock if reachable from a declared dep.
-          # HTML extraction is fully in-process (Trafilatura, ID-112); a Playwright /
-          # Chromium browser binary must NEVER be baked into this image, and it can only
-          # enter via a pip dependency or a pipeline-source import. We assert on those
-          # two surfaces rather than `docker image inspect` on the pushed image:
-          # `pack build … --publish` does NOT load the image into the local daemon (see
-          # the size-budget step below — `docker image inspect` errors "No such image"
-          # post-publish), and a metadata grep would miss a filesystem-baked binary
-          # anyway. The dependency + import surface is the authoritative, deterministic
-          # gate.
+          # The cocoindex image is built from deploy/docker/cocoindex.Dockerfile:
+          # `pip install --no-deps -r requirements.lock` + the explicit COPY set
+          # (id-416 / DR-119). This grep intentionally checks the human-edited
+          # direct-dependency SOURCE (requirements.txt): the CI lock resolve
+          # (pipeline-lock.yml) can only add playwright/chromium to the lock if
+          # reachable from a declared dep. HTML extraction is fully in-process
+          # (Trafilatura, ID-112); a Playwright / Chromium browser binary must
+          # NEVER be baked into this image, and it can only enter via a pip
+          # dependency or a pipeline-source import. We assert on those two
+          # surfaces rather than `docker image inspect` on the pushed image:
+          # the buildx build pushes straight to the registry without loading
+          # into the local daemon, and a metadata grep would miss a
+          # filesystem-baked binary anyway. The dependency + import surface is
+          # the authoritative, deterministic gate.
           #
           # RESTORED after id-129 (75d9146e) removed this negative-assertion as
           # collateral alongside the (correctly-removed) pullmd image grep — the two
@@ -514,8 +360,8 @@ jobs:
           echo "Inv-9 PASS: zero Playwright/Chromium pip dependencies (requirements.txt) and zero references in the cocoindex pipeline source."
 
       - name: Image-size budget check (T-OQ4 — log + warn, never fail)
-        # GENUINELY never fails. The build step above used `pack build … --publish`,
-        # which pushes the image STRAIGHT to ghcr.io and does NOT load it into the
+        # GENUINELY never fails. The buildx build above pushes the image STRAIGHT
+        # to ghcr.io (docker-container driver) and does NOT load it into the
         # local Docker daemon — so `docker image inspect` here errored "No such
         # image", and under `set -euo pipefail` that aborted this "never fail" step
         # and (via `needs:`) skipped BOTH deploy jobs (run 28125818103 false-fail).
@@ -528,13 +374,14 @@ jobs:
           # Deliberately NO `set -e` — this step must never return non-zero.
           set -uo pipefail
           BUDGET=5691392819 # 5.3 GB (on-disk reference budget)
-          # NOTE (ID-145 {145.31}): the "Bake git + LibreOffice" post-pack
-          # layer above now adds libreoffice-writer + libreoffice-calc to
-          # this SAME image (DR-059 doc/xls convert-on-upload) — an expected
-          # ~400-700MB delta. Left as a warn-only note rather than bumping
-          # BUDGET: this check is T-OQ4 log+warn-never-fail, so a stale
-          # threshold cannot break the build; bump BUDGET here if/when the
-          # warn becomes noisy against the new baseline.
+          # BASELINE (id-416, S560): the last buildpacks image measured 4.08 GB
+          # compressed / 12.3 GB on-disk, of which ~4.6 GB on-disk was the
+          # CUDA/triton payload pip silently backfilled for a GPU-less
+          # pipeline. The Dockerfile build installs the CI-generated CPU-torch
+          # lock with --no-deps, so the number logged here is expected to DROP
+          # well under budget; treat any climb back toward 4 GB compressed as
+          # a CUDA regression (the Dockerfile's '+cpu' torch guard should red
+          # the build first).
           # Sum the compressed layer sizes from the registry manifest WITHOUT
           # pulling the image. buildx imagetools --raw emits the manifest JSON;
           # the layer `size` fields are the compressed on-the-wire bytes. For a
@@ -579,8 +426,7 @@ jobs:
             echo "### onprem-deploy — cocoindex image built off-host"
             echo ""
             echo "- **Image:** \`${IMAGE}:${TAG}\` (pinned, non-\`:latest\`)"
-            echo "- **Builder:** buildpacks \`google-22\` on GH runner (inv 13 — host uncontended)"
-            echo "- **Post-pack layer:** \`git\` + \`openssh-client\` + LibreOffice (\`soffice\`) baked in as a thin post-pack Docker layer (ID-132 {132.35} Defect C; LibreOffice added {145.31} for DR-059 .doc/.xls convert-on-upload; \`openssh-client\` added {132.48} for DR-055 SSH deploy-key push transport) — the buildpacks build itself is untouched"
+            echo "- **Recipe:** \`deploy/docker/cocoindex.Dockerfile\` via \`.github/actions/build-cocoindex-image\` on a GH runner (inv 13 — host uncontended; id-416 / DR-119: CI-generated CPU-torch lock installed \`--no-deps\`, apt layer [git+ssh+LibreOffice, DR-055/DR-059] and ID-413 opencv-headless guard are explicit Dockerfile lines)"
             echo "- **Next:** the \`deploy-cocoindex\` job ({66.11}) bumps Coolify \`COCOINDEX_IMAGE_TAG\` to this tag + triggers a deploy"
           } >> "$GITHUB_STEP_SUMMARY"
 

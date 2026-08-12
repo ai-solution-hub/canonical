@@ -1,0 +1,59 @@
+name: Build cocoindex sidecar image
+description: >-
+  THE one build recipe for the cocoindex pipeline sidecar (id-416, DR-119): a
+  plain `docker buildx build` of deploy/docker/cocoindex.Dockerfile. Called by
+  onprem-deploy.yml (push=true — publishes the pinned sha- tag plus the moving
+  :main tag the nightly resolves) and by cocoindex-nightly.yml's branch-dispatch
+  fallback (push=false — loads into the runner's local daemon). Context hygiene
+  lives in deploy/docker/cocoindex.Dockerfile.dockerignore (allowlist), so the
+  context is the repo root with no mktemp pruning step.
+
+inputs:
+  tags:
+    description:
+      Space-separated list of full image refs to tag (e.g.
+      "ghcr.io/o/img:sha-abc ghcr.io/o/img:main")
+    required: true
+  push:
+    description:
+      '"true" pushes the tags to the registry; "false" loads the image into the
+      local docker daemon'
+    required: true
+  cache-ref:
+    description:
+      Registry ref for the buildx layer cache (read always; written only when
+      push=true). Empty disables caching.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Build (docker buildx, linux/amd64)
+      shell: bash
+      run: |
+        set -euo pipefail
+        # docker-container driver: required for --cache-to type=registry
+        # (the default docker driver cannot export a registry cache).
+        # Idempotent: reuse the builder if a previous step created it.
+        docker buildx inspect kh-cocoindex-builder >/dev/null 2>&1 \
+          || docker buildx create --name kh-cocoindex-builder --driver docker-container
+        TAG_ARGS=()
+        for ref in ${{ inputs.tags }}; do TAG_ARGS+=(-t "${ref}"); done
+        CACHE_ARGS=()
+        if [ -n "${{ inputs.cache-ref }}" ]; then
+          CACHE_ARGS+=(--cache-from "type=registry,ref=${{ inputs.cache-ref }}")
+          if [ "${{ inputs.push }}" = "true" ]; then
+            CACHE_ARGS+=(--cache-to "type=registry,ref=${{ inputs.cache-ref }},mode=max")
+          fi
+        fi
+        if [ "${{ inputs.push }}" = "true" ]; then OUTPUT=--push; else OUTPUT=--load; fi
+        docker buildx build \
+          --builder kh-cocoindex-builder \
+          --platform linux/amd64 \
+          -f deploy/docker/cocoindex.Dockerfile \
+          "${TAG_ARGS[@]}" \
+          "${CACHE_ARGS[@]}" \
+          "${OUTPUT}" \
+          .
+        echo "Built (${OUTPUT#--}): ${{ inputs.tags }}"

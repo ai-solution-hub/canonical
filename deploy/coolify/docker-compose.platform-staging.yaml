@@ -237,23 +237,23 @@ services:
   # see that service's comment block for the full G8 deploy-gap rationale
   # (ID-145 {145.13}, BI-20). Staging-scoped values only differ below.
   #
-  # CNB GOTCHA (confirmed ID-145.31/S481): the buildpack ENTRYPOINT
-  # (/cnb/process/web) pins the container to the `web` process and never
-  # execs `command:` — hence `entrypoint: ["/cnb/lifecycle/launcher"]` below,
-  # which execs the custom command under the buildpack env instead.
+  # PLAIN-DOCKER SEMANTICS since id-416/DR-119 (S560): the image is built from
+  # deploy/docker/cocoindex.Dockerfile (no ENTRYPOINT), so `command:` execs
+  # directly — the CNB launcher indirection (the ID-145.31/S481 gotcha fix)
+  # is retired with buildpacks. ROLLBACK CAVEAT: a rollback target older than
+  # the first Dockerfile-built sha- tag needs
+  # `entrypoint: ["/cnb/lifecycle/launcher"]` restored.
   # ----------------------------------------------------------------------------
   bid-worker-platform-staging:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
-    # DR-059 provisioning note (ID-145 {145.31}): LibreOffice (soffice) for
-    # this worker's .doc/.xls convert-on-upload lane is baked into THIS
-    # shared image by the "Bake git + LibreOffice" post-pack layer in
-    # .github/workflows/onprem-deploy.yml — not a change here or to any
-    # buildpack/Dockerfile. cocoindex-platform-staging above shares the same
-    # image but never calls soffice itself (accepted bloat, G8 folded-worker
-    # decision — see the block comment above this service).
+    # DR-059 provisioning note (ID-145 {145.31}; recipe moved id-416): LibreOffice
+    # (soffice) for this worker's .doc/.xls convert-on-upload lane is an
+    # explicit apt line in deploy/docker/cocoindex.Dockerfile — the shared
+    # image. cocoindex-platform-staging above shares the same image but never
+    # calls soffice itself (accepted bloat, G8 folded-worker decision — see
+    # the block comment above this service).
     container_name: ca-bid-worker-platform-staging
     restart: unless-stopped
-    entrypoint: ["/cnb/lifecycle/launcher"]
     command: ["python3", "-m", "scripts.bid_worker"]
 
     deploy:
@@ -292,14 +292,13 @@ services:
   # COMPOSE-INTERNAL ONLY — NEVER expose: no Traefik labels, no ports. A mock
   # that answers /v1/messages unauthenticated must not be reachable off-box.
   #
-  # Same CNB entrypoint override as bid-worker above (the buildpack ENTRYPOINT
-  # pins the `web` process and never execs `command:`).
+  # Plain-Docker `command:` exec, same as bid-worker above (id-416/DR-119 —
+  # the CNB launcher indirection is retired; see the rollback caveat there).
   # ----------------------------------------------------------------------------
   mockllm-platform-staging:
     image: "ghcr.io/${GHCR_OWNER:-ai-solution-hub}/kh-cocoindex-pipeline:${COCOINDEX_IMAGE_TAG:?set to a pinned sha- tag from {66.7}}"
     container_name: ca-mockllm-platform-staging
     restart: unless-stopped
-    entrypoint: ["/cnb/lifecycle/launcher"]
     command: ["python3", "-m", "scripts.cocoindex_pipeline.mock_llm"]
 
     # Tiny footprint: canned responses only — no extractors, no Docling.

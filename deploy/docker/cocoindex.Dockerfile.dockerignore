@@ -1,0 +1,27 @@
+# Context allowlist for deploy/docker/cocoindex.Dockerfile (BuildKit reads the
+# <Dockerfile>.dockerignore sitting next to the Dockerfile when -f is used).
+#
+# IMAGE HYGIENE (IP + slim), carried over from the retired pruned-mktemp
+# context in onprem-deploy.yml: the build context must carry ONLY the Python
+# pipeline + its lock — never the Next.js app, docs/, .planning/ (client IP),
+# docs-site, .claude, or tests. Allowlist semantics: exclude everything, then
+# re-include exactly what the Dockerfile COPYs. Last match wins.
+*
+!requirements.lock
+!scripts/
+scripts/*
+!scripts/cocoindex_pipeline/
+!scripts/bid_worker.py
+!scripts/analyse_template.py
+!scripts/extract_tender_questions.py
+!scripts/docx_utils.py
+
+# Test/corpus fixtures never ship in the image: the nightly seeds the walked
+# corpus from the checkout (deploy/onprem/sync-platform-corpus.sh) and stages
+# form templates via POST /stage — both read the repo, not the image.
+scripts/cocoindex_pipeline/fixtures/
+
+# Junk that would dirty layer hashes.
+**/__pycache__/
+**/*.pyc
+**/.DS_Store

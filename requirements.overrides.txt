@@ -1,13 +1,15 @@
 # Dependency overrides for the cocoindex pipeline image lock (id-413 / W1, S523).
 #
-# COMPILE-TIME INPUT ONLY — this file is never shipped into the build context.
-# The pruned buildpacks context copies requirements.lock (as requirements.txt);
-# see the BUILD WIRING note in requirements.lock's header. This file exists so a
-# future `uv pip compile` regen reproduces the same closure.
+# COMPILE-TIME INPUT ONLY — this file is never shipped into the build context
+# (deploy/docker/cocoindex.Dockerfile consumes requirements.lock directly).
+# This file exists so the CI lock resolve reproduces the same closure.
 #
-# Regenerate the lock with:
-#   uv pip compile requirements.txt --python 3.13 \
-#     --override requirements.overrides.txt -o requirements.lock
+# THE LOCK IS CI-GENERATED, NEVER LAPTOP-GENERATED (id-416 / DR-119):
+# .github/workflows/pipeline-lock.yml resolves it on a linux-x86_64 runner
+# (--python-platform x86_64-unknown-linux-gnu --torch-backend cpu) and its
+# drift check reds any PR whose committed lock differs. To regenerate: apply
+# the `regenerate-lock` label to the PR (or dispatch pipeline-lock.yml) and
+# CI commits the correct lock.
 #
 # WHY: `commonforms` pulls BOTH `ultralytics` and `rfdetr`->`supervision`, and all
 # three declare `opencv-python` (the FULL, X11-linked variant). That put
