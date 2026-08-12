@@ -12,6 +12,7 @@
 scripts/*
 !scripts/cocoindex_pipeline/
 !scripts/bid_worker.py
+!scripts/fill_template.py
 !scripts/analyse_template.py
 !scripts/extract_tender_questions.py
 !scripts/docx_utils.py
