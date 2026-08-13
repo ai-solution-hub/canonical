@@ -313,7 +313,10 @@ export function ConceptDetail({
           <>
             <dt className="text-muted-foreground">Sources</dt>
             <dd>
-              <ul className="flex flex-col gap-1">
+              {/* `data-testid` so the browser pass can scope its assertions to
+                  the provenance list rather than fishing the whole `<dl>` for
+                  text — e2e/tests/okf-concept-detail.spec.ts (id-439). */}
+              <ul data-testid="concept-sources" className="flex flex-col gap-1">
                 {sources.map((source) => (
                   <li key={source.id}>
                     <SourceEntry

@@ -41,6 +41,16 @@ const ALLOWED_CONSOLE_PREFIXES: readonly string[] = [
   // by design). Genuine uncaught exceptions still fail the gate via
   // page.on('pageerror'); app-logged console.error/warning still fails it too.
   'Failed to load resource:',
+  // Cytoscape's own advisory, emitted once per graph instance because
+  // `components/okf/concept-graph.tsx` sets `wheelSensitivity: 0.2` (carried
+  // over from the reference `viz.js` this component ports — cytoscape warns
+  // whenever the option is set at all, whatever the value). It is library
+  // guidance about zoom feel across mice, not an app fault, and the OKF viewer
+  // is the only surface that mounts a cytoscape graph. Whether to keep the
+  // custom sensitivity is a viewer-UX call, not this gate's: allowlisted so
+  // `okf-concept-detail.spec.ts` can hold the OKF surface to a clean console
+  // for everything the app itself logs.
+  'You have set a custom wheel sensitivity.',
 ];
 
 /** Console levels the gate treats as violations. */

@@ -28,6 +28,34 @@ const taskViewSpecs = '**/task-mirror-*.spec.ts';
 // retired the gate; bid-*.spec.ts rejoins the nightly unconditionally.
 const nightlyExcludedSpecs = [taskViewSpecs];
 
+/**
+ * `OKF_BUNDLE_ROOT` for the suite's web server (id-439).
+ *
+ * The `/okf/[bundleId]` viewer reads its concept graph off the FILESYSTEM
+ * (`app/api/okf/[bundleId]/graph/route.ts` → `lib/okf/bundle-graph.ts`), and
+ * `lib/okf/resolve-bundle-root.ts` deliberately has no in-repo fallback — with
+ * the env var unset every OKF route 500s. So the browser suite pins it at the
+ * committed fixture root (`e2e/fixtures/okf-bundle-root/README.md` documents
+ * the bundle's provenance), which is what makes `okf-concept-detail.spec.ts`
+ * runnable in CI and on any checkout rather than only on a machine that happens
+ * to have a bundle synced.
+ *
+ * This is pinned for the SERVER PLAYWRIGHT STARTS ONLY (`webServer.env`
+ * overlays `process.env`, and `@next/env` never overrides an already-set
+ * variable), so `.env.local`'s own `OKF_BUNDLE_ROOT` — a developer's real
+ * synced bundle — is untouched for ordinary `bun dev`. `E2E_OKF_BUNDLE_ROOT`
+ * overrides it to run the same spec against a real bundle tree; pair it with
+ * `E2E_OKF_BUNDLE_ID` (the spec reads that).
+ *
+ * Caveat, unavoidable with `reuseExistingServer`: when a dev server is ALREADY
+ * up on the target port, Playwright reuses it and this env never applies. The
+ * spec fails with an explicit "not pointed at the fixture root" message in that
+ * case rather than a mystery timeout.
+ */
+const okfBundleRoot =
+  process.env.E2E_OKF_BUNDLE_ROOT?.trim() ||
+  path.resolve(__dirname, 'e2e/fixtures/okf-bundle-root');
+
 export default defineConfig({
   testDir: './e2e/tests',
   fullyParallel: true,
@@ -135,6 +163,10 @@ export default defineConfig({
     // Smoke + local default to `bun dev` (env unset) — unchanged.
     command: process.env.PLAYWRIGHT_WEB_SERVER_CMD ?? 'bun dev',
     port: Number(process.env.PLAYWRIGHT_WEB_SERVER_PORT ?? 3000),
+    // Overlaid on process.env (Playwright merges), so this adds the OKF bundle
+    // root without disturbing anything else the server inherits — see the
+    // `okfBundleRoot` note above.
+    env: { OKF_BUNDLE_ROOT: okfBundleRoot },
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     // Playwright discards webServer stdout by default, which swallowed the

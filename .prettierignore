@@ -69,6 +69,15 @@ lib/mcp/plugin-bundle.ts
 # writer's real output and breaking the {132.10} round-trip Vitest tests.
 __tests__/fixtures/okf/
 
+# E2E OKF bundle fixture root (id-439) — every concept `.md` under it is a
+# VERBATIM copy of the regenerated v0.2 producer output (see that root's
+# README.md for the provenance). Prettier's proseWrap/printWidth re-wraps the
+# frontmatter + bullets and normalises `*` bullets to `-`, which would make the
+# fixture stop being a copy of real producer output — the one property that
+# makes `e2e/tests/okf-concept-detail.spec.ts` evidence. Same rationale as
+# `__tests__/fixtures/okf/` above.
+e2e/fixtures/okf-bundle-root/
+
 # Corpus-manifest fixture roots — the manifest (docs/reference/testing/
 # corpus-manifest.json, DR-118) asserts a sha256 and byte length over EVERY
 # registered fixture, and __tests__/guards/corpus-manifest.test.ts fails when
