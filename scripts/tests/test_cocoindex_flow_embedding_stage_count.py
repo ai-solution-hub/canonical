@@ -280,14 +280,15 @@ def _patch_pipeline(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "embed_content_text", _fake_embed)
 
 
-def _make_targets() -> tuple[_FakeTarget, _FakeTarget, _FakeTarget]:
+def _make_targets() -> tuple[_FakeTarget, _FakeTarget]:
     """{127.25} DR-034: `content_items` was dropped and `ci_target` removed
-    from `ingest_file`'s signature — the per-doc target set is now 3
-    (qa, sd, em); was 4 (ci, qa, sd, em) per ID-53.10 §P-4."""
+    from `ingest_file`'s signature. id-434 then removed `em_target` as well —
+    the entity_mentions declare moved to the phase-2b
+    `_declare_entity_mentions` component — so the per-doc target set is now 2
+    (qa, sd); was 3 (qa, sd, em), and 4 (ci, qa, sd, em) before that."""
     return (
         _FakeTarget("q_a_extractions"),
         _FakeTarget("source_documents"),
-        _FakeTarget("entity_mentions"),
     )
 
 
@@ -355,7 +356,7 @@ class TestStageCounterBindingSubstrate:
 
 class TestIngestFileEmbeddingCounterRetiredForContentBranch:
     """{127.25} DR-034: `ingest_file`'s content branch, called with only the
-    minimal (qa, sd, em) target set (no `cc_target`, no chunking), no longer
+    minimal (qa, sd) target set (no `cc_target`, no chunking), no longer
     produces or declares any document-level embedding — so it must NOT bump
     the 'embedding' stage counter either. This class only exercises the
     NO-CHUNKING call shape; see `TestIngestFileBumpsEmbeddingCounterPerChunk`
@@ -380,13 +381,13 @@ class TestIngestFileEmbeddingCounterRetiredForContentBranch:
         src = tmp_path / "doc-embed-count.md"
         src.write_text(_MARKDOWN)
         fake_file = _FakeFile(src)
-        qa, sd, em = _make_targets()
+        qa, sd = _make_targets()
         counter = flow._FlowStageCounter()
 
         async def _run() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                    await flow.ingest_file(fake_file, qa, sd, None, None)
 
         asyncio.run(_run())
 
@@ -419,8 +420,8 @@ class TestIngestFileEmbeddingCounterRetiredForContentBranch:
                     for name in ("a.md", "b.md"):
                         src = tmp_path / name
                         src.write_text(_MARKDOWN + f"\n\n{name}")
-                        qa, sd, em = _make_targets()
-                        await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
+                        qa, sd = _make_targets()
+                        await flow.ingest_file(_FakeFile(src), qa, sd, None, None)
 
         asyncio.run(_run())
         assert counter.get("embedding") == 0
@@ -432,26 +433,29 @@ class TestIngestFileEmbeddingCounterRetiredForContentBranch:
         The content branch's document-level embedding write is retired
         (DR-034), so there is no embedding-specific graceful-degradation
         behaviour left to prove — this guards that omitting the binding
-        does not raise, and that no spurious rows land on qa/em."""
+        does not raise, that no spurious rows land on qa, and that no
+        spurious mention candidates come back (id-434: the entity_mentions
+        rows are declared from that return value by the phase-2b
+        `_declare_entity_mentions` component, not by this call)."""
         flow = _flow_module()
         _patch_pipeline(flow, monkeypatch)
         from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
         src = tmp_path / "doc-no-binding.md"
         src.write_text(_MARKDOWN)
-        qa, sd, em = _make_targets()
+        qa, sd = _make_targets()
 
-        async def _run() -> None:
+        async def _run() -> list:
             # Deliberately NO bind_stage_counter — ingest_file must cope.
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
+                return await flow.ingest_file(_FakeFile(src), qa, sd, None, None)
 
-        asyncio.run(_run())
+        candidates = asyncio.run(_run())
         # _patch_pipeline's fake qa_form/entities extractors return empty
-        # collections, so nothing lands on either target — this also
-        # confirms ingest_file did not raise.
+        # collections, so nothing lands on the qa target and no mention
+        # candidate comes back — this also confirms ingest_file did not raise.
         assert qa.rows == []
-        assert em.rows == []
+        assert candidates == []
 
 
 # ============================================================================
@@ -509,7 +513,7 @@ class TestIngestFileBumpsEmbeddingCounterPerChunk:
         src = tmp_path / "doc-multi-chunk.md"
         src.write_text(_LONG_SAMPLE)
         fake_file = _FakeFile(src)
-        qa, sd, em = _make_targets()
+        qa, sd = _make_targets()
         cc = _FakeTarget("content_chunks")
         re_target = _FakeTarget("record_embeddings")
         counter = flow._FlowStageCounter()
@@ -517,9 +521,7 @@ class TestIngestFileBumpsEmbeddingCounterPerChunk:
         async def _run() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(
-                        fake_file, qa, sd, em, cc, None, re_target
-                    )
+                    await flow.ingest_file(fake_file, qa, sd, cc, None, re_target)
 
         asyncio.run(_run())
 
@@ -560,7 +562,7 @@ class TestIngestFileBumpsEmbeddingCounterPerChunk:
         src = tmp_path / "doc-cc-only.md"
         src.write_text(_LONG_SAMPLE)
         fake_file = _FakeFile(src)
-        qa, sd, em = _make_targets()
+        qa, sd = _make_targets()
         cc = _FakeTarget("content_chunks")
         counter = flow._FlowStageCounter()
 
@@ -568,7 +570,7 @@ class TestIngestFileBumpsEmbeddingCounterPerChunk:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
                     # re_target omitted → defaults to None.
-                    await flow.ingest_file(fake_file, qa, sd, em, cc, None)
+                    await flow.ingest_file(fake_file, qa, sd, cc, None)
 
         asyncio.run(_run())
 

@@ -1,42 +1,33 @@
-"""Tests for cocoindex_pipeline/flow.py — ID-53.10 entity_mentions
-TableTarget mount in app_main (Stage-5 entity-resolution write substrate).
+"""Tests for cocoindex_pipeline/flow.py — the entity_mentions TableTarget
+mount and its id-434 ownership contract.
 
-Per PRODUCT.md Inv-6 and TECH.md §P-4: ``app_main`` must mount an
-``em_target`` ``TableTarget`` adjacent to the existing two
-(``qa_target``, ``sd_target`` — ``ci_target`` was dropped {127.25} DR-034)
-and pass it positionally to ``coco.mount_each`` so the per-doc
-``ingest_file`` component receives it.
-``ENTITY_MENTIONS_SCHEMA`` declares the subset of ``entity_mentions``
-columns the per-item phase writes; the PG-defaulted columns
-(``created_at``, ``entity_type_override``, ``normalisation_version``) are
-OMITTED per the existing ``content_text_hash GENERATED ALWAYS`` convention.
+Pre-id-434 this file pinned `em_target` as ingest_file's third extra arg
+(the ID-53.10 §P-4 mount-each threading). id-434 (DR-140 clause 1) inverted
+the ownership: the per-file component no longer receives `em_target` at all —
+it RETURNS `EntityMentionCandidate`s, and the ONE consumer of `em_target` is
+the phase-2b `declare_entity_mentions` component mounted by `app_main`.
 
-The Stage-5 ``declare_row`` body that consumes ``em_target`` ships at
-{53.11}; this slice only locks the signature + mount so {53.11} can land
-without touching ``app_main`` wiring. Verified here by:
+Verified here by:
 
   1. ``ENTITY_MENTIONS_SCHEMA`` is exported, declares exactly the 9
-     per-item-write columns, and primary_key=(``id``,) — the PG-defaulted
-     columns must NOT be declared.
+     walk-write columns, and primary_key=(``id``,) — the PG-defaulted
+     columns must NOT be declared. (Unchanged by id-434 — only the
+     *derivation* of id/canonical_name values changed, TECH §4.)
 
-  2. ``ingest_file`` signature accepts ``em_target`` as the third extra
-     arg (4 total params: file, qa, sd, em — {127.25} dropped ``ci``). The
-     leading param is the File item VALUE — there is NO phantom
-     ``rel_path`` (ID-28.21 blocker regression guard, extended).
+  2. ``ingest_file``'s positional signature is exactly
+     (file, qa, sd, cc, er, re) — NO em_target, NO phantom rel_path
+     (ID-28.21 regression guard, extended).
 
-  3. ``app_main`` source contains the ``em_target = await
-     mount_table_target(..., 'entity_mentions', ENTITY_MENTIONS_SCHEMA,
-     managed_by=ManagedBy.USER)`` mount and threads ``em_target`` into
-     ``coco.mount_each(...)`` as the fourth target. Source-inspection
-     is the canonical pattern (mirrors the retry-counter / stage-counter
-     wiring tests in sibling files) because the cocoindex Rust engine
-     cannot be booted in unit tests.
+  3. ``app_main`` mounts ``em_target`` (managed_by=USER), does NOT thread it
+     into the per-file fan-out, and passes it to the phase-2b
+     ``declare_entity_mentions`` component. Source-inspection is the
+     canonical pattern (mirrors the retry-counter / stage-counter wiring
+     tests in sibling files) because the cocoindex Rust engine cannot be
+     booted in unit tests.
 
 Stub strategy follows the ID-44.5 ``stubbed_sys_modules`` discipline
 (``conftest.py``): connector submodules + cocoindex are mocked ONLY for
 the duration of the flow import, then sys.modules is restored.
-
-Reference: docs/reference/task-list.json → ID-53 → Subtask 10
 """
 
 from __future__ import annotations
@@ -48,18 +39,11 @@ from conftest import fresh_flow_module
 
 
 def _flow_module() -> ModuleType:
-    """Load a fresh stubbed ``cocoindex_pipeline.flow`` (ID-55.1 primitive).
-
-    Delegates to the centralised ``conftest.fresh_flow_module()`` — it pops both
-    ``cocoindex_pipeline.flow`` / ``scripts.cocoindex_pipeline.flow`` keys,
-    imports flow under the standard cocoindex stub set, and restores cooperative
-    sibling pins — so this file no longer re-derives the stub/pop/import dance
-    (previously a near-verbatim copy of the sibling flow tests).
-    """
+    """Load a fresh stubbed ``cocoindex_pipeline.flow`` (ID-55.1 primitive)."""
     return fresh_flow_module()
 
 
-# ── §P-4: ENTITY_MENTIONS_SCHEMA declared via the canonical TableSchema call ──
+# ── ENTITY_MENTIONS_SCHEMA declared via the canonical TableSchema call ───────
 
 
 class TestEntityMentionsSchemaDeclaration:
@@ -70,31 +54,28 @@ class TestEntityMentionsSchemaDeclaration:
     environment, we cannot introspect a `.columns` dict on the assigned
     value (it is itself a MagicMock). Instead we verify the structural
     contract: the module exports ``ENTITY_MENTIONS_SCHEMA`` and the
-    declaration site in source contains exactly the 9 per-item-write column
-    keys + primary_key=("id",) — matching TECH §P-4 verbatim.
+    declaration site in source contains exactly the 9 walk-write column
+    keys + primary_key=("id",).
     """
 
     def test_schema_is_exported(self) -> None:
         flow = _flow_module()
         assert hasattr(flow, "ENTITY_MENTIONS_SCHEMA"), (
-            "flow.py must export ENTITY_MENTIONS_SCHEMA per ID-53.10 §P-4"
+            "flow.py must export ENTITY_MENTIONS_SCHEMA"
         )
 
-    def test_schema_source_declares_exactly_the_per_item_write_columns(self) -> None:
+    def test_schema_source_declares_exactly_the_walk_write_columns(self) -> None:
         """Pin the column set by source-inspection (TableSchema is a stubbed
         MagicMock in this environment, so introspecting the assigned value
         is not possible — the call site is the contract)."""
         flow = _flow_module()
         source = inspect.getsource(flow)
-        # Locate the ENTITY_MENTIONS_SCHEMA assignment.
         marker = "ENTITY_MENTIONS_SCHEMA = TableSchema("
         start = source.find(marker)
         assert start != -1, (
             "flow.py must declare ENTITY_MENTIONS_SCHEMA via the canonical "
-            "TableSchema(columns=..., primary_key=...) call (TECH §P-4)."
+            "TableSchema(columns=..., primary_key=...) call."
         )
-        # The declaration is short — slice forward 800 chars to cover the
-        # full multi-line literal.
         block = source[start : start + 800]
         for col in (
             '"id"',
@@ -108,11 +89,12 @@ class TestEntityMentionsSchemaDeclaration:
             '"op_id"',
         ):
             assert col in block, (
-                f"ENTITY_MENTIONS_SCHEMA must declare {col} (TECH §P-4 verbatim)"
+                f"ENTITY_MENTIONS_SCHEMA must declare {col}"
             )
         assert 'primary_key=("id",)' in block, (
             "ENTITY_MENTIONS_SCHEMA must pin primary_key=('id',) — the "
-            "per-doc deterministic uuid5 lands here at {53.11}"
+            "deterministic uuid5 (id-434: keyed on the RESOLVED canonical) "
+            "lands here"
         )
 
     def test_pg_defaulted_columns_are_omitted_from_declaration(self) -> None:
@@ -136,30 +118,26 @@ class TestEntityMentionsSchemaDeclaration:
             )
 
     def test_op_id_column_is_declared_nullable(self) -> None:
-        """The ``op_id`` column is the Inv-6 substrate — nullable per the
-        §P-9 migration, populated per-flow inside ingest_file at {53.11}."""
+        """The ``op_id`` column is the Inv-6 substrate — nullable, populated
+        from the candidate's memo-carried op_id at the phase-2b declare."""
         flow = _flow_module()
         source = inspect.getsource(flow)
         start = source.find("ENTITY_MENTIONS_SCHEMA = TableSchema(")
         block = source[start : start + 800]
         assert '"op_id": ColumnDef(type="uuid", nullable=True)' in block, (
-            "op_id must be declared as ColumnDef(type='uuid', nullable=True) "
-            "— Inv-6 round-trip substrate, §P-9 migration shape"
+            "op_id must be declared as ColumnDef(type='uuid', nullable=True)"
         )
 
 
-# ── §P-4: ingest_file accepts em_target as the fourth extra arg ───────────────
+# ── id-434: ingest_file no longer takes em_target; it returns candidates ─────
 
 
-class TestIngestFileAcceptsEmTarget:
-    """``ingest_file`` accepts ``em_target`` so ``mount_each`` arity matches."""
+class TestIngestFileEmOwnershipInverted:
+    """The per-file component's signature carries NO em_target (DR-140
+    clause 1) and its return value is the phase-1 → phase-2 transfer."""
 
-    def test_ingest_file_signature_has_6_params(self) -> None:
+    def test_ingest_file_positional_signature_is_exactly_six_params(self) -> None:
         flow = _flow_module()
-        # ID-66.19 appended keyword-only run-context params (flow_op_id + 4
-        # counters + manifest) after a bare `*` so app_main can thread them via
-        # functools.partial across the cocoindex daemon-thread boundary. Inspect
-        # the POSITIONAL slice for the unchanged mount_each arity contract.
         sig = inspect.signature(flow.ingest_file)
         params = [
             name
@@ -171,104 +149,99 @@ class TestIngestFileAcceptsEmTarget:
             )
         ]
         assert params[0] != "rel_path", (
-            "ingest_file must NOT lead with rel_path — mount_each passes "
+            "ingest_file must NOT lead with rel_path — the fan-out passes "
             "fn(File, *extra_args); the key is never forwarded to fn "
             "(ID-28.21 regression guard)"
         )
-        # ID-52.12 had extended the arity from five to seven: ft_target /
-        # ftf_target (the form_templates / form_template_fields Path-B write
-        # targets) followed em_target positionally. ID-56.8 extended it to
-        # eight: cc_target (the content_chunks chunk-row UPSERT target) was
-        # appended as a DEFAULTED 8th positional. ID-101 §{101.7} extended it
-        # to nine: er_target (the entity_relationships UPSERT target) was
-        # appended as a DEFAULTED 9th positional. ID-131 {131.11} extended it
-        # to ten: re_target (the record_embeddings polymorphic UPSERT target)
-        # was appended as a DEFAULTED 10th positional so the prior
-        # 7-/8-/9-arg callers stayed valid (RULING 1).
-        #
-        # ID-136 {136.5} retired the Path-B forms write surface entirely and
-        # removed the `ft_target`/`ftf_target` positionals, dropping the
-        # arity from ten back to eight: (file, ci, qa, sd, em, cc, er, re).
-        # {127.25} (DR-034) dropped `ci_target` (the content_items mount was
-        # retired — the table is gone both envs), dropping the arity from
-        # eight to seven: (file, qa, sd, em, cc, er, re).
-        assert len(params) == 7, (
-            "ingest_file positional params must be exactly "
-            "(file, qa, sd, em, cc, er, re); "
-            f"got {params}"
-        )
-
-    def test_em_target_is_the_third_extra_arg(self) -> None:
-        """``em_target`` is the THIRD extra arg (index 3) — pinned by position so
-        the {53.11} declare_row body can refer to it without ambiguity. ID-52.12
-        had chained the form targets (ft_target / ftf_target) after it as the
-        fifth + sixth extra args, but ID-136 {136.5} retired the Path-B forms
-        write surface and removed both. {127.25} (DR-034) then dropped
-        ``ci_target`` (the leading extra arg), so ``em_target`` moved from the
-        fourth extra arg to the third, and ``cc_target`` now directly follows
-        it as the fourth extra arg (defaulted None)."""
-        flow = _flow_module()
-        # ID-66.19: inspect the POSITIONAL slice (keyword-only run-context params
-        # follow a bare `*`).
-        sig = inspect.signature(flow.ingest_file)
-        params = [
-            name
-            for name, p in sig.parameters.items()
-            if p.kind
-            in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            )
-        ]
-        assert params[3] == "em_target", (
-            f"the third extra arg of ingest_file must be named 'em_target'; "
-            f"got params={params}"
-        )
-        assert params[4:] == [
+        assert params == [
+            "file",
+            "qa_target",
+            "sd_target",
             "cc_target",
             "er_target",
             "re_target",
         ], (
-            f"the fourth..sixth extra args must be cc_target, er_target, "
-            f"re_target (positional order; ID-136 removed ft_target/ftf_target; "
-            f"{{127.25}} removed ci_target); got params={params}"
+            "id-434: ingest_file positional params must be exactly "
+            "(file, qa_target, sd_target, cc_target, er_target, re_target) — "
+            f"em_target left the signature (DR-140 clause 1); got {params}"
         )
 
+    def test_ingest_file_returns_the_candidate_list(self) -> None:
+        """The MEMOISED return value is the phase-2 transfer channel
+        (TECH §2.1): a memo hit must replay the candidate list, so the
+        annotation is the executable statement of that contract."""
+        flow = _flow_module()
+        sig = inspect.signature(flow.ingest_file)
+        assert "EntityMentionCandidate" in str(sig.return_annotation), (
+            "ingest_file must be annotated to return "
+            f"list[EntityMentionCandidate]; got {sig.return_annotation!r}"
+        )
 
-# ── §P-4: app_main mounts em_target and threads it into mount_each ────────────
+    def test_transfer_type_is_frozen_with_the_ruled_floor(self) -> None:
+        """The S554 transfer floor (PRODUCT §3) + the op_id memo-channel
+        extension, frozen so the memoised value is stable."""
+        flow = _flow_module()
+        import dataclasses
+
+        assert dataclasses.is_dataclass(flow.EntityMentionCandidate)
+        assert flow.EntityMentionCandidate.__dataclass_params__.frozen, (
+            "EntityMentionCandidate must be frozen — it is a memoised value"
+        )
+        fields = {f.name for f in dataclasses.fields(flow.EntityMentionCandidate)}
+        assert fields == {
+            "source_document_id",
+            "entity_type",
+            "entity_name",
+            "per_doc_key",
+            "context_snippet",
+            "confidence",
+            "source_span_start",
+            "source_span_end",
+            "op_id",
+        }, f"the ruled transfer floor + op_id, exactly; got {sorted(fields)}"
 
 
-class TestAppMainMountsEntityMentionsTarget:
-    """``app_main`` source contains the ``em_target`` mount + mount_each
-    fold-in. Source-inspection is the canonical pattern (mirrors the
-    retry-counter / stage-counter wiring tests in sibling files) because
-    the cocoindex Rust engine cannot be booted in unit tests.
-    """
+# ── app_main: em_target flows to phase 2b ONLY ───────────────────────────────
+
+
+class TestAppMainEmTargetWiring:
+    """``app_main`` mounts ``em_target`` and hands it to exactly one
+    consumer: the phase-2b declare component."""
 
     def test_app_main_mounts_entity_mentions_target(self) -> None:
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
         assert "em_target = await mount_table_target(" in source, (
-            "app_main() must contain `em_target = await mount_table_target(...)` "
-            "per ID-53.10 §P-4 — Stage-5 writes land via this handle."
+            "app_main() must contain `em_target = await mount_table_target(...)`"
         )
-        assert '"entity_mentions"' in source, (
-            "the mount_table_target call must name the target table "
-            "'entity_mentions' (the PG table name)."
-        )
-        assert "ENTITY_MENTIONS_SCHEMA" in source, (
-            "the mount_table_target call must pass ENTITY_MENTIONS_SCHEMA — "
-            "the schema declaration is the structural contract."
-        )
+        assert '"entity_mentions"' in source
+        assert "ENTITY_MENTIONS_SCHEMA" in source
 
-    def test_app_main_passes_em_target_to_mount_each(self) -> None:
+    def test_em_target_is_not_threaded_into_the_per_file_fan_out(self) -> None:
+        """The per-file fan-out args must not include em_target — the
+        per-file component neither declares nor sees mention rows."""
         flow = _flow_module()
         source = inspect.getsource(flow.app_main)
-        # Verify mount_each receives em_target as the fourth target (and
-        # that the call literally names it — pins the threading contract).
-        assert "em_target," in source or "em_target)" in source, (
-            "app_main() must pass em_target into coco.mount_each(...) so the "
-            "per-item ingest_file component receives it as the fourth extra arg."
+        start = source.find("bound_ingest_file,")
+        assert start != -1, "app_main must fan out through bound_ingest_file"
+        fan_out_block = source[start : start + 400]
+        assert "em_target" not in fan_out_block, (
+            "id-434: em_target must NOT be threaded into the per-file "
+            f"fan-out; got: {fan_out_block!r}"
+        )
+
+    def test_em_target_flows_to_the_declare_component(self) -> None:
+        flow = _flow_module()
+        source = inspect.getsource(flow.app_main)
+        start = source.find('component_subpath("declare_entity_mentions")')
+        assert start != -1, (
+            "app_main must mount the phase-2b declare_entity_mentions "
+            "component"
+        )
+        declare_block = source[start : start + 400]
+        assert "em_target" in declare_block, (
+            "em_target's one consumer is the phase-2b declare component; "
+            f"got: {declare_block!r}"
         )
 
     def test_app_main_uses_managed_by_user_for_em_target(self) -> None:

@@ -661,7 +661,14 @@ class TestIngestOnceSurvivesWhereEngineRowsWouldBeCleaned:
 
         async def _run_walk() -> None:
             async with bind_flow_meta(op_id=walk_op_id):
-                await flow.ingest_file(walk_file, qa, sd, em, cc, er, re_)
+                candidates = await flow.ingest_file(walk_file, qa, sd, cc, er, re_)
+                # id-434: `ingest_file` no longer declares entity_mentions rows
+                # — it returns the document's mention candidates and the
+                # flow-level phase-2b component declares them. The engine
+                # declare surface this test inspects is that component's, so
+                # drive it here with an empty resolver map (every candidate's
+                # canonical falls back to its per-doc key).
+                await flow._declare_entity_mentions(em, candidates, {}, [], None)
 
         asyncio.run(_run_walk())
 

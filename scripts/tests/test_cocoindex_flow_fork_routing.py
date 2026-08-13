@@ -208,7 +208,7 @@ class _SdTarget:
 
 
 def _drive_ingest(flow: object, fake_file: object) -> dict:
-    """Drive one real ``ingest_file`` under bind_flow_meta, with the four
+    """Drive one real ``ingest_file`` under bind_flow_meta, with the three
     targets recording. {127.25} DR-034: content_items no longer exists (table
     dropped both envs) — the content-branch discriminator is content_chunks
     (``cc``). ID-127.37 (DR-038/056/061): the folder→workspace manifest fork
@@ -217,8 +217,10 @@ def _drive_ingest(flow: object, fake_file: object) -> dict:
 
     ID-136 (forms-route retirement, T8): ``ft_target``/``ftf_target`` were
     dropped from ``ingest_file``'s positional signature. {127.25} (DR-034)
-    dropped ``ci_target`` too — the 6-arg shape is now
-    (file, qa, sd, em, cc, er, re) with ``cc_target`` the 5th positional
+    dropped ``ci_target`` too, and id-434 dropped ``em_target`` (the
+    entity_mentions declare moved to the phase-2b
+    ``_declare_entity_mentions`` component) — the shape is now
+    (file, qa, sd, cc, er, re) with ``cc_target`` the 4th positional
     (``er_target``/``re_target`` stay defaulted None, the documented
     "4-/5-arg legacy caller" shape)."""
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
@@ -232,7 +234,6 @@ def _drive_ingest(flow: object, fake_file: object) -> dict:
     targets = {
         "qa": _FakeTarget("q_a_extractions"),
         "sd": _SdTarget(pool),
-        "em": _FakeTarget("entity_mentions"),
         "cc": _FakeTarget("content_chunks"),
     }
     run_op_id = uuid.uuid4()
@@ -243,7 +244,6 @@ def _drive_ingest(flow: object, fake_file: object) -> dict:
                 fake_file,
                 targets["qa"],
                 targets["sd"],
-                targets["em"],
                 targets["cc"],
             )
 

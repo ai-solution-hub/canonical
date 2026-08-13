@@ -311,11 +311,14 @@ def _walk(flow, registry: dict, rel_path: str, data: bytes, monkeypatch: pytest.
 
     {127.25} DR-034: `ci_target`/`content_items` is REMOVED entirely (the
     table is dropped both envs) — the call below drops the corresponding
-    positional arg so `qa`/`sd`/`em` land in their CORRECT target slots
+    positional arg so `qa`/`sd` land in their CORRECT target slots
     (pre-fix, the extra `ci` arg silently shifted every target one slot to
     the right — a masked bug: `qa.rows` was empty and `pre_lift["qa"]`'s
     downstream assertion was vacuously comparing `[] == []`, while the real
     q_a_extractions rows landed in what the caller mislabelled `ci.rows`).
+    id-434 removed `em_target` for the same reason of slot hygiene: the
+    entity_mentions declare moved to the phase-2b `_declare_entity_mentions`
+    component, so an `em` arg here would land in the `cc_target` slot.
     """
     import asyncio
 
@@ -328,11 +331,10 @@ def _walk(flow, registry: dict, rel_path: str, data: bytes, monkeypatch: pytest.
 
     qa = _FakeTarget("q_a_extractions")
     sd = _FakeTarget("source_documents")
-    em = _FakeTarget("entity_mentions")
 
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=uuid.uuid4()):
-            await flow.ingest_file(_FakeFile(rel_path, data=data), qa, sd, em, None, None)
+            await flow.ingest_file(_FakeFile(rel_path, data=data), qa, sd, None, None)
 
     asyncio.run(_exercise())
     return {

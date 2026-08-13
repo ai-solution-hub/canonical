@@ -201,3 +201,115 @@ class TestKhEntityEmbedderEmbedContract:
             "KhEntityEmbedder.embed must be `async def` to satisfy the "
             "cocoindex _Embedder Protocol shape"
         )
+
+
+# ── id-434 D10 — the record_embeddings read-through cache ─────────────────────
+
+
+class _RecordingCachePool:
+    """Minimal asyncpg-pool double for the D10 cache paths."""
+
+    def __init__(self, stored: str | None = None) -> None:
+        self.stored = stored  # pgvector text form, or None (cache miss)
+        self.fetchrow_calls: list[tuple] = []
+        self.execute_calls: list[tuple] = []
+
+    async def fetchrow(self, query: str, *args: object):
+        self.fetchrow_calls.append((query, args))
+        if self.stored is None:
+            return None
+        return {"embedding": self.stored}
+
+    async def execute(self, query: str, *args: object) -> str:
+        self.execute_calls.append((query, args))
+        return "INSERT 0 1"
+
+
+class TestD10ReadThroughCache:
+    """TECH §2.6: SELECT on hit; miss → live embed + INSERT … ON CONFLICT DO
+    NOTHING; any cache fault degrades to the live embed. The cache
+    accelerates, it never gates."""
+
+    def test_cache_hit_returns_stored_vector_without_live_embed(
+        self, stub_litellm: type[_StubLiteLLMEmbedder]
+    ) -> None:
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+
+        pool = _RecordingCachePool(stored="[0.5, 0.25, -1.0]")
+        embedder = KhEntityEmbedder(db_pool=pool)
+        vector = asyncio.run(embedder.embed("iso 27001"))
+
+        assert vector.dtype == np.float32
+        assert vector.tolist() == [0.5, 0.25, -1.0]
+        inner = stub_litellm.instances[0]
+        assert inner.embed_calls == [], (
+            "a cache HIT must not call the live embedder — 'only new names "
+            "embed' is the whole point of the substrate"
+        )
+        assert pool.execute_calls == [], "a hit writes nothing"
+
+    def test_cache_miss_embeds_live_and_writes_do_nothing_insert(
+        self, stub_litellm: type[_StubLiteLLMEmbedder]
+    ) -> None:
+        from scripts.cocoindex_pipeline.entity_embedder import (  # noqa: PLC0415
+            ENTITY_EMBEDDING_MODEL,
+            KhEntityEmbedder,
+            entity_name_owner_id,
+        )
+
+        pool = _RecordingCachePool(stored=None)
+        embedder = KhEntityEmbedder(db_pool=pool)
+        vector = asyncio.run(embedder.embed("iso 27001"))
+
+        inner = stub_litellm.instances[0]
+        assert inner.embed_calls == ["iso 27001"]
+        assert len(vector) == 1024
+        assert len(pool.execute_calls) == 1
+        query, args = pool.execute_calls[0]
+        assert "ON CONFLICT (owner_kind, owner_id, model) DO NOTHING" in query, (
+            "the write is the entity_pair_resolutions cache pattern — never "
+            "an UPDATE, never engine target state"
+        )
+        assert "'entity_name'" in query
+        assert args[0] == entity_name_owner_id("iso 27001")
+        assert args[1] == ENTITY_EMBEDDING_MODEL
+
+    def test_cache_read_fault_degrades_to_live_embed(
+        self, stub_litellm: type[_StubLiteLLMEmbedder]
+    ) -> None:
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+
+        class _BrokenReadPool(_RecordingCachePool):
+            async def fetchrow(self, query: str, *args: object):
+                raise RuntimeError("boom — cache read unavailable")
+
+        pool = _BrokenReadPool()
+        embedder = KhEntityEmbedder(db_pool=pool)
+        vector = asyncio.run(embedder.embed("iso 27001"))
+
+        assert len(vector) == 1024, "the fault must degrade, never gate"
+        assert stub_litellm.instances[0].embed_calls == ["iso 27001"]
+
+    def test_no_pool_bypasses_the_cache_entirely(
+        self, stub_litellm: type[_StubLiteLLMEmbedder]
+    ) -> None:
+        from scripts.cocoindex_pipeline.entity_embedder import KhEntityEmbedder  # noqa: PLC0415
+
+        embedder = KhEntityEmbedder()
+        asyncio.run(embedder.embed("iso 27001"))
+        assert stub_litellm.instances[0].embed_calls == ["iso 27001"]
+
+
+class TestNamespaceAgreement:
+    """The pinned uuid5 namespace literal must agree with flow.py's — drift
+    orphans every cached vector (the constant is duplicated deliberately so
+    unit tests need not import the whole flow module; this test is the
+    drift guard the duplication comment promises)."""
+
+    def test_owner_namespace_matches_flow_pipeline_namespace(self) -> None:
+        from scripts.tests.conftest import fresh_flow_module  # noqa: PLC0415
+
+        import scripts.cocoindex_pipeline.entity_embedder as embedder_mod  # noqa: PLC0415
+
+        flow = fresh_flow_module()
+        assert embedder_mod._KH_PIPELINE_DOC_NS == flow._KH_PIPELINE_DOC_NS

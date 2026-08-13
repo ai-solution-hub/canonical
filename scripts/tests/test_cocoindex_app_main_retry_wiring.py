@@ -121,7 +121,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 #       module-by-module).
 
 
-def _pass_through_fn_decorator(**kwargs):
+def _pass_through_fn_decorator(*args, **kwargs):
     """Replacement for cocoindex's @coco.fn decorator.
 
     `@coco.fn(memo=True)` is the real decorator. Production extractors
@@ -129,8 +129,11 @@ def _pass_through_fn_decorator(**kwargs):
     tests we don't need memoisation (we want each test to exercise the
     real SDK call path). The pass-through here returns the wrapped
     function unchanged — `extract_classification(text)` is the original
-    coroutine, fully awaitable.
+    coroutine, fully awaitable. Supports the BARE `@coco.fn` form too
+    (id-434's phase-2 components), mirroring conftest's canonical stub.
     """
+    if args and callable(args[0]) and not kwargs:
+        return args[0]
     del kwargs  # unused — we ignore memo flags
 
     def _wrap(func):

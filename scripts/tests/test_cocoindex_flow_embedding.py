@@ -8,7 +8,7 @@ document-level embedding column. `embed_content_text` now runs ONLY (a) per
 CHUNK inside `_ingest_content_branch`'s chunking block (`cc_target` supplied —
 covered by the chunking test suite) and (b) in the reference_item/URL branch
 (`_ingest_url_body`). `TestIngestFileEmbedding` below now guards the NEGATIVE:
-a minimal (qa, sd, em)-only `ingest_file` call — no `cc_target` — must NOT
+a minimal (qa, sd)-only `ingest_file` call — no `cc_target` — must NOT
 compute or declare any document-level embedding. The `TestEmbedContentTextTruncation`
 suite below is UNCHANGED — it exercises `embed_content_text` directly (the
 seam itself, not `ingest_file`'s wiring), which is unaffected by the retirement.
@@ -245,21 +245,22 @@ def _patch_extractors(flow, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(flow, "extract_relationships", _fake_relationships_empty)
 
 
-def _exercise_ingest(flow, fake_file, qa, sd, em, run_op_id) -> None:
+def _exercise_ingest(flow, fake_file, qa, sd, run_op_id) -> None:
     """Drive a single ``ingest_file`` invocation under a ``bind_flow_meta``.
 
     {127.25} DR-034: the ``ci_target`` (content_items) positional was REMOVED
     from ``ingest_file`` when the content_items table was dropped — the
-    per-doc target set is now (qa, sd, em) plus the defaulted cc/er/re
+    per-doc target set is now (qa, sd) plus the defaulted cc/er/re
     trailing positionals (mirrors the fix already applied to
-    test_cocoindex_flow_write_path.py). Per ID-53.10 §P-4 ``em_target`` is
-    the third extra arg.
+    test_cocoindex_flow_write_path.py). id-434 removed ``em_target`` too: the
+    entity_mentions declare moved out of the per-file component into the
+    phase-2b ``_declare_entity_mentions`` component.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta  # noqa: PLC0415
 
     async def _run() -> None:
         async with bind_flow_meta(op_id=run_op_id):
-            await flow.ingest_file(fake_file, qa, sd, em, None, None)
+            await flow.ingest_file(fake_file, qa, sd, None, None)
 
     asyncio.run(_run())
 
@@ -274,7 +275,7 @@ class TestIngestFileEmbedding:
     target gained a document-level embedding column. `embed_content_text` is
     now exercised ONLY per-chunk (`cc_target` supplied — chunking test suite)
     and by the reference_item/URL branch, NEITHER of which this file's
-    minimal (qa, sd, em) target call reaches. These tests now guard the
+    minimal (qa, sd) target call reaches. These tests now guard the
     NEGATIVE: `ingest_file`'s content branch, called without a `cc_target`,
     must not compute or declare any document-level embedding."""
 
@@ -284,7 +285,7 @@ class TestIngestFileEmbedding:
         """{127.25} DR-034: no whole-document embedding call remains in the
         content branch. `embed_content_text` is called ONLY inside the
         chunking block (per-chunk), which is skipped when `cc_target` is
-        None — so a minimal (qa, sd, em)-only ingest must never invoke it."""
+        None — so a minimal (qa, sd)-only ingest must never invoke it."""
         flow = _flow_module()
         _patch_extractors(flow, monkeypatch)
 
@@ -302,10 +303,9 @@ class TestIngestFileEmbedding:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
         run_op_id = uuid.uuid4()
 
-        _exercise_ingest(flow, fake_file, qa, sd, em, run_op_id)
+        _exercise_ingest(flow, fake_file, qa, sd, run_op_id)
 
         assert calls == [], (
             "embed_content_text must NOT be called by the content branch when "
@@ -336,9 +336,8 @@ class TestIngestFileEmbedding:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
 
-        _exercise_ingest(flow, fake_file, qa, sd, em, uuid.uuid4())
+        _exercise_ingest(flow, fake_file, qa, sd, uuid.uuid4())
 
         assert qa.vector_indexes == [], (
             "ingest_file must NOT declare a vector index — any HNSW cosine "
@@ -346,7 +345,6 @@ class TestIngestFileEmbedding:
             "declared here"
         )
         assert sd.vector_indexes == []
-        assert em.vector_indexes == []
 
     def test_embed_content_text_seam_is_exposed(self) -> None:
         """flow exposes an awaitable embed_content_text(content_text) seam."""

@@ -292,7 +292,10 @@ def _ingest_with_cc(
 
     {127.25} DR-034 removed the `ci_target` positional (content_items table
     dropped both envs) — `cc_target`/`er_target`/`re_target` shifted down
-    again from the 6th/7th/8th to the 4th/5th/6th positional slots.
+    again from the 6th/7th/8th to the 4th/5th/6th positional slots. id-434
+    then removed `em_target` too (the entity_mentions declare moved to the
+    phase-2b `_declare_entity_mentions` component), shifting them once more
+    to the 3rd/4th/5th target slots.
     """
     from scripts.cocoindex_pipeline.flow_context import bind_flow_meta
 
@@ -303,15 +306,12 @@ def _ingest_with_cc(
 
     qa = _FakeTarget("q_a_extractions")
     sd = _FakeTarget("source_documents")
-    em = _FakeTarget("entity_mentions")
 
     run_op_id = uuid.uuid4()
 
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=run_op_id):
-            await flow.ingest_file(
-                fake_file, qa, sd, em, cc_target, None, re_target
-            )
+            await flow.ingest_file(fake_file, qa, sd, cc_target, None, re_target)
 
     asyncio.run(_exercise())
     return run_op_id
@@ -446,7 +446,7 @@ class TestChunkingStageWritePath:
         {127.25}: the old assertion here ("the parent content_items row still
         lands") is structurally impossible now — there is no content_items
         target to declare onto. Re-pointed onto the surviving invariant: the
-        full content-branch walk (qa/sd/em + the raw-pool source_documents
+        full content-branch walk (qa/sd + the raw-pool source_documents
         upsert, {138.10}) completes cleanly with `cc_target=None` — the guard
         skips chunking rather than crashing on a None target.
         """

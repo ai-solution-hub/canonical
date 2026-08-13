@@ -50,6 +50,7 @@ import os
 import re
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -132,7 +133,7 @@ from scripts.cocoindex_pipeline.extraction import ANTHROPIC_MODEL  # noqa: F401 
 from scripts.cocoindex_pipeline.flow_context import (
     FLOW_META_CTX,  # noqa: F401 — re-exported flow-context surface (28.13 wiring + tests)
     FLOW_RUN_CONTEXT,  # id-400 — the module-singleton FlowRunContext holder
-    FlowRunMeta,
+    FlowRunMeta,  # noqa: F401 — re-exported flow-context surface (in-task test callers)
     bind_flow_meta,
     bind_retry_counter,
     bind_stage_counter,
@@ -146,11 +147,6 @@ from scripts.cocoindex_pipeline.flow_context import (
 # passed-ledger snapshot source `app_main` mounts at {75.11} (D-1/D-2).
 from scripts.cocoindex_pipeline.url_source import FeedUrlSource, UrlItem
 from scripts.cocoindex_pipeline.url_validation import validate_url
-
-# ID-53 §P-1 (Inv-1). Stage-5 entity-resolution flow-scope post-pass. Imported
-# at module top (NOT lazily) — stage_5.py imports the flow-side types under
-# TYPE_CHECKING only, so there is no runtime import cycle.
-from scripts.cocoindex_pipeline.stage_5 import _run_stage_5_resolution
 
 # ID-120 §P-3 (INV-1). Cross-workspace + cross-form Q&A dedup PROPOSER post-pass.
 # Imported at module top alongside Stage-5 — qa_dedup_proposer.py imports the
@@ -266,10 +262,11 @@ class _EntityResolutionStageError(Exception):
     Because the real exception modules are ``anthropic`` / ``litellm`` —
     NOT the resolver/embedder modules — matching on ``type(exc).__module__``
     prefix cannot catch them. Classification therefore requires STAGE
-    CONTEXT, supplied by re-raising any Stage-5 escape as this wrapper at
-    the ``_run_stage_5_resolution`` attach site (preserving ``__cause__``
-    via ``raise … from exc``). ``_classify_stage_exception`` then resolves
-    this wrapper ahead of the generic ``anthropic.APIError`` branch.
+    CONTEXT, supplied by re-raising any escape from the id-434 phase-2
+    resolve/declare awaits as this wrapper at their `app_main` attach sites
+    (preserving ``__cause__`` via ``raise … from exc``).
+    ``_classify_stage_exception`` then resolves this wrapper ahead of the
+    generic ``anthropic.APIError`` branch.
     """
 
 
@@ -336,11 +333,11 @@ def _classify_stage_exception(exc: BaseException) -> str | None:
     Returns:
       One of the 7 canonical class strings, or `None` for unmapped types.
     """
-    # Stage-5 entity-resolution failure (ID-53.15, T-OQ1). MUST precede the
-    # anthropic.APIError branch below: a Stage-5-wrapped
+    # Entity-resolution failure (ID-53.15, T-OQ1; id-434 phase 2). MUST
+    # precede the anthropic.APIError branch below: a phase-2-wrapped
     # anthropic.AuthenticationError (pair_resolver failMode) is otherwise
     # type-indistinguishable from a Stage-3 extraction provider failure. The
-    # wrap is applied at the `_run_stage_5_resolution` attach site so stage
+    # wrap is applied at the phase-2 attach sites in `app_main` so stage
     # context — not exception type — drives the classification.
     if isinstance(exc, _EntityResolutionStageError):
         return "entity_resolution_failed"
@@ -1503,8 +1500,9 @@ REFERENCE_ITEMS_SCHEMA = TableSchema(
     primary_key=("id",),
 )
 
-# ID-53 §P-4 (Inv-6). Stage-5 entity-resolution writes entity_mentions rows via
-# `em_target` declared per-doc inside `ingest_file` (mounted at app_main below).
+# entity_mentions rows land via `em_target`, consumed ONLY by the id-434
+# phase-2b `declare_entity_mentions` component (the one em declare site;
+# DR-140 clause 1 — per-file components no longer declare mentions).
 # `op_id` is a plain row field — stamped from `current_flow_meta()` — that
 # round-trips into `pipeline_runs` per Inv-6. PG-defaulted columns
 # (`created_at`, `entity_type_override`, `normalisation_version`) are OMITTED
@@ -1877,24 +1875,71 @@ def _to_source_relative(path: Path, source_path: Any) -> str:
     return path.as_posix()
 
 
+# ── id-434: the phase-1 → phase-2 transfer type (TECH §2.2) ──────────────────
+
+
+@dataclass(frozen=True)
+class EntityMentionCandidate:
+    """One admissible mention candidate, emitted by phase 1 per document.
+
+    The ruled transfer floor (S554; {434.2} PRODUCT §3) plus `op_id`. The
+    DR-135 admission check runs BEFORE a candidate is emitted — an unanchored
+    mention never crosses this type — and `context_snippet` is computed in
+    phase 1 where `content_text` lives, carried, never recomputed (PI-9).
+
+    `op_id` rides the candidate ON PURPOSE (a TECH §2.2 floor-extension,
+    recorded on id-434's ledger): the phase-2b declare component re-declares
+    every walked row on every run, so the declared `op_id` must be a function
+    of the CANDIDATE, not of the current run — a memo-hit file replays its
+    stored candidates carrying the op_id of the run that last materially
+    changed it (the id-400 last-materially-changed contract), which is what
+    keeps an unchanged-corpus re-run byte-stable (PRODUCT §5 probe 2). A
+    changed file re-runs phase 1 and its candidates carry the current op_id;
+    `full_reprocess` bypasses memos and re-stamps everything, as today.
+
+    Frozen + plain field types: this is `ingest_file`'s MEMOISED return value
+    (the §2.1 channel), so it must round-trip the engine's memo store.
+    """
+
+    source_document_id: uuid.UUID
+    entity_type: str
+    entity_name: str  # surface form, verbatim
+    per_doc_key: str  # canonicalise_entity_name(entity_name) — post-id-433 key
+    context_snippet: str  # DR-135: computed in phase 1, carried, never recomputed
+    confidence: float | None
+    source_span_start: int | None
+    source_span_end: int | None
+    op_id: uuid.UUID
+
+
 @coco.fn(memo=True)
 async def ingest_file(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
     qa_target: Any,
     sd_target: Any,
-    em_target: Any,
     cc_target: Any = None,
     er_target: Any = None,
     re_target: Any = None,
     *,
     flow_source_path: Any = None,
-) -> None:
-    """Ingest ONE source file: convert → extract → declare rows on each target.
+) -> "list[EntityMentionCandidate]":
+    """Ingest ONE source file: convert → extract → declare rows on each target,
+    and RETURN the document's entity-mention candidates (id-434 phase 1).
 
-    Mounted once per source item by `coco.mount_each`. cocoindex 1.0.3 calls
-    this component as `ingest_file(File, ci, qa, sd, em)` — the item VALUE
-    (the `File`) is the first positional arg, followed by the extra args
-    (`ci/qa/sd/em` targets) passed positionally to `mount_each`. The
+    id-434 (DR-140 clause 1): `em_target` is GONE from this signature — the
+    per-file component no longer declares `entity_mentions` rows. It collects
+    admissible mention candidates (DR-135 checked here, where `content_text`
+    lives) and returns them as its MEMOISED value: `app_main` awaits the
+    per-file `use_mount` fan-out (TECH §2.1) and a memo HIT replays this
+    return value, which is the only channel that still feeds phase 2 for
+    unchanged files — a side-channel collector would receive nothing on
+    exactly the runs where stability matters most.
+
+    Mounted once per source item by `app_main`'s per-file `use_mount` +
+    gather fan-out (`coco.component_subpath("ingest_file", key)` reproduces
+    the pre-id-434 `mount_each` component paths, so component identity and
+    cleanup semantics are unchanged). The item VALUE (the `File`) is the
+    first positional arg, followed by the target extra args. The
     (key,value) pair from `walk_dir().items()` is `(relative_path_str, File)`;
     the KEY is consumed by `mount_each` for per-item subpath routing only and is
     NOT passed to `fn` (verified against installed cocoindex 1.0.3
@@ -1911,25 +1956,26 @@ async def ingest_file(
     `ingest_source='app_upload'`).
 
     `cc_target` (ID-56.8) is the `content_chunks` chunk-row UPSERT target. It is
-    a DEFAULTED 5th positional (defaults to None; {127.25} DR-034 shifted this
-    down again once `ci_target` was removed) so the 4-arg legacy callers stay
+    a DEFAULTED 4th positional (defaults to None; {127.25} DR-034 shifted this
+    down once `ci_target` was removed, and id-434 shifted it again when
+    `em_target` left the signature) so the 3-arg legacy callers stay
     valid: when None, the budget-driven chunking block is skipped entirely.
     When supplied, the chunking block runs AFTER the parent `source_documents`
     upsert (FK safety + memo cascade) and declares one `content_chunks` row per
     RecursiveSplitter chunk (PRODUCT C-10..C-13).
 
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` row-level UPSERT
-    target. It is a DEFAULTED 7th positional (defaults to None) appended AFTER
+    target. It is a DEFAULTED 5th positional (defaults to None) appended AFTER
     `cc_target` (RULING 1 — defaulted trailing positional, before the keyword-only
-    `*`) so the existing 5-/6-arg callers stay valid: when None, the relationship
+    `*`) so the shorter legacy callers stay valid: when None, the relationship
     declare loop is skipped entirely. When supplied, the loop runs in the content
-    branch AFTER the entity_mentions declares and declares one entity_relationships
-    row per distinct canonicalised triple (Inv-4).
+    branch after the mention-candidate collection and declares one
+    entity_relationships row per distinct canonicalised triple (Inv-4).
 
     `re_target` (ID-131 {131.11}) is the `record_embeddings` polymorphic write
-    target. It is a DEFAULTED 8th positional (defaults to None) appended AFTER
+    target. It is a DEFAULTED 6th positional (defaults to None) appended AFTER
     `er_target` (RULING 1 — trailing defaulted positional, before the keyword-only
-    `*`) so the existing 5-/6-/7-arg callers stay valid: when None, the
+    `*`) so the shorter legacy callers stay valid: when None, the
     record-embeddings dual-write is skipped. When supplied, the content branch
     declares one `record_embeddings` row per content_chunk (owner_kind
     'content_chunk') alongside the inline `content_chunks.embedding` write.
@@ -2047,11 +2093,10 @@ async def ingest_file(
         )
 
     async with rebind_meta, rebind_retry, rebind_memo_heal:
-        await _ingest_file_body(
+        return await _ingest_file_body(
             file,
             qa_target,
             sd_target,
-            em_target,
             cc_target,
             er_target,
             re_target,
@@ -2065,7 +2110,6 @@ async def _ingest_file_body(
     file: "coco.resources.file.FileLike",  # type: ignore[name-defined]
     qa_target: Any,
     sd_target: Any,
-    em_target: Any,
     cc_target: Any,
     er_target: Any = None,
     re_target: Any = None,
@@ -2073,7 +2117,7 @@ async def _ingest_file_body(
     op_id: "uuid.UUID",
     stage_counter: Any,
     flow_source_path: Any,
-) -> None:
+) -> "list[EntityMentionCandidate]":
     """The Stage 2→6 per-item body of `ingest_file` (ID-66.19 split).
 
     Factored out of `ingest_file` so the wrapper owns the ID-66.19 run-context
@@ -2113,12 +2157,11 @@ async def _ingest_file_body(
     # Inv-17: one source item walked + handed to this component per invocation.
     _bump("source_walk")
 
-    await _ingest_content_branch(
+    return await _ingest_content_branch(
         file,
         rel_path,
         qa_target,
         sd_target,
-        em_target,
         cc_target,
         er_target,
         re_target,
@@ -2132,20 +2175,22 @@ async def _ingest_content_branch(
     rel_path: str,
     qa_target: Any,
     sd_target: Any,
-    em_target: Any,
     cc_target: Any,
     er_target: Any = None,
     re_target: Any = None,
     *,
     op_id: "uuid.UUID",
     _bump: Any,
-) -> None:
+) -> "list[EntityMentionCandidate]":
     """Path-A content branch — Stage 2→6 (ID-80.7 extraction, 80.2 §B.3).
 
     Extracted verbatim from `_ingest_file_body`. Touches ONLY the
-    ci/qa/sd/em/cc/er targets. `_bump` is the dispatcher's stage-counter
-    closure, threaded through unchanged so the Inv-17 stage-count semantics do
-    not shift.
+    qa/sd/cc/er/re targets — id-434: `entity_mentions` is no longer declared
+    here; the branch RETURNS the document's admissible mention candidates
+    (DR-135 checked in this frame, where `content_text` lives) for the
+    phase-2 resolve + declare components. `_bump` is the dispatcher's
+    stage-counter closure, threaded through unchanged so the Inv-17
+    stage-count semantics do not shift.
 
     `er_target` (ID-101 §{101.7}) is the `entity_relationships` UPSERT target. A
     DEFAULTED trailing positional (None for the legacy callers that omit it); when
@@ -2195,8 +2240,9 @@ async def _ingest_content_branch(
         extract_qa_form, content_text, extractor_name="qa_form", rel_path=rel_path
     )
     # entity_mentions extraction runs here for memo coverage. The extracted
-    # mentions are declared into `em_target` in the Stage-6 declare-rows block
-    # below (AFTER content_item_id / rel_path are computed) — ID-53.11 §P-3.
+    # mentions become CANDIDATES in the id-434 phase-1 block below (AFTER
+    # source_document_id / rel_path are computed) — declared by the phase-2b
+    # component, never here.
     entity_mentions = await extract_with_memo_self_heal(
         extract_entity_mentions,
         content_text,
@@ -2505,103 +2551,38 @@ async def _ingest_content_branch(
         )
         _bump("postgres_upsert")  # Inv-17: one q_a_extractions row upsert
 
-    # ── Stage 5 substrate: entity_mentions rows (ID-53.11 §P-3) ──────────────
-    # Each distinct (canonical_name, entity_type) the LLM returned becomes ONE
-    # entity_mentions row for this document. canonicalise_entity_name +
-    # extract_entity_context are SYNCHRONOUS helpers (return str). The per-doc
-    # canonical lands in canonical_name BEFORE Stage-5 cross-document resolution
-    # runs (Inv-4); Stage-5's UPDATE may later rewrite it. Pydantic
-    # `mention_confidence` maps to DB `confidence` (Inv-15); source spans stash in
-    # the metadata jsonb (Inv-16); context_snippet is NOT NULL (Inv-17). op_id is
-    # the per-flow run stamp (Inv-7).
+    # ── id-434 phase 1: entity-mention CANDIDATES (no em declares here) ──────
+    # DR-140 clause 1: this branch no longer declares `entity_mentions` rows —
+    # it collects candidates and RETURNS them; resolution happens first
+    # (phase 2a) and the one corpus-wide declare component (phase 2b) keys
+    # every row on the RESOLVED canonical. The {66.16}/BUG-F dedup survives as
+    # a pure build step: the LLM may emit the SAME entity multiple times, so
+    # dedup per (per_doc_key, entity_type) keeping the highest-confidence
+    # mention. `per_doc_key` is `canonicalise_entity_name(entity_name)` — the
+    # one post-id-433 key space (DR-140 clause 2), the NAME fed to resolution,
+    # no longer the declared canonical.
     #
-    # {66.16}/BUG-F (S297): prod enforces UNIQUE (canonical_name, entity_type,
-    # content_item_id) — ONE row per (canonical entity, type) per document. The
-    # LLM may emit the SAME entity multiple times, so DEDUP per
-    # (per_doc_canonical, entity_type) keeping the highest-confidence mention, and
-    # seed the deterministic PK on that NATURAL key (NOT the mention index). The
-    # old `em:{rel_path}:{idx}` PK gave distinct ids to duplicate entities, so the
-    # cocoindex upsert's ON CONFLICT (id) did not absorb them and the natural-key
-    # unique constraint raised UniqueViolationError; the natural-key PK both
-    # collapses the duplicates and keeps re-ingest idempotent.
-    #
-    # id-398 (F4, id-396 TECH §4 D1): the PK is registry-keyed on the STORED
-    # `source_document_id` — NEVER `rel_path` — matching `ingest_once`. Document
-    # identity is content-hash-first (DR-024), so byte-identical re-stagings
-    # resolve to the same source_documents row; a rel_path-seeded PK re-declared
-    # the same natural-key tuple under a NEW id (census #40: 423
-    # UniqueViolationErrors, lane hard-down). Seeding on source_document_id makes
-    # re-declares hit ON CONFLICT (id) and upsert-absorb.
+    # The DR-135 admission check runs HERE, where `content_text` lives (PI-9):
+    # an unanchored mention is refused (logged per mention, never an item
+    # failure) and never crosses the transfer. Pins are NOT read here any
+    # more — the pin carry-forward relocated whole to the phase-2b declare
+    # component (corpus-wide fetch, D7 effective-type predicate).
     _em_dedup: dict[tuple[str, str], Any] = {}
     for mention in entity_mentions:
-        per_doc_canonical = canonicalise_entity_name(mention.entity_name)
-        key = (per_doc_canonical, mention.entity_type)
+        per_doc_key = canonicalise_entity_name(mention.entity_name)
+        key = (per_doc_key, mention.entity_type)
         kept = _em_dedup.get(key)
         if kept is None or (mention.mention_confidence or 0.0) > (
             kept.mention_confidence or 0.0
         ):
             _em_dedup[key] = mention
 
-    # ── id-400 Inv-9 RESHAPE: curation-pinned rows the walk may never UPDATE.
-    # Preload this document's pinned mentions (admin-curated via the entities
-    # merge route). Best-effort read: a pin-read fault is LOGGED and the
-    # declares proceed unpinned —
-    # a lookup fault must never abort the doc. NOTE the failure mode is
-    # honest-but-degraded: without the pin map a full_reprocess re-declare
-    # would clobber curated values, so the warning is the audit trail.
-    _pinned_by_id: dict[Any, dict[str, Any]] = {}
-    try:
-        _pinned_by_id = await _fetch_curation_pinned_mentions(source_document_id)
-    except Exception as exc:  # noqa: BLE001 — best-effort pin preload
-        _logger.warning(
-            json.dumps(
-                {
-                    "event": "cocoindex.ingest.curation_pin_read_failed",
-                    "rel_path": rel_path,
-                    "error": _redact_error_message(str(exc)),
-                }
-            )
-        )
-
-    # Two-pass declare plan (id-400): build candidate rows first, then
-    # reconcile against the pin map before any declare_row fires, so a pinned
-    # row is ALWAYS declared verbatim and never raced by a fresh candidate.
-    _em_declares: list[dict[str, Any]] = []
-    for (per_doc_canonical, entity_type), mention in _em_dedup.items():
-        # Inv-5 [RATIFIED-S241] stamp ({66.16}): the EntityMentionExtraction
-        # carries the flow op_id + this row's content_item_id (explicit kwargs —
-        # the daemon-thread boundary forbids a FLOW_META_CTX read, {66.19}/S294).
-        mention = _stamp_if_model(
-            mention, op_id=op_id, source_document_id=source_document_id
-        )
-        row_id = uuid.uuid5(
-            _KH_PIPELINE_DOC_NS,
-            f"em:{source_document_id}:{per_doc_canonical}:{entity_type}",
-        )
-        pinned = _pinned_by_id.pop(row_id, None)
-        if pinned is not None:
-            # Pin carry-forward: re-declare the STORED row verbatim — the
-            # walk changes NOTHING on a curated row (canonical_name keeps the
-            # admin-merged value; metadata keeps the pin; op_id keeps the
-            # last-materially-changed stamp — no re-stamp even under
-            # full_reprocess).
-            _em_declares.append(
-                {
-                    "id": row_id,
-                    "source_document_id": source_document_id,
-                    "entity_type": pinned["entity_type"],
-                    "entity_name": pinned["entity_name"],
-                    "canonical_name": pinned["canonical_name"],
-                    "confidence": pinned["confidence"],
-                    "context_snippet": pinned["context_snippet"],
-                    "metadata": pinned["metadata"],
-                    "op_id": pinned["op_id"],
-                }
-            )
-            continue
+    candidates: list[EntityMentionCandidate] = []
+    for (per_doc_key, entity_type), mention in _em_dedup.items():
         # Inv-17: span-derived when the extractor's span actually brackets the
         # name (S539), else the name search — and REFUSED when neither anchors
-        # it (S543). The spans land in `metadata` immediately below.
+        # it (S543). The spans ride the candidate; phase 2b stashes them in
+        # the row's metadata jsonb.
         context_snippet = _admissible_context_snippet(
             content_text=content_text,
             entity_name=mention.entity_name,
@@ -2613,75 +2594,28 @@ async def _ingest_content_branch(
         )
         if context_snippet is None:
             # Unanchored: no evidence the document was read, so no record.
-            # `continue` and not a placeholder row — a row with a fabricated
+            # `continue` and not a placeholder candidate — a fabricated
             # snippet is worse than an absent one, because it reads as
             # provenance downstream.
             continue
-        _em_declares.append(
-            {
-                "id": row_id,
-                # ID-131 {131.8} M2 (BI-14): mentions parent the source_documents
-                # record directly (re-parented off content_items).
-                "source_document_id": source_document_id,
-                "entity_type": mention.entity_type,
-                "entity_name": mention.entity_name,
-                "canonical_name": per_doc_canonical,
-                "confidence": mention.mention_confidence,  # Inv-15 map-at-declare-row
-                "context_snippet": context_snippet,
-                "metadata": {
-                    "source_span_start": mention.source_span_start,
-                    "source_span_end": mention.source_span_end,
-                },
-                "op_id": op_id,
-            }
-        )
-
-    # Unconsumed pinned rows: the re-extraction produced no candidate with the
-    # pinned row's id (e.g. tier variance changed the per-doc canonical). The
-    # pinned row must SURVIVE the walk regardless — re-declare it verbatim so
-    # the engine's declared-state reconciliation cannot orphan-clean it. If a
-    # fresh candidate holds the pinned row's NATURAL key
-    # (canonical_name, entity_type) under a different id, the PIN WINS: the
-    # candidate is dropped (declaring both would collide on
-    # UNIQUE(canonical_name, entity_type, source_document_id)).
-    if _pinned_by_id:
-        _declared_natural_keys = {
-            (d["canonical_name"], d["entity_type"]) for d in _em_declares
-        }
-        for pinned in _pinned_by_id.values():
-            pin_key = (pinned["canonical_name"], pinned["entity_type"])
-            if pin_key in _declared_natural_keys:
-                _em_declares = [
-                    d
-                    for d in _em_declares
-                    if (d["canonical_name"], d["entity_type"]) != pin_key
-                ]
-                _logger.info(
-                    json.dumps(
-                        {
-                            "event": "cocoindex.ingest.curation_pin_won_natural_key",
-                            "rel_path": rel_path,
-                            "entity_type": pinned["entity_type"],
-                        }
-                    )
-                )
-            _em_declares.append(
-                {
-                    "id": pinned["id"],
-                    "source_document_id": source_document_id,
-                    "entity_type": pinned["entity_type"],
-                    "entity_name": pinned["entity_name"],
-                    "canonical_name": pinned["canonical_name"],
-                    "confidence": pinned["confidence"],
-                    "context_snippet": pinned["context_snippet"],
-                    "metadata": pinned["metadata"],
-                    "op_id": pinned["op_id"],
-                }
+        candidates.append(
+            EntityMentionCandidate(
+                source_document_id=source_document_id,
+                entity_type=entity_type,
+                entity_name=mention.entity_name,
+                per_doc_key=per_doc_key,
+                context_snippet=context_snippet,
+                confidence=mention.mention_confidence,
+                source_span_start=mention.source_span_start,
+                source_span_end=mention.source_span_end,
+                # The candidate carries the op_id of the run that MATERIALLY
+                # produced it (see EntityMentionCandidate's docstring): a memo
+                # hit replays the stored candidate with the OLD op_id, which
+                # is what keeps unchanged rows byte-stable under phase 2b's
+                # every-run re-declare.
+                op_id=op_id,
             )
-
-    for _em_row in _em_declares:
-        em_target.declare_row(row=_em_row)
-        _bump("postgres_upsert")  # Inv-17: one entity_mentions row upsert
+        )
 
     # ── Stage 5 substrate: entity_relationships rows (ID-101 §{101.7}) ────────
     # Each distinct canonicalised (source, predicate, target) triple the LLM
@@ -2766,6 +2700,10 @@ async def _ingest_content_branch(
                     }
                 )
             )
+
+    # id-434: the phase-1 → phase-2 transfer — this list is `ingest_file`'s
+    # memoised return value (TECH §2.1).
+    return candidates
 
 
 # ── ID-75 WP-C — URL-source per-item component (`ingest_url`) ────────────────
@@ -2953,50 +2891,331 @@ async def _reconcile_feed_article_backlinks(pool: Any) -> int:
     return linked
 
 
-async def _fetch_curation_pinned_mentions(
-    source_document_id: "uuid.UUID",
-) -> "dict[uuid.UUID, dict[str, Any]]":
-    """Read this document's curation-pinned `entity_mentions` rows (id-400).
+async def _fetch_all_curation_pinned_mentions() -> "list[dict[str, Any]]":
+    """Read the CORPUS-WIDE curation-pinned `entity_mentions` rows (id-434 §2.5).
 
-    Inv-9 RESHAPE (curation pinning, TRIAGE §3.1.4): rows an admin curated
+    Inv-9 RESHAPE (curation pinning): rows an admin curated
     (`metadata.curation_pinned = true`, stamped by the entities merge route)
-    may NEVER be updated by the walk. The em-declare loop in
-    `_ingest_content_branch` consults this map so a re-extraction (byte
-    change or `full_reprocess`) re-declares a pinned row VERBATIM — stored
-    canonical_name / entity_name / confidence / context_snippet / metadata /
-    op_id — instead of clobbering the curated values with fresh per-doc
-    canonicals. Keyed by row id (the registry-keyed uuid5 the declare loop
-    recomputes deterministically).
+    may NEVER be updated by the walk. Post-reshape this is the pipeline's ONE
+    pin-matching read (D7 / DR-105): it replaces the per-document
+    `_fetch_curation_pinned_mentions` and the retired stage_5 roster /
+    prior-holder reads, and it carries the ratified EFFECTIVE-TYPE predicate —
+    `COALESCE(entity_type_override, entity_type)` — computed here once so no
+    consumer re-derives it. Consumers: phase 2a (pinned canonicals seed
+    `is_existing_canonical` per effective type) and phase 2b (the relocated
+    pin carry-forward re-declares each row verbatim).
 
     Same env-scope DB_CTX raw-pool read pattern as `_upsert_source_document`.
     `metadata` decodes to dict via the pool jsonb codec; a str (codec-less
     test pools) is json-parsed defensively.
+
+    FAILURE MODE (deliberate id-434 change, recorded on the ledger): the old
+    per-doc preload was best-effort because its degrade merely clobbered
+    curated VALUES. Under phase 2b's declare-everything shape, degrading to
+    "no pins" would let engine reconciliation DELETE every pinned row — so a
+    pin-read fault now propagates (PI-4 "curation survives every run" +
+    PI-8 fail-loud outrank the ported best-effort). The caller's re-wrap
+    routes it to `entity_resolution_failed`; the historical
+    `curation_pin_read_failed` event is still emitted as the audit trail.
     """
     pool = coco.use_context(DB_CTX)
-    rows = await pool.fetch(
-        "SELECT id, entity_type, entity_name, canonical_name, confidence, "
-        "       context_snippet, metadata, op_id "
-        "FROM public.entity_mentions "
-        "WHERE source_document_id = $1 "
-        "AND (metadata->>'curation_pinned') = 'true'",
-        source_document_id,
-    )
-    pinned: dict[uuid.UUID, dict[str, Any]] = {}
+    try:
+        rows = await pool.fetch(
+            "SELECT id, source_document_id, entity_type, entity_type_override, "
+            "       COALESCE(entity_type_override, entity_type) AS effective_type, "
+            "       entity_name, canonical_name, confidence, "
+            "       context_snippet, metadata, op_id "
+            "FROM public.entity_mentions "
+            "WHERE (metadata->>'curation_pinned') = 'true'",
+        )
+    except Exception as exc:
+        _logger.warning(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.curation_pin_read_failed",
+                    "error": _redact_error_message(str(exc)),
+                }
+            )
+        )
+        raise
+    pinned: list[dict[str, Any]] = []
     for row in rows:
         metadata = row["metadata"]
         if isinstance(metadata, str):
             metadata = json.loads(metadata)
-        pinned[row["id"]] = {
-            "id": row["id"],
-            "entity_type": row["entity_type"],
-            "entity_name": row["entity_name"],
-            "canonical_name": row["canonical_name"],
-            "confidence": row["confidence"],
-            "context_snippet": row["context_snippet"],
-            "metadata": metadata,
-            "op_id": row["op_id"],
-        }
+        pinned.append(
+            {
+                "id": row["id"],
+                "source_document_id": row["source_document_id"],
+                "entity_type": row["entity_type"],
+                "effective_type": row["effective_type"],
+                "entity_name": row["entity_name"],
+                "canonical_name": row["canonical_name"],
+                "confidence": row["confidence"],
+                "context_snippet": row["context_snippet"],
+                "metadata": metadata,
+                "op_id": row["op_id"],
+            }
+        )
     return pinned
+
+
+# ── id-434 phase 2a: per-type resolve subcomponents (TECH §2.3) ──────────────
+
+
+@coco.fn
+async def _resolve_type_group(
+    entity_type: str,
+    names: "list[str]",
+    pinned_canonicals: "list[str]",
+    op_id: "uuid.UUID",
+) -> "tuple[str, Any]":
+    """Resolve ONE entity_type's name group (id-434 phase 2a).
+
+    Mounted once per `entity_type` present in the candidate set, at
+    `resolve_entities/<entity_type>` — per-type mounting buys concurrency and
+    failure ATTRIBUTION (the component path names the type), never
+    containment: any escape reds the whole run via the caller's
+    `_EntityResolutionStageError` re-wrap (D8 / PI-8).
+
+    Plain `@coco.fn` — NEVER `memo=True` (D5 / DR-147 clause 4): every fresh
+    pair decision must write `entity_pair_resolutions`; the pair cache is the
+    durable record and the memo is deliberately not a second one.
+
+    The seed set implements DR-147 clause 2 (groups grow, never rename),
+    replacing the retired stage_5 roster mechanism (D4). For this type:
+
+      1. established canonicals — prior runs' groups, the declared-key axis
+         (`SELECT DISTINCT canonical_name … WHERE entity_type = $1`). No
+         ID-81.9 self-subtraction is needed: phase 2a runs BEFORE this run
+         declares anything, so the table holds only prior-run state — and the
+         established set holds group CANONICALS only (winners), so member
+         names still enter the chaining pass and re-join their groups via the
+         seeded canonical + the durable pair cache.
+      2. pinned canonicals with EFFECTIVE type == this type (D1-C + D7),
+         computed by `_fetch_all_curation_pinned_mentions` and passed in.
+
+    Seeds are merged into the resolver INPUT as members (the ID-81 PC-14
+    finding: a seed can only be chained UNDER if it is IN the embedded
+    collection) AND back the `is_existing_canonical` membership predicate
+    under `ExistingCanonicalPolicy.PINNED`, so a seeded canonical is never
+    demoted and a new near-match chains under it.
+
+    Returns `(entity_type, ResolvedEntities)` so the caller's gather can
+    `dict(...)` the results.
+    """
+    # Lazy imports (mirrors pair_resolver.py / entity_embedder.py): keeps the
+    # faiss + LiteLLM dependency chain out of module import so pipeline unit
+    # tests can stub `cocoindex` at the bare-module level.
+    from scripts.cocoindex_pipeline._coco_api import (  # noqa: PLC0415
+        ExistingCanonicalPolicy,
+        resolve_entities,
+    )
+    from scripts.cocoindex_pipeline.entity_embedder import (  # noqa: PLC0415
+        KhEntityEmbedder,
+    )
+    from scripts.cocoindex_pipeline.pair_resolver import (  # noqa: PLC0415
+        KhPairResolver,
+    )
+
+    pool = coco.use_context(DB_CTX)
+    established = {
+        row["canonical_name"]
+        for row in await pool.fetch(
+            "SELECT DISTINCT canonical_name "
+            "FROM public.entity_mentions "
+            "WHERE entity_type = $1",
+            entity_type,
+        )
+    }
+    seed = established | set(pinned_canonicals)
+    resolved = await resolve_entities(
+        # Seeds are MEMBERS of the entities iterable (PC-14) — passed sorted
+        # for cross-run determinism; NEVER out-of-band.
+        sorted(set(names) | seed),
+        # D10: the read-through record_embeddings cache (entity_embedder.py) —
+        # only new names embed; the substrate survives LMDB resets.
+        embedder=KhEntityEmbedder(db_pool=pool),
+        resolve_pair=KhPairResolver(
+            db_pool=pool,
+            op_id=op_id,
+            entity_type=entity_type,
+        ),
+        # Set-membership predicate. `_seed=` DEFAULT-ARG binding is the
+        # late-binding-safe idiom carried from stage_5.
+        is_existing_canonical=lambda name, _seed=seed: name in _seed,
+        existing_policy=ExistingCanonicalPolicy.PINNED,
+    )
+    return entity_type, resolved
+
+
+# ── id-434 phase 2b: the one mention-declare component (TECH §2.4) ───────────
+
+
+@coco.fn
+async def _declare_entity_mentions(
+    em_target: Any,
+    candidates: "list[EntityMentionCandidate]",
+    resolved_by_type: "dict[str, Any]",
+    pinned_rows: "list[dict[str, Any]]",
+    stage_counter: Any,
+) -> int:
+    """Declare EVERY walked `entity_mentions` row, keyed on the resolved
+    canonical (id-434 phase 2b).
+
+    After this component, exactly one component declares into `em_target`
+    (upstream ownership discipline): the engine's tracking record and the
+    database agree at end of run because nothing mutates a declared row
+    post-hoc (PI-5). Identity and the natural key are functions of the same
+    facts — `id = uuid5(NS, "em:{sd}:{resolved}:{type}")` vs
+    UNIQUE(canonical_name, entity_type, source_document_id) — so they cannot
+    disagree (PI-2 / DR-147 clause 1).
+
+    **Collapse, not collision** (PI-1): candidates are grouped by
+    `(source_document_id, canonical_name, entity_type)`; two surface forms of
+    one entity in one document is the NORMAL case — the bl-225 survivor rule
+    is a pure function at build time (highest confidence, then entity_name),
+    replacing a DELETE. Losers are logged (`cocoindex.ingest.mention_collapsed`),
+    mirroring the retired collapse's honesty rule.
+
+    **Pin carry-forward, relocated whole** (D1-A; DR-147 clause 3; PI-4): a
+    candidate row whose id matches a pinned id re-declares the STORED row
+    verbatim (no re-stamp under `full_reprocess`); unconsumed pins are
+    re-declared anyway; on a natural-key clash the pin wins and the candidate
+    is dropped, `curation_pin_won_natural_key` logged — keyed per
+    `(source_document_id, canonical_name, entity_type)` now the plan spans
+    documents. The verification standard is the probe (pin → re-run →
+    byte-identical row; clash log fires), never inspection.
+
+    `stage_counter` is the run's `_FlowStageCounter`; one
+    `postgres_upsert` bump per declared row (relocated from the per-file
+    declare loop). Returns the declared-row count.
+    """
+    # 1. Row build: resolve each candidate onto its group canonical and group
+    #    by the natural key. `canonical_of` returns the name itself when it is
+    #    already canonical; every per_doc_key was a member of the resolver
+    #    input, so no KeyError. The `is None` guard realises Inv-20
+    #    (unresolved retains the per-document key) and is harmless at the pin.
+    groups: dict[tuple[Any, str, str], list[EntityMentionCandidate]] = {}
+    for candidate in candidates:
+        resolved = resolved_by_type.get(candidate.entity_type)
+        canonical = (
+            resolved.canonical_of(candidate.per_doc_key)
+            if resolved is not None
+            else candidate.per_doc_key
+        )
+        if canonical is None:
+            canonical = candidate.per_doc_key
+        groups.setdefault(
+            (candidate.source_document_id, canonical, candidate.entity_type), []
+        ).append(candidate)
+
+    em_declares: list[dict[str, Any]] = []
+    collapsed_count = 0
+    for (source_document_id, canonical, entity_type), members in groups.items():
+        # 2. Collapse: deterministic survivor — highest confidence, then
+        #    entity_name (TECH §2.4; explicit None check so a legitimate 0.0
+        #    confidence is not treated as missing).
+        survivor = max(
+            members,
+            key=lambda c: (
+                (c.confidence if c.confidence is not None else -1.0),
+                c.entity_name,
+            ),
+        )
+        if len(members) > 1:
+            collapsed_count += len(members) - 1
+        em_declares.append(
+            {
+                "id": uuid.uuid5(
+                    _KH_PIPELINE_DOC_NS,
+                    f"em:{source_document_id}:{canonical}:{entity_type}",
+                ),
+                "source_document_id": source_document_id,
+                "entity_type": entity_type,
+                "entity_name": survivor.entity_name,
+                "canonical_name": canonical,
+                "confidence": survivor.confidence,
+                "context_snippet": survivor.context_snippet,
+                "metadata": {
+                    "source_span_start": survivor.source_span_start,
+                    "source_span_end": survivor.source_span_end,
+                },
+                # The candidate's op_id — the run that last MATERIALLY changed
+                # this document (memo channel), never this run's id, so an
+                # unchanged corpus re-declares byte-identical rows (probe 2).
+                "op_id": survivor.op_id,
+            }
+        )
+    if collapsed_count:
+        _logger.info(
+            json.dumps(
+                {
+                    "event": "cocoindex.ingest.mention_collapsed",
+                    "collapsed_count": collapsed_count,
+                }
+            )
+        )
+
+    # 3. Pin carry-forward (relocated two-pass plan). Consumed pins replace
+    #    their candidate row verbatim; unconsumed pins are re-declared anyway
+    #    (engine reconciliation must never orphan-clean a curated row); a
+    #    natural-key clash resolves pin-wins.
+    pinned_by_id = {p["id"]: p for p in pinned_rows}
+
+    def _pin_row(pinned: "dict[str, Any]") -> "dict[str, Any]":
+        return {
+            "id": pinned["id"],
+            "source_document_id": pinned["source_document_id"],
+            "entity_type": pinned["entity_type"],
+            "entity_name": pinned["entity_name"],
+            "canonical_name": pinned["canonical_name"],
+            "confidence": pinned["confidence"],
+            "context_snippet": pinned["context_snippet"],
+            "metadata": pinned["metadata"],
+            "op_id": pinned["op_id"],
+        }
+
+    for index, row in enumerate(em_declares):
+        pinned = pinned_by_id.pop(row["id"], None)
+        if pinned is not None:
+            em_declares[index] = _pin_row(pinned)
+    if pinned_by_id:
+        declared_natural_keys = {
+            (d["source_document_id"], d["canonical_name"], d["entity_type"])
+            for d in em_declares
+        }
+        for pinned in pinned_by_id.values():
+            pin_key = (
+                pinned["source_document_id"],
+                pinned["canonical_name"],
+                pinned["entity_type"],
+            )
+            if pin_key in declared_natural_keys:
+                em_declares = [
+                    d
+                    for d in em_declares
+                    if (d["source_document_id"], d["canonical_name"], d["entity_type"])
+                    != pin_key
+                ]
+                _logger.info(
+                    json.dumps(
+                        {
+                            "event": "cocoindex.ingest.curation_pin_won_natural_key",
+                            "source_document_id": str(pinned["source_document_id"]),
+                            "entity_type": pinned["entity_type"],
+                        }
+                    )
+                )
+            em_declares.append(_pin_row(pinned))
+
+    # 4. Declare — the ONE em declare site (+ the per-row stage-counter bump
+    #    relocated from the per-file loop).
+    for em_row in em_declares:
+        em_target.declare_row(row=em_row)
+        if stage_counter is not None:
+            stage_counter.increment("postgres_upsert")
+    return len(em_declares)
 
 
 async def _resolve_source_identity(
@@ -3097,7 +3316,8 @@ async def _upsert_source_document(
     R1 — so the INSERT-ordering hazard applies regardless of the child's ON
     DELETE action). Writing the sd row here, SYNCHRONOUSLY in-component on
     the env-scope DB_CTX pool, commits the parent BEFORE the engine flushes
-    the child declares (`cc_target` / `em_target` / `er_target`).
+    the child declares (`cc_target` / `er_target` per-file; `em_target` moved
+    to the id-434 phase-2b component, which runs after every sd upsert).
 
     HISTORY: this helper was minted for the URL path (S437 — the
     `reference_items.source_document_id` RESTRICT-FK hazards). The DR-124
@@ -4235,8 +4455,9 @@ async def app_main() -> None:
             SOURCE_DOCUMENTS_SCHEMA,
             managed_by=ManagedBy.USER,
         )
-        # ID-53 §P-4 (Inv-6). Per-doc Stage-5 writes land here; the row-construction
-        # loop that consumes `em_target` ships at {53.11}.
+        # id-434 (DR-140 clause 1): consumed ONLY by the phase-2b
+        # `declare_entity_mentions` component — the one em declare site.
+        # Per-file components no longer receive it.
         em_target = await mount_table_target(
             DB_CTX,
             "entity_mentions",
@@ -4379,23 +4600,47 @@ async def app_main() -> None:
                 )
                 return None  # swallow → batch continues (80.2 §B.4)
 
-        # Pin the subpath explicitly to "ingest_file" (the pre-{66.19} component
-        # identity) — the named coroutine would otherwise auto-derive the subpath to
-        # "bound_ingest_file" from its `__name__`.
-        handle = await coco.mount_each(
-            coco.component_subpath("ingest_file"),
-            bound_ingest_file,
-            source.items(),
-            qa_target,
-            sd_target,
-            em_target,
-            cc_target,
-            er_target,
-            re_target,
-        )
+        # id-434 (TECH §2.1): the fan-out moves from `mount_each` to per-file
+        # `use_mount` + gather — `mount_each` returns a readiness handle only
+        # (NO return values, verified at the 1.0.18 pin), and phase 2 needs
+        # the per-file candidate lists. `use_mount` replays the MEMOISED
+        # return value on a hit — the only channel that still feeds phase 2
+        # for unchanged files (a side-channel collector would receive nothing
+        # on exactly the runs where stability matters most).
+        #
+        # `component_subpath("ingest_file", key)` reproduces `mount_each`'s
+        # `ingest_file/<key>` component paths (pin-verified multi-part form),
+        # so component identity and cleanup semantics are unchanged. The
+        # (key,value) pair from `walk_dir().items()` is
+        # `(relative_path_str, File)` — the same key `mount_each` routed on.
+        #
+        # Live-mode consequence, stated (TECH §2.1): `mount_each` auto-handles
+        # LiveMapView/LiveMapFeed; this loop does not. The pipeline runs
+        # supervised catch-up walks only (`server.py` — the sole caller is
+        # `update_blocking(live=False)`), so no current behaviour is lost. If
+        # a live lane ever arrives, THIS fan-out is the seam to revisit.
+        # `items()` is an ASYNC iterable at the pin (`DirWalker.items()` →
+        # `_LiveDirItems` / `_items_iter`, both `__aiter__`-only) — the
+        # enumeration itself is async even in catch-up mode.
+        fan_out = []
+        async for key, item in source.items():
+            fan_out.append(
+                coco.use_mount(
+                    coco.component_subpath("ingest_file", key),
+                    bound_ingest_file,
+                    item,
+                    qa_target,
+                    sd_target,
+                    cc_target,
+                    er_target,
+                    re_target,
+                )
+            )
         _record_walk_phase(walk_phases, "source_mount_dispatch", _phase_started)
-        # Wait until every per-item component has processed (cold run) so the
-        # rollup webhook below reflects a settled state.
+        # Await every per-item component (cold run) so the rollup webhook
+        # below reflects a settled state — and collect the phase-1 candidate
+        # lists (a contained per-item failure gathers as None, filtered at
+        # the phase-2 build).
         #
         # id-415 phase `source_items_ready`: ALL per-item work (conversion,
         # extraction, chunking, embedding, row declares) is inside this await.
@@ -4403,7 +4648,7 @@ async def app_main() -> None:
         # per-item cost is observable without crossing into the `_LoopRunner`
         # thread that defeated 6c6656dba.
         _phase_started = time.perf_counter()
-        await handle.ready()
+        per_file_results = await asyncio.gather(*fan_out)
         _record_walk_phase(walk_phases, "source_items_ready", _phase_started)
 
         # ── Stage 1b: URL source walk ({75.11} — TECH §3 WP-C wiring) ──────
@@ -4529,59 +4774,118 @@ async def app_main() -> None:
         # migrations only" rule and the row-only target contract, so the
         # declaration route is deliberately avoided. See the ID-49.2 journal OQ.
 
-        # ── Stage 5: entity resolution — flow-scope post-fan-out (ID-53) ──
-        # Op-scope cross-document canonicalisation. Reads the run's
-        # entity_mentions rows (per-doc canonicals written by the per-item
-        # phase via the §P-3 declare_row site at {53.11}), invokes
-        # cocoindex.ops.entity_resolution.resolve_entities over them with the
-        # KH entity embedder (§P-7) + KH PairResolver (§P-8), and UPDATEs rows
-        # whose canonical_name resolves to a different cross-document value.
-        # Strictly op_id-scoped per Inv-5 — the post-pass NEVER touches rows
-        # from prior runs or NULL-op_id rows (app-side writes).
+        # ── id-434 phase 2: resolve, THEN declare (DR-140 clause 1) ────────
+        # Replaces the retired Stage-5 post-pass: nothing mutates a declared
+        # row any more. Phase 2a resolves the corpus name set per entity_type
+        # (per-type `use_mount` children — concurrency + failure ATTRIBUTION,
+        # never containment: any escape reds the whole run, D8/PI-8); phase
+        # 2b is the ONE component declaring every walked `entity_mentions`
+        # row, keyed on the resolved canonical.
         #
-        # PRODUCT.md §2 Area A (Inv-1, Inv-2) — Option B ratification.
+        # The `_EntityResolutionStageError` re-wrap survives verbatim
+        # (ID-53.15 T-OQ1): the underlying provider exceptions (anthropic /
+        # litellm auth errors) are type-indistinguishable from Stage-3
+        # failures, so stage CONTEXT drives classification to
+        # `entity_resolution_failed`. `from exc` preserves `__cause__`.
         #
-        # meta: the §P-1 spec sketch read `current_flow_meta()` here, but the
-        # `bind_flow_meta` scope CLOSES at `handle.ready()` above — so
-        # `current_flow_meta()` yields None at this point. _run_stage_5_resolution
-        # only reads `meta.op_id`, so we construct a FlowRunMeta from the local
-        # `run_op_id` (the same op_id bind_flow_meta used).
-        # db_pool: the §P-1 spec sketch called `_resolve_db_pool()` (a fictional
-        # helper). The asyncpg pool is provisioned env-scope under DB_CTX by
-        # `kh_pipeline_lifespan`; `coco.use_context(DB_CTX)` resolves it inside
-        # app_main's active component context — the SAME context the
-        # `mount_table_target(DB_CTX, ...)` calls above already resolve it from.
-        # No second pool is created; the lifespan owns the pool lifecycle.
-        # ID-53.15 (T-OQ1): re-wrap any Stage-5 escape as
-        # `_EntityResolutionStageError` so `_classify_stage_exception` can
-        # attribute it to `entity_resolution_failed` via stage context — the
-        # underlying provider exceptions (anthropic / litellm auth errors) are
-        # type-indistinguishable from Stage-3 failures (per the {53.14}
-        # failure-injection finding). `from exc` preserves `__cause__`. The
-        # wrapper still propagates inside the outer try, routing to the
-        # `except Exception` rollup handler below.
-        #
-        # id-415 phase `stage5_resolution`: op_id-scoped, so it SHOULD track
-        # this walk's delta. If it does not, that is the finding.
+        # id-415 walk-phase timers: `stage5_resolution` splits into
+        # `entity_resolution` (2a) + `entity_declare` (2b) at the same
+        # observation points in this frame (TECH §2.7).
         _phase_started = time.perf_counter()
         try:
-            resolved_count = await _run_stage_5_resolution(
-                meta=FlowRunMeta(op_id=run_op_id, source_document_id=None),
-                db_pool=coco.use_context(DB_CTX),
-                flow_stage_counter=flow_stage_counter,
+            # A contained per-item failure gathered as None (bound_ingest_file
+            # swallow-and-log); a memo hit replayed the stored candidates.
+            candidates = [
+                candidate
+                for result in per_file_results
+                if result
+                for candidate in result
+            ]
+            # The pipeline's ONE pin read (D7 / DR-105): effective-type
+            # predicate computed in SQL, consumed by 2a (seeding) + 2b
+            # (carry-forward). A pin-read fault propagates — see the fetch's
+            # docstring for why best-effort would let reconciliation DELETE
+            # pinned rows here.
+            pinned_rows = await _fetch_all_curation_pinned_mentions()
+            names_by_type: dict[str, set[str]] = {}
+            for candidate in candidates:
+                names_by_type.setdefault(candidate.entity_type, set()).add(
+                    candidate.per_doc_key
+                )
+            pinned_by_type: dict[str, list[str]] = {
+                entity_type: sorted(
+                    {
+                        p["canonical_name"]
+                        for p in pinned_rows
+                        if p["effective_type"] == entity_type
+                    }
+                )
+                for entity_type in names_by_type
+            }
+            resolved_by_type: dict[str, Any] = dict(
+                await asyncio.gather(
+                    *(
+                        coco.use_mount(
+                            coco.component_subpath("resolve_entities", entity_type),
+                            _resolve_type_group,
+                            entity_type,
+                            sorted(names),
+                            pinned_by_type[entity_type],
+                            run_op_id,
+                        )
+                        for entity_type, names in names_by_type.items()
+                    )
+                )
             )
         except Exception as exc:  # noqa: BLE001 — re-wrap for classification
             raise _EntityResolutionStageError(str(exc)) from exc
-        _record_walk_phase(walk_phases, "stage5_resolution", _phase_started)
+        _record_walk_phase(walk_phases, "entity_resolution", _phase_started)
+        # Same payload contract as the retired `cocoindex.stage_5.resolved`
+        # (TECH §2.7): resolved_count is how many candidates resolved onto a
+        # canonical other than their own per-document key.
+        resolved_count = sum(
+            1
+            for candidate in candidates
+            if (
+                resolved_by_type[candidate.entity_type].canonical_of(
+                    candidate.per_doc_key
+                )
+                or candidate.per_doc_key
+            )
+            != candidate.per_doc_key
+        )
+        # Inv-11: the `entity_resolution` stage counter keeps its "mentions
+        # whose canonical moved" semantic — formerly bumped per Stage-5
+        # UPDATE, now per candidate resolved onto a different canonical
+        # (there is no UPDATE any more; the declare keys on the resolution).
+        for _ in range(resolved_count):
+            flow_stage_counter.increment("entity_resolution")
         _logger.info(
             json.dumps(
                 {
-                    "event": "cocoindex.stage_5.resolved",
+                    "event": "cocoindex.entity_resolution.resolved",
                     "op_id": str(run_op_id),
                     "resolved_count": resolved_count,
                 }
             )
         )
+
+        # Phase 2b: the one declare site (TECH §2.4). Owns every walked
+        # `entity_mentions` row; pins re-declared verbatim (PI-4).
+        _phase_started = time.perf_counter()
+        try:
+            await coco.use_mount(
+                coco.component_subpath("declare_entity_mentions"),
+                _declare_entity_mentions,
+                em_target,
+                candidates,
+                resolved_by_type,
+                pinned_rows,
+                flow_stage_counter,
+            )
+        except Exception as exc:  # noqa: BLE001 — re-wrap for classification
+            raise _EntityResolutionStageError(str(exc)) from exc
+        _record_walk_phase(walk_phases, "entity_declare", _phase_started)
 
         # ── ID-120 §P-3 (INV-1): Q&A dedup PROPOSER post-pass ──────────────
         # Runs AFTER Stage-5 (here), BEFORE the flow-end webhook. Reads the

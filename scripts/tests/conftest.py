@@ -45,8 +45,8 @@ FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 # files see a clean `sys.modules` and resolve the real packages.
 
 
-def passthrough_coco_fn(**_kwargs: object):
-    """A working stand-in for cocoindex's `@coco.fn(memo=True)` decorator.
+def passthrough_coco_fn(*args: object, **_kwargs: object):
+    """A working stand-in for cocoindex's `@coco.fn` / `@coco.fn(memo=True)`.
 
     `flow.py` imports `extraction.py`, whose Path-A extractors are decorated
     `@coco.fn(memo=True)`. A bare `MagicMock` `.fn` turns those coroutines into
@@ -55,7 +55,13 @@ def passthrough_coco_fn(**_kwargs: object):
     stays the real awaitable coroutine, regardless of which file triggers the
     (cached) `extraction` import first — making cocoindex residency
     order-independent (ID-44.5).
+
+    Supports BOTH decorator shapes the real API accepts: the CALLED form
+    `@coco.fn(memo=True)` and the BARE form `@coco.fn` (id-434's phase-2
+    components use the bare form, mirroring upstream's `app_main` examples).
     """
+    if args and callable(args[0]) and not _kwargs:
+        return args[0]
 
     def _wrap(func: object) -> object:
         return func
@@ -338,9 +344,9 @@ def _reset_flow_run_context():
 # assertions, plus {427.15}'s CQ-1 filter, are claims about SQL that no test
 # executes. This fixture is the shared means of executing them.
 #
-# WHY A SHARED FIXTURE RATHER THAN A FOURTH COPY. `_require_disposable_dsn`
-# already exists at `test_cocoindex_stage_5_crossrun_integration.py:66`, but
-# file-locally, and it checks only project-refs. DR-131 ruled the stronger
+# WHY A SHARED FIXTURE RATHER THAN A FOURTH COPY. A file-local
+# `_require_disposable_dsn` used to exist in the (id-434-retired) stage-5
+# crossrun module, and it checked only project-refs. DR-131 ruled the stronger
 # signal after an unattended CI job fired the authoritative
 # knowledge-admission gate against shared staging and published 88 mock-tier
 # `q_a_pairs`: **loopback is the disposability signal** — it is what
@@ -426,9 +432,10 @@ def require_disposable_dsn(dsn: str | None, suite_name: str) -> str:
        the check that generalises; the project-ref list below cannot, because
        it only knows the refs that happen to be in the environment.
     2. **Known shared refs** — `STAGING_PROJECT_REF` / `PLATFORM_PROJECT_REF`
-       appearing anywhere in the DSN. Defence-in-depth, carried from
-       `test_cocoindex_stage_5_crossrun_integration.py:66`, and it fires even
-       if a shared project were ever reachable over a loopback tunnel.
+       appearing anywhere in the DSN. Defence-in-depth, carried from the
+       (id-434-retired) stage-5 crossrun module's file-local guard, and it
+       fires even if a shared project were ever reachable over a loopback
+       tunnel.
 
     Raises `RuntimeError` (never skips) — reaching this function means the
     gate env var was deliberately set, so a bad target is an operator error

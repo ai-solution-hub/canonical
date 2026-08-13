@@ -115,8 +115,8 @@ export function hasRealLiveDbCredentials(): boolean {
  * Fail LOUD when a corpus-mutating suite is pointed at a SHARED database.
  *
  * The TypeScript analogue of `require_disposable_dsn()` in
- * `scripts/tests/test_cocoindex_stage_5_crossrun_integration.py` — the interlock
- * the Python tier has had all along and this tier did not.
+ * `scripts/tests/conftest.py` — the interlock the Python tier has had all
+ * along and this tier did not.
  *
  * Why it exists (S538). `promote-corpus.integration.test.ts` calls
  * `promoteCorpusExtractions`, the platform's authoritative knowledge-admission

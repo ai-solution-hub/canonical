@@ -453,7 +453,7 @@
       "consumers": [
         "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts"
       ],
-      "notes": "Run A of the Inv-14 near-match pair - SPACED 'CYE 14001'. Pairs with run-b. The pair MUST stay across two documents: entity_mentions is unique on (canonical_name, entity_type, source_document_id), so both forms in ONE document collide the moment Stage-5 resolves them (nightly run 31283783895: three UniqueViolations on 'cye 14001', NM-8 census gate failed)."
+      "notes": "Run A of the Inv-14 near-match pair - SPACED 'CYE 14001'. Pairs with run-b. The former cross-document constraint is RETIRED (id-434): resolution now runs BEFORE declaration, so both forms in ONE document is the normal case - a build-time collapse to one row, not a collision (the pre-id-434 Stage-5 UPDATE collided on the natural unique key; nightly run 31283783895's three UniqueViolations were that mechanism). The two-document layout survives only because this spec exercises CROSS-document pair resolution."
     },
     {
       "id": "per-test-content/synthetic-inv-14-pair-resolver-run-b.md",
@@ -467,7 +467,7 @@
       "consumers": [
         "__tests__/integration/cocoindex/pair-resolver-determinism.integration.test.ts"
       ],
-      "notes": "Run B of the Inv-14 near-match pair - COMPACT 'CYE14001'. Pairs with run-a; see that entry for why the pair spans two documents."
+      "notes": "Run B of the Inv-14 near-match pair - COMPACT 'CYE14001'. Pairs with run-a; the cross-document constraint is retired (id-434, see run-a) - the layout persists to exercise cross-document resolution."
     },
     {
       "id": "per-test-content/synthetic-inv-17-context-snippet.md",

@@ -1669,11 +1669,34 @@ class TestPerItemFailureIsolation:
             flow.coco, "use_context", lambda key: _EmptyLedgerPool()
         )
 
-        # ── Stage 5 is flow-scope; stub it (not under test). ──
-        async def _fake_stage_5(*args, **kwargs):
-            return 0
+        # id-434: the per-file fan-out is use_mount-based — run children
+        # inline (the containment under test lives in bound_ingest_file /
+        # bound_ingest_url, not the mount plumbing). Phase 2a's resolver is
+        # LLM/faiss-heavy, so stub the per-type child with identity
+        # resolution (canonical = per_doc_key); phase 2b runs REAL against
+        # the recording em target. No pins in these harnesses.
+        async def _inline_use_mount(_subpath, fn, *args):
+            return await fn(*args)
 
-        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+        monkeypatch.setattr(flow.coco, "use_mount", _inline_use_mount)
+
+        async def _identity_resolve_type_group(entity_type, names, pinned, op_id):
+            class _Resolved:
+                def canonical_of(self, name):
+                    return name
+
+            return entity_type, _Resolved()
+
+        monkeypatch.setattr(
+            flow, "_resolve_type_group", _identity_resolve_type_group
+        )
+
+        async def _no_pins():
+            return []
+
+        monkeypatch.setattr(
+            flow, "_fetch_all_curation_pinned_mentions", _no_pins
+        )
 
         # ── Capture webhook emissions + stage-error logs. ──
         webhook_calls: list[dict] = []
@@ -1924,10 +1947,34 @@ class TestPerItemFailureIsolation:
             flow.coco, "use_context", lambda key: _EmptyLedgerPool()
         )
 
-        async def _fake_stage_5(*args, **kwargs):
-            return 0
+        # id-434: the per-file fan-out is use_mount-based — run children
+        # inline (the containment under test lives in bound_ingest_file /
+        # bound_ingest_url, not the mount plumbing). Phase 2a's resolver is
+        # LLM/faiss-heavy, so stub the per-type child with identity
+        # resolution (canonical = per_doc_key); phase 2b runs REAL against
+        # the recording em target. No pins in these harnesses.
+        async def _inline_use_mount(_subpath, fn, *args):
+            return await fn(*args)
 
-        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+        monkeypatch.setattr(flow.coco, "use_mount", _inline_use_mount)
+
+        async def _identity_resolve_type_group(entity_type, names, pinned, op_id):
+            class _Resolved:
+                def canonical_of(self, name):
+                    return name
+
+            return entity_type, _Resolved()
+
+        monkeypatch.setattr(
+            flow, "_resolve_type_group", _identity_resolve_type_group
+        )
+
+        async def _no_pins():
+            return []
+
+        monkeypatch.setattr(
+            flow, "_fetch_all_curation_pinned_mentions", _no_pins
+        )
 
         webhook_calls: list[dict] = []
 
@@ -2254,11 +2301,34 @@ class TestUrlPerItemFailureIsolation:
 
         monkeypatch.setattr(flow.coco, "mount_each", _inline_mount_each)
 
-        # ── Stage 5 is flow-scope; stub it (not under test). ──
-        async def _fake_stage_5(*args, **kwargs):
-            return 0
+        # id-434: the per-file fan-out is use_mount-based — run children
+        # inline (the containment under test lives in bound_ingest_file /
+        # bound_ingest_url, not the mount plumbing). Phase 2a's resolver is
+        # LLM/faiss-heavy, so stub the per-type child with identity
+        # resolution (canonical = per_doc_key); phase 2b runs REAL against
+        # the recording em target. No pins in these harnesses.
+        async def _inline_use_mount(_subpath, fn, *args):
+            return await fn(*args)
 
-        monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+        monkeypatch.setattr(flow.coco, "use_mount", _inline_use_mount)
+
+        async def _identity_resolve_type_group(entity_type, names, pinned, op_id):
+            class _Resolved:
+                def canonical_of(self, name):
+                    return name
+
+            return entity_type, _Resolved()
+
+        monkeypatch.setattr(
+            flow, "_resolve_type_group", _identity_resolve_type_group
+        )
+
+        async def _no_pins():
+            return []
+
+        monkeypatch.setattr(
+            flow, "_fetch_all_curation_pinned_mentions", _no_pins
+        )
 
         # ── Capture webhook emissions + stage-error logs. ──
         webhook_calls: list[dict] = []

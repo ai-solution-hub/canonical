@@ -339,7 +339,7 @@ class TestIngestFileWritePath:
                 # and is NOT passed to fn (cocoindex 1.0.3 api.py _mount_one).
                 # em_target (3rd extra arg) lands per ID-53.10 §P-4; declare_row
                 # body for entity_mentions ships at {53.11}.
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                await flow.ingest_file(fake_file, qa, sd)
 
         asyncio.run(_exercise())
 
@@ -532,7 +532,7 @@ class TestIngestFileStageCounters:
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
                 async with bind_stage_counter(counter):
-                    await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                    await flow.ingest_file(fake_file, qa, sd)
 
         asyncio.run(_exercise())
 
@@ -600,7 +600,7 @@ class TestIngestFileStageCounters:
         async def _exercise() -> None:
             # NO bind_stage_counter — `_bump` must be a no-op.
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
+                await flow.ingest_file(_FakeFile(src), qa, sd)
 
         asyncio.run(_exercise())  # must not raise
 
@@ -753,14 +753,21 @@ class TestMountEachArityContract:
         # on the per-document identity, NOT uuid4 which would break Inv-4).
         assert len({r["id"] for r in sd_rows}) == 2
 
-    def test_ingest_file_signature_matches_mount_each_extra_args(self) -> None:
-        """``ingest_file`` accepts (file, qa, sd, em, cc=None, er=None, re=None).
+    def test_ingest_file_signature_matches_fan_out_extra_args(self) -> None:
+        """``ingest_file`` accepts (file, qa, sd, cc=None, er=None, re=None).
 
         Inspecting the signature directly pins the arity contract: the leading
-        parameter is the File item value, followed by the six target extra
+        parameter is the File item value, followed by the five target extra
         args — and there is NO leading ``rel_path`` parameter (the original
         blocker). This is a real contract guard against the CURRENT
-        ``app_main`` ``mount_each`` extra-arg order — not a historical record.
+        ``app_main`` per-file ``use_mount`` extra-arg order (id-434 moved the
+        fan-out off ``mount_each``; the fn(File, *extra_args) shape is
+        unchanged) — not a historical record.
+
+        id-434 (DR-140 clause 1) REMOVED ``em_target`` — the per-file
+        component no longer declares mention rows; it returns
+        ``EntityMentionCandidate``s and the phase-2b component owns the
+        declares.
 
         ID-52.12 originally extended the arity from five to seven by appending
         ``ft_target`` / ``ftf_target`` (the ``form_templates`` /
@@ -817,12 +824,12 @@ class TestMountEachArityContract:
             "ingest_file must NOT lead with rel_path — mount_each passes "
             "fn(File, *extra_args); the key is never forwarded to fn"
         )
-        # First positional is the File item value; remaining six are the
+        # First positional is the File item value; remaining five are the
         # targets (ID-136 forms-route retirement removed ft_target/ftf_target;
-        # {127.25} DR-034 removed ci_target).
-        assert len(positional) == 7, (
+        # {127.25} DR-034 removed ci_target; id-434 removed em_target).
+        assert len(positional) == 6, (
             f"ingest_file positional params must be exactly "
-            f"(file, qa, sd, em, cc, er, re); got {positional}"
+            f"(file, qa, sd, cc, er, re); got {positional}"
         )
         assert positional[-3:] == [
             "cc_target",
@@ -903,7 +910,7 @@ class TestStablePrimaryKeysAcrossRuns:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, qa, sd)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
         # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
@@ -1017,18 +1024,17 @@ class TestIngestFileRelationshipWritePath:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
         er = _FakeTarget("entity_relationships")
 
         pool = _wire_pool(flow, monkeypatch)
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                # er_target is the last positional extra arg supplied here
-                # (ID-136 removed ft_target/ftf_target; {127.25} removed
-                # ci_target; re_target stays defaulted — RULING 1).
+                # er_target is supplied as the 5th positional (id-434 removed
+                # em_target; {127.25} removed ci_target; re_target stays
+                # defaulted — RULING 1).
                 await flow.ingest_file(  # type: ignore[attr-defined]
-                    fake_file, qa, sd, em, None, er
+                    fake_file, qa, sd, None, er
                 )
 
         asyncio.run(_exercise())
@@ -1253,7 +1259,7 @@ class TestSourceDocumentRawPoolFkOrdering:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                await flow.ingest_file(fake_file, qa, sd)
 
         asyncio.run(_exercise())
 
@@ -1374,9 +1380,14 @@ class TestSourceDocumentRawPoolFkOrdering:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(
-                    fake_file, qa, sd, em, None, er
+                candidates = await flow.ingest_file(
+                    fake_file, qa, sd, None, er
                 )
+            # id-434: the em declare runs in the phase-2b component, which
+            # app_main mounts AFTER the whole per-file fan-out settles — so
+            # the sd parent is committed before ANY em declare structurally.
+            # Driving it here in sequence models that ordering.
+            await flow._declare_entity_mentions(em, candidates, {}, [], None)
 
         asyncio.run(_exercise())
 
@@ -1387,7 +1398,8 @@ class TestSourceDocumentRawPoolFkOrdering:
             "entity_mentions_declare"
         ), (
             "the sd raw-pool UPSERT must commit BEFORE the entity_mentions "
-            "declare (S438 FK-ordering fix, staging walk f1fd0add)"
+            "declare (S438 FK-ordering fix; post-id-434 the phase-2b declare "
+            "component runs after every per-file sd upsert)"
         )
         assert order.index("sd_upsert") < order.index(
             "entity_relationships_declare"
@@ -1562,9 +1574,6 @@ class TestInv19QaDeclareSnapshot:
                     fake_file,
                     targets["qa"],
                     targets["sd"],
-                    targets["em"],
-                    None,
-                    None,
                 )
 
         asyncio.run(_exercise())
@@ -1642,7 +1651,7 @@ class TestContentFingerprintAwaited:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                await flow.ingest_file(fake_file, qa, sd)
 
         asyncio.run(_exercise())
 
@@ -1716,7 +1725,7 @@ class TestSourceDocumentProvenanceWritePath:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, qa, sd)  # type: ignore[attr-defined]
 
         asyncio.run(_exercise())
         # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
@@ -1756,7 +1765,7 @@ class TestSourceDocumentProvenanceWritePath:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)  # type: ignore[attr-defined]
+                await flow.ingest_file(fake_file, qa, sd)  # type: ignore[attr-defined]
 
         with pytest.raises(adapters.LocalfsHtmlRetiredError):
             asyncio.run(_exercise())
@@ -2063,7 +2072,7 @@ def _run_ingest(
 
     async def _exercise() -> None:
         async with bind_flow_meta(op_id=uuid.uuid4()):
-            await flow.ingest_file(fake_file, qa, sd, em, None, None)  # type: ignore[attr-defined]
+            await flow.ingest_file(fake_file, qa, sd)  # type: ignore[attr-defined]
 
     asyncio.run(_exercise())
     return _sd_upserts_from_pool(pool)
@@ -2419,14 +2428,14 @@ class TestStampExtractionBaseWiredIntoIngest:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
 
         pool = _wire_pool(flow, monkeypatch)
         run_op_id = uuid.uuid4()
+        candidates: list = []
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(fake_file, qa, sd, em, None, None)
+                candidates.extend(await flow.ingest_file(fake_file, qa, sd))
 
         asyncio.run(_exercise())
 
@@ -2439,11 +2448,14 @@ class TestStampExtractionBaseWiredIntoIngest:
             flow._KH_PIPELINE_DOC_NS, f"sd:{rel_path}"
         )
 
-        # stamp_extraction_base ran for classification + qa_form + each of the
-        # two entity mentions → 4 invocations (the import is no longer dead).
-        assert len(calls) == 4, (
-            "stamp_extraction_base must be invoked once per extraction object "
-            f"(classification + qa_form + 2 mentions); got {len(calls)} calls"
+        # stamp_extraction_base ran for classification + qa_form → 2
+        # invocations (the import is no longer dead). id-434: entity mentions
+        # are no longer stamped — they leave phase 1 as candidates that carry
+        # op_id + source_document_id as EXPLICIT fields (asserted below), so
+        # the Inv-5 property survives on the object phase 2b reads.
+        assert len(calls) == 2, (
+            "stamp_extraction_base must be invoked once per stamped extraction "
+            f"object (classification + qa_form); got {len(calls)} calls"
         )
 
         for input_obj, kwargs, stamped in calls:
@@ -2474,10 +2486,13 @@ class TestStampExtractionBaseWiredIntoIngest:
         # S438: the sd row lands via the raw-pool UPSERT, not sd_target.
         assert _sd_upserts_from_pool(pool)[0]["op_id"] == run_op_id
         assert {row["op_id"] for row in qa.rows} == {run_op_id}
-        assert {row["op_id"] for row in em.rows} == {run_op_id}
-        # The two entity rows still landed (the per-mention stamp did not disturb
-        # the declare_row loop).
-        assert len(em.rows) == 2
+        # id-434: the two mentions crossed the transfer as candidates carrying
+        # the flow op_id + the row's source_document_id explicitly.
+        assert len(candidates) == 2
+        assert {c.op_id for c in candidates} == {run_op_id}
+        assert {c.source_document_id for c in candidates} == {
+            expected_source_document_id
+        }
 
     def test_dict_returning_extractors_are_not_stamped(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2526,13 +2541,12 @@ class TestStampExtractionBaseWiredIntoIngest:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
 
         pool = _wire_pool(flow, monkeypatch)
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
+                await flow.ingest_file(_FakeFile(src), qa, sd)
 
         asyncio.run(_exercise())  # must not raise (no model_dump on a dict)
 
@@ -2645,7 +2659,6 @@ class TestWorkspacePathFixes:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
 
         pool = _wire_pool(flow, monkeypatch)
 
@@ -2656,10 +2669,6 @@ class TestWorkspacePathFixes:
                     fake_file,
                     qa,
                     sd,
-                    em,
-                    None,
-                    None,
-                    None,
                     flow_source_path=source_root,
                 )
 
@@ -2715,13 +2724,13 @@ class TestWorkspacePathFixes:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """{66.16}/BUG-F (S297): duplicate (canonical, type) entity mentions
-        collapse to ONE entity_mentions row.
+        collapse to ONE candidate.
 
-        Prod enforces UNIQUE (canonical_name, entity_type, source_document_id). The
-        old em:{rel_path}:{idx} PK declared one row PER raw mention, so two
-        mentions of the same entity produced two rows with distinct ids that the
-        cocoindex ON CONFLICT (id) upsert did not absorb -> UniqueViolationError.
-        The dedup + natural-key PK collapses them.
+        Prod enforces UNIQUE (canonical_name, entity_type, source_document_id).
+        The phase-1 dedup per (per_doc_key, entity_type) keeps the
+        highest-confidence mention — id-434 moved the row declare to phase 2b,
+        but the dedup is still a phase-1 property proven on the returned
+        candidate list.
         """
         import types
 
@@ -2770,24 +2779,24 @@ class TestWorkspacePathFixes:
 
         qa = _FakeTarget("q_a_extractions")
         sd = _FakeTarget("source_documents")
-        em = _FakeTarget("entity_mentions")
+        candidates: list = []
 
         async def _exercise() -> None:
             # id-400: run context arrives via bind_flow_meta (the in-task
             # ContextVar fallback) — the flow_op_id kwarg is retired from the
             # memoised component signature (D-397-A Option C).
             async with flow.bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(_FakeFile(src), qa, sd, em, None, None)
+                candidates.extend(await flow.ingest_file(_FakeFile(src), qa, sd))
 
         asyncio.run(_exercise())
 
-        # BUG-F: the two duplicate mentions collapse to exactly ONE row.
-        assert len(em.rows) == 1, (
-            f"expected 1 deduped entity_mentions row, got {len(em.rows)}"
+        # BUG-F: the two duplicate mentions collapse to exactly ONE candidate.
+        assert len(candidates) == 1, (
+            f"expected 1 deduped mention candidate, got {len(candidates)}"
         )
-        assert em.rows[0]["entity_type"] == "company"
+        assert candidates[0].entity_type == "company"
         # The higher-confidence mention is the one kept.
-        assert em.rows[0]["confidence"] == 0.9
+        assert candidates[0].confidence == 0.9
 
 
 # ── id-398 (F4) — em:/er: PKs registry-keyed on source_document_id ────────────
@@ -2889,9 +2898,15 @@ class TestF4EmErPksRegistryKeyedOnSourceDocumentId:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=run_op_id):
-                await flow.ingest_file(  # type: ignore[attr-defined]
-                    fake_file, qa, sd, em, None, er
+                candidates = await flow.ingest_file(  # type: ignore[attr-defined]
+                    fake_file, qa, sd, None, er
                 )
+            # id-434: the em declare moved to the phase-2b component; with no
+            # resolver entry each candidate's canonical falls back to its
+            # per_doc_key, so the PK derivation under test is unchanged.
+            await flow._declare_entity_mentions(  # type: ignore[attr-defined]
+                em, candidates, {}, [], None
+            )
 
         asyncio.run(_exercise())
         return em, er
@@ -3034,9 +3049,14 @@ class TestUnjoinableTrailingPeriodRowClosed:
 
         async def _exercise() -> None:
             async with bind_flow_meta(op_id=uuid.uuid4()):
-                await flow.ingest_file(  # type: ignore[attr-defined]
-                    fake_file, qa, sd, em, None, er
+                candidates = await flow.ingest_file(  # type: ignore[attr-defined]
+                    fake_file, qa, sd, None, er
                 )
+            # id-434: em rows land via the phase-2b component; no resolver
+            # entry → canonical is the per_doc_key, which is the key under test.
+            await flow._declare_entity_mentions(  # type: ignore[attr-defined]
+                em, candidates, {}, [], None
+            )
 
         asyncio.run(_exercise())
 

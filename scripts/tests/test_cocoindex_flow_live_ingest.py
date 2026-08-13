@@ -454,12 +454,28 @@ def _run_app_main_over_dir(
 
     monkeypatch.setattr(flow.localfs, "walk_dir", _fake_walk_dir)
 
-    # ── Stage-5 cross-document resolution needs a real DB pool; stub it out (the
-    # bug under test is the per-item fan-out, not Stage 5).
-    async def _fake_stage_5(*args, **kwargs):
-        return 0
+    # id-434: run use_mount children inline (the bug under test is the
+    # per-item fan-out); stub phase 2a's LLM/faiss-heavy resolver with
+    # identity resolution and give phase 2b an empty pin set — the declare
+    # component itself runs real.
+    async def _inline_use_mount(_subpath, fn, *args):
+        return await fn(*args)
 
-    monkeypatch.setattr(flow, "_run_stage_5_resolution", _fake_stage_5)
+    monkeypatch.setattr(flow.coco, "use_mount", _inline_use_mount)
+
+    async def _identity_resolve_type_group(entity_type, names, pinned, op_id):
+        class _Resolved:
+            def canonical_of(self, name):
+                return name
+
+        return entity_type, _Resolved()
+
+    monkeypatch.setattr(flow, "_resolve_type_group", _identity_resolve_type_group)
+
+    async def _no_pins():
+        return []
+
+    monkeypatch.setattr(flow, "_fetch_all_curation_pinned_mentions", _no_pins)
 
     # {75.11}: app_main also builds `FeedUrlSource(pool=coco.use_context(...))`
     # and iterates its snapshot on a second mount_each — return an EMPTY
