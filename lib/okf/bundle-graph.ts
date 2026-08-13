@@ -113,6 +113,53 @@
  * fallback (v0.2 §13.1: consumers MAY still parse the legacy trailer).
  * Each node also carries its `sources` list verbatim for the
  * `<ConceptDetail>` provenance surface.
+ *
+ * **This module is the platform's ONLY concept-frontmatter reader (id-439,
+ * S562).** There used to be a second one: `lib/ontology/concept-schema.ts`'s
+ * `ConceptFrontmatterSchema` / `parseConceptFrontmatter` — a gray-matter + Zod
+ * contract ratified by id-133 TECH §BI-6 **with a named call site**: "ID-132
+ * wires `ConceptFrontmatterSchema` into the producer's `declare_file` write
+ * path (the gate)". That call site was built in PYTHON
+ * (`producer/validator.py`'s `check_required_keys` / `check_resource_scheme`),
+ * because the producer is Python, so the TS module never acquired a caller and
+ * its own docstring ended up describing itself as mirroring the Python
+ * validator. Two frontmatter readers with two different postures — one
+ * HARD-rejecting, one tolerant — and only the tolerant one on the render path.
+ * It is DELETED, on id-427's own requirement-first rule (a symbol is KEPT only
+ * with a nameable live requirement; "a future use is not a current source" —
+ * the precedent that deleted `CONCEPT_TYPE_VALUES` from that very module).
+ * Where its rules live now:
+ *
+ * - **§11 clause 2 ("every frontmatter block contains a non-empty `type`")**
+ *   is a BUNDLE-conformance criterion, not a consumer duty — the same section
+ *   tells consumers they MUST NOT reject a bundle over missing optional
+ *   fields, unknown types, unknown keys or broken links, and says nothing that
+ *   requires rejecting a type-less document. Enforcement therefore stays where
+ *   a bundle is WRITTEN and VALIDATED (`producer/validator.py`; the bundle
+ *   repo's `okf_validate.py`, id-431), and this reader keeps SURFACING a
+ *   clause-2 violation instead of dropping it: `fmString(fm.type, 'Unknown')`
+ *   renders the concept with a visible `Unknown` type. Both postures are
+ *   spec-legal; surfacing is the one §11 recommends ("SHOULD surface, not
+ *   silently drop") and the one this reader's tests have always sanctioned.
+ *   Tested as such in `__tests__/lib/okf/bundle-graph.test.ts`.
+ * - **The `resource:` URI shapes** (per-row `source_documents`/
+ *   `reference_items` only, the BI-8 `q_a_pairs?scope_tag=` query form, the
+ *   retired `?domain=&subtopic=` form) live in `lib/okf/parse-canonical-uri.ts`
+ *   — which the resource lane actually calls, so those rules are live rather
+ *   than duplicated.
+ * - **The §11 consumer duties this reader owes** (never reject for a missing
+ *   optional family; never reject unknown keys; tolerate a malformed
+ *   `sources[]` entry by dropping the ENTRY, not the concept) hold here by
+ *   construction — every field goes through an `fm*` coercion with a default —
+ *   and are tested against THIS reader now, rather than against a module
+ *   nothing called.
+ * - **NOT read here, deliberately:** `verified`, `generated`, `status`,
+ *   `stale_after`. The deleted module normalised a bare `verified` mapping to
+ *   a one-element list (§5.2/§11); that duty binds on the first consumer of
+ *   the field, and the §5.3 trust-tier/staleness port that introduces one is
+ *   id-420's (upstream `bundle/document.py`'s `normalize_verified` /
+ *   `trust_tier` / `is_stale`). Porting the normalisation is that task's
+ *   first step, not a leftover from this one.
  */
 import fs from 'node:fs';
 import path from 'node:path';

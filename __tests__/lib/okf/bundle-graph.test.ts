@@ -725,6 +725,165 @@ describe('buildBundleGraph — OKF v0.2 sources[] (id-439)', () => {
   });
 });
 
+/**
+ * The §11 consumer duties, asserted against the reader that ACTUALLY RUNS
+ * (id-439, S562).
+ *
+ * These claims used to be proven only on `lib/ontology/concept-schema.ts` — a
+ * Zod contract with zero production callers, deleted in this pass (see
+ * `lib/okf/bundle-graph.ts`'s module doc for the requirement trail). Proving a
+ * consumer duty on a module no consumer calls is hollow evidence, so the duties
+ * move here, to the single surviving frontmatter reader: the one behind
+ * `/okf/[bundleId]`.
+ */
+describe('buildBundleGraph — §11 consumer duties (the single frontmatter reader)', () => {
+  it('graphs a concept carrying ONLY type, with no optional family at all', () => {
+    // §4.1: "`type` is the only always-required key; a concept carrying just
+    // `type` is fully conformant (§11)" — and §11: consumers MUST NOT reject a
+    // bundle for missing optional frontmatter fields.
+    const root = bundle({ 'topics/bare.md': '---\ntype: topic\n---\n\nBody.' });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0].data).toMatchObject({
+      id: 'topics/bare',
+      // Title falls back to the concept id, the rest to empty values — the
+      // spec's "consumers MAY derive a title from the filename".
+      label: 'topics/bare',
+      type: 'topic',
+      description: '',
+      tags: [],
+      sources: [],
+    });
+  });
+
+  it('graphs a concept whose frontmatter carries unknown, future-family keys', () => {
+    // §4.1 raised this from SHOULD NOT to MUST NOT in v0.2: unknown additional
+    // keys are never a reason to reject a document.
+    const root = bundle({
+      'topics/future.md': [
+        '---',
+        'type: topic',
+        'title: Future',
+        'description: Carries keys this reader has never heard of.',
+        'future_family: some-value',
+        'another_extension:',
+        '  nested: true',
+        '---',
+        '',
+        'Body.',
+      ].join('\n'),
+    });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0].data).toMatchObject({
+      id: 'topics/future',
+      label: 'Future',
+      type: 'topic',
+    });
+  });
+
+  it('graphs a concept carrying a bare verified: mapping — a trust family this reader does not consume', () => {
+    // §11's "MUST treat a bare `verified` mapping as a one-element list" binds
+    // on the first CONSUMER of the field; nothing here reads `verified` (the
+    // §5.3 trust-tier port is id-420's). What this reader owes today is not to
+    // reject the concept over it, in either the bare-mapping or list shape.
+    const root = bundle({
+      'topics/bare-verified.md': [
+        '---',
+        'type: topic',
+        'title: Bare Verified',
+        'description: A single verified mapping, not a list.',
+        'verified:',
+        '  by: human:sme@example.com',
+        '  at: "2026-08-09T00:00:00Z"',
+        '---',
+        '',
+        'Body.',
+      ].join('\n'),
+      'topics/list-verified.md': [
+        '---',
+        'type: topic',
+        'title: List Verified',
+        'description: The list shape.',
+        'verified:',
+        '  - by: human:sme@example.com',
+        '  - by: human:second@example.com',
+        '---',
+        '',
+        'Body.',
+      ].join('\n'),
+    });
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.nodes.map((n) => n.data.label).sort()).toEqual([
+      'Bare Verified',
+      'List Verified',
+    ]);
+  });
+
+  it('surfaces a concept with no type as Unknown instead of dropping it', () => {
+    // §11 clause 2 ("every frontmatter block contains a non-empty `type`")
+    // defines whether a BUNDLE is conformant; enforcing it is the producer's
+    // and the bundle validator's job (`producer/validator.py`,
+    // `okf_validate.py`). A consumer that dropped the concept would hide a
+    // producer fault, and §11 asks consumers to "surface, not silently drop".
+    const root = bundle({
+      'notes/no-type.md': '---\ntitle: No type here\n---\n\nBody.',
+      'notes/empty-type.md': '---\ntype: ""\ntitle: Empty type\n---\n\nBody.',
+    });
+
+    const graph = buildBundleGraph(root);
+
+    const byId = Object.fromEntries(
+      graph.nodes.map((n) => [n.data.id, n.data]),
+    );
+    expect(byId['notes/no-type']).toMatchObject({
+      label: 'No type here',
+      type: 'Unknown',
+    });
+    expect(byId['notes/empty-type']).toMatchObject({
+      label: 'Empty type',
+      type: 'Unknown',
+    });
+    // ...and the violation is visible in the type filter rather than silent.
+    expect(graph.types).toEqual(['Unknown']);
+  });
+
+  it('graphs a concept whose type no base vocabulary ever held (DR-141)', () => {
+    // DR-141: `type` is a label, not a gate. §4.1: type values are not
+    // registered centrally and "consumers MUST tolerate unknown types".
+    const root = bundle(
+      Object.fromEntries(
+        [
+          'reference',
+          'document',
+          'questionnaire_response',
+          'answer_set',
+          'procurement_policy',
+        ].map((type) => [
+          `concepts/${type}.md`,
+          `---\ntype: ${type}\ntitle: ${type}\n---\n\nBody.`,
+        ]),
+      ),
+    );
+
+    const graph = buildBundleGraph(root);
+
+    expect(graph.types).toEqual([
+      'answer_set',
+      'document',
+      'procurement_policy',
+      'questionnaire_response',
+      'reference',
+    ]);
+  });
+});
+
 describe('confidenceToOpacity', () => {
   it('renders full-opacity for an absent confidence', () => {
     expect(confidenceToOpacity(null)).toBe(1);
