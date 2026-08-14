@@ -80,6 +80,24 @@ EXTRACTION_LLM_MODEL = coco.ContextKey[str]("extraction_llm_model", detect_chang
 RESOLUTION_LLM_MODEL = coco.ContextKey[str]("resolution_llm_model", detect_change=True)
 EMBEDDING_MODEL = coco.ContextKey[str]("embedding_model", detect_change=True)
 EMBEDDER = coco.ContextKey[LiteLLMEmbedder]("embedder", detect_change=True)
+RETENTION_CLASS = coco.ContextKey[str]("retention_class", detect_change=True)
+
+# The binding gate's retention-class vocabulary (corpus reframe R1/R2, DR-025;
+# spellings are the DB CHECK constraint's — verified against platform staging).
+VALID_RETENTION_CLASSES = frozenset(
+    {"keep_and_watch", "ingest_once", "live_connected", "external_referenced"}
+)
+
+
+def validate_retention_class(value: str) -> str:
+    """Binding-gate refusal (DR-025): an unknown class is a config error,
+    never silently coerced — the class governs survival semantics."""
+    if value not in VALID_RETENTION_CLASSES:
+        raise RuntimeError(
+            f"INGEST_RETENTION_CLASS {value!r} is not one of "
+            f"{sorted(VALID_RETENTION_CLASSES)}"
+        )
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +117,9 @@ async def coco_lifespan(builder: coco.EnvironmentBuilder) -> AsyncIterator[None]
             "pooler connection string (postgresql://user:pass@host:port/db)."
         )
     embedding_model = os.environ.get("EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL)
+    retention_class = validate_retention_class(
+        os.environ.get("INGEST_RETENTION_CLASS", "keep_and_watch")
+    )
     async with await asyncpg.create_pool(dsn) as pool:
         builder.provide(DB_CTX, pool)
         builder.provide(
@@ -113,6 +134,7 @@ async def coco_lifespan(builder: coco.EnvironmentBuilder) -> AsyncIterator[None]
         builder.provide(
             EMBEDDER, LiteLLMEmbedder(embedding_model, dimensions=EMBEDDING_DIMENSIONS)
         )
+        builder.provide(RETENTION_CLASS, retention_class)
         yield
 
 
@@ -147,6 +169,7 @@ async def _resolve_source_identity(
     filename: str,
     mime_type: str,
     file_size: int,
+    retention_class: str,
 ) -> uuid.UUID:
     """Content-hash-first identity resolution via `resolve_or_mint_source_
     identity` — same bytes at a new `rel_path` resolve to the STORED id; a
@@ -162,7 +185,7 @@ async def _resolve_source_identity(
         mime_type,
         file_size,
         "localfs",  # p_origin_type
-        None,  # p_retention_class — deferred to the two-gate/retention-class wave
+        retention_class,  # binding-gate assignment (reframe R2, DR-025)
         None,  # p_op_id — DR-152 retires op_id stamping
     )
     assert row is not None
@@ -197,6 +220,7 @@ async def process_file(
         filename=filename,
         mime_type=mime_type,
         file_size=file_size,
+        retention_class=coco.use_context(RETENTION_CLASS),
     )
 
     sd_target.declare_row(
