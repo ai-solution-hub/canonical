@@ -1,0 +1,25 @@
+[project]
+name = "canonical-pipeline"
+version = "0.1.0"
+description = "DR-152 pipeline rebase — ingest + produce flows on upstream cocoindex."
+requires-python = ">=3.11"
+dependencies = [
+    "cocoindex>=1.0.18",
+    "litellm",
+    "instructor",
+    "pydantic>=2",
+    "asyncpg",
+    "ruamel.yaml",
+]
+
+[tool.pytest.ini_options]
+# Nearest-ancestor pyproject.toml wins pytest's rootdir/config search, so this
+# file (not the repo-root one, whose testpaths point at scripts/tests) governs
+# `python3 -m pytest pipeline/tests`. pythonpath="." makes `ingest`/`produce`
+# import as top-level packages relative to THIS file's directory (pipeline/),
+# keeping pipeline/ a self-contained app package per DESIGN.md §1.
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
