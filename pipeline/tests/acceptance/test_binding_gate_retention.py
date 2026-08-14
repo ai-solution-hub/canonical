@@ -16,7 +16,6 @@ staging S565).
 from __future__ import annotations
 
 import pytest
-
 from ingest.main import VALID_RETENTION_CLASSES, validate_retention_class
 
 
