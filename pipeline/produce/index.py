@@ -14,9 +14,9 @@ No LLM directory-description synthesis (the reference baseline's
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Sequence
 
 
 @dataclass(frozen=True)

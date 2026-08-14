@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 
-from pipeline.produce.index import IndexEntry, render_root_index, render_type_index, seed_log_if_absent
+from produce.index import (
+    IndexEntry,
+    render_root_index,
+    render_type_index,
+    seed_log_if_absent,
+)
 
 
 def test_render_root_index_heading_is_always_subdirectories():

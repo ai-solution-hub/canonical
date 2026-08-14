@@ -3,8 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from pipeline.produce.paths import (
+from produce.paths import (
     concept_id_to_path,
     concept_id_to_rel_path,
     parse_concept_id,

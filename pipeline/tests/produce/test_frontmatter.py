@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
-from pipeline.produce.frontmatter import FrontmatterError, FrontmatterDoc, parse, serialize
+from produce.frontmatter import FrontmatterDoc, FrontmatterError, parse, serialize
 
 # Adapted from the OKF `acme_retail` exemplar bundle
 # (knowledge-catalog/okf/bundles/acme_retail/metrics/revenue.md) — a

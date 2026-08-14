@@ -29,12 +29,12 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
 
-from pipeline.produce import document, frontmatter, index, paths
+from produce import document, frontmatter, index, paths
 
 _BUNDLE_TITLE = "Canonical corpus bundle"
 _DEFAULT_STALE_AFTER_DAYS = 90
@@ -230,10 +230,9 @@ def build_bundle_files(
 # ---------------------------------------------------------------------------
 
 try:
+    import asyncpg
     import cocoindex as coco
     from cocoindex.connectors import localfs, postgres
-
-    import asyncpg
 except ImportError:  # pragma: no cover - deps are planned but optional here
     coco = None  # type: ignore[assignment]
 
@@ -244,7 +243,7 @@ if coco is not None:
     STALE_AFTER_DAYS = coco.ContextKey[int]("stale_after_days", detect_change=True)
 
     @coco.lifespan
-    async def coco_lifespan(builder: "coco.EnvironmentBuilder"):
+    async def coco_lifespan(builder: coco.EnvironmentBuilder):
         pool = await asyncpg.create_pool(os.environ["PRODUCE_DATABASE_URL"])
         try:
             builder.provide(PG_DB, pool)

@@ -12,9 +12,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-
-from pipeline.produce import main as produce_main
-from pipeline.produce.main import (
+from produce import main as produce_main
+from produce.main import (
     QaPairRow,
     SourceDocumentRow,
     build_bundle_files,
@@ -192,7 +191,7 @@ def test_build_bundle_files_no_published_content_still_seeds_root_index_and_log(
 
 def test_build_bundle_files_is_idempotent_byte_for_byte():
     qa_pairs = [_qa("p1", "Q1?", ["t"])]
-    kwargs = dict(qa_pairs=qa_pairs, source_documents=[], generated_at=_GENERATED_AT)
+    kwargs = {"qa_pairs": qa_pairs, "source_documents": [], "generated_at": _GENERATED_AT}
     first = build_bundle_files(**kwargs)
     second = build_bundle_files(**kwargs)
     assert first == second

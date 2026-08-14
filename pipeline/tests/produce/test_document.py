@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 import pytest
-
-from pipeline.produce import frontmatter
-from pipeline.produce.document import (
+from produce import frontmatter
+from produce.document import (
     CitationError,
     ConceptDraft,
     QaEntry,

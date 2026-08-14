@@ -23,12 +23,13 @@ form, never a per-row uuid.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any
 
-from pipeline.produce import paths
-from pipeline.produce.frontmatter import FrontmatterDoc
+from produce import paths
+from produce.frontmatter import FrontmatterDoc
 
 _PER_ROW_CITABLE_TABLES = frozenset({"source_documents", "reference_items"})
 
