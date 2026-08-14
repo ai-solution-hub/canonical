@@ -392,20 +392,10 @@ def declare_concept(
 # ─────────────────────────────────────────────────────────────────────────
 
 OKF_VERSION = "0.2"
-"""The SPEC revision this producer's bundles declare (id-426). Stamped into
-the BUNDLE-ROOT `index.md`'s frontmatter and nowhere else — §12 plus §8's
-single exception ("a bundle-root `index.md` MAY carry an `okf_version` key")
-make the root index the only index permitted a frontmatter block at all."""
 
-ROOT_INDEX_TITLE = "OKF Concept Bundle"
+ROOT_INDEX_TITLE = "Subdirectories"
 
 _ENTRY_SEPARATOR = "—"
-"""The separator in `* [Label](target) — description`. **{429.4} flips this
-to an ASCII hyphen-minus** to match §8's shown form, riding id-426's fixture
-wave — deliberately NOT changed here, so the round-trip fixture moves exactly
-once. It is a producer-only change either way: `lib/okf/parse-index.ts`'s
-`CONCEPT_BULLET_RE` separator class is already `[-—]`, so both glyphs
-round-trip through the consumer today."""
 
 
 @dataclass(frozen=True)
