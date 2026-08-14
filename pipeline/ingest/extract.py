@@ -113,9 +113,13 @@ normalise, translate, or expand it. Return only what the text supports.
 @coco.fn(memo=True)
 async def extract_chunk(chunk_text: str, model: str) -> ExtractedChunk:
     """Extract structured Q&A/entity/relationship candidates from one chunk."""
+    # MD_JSON, not JSON: Anthropic models routinely wrap structured output
+    # in ```json fences, which Mode.JSON refuses verbatim — found on the
+    # first real-tier run (S565, claude-haiku-4-5). MD_JSON both requests
+    # and parses the fenced form, provider-neutrally.
     client = cast(
         instructor.AsyncInstructor,
-        instructor.from_litellm(litellm.acompletion, mode=instructor.Mode.JSON),
+        instructor.from_litellm(litellm.acompletion, mode=instructor.Mode.MD_JSON),
     )
     result = await client.chat.completions.create(
         model=model,

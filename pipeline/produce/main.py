@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -63,9 +63,11 @@ class QaPairRow:
 
 @dataclass
 class SourceDocumentRow:
+    # Column set verified against the live schema (S565 E2E run — the
+    # originally-read `suggested_title` does not exist on source_documents;
+    # a source-shaped title derives from logical_path/filename instead).
     id: str
     publication_status: str
-    suggested_title: str | None
     logical_path: str | None
     filename: str
     updated_at: datetime | None
@@ -133,9 +135,7 @@ def resolve_source_document_ref(row: SourceDocumentRow) -> document.SourceDocume
     """Source-shaped enrichment (DR-151 fold): populate `title`/`last_modified`
     only when honestly known from the register row; `author` stays `None`
     (structurally unavailable on `source_documents` today — DR-151)."""
-    title = row.suggested_title or _title_from_path(
-        _first_str(row.logical_path, row.filename) or ""
-    )
+    title = _title_from_path(_first_str(row.logical_path, row.filename) or "")
     last_modified = _date_str(row.captured_date) or _date_str(row.updated_at)
     return document.SourceDocumentRef(
         id=row.id, title=title or None, last_modified=last_modified
@@ -159,6 +159,23 @@ def build_bundle_files(
     never cited, even by a published pair that names it via
     `source_document_id`.
     """
+    # Normalise driver-typed ids to `str` at the boundary: asyncpg hands the
+    # row dataclasses pgproto UUID objects where the annotations (and every
+    # downstream string operation — slicing, canonical:// URIs, path slugs)
+    # say str. Found by the first real-tier producer run (S565). One seam,
+    # so the whole pure core operates on the types its unit tests model.
+    qa_pairs = [
+        replace(
+            p,
+            id=str(p.id),
+            source_document_id=(
+                str(p.source_document_id) if p.source_document_id is not None else None
+            ),
+        )
+        for p in qa_pairs
+    ]
+    source_documents = [replace(s, id=str(s.id)) for s in source_documents]
+
     published_pairs = filter_published(qa_pairs)
     published_sources = filter_published_source_documents(source_documents)
     groups = group_by_topic(published_pairs)

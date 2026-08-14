@@ -145,6 +145,7 @@ async def coco_lifespan(builder: coco.EnvironmentBuilder) -> AsyncIterator[None]
 _MIME_BY_SUFFIX: dict[str, str] = {
     ".md": "text/markdown",
     ".markdown": "text/markdown",
+    ".txt": "text/plain",
 }
 _DEFAULT_MIME = "text/markdown"
 
@@ -170,15 +171,21 @@ async def _resolve_source_identity(
     mime_type: str,
     file_size: int,
     retention_class: str,
-) -> uuid.UUID:
+) -> tuple[uuid.UUID, str]:
     """Content-hash-first identity resolution via `resolve_or_mint_source_
     identity` — same bytes at a new `rel_path` resolve to the STORED id; a
     genuinely new hash mints `id = uuid5(NAMESPACE, "sd:"+rel_path)` ONCE.
     Python never re-derives or re-mints post-admission identity.
+
+    Returns (source_document_id, STORED storage_path) — the stored path is
+    admission-time provenance (SEED-CONTRACT.md §1) and is what the declared
+    row must re-declare verbatim; under a rename it deliberately differs
+    from the current walk's `rel_path`.
     """
     row = await pool.fetchrow(
-        "SELECT source_document_id, was_minted "
-        "FROM public.resolve_or_mint_source_identity($1, $2, $3, $4, $5, $6, $7, $8)",
+        "SELECT r.source_document_id, r.was_minted, sd.storage_path "
+        "FROM public.resolve_or_mint_source_identity($1, $2, $3, $4, $5, $6, $7, $8) r "
+        "JOIN public.source_documents sd ON sd.id = r.source_document_id",
         content_hash,
         rel_path,
         filename,
@@ -189,7 +196,7 @@ async def _resolve_source_identity(
         None,  # p_op_id — DR-152 retires op_id stamping
     )
     assert row is not None
-    return cast(uuid.UUID, row["source_document_id"])
+    return cast(uuid.UUID, row["source_document_id"]), cast(str, row["storage_path"])
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +220,7 @@ async def process_file(
     file_size = await file.size()  # FileLike caches metadata — cheap either way
 
     pool = coco.use_context(DB_CTX)
-    source_document_id = await _resolve_source_identity(
+    source_document_id, stored_storage_path = await _resolve_source_identity(
         pool,
         content_hash=content_hash,
         rel_path=rel_path,
@@ -227,6 +234,7 @@ async def process_file(
         row=SourceDocumentRow(
             id=source_document_id,
             filename=filename,
+            storage_path=stored_storage_path,
             mime_type=mime_type,
             file_size=file_size,
             content_hash=content_hash,
@@ -401,7 +409,7 @@ async def app_main(sourcedir: pathlib.Path) -> None:
     walker = localfs.walk_dir(
         sourcedir,
         recursive=True,
-        path_matcher=PatternFilePathMatcher(included_patterns=["**/*.md"]),
+        path_matcher=PatternFilePathMatcher(included_patterns=["**/*.md", "**/*.txt"]),
     )
     file_coros = []
     # S563 pin lesson: `DirWalker.items()` is async-iterable ONLY at 1.0.18.

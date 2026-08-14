@@ -52,7 +52,6 @@ def _sd(
     id: str,
     *,
     publication_status: str = "published",
-    suggested_title: str | None = None,
     logical_path: str | None = None,
     filename: str = "doc.md",
     updated_at: datetime | None = None,
@@ -61,7 +60,6 @@ def _sd(
     return SourceDocumentRow(
         id=id,
         publication_status=publication_status,
-        suggested_title=suggested_title,
         logical_path=logical_path,
         filename=filename,
         updated_at=updated_at,
@@ -117,14 +115,17 @@ def test_slugify_tag_rejects_all_invalid_characters():
         slugify_tag("###")
 
 
-def test_resolve_source_document_ref_prefers_suggested_title():
-    row = _sd("s1", suggested_title="GDPR Policy", filename="gdpr-policy-v2.md")
+def test_resolve_source_document_ref_prefers_logical_path_over_filename():
+    # suggested_title was removed S565: the column does not exist on
+    # source_documents (found by the first real-tier producer run) — the
+    # source-shaped title derives from logical_path, then filename.
+    row = _sd("s1", logical_path="policies/gdpr-policy.md", filename="upload-1234.md")
     ref = resolve_source_document_ref(row)
-    assert ref.title == "GDPR Policy"
+    assert ref.title == "Gdpr Policy"
 
 
 def test_resolve_source_document_ref_falls_back_to_humanized_filename():
-    row = _sd("s1", suggested_title=None, logical_path=None, filename="gdpr-policy-v2.md")
+    row = _sd("s1", logical_path=None, filename="gdpr-policy-v2.md")
     ref = resolve_source_document_ref(row)
     assert ref.title == "Gdpr Policy V2"
 
@@ -161,7 +162,7 @@ def test_build_bundle_files_produces_expected_tree():
         ),
         _qa("p2", "How is quality assured?", ["quality-management"]),
     ]
-    source_documents = [_sd("s1", suggested_title="GDPR Policy")]
+    source_documents = [_sd("s1", logical_path="gdpr-policy.md")]
 
     files = build_bundle_files(
         qa_pairs=qa_pairs,

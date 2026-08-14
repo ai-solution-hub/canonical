@@ -232,20 +232,47 @@ async def declare_resolved(
             )
         )
 
+    # Relationships need the SAME collapse: two raw endpoint pairs that
+    # resolve to identical canonicals mint the same `er:` id, and the engine
+    # refuses a double-declared target key (found by the first real-tier E2E,
+    # S565 — the style baseline's ASSIGNED_TO `seen`-set idiom, generalised).
+    # Deterministic survivor: highest (confidence, source raw, target raw).
+    er_collapsed: dict[
+        tuple[str, str, str, str], tuple[RelationshipCandidate, str, str]
+    ] = {}
     for fx in file_extractions:
         for r in fx.relationships:
             source_canonical = _canonical_of(r.source_entity_type, r.source_entity_name)
             target_canonical = _canonical_of(r.target_entity_type, r.target_entity_name)
-            er_target.declare_row(
-                row=EntityRelationshipRow(
-                    id=uuid.uuid5(
-                        identity.NAMESPACE,
-                        f"er:{fx.rel_path}:{source_canonical}:{r.relationship_type}:{target_canonical}",
-                    ),
-                    source_entity=source_canonical,
-                    relationship_type=r.relationship_type,
-                    target_entity=target_canonical,
-                    source_document_id=r.source_document_id,
-                    confidence=_clamp01(r.confidence),
-                )
+            er_key = (fx.rel_path, source_canonical, r.relationship_type, target_canonical)
+            er_survivor = er_collapsed.get(er_key)
+            if er_survivor is None or (
+                r.confidence,
+                r.source_entity_name,
+                r.target_entity_name,
+            ) > (
+                er_survivor[0].confidence,
+                er_survivor[0].source_entity_name,
+                er_survivor[0].target_entity_name,
+            ):
+                er_collapsed[er_key] = (r, source_canonical, target_canonical)
+
+    for (
+        rel_path,
+        source_canonical,
+        relationship_type,
+        target_canonical,
+    ), (r, _, _) in er_collapsed.items():
+        er_target.declare_row(
+            row=EntityRelationshipRow(
+                id=uuid.uuid5(
+                    identity.NAMESPACE,
+                    f"er:{rel_path}:{source_canonical}:{relationship_type}:{target_canonical}",
+                ),
+                source_entity=source_canonical,
+                relationship_type=relationship_type,
+                target_entity=target_canonical,
+                source_document_id=r.source_document_id,
+                confidence=_clamp01(r.confidence),
             )
+        )

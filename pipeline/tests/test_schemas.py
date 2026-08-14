@@ -32,6 +32,9 @@ def test_source_document_row_columns() -> None:
     assert set(schema.columns) == {
         "id",
         "filename",
+        # storage_path: NOT NULL no-default — must ride the upsert INSERT
+        # arm (S565 E2E finding); carries the STORED value, rename-safe.
+        "storage_path",
         "mime_type",
         "file_size",
         "content_hash",

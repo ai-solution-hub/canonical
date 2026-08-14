@@ -56,14 +56,25 @@ class SourceDocumentRow:
 
     `id` is whatever `public.resolve_or_mint_source_identity` returned —
     Python never mints it (DESIGN.md §4). Columns the SQL mint function
-    already owns on INSERT (storage_path, logical_path, origin_type,
-    retention_class) are deliberately absent here: re-declaring them on
+    owns and may MUTATE across walks (logical_path, origin_type,
+    retention_class) are deliberately absent here: re-declaring them
     every walk would fight the mint fn's rename-tolerance semantics
     (SEED-CONTRACT.md §3 note on `logical_path`).
+
+    `storage_path` is the exception that proves the rule: it is NOT NULL
+    with no default, and Postgres checks NOT NULL on the upsert's candidate
+    tuple BEFORE `ON CONFLICT` resolution — so the declared row must carry
+    it. It carries the STORED value returned alongside the resolver's id
+    (immutable admission-time provenance, SEED-CONTRACT.md §1), never the
+    current walk's rel_path — re-declaring the stored value verbatim is
+    rename-safe by construction. (Found by the first real-tier E2E run,
+    S565: the engine INSERT arm tripped the constraint on a fresh-but-
+    already-minted row.)
     """
 
     id: uuid.UUID
     filename: str
+    storage_path: str
     mime_type: str
     file_size: int
     content_hash: str
