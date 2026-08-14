@@ -182,10 +182,13 @@ async def _resolve_source_identity(
     row must re-declare verbatim; under a rename it deliberately differs
     from the current walk's `rel_path`.
     """
+    # Two statements, deliberately: a same-statement JOIN back to
+    # source_documents reads the statement-start snapshot, in which a row
+    # the function JUST minted is not yet visible — the join silently drops
+    # fresh mints (found on the first fresh-corpus run, S565).
     row = await pool.fetchrow(
-        "SELECT r.source_document_id, r.was_minted, sd.storage_path "
-        "FROM public.resolve_or_mint_source_identity($1, $2, $3, $4, $5, $6, $7, $8) r "
-        "JOIN public.source_documents sd ON sd.id = r.source_document_id",
+        "SELECT source_document_id, was_minted "
+        "FROM public.resolve_or_mint_source_identity($1, $2, $3, $4, $5, $6, $7, $8)",
         content_hash,
         rel_path,
         filename,
@@ -196,7 +199,15 @@ async def _resolve_source_identity(
         None,  # p_op_id — DR-152 retires op_id stamping
     )
     assert row is not None
-    return cast(uuid.UUID, row["source_document_id"]), cast(str, row["storage_path"])
+    source_document_id = cast(uuid.UUID, row["source_document_id"])
+    stored_storage_path = cast(
+        str,
+        await pool.fetchval(
+            "SELECT storage_path FROM public.source_documents WHERE id = $1",
+            source_document_id,
+        ),
+    )
+    return source_document_id, stored_storage_path
 
 
 # ---------------------------------------------------------------------------
@@ -206,13 +217,19 @@ async def _resolve_source_identity(
 
 @coco.fn(memo=True)
 async def process_file(
+    rel_path: str,
     file: localfs.File,
     sd_target: postgres.TableTarget[SourceDocumentRow],
     cc_target: postgres.TableTarget[ContentChunkRow],
     qa_target: postgres.TableTarget[QAExtractionRow],
     re_target: postgres.TableTarget[RecordEmbeddingRow],
 ) -> FileExtraction:
-    rel_path = file.file_path.path.as_posix()
+    # `rel_path` is the walker's item KEY — walk-root-relative and therefore
+    # PORTABLE. `file.file_path.path` is the resolved ABSOLUTE path, and
+    # deriving identity from it embedded the machine-local directory into
+    # every sd: seed (caught by the SEED-CONTRACT golden-vector check on the
+    # first client-corpus run, S565: same document, different id per host —
+    # exactly the citation-orphaning class the parity AC exists to catch).
     text = await file.read_text()
     content_hash = (await file.content_fingerprint()).hex()
     filename = file.file_path.path.name
@@ -418,6 +435,7 @@ async def app_main(sourcedir: pathlib.Path) -> None:
             coco.use_mount(
                 coco.component_subpath("file", rel_path),
                 process_file,
+                rel_path,
                 file,
                 sd_target,
                 cc_target,
