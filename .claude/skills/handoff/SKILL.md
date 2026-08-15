@@ -237,7 +237,12 @@ Confirm before drafting (ask Liam if unsure):
 
 ---
 
-## Step 4 — Write the prompt (target 60-100 lines)
+## Step 4 — Write the prompt (target 60-80 lines — diet R2, S566)
+
+**Deltas + mechanical state only.** Settled state lives in `reference/platform-prd.md`,
+`reference/entity-glossary.md`, and the post-disposition register — never restate it in
+the prompt; point at it. A prompt line that repeats something a north-star doc already
+says is a defect, not thoroughness.
 
 Filename uses the highest existing number + 1. 
 

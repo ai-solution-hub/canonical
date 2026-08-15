@@ -46,7 +46,13 @@ class TestLoopbackIsTheDisposabilitySignal:
             "example.com",
         ],
     )
-    def test_refuses_any_non_loopback_host(self, host: str) -> None:
+    def test_refuses_any_non_loopback_host(
+        self, host: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Isolate the generic non-loopback path: with PLATFORM_PROJECT_REF set
+        # (as CI does), the platform-ref host takes the more specific DR-131
+        # shared-project refusal, which its own test below asserts.
+        monkeypatch.delenv("PLATFORM_PROJECT_REF", raising=False)
         dsn = f"postgresql://postgres:postgres@{host}:5432/postgres"
         with pytest.raises(RuntimeError, match="NON-DISPOSABLE"):
             require_disposable_dsn(dsn, "suite")

@@ -30,6 +30,12 @@
       "sourceType": "github",
       "skillPath": "skills/coolify-deploy/SKILL.md",
       "computedHash": "2ac70e6bb555aa80cbab80a5c0ca4e26fe4d00b8d265822921357af1cbae6a94"
+    },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grill-me/SKILL.md",
+      "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
     }
   }
 }
