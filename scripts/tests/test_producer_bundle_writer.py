@@ -463,8 +463,8 @@ def test_regenerate_indexes_renders_sections_over_fixture_bundle() -> None:
 def test_regenerate_indexes_stamps_okf_version_frontmatter_when_given() -> None:
     """SPEC §12 / DR-019 house rule (id-426 emission contract point 5): the
     bundle-root `index.md` opens with a frontmatter block carrying EXACTLY
-    one key — `okf_version: "0.2"` — followed by the `# OKF Concept Bundle`
-    heading."""
+    one key — `okf_version: "0.2"` — followed by the `# Subdirectories`
+    heading (owner ruling S564: the top-level index heading is Subdirectories)."""
     text = bundle_writer.regenerate_indexes(
         [_concept_section(_synthetic_catalogue(4))],
         okf_version=bundle_writer.OKF_VERSION,
@@ -475,7 +475,7 @@ def test_regenerate_indexes_stamps_okf_version_frontmatter_when_given() -> None:
         "---",
         'okf_version: "0.2"',
         "---",
-        "# OKF Concept Bundle",
+        "# Subdirectories",
     ]
 
 
@@ -1591,7 +1591,7 @@ def test_the_root_index_is_declared_even_for_an_empty_bundle(tmp_path: Path) -> 
     summary = bundle_writer.write_bundle(tmp_path, [])
 
     text = _index(summary)
-    assert text.splitlines() == ["---", 'okf_version: "0.2"', "---", "# OKF Concept Bundle"]
+    assert text.splitlines() == ["---", 'okf_version: "0.2"', "---", "# Subdirectories"]
 
 
 def test_the_root_index_still_enumerates_every_concept(tmp_path: Path) -> None:
