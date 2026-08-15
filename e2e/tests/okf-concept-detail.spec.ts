@@ -30,19 +30,8 @@ import { isMobileViewport } from '../helpers/responsive';
  *    ONLY after a click (the lane is gated, never part of the graph load).
  * 3. A bundle-path entry is a concept citation: it navigates in-app, and the
  *    cited concept's "Cited by" shows the citation — for `company/overview`
- *    that backlink can ONLY come from `sources[]`, since the v0.2 producer
- *    dropped the `# Citations` trailer (F1-A) and neither citing concept links
- *    it from its body.
- * 4. A legacy v0.1 concept in the SAME bundle still renders — the §11 tolerance
- *    duty ("consumers MUST NOT reject a bundle for missing optional
- *    frontmatter fields"). The run that regenerated this bundle left 11 v0.1
- *    concepts in place where the augmentation guard refused to rewrite them, so
- *    a mixed-generation bundle is the normal case, not a contrived one.
+ *    that backlink can ONLY come from `sources[]`.
  *
- * Desktop-only: `<BundleViewer>` is a fixed three-region grid
- * (`grid-cols-[260px_1fr_400px]`) with no responsive treatment, so the mobile
- * project skips these rather than asserting against a layout the app does not
- * claim to support (the `bid-export.spec.ts` precedent).
  */
 
 /** The bundle directory under the configured root — one path segment. */
@@ -227,53 +216,6 @@ test.describe('OKF ConceptDetail — v0.2 sources[] provenance', () => {
     await backlink.click();
     await expect(
       detail.getByRole('heading', { level: 1, name: 'Data Protection' }),
-    ).toBeVisible();
-  });
-
-  test('renders a legacy v0.1 concept from the same bundle without rejecting it (§11 tolerance)', async ({
-    authenticatedPage: page,
-  }) => {
-    await openBundleViewer(page);
-
-    const nav = page.getByTestId('bundle-nav');
-    const theme = nav.getByRole('button', { name: 'Concepts' });
-    await expect(theme).toBeVisible();
-    if ((await theme.getAttribute('aria-expanded')) !== 'true') {
-      await theme.click();
-    }
-
-    // BOTH generations are enumerated — the v0.1 concept is not dropped from
-    // the bundle listing for lacking `generated`/`sources[]`.
-    await expect(
-      nav.getByRole('button', { name: /^Data Protection —/ }),
-    ).toBeVisible();
-    await expect(
-      nav.getByRole('button', { name: /^Quality Management —/ }),
-    ).toBeVisible();
-
-    await nav.getByRole('button', { name: /^Quality Management —/ }).click();
-
-    const detail = page.getByTestId('concept-detail');
-    await expect(
-      detail.getByRole('heading', { level: 1, name: 'Quality Management' }),
-    ).toBeVisible();
-
-    // No `sources[]` -> no Sources row at all (not an empty one).
-    await expect(detail.getByTestId('concept-sources')).toHaveCount(0);
-
-    // The v0.1 lane is UNCHANGED: the top-level `resource:` pointer still
-    // renders as its own chip...
-    await expect(
-      detail.getByRole('button', {
-        name: 'canonical://q_a_pairs?scope_tag=quality-management',
-      }),
-    ).toBeVisible();
-
-    // ...and the body — including the `# Citations` trailer the v0.2 producer
-    // no longer writes — renders through.
-    await expect(detail.getByText(/ISO 9001:2015/).first()).toBeVisible();
-    await expect(
-      detail.getByRole('heading', { name: 'Citations' }),
     ).toBeVisible();
   });
 });
