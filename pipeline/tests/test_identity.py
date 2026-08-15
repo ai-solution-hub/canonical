@@ -80,3 +80,14 @@ def test_all_four_seed_classes_produce_distinct_ids_for_the_same_key() -> None:
         identity.ri_id(key),
     }
     assert len(ids) == 4
+
+
+def test_chunk_and_qa_accept_uuid_and_str_equivalently() -> None:
+    """The formulas key on the STORED source_document_id; a UUID object and
+    its canonical string form must mint the same id (callers hold both).
+    (Moved from the retired seed-contract acceptance module, S566.)"""
+    import uuid as _uuid
+
+    sd = _uuid.UUID("11111111-2222-3333-4444-555555555555")
+    assert identity.chunk_id(sd, 7) == identity.chunk_id(str(sd), 7)
+    assert identity.qa_id(sd, 7) == identity.qa_id(str(sd), 7)
