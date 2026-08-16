@@ -13,8 +13,6 @@
       "Bash(python3 -m playwright *)",
       "Write(.claude/skills/**)",
       "Bash(mkdir -p .claude/skills/*)",
-      "Bash(mkdir -p ~/.claude/.sentinels)",
-      "Bash(touch ~/.claude/.sentinels/*)",
       "Bash(ordna list)",
       "Bash(ordna list *)",
       "Bash(ordna show *)",
@@ -43,20 +41,12 @@
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ip-leak-filename-guard.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/sentinel-gated-agents-skills-edit-guard.sh\""
           }
         ]
       },
       {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/sentinel-gated-agents-skills-edit-guard.sh\""
-          },
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/ip-leak-filename-guard.sh\""

@@ -44,6 +44,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Data fetching:** TanStack Query exclusively (keys/fetchers in `lib/query/`).
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
 - The Read-tool deny on `supabase/types/database.types.ts` in `.claude/settings.json` is deliberate (DR-022, re-homed S504): the generated file is huge and generated — query types via `Tables<'x'>` or `sed`-range reads, and never "fix" the deny.
+- **Skill/agent edits:** files under `.claude/skills/` and `.claude/agents/` are only changed through the authoring skills — `/create-skill` for new skills, `/update-skill` for changes, `/audit-skill` for de-drift, `/propagate-workflow-change` for cross-file sweeps. Never raw-edit them outside one of those invocations.
 
 ## Orchestration & Sub-agents
 

@@ -15,3 +15,9 @@ pre-create; a tag exists once written. Filter the queue: `ordna list -t needs-tr
 These sit alongside ordna's own qualifier tags (`ready`, `blocked`, `spec-needed`,
 `needs-research`, `parked` — `tasks/AGENTS.md` §2): triage tags record queue state;
 qualifier tags record why.
+
+**Invocation note:** `/triage` — like `to-tickets`, `to-spec`, `wayfinder`, and
+`grill-with-docs` — is user-invoked by design (`disable-model-invocation: true`; see
+the plugin's `.agents/invocation.md`). The owner types the slash command; agents
+cannot self-invoke it. The queue is processed whenever a session is asked to run
+`/triage`.

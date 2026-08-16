@@ -3,18 +3,6 @@ name: propagate-workflow-change
 description: Propagate ONE dev-workflow change across every dev-lifecycle skill and agent that describes the old behaviour, so context continuity does not silently break session to session. Use this whenever workflow tooling, a data shape, or a process step changes and the skills/agents that reference it may now be stale — e.g. after an ordna CLI verb or config change, renaming a task-file frontmatter key or body section in tasks/AGENTS.md, adding a hook, retiring or renaming a skill, or moving the task-ledger path. It runs a grep-driven sweep of the workflow surface (canonical `.claude/skills` + `.claude/agents`, docs-site `.claude/skills` + `CLAUDE.md` + `tasks/AGENTS.md`), patches stale references minimally in each file's own voice, and reports per-file fixes with anything ambiguous flagged for the owner. Distinct from update-skill (author ONE skill) and audit-skill (de-drift ONE file): this is the cross-cutting, many-file propagation of a single change. Reach for it on phrases like "propagate this change", "which skills reference the old X", "the workflow changed, update the skills", or after landing a batch of ledger/tooling changes.
 ---
 
-## Step 0 — Mark sentinel (REQUIRED before any skill/agent edit)
-
-Before editing anything under `.claude/skills/` or `.claude/agents/`, run:
-
-```bash
-mkdir -p "$HOME/.claude/.sentinels" && touch "$HOME/.claude/.sentinels/create-skill.touch"
-```
-
-The PreToolUse hook `sentinel-gated-agents-skills-edit-guard.sh` blocks Write/Edit to
-`.claude/(agents|skills)/` unless an authoring-skill sentinel exists with mtime < 10 min.
-Re-touch if the sweep runs long — the sentinel expires after 10 minutes.
-
 # Propagate Workflow Change
 
 When the dev workflow's tooling, data shapes, or process changes — an ordna verb or
@@ -94,8 +82,6 @@ For each true stale reference, make the smallest edit that carries the change:
 - **Never touch a `<!-- code-intel:* -->` block or any string a test in `__tests__/`
   asserts.** Grep the test suite for a distinctive string first if unsure; a pinned anchor
   is not stale drift.
-- Respect the sentinel guard (Step 0). If an edit is rejected, re-touch and retry.
-
 If a reference is genuinely ambiguous — you can't tell whether the new behaviour applies,
 or the fix would change meaning — **do not guess**. Flag it for the owner in the report.
 
