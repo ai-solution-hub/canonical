@@ -16,39 +16,36 @@ at session close — written to, and committed in, the docs-site checkout resolv
 
 ## Step 1 — Update the Decision Register and the Ordna Task Ledger
 
-## Step 1a — Write settled rulings to the Decision Register
+## Step 1a — Write settled rulings as in-repo ADRs
 
-**One file per decision.** Do NOT edit `reference/decision-register.md` — it is a
-GENERATED index and hand edits are overwritten on the next regen.
+**One file per decision, in the canonical repo at `docs/adr/`** (DR-155, executed S569).
+The docs-site Decision Register is closed — its files stay resolvable as history; never
+add an entry there.
 
 1. **Admission test — both must pass, or it is not a decision.** (a) Would a future session
    re-flag, re-implement, or re-litigate this if it weren't written down? (b) Is it
    ADR-shaped — hard to reverse, surprising, a real trade-off? A how-to, a "landed at commit
    X", a rule already enforced by a lint/test/CI gate, or an observation all fail — route
    those to a runbook, a `CLAUDE.md`, the task file, or the retro (Step 2).
-2. **Allocate the next id** = highest ever issued + 1. **Never re-issue a number**, retired
-   ones included: retired ids are files too, so a re-issue collides on disk and CI fails.
-3. **Write** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decisions/dr-<nnn>-<slug>.md`
-   with `dr:` frontmatter (`id`, `status: accepted`, `decided`, `session`, `supersedes`,
-   `superseded_by`, `amends`, `tags`) and the ADR body — Context / Decision / Alternatives
-   Considered / Consequences. One to three sentences for the ruling; link the spec or commit
-   for depth rather than inlining it.
-4. **Supersession is bidirectional.** The new decision sets `supersedes: [DR-NNN]`; the old
-   file flips to `status: superseded` + `superseded_by:`. CI fails a one-sided chain.
-   Retiring with no successor is `status: retired` + `retired_reason` (+
-   `substance_moved_to` when the content moved rather than died). **Never delete a decision
-   file** — deletion dangles every citation to it and frees its number for re-issue.
-5. **Regenerate + verify:** `cd "$KH_PRIVATE_DOCS_DIR" && bun run decisions:index && bunx
-   vitest run __tests__/decision-register-integrity.test.ts`. Commit the regenerated index
-   with the decision file.
+   **Scope gate (DR-155):** ADRs are platform operational/architectural by definition —
+   model-level content is a PRD amendment (owner act, diet R3); client-specific or
+   commercial content routes to the PRD's subordinate docs, never an ADR.
+2. **Allocate the next number** = highest existing `docs/adr/` file + 1. Never re-issue.
+3. **Write** `docs/adr/NNNN-<slug>.md` — Context / Decision / Alternatives considered /
+   Consequences. One to three sentences for the ruling; link the spec or commit for depth.
+   The repo is PUBLIC (ADR 0006): current-truth only — no client names, tokens, or
+   private-ledger archaeology (the DR-129 authored-fresh discipline).
+4. **Supersession is bidirectional.** The new ADR names what it supersedes; the old file
+   gains a superseded-by banner. Never delete an ADR file.
+5. **Commit** the ADR with the session's canonical docs commit.
 
-Boundary: an architectural decision → a decision file; an observation / friction → the retro
+Boundary: an architectural decision → an ADR; an observation / friction → the retro
 (Step 2). Skip if the session settled nothing.
 
-When a new decision **supersedes** an existing `DR-NNN` (or this session flipped a Task/spec
-state that downstream docs assert), run the docs-site `sync-ledger-context` skill — or flag
-it in *Session deltas* — so docs carrying the superseded assertion get a *Ledger drift* stamp instead of silently going
-stale.
+When a new ADR **supersedes** an existing ADR or legacy `DR-NNN` (or this session flipped a
+Task/spec state that downstream docs assert), run the docs-site `sync-ledger-context`
+skill — or flag it in *Session deltas* — so docs carrying the superseded assertion get a
+*Ledger drift* stamp instead of silently going stale.
 
 ## Step 1b — Reconcile task statuses. 
 

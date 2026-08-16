@@ -120,5 +120,5 @@ Findings, not designs: cite evidence (`file.ts:42`, DR-NNN, doc URLs) and state 
 
 ## Related skills
 
-- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md ({N.1} feeds {N.2}/{N.3}); they self-direct research for small tasks where no RESEARCH.md exists. The plan surface is the Intent workspace spec-note; {N.4} PLAN.md is retired (DR-089).
+- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md ({N.1} feeds {N.2}/{N.3}); they self-direct research for small tasks where no RESEARCH.md exists. Plans/briefs live in `specs/id-N/notes/` (diet R1; {N.4} PLAN.md stays retired).
 - `workflow-orchestration` — Coordinator-side dispatch and right-sizing of the chain.
