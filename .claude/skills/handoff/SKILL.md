@@ -9,8 +9,8 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 Generates
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-ca-s{NNN}-{slug}.md`
-at session close (the file is written to, and committed in, the docs-site checkout resolved via
-`KH_PRIVATE_DOCS_DIR`). The prompt is consumed by the next session. It is a **routing + deltas** document: it points to canonical sources and carries only what is NOT already in them.
+at session close — written to, and committed in, the docs-site checkout resolved via
+`KH_PRIVATE_DOCS_DIR`. It is a **routing + deltas** document for the next session.
 
 ---
 
@@ -18,7 +18,7 @@ at session close (the file is written to, and committed in, the docs-site checko
 
 ## Step 1a — Write settled rulings to the Decision Register
 
-**One file per decision** (id-368). Do NOT edit `reference/decision-register.md` — it is a
+**One file per decision.** Do NOT edit `reference/decision-register.md` — it is a
 GENERATED index and hand edits are overwritten on the next regen.
 
 1. **Admission test — both must pass, or it is not a decision.** (a) Would a future session
@@ -37,8 +37,7 @@ GENERATED index and hand edits are overwritten on the next regen.
    file flips to `status: superseded` + `superseded_by:`. CI fails a one-sided chain.
    Retiring with no successor is `status: retired` + `retired_reason` (+
    `substance_moved_to` when the content moved rather than died). **Never delete a decision
-   file** — deletion is what left 610 citations dangling and let DR-087's number be
-   re-issued for an unrelated ruling.
+   file** — deletion dangles every citation to it and frees its number for re-issue.
 5. **Regenerate + verify:** `cd "$KH_PRIVATE_DOCS_DIR" && bun run decisions:index && bunx
    vitest run __tests__/decision-register-integrity.test.ts`. Commit the regenerated index
    with the decision file.
@@ -57,7 +56,7 @@ For every task touched this session: flip status via ordna move (done is Coordin
 
 **Verify before you flip.** For a branch-based subtask, confirm its named symbols exist
 on `main` (`git cat-file -e main:<path>`) before moving it to done — a done-checkbox over
-an unlanded branch is how {163.20} (S498) and {163.19} (S499) were both lost. Not on
+an unlanded branch loses the work. Not on
 `main` ⇒ status stays open and the branch is named in `status_note`. Canonical home for
 this rule is `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §5; this is its session-close mirror.
 
@@ -86,8 +85,8 @@ Resolve every task this session touched to its owning **project**, then reconcil
    line if it is now wrong. Adding the task id to `Linked tasks:` is in scope when the
    task is plainly that project's work; minting a project or initiative is **not**.
    Commit with the docs-site commit in Step 5.
-4. **Unowned is the common path, not an error.** Only 126 of 354 task files resolve to an
-   initiative by either route, and no `Linked tasks:` entry names an id above 163. Record
+4. **Unowned is the common path, not an error.** Most task files resolve to no initiative
+   by either route. Record
    *"unowned"* on the line, carry it into *Session focus* as an ownership gap, and do not
    backfill the ledger from the handoff.
 
@@ -110,6 +109,14 @@ You read the ranked candidates, and author the session's retro record if there a
 `date` (YYYY-MM-DD), `track`; the six category arrays + `session_refs` /
 `commit_refs` / `cross_doc_links` default to empty when omitted.
 
+**Findings feed the queue, not the shelf.** A retro is analysis, not a
+work surface — nobody proactively re-reads it. Every actionable finding that
+survives authoring (process fix, code defect, doc rot) ALSO becomes an ordna
+backlog item via the finding hand-off path (`tasks/AGENTS.md` §5), tagged
+`needs-triage`, with `cross_doc_links` pointing back at the retro record. The
+`/triage` skill (see `docs/agents/triage-labels.md`) processes that queue on
+pickup. A finding recorded only in the retro is a defect of this step.
+
 ## Step 2c — Write the session diary entry (mempalace_diary_write)
 
 Cross-session recall quality tracks diary volume, and every recall path ranks
@@ -124,9 +131,8 @@ SESSION:{YYYY-MM-DD}.S{NNN}({branch/slug})|{what shipped: task ids + SHAs}|{what
 One entry per session; facts over narrative; entity codes and `{N.M}` refs as
 in prior entries (`mempalace_diary_read` shows the house style).
 
-**On `-32001 Peer MCP writer active`** (the norm on this machine — auggie's
-`--mcp-auto-workspace` spawns a peer `mempalace-mcp` per Claude session and
-per bg-spare, so the guard rarely clears): do NOT retry the MCP tool and do
+**On `-32001 Peer MCP writer active`** (expected here — peer writers are
+normally live and the guard rarely clears): do NOT retry the MCP tool and do
 NOT set `MEMPALACE_MCP_ALLOW_PEER_WRITER` (that opens a direct chroma writer
 beside the daemon). Submit the entry as a daemon job instead — single-writer
 safe, lands when the queue drains:
@@ -151,10 +157,8 @@ prompt's *Session Carry* so the next session lands it.
 ## Step 2d — Scratch migrate-or-confirm gate
 
 `.user-scratch/` **and `.lavish/`** are gitignored. Anything left in either at
-session close is invisible to a fresh clone and to every other machine. S506
-measured the cost: of ~101 `.user-scratch/` paths cited across the docs-site,
-**33 no longer existed** — the evidence had already been lost, silently, one
-deletion at a time.
+session close is invisible to a fresh clone and to every other machine, and
+every citation to it is a promise the repository cannot keep.
 
 So each file this session created or modified in either directory leaves the
 session in one of two states, never a third:
@@ -173,15 +177,13 @@ find .user-scratch .lavish -type f -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_S
 **`.lavish/` boards migrate to the docs-site `reports/` as `s<NNN>-<slug>.html`**,
 session-prefixed. They are decision and OQ surfaces — among the densest
 ratification records the project produces — so "confirmed as scratch" is the rare
-disposition here, not the default. S521 found twelve boards still sitting in
-`canonical/.lavish` months after the sessions that made them; four had been
-rehomed under session-prefixed names and eight had not, so a filename-exact check
-under-reports. **Compare by content hash, not by name.**
+disposition here, not the default. Rehoming is typically partial, and a
+filename-exact check under-reports it: **compare by content hash, not by name.**
 
 Migrating a board is what makes it *recallable*: the palace mines
 `canonical/.lavish` only via `--include-ignored`, and once a board is rehomed the
 `canonical/.lavish` drawers become orphans pointing at a deleted path. The
-docs-site side is carved out of that repo's `*.html` exclusion (S521) precisely so
+docs-site side is carved out of that repo's `*.html` exclusion precisely so
 the rehomed copy is mined. Rehome, re-mine, then prune the orphans — in that
 order, never the reverse.
 
@@ -190,7 +192,7 @@ directory.** Transient by design — it exists only when a session failed, as
 context for the follow-up session. It is never migrated and never needs
 confirming.
 
-(Written without joining directory and filename on purpose: the `id-386`
+(Written without joining directory and filename on purpose: the
 guard below fails any tracked file that spells a `.user-scratch/` file path,
 and its prescribed fix — migrate the file, repoint the citation — cannot
 apply to a file that is transient by design. Naming the file separately keeps
@@ -211,7 +213,7 @@ scratch, because they describe a moment rather than claiming to be current.
 
 ---
 
-## Step 2e — Change-log pass (id-390)
+## Step 2e — Change-log pass
 
 1. From the docs-site root, run `bun run changelog:generate` (needs the public-repo
    sibling checkout — set `KH_PUBLIC_REPO_DIR` if it is not at `../canonical`). This
@@ -237,7 +239,7 @@ Confirm before drafting (ask Liam if unsure):
 
 ---
 
-## Step 4 — Write the prompt (target 60-80 lines — diet R2, S566)
+## Step 4 — Write the prompt (target 60-80 lines)
 
 **Deltas + mechanical state only.** Settled state lives in `reference/platform-prd.md`,
 `reference/entity-glossary.md`, and the post-disposition register — never restate it in
@@ -249,59 +251,8 @@ Filename uses the highest existing number + 1.
 Write to the docs-site checkout (resolve `KH_PRIVATE_DOCS_DIR` first):
 `${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-ca-s{NNN}-{slug}.md`
 
-The prompt's **body addresses the next session** (the reader).
-
-````markdown
----
-title: "S{NNN}: {slug}"
----
-
-# Canonical Platform - Continuation Prompt - {Next-session purpose}
-
-_Authored at the close of S{NNN}; for the next session._
-
-## Session focus
-
-{3-4 lines: focus for the next session. Open by naming the owning initiative and
-project — "{Initiative title} -> {project-slug} [status]" — or "unowned" where Step 1c
-resolved no owner.}
-
-## Completed this session (Tasks + SHAs)
-
-Task/Subtask ids + merge/PR SHA only (the ledger holds the detail; never reproduce it). Omit if nothing shipped.}
-
-## Settled this session (Decision Register)
-
-{New architectural decisions written to `reference/decisions/` this session —
-cite the NEW ids only (e.g. `DR-011`–`DR-013`), one line each.}
-
-## Session deltas / decisions NOT in the ledger
-
-{Bullets: only what a fresh Coordinator cannot derive from the ordna/specs/register —
-NON-binding deltas: schema/process changes, gotchas, strategic options. Omit if all information is in ordna/specs/register.}
-
-## Session Carry
-
-{Anything which was intended for the previous session, but wasn't completed.}
-
-## Mechanical state (auto-generated)
-
-{Paste the output of `bash scripts/session-close-report.sh` — branch/HEAD,
-orphaned worktrees, open PRs + CI, index freshness.}
-
-## Parallel lanes & shared state
-
-{What OTHER live lanes hold that this prompt's reader could clobber or be
-blocked by — the generator does not emit these; capture them by hand (Step 4b):
-foreign uncommitted files in the docs-site checkout (name the owning lane;
-"do not commit/clobber"); mempalace health (writer-lock holders, daemon state,
-repair owed?); any live session/Intent workspace holding a shared singleton.
-Omit only when all three are verified clean.}
-
-## Pre-reqs (Liam)
-
-{Only items needing Liam action before the next session starts. Omit if none.}
-````
+Fill in the form in `references/prompt-template.md` — keep its section order; each
+section's inline rule says when to omit it.
 
 ---
 
@@ -317,8 +268,8 @@ It emits branch/HEAD, named worktrees, unregistered Intent workspace checkouts,
 open PRs + CI (`gh-axi`), and index freshness.
 
 **Then capture the shared-state facts the generator cannot see** (they feed the
-prompt's *Parallel lanes & shared state* section — the S511 start proved a fresh
-session needs them and cannot derive them from the ledger):
+prompt's *Parallel lanes & shared state* section — a fresh session needs them
+and cannot derive them from the ledger):
 
 ```bash
 git -C "$KH_PRIVATE_DOCS_DIR" status --short   # foreign lanes' uncommitted files
@@ -333,10 +284,9 @@ them in the prompt so the next session neither commits nor clobbers them.
 
 ## Step 5 — Commit and push
 
-Continuation prompts are stored in the private docs-site repo, so
-the commit + push target THAT checkout, not the Canonical Platform repo. Use the
-explicit `--git-dir`/`--work-tree` form so the op runs against docs-site
-regardless of CWD:
+The commit + push target the docs-site checkout, not the Canonical Platform
+repo. Use the explicit `--git-dir`/`--work-tree` form so the op runs against
+docs-site regardless of CWD:
 
 ```bash
 DOCS="${KH_PRIVATE_DOCS_DIR}"
@@ -354,7 +304,7 @@ git --git-dir="$DOCS/.git" --work-tree="$DOCS" push
 - [ ] Routing + deltas only — no task state, per-WP specs, file ownership, or
       session-history recaps reproduced (those are pointers).
 - [ ] No emojis; plain English (Liam-readable); all paths repo-relative.
-- [ ] Total length ≤ ~100 lines (longer needs explicit justification).
+- [ ] Total length ≤ ~80 lines (longer needs explicit justification).
 - [ ] New architectural decisions written to the Decision Register.
 - [ ] Diary entry written (Step 2c) — or recorded as owed in *Session Carry*.
 - [ ] Owning initiative + project reconciled (Step 1c); *Session focus* names

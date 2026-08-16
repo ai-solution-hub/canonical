@@ -75,6 +75,20 @@ Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`memp
 
 **Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are **ordna** task files at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels, applied as ordna `tags:` (`wontfix` also flips status to `archived`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain.md`.
+
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
 
