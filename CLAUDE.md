@@ -100,5 +100,6 @@ GitNexus indexes this repo as **canonical** and exposes on-demand code-intellige
 - **Exploration / "how does X work?"** — `query` and `context` return process-grouped execution flows; reach for them instead of grepping when the call graph is the answer.
 - **Change safety / refactors** — `impact` sizes the blast radius, `rename` does call-graph-aware renames, `detect_changes` scopes a diff (`base_ref: "main"`).
 - Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, debugging, refactoring, guide, cli).
+- **Memtrace is additive, never authoritative** — GitNexus remains the impact/rename authority; this line is the tie-break against the vendor-managed `~/.claude/MEMTRACE.md`, which routes impact analysis to Memtrace and reinstalls itself. *(was DR-071)*
 
 <!-- gitnexus:end -->
