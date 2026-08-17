@@ -1,13 +1,12 @@
 ---
 name: audit-skill
-description: Audit a single skill or agent file — plus its references/ and scripts/ — for accreted drift, strip it in place, and show the diff. Drift means historical session refs (S###), provenance archaeology ({N.M} / ID-N.M / OQ-S### / "post-S280"), inlined verbosity ("why these constraints exist" essays, restated or triplicated boundaries, "your success is measured by…" lists, paths repeated many times), un-extracted reference blocks (inlined rubrics/templates/metric defs with no code-intel marker), and stale cross-refs (dead path citations, orphaned reference links, stale numeric budgets). Use this whenever a SKILL.md or agent .md has grown bloated, or when asked to "de-drift", "slim down", "clean up", "remediate", "strip", or "audit" one — and specifically when create-skill / update-skill / agent-development won't help, because those only govern NEW content and never remove already-accreted cruft. Operates on ONE target file per invocation: fresh single-file context is the anti-drift mechanism, so never batch or sweep.
+description: Audit a single skill or agent file — plus its references/ and scripts/ — for accreted drift, strip it in place, and show the diff. Use this whenever a SKILL.md or agent .md has grown bloated, or when asked to "de-drift", "slim down", "clean up", "remediate", "strip", or "audit" one. Operates on ONE target file per invocation.
 ---
 
 # Audit Skill
 
-`create-skill`, `update-skill`, and `agent-development` keep _new_ content clean. None of
-them remove drift that has already accreted. This skill is the missing strip pass: point
-it at one bloated skill or agent file, and it rewrites the body to current best practice
+This skill removes drift that has accreted in skill and agent files: point it at one 
+bloated skill or agent file, and it rewrites the body to current best practice
 in place, then shows you the diff.
 
 ## The one-file contract (why this is not a sweep)

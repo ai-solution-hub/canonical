@@ -23,21 +23,22 @@ ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-
 
 ## Step 2: Read Critical Documents
 
+Docs-site paths below are relative to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/` unless
+written out in full.
+
 Read these documents in parallel to load context. **Load anchor first** —
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/platform-context.md` (current
-operational facts: four-DB topology, deploy hosts, key anchors; follow relevant
-progressive-disclosure pointers for depth).
+`reference/platform-context.md` (current operational facts: four-DB topology, deploy
+hosts, key anchors; follow relevant progressive-disclosure pointers for depth).
 
 **Read its `## Evidence precedence — docs outrank code` section in full, and treat it as
-binding for the session.** It is not background: the reference set, runbooks,
-`platform-direction.md`, the OKF doctrine and `corpus-reframe-review.html` were
-deliberately corrected so the platform has a north star **because the codebase is known to
-be inaccurate**. Ratified docs are the authority; code is evidence of what exists, never
-of what is correct. **But not every doc in the site is a ratified doc** — read that
-section's `### Not every doc is a north-star doc` sub-block too: it names the stale
-families (`intended-architecture/` bar `01-vision.md`, `phase-0-investigation/`, specs for
-task ids below ~130) and the read-never-written discriminator. Citing a stale doc is the
-same error as citing the code.
+binding for the session.** Ratified docs are the authority; code is evidence of what
+exists, never of what is correct. **But not every doc in the site is a ratified doc** —
+read that section's `### Not every doc is a north-star doc` sub-block too: it names the
+stale families (`intended-architecture/` bar `01-vision.md`, `phase-0-investigation/`,
+specs for task ids below ~130) and the read-never-written discriminator. Citing a stale
+doc is the same error as citing the code. Carry the precedence rule into **every sub-agent
+dispatch brief**: a brief citing only task files, specs and code reproduces the codebase's
+errors.
 
 Then open the **Key context anchors** table and read every anchor whose ground the
 session's task touches — these are mandatory for a task on that ground, not optional
@@ -45,20 +46,11 @@ depth. For any corpus, source-lifecycle, ingestion, fixture or naming work that 
 `corpus-reframe-review.html` (R1/R2) and `reference/entity-glossary.md` **before** forming
 a verdict.
 
-**This is the S515 failure, and it is cheap to repeat.** That session read this anchor,
-treated the pointers as optional, derived four verdicts from the codebase instead, and had
-all four overturned by the owner — a spec "retired" on assertion-level evidence while
-carrying retired concepts, a module kept because many callers imported it (only one was
-migrated), columns judged live-or-dead from rows in an internal dev DB, and a ratified
-design declared non-existent because grep missed it. Each looked like diligence. Carry the
-precedence rule into **every sub-agent dispatch brief** too: a brief citing only task
-files, specs and code reproduces the codebase's errors.
-
 ### 2a: Memory recall
 
 Run recall via `mempalace_search` / `mempalace_kg_query` per the `recall-grounding` skill,
-**seeded with the continuation-prompt-named task ids and titles**. Search **without** a
-`wing` filter and filter client-side.
+**seeded with the continuation-prompt-named task ids and titles**. That skill owns the
+filter discipline — follow it rather than a rule restated here.
 
 **Fail open:** if the palace errors, use the lock-free FTS; run it manually with your seed
 terms. **Double-quote every term** — FTS5 reads `-` as a column filter, so a bare
@@ -102,9 +94,9 @@ Load the owning **project** for your task so the session opens with the strategi
 this Task matters" — not just the tactical state.
 
 Initiatives are plain docs-site markdown, one numbered file per initiative:
-`${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/initiatives/<n>.md`. Projects sit at
-**two** levels — directly under `## Projects`, and under `## Sub-initiatives` →
-`- Projects:`. Check both; five of ten initiatives park every project one level down.
+`ledgers/initiatives/<n>.md`. Projects sit at **two** levels — directly under
+`## Projects`, and under `## Sub-initiatives` → `- Projects:`. Always check both levels;
+some initiatives park every project one level down.
 
 1. **Resolve the project first — it works with or without the frontmatter key.** The
    project is the entry whose `Linked tasks:` includes the active id:
@@ -132,41 +124,36 @@ Initiatives are plain docs-site markdown, one numbered file per initiative:
    project's **[status]**, **Summary**, and sibling **Linked tasks** — the siblings are
    the work you may be about to duplicate or block.
 4. **`Substrate doc`, where set, is the floor for context, not the ceiling** — confirm
-   against the task file and the Decision Register before acting on it. Two live pointers
-   aim into `_archive/` (initiative 4).
-5. **Unowned is the common case, not the exception.** Only **126 of 354** task files
-   resolve by either route — 125 by frontmatter, 80 by `Linked tasks`, none above id
-   **163**. When neither resolves and the session's work makes ownership matter
+   against the task file and the Decision Register before acting on it; some pointers aim
+   into `_archive/`.
+5. **Unowned is a common case, not an exception** — a large share of task files resolve by
+   neither route. When neither resolves and the session's work makes ownership matter
    (spec-chain work, a promote), run the mint-or-link ladder —
-   `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §6 (id-340, DR-101) — and record its verdict;
-   otherwise state _"no owning initiative/project — unowned Task"_ and continue. Do not
-   invent an owner or halt; bulk ownership backfill belongs to the initiatives-ledger
-   project.
+   `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §6 — and record its verdict; otherwise state
+   _"no owning initiative/project — unowned Task"_ and continue. Do not invent an owner or
+   halt; bulk ownership backfill belongs to the initiatives-ledger project.
 
 ### 2d: Settled-state read-back (one-time retro review + decision register)
 
 Load the durable settled state the deltas-only prompt omits. This is a **one-time read at
 session open**, not a per-turn ritual.
 
-- **Retros — one-time review first.** Retros left the ledger too: one plain markdown file
-  per session at `${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/retros/S<NNN>.md`
-  (session-numbered). Read the most recent **once** at session open:
+- **Retros:** one plain markdown file per session at `ledgers/retros/S<NNN>.md`
+  (session-numbered). List the most recent:
 
   ```bash
   ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/retros/S*.md | sort -V | tail -3
   ```
 
   then read those files and surface the durable sections — **Unresolved questions**,
-  **Workflow improvements**, **Failed assumptions**, **Architecture decisions**. Don't
-  re-read them each turn; this is the single settled-state pass.
+  **Workflow improvements**, **Failed assumptions**, **Architecture decisions**.
 
 - **Decision register:** read the **"In force"** table in
-  `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reference/decision-register.md` — the binding
-  settled-rulings guardrail (`DR-NNN`). That page is a GENERATED index: one row per
-  decision (id, date, status, one-line ruling, link). Read the table, then open only the
-  individual files under `reference/decisions/` that the session actually needs — the
-  continuation prompt's cited ids, plus anything the table shows touching your task's
-  ground. Never read the whole `decisions/` directory.
+  `reference/decision-register.md` — the binding settled-rulings guardrail (`DR-NNN`).
+  That page is a GENERATED index: one row per decision (id, date, status, one-line ruling,
+  link). Read the table, then open only the individual files under `reference/decisions/`
+  that the session actually needs — the continuation prompt's cited ids, plus anything the
+  table shows touching your task's ground. Never read the whole `decisions/` directory.
 
   Below the in-force table is **"Superseded and retired"**. Skip it at session start; go
   there only when resolving a citation that isn't in the in-force table. A `DR-NNN` cited
@@ -205,10 +192,8 @@ spec-authoring / docs / ledger sessions skip this step:
 bun run gitnexus:analyze    # minutes; rebuilds the index for the primary tree
 ```
 
-Notes:
-
-- A stale-index warning on every commit is expected (the post-commit hook compares the
-  index to the new HEAD). Never re-run per doc/ledger commit.
+A stale-index warning on every commit is expected (the post-commit hook compares the index
+to the new HEAD). Never re-run per doc/ledger commit.
 
 ---
 

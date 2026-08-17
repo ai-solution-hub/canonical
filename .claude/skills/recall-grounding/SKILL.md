@@ -1,46 +1,20 @@
 ---
 name: recall-grounding
 description: >-
-  Workflow-specific recall discipline for Canonical — WHEN to recall and how to
-  stay grounded when recall degrades. Fire recall BEFORE presenting any
-  conclusion, plan, ratification, spec, or verdict that cites a task id, a
-  DR-NNN, prior-session framing, or settled state, not only at session start or
-  in response to a direct user question. On a mempalace MCP `-32002` /
-  integrity-check refusal (or any MCP recall error), fall through to the
-  lock-free `mode=ro&immutable=1` sqlite FTS read instead of proceeding
-  recall-blind. Use whenever composing a sub-agent dispatch brief's grounding
-  context, whenever about to state a conclusion that cites prior work
-  or decisions, or whenever `mempalace_search`/`mempalace_kg_query` errors.
-  Cross-references the plugin `mempalace-recall` skill, which owns the generic
-  palace-search mechanics (`mempalace_search`/`mempalace_kg_query` how-to) —
-  this skill owns the discipline layered on top of it.
+Workflow-specific recall discipline for Canonical — WHEN to recall and how to stay grounded when recall degrades. Fire recall BEFORE presenting any conclusion, plan, ratification, spec, or verdict that cites a task id, prior-session framing, or settled state, and when composing a sub-agent dispatch brief's grounding context. 
 allowed-tools: Bash
 ---
 
 # recall-grounding
 
-Repo-local, workflow-specific recall discipline. This skill answers two
-questions the generic palace mechanism doesn't: **when** must recall fire, and
-**what to do when the mechanism itself fails**. It does not duplicate the
-plugin `mempalace-recall` skill's how-to for `mempalace_search` /
-`mempalace_kg_query` — read that skill (cited below) for the mechanism itself.
+Repo-local recall discipline: **when** recall must fire, and **what to do when
+the mechanism itself fails**. The plugin `mempalace-recall` skill owns the
+mechanism — how to call `mempalace_search` / `mempalace_kg_query` and read the
+results — so read that skill for the how-to and this one for the when.
 
-## Relationship to the plugin `mempalace-recall` skill
-
-- **`mempalace-recall` (plugin-managed, outside this repo)** — the generic
-  mechanism: search the palace via `mempalace_search` / `mempalace_kg_query`
-  before answering about past work, decisions, people, or projects. It is
-  question-driven ("the user asked about X") and lives outside repo/docs-site
-  control — it is overwritten on plugin update, so it cannot own
-  workflow-specific protocol.
-- **`recall-grounding` (this skill, repo-local)** — the workflow discipline
-  layered on top: fires on decision-POINTS, not just questions, and survives
-  mechanism failure via a documented fallback. Do not edit the plugin skill to
-  add workflow-specific behaviour — extend this one instead.
-
-Both are in play together: this skill tells you *when* to call
-`mempalace_search`/`mempalace_kg_query` (or its fallback) and what to do with
-a failure; the plugin skill tells you *how* to call it and interpret results.
+The plugin skill is plugin-managed and overwritten on update, so it cannot hold
+workflow-specific protocol: never edit it to add workflow behaviour — extend
+this skill instead.
 
 ## 1. Decision-point recall triggers
 
@@ -66,8 +40,8 @@ cd "$KH_PRIVATE_DOCS_DIR" && ordna show <id>                 # CLI equivalent (n
 ```
 
 This is cheap and catches the "reopen a closed task as if it were live" class
-of error (the DR-070 carry-over — `tasks/AGENTS.md` §5, "check status before
-citing"). Use non-interactive verbs only; bare `ordna` opens the TUI and hangs.
+of error (`tasks/AGENTS.md` §5, "Check status before citing"). Use
+non-interactive verbs only; bare `ordna` opens the TUI and hangs.
 
 Skip recall for pure greenfield work with no memory relevance (renaming a
 variable, fixing a typo) — recall is decision-driven, not reflexive on every
@@ -106,14 +80,13 @@ Constraints on this read (non-negotiable):
   `MATCH 'id-145 OR okf'` → `Error: stepping, no such column: 145`. Quoted
   (`MATCH '"id-145" OR "okf"'`) it returns normally. This bites exactly when the
   fallback is needed — the seeds are task ids and `DR-NNN`s, and MCP recall is
-  already down. Verified S528; flagged unfixed in three prior retros before that.
+  already down.
 - **Lock-free only** — `mode=ro&immutable=1`, WAL sqlite read. NEVER open a
   chromadb writer and NEVER route through a mempalace CLI write in this path.
 - **`wing=`/`room=` filters are safe — use them.** On `mempalace_search` they
-  are genuine ChromaDB pre-filters; the old "#1665 — search without filters
-  and post-filter client-side" rule was a misdiagnosis (disproved S520). On
-  this direct FTS read the wing/room joins are plain sqlite metadata — filter
-  freely. Failure shape + remedy when a filtered MCP search degrades: §2a.
+  are genuine ChromaDB pre-filters; on this direct FTS read the wing/room joins
+  are plain sqlite metadata. Filter freely. Failure shape + remedy when a
+  filtered MCP search degrades: §2a.
 - **Seed the query** with the terms that matter for the conclusion you're
   about to present — task id(s), `DR-NNN`, topic keywords — not a bare
   wildcard.
@@ -125,9 +98,9 @@ tell the user memory is degraded and proceed — never block on recall.
 
 The palace is dominated by raw transcript mines; the curated diary
 (`wing_claude`, `room='diary'`) is the highest-signal surface and is
-outnumbered roughly 1000:1, so identical boilerplate outranks it on lexical
-match (`runbooks/mempalace-repair.md` §10.5). The SessionStart digest hook
-already compensates; `mempalace_search` does not — so apply the same
+outnumbered by orders of magnitude, so identical boilerplate outranks it on
+lexical match (`runbooks/mempalace-repair.md` §10.5). The SessionStart digest
+hook already compensates; `mempalace_search` does not — so apply the same
 discipline client-side whenever you recall via MCP:
 
 - **Rank diary results first.** Read `room`/`wing` on each result; treat
@@ -137,20 +110,19 @@ discipline client-side whenever you recall via MCP:
   `Base directory for this skill`, or `topic='checkpoint'` — these are
   machine boilerplate, not memory.
 - A `mempalace_search` scoped by `room:`/`wing:` (e.g. `room: "diary"`) is a
-  first-class move — the filters are genuine ChromaDB pre-filters (S520
-  disproved the earlier "#1665 wing-filter defect" reading). If a filtered
-  query errors or returns 0 for terms that match unfiltered, that is
-  `_query_drawers_with_filter_fallback` degrading because the HNSW index is
-  inconsistent with the metadata store: the remedy is a palace repair +
-  `mempalace_reconnect`, not filter avoidance — an unscoped pass filtered
-  client-side is only the stopgap until that runs. Note the noise filters
-  still apply — `CHECKPOINT:` drawers live inside `room='diary'` too.
+  first-class move. If a filtered query errors or returns 0 for terms that
+  match unfiltered, that is `_query_drawers_with_filter_fallback` degrading
+  because the HNSW index is inconsistent with the metadata store: the remedy
+  is a palace repair + `mempalace_reconnect`, not filter avoidance — an
+  unscoped pass filtered client-side is only the stopgap until that runs. Note
+  the noise filters still apply — `CHECKPOINT:` drawers live inside
+  `room='diary'` too.
 - Two repair-adjacent caveats. A plain `repair --mode from-sqlite` resets
   `hnsw:sync_threshold` to 2 and silently re-arms the vector-search outage —
   every rebuild must re-pin it to 1000 (DR-110). And while HNSW divergence
-  exceeds tolerance (as in the S531→S532 interim, ~2k behind), recall
-  silently degrades to `bm25_only_via_sqlite`: filtered searches still
-  answer, riding BM25, until the repair/compaction catches up.
+  exceeds tolerance, recall silently degrades to `bm25_only_via_sqlite`:
+  filtered searches still answer, riding BM25, until the repair/compaction
+  catches up.
 
 ## 3. On-demand historic stores
 
@@ -167,15 +139,13 @@ context — reach for them only when the live palace comes up empty on older wor
   Point-in-time and possibly superseded — verify anything it returns against
   the current docs-site before trusting it.
 
-- **Cold transcript backup** — the full pre-S355350k transcript history in
-  `/mempalace-backup-PRE-PATHA-20260612.tar.gz`. Extract, open the nested
-  `.mempalace/palace`, collection `mempalace_drawers`, to recover one specific
-  older conversation. Last resort — not a routine recall path.
+- **Cold transcript backup** — the full pre-reset 350k-drawer transcript
+  history in `~/mempalace-backup-PRE-PATHA-20260612.tar.gz`. Extract, open the
+  nested `.mempalace/palace`, collection `mempalace_drawers`, to recover one
+  specific older conversation. Last resort — not a routine recall path.
 
 ## 4. Where this fits in agent briefs
 
 Root `AGENTS.md` § Ledger protocol carries the compact form of §1 — verify live
 status before citing a task, subtask, or decision-record state. This skill is
-the fuller protocol behind that rule — read it when the one-liner isn't enough
-context, or when you hit an MCP recall failure and need the fallback recipe
-in §2.
+the fuller protocol behind that rule.

@@ -274,8 +274,8 @@ current wave or schedule it for a fix wave.
 > **Write substrate (downstream — informational):** The Orchestrator materialises this
 > spec by editing the owning task file directly — a new `### {N.M} <title> — pending`
 > entry under `tasks/id-N.md`'s `## Subtasks` section (there are no child task files, and
-> no body-edit CLI verb; DR-089 keeps decomposition in the Intent workspace spec-note,
-> which `## Subtasks` mirrors). Format: `tasks/AGENTS.md` §2.
+> no body-edit CLI verb; plans/briefs live in `specs/id-N/notes/` per diet R1).
+> Format: `tasks/AGENTS.md` §2.
 
 ### Branch B — Is it strategic / cross-cutting? ("roadmap promotion")
 

@@ -2,13 +2,7 @@
 name: research
 description:
   Empirically ground a task BEFORE spec authoring — interrogate the codebase and database,
-  consult the task-type-relevant domain skills and current library docs, recall memory, the
-  decision register, and related specs, and research externally when warranted, producing a
-  RESEARCH.md ({N.1}) the PRODUCT and TECH authors can trust without re-investigating. Use
-  when starting the spec chain for a new Task ID-N, when asked to research, investigate, or
-  ground a task before design, when a Planner is about to write PRODUCT.md or TECH.md and
-  no RESEARCH.md exists, or when deciding whether existing patterns should be built on or
-  fixed first.
+  consult the task-type-relevant domain skills and current library docs, recall memory, adrs, and related specs, and research externally when warranted. Produces a RESEARCH.md ({N.1}) that spec authors can trust without re-investigating. Use when asked to research, investigate, or ground a task before design.
 ---
 # research
 
@@ -120,5 +114,5 @@ Findings, not designs: cite evidence (`file.ts:42`, DR-NNN, doc URLs) and state 
 
 ## Related skills
 
-- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md ({N.1} feeds {N.2}/{N.3}); they self-direct research for small tasks where no RESEARCH.md exists. The plan surface is the Intent workspace spec-note; {N.4} PLAN.md is retired (DR-089).
+- `write-product-spec` / `write-tech-spec` — consumers of RESEARCH.md ({N.1} feeds {N.2}/{N.3}); they self-direct research for small tasks where no RESEARCH.md exists. Plans/briefs live in `specs/id-N/notes/` (diet R1; {N.4} PLAN.md stays retired).
 - `workflow-orchestration` — Coordinator-side dispatch and right-sizing of the chain.

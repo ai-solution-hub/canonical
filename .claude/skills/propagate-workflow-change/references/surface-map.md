@@ -50,8 +50,8 @@ Shape essentials that skills reference (all defined in `tasks/AGENTS.md`):
   `commit_refs`, `cross_doc_links`, `track`, `type`.
 - **Body sections**: `## Goal`, `## Acceptance Criteria` (board-parsed, task-level only),
   `## Notes`, `## Progress` (append-only), `## Subtasks` (`### {N.M} title — status`
-  narrative entries; no child task files — DR-089 keeps decomposition in the Intent
-  workspace spec-note).
+  narrative entries; no child task files — decomposition stays in `## Subtasks`, and
+  plans/briefs live in `specs/id-N/notes/` per diet R1).
 - **Write discipline**: direct in-branch file edits are the norm; the Coordinator alone
   moves a task to `done` (via `ordna move` so the `depends_on` gate fires); promotion is
   a status flip (`ordna move <id> todo`), never a file move.

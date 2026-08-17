@@ -44,6 +44,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Data fetching:** TanStack Query exclusively (keys/fetchers in `lib/query/`).
 - **UI:** semantic design tokens only — see `components/CLAUDE.md`.
 - The Read-tool deny on `supabase/types/database.types.ts` in `.claude/settings.json` is deliberate (DR-022, re-homed S504): the generated file is huge and generated — query types via `Tables<'x'>` or `sed`-range reads, and never "fix" the deny.
+- **Skill/agent edits:** files under `.claude/skills/` and `.claude/agents/` are only changed through the authoring skills — `/create-skill` for new skills, `/update-skill` for changes, `/audit-skill` for de-drift, `/propagate-workflow-change` for cross-file sweeps. Never raw-edit them outside one of those invocations.
 
 ## Orchestration & Sub-agents
 
@@ -75,15 +76,39 @@ Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`memp
 
 **Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are **ordna** task files at `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels, applied as ordna `tags:` (`wontfix` also flips status to `archived`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain.md`.
+
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
 
-# GitNexus — Code Intelligence
+# Code Intelligence
+
+## Gitnexus
 
 GitNexus indexes this repo as **canonical** and exposes on-demand code-intelligence MCP tools. Use them when they earn their keep — as a faster path to understanding and safer edits — not by blanket per-edit mandate.
 
 - **Exploration / "how does X work?"** — `query` and `context` return process-grouped execution flows; reach for them instead of grepping when the call graph is the answer.
 - **Change safety / refactors** — `impact` sizes the blast radius, `rename` does call-graph-aware renames, `detect_changes` scopes a diff (`base_ref: "main"`).
-- Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, debugging, refactoring, guide, cli).
+- Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, refactoring).
+
+## Cocoindex Code
+
+The `ccc` skill provides you with AST-based semantic code search, cover TS, Python, and the database schema.
+
+## AST-dataflow
+
+A type-checker-resolved symbol and dataflow analysis for TypeScript repos, with a Python column-lineage companion. Answers the questions grep cannot: exact call sites, column read/write sites, string-literal AST context, re-export chains, type-position blast radius, and cross-language schema coverage.
 
 <!-- gitnexus:end -->
