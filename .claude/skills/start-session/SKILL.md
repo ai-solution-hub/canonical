@@ -3,7 +3,7 @@ name: start-session
 description: >-
   Bootstraps a Canonical (Formerly Knowledge Hub) session: loads context, and presents the
   session plan from the continuation prompt. Use at the start of every new session.
-allowed-tools: Read, Bash, Grep, Glob, Agent, Skill, MCP
+allowed-tools: Read, Bash, Grep, Glob, Agent, Skill
 ---
 
 # start-session
@@ -14,11 +14,14 @@ Loads critical context, and presents the session plan.
 
 ## Step 1: Review Continuation Prompt
 
+The newest file is the one to read — it is the previous session's hand-off:
+
 ```bash
-ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-ca-*.md 2>/dev/null | sort -V | tail -2
+ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-ca-*.md 2>/dev/null | sort -V | tail -1
 ```
 
-1. Read the continuation prompt thoroughly
+1. Read that prompt thoroughly (`tail -2` if you need the one before it as
+   context for a carry item — not by default; it is a whole extra file)
 2. Identify the session objectives
 
 ## Step 2: Read Critical Documents
@@ -26,9 +29,21 @@ ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-
 Docs-site paths below are relative to `${KH_PRIVATE_DOCS_DIR}/src/content/docs/` unless
 written out in full.
 
-Read these documents in parallel to load context. **Load anchor first** —
-`reference/platform-context.md` (current operational facts: four-DB topology, deploy
-hosts, key anchors; follow relevant progressive-disclosure pointers for depth).
+**Context load is this skill's real cost, so the read set is gated, not blanket.**
+Run the always-rows in parallel; run a gated row only when its condition holds:
+
+| Read | When |
+| --- | --- |
+| `reference/platform-context.md` + its Evidence precedence section | Always — the anchor |
+| A **Key context anchors** row | Only when the session's task touches that anchor's ground |
+| 2a Memory recall | Always, but usually skipped or narrowed at open — see 2a |
+| 2b Task state | Always, for the ids the continuation prompt names |
+| 2c Owning initiative → project | Spec-chain work, a promote, or new work. Skip when the prompt already names the project |
+| 2d Settled state | Always — newest retro in full, older ones as headlines |
+
+**Load anchor first** — `reference/platform-context.md` (current operational facts:
+four-DB topology, deploy hosts, key anchors; follow relevant progressive-disclosure
+pointers for depth).
 
 **Read its `## Evidence precedence — docs outrank code` section in full, and treat it as
 binding for the session.** Ratified docs are the authority; code is evidence of what
@@ -41,29 +56,21 @@ dispatch brief**: a brief citing only task files, specs and code reproduces the 
 errors.
 
 Then open the **Key context anchors** table and read every anchor whose ground the
-session's task touches — these are mandatory for a task on that ground, not optional
-depth. For any corpus, source-lifecycle, ingestion, fixture or naming work that means
+session's task touches — mandatory for a task on that ground, skipped otherwise. For any
+corpus, source-lifecycle, ingestion, fixture or naming work that means
 `corpus-reframe-review.html` (R1/R2) and `reference/entity-glossary.md` **before** forming
 a verdict.
 
 ### 2a: Memory recall
 
-Run recall via `mempalace_search` / `mempalace_kg_query` per the `recall-grounding` skill,
-**seeded with the continuation-prompt-named task ids and titles**. That skill owns the
-filter discipline — follow it rather than a rule restated here.
+The SessionStart hook has already injected a branch-seeded palace digest, and Step 1 put
+the continuation prompt in context. Per `recall-grounding` §1a, that usually makes a broad
+`mempalace_search` at open a 4–7k-token restatement of what you just read — so **skip it,
+or narrow it to the gap the prompt leaves open**, seeded with the prompt's task ids and
+scoped `room: "diary"`.
 
-**Fail open:** if the palace errors, use the lock-free FTS; run it manually with your seed
-terms. **Double-quote every term** — FTS5 reads `-` as a column filter, so a bare
-hyphenated seed fails with `no such column: 145`, which is exactly the seed shape this
-fallback exists for:
-
-```bash
-sqlite3 "file:$HOME/.mempalace/palace/chroma.sqlite3?mode=ro&immutable=1" \
-  "SELECT substr(replace(string_value, char(10),' '),1,200) FROM embedding_fulltext_search
-   WHERE string_value MATCH '\"id-145\" OR \"okf\" OR \"DR-104\"'
-     AND string_value NOT LIKE 'CHECKPOINT:%'
-   ORDER BY rowid DESC LIMIT 8"
-```
+That skill owns the rest: the filter discipline, and the lock-free FTS fallthrough to run
+if the palace errors. Follow it rather than a rule restated here.
 
 ### 2b: Task state inspection (ordna task files)
 
@@ -90,48 +97,15 @@ journal) for narrative state, the `## Subtasks` block for the spec brief, frontm
 
 ### 2c: Owning initiative → project (strategic context)
 
-Load the owning **project** for your task so the session opens with the strategic "why
-this Task matters" — not just the tactical state.
+**Gate:** run this for spec-chain work, a promote, or new work whose owner is unknown.
+Skip it when the continuation prompt already names the owning project — re-deriving it
+costs a directory grep and two file reads for state you were handed.
 
-Initiatives are plain docs-site markdown, one numbered file per initiative:
-`ledgers/initiatives/<n>.md`. Projects sit at **two** levels — directly under
-`## Projects`, and under `## Sub-initiatives` → `- Projects:`. Always check both levels;
-some initiatives park every project one level down.
-
-1. **Resolve the project first — it works with or without the frontmatter key.** The
-   project is the entry whose `Linked tasks:` includes the active id:
-
-   ```bash
-   INIT_DIR="$KH_PRIVATE_DOCS_DIR/src/content/docs/ledgers/initiatives"
-   grep -rn "Linked tasks:.*\b<N>\b" "$INIT_DIR"/
-   ```
-
-2. **Resolve the initiative** from the task file's `initiative:` frontmatter. The value is
-   a **slugified title**, not a string present in the initiative doc — grepping the slug
-   misses (`sdlc-workflow-orchestration` → zero hits) or is ambiguous (`core-product` →
-   two files). Match it against the slugified `title:` instead:
-
-   ```bash
-   SLUG=$(sed -n 's/^initiative: //p' "$KH_PRIVATE_DOCS_DIR/tasks/id-<N>.md")
-   for f in "$INIT_DIR"/*.md; do
-     t=$(sed -n 's/^title: //p' "$f" | head -1 | tr 'A-Z ' 'a-z-')
-     [ "$t" = "$SLUG" ] && echo "$f"
-   done
-   ```
-
-3. **Surface**, in order: the initiative **title** + intro ("why this matters"); the
-   owning sub-initiative's scope boundary, if the project sits under one; then the
-   project's **[status]**, **Summary**, and sibling **Linked tasks** — the siblings are
-   the work you may be about to duplicate or block.
-4. **`Substrate doc`, where set, is the floor for context, not the ceiling** — confirm
-   against the task file and the Decision Register before acting on it; some pointers aim
-   into `_archive/`.
-5. **Unowned is a common case, not an exception** — a large share of task files resolve by
-   neither route. When neither resolves and the session's work makes ownership matter
-   (spec-chain work, a promote), run the mint-or-link ladder —
-   `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §6 — and record its verdict; otherwise state
-   _"no owning initiative/project — unowned Task"_ and continue. Do not invent an owner or
-   halt; bulk ownership backfill belongs to the initiatives-ledger project.
+When the gate fires, follow
+[references/initiative-resolution.md](references/initiative-resolution.md): resolve the
+project by `Linked tasks:`, fall back to the slugified-title match, and surface the
+initiative's "why this matters" plus the project's status and sibling tasks. Unowned is a
+common outcome, not an error — record it and continue.
 
 ### 2d: Settled-state read-back (one-time retro review + decision register)
 
@@ -139,14 +113,20 @@ Load the durable settled state the deltas-only prompt omits. This is a **one-tim
 session open**, not a per-turn ritual.
 
 - **Retros:** one plain markdown file per session at `ledgers/retros/S<NNN>.md`
-  (session-numbered). List the most recent:
+  (session-numbered). **Read the newest one in full; take the two before it as headlines
+  only.** Older retros' durable items reach you through the continuation prompt's carry
+  sections — re-reading whole files for them costs ~2.5k tokens for content the prompt
+  already routed (S570 token audit):
 
   ```bash
-  ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/retros/S*.md | sort -V | tail -3
+  R="${KH_PRIVATE_DOCS_DIR}/src/content/docs/ledgers/retros"
+  ls -1 $R/S*.md | sort -V | tail -1                          # read this one in full
+  grep -h '^- \*\*' $(ls -1 $R/S*.md | sort -V | tail -3 | head -2) | cut -c1-160
   ```
 
-  then read those files and surface the durable sections — **Unresolved questions**,
-  **Workflow improvements**, **Failed assumptions**, **Architecture decisions**.
+  In the full read, surface the durable sections — **Unresolved questions**, **Workflow
+  improvements**, **Failed assumptions**, **Architecture decisions**. Open an older retro
+  in full only when a headline or the continuation prompt points into it.
 
 - **Decision register:** read the **"In force"** table in
   `reference/decision-register.md` — the binding settled-rulings guardrail (`DR-NNN`).
@@ -165,13 +145,8 @@ session open**, not a per-turn ritual.
 
 ## Step 3: Confirm Session Plan
 
-1. Re-read the continuation prompt:
-
-```bash
-ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-prompt-ca-*.md 2>/dev/null | sort -V | tail -2
-```
-
-2. Present a summary to the user:
+The continuation prompt is already in context from Step 1 — do not re-read it. Present a
+summary to the user:
 
 > ## Session {NNN} Plan
 >
@@ -179,7 +154,8 @@ ls -1 ${KH_PRIVATE_DOCS_DIR}/src/content/docs/continuation-prompts/continuation-
 >
 > **Execution strategy:** {parallel subagents (conditional), dependencies}
 
-3. Proceed with outlined plan - if any adjustments are required, user will notify you.
+Then proceed with the outlined plan — if any adjustments are required, the user will
+notify you.
 
 ---
 
