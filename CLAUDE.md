@@ -75,7 +75,7 @@ Under `${KH_PRIVATE_DOCS_DIR}/src/content/docs/`: `reference/platform-context.md
 
 Mempalace MCP is the canonical memory system (`mempalace_diary_read/write`,`mempalace_search`, `mempalace_kg_*`). The SessionStart hook `.claude/hooks/mempal-recall.sh` injects a lock-free FTS digest of prior context.
 
-**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (archive palace + cold transcript backup). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
+**Beyond that automatic digest, MUST run a branch + active-task-seeded recall pass before relying on memory of prior work, decisions, or people.** The **`recall-grounding`** skill owns the rest: decision-point triggers, wing/room filter discipline (`wing=`/`room=` are genuine pre-filters), the `-32002` lock-free FTS fallthrough, and the on-demand historic stores (dated palace snapshots + the `knowledge-hub-archive` repo). Underlying palace-search mechanism: the plugin `mempalace-recall` skill.
 
 ## Agent skills
 
