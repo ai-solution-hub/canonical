@@ -45,11 +45,39 @@ aggregate. **"corpus" is retired vocabulary** — it always blurred which layer 
   the procurement activity itself, carrying its own `workflow_state`, `outcome`,
   `deadline`, `submission_date`, `issuing_organisation`. Forms are manual upload only,
   never on an ingestion walk path. "bid" is a legacy word for the procurement activity,
-  not a form_type.
+  not a form_type. Always the activity, never a document — the question-bearing files in a
+  pack are **response documents**. A form anchors its pack versions and one or more
+  submission events. **"form type" is reserved for the activity classification**
+  (`form_types`); the document-structure notion — mapping an unfamiliar form's shape to
+  improve extraction — is the **form structure map** (phase (iii) working name), never
+  "form type".
+- **pack** — the buyer-issued document set for a procurement as published: response
+  document(s), instructions, specification, pricing schedules, appendices. A versioned
+  artefact: a reissue mints a new pack version and the question-set diff between versions
+  is derived. Pack members are classified at intake by the roles they play — response
+  document / buyer-issued context / supplier evidence artefact — and a member may play
+  more than one role.
+- **submission event** — one competitive round within a procurement activity, carrying its
+  own question set (extracted from the pack version in force for it) and deadline, and
+  recording what was submitted. A form has one or more submission events; the assessment
+  summary attaches to the submission event and rolls up to the form.
+- **response document** — a question-bearing pack member: the only source questions are
+  extracted from. Buyer-issued context members (instructions, specification, clarification
+  Q&A logs) may source per-question constraints and amendments, never questions.
 - **q_a_pair** — the reusable knowledge unit and the Procurement anchor, reusable across
   applications. One client's shared library: never activity-partitioned; relevance is
   computed at query time via `scope_tag` overlap, not a scoping FK. Source-form columns
   are nullable provenance only.
+- **evidence artefact** — a client-level dated evidence record: a certification, policy,
+  insurance schedule, accounts, or CV. Typed, carrying expiry; citable and attachable from
+  answers; reusable across activities. The answer text it backs is stable while the
+  artefact itself dates — currency is computed from the expiry date, never a status.
+  (First-class record kind ruled in principle S574; final ratification follows the id-470
+  phase (iii) tooling review.)
+- **assessment summary** — the statutory per-criterion feedback artefact every assessed
+  tender receives: scores, written reasons referencing the tender's own text, and the
+  winner's scores. Captured against the submission event and linked to the answers that
+  produced each scored section.
 - **reference_item** — an external-source item, continuously ingested (e.g. RSS) and
   primarily consumed by the Intelligence application. Citable, never authoritative on its
   own. Not a form-matching pool: form matching draws on `q_a_pairs` only. No publication
