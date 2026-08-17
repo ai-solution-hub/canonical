@@ -52,6 +52,7 @@ Key file: `proxy.ts` — Next.js 16 auth middleware; new public endpoints MUST b
 - **Never `git stash` in a dispatch worktree** — the stash ref list is global across worktrees; use a WIP commit on the agent's own branch instead.
 - **ALWAYS check worktree **`git status`** before removing it.**
 - **Workers edit task files directly** — update `${KH_PRIVATE_DOCS_DIR}/tasks/id-N.md` as work progresses; the Coordinator alone moves a task to `done` (dependency-gated terminal status).
+- **Ack gate after mid-flight directives (id-478):** any `SendMessage` to a running agent that can change its deliverable voids that agent's prior report — do not synthesise or commit its output until the post-directive final signal arrives. Valid final signals by agent type: Agent-tool subagent = the NEXT task-completion notification; teammate = an explicit final message or task-complete; cross-session peer = a reply-back marker you required in the directive. An `idle_notification` is never a completion signal (official docs: idle ≠ done, and cross-session messages carry no ack — grounding on id-478).
 
 ## Ledgers
 
