@@ -184,6 +184,11 @@ docs-site side is carved out of that repo's `*.html` exclusion precisely so
 the rehomed copy is mined. Rehome, re-mine, then prune the orphans — in that
 order, never the reverse.
 
+How a board is *authored* is a separate, durable surface: the docs-site runbook
+`runbooks/lavish-ruling-boards.md` holds the control rules a board must satisfy.
+Link it from the prompt where a next session is told to build one; never restate
+its rules in a prompt.
+
 **Standing exception: `main_session_output.md`, at the root of the scratch
 directory.** Transient by design — it exists only when a session failed, as
 context for the follow-up session. It is never migrated and never needs
