@@ -14,9 +14,14 @@ at session close — written to, and committed in, the docs-site checkout resolv
 
 ---
 
-## Step 1 — Update the Decision Register and the Ordna Task Ledger
+## Step 1 — Write back to the ledgers
 
-## Step 1a — Write settled rulings as in-repo ADRs
+Three write-backs, in order, before anything else: settled rulings become ADRs (1a),
+task statuses are reconciled against what actually shipped (1b), and the owning
+initiative/project is reconciled (1c). Everything downstream — the retro, the prompt —
+cites this state, so it has to be true first.
+
+### Step 1a — Write settled rulings as in-repo ADRs
 
 **One file per decision, in the canonical repo at `docs/adr/`** (DR-155, executed S569).
 The docs-site Decision Register is closed — its files stay resolvable as history; never
@@ -47,17 +52,18 @@ Task/spec state that downstream docs assert), run the docs-site `sync-ledger-con
 skill — or flag it in *Session deltas* — so docs carrying the superseded assertion get a
 *Ledger drift* stamp instead of silently going stale.
 
-## Step 1b — Reconcile task statuses. 
+### Step 1b — Reconcile task statuses
 
 For every task touched this session: flip status via ordna move (done is Coordinator-only, dependency-gated), refresh status_note + session_refs, and tick shipped ACs in the task file. The continuation prompt must never carry state the ledger contradicts.
 
 **Verify before you flip.** For a branch-based subtask, confirm its named symbols exist
-on `main` (`git cat-file -e main:<path>`) before moving it to done — a done-checkbox over
-an unlanded branch loses the work. Not on
-`main` ⇒ status stays open and the branch is named in `status_note`. Canonical home for
-this rule is `${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §5; this is its session-close mirror.
+on `main` (`git cat-file -e main:<path>`, run in the repo that owns the file — Canonical
+for code, the docs-site for docs) before moving it to done — a done-checkbox over an
+unlanded branch loses the work. Not on `main` ⇒ status stays open and the branch is named
+in `status_note`. Canonical home for this rule is
+`${KH_PRIVATE_DOCS_DIR}/tasks/AGENTS.md` §5; this is its session-close mirror.
 
-## Step 1c — Reconcile the owning initiative and project
+### Step 1c — Reconcile the owning initiative and project
 
 The ledger's strategic layer only stays true if session close writes back to it.
 Resolve every task this session touched to its owning **project**, then reconcile.
@@ -71,7 +77,8 @@ Resolve every task this session touched to its owning **project**, then reconcil
    ```
 
    Failing that, fall back to the task file's `initiative:` slug, matched against the
-   slugified initiative `title:` (`start-session` §2c step 2 has the snippet).
+   slugified initiative `title:` — snippet in
+   `.claude/skills/start-session/references/initiative-resolution.md` §2.
 2. **Reconcile status against what actually shipped.** One line per project:
    *advanced* (name the new status) or *unchanged* (name the reason). Statuses: `idea`
    `proposal` `backlog` `discovery` `accepted` `ready` `paused` `in-progress`
@@ -89,14 +96,28 @@ Resolve every task this session touched to its owning **project**, then reconcil
 
 ## Step 2 — Retro-authoring assist (candidate mining → Coordinator authors)
 
-### 2a — Dispatch the Retro Miner specialist agent
+### Step 2a — Dispatch the Retro Miner specialist agent
 
 Dispatch the agent to review this session's transcript and to return a
-**RANKED retro-candidate list** with evidence pointers. Each candidate is one line: rank, one-sentence finding, and an evidence pointer (transcript `file:line` and/or `agent-<hash>`).
+**RANKED retro-candidate list** with evidence pointers. Each candidate is one line: rank,
+one-sentence finding, and an evidence pointer (transcript `file:line` and/or
+`agent-<hash>`).
 
-Provide the agent with the location of the {transcript path}.
+**The brief must carry the transcript path — resolve it, do not ask for it.** Claude Code
+writes one JSONL per session under `~/.claude/projects/<cwd-slug>/`, where the slug is the
+session's cwd with every `/` and `.` replaced by `-`. The live session's file is the most
+recently written one:
 
-### 2b — Coordinator authors + durably WRITES the retro
+```bash
+SLUG=$(pwd | sed 's|[/.]|-|g')
+ls -1t "$HOME/.claude/projects/$SLUG"/*.jsonl | head -1
+```
+
+Run it from the session's own cwd (a worktree gets its own slug). If the directory is
+missing or empty, say so and skip the dispatch rather than sending the agent out without
+a path — a miner with no transcript invents findings.
+
+### Step 2b — Coordinator authors + durably WRITES the retro
 
 You read the ranked candidates, and author the session's retro record if there are findings worth recording.
 
@@ -164,11 +185,14 @@ session in one of two states, never a third:
   task), or dated `reports/` (point-in-time audit, analysis, board, log); or
 - **confirmed as scratch by Liam** — genuinely disposable, and he has said so.
 
-List the candidates (substitute the session's own start time; `-mtime -1` is the
-fallback when it is not to hand):
+List the candidates **in the Canonical repo** — both directories live there, and the
+docs-site has a `.user-scratch` of its own that this pass is not about (substitute the
+session's own start time; `-mtime -1` is the fallback when it is not to hand):
 
 ```bash
-find .user-scratch .lavish -type f -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_Store'
+CANON="${KH_PUBLIC_REPO_DIR:-$KH_PRIVATE_DOCS_DIR/../canonical}"
+find "$CANON/.user-scratch" "$CANON/.lavish" -type f \
+  -newermt "YYYY-MM-DD HH:MM" -not -name '.DS_Store'
 ```
 
 **`.lavish/` boards migrate to the docs-site `reports/` as `s<NNN>-<slug>.html`**,
@@ -260,10 +284,12 @@ section's inline rule says when to omit it.
 
 ## Step 4b — Mechanical state generator
 
-Run the read-only generator and paste its block into the prompt's *Mechanical state* section:
+Run the read-only generator and paste its block into the prompt's *Mechanical state*
+section. The script lives in the **Canonical repo**, not the docs-site — and Step 2e left
+you at the docs-site root, so address it explicitly rather than relying on cwd:
 
 ```bash
-bash scripts/session-close-report.sh
+bash "${KH_PUBLIC_REPO_DIR:-$KH_PRIVATE_DOCS_DIR/../canonical}/scripts/session-close-report.sh"
 ```
 
 It emits branch/HEAD, named worktrees, unregistered Intent workspace checkouts,
