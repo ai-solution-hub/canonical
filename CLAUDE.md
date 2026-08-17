@@ -93,13 +93,22 @@ Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
 
-# GitNexus — Code Intelligence
+# Code Intelligence
+
+## Gitnexus
 
 GitNexus indexes this repo as **canonical** and exposes on-demand code-intelligence MCP tools. Use them when they earn their keep — as a faster path to understanding and safer edits — not by blanket per-edit mandate.
 
 - **Exploration / "how does X work?"** — `query` and `context` return process-grouped execution flows; reach for them instead of grepping when the call graph is the answer.
 - **Change safety / refactors** — `impact` sizes the blast radius, `rename` does call-graph-aware renames, `detect_changes` scopes a diff (`base_ref: "main"`).
-- Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, debugging, refactoring, guide, cli).
-- **Memtrace is additive, never authoritative** — GitNexus remains the impact/rename authority; this line is the tie-break against the vendor-managed `~/.claude/MEMTRACE.md`, which routes impact analysis to Memtrace and reinstalls itself. *(was DR-071)*
+- Pass `repo: 'canonical'` on gitnexus MCP calls. Per-task how-to lives in the skill files under `.claude/skills/gitnexus/` (exploring, impact-analysis, refactoring).
+
+## Cocoindex Code
+
+The `ccc` skill provides you with AST-based semantic code search, cover TS, Python, and the database schema.
+
+## AST-dataflow
+
+A type-checker-resolved symbol and dataflow analysis for TypeScript repos, with a Python column-lineage companion. Answers the questions grep cannot: exact call sites, column read/write sites, string-literal AST context, re-export chains, type-position blast radius, and cross-language schema coverage.
 
 <!-- gitnexus:end -->

@@ -2,12 +2,9 @@
 name: ast-dataflow
 description:
   "Catalogue and entry point for the ast-dataflow skill family. Use when you need
-  type-checker-resolved symbol analysis across the KH codebase: finding callers or
-  callees, tracing column reads/writes, auditing dead exports, inspecting string-literal
-  or fixture sites, resolving re-export chains, profiling type evolution, or auditing
-  schema wiring. Examples: 'find all callers of sb()', 'which files read
-  form_questions.question_text', 'are there dead exports in lib/bid', 'verify this rename
-  is complete', 'which schema columns are built but never wired'"
+  type-checker-resolved symbol and dataflow analysis. Examples: 'find all callers of sb()', 'which files read
+  example_table.example_column', 'are there dead exports in file x', 'verify this rename
+  is complete', 'which schema columns are built but not wired'"
 allowed-tools: Bash, Read, Edit
 ---
 
@@ -15,11 +12,18 @@ allowed-tools: Bash, Read, Edit
 
 ## What ast-dataflow is
 
-ast-dataflow is a type-checker-resolved static analysis library for the Knowledge Hub
-TypeScript codebase. It wraps `ts-morph` (the TypeScript compiler API) and exposes fifteen
-queries as a CLI, as a programmatic module, and as a warm MCP server. Unlike `grep` or
-text search, every query resolves symbols through TypeScript's type system — aliases,
-re-exports, and indirect references are all tracked.
+ast-dataflow is a type-checker-resolved symbol and dataflow analysis for TypeScript repos, with a Python
+column-lineage companion. Answers the questions grep cannot: exact call sites, column
+read/write sites, string-literal AST context, re-export chains, type-position blast
+radius, and cross-language schema coverage.
+
+Two halves, one contract:
+
+`ast-dataflow` (TypeScript, ts-morph) — the query
+engine, CLI, and MCP server.
+`ast_dataflow_py` (Python, stdlib ast + optional
+sqlglot) — column lineage over Python pipelines
+and SQL, feeding the TS side through a versioned evidence-sidecar contract.
 
 **Primary CLI:**
 
@@ -27,12 +31,25 @@ re-exports, and indirect references are all tracked.
 bun run ast-dataflow <query> [args]
 ```
 
-**Warm MCP server** (id-375): `bun run ast-dataflow-mcp` starts a stdio server exposing
-one dispatching `ast_dataflow` tool (plus `corpus_info`) over a long-lived ts-morph
-Project — first call pays the ~6 s project load, subsequent calls run in ~100-200 ms with
-a per-call staleness sweep (`meta.refreshedFiles` etc.). Not registered in `.mcp.json` —
-registration happens at the extraction phase, when canonical installs the tool as an end
-user would (PRODUCT.md A3 rider); the CLI stays the always-available cold path.
+- `tsconfig.json` defines the analysis corpus.
+
+## MCP server
+
+The warm path: a long-lived process holding the ts-morph project, so repeat queries skip
+the project load (~6 s cold, ~100–200 ms warm). Register in your `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "ast-dataflow": {
+      "command": "bunx",
+      "args": ["ast-dataflow-mcp"]
+    }
+  }
+}
+```
+
+The server binds its repo root to the working directory it is spawned in.
 
 ---
 
@@ -249,7 +266,7 @@ bun run ast-dataflow enum-uses \
 
 Returns every property-access read, type-position reference, and string- literal
 equivalent of the named enum or `as const` member. Handles both TypeScript `enum`
-declarations and `as const` object idioms (the KH convention). Knip has documented false
+declarations and `as const` object idioms. Knip has documented false
 positives on `as const` patterns; this query provides the semantic confirmation.
 
 **Use when:** auditing before retiring an enum member, confirming a Knip unused-member

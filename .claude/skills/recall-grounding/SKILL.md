@@ -1,19 +1,7 @@
 ---
 name: recall-grounding
 description: >-
-  Workflow-specific recall discipline for Canonical — WHEN to recall and how to
-  stay grounded when recall degrades. Fire recall BEFORE presenting any
-  conclusion, plan, ratification, spec, or verdict that cites a task id, a
-  DR-NNN, prior-session framing, or settled state, not only at session start or
-  in response to a direct user question. On a mempalace MCP `-32002` /
-  integrity-check refusal (or any MCP recall error), fall through to the
-  lock-free `mode=ro&immutable=1` sqlite FTS read instead of proceeding
-  recall-blind. Use whenever composing a sub-agent dispatch brief's grounding
-  context, whenever about to state a conclusion that cites prior work
-  or decisions, or whenever `mempalace_search`/`mempalace_kg_query` errors.
-  Cross-references the plugin `mempalace-recall` skill, which owns the generic
-  palace-search mechanics (`mempalace_search`/`mempalace_kg_query` how-to) —
-  this skill owns the discipline layered on top of it.
+Workflow-specific recall discipline for Canonical — WHEN to recall and how to stay grounded when recall degrades. Fire recall BEFORE presenting any conclusion, plan, ratification, spec, or verdict that cites a task id, prior-session framing, or settled state, and when composing a sub-agent dispatch brief's grounding context. 
 allowed-tools: Bash
 ---
 

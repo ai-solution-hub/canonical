@@ -1,7 +1,6 @@
 ---
 name: neuroarxiv
-description: Grounds a coding agent's architecture decisions in real arXiv prior art before it builds something new. Reads arXiv category-wise via real HTTP fetch, spawns parallel isolated reads across the papers found, scores/clusters them, then converges on ONE recommended path with citations, a first step, and known prior-art pitfalls to avoid. Use on /neuroarxiv, before designing non-trivial architecture, algorithms, ML/systems techniques, or protocols, or when the user asks "has anyone solved this", "what's the state of the art", or "am I about to rebuild something that already exists". Skip for trivial CRUD, glue code, or closed phrasing ("just", "quick", "standard"). Full pre-flight gate is in the skill body.
-license: MIT
+description: Grounds a coding agent's architecture decisions in real arXiv prior art before it builds something new. Reads arXiv category-wise via real HTTP fetch, spawns parallel isolated reads across the papers found, scores/clusters them, then converges on ONE recommended path with citations, a first step, and known prior-art pitfalls to avoid. Use before designing non-trivial architecture, algorithms, ML/systems techniques, or protocols.
 ---
 
 # NeuroArxiv
