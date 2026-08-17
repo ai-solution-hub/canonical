@@ -69,10 +69,18 @@ scan "code-intel markers (PROTECTED — leave verbatim)"  '<!--[[:space:]]*code-
 # C (un-extracted reference blocks) is judgment-based — read the body. Extract ONLY unmarked,
 # untested inlined reference-grade content. Preflight: grep -rl "<string>" __tests__/ first.
 
-echo "# === repeated long paths (B — state once) ==="
+echo "# === repeated long path prefixes (B — state the base once) ==="
+# Count BASE prefixes, not full paths: eight refs under one long base with distinct tails
+# are eight unique strings and would never reach the >=3 threshold. Truncate each match to
+# its first 4 components (a ${VAR} counts as one) before counting — deep enough that
+# unrelated trees stay apart, shallow enough to expose the shared base.
 rep=$(body | grep -oE '\$\{[A-Z_]+\}[^ )`"'"'"']*|/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){3,}' 2>/dev/null \
+        | sed -E 's#^(\$\{[A-Z_]+\}|/[A-Za-z0-9._-]+)((/[A-Za-z0-9._-]+){0,3}).*#\1\2#' \
         | sort | uniq -c | sort -rn | awk '$1>=3 {print}' || true)
-if [ -n "$rep" ]; then echo "### paths repeated >=3x"; printf '%s\n' "$rep" | sed 's/^/  /'; echo; fi
+if [ -n "$rep" ]; then
+  echo "### path prefixes (first 4 components) repeated >=3x — state the base once, then relative forms"
+  printf '%s\n' "$rep" | sed 's/^/  /'; echo
+fi
 
 echo "# === E: stale cross-refs (FIX if unambiguous, else FLAG) ==="
 refs=$(body | grep -oE '(references|scripts|assets)/[A-Za-z0-9._/-]+' 2>/dev/null | sort -u || true)
