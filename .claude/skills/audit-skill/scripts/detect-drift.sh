@@ -73,9 +73,10 @@ echo "# === repeated long path prefixes (B — state the base once) ==="
 # Count BASE prefixes, not full paths: eight refs under one long base with distinct tails
 # are eight unique strings and would never reach the >=3 threshold. Truncate each match to
 # its first 4 components (a ${VAR} counts as one) before counting — deep enough that
-# unrelated trees stay apart, shallow enough to expose the shared base.
-rep=$(body | grep -oE '\$\{[A-Z_]+\}[^ )`"'"'"']*|/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){3,}' 2>/dev/null \
-        | sed -E 's#^(\$\{[A-Z_]+\}|/[A-Za-z0-9._-]+)((/[A-Za-z0-9._-]+){0,3}).*#\1\2#' \
+# unrelated trees stay apart, shallow enough to expose the shared base. The leading slash
+# is optional so repo-relative long paths (docs/reference/testing/…) count too.
+rep=$(body | grep -oE '\$\{[A-Z_]+\}[^ )`"'"'"']*|/?[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){3,}' 2>/dev/null \
+        | sed -E 's#^(\$\{[A-Z_]+\}|/?[A-Za-z0-9._-]+)((/[A-Za-z0-9._-]+){0,3}).*#\1\2#' \
         | sort | uniq -c | sort -rn | awk '$1>=3 {print}' || true)
 if [ -n "$rep" ]; then
   echo "### path prefixes (first 4 components) repeated >=3x — state the base once, then relative forms"
