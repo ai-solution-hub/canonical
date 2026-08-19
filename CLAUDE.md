@@ -4,7 +4,7 @@ Guidance for Claude Code in this repository. Directory-scoped context lives in n
 
 ## Project Overview
 
-Canonical (formerly Knowledge Hub) is a knowledge base platform where the core value is high-quality, structured data accessible by AI. First domain applications: procurement + sector intelligence for UK SMBs; next is Sales Proposals.**Team:** Liam (product owner, non-developer — verification gates are his eyes on the code) + Claude Code as development partner.
+Canonical (formerly Knowledge Hub) is a knowledge base platform where the core value is high-quality, structured data accessible by AI. First domain applications: procurement + sector intelligence for UK SMBs; next is Sales Proposals.**Team:** Liam (product owner, non-developer — verification gates are his eyes on the code) + Claude Code as development partner. **Standing directive (S576): proactively flag issues, risks, and do-it-properly opportunities in owner-facing summaries — never wait to be asked; Liam is non-technical and cannot spot them himself.**
 
 **Platform isn't live**
 
