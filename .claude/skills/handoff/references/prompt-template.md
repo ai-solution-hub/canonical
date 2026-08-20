@@ -28,11 +28,6 @@ Omit when the default session protocol suffices.}
 
 Task/Subtask ids + merge/PR SHA only (the ledger holds the detail; never reproduce it). Omit if nothing shipped.}
 
-## Settled this session (Decision Register)
-
-{New architectural decisions written to `reference/decisions/` this session —
-cite the NEW ids only (e.g. `DR-011`–`DR-013`), one line each.}
-
 ## Session deltas / decisions NOT in the ledger
 
 {Bullets: only what a fresh Coordinator cannot derive from the ordna/specs/register —
@@ -40,21 +35,7 @@ NON-binding deltas: schema/process changes, gotchas, strategic options. Omit if 
 
 ## Session Carry
 
-{Anything which was intended for the previous session, but wasn't completed.}
-
-## Mechanical state (auto-generated)
-
-{Paste the output of `bash scripts/session-close-report.sh` — branch/HEAD,
-orphaned worktrees, open PRs + CI, index freshness.}
-
-## Parallel lanes & shared state
-
-{What OTHER live lanes hold that this prompt's reader could clobber or be
-blocked by — the generator does not emit these; capture them by hand (Step 4b):
-foreign uncommitted files in the docs-site checkout (name the owning lane;
-"do not commit/clobber"); mempalace health (writer-lock holders, daemon state,
-repair owed?); any live session/Intent workspace holding a shared singleton.
-Omit only when all three are verified clean.}
+{Anything which was intended for a previous session, but wasn't completed.}
 
 ## Pre-reqs (Liam)
 

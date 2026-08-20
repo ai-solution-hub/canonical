@@ -9,7 +9,7 @@ architectural decisions live in `docs/adr/`.
 
 Name the layer, never the aggregate: **sources** (evidence streams) → **records** (the
 client database) → **concepts** (the map). "The client's knowledge base" refers to the
-aggregate. **"corpus" is retired vocabulary** — it always blurred which layer was meant.
+aggregate.
 
 - **source binding** — a connection to an evidence stream: a watched localfs folder, a
   SharePoint/OneDrive or Google Drive connection, a Notion or HubSpot workspace, a
@@ -17,15 +17,15 @@ aggregate. **"corpus" is retired vocabulary** — it always blurred which layer 
   connection config, a retention class, sync cursor/state, and its ingest trace. There is
   no publication gate at this boundary.
 - **retention class** — the per-binding _policy choice about bytes_: keep-and-watch /
-  ingest-once / live-connected / external-referenced. Never an architectural cornerstone.
+  ingest-once / live-connected / external-referenced.
 - **ingest trace** — the slim per-item row keyed by (binding, logical locator — file path
   / URL / page-id), holding a content fingerprint and first/last-seen timestamps. Its only
   jobs: dedup, a provenance join target for records, and supplying the portable locator
   concept citations use. No state machine, no concept coupling, no identity minting.
 - **concept map** — the OKF bundle as the curated map over knowledge, authored and
-  maintained by humans and agents. Never derived per-document or per-record; includes the
-  platform's self-description concepts. Trust lives in-band per OKF v0.2 (`status`,
-  `stale_after`, `verified`, `sources[]`).
+  maintained by humans and agents, derived from company knowledge sources, including the
+  Canonical platform. Trust lives in-band per OKF v0.2 (`status`, `stale_after`,
+  `verified`, `sources[]`).
 - **system bundle / client bundle** — the two bundle classes: the system bundle carries
   platform self-description, maintained by us and versioned with the platform; each client
   bundle carries that client's knowledge concepts and links to the system bundle.
@@ -48,18 +48,12 @@ aggregate. **"corpus" is retired vocabulary** — it always blurred which layer 
 - **workspace** — LEGACY tier, removed from the containment chain. The `workspaces` table
   survives as migration-era infrastructure only; no new `*_workspaces` tables are ever
   minted. Never a synonym for client/tenant.
-- **form** — a question-bearing document: the colloquial word for a **response document**.
-  Never an activity (the activity is the **engagement** — ADR 0013 retired the old
-  form-as-activity sense S576). "Form-shaped documents" and the **form structure map** —
-  the LLM-assisted mapping of an unfamiliar form's layout to improve extraction — use this
-  document sense. **"form type" is retired vocabulary**: activity classification lives in
-  the procurement reference vocabulary; document genres are document roles.
-- **pack** — the buyer-issued document set for a procurement as published: response
-  document(s), instructions, specification, pricing schedules, appendices. A versioned
-  artefact: a reissue mints a new pack version and the question-set diff between versions
-  is derived. Pack members are classified at intake by the roles they play — response
-  document / buyer-issued context / supplier evidence artefact — and a member may play
-  more than one role.
+  - **pack** — the buyer-issued document set for a procurement as published: response
+    document(s), instructions, specification, pricing schedules, appendices. A versioned
+    artefact: a reissue mints a new pack version and the question-set diff between
+    versions is derived. Pack members are classified at intake by the roles they play —
+    response document / buyer-issued context / supplier evidence artefact — and a member
+    may play more than one role.
 - **submission event** — one competitive round within an engagement, carrying its own
   question set (extracted from the pack version in force for it) and deadline, and
   recording the submitted tender and its event-level outcome (shortlisted / not
@@ -72,6 +66,9 @@ aggregate. **"corpus" is retired vocabulary** — it always blurred which layer 
   source questions are extracted from. Buyer-issued context members (instructions,
   specification, clarification Q&A logs) may source per-question constraints and
   amendments, never questions.
+  - **form** — the colloquial word for a question-bearing document: "Form-shaped
+    documents" and the **form structure map** — the LLM-assisted mapping of an unfamiliar
+    form's layout to improve extraction — use this document sense.
 - **section** — a named division of a document: optional description, optional parent
   section (sub-sections), ordered. Questions belong to a section where the document has
   them; sections may carry evaluation context (scored vs non-scored, mandatory).
@@ -86,14 +83,12 @@ aggregate. **"corpus" is retired vocabulary** — it always blurred which layer 
   Engagement working state, never library state — pairs still mint ungated. An edit
   descending from a pair records its reason (edit-why capture).
 - **q_a_pair** — the reusable knowledge unit and the Procurement anchor, reusable across
-  applications. One client's shared library: never activity-partitioned; relevance is
-  computed at query time via `scope_tag` overlap, not a scoping FK. Source-engagement
+  applications. One client's shared library: never activity-partitioned. Source-engagement
   provenance (document, question, response ids) is nullable provenance only.
 - **evidence artefact** — a client-level dated evidence record: a certification, policy,
   insurance schedule, accounts, or CV. Typed, carrying expiry; citable and attachable from
   answers; reusable across activities. The answer text it backs is stable while the
   artefact itself dates — currency is computed from the expiry date, never a status.
-  (First-class record kind ratified FINAL S576 — id-470 ADR 0010.)
 - **assessment summary** — the statutory per-criterion feedback artefact every assessed
   tender receives: scores, written reasons referencing the tender's own text, and the
   winner's scores. Captured against the submission event and linked to the answers that
@@ -161,6 +156,5 @@ Do not reintroduce: **corpus** (name the layer), **promotion / publication gate*
 (concept grain is judgment), **`canonical://` URI scheme and row UUIDs in bundles**
 (citations use portable external locators; platform surfaces are cited by linking to their
 concept files), **anti-tags**, **workspace as a scoping tier**, **form as the name of the
-activity** (the activity is the engagement — ADR 0013; "form" survives only in the
-document sense), **form type** (activity classification lives in the procurement reference
+activity**, **form type** (activity classification lives in the procurement reference
 vocabulary; document genres are document roles).

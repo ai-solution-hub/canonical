@@ -72,7 +72,7 @@ exact commands or steps the implementor should run
 - Auto-converts to Task Note when saved
 - Do not edit converted task links — the system produces `- [ ] [Title](intent://...)` format; leave it as-is
 
-## The Grounding field (CRITICAL — The DR-123 control)
+## The Grounding field
 
 **Paste these into every sub-agent brief. Inline them — do not link them.**
 
@@ -91,8 +91,7 @@ exact commands or steps the implementor should run
    challenged, not confirmed."*
 6. **Report what your check did NOT cover.** A `PASS` records a conclusion, never its
    coverage.
-7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reports/s528-census/GROUNDING.md` §2a; ratified
-   S535, DR-130's grounding).
+7. **Name the concept's origin, and treat contemporaneous docs as its carrier.** `${KH_PRIVATE_DOCS_DIR}/src/content/docs/reports/s528-census/GROUNDING.md` §2a;
 
 **Name these as non-evidence in the field:** consumer-counting (a consumer of a stale
 concept is evidence the rot spread); population or emptiness in **either** direction (pre-launch, all Platform data is synthetic);

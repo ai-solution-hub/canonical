@@ -1,10 +1,7 @@
 # Resolving a task's owning initiative and project
 
-Read this when `start-session` §2c fires — spec-chain work, a promote, or new
-work whose owner is unknown — or when `handoff` Step 1c needs to reconcile
-ownership at session close. Skip it when the continuation prompt already names
-the owning project; re-deriving it costs a directory grep and two file reads for
-state you were handed.
+Read this when `handoff` Step 2c needs to reconcile
+ownership at session close.
 
 The point is the strategic "why this Task matters", not just the tactical state.
 
