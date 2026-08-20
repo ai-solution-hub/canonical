@@ -1,0 +1,1376 @@
+{
+  "generated_by": "S578 (id-470 Q8 — bid-packs stay committed; manifest added)",
+  "note": "Public procurement documents. Re-download from source_urls if a file is missing; sha256 verifies integrity.",
+  "packs": {
+    "RM1557.15": {
+      "source_urls": [
+        "https://www.find-tender.service.gov.uk/Notice/067801-2025",
+        "https://www.gca.gov.uk/rm1557-15-g-cloud-15-tender-documents"
+      ],
+      "readme": true,
+      "title": "Agreement: G-Cloud 15 Agreement ID: RM1557.15 URL:",
+      "files": [
+        {
+          "path": "bid-packs/RM1557.15/CCS-General-Terms-RM1557.15-v1.2.docx",
+          "bytes": 119396,
+          "sha256": "8f9c79c4a066d75ddfb1159143afc4e812591c5343600969e33230e0ab957364",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-1-Intellectual-Property-Rights-RM1557.15-v1.0.docx",
+          "bytes": 150965,
+          "sha256": "b1d9c61554dbfdd77a614fde92c9f137127e3c5b45a8b191d90c562360bccd13",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-10-Exit-Management-RM1557.15-v1.0.docx",
+          "bytes": 60566,
+          "sha256": "97f16fe7a63f639141308607b9bb98e9ad75e824062472f2ae544f03c0c37803",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-11-Installation-Works-RM1557.15-v1.0.docx",
+          "bytes": 24511,
+          "sha256": "60db5eff9772aa3cdeb7218a8dc3f9e73d25bf2da9fb059f75df641a97232d7b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-11A-Installation-Works-Crown-Hosting-Lot-1a-and-1b-only-RM1557.15-v1.0.docx",
+          "bytes": 30915,
+          "sha256": "8fc69d30f16c9379e79caf81a82950fcf0fdbe671824db2610698bca7b50659d",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-12-Clustering-RM1557.15-v1.0.docx",
+          "bytes": 27909,
+          "sha256": "5a149a55eb90a0b6b2fb55abb7ac1ef09ee7100d45f89fa33c03b317176f228f",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-13-Implementation-Plan-and-Testing-RM1557.15-v1.0.docx",
+          "bytes": 56324,
+          "sha256": "4cf15e9bf3973d8d552cc029d7b2c37944fffbe0aff237f725962893d52d1ad6",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-14-Performance-Levels-RM1557.15-v1.0.docx",
+          "bytes": 42560,
+          "sha256": "1809bee30acc1cddfad0765491f26fb68be477d0c4b8903687ddfb4072d5ee9b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-15-Call-Off-Contract-Management-RM1557.15-v1.0.docx",
+          "bytes": 36903,
+          "sha256": "8bf0b20ae0224a62c31a1260cb0fd69c228211e3a77d091d946ee3ffba823b00",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-16-Benchmarking-RM1557.15-v1.0.docx",
+          "bytes": 54747,
+          "sha256": "71317568f657c57840ff133279a3fc098b2caf16edf87f3f8bbd62f80a9e2561",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-17-MOD-Terms-RM1557.15-v1.0.docx",
+          "bytes": 28423,
+          "sha256": "ae3b8efd672c8a4cb1e1737535c5e6c503ae576283f4d4927bec6159d328b673",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-18-Background-Checks-RM1557.15-v1.0.docx",
+          "bytes": 26632,
+          "sha256": "b55765a0cbc8a25a34ef60be4df2bec7a515ee0019cb6b7dbd10a4218940a713",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-19-Scottish-Law-RM1557.15-v1.0.docx",
+          "bytes": 55972,
+          "sha256": "3d0667ddd7e5d0bd8a239166c9ee2b519c4782ad17ea9680471bb14f333e473e",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-2-Staff-Transfer-RM1557.15-v1.0.docx",
+          "bytes": 116685,
+          "sha256": "232f9f2685f80c7f01761a07b504659ba2fc21308c1c6a53e3ce761a17b6aa5a",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-20-Specification-RM1557.15-v1.0.docx",
+          "bytes": 22843,
+          "sha256": "073180c404fa37ddcc27d4e0b1fc19e1a926f1edcde60b2fb614a55ab979aae1",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-21-Northern-Ireland-Law-RM1557.15-v1.0.docx",
+          "bytes": 28654,
+          "sha256": "9d2b46996c58bc8457d5f12c91403849ae058520432115b345e805974d17d665",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-22-Lease-Terms-RM1557.15-v1.0.docx",
+          "bytes": 47152,
+          "sha256": "b444e26964fbe61fafce63f67fb7fdb26f787fb0de4ae7b80a3ed558202d25d5",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-23-HMRC-Terms-RM1557.15-v1.0.docx",
+          "bytes": 38238,
+          "sha256": "b29d150b106271133aa008808ef90390af47ec9592d84c9b5d73f3c1d7d360e8",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-24-Corporate-Resolution-Planning-RM1557.15-v1.0.docx",
+          "bytes": 49315,
+          "sha256": "bfd60370905dcb160a4394b165edb880d9ff0bf11f8a84b850fe87247e3e8632",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-25-Additional-Sustainability-Requirements-RM1557.15-v1.0.docx",
+          "bytes": 38329,
+          "sha256": "31f18e8e59d2d257e6c60bc021225dd56c1f2cf8a73cc4f1066d0693a60f33dd",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-26-Carbon-Reduction-RM1557.15-v1.1-1.docx",
+          "bytes": 67413,
+          "sha256": "6e3fb9b322767420390ebd813c75975b349ac8468eab9949209195b33b8bc559",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-27-Cyber-Essentials-Scheme-RM1557.15-v1.0.docx",
+          "bytes": 30850,
+          "sha256": "de32cdf07a1e9cb600237dceab169695bd3172dc09c4ac80ebc5d5523cadf851",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-28-Special-Call-Off-Schedule-for-Lot-1a-and-Lot-1b-RM1557.15-v1.0.docx",
+          "bytes": 48392,
+          "sha256": "9cc747c9c462873754b01ad8d2f341bf18ad3c7654790e9a872cd3ad6b0a5586",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-3-Continuous-Improvement-RM1557.15-v1.0.docx",
+          "bytes": 27511,
+          "sha256": "6e9a52190ce3064223118504b053b393e1367ce9dc922047a184b95369d6acb2",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-4-Call-Off-Tender-RM1557.15-v1.0.docx",
+          "bytes": 20764,
+          "sha256": "40473b0406d7ada20fbc7c30357097271071239ec7803d105a3224c8951226d2",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-5-Pricing-Details-RM1557.15-v1.0.docx",
+          "bytes": 39291,
+          "sha256": "ea7f2a839d2f1aaf88c2d0a8ac263e042181c137dcf634629c18325215db4758",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-6-ICT-Services-RM1557.15-v1.0.docx",
+          "bytes": 48280,
+          "sha256": "7c6e672ab17131e7623b8cc21e77cb2bb25bb60579e06f7fc8a578b285a77eec",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-7-Key-Supplier-Staff-RM1557.15-v1.0.docx",
+          "bytes": 24905,
+          "sha256": "f6ec822e24604a8ac4b8c0c98d202df6a135b1a5c615f46b1ff324f4e1ed2a8b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-8-Business-Continuity-and-Disaster-Recovery-RM1557.15-v1.0.docx",
+          "bytes": 38969,
+          "sha256": "feed93816c4046138eeb7ef8bb4208851898c6210595f9df9ccc5f7508b5edb9",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-9A-Security-Short-Form-RM1557.15-v1.1-1.docx",
+          "bytes": 92387,
+          "sha256": "3461b3999ee9d21eb9d338e393d5f52f028211fca64313073eacfd48dcc8ef68",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-9B-Security-Consultancy-RM1557.15-v1.0.docx",
+          "bytes": 94227,
+          "sha256": "a4aa0d7dfc20412b239a8e9092791f80a0677fdd6c72859f97560c95de50ee06",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-9C-Security-Development-RM1557.15-v1.0.docx",
+          "bytes": 138140,
+          "sha256": "4a019622eadd9bea8e97b567f2742722343374389fe5d165c6c677a8d7fb1796",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-9D-Security-Supplier-led-Assurance-RM1557.15-v1.0.docx",
+          "bytes": 191139,
+          "sha256": "694fe52dcea90f05375e100e5b1508fe29bb387aeeaa5f762cba4dfc438546b3",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Call-Off-Schedule-9E-Security-Buyer-led-Assurance-RM1557.15-v1.0.docx",
+          "bytes": 187145,
+          "sha256": "2461cc1e314104cf2009adeec1b92d7dea5e50c435c97fbfe9a3fc445c36f8b7",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Award-Form-RM1557.15-v1.2.docx",
+          "bytes": 129177,
+          "sha256": "be906b7673ad34ec66da20afd3a0864f498f833475386cae4ce636e2d7a052cf",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-1-Specification-RM1557.15-v2.1.docx",
+          "bytes": 4031997,
+          "sha256": "3e98205dfce4e3e57559d215cacf5d187e8353d679b6f7f599ecffef31adbf9a",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-2-Framework-Tender-RM1557.15-v1.0.docx",
+          "bytes": 22042,
+          "sha256": "69d9a3c7bc8cc9c4081417391cc83f6d4261b3632143104821ba533effbbfcea",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-3-Framework-Prices-RM1557.15-v1.0.docx",
+          "bytes": 72487,
+          "sha256": "d58f3a887b81224298fe06ebf36b3575e3abff34c0eac75343ffa5f91c00de72",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-4-Framework-Management-RM1557.15-v1.0.docx",
+          "bytes": 36713,
+          "sha256": "3c05da872bbba277b6c3851e6c829d950c1b2a5b75d82dd725c9597708e31c4b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-5-Management-Charges-and-Information-RM1557.15-v1.0.docx",
+          "bytes": 68880,
+          "sha256": "a17320246ef1b1c4a232c5496da61c4a9741e0cf5ed62e852274a82f85f5b54e",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-6-Order-Form-Template-RM1557.15-v1.2-1.docx",
+          "bytes": 68761,
+          "sha256": "4a1518b179767253e387db465b3226efa4cbc8586b68dd52439fc2ba412470fc",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-7-Call-Off-Award-Procedure-RM1557.15-v1.1-1-1-1.docx",
+          "bytes": 127731,
+          "sha256": "201e03811f7f279620147985669e9d16f9b591438bbad2339df16817a25da4a8",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework-Schedule-8-Self-Audit-Certificate-RM1557.15-v1.0.docx",
+          "bytes": 24390,
+          "sha256": "716d26bd2b88180738a9960c1b177fb627c3353549989b3f6cbcb24d6c032ea2",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Framework_Schedule_6_-_Order_Form_Template_v1.0_PA.odt",
+          "bytes": 33888,
+          "sha256": "6a4c81b414cc06b93945a8c21e1cba61cca9abb7ca02f4e742ac341aa4353ecf",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-1-Definitions-RM1557.15-v1.0.docx",
+          "bytes": 100144,
+          "sha256": "42dfb8d4c6d826c09bf6c386e2c1cd7e73c32881dab22ffda5b0b4d87964359d",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-10-Processing-Data-RM1557.15-v1.0.docx",
+          "bytes": 99917,
+          "sha256": "3870f0a6f4f666e248a6d94f2cbecec03896af7d8fc9375c278e88abdc02c538",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-2-Variation-Form-RM1557.15-v1.0.docx",
+          "bytes": 27049,
+          "sha256": "2f7319b040d95a22d128a642a6b104dc2e26298d743152670a4bf36422a36165",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-3-Insurance-Requirements-RM1557.15-v1.0.docx",
+          "bytes": 33406,
+          "sha256": "423be92d61503188aad65c892f280f9be6d138c76f531ac37e1d1b8fbace725e",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-4-Commercially-Sensitive-Information-RM1557.15-v1.0.docx",
+          "bytes": 27681,
+          "sha256": "b533f8e09129c5ff61db9eed2a44b9f9657ae8fc1d2a13b5d63b6dc204ea76cd",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-5-Sustainability-RM1557.15-v1.0.docx",
+          "bytes": 39013,
+          "sha256": "79311291b381d536fa4da5e841ae10d92a7108183014a2e159dc8d37b10419ad",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-6-Key-Subcontractors-RM1557.15-v1.0.docx",
+          "bytes": 30965,
+          "sha256": "aeb966965949d59c823c343117e623524b5dfdc853dab723e594e0c8415ca7f3",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-7-Financial-Difficulties-RM1557.15-v1.0.docx",
+          "bytes": 108258,
+          "sha256": "14c918a6ac919f915e6b78225c378a468cd1a54d9d319e84da53b1f2c21a0dc8",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-8-Guarantee-RM1557.15-v1.0.docx",
+          "bytes": 41277,
+          "sha256": "3d4270d78d8dd6701209e597de1af9d50d12d620ec5da4e65bf48bd38f864126",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/Joint-Schedule-9-Rectification-Plan-RM1557.15-v1.0.docx",
+          "bytes": 25271,
+          "sha256": "481992c195d1c207a94221bd87a9e69aba5732b5351c757f6ba6d9c4ecf25847",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/README.md",
+          "bytes": 178,
+          "sha256": "1ac742c3540b00a44f8d17ee91182ba1a336d18b14fdf1e378c9d62750717e69",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557-15-Attachment-8-MI-Template-FINAL-v1.0.xlsx",
+          "bytes": 34001,
+          "sha256": "ddf5c262f327dd9c4467769f55f3b010a4baa97010a0548c7f6eb6a4a6c19604",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-09-v3.0-Key-changes-between-the-G-Cloud-14-and-G-Cloud-15-Framework-Agreement.docx",
+          "bytes": 294530,
+          "sha256": "7afa98e0f34f57e747402375c247a8b5a6d3f3dfa409aaa7984582d02983ceb8",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2-How-to-tender-v5.0.docx",
+          "bytes": 260566,
+          "sha256": "021c4744d8a6f4b40dd66ece4f37e47e08c470337698d82c164f9fff05a78fb9",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2b-Lot-1a-Technical-ability-certificate-v2.0-1.docx",
+          "bytes": 33033,
+          "sha256": "097dd48122b0e1980d75a687f1233336401ba20ec20ed6848984ca4d85d39908",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2b-Lot-1b-Technical-ability-certificate-v2.0-1.docx",
+          "bytes": 32929,
+          "sha256": "ce20a4269f703dc0f2ad93687f1ce750f8886a806e323ed0c569d3f994767a53",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2b-Lot-2a-Technical-ability-certificate-v2.0-1.docx",
+          "bytes": 32544,
+          "sha256": "19f1750e7a15b4231ce1fe8ffe5b058ebb8917f872609ad94648bd7c3b24ee61",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2b-Lot-2b-Technical-ability-certificate-v2.0-1.docx",
+          "bytes": 33121,
+          "sha256": "0c8a375c9669fda380a50e56e3c92006c8363584ab200e47c774e18d6e96b283",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-2b-Lot-3-Technical-ability-certificate-v2.0.docx",
+          "bytes": 32761,
+          "sha256": "e4389cf2939e981a99ed35981559d3c3a949b507de3d562586024de820106e02",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-5-Financial-viability-risk-assessment-instructions-v2.0.docx",
+          "bytes": 218256,
+          "sha256": "776c4ee3221e0a060605043a7af37d724ec51c78e891beaa6986faa030200301",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-5a-Lots-1a-1b-FVRA-Gold-2.xlsx",
+          "bytes": 1117070,
+          "sha256": "264e3459fcc646f25bbb7ecd28479dc3510ca52ae93d7c6cb9b3f48362b73405",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Attachment-5b-Lots-2a-2b-3-FVRA-Bronze-Plus-v3.0.xlsx",
+          "bytes": 1068263,
+          "sha256": "01213f81714e5e8b63a2f6908075e1947e0299aee0bc2aed11837cc81cdd47bf",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-15-Attachment-1-About-the-framework-open-framework-v2.0-1.docx",
+          "bytes": 241377,
+          "sha256": "64326efdb69b4246e4363ea45182dec43402a3f2a2b8c78f94f9e6da92f95dee",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-15-Attachment-2c-PPN-006-Carbon-Reduction-Plan-template-V1.0.docx",
+          "bytes": 53577,
+          "sha256": "4d5ac59dca12bb98753993f86a00b998481d07c889e4ca20201cfa712924dea6",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-15-Attachment-2d-Quality-questionnaire-v4.0.docx",
+          "bytes": 326968,
+          "sha256": "6c95a2251d79ccdeb5021e98b9e5efc5ea9cfa985ee18bc3d2acf1c689bc1b28",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-15-Attachment-4b-Consortia-workbook-v5.1-2.xlsx",
+          "bytes": 220735,
+          "sha256": "97211f34b56bd2bf3e521e94be36886f5e035376b92db6cbbc24fc5afc034f77",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-15-Updates-to-Tender-Documents-1.docx",
+          "bytes": 18920,
+          "sha256": "1d1e8845c19d35fc87fb7d32cefb013a69fd38065a5507b5bb851d8a3d87b665",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-G-Cloud-question-export.xlsx",
+          "bytes": 97713,
+          "sha256": "d158eaa14bea149af7715aeb7dbb2516389fc940efe606404e00fa5b0fab5d25",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM1557.15/RM1557.15-Lot-3-Pricing-Rate-Card-for-Job-family-Roles-and-Levels.docx",
+          "bytes": 24837,
+          "sha256": "09094c1ba1adcfb3456208d72f75a21e7b738212531f4d968892aab947fd4694",
+          "tracked": true,
+          "gitignored": false
+        }
+      ],
+      "file_count": 73,
+      "bytes": 11396878
+    },
+    "RM6232": {
+      "source_urls": [
+        "https://www.gca.gov.uk/agreements/RM6232"
+      ],
+      "readme": true,
+      "title": "Agreement: Facilities Management and Workplace Services Agreement ID: RM6232 URL:",
+      "files": [
+        {
+          "path": "bid-packs/RM6232/README.md",
+          "bytes": 125,
+          "sha256": "ae4eb395285bb9bad2153141bbac1b8c976594a668de83ecddd31d3653c9bfe9",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-1-about-the-procurement-v6.0.docx",
+          "bytes": 66918,
+          "sha256": "520b1223c4757e8f91759debbe9adc4d3d3a5cbed17df030ab8adac7121a6317",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-2-how-to-bid-including-evaluation-criteria-v7.0.docx",
+          "bytes": 75393,
+          "sha256": "136c8152802784361bbefc1a9ddf9533df9b065d9e865e1444e1b491c0da1faa",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-A-Standards-Processes-V1.0-1.docx",
+          "bytes": 695710,
+          "sha256": "4d49d6c20d019c2ad27084975093a16886c7e0db28bd82cdd088fbbe98db4f29",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-B-Deliverables-Matrix-Lot-1a-1b-1c-v3.ods",
+          "bytes": 175924,
+          "sha256": "4fb1c7b2b580c182d1f93056c8c6a4029686a2d6d7083b0e9a535549f26dd018",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-B-Deliverables-Matrix-Lot-2a-2b-2c-v3.ods",
+          "bytes": 97769,
+          "sha256": "1afaca21588c898197863df031761e95c5deeffd7e9c943a95e5ed76accccc15",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-B-Deliverables-Matrix-Lot-3a-3b-3c-v3.ods",
+          "bytes": 127203,
+          "sha256": "b0334645b876cb6fd2be8e1f41dd89f76e8e6c150ed110421d110409b1a6183a",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-C-KPI-Pay-Mech-Model-with-No-Data-v2.0.ods",
+          "bytes": 108185,
+          "sha256": "8813820237bd69099ad55c84d4f50adef0f35f4591decca4808fab02cedcd1c2",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Annex-D-Cyber-Essentials-Plus-Optional-V1.0.docx",
+          "bytes": 11640,
+          "sha256": "2b37d3b0c21f3ad153106c5874e0ac4c845fd324afc38ba3c9a9ab307a4f3be2",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-3-Specification-v3.0.docx",
+          "bytes": 426408,
+          "sha256": "8d3605383d95864fd121f8e8f7e2ae2c1f10d7c4882720de63de3fd1f4353e36",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-4-hard-facilities-management-2a-2b-2c-price-matrix-v4.0.ods",
+          "bytes": 2108583,
+          "sha256": "583be787d91b55f8adab768276dea509af3c05e49dca23264376de3dab98eebf",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-4-soft-facilities-management-3a-3b-3c-price-matrix-v3.0.ods",
+          "bytes": 2027471,
+          "sha256": "c6cae8c51fb5849ce0683159892f4a1f0df0aa26964228557aa4ea79a5622de2",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-4-total-facilities-management-1a-1b-1c-price-matrix-v3.0.ods",
+          "bytes": 3419566,
+          "sha256": "b07470e40c16b2be89f188f0baf03180018d971719fe086531b8815f369285e6",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-5-Order-Form-v3.0.docx",
+          "bytes": 90675,
+          "sha256": "cc393c3412f56465c9cc2a102c522b99e2c023d8c7056688efaf3d1ea285ff26",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-6-TUPE-Information-Capture-Template-v1.0.xlsx",
+          "bytes": 189051,
+          "sha256": "e9f700f3a21d449c933e881538c42dd1e5c9871a5311708de99fe597628b5cdd",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-7-price-matrix-buyers-guidance-v3.0.odt",
+          "bytes": 35152,
+          "sha256": "346d0d38ad7cfb593be29808359cfaa8acc4e6e02cf21ce9fc648ffa0efa1ca8",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232 Download all bid pack documents/RM6232-Attachment-7-price-matrix-suppliers-guidance-v3.0.odt",
+          "bytes": 30397,
+          "sha256": "f6eacbba58156ba0890a8621f368db50c77179be9c1aa8fb19a714672243abfc",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232-Download-all-bid-pack-documents.zip",
+          "bytes": 4687439,
+          "sha256": "45dc3d68a8b11686c25d9607070aea4f6d2320fcd97714d7d9aa49f293bb5088",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232-Download-all-call-off-schedules.zip",
+          "bytes": 1053773,
+          "sha256": "d33f8faac05c9f890b1d5d8eed2e001bbda8709d9b92d64ce7cd640bb0fd3ca9",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232-Download-all-framework-schedules.zip",
+          "bytes": 1878482,
+          "sha256": "57c00a4197917b724a581c423419b205d7e03794f8f99987f4a5689999f48aa0",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6232/RM6232-Download-all-joint-schedules.zip",
+          "bytes": 442538,
+          "sha256": "83f0fb9e4f00aa0392908b93afd1b8cc3f2e9f4c415caef8e38bb6484b8cb60d",
+          "tracked": true,
+          "gitignored": false
+        }
+      ],
+      "file_count": 21,
+      "bytes": 17748402
+    },
+    "RM6242": {
+      "source_urls": [],
+      "readme": false,
+      "files": [
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 1 RM6242 Construction Professional Services Filter Matrix V2.0.xlsx",
+          "bytes": 106172,
+          "sha256": "6bf323bafbc159edb9fe44a7fc37e5955f4a5a7388caf3ac6046cc3ad66a475e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 1a - Letter of Confirmation of Services (Contract Example 1)_v1.0.docx",
+          "bytes": 19822,
+          "sha256": "aaa13365950891fdd6fe9211b41cb42dfa7f804d27f50daff400b1f36c004117",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 1b - Letter of Confirmation of Services (Contract Example 1)_v1.0.docx",
+          "bytes": 19978,
+          "sha256": "ee5a345ad756496ee2aecd7b8a11d0f3d5140fadb467e4d55aa419117f2e8f09",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 2 - Management Information (MI) Reporting Table.xlsx",
+          "bytes": 30090,
+          "sha256": "93837aa2c0880320b9fe309f56ed10664337c7070a338e663139b64f60fcad9d",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 3 - Financial Assessment Template v1.xlsx",
+          "bytes": 59216,
+          "sha256": "af952db41d08778ab2bf016486a26d8adfbbab9783f983bb7b5f312823d32abc",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 4 - Additional Sub-Contractor(s) v1.xlsx",
+          "bytes": 304718,
+          "sha256": "73cd71ec2adb67abcf402017f88e3caf2b6b865921acce67fe424091c984c8e9",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 5 - Group of Economic Operators (Consortium) v1.xlsx",
+          "bytes": 17441,
+          "sha256": "13c48cba6b29c68065bf863c7c14e0299bbda8b3b36e43d8bf497b857b57d3f8",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 7 - Bid Pack Part 2 (Terms and Conditions).zip",
+          "bytes": 1356801,
+          "sha256": "f700abc7227492f6ab4b525c7d4926dcc2dd59cd97c8294587b3ae2dbd7d601c",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 7a - Bid Pack Part 3 (Terms and Conditions).zip",
+          "bytes": 861976,
+          "sha256": "986e3268ef6b7693f6ac7393687d4e59047b2711aae6fd7ca6504a994e515a81",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 7b - Bid Pack Part 4 (Terms and Conditions).zip",
+          "bytes": 599447,
+          "sha256": "663cd36556d8cea963b082d63e428c4577434d9d6f10c627c1b9af0a2c4a95a7",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 8 - Bid Pack Part 5 Non-Core (Terms and Conditions) (2).zip",
+          "bytes": 1791296,
+          "sha256": "42feb8f06780101d26a58b1cc89efe211e95f536db952e2d2e52eb3a9c58082b",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/Attachment 8 - Bid Pack Part 5 Non-Core (Terms and Conditions).zip",
+          "bytes": 1706228,
+          "sha256": "864d7ef4a126599ecc70a5d4d43883ac21185e26ec71a2f808491c0b96428c0f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/READ FIRST RM6242 - DPS Needs_v4.0.pdf",
+          "bytes": 612799,
+          "sha256": "bf94f66d968154248413b784a229c3454eb2860f8c758aad637d8e78f8960f5a",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/RM6242 Buyer Needs_v1.0.pdf",
+          "bytes": 420544,
+          "sha256": "74f6f79b5ea67cceceb92824ee20d14db124b6d6a862104404d6e36d05d16f82",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/RM6242 Customer Guidance V2.0.pdf",
+          "bytes": 584566,
+          "sha256": "8ddd7c1338894d4d25cb960f1f93758e847978e8e583486d8fb01016b41cab27",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6242/RM6242 Construction Professional Services Bid Pack v10/1/SQ_DPS_PROFILE_CONSTRUCTION_SERVICES--v9.pdf",
+          "bytes": 1587819,
+          "sha256": "f67514e680b35538650b6059044d1c540ffd36a9cbbe5d7b5a47f0647e0f3ded",
+          "tracked": false,
+          "gitignored": false
+        }
+      ],
+      "file_count": 16,
+      "bytes": 10078913
+    },
+    "RM6264": {
+      "source_urls": [
+        "https://www.gca.gov.uk/agreements/RM6264"
+      ],
+      "readme": true,
+      "title": "Agreement: Facilities Management and Workplace Services DPS Agreement ID: RM6264 URL:",
+      "files": [
+        {
+          "path": "bid-packs/RM6264/README.md",
+          "bytes": 129,
+          "sha256": "b8c61d3f4509149e05b714462d1617e2231883ca3b98126290d7c052b497a22b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/DPS Core Terms v1.0.3.docx",
+          "bytes": 84720,
+          "sha256": "e51756c27176ff69bc99f34e220d489e12901f7def9dcb5f456e925f8aa6286b",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 1 - Specification v1.0.docx",
+          "bytes": 81890,
+          "sha256": "3ff2c6856e4a16ccf6ad5a6546f94af10c465a40d3f132cb6b25cfd3c9ac078f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 2 - DPS Application v1.0.docx",
+          "bytes": 14656,
+          "sha256": "ce1f6fedcfe2ba1962b66204d064fce17bde5dd523a8e4a51cb151c4ada26530",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 4 - DPS Management v1.0.docx",
+          "bytes": 24919,
+          "sha256": "9bd6072b07284adc68f6b06af1b32ee0b401bb6fd7248defa195f5b0d37df011",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 5 - Management Levy and Information v1.0.docx",
+          "bytes": 128866,
+          "sha256": "91866c72fad84554378be19e0c54e362d0111eb1f6f838b2dca610580a01e86d",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 6 - Order form template and order schedules v1.0.docx",
+          "bytes": 871064,
+          "sha256": "c014d6f8531164bf125f1fa8f783b78655b3fd5efb48b557816ef65e592979d8",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 7 - Order Procedure v1.0.docx",
+          "bytes": 27087,
+          "sha256": "9066f2bef937b924847196a7a2ed0524ffb2db8c71fcc47d0e12ffb8b0564f28",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 8 - Self Audit Certificate v.1.0.docx",
+          "bytes": 14113,
+          "sha256": "e67167d853b0f5e144f53c116423cfd606e883315fbe77404fbc19e4486c4a62",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7 - Bid Pack Part 2 (Terms and Conditions)/RM6264 DPS Schedule 9 - Cyber Essentials Scheme v1.0.docx",
+          "bytes": 16852,
+          "sha256": "b8ad5d12703ec312af760eb6c617cfc1a313f4b0b429253fe405c7ade4ec3a61",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 1 - Definitions v1.0.docx",
+          "bytes": 71192,
+          "sha256": "20e0cbd03f81a48b410fb4adc852c15b5d216990169aa37ac7f5fc983d9bbb39",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 10 - Rectification Plan v1.0.docx",
+          "bytes": 15747,
+          "sha256": "2ec5bc3541d44e513d771ee9d07ee737ed66bb2048fd744763a19cc0c08266fb",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 11 - Processing Data v1.0.docx",
+          "bytes": 906411,
+          "sha256": "2b0e2195e531ae6c1f0bfe012c262494f60908b841bc41617bd97ec95c98e484",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 12 - Supply Chain Visibility v.1.0.docx",
+          "bytes": 63815,
+          "sha256": "b820387b82926703c3784c8e280a0f9a6e922c5417309de73625f2a68699f933",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 2 - Variation Form v.1.0.docx",
+          "bytes": 17443,
+          "sha256": "ae597a79f677b9c93e8da58df53ce046d41ccbe3676a9028ec16ce97374a3bf4",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 3 - Insurance Requirements v1.0.docx",
+          "bytes": 17559,
+          "sha256": "8fa02dbcf91330544928304e910a94f0570b41f42f5c82039b0083dc75d22876",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 4 - Commercially Sensitive Information v1.0.docx",
+          "bytes": 13810,
+          "sha256": "3913ca61a7fcbf34ae7ea3076391b03a9eaeba73ab29b967bea6d6eafaf0e477",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 5 - Corporate Social Responsibility v1.0.docx",
+          "bytes": 18114,
+          "sha256": "90f1c743d816baa75c52f5a0a5a9483cd0eb90ac38ae9226b4dc38f853db70bb",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 6 - Key Subcontractors v1.0.docx",
+          "bytes": 17194,
+          "sha256": "57cf2909218a6d20b9dacac06e141ec38d983515e746c7f5490e12e073090e40",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 7 - Financial Difficulties v1.0.docx",
+          "bytes": 39935,
+          "sha256": "d55a6a7ecc15f372260f691ae2f657ab14631760e3b0e7b46b782731f7d31319",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 8 - Guarantee v1.0.docx",
+          "bytes": 28031,
+          "sha256": "cff95e42d632964a285adc229c6bc52bc7452d4ff5953cb19f187ebdbce3412f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7a - Bid Pack Part 3 (Terms and Conditions)/RM6264 DPS Joint Schedule 9 - Minimum Standards of Reliability v1.0.docx",
+          "bytes": 14396,
+          "sha256": "435918c32032a8559a938ad22c41c66a4b62573a131a6283a8ecc3130a36c8bc",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 1 Transparency Reports v1.0.docx",
+          "bytes": 15961,
+          "sha256": "9363dccf8446d61ebcbc8a361fa3fb7031beb1e9ddbd064298af346c003c973e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 10 - Exit Management v1.0.docx",
+          "bytes": 26912,
+          "sha256": "7474474725b6c7f825d5e5e5d353e1616911b31ae17560356cda19beff2fbae4",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 11 - Installation Works v1.0.docx",
+          "bytes": 13870,
+          "sha256": "c3a524f63db596b210c7f022ebfa020839b9648ec3857e10f8d3bd709422dc0e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 12 - Clustering v1.0.docx",
+          "bytes": 17018,
+          "sha256": "e7580edb8c86863ab3774ded1dcdfd7a4dafca4a30b288654efdab01eaf1790f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 13 - Implementation Plan and Testing v1.0.docx",
+          "bytes": 34532,
+          "sha256": "babd52d8140a5a46dd5429475d6e23b58f14beab16f53328567df61557fe2fc7",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 14 - Service Levels v1.0.docx",
+          "bytes": 22058,
+          "sha256": "4df886bfbcd59cc3ccc04efd39b53cead5f11684fd9c413fc4a94684d94870a3",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 15 - Order Contract Management v1.0.docx",
+          "bytes": 26948,
+          "sha256": "d8f51ca4ac1a14b6149378c958828cf323be56e7a56f75df4d56abe36e6cced0",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 16 - Benchmarking v1.0.docx",
+          "bytes": 47369,
+          "sha256": "78603313e23abaf61d918912bb2483b5d02ccb046d11bc0ecc5c9d90bea17bc3",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 17 - MOD Terms V1.0.docx",
+          "bytes": 18339,
+          "sha256": "016061ca88b759c3d1e68eaf32aea5de9cdc2cecf9eb6e119a05cc790a6d012f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 18 - Background Checks v1.0.docx",
+          "bytes": 15560,
+          "sha256": "306239e3cd5f36be68d309e992f1a5e7aba65c8112bfb983688b4679b216135c",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 19 - Scottish Law v1.0.docx",
+          "bytes": 16256,
+          "sha256": "444e328eabffe950c0770a8783cef038a11b260d7833239c8a5d0ff4e9c7be86",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 2 - Staff Transfer v1.0.docx",
+          "bytes": 918564,
+          "sha256": "f6eb4b5b6c15b115a9c5b1e66f6df9472ecba4541dbed9ab0aaca06c22f5b9d2",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 20 - Specification v1.0.docx",
+          "bytes": 13197,
+          "sha256": "c8e639e59879a9ecafc02703065e3efb0a2b8f2f3999927f2426e97ead620077",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 21 - Northern Ireland Law v1.0.docx",
+          "bytes": 13586,
+          "sha256": "61ae754980901cd32dd1be2afc7bed91dafbb57d12485616065d007d4c55c817",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 22 - Lease Terms v.1.0.docx",
+          "bytes": 35261,
+          "sha256": "e03f7f308dabe547375e1ec2c2f3f6bcca7b38677facd816c0fa0e7add397f2f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 23 - HMRC v1.0.docx",
+          "bytes": 27359,
+          "sha256": "db1a9b1045787d8077a796ce63919b0f38407dd5943b8318bd703a4972d8d536",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 24 - Supplier Furnished Terms v1.0.docx",
+          "bytes": 14687,
+          "sha256": "c5706a22895a82759b5c94828eff3f780bfb3ed48ae541ee58486e45569c4d62",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 25 - Billable Works and Projects v1.0.docx",
+          "bytes": 24909,
+          "sha256": "f56068f09baa704b86893d349c7f5c851209fa9d4fbe626c4df16e82f3e65698",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 26 - Buyer Remedies for Default and Step in Rights v1.0.docx",
+          "bytes": 17312,
+          "sha256": "4f1fbf0728e9e4caed607632197b128e423ce9c7b4d5c3249895f7ae3a06497d",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 27 - Construction Contracts v1.0.docx",
+          "bytes": 18328,
+          "sha256": "1cacf86b2da8b7dbf7fbfe3eddc45c9906b452a6f7ecc0a948fe21e4001e4446",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 3 - Continuous Improvement v1.0.docx",
+          "bytes": 17696,
+          "sha256": "772d255882230d0573f1ed3e533ae608985b4f26af0203386d77110a75931307",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 4 - Order Tender v1.0.docx",
+          "bytes": 11319,
+          "sha256": "c541de4fd522b5298212fe0c4dad96a7c6d3d64c35f4dc65b0839e85c8084fc9",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 5 - Pricing Details v1.0.docx",
+          "bytes": 68041,
+          "sha256": "eecf16f175cc23144da190a3f6b141db64050e6b79035233727da10ff76f777e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 6 - ICT Services v1.0.docx",
+          "bytes": 40465,
+          "sha256": "62189d2d380291b420eb576218dedb95df8b910e133959dbbc767eca02c5179f",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 7 - Key Supplier Staff v1.0.docx",
+          "bytes": 14627,
+          "sha256": "3647f16a686d4c90c741d38b67625f91a0a127150d53d25d32283f28859f50e2",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 8 - Business Continuity and Disaster Recovery v1.0.docx",
+          "bytes": 31809,
+          "sha256": "89c4b64aba3bcdb20028a13fb247a0b889134135bd097ae71613ec9aef77798b",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Attachment 7b - Bid Pack Part 4 (Terms and Conditions)/RM6264 DPS Order Schedule 9 - Security v1.0.docx",
+          "bytes": 58351,
+          "sha256": "3b913fcc2beac9f9845e692b93f71425c54a73f9449aefe6f31a7ead4dccf63e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/READ FIRST RM6264 - DPS Needs v2.0.docx",
+          "bytes": 234624,
+          "sha256": "2a00e292c97fe5c1efa4bd251b154b938b3cfe387193e4acec65ae20b02392aa",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 1 - Facilities Management  and Workplace Services Product and Services Matrix v1.0.xlsx",
+          "bytes": 49985,
+          "sha256": "62fd69973dde9e07b0ab5ef9d19537cf380f54458411de442218bfd0fe743876",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 2 - FM and Workplace Services DPS MI Template V1.0.xlsx",
+          "bytes": 90165,
+          "sha256": "5d010f5efaa4d9f6c93877ae97152b53396dab3d5f4c946d5c022eb8c963b0e8",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 3 - Financial Viability Risk Assessment Instructions v2.0.docx",
+          "bytes": 30890,
+          "sha256": "e01e56c92b387bd6847cb60e4976cfb22dd24318f45b117f040a7d46b38666de",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 3a - Financial Viability Risk Assessment Tool v1.0.xlsx",
+          "bytes": 1122287,
+          "sha256": "58d9c6a351fb7db3cf9d4c3ac4edd30984a69b4b6711d4456725cdd04e90c241",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 4 - Additional Sub-Contractor(s) V1.0.xlsx",
+          "bytes": 302308,
+          "sha256": "ab651d00b546467a2e909cec7df66e3382a39326961784feee443f9d5ca3b113",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 5 - Group of Economic Operators v1.0.xlsx",
+          "bytes": 28041,
+          "sha256": "5d0a9fe3683aecc4c9dae5593c56c4faa502329e89c0937ee2fb1ef2a3faef6d",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 6 - Standard Selection Questionnaire v1.0.pdf",
+          "bytes": 598712,
+          "sha256": "b83bdd754e7827a7d215a7d1f92b75d4272dd4ae009ee9bc8dcf10925b58e61e",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Attachment 6a - DPSQ v1.0.pdf",
+          "bytes": 742412,
+          "sha256": "74f14003b177185d7a12bba397892af3753882b1d4e55e3e75afd512bf3ea05a",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6/Bid Pack Part 1 (General)/RM6264 - Buyer Needs v1.0.docx",
+          "bytes": 963638,
+          "sha256": "f6106ce8f78f2eeb4e7025bf9ed61718a1a6ea0891ed01d2efe13903b126ea61",
+          "tracked": false,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6264/RM6264 Facilities Management and Workplace Services_Bid Pack v.6.zip",
+          "bytes": 7155728,
+          "sha256": "5f7588726c7c1af950ad9d656d0fce02884aeac9e12cde674747414212224d83",
+          "tracked": false,
+          "gitignored": false
+        }
+      ],
+      "file_count": 60,
+      "bytes": 15387067
+    },
+    "RM6267": {
+      "source_urls": [
+        "https://www.gca.gov.uk/agreements/RM6267"
+      ],
+      "readme": true,
+      "title": "Agreement: Construction Works and Associated Services 2 (CWAS2) / ProCure 23 (P23)",
+      "files": [
+        {
+          "path": "bid-packs/RM6267/Attachment-3g-Pricing-Fluctuations-v1.0.docx.odt",
+          "bytes": 36433,
+          "sha256": "935cb4e540b3e5479c9787b4ed23cc5b067eda634871c6891bacb3ed1d840072",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/README.md",
+          "bytes": 152,
+          "sha256": "d30b2cf7c2ccf42c954440cfafbc04c5cd0a7ac929874ea62b94fe298f3d62a9",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/RM6267-Download-all-standard-boilerplate-amendments-1.zip",
+          "bytes": 421490,
+          "sha256": "cfe7ce3a4cb21765794839f477b4cce77692d0830be556db433c7297a0ddba0e",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/RM6267-Management-Information-Template-v1.ods",
+          "bytes": 12136,
+          "sha256": "93e7e402d4cdb3e0677aa26a2cdcf0efc0ee06593a9d252f23649bab0d957eb8",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/RM6267-P23-Schedules-1.zip",
+          "bytes": 1166382,
+          "sha256": "de750c8b4304057e45b0c14001f30c92b5db77412a8b4487e034e1c27e6b261b",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/RM6267-Specification-v2.docx",
+          "bytes": 339450,
+          "sha256": "b7b1e5cac7d97a967875cc67700f7f5828b8eee057891fce624be674aed2cff3",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/RM6267/RM6267_FAQs_v4.odt",
+          "bytes": 188373,
+          "sha256": "03038b4ca0ea20fb447b465b49040df7f0dcd12c7a5a015bb1a6707755007141",
+          "tracked": true,
+          "gitignored": false
+        }
+      ],
+      "file_count": 7,
+      "bytes": 2164416
+    },
+    "cas-version-5": {
+      "source_urls": [
+        "https://builduk.org/wp-content/uploads/2025/07/Common-Assessment-Standard-Question-Set-Version-5.pdf"
+      ],
+      "readme": true,
+      "title": "Reference: Common Assessment Standard - Question Set URL:",
+      "files": [
+        {
+          "path": "bid-packs/cas-version-5/Common-Assessment-Standard-Question-Set-Version-5.pdf",
+          "bytes": 944524,
+          "sha256": "13fc085818850e789ed9ffe2566fc123354bd664e22aefc1fd271795bc307171",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/cas-version-5/README.md",
+          "bytes": 161,
+          "sha256": "fb85c01630e9d190a7102d0f70286c5d17c52270276d198e93a84c211e45d61a",
+          "tracked": true,
+          "gitignored": false
+        }
+      ],
+      "file_count": 2,
+      "bytes": 944685
+    },
+    "ppn-03-24": {
+      "source_urls": [
+        "https://www.gov.uk/government/publications/ppn-0324-standard-selection-questionnaire-sq"
+      ],
+      "readme": true,
+      "title": "Reference: PPN 03/24: Standard Selection Questionnaire (SQ) URL:",
+      "files": [
+        {
+          "path": "bid-packs/ppn-03-24/README.md",
+          "bytes": 155,
+          "sha256": "40370d5fbff9548be0eeab1180027c757b31e85d3fda12419a0ef262cda30da2",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/ppn-03-24/annex-a-guidance-on-the-selection-stage-process-including-standard-selection-questions-pcr-2015-html.html",
+          "bytes": 227566,
+          "sha256": "894b31f35f6410f4f70c2ec5f6b5b0b7197ebd788cea3d9eeaadcf190a35a40d",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/ppn-03-24/annex-b-standard-selection-questions-html.html",
+          "bytes": 207565,
+          "sha256": "3c859593ccbd4638979db1a3f01691aa1a71e0c7963c9055171deb59c9bace27",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/ppn-03-24/annex-c-selection-questionnaire-template-single-procurement-document-spdhtml.html",
+          "bytes": 285663,
+          "sha256": "621aed689b0867eb4b9538260d7188a163949fa84bf3979b4e8e265cf003853a",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/ppn-03-24/annex-d-exclusion-grounds-public-procurement-html.html",
+          "bytes": 118975,
+          "sha256": "18f68eecaadff598bcb56ec9f4d2b02a834b9648143b623c2a45d436e42cd430",
+          "tracked": true,
+          "gitignored": false
+        },
+        {
+          "path": "bid-packs/ppn-03-24/standard-selection-questionnaire-ppn-03-24.pdf",
+          "bytes": 510231,
+          "sha256": "a512ddde67ba6b2850b289d930f8a2883b8c432e97953d29b2894e2814e5db73",
+          "tracked": true,
+          "gitignored": false
+        }
+      ],
+      "file_count": 6,
+      "bytes": 1350155
+    }
+  }
+}
