@@ -12,4 +12,4 @@ Fixture set for id-470 (procurement rebuild). Packs stay **committed** (owner ru
 | `cas-version-5` | Reference: Common Assessment Standard - Question Set URL: | 2 | 0.9 MB | https://builduk.org/wp-content/uploads/2025/07/Common-Assessment-Standard-Question-Set-Version-5.pdf | yes |
 | `ppn-03-24` | Reference: PPN 03/24: Standard Selection Questionnaire (SQ) URL: | 6 | 1.4 MB | https://www.gov.uk/government/publications/ppn-0324-standard-selection-questionnaire-sq | yes |
 
-Regenerate: `python3 scripts/bid_packs_manifest.py` (or re-run the S578 snippet in `git log -1 -- bid-packs/MANIFEST.json`).
+Regenerate: `python3 scripts/bid_packs_manifest.py` (from the repo root).

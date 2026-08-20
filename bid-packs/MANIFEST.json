@@ -1,5 +1,5 @@
 {
-  "generated_by": "S578 (id-470 Q8 — bid-packs stay committed; manifest added)",
+  "generated_by": "scripts/bid_packs_manifest.py (id-470 Q8 — bid-packs stay committed; manifest added S578)",
   "note": "Public procurement documents. Re-download from source_urls if a file is missing; sha256 verifies integrity.",
   "packs": {
     "RM1557.15": {
