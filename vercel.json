@@ -38,23 +38,5 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
     }
   ],
-  "regions": ["lhr1"],
-  "crons": [
-    {
-      "path": "/api/cron/intelligence-cleanup",
-      "schedule": "0 3 * * 0"
-    },
-    {
-      "path": "/api/cron/process-queue",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/datapath-watch",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/attachment-orphan-sweep",
-      "schedule": "0 4 * * *"
-    }
-  ]
+  "regions": ["lhr1"]
 }
