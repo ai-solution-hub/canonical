@@ -33,7 +33,7 @@ commonforms==0.2.1
 # 198 -> 154 on the SQ fixture and /Btn collapses 57 -> 1. Pin to the last
 # version that loads the checkpoint faithfully (matches requirements.lock).
 rfdetr==1.8.3
-pypdf==6.14.2
+pypdf==6.16.1
 
 # XLSX extraction (used by ID-52 Path B Python form extractor;
 # transitive via cocoindex today but pinned explicitly as a direct
