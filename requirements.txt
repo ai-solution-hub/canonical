@@ -14,7 +14,7 @@ extruct==0.18.0
 # beautifulsoup4 pin consolidated to the single ==4.15.0 declaration below (docling's
 # HTML backend section) — previously duplicated here as a floating >=4.12.0 floor,
 # which is a strict subset of ==4.15.0 anyway ({127.22}, S438 lockfile follow-up).
-lxml>=5.0.0
+lxml>=6.1.1
 
 # PDF extraction (used by Python scripts only; JS routes use unpdf)
 pdfplumber==0.11.9
