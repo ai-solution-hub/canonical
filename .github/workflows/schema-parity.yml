@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload schema dumps
         if: always() && hashFiles('schema-dumps/*') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: schema-parity-dumps
           path: schema-dumps/
@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload schema diff on mismatch
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: schema-parity-diff
           path: schema-parity.diff
