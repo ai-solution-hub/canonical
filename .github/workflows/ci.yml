@@ -59,7 +59,7 @@ jobs:
 
       - name: Detect changed paths
         id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
             python:
@@ -382,7 +382,7 @@ jobs:
       # targets staging by design).
 
       - name: Setup Supabase CLI (pinned)
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
         with:
           # 2.109.1 = the DR-095 floor and the version every S496/S497
           # measurement ran on. setup-cli with no `version:` installs
@@ -870,7 +870,7 @@ jobs:
 
       - name: Detect MCP-related path changes
         id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
             mcp:
@@ -1124,7 +1124,7 @@ jobs:
       # `environment: Staging` above is retained deliberately — it scopes the
       # SECRETS (AI keys, CRON_SECRET, TEST_USER_*_PASSWORD), not the database.
       - name: Setup Supabase CLI (pinned)
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
         with:
           # Keep in lockstep with e2e-smoke + e2e-nightly: an unpinned bump can
           # change the local demo credentials, which the assert below catches.

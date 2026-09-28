@@ -175,7 +175,7 @@ jobs:
           bun-version: "1.3.4"
 
       - name: Setup Supabase CLI (pinned)
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
         with:
           # Same pin as ci.yml's local-stack lanes — bump the two together.
           version: "2.109.1"

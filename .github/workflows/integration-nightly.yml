@@ -108,7 +108,7 @@ jobs:
       # to their published rows on timestamp; each run FAILED and published
       # anyway. 88 mock `q_a_pairs` reached staging that way.
       - name: Setup Supabase CLI (pinned)
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
         with:
           version: "2.109.1"
 
