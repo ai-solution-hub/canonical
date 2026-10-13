@@ -100,7 +100,7 @@ cocoindex[postgres,entity-resolution-llm]==1.0.18
 # below give PDF/DOCX/XLSX + chunking WITHOUT rapidocr; opencv-python-headless (X11-free)
 # supplies cv2 for the layout model. Pinned to stop unpinned-rebuild drift re-pulling
 # the full opencv variant.
-docling-slim[format-pdf-docling,models-local,format-docx,format-xlsx,feat-chunking]==2.108.0
+docling-slim[format-pdf-docling,models-local,format-docx,format-xlsx,feat-chunking]==2.132.0
 # This pin alone is NOT sufficient and was not, through S522: commonforms pulls
 # ultralytics and rfdetr->supervision, all three of which declare the full
 # opencv-python, so BOTH variants sat in requirements.lock and which one
